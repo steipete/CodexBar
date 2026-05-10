@@ -43,6 +43,7 @@ struct CodexBarApp: App {
 
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
+        Self.applyLanguagePreference(from: settings)
         let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
         managedCodexAccountCoordinator.onManagedAccountsDidChange = {
             _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
@@ -89,7 +90,10 @@ struct CodexBarApp: App {
                 updater: self.appDelegate.updaterController,
                 selection: self.preferencesSelection,
                 managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
-                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator)
+                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
+                runProviderLoginFlow: { provider in
+                    await self.appDelegate.runProviderLoginFlow(provider)
+                })
         }
         .defaultSize(width: PreferencesTab.general.preferredWidth, height: PreferencesTab.general.preferredHeight)
         .windowResizability(.contentSize)
@@ -99,6 +103,15 @@ struct CodexBarApp: App {
         self.preferencesSelection.tab = tab
         NSApp.activate(ignoringOtherApps: true)
         _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+    }
+
+    private static func applyLanguagePreference(from settings: SettingsStore) {
+        let language = settings.appLanguage
+        if language.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        } else {
+            UserDefaults.standard.set([language], forKey: "AppleLanguages")
+        }
     }
 }
 
@@ -278,6 +291,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     let updaterController: UpdaterProviding = makeUpdaterController()
+    private let confettiOverlayController = ScreenConfettiOverlayController()
+    private let confettiLogger = CodexBarLog.logger(LogCategories.confetti)
     private var statusController: StatusItemControlling?
     private var store: UsageStore?
     private var settings: SettingsStore?
@@ -285,6 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var preferencesSelection: PreferencesSelection?
     private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
     private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
+    private var hasInstalledWeeklyLimitResetObserver = false
 
     func configure(_ dependencies: Dependencies) {
         self.store = dependencies.store
@@ -307,10 +323,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.statusController?.openMenuFromShortcut()
             }
         }
+        if !self.hasInstalledWeeklyLimitResetObserver {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.handleWeeklyLimitResetNotification(_:)),
+                name: .codexbarWeeklyLimitReset,
+                object: nil)
+            self.hasInstalledWeeklyLimitResetObserver = true
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        self.confettiOverlayController.dismiss()
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
+    }
+
+    func runProviderLoginFlow(_ provider: UsageProvider) async {
+        self.ensureStatusController()
+        guard let statusController else { return }
+        await statusController.runLoginFlowFromSettings(provider: provider)
+    }
+
+    @objc private func handleWeeklyLimitResetNotification(_ notification: Notification) {
+        guard let event = notification.object as? WeeklyLimitResetEvent else { return }
+        guard self.settings?.confettiOnWeeklyLimitResetsEnabled == true else { return }
+        let origin = self.statusController?.celebrationOriginPoint(for: event.provider)
+        self.confettiLogger.info(
+            "Triggering confetti",
+            metadata: [
+                "provider": event.provider.rawValue,
+                "accountIdentifier": event.accountIdentifier,
+                "originKnown": origin == nil ? "0" : "1",
+            ])
+        self.confettiOverlayController.play(originInScreen: origin)
     }
 
     /// Use the classic (non-Liquid Glass) app icon on macOS versions before 26.
@@ -381,5 +426,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             PreferencesSelection(),
             fallbackManagedCodexAccountCoordinator,
             fallbackCodexAccountPromotionCoordinator)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }

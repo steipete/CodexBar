@@ -131,6 +131,10 @@ public struct AugmentCreditsResponse: Codable, Sendable {
     }
 
     public var creditsLimit: Double? {
+        if let available = self.usageUnitsAvailable, available > 0 {
+            return available
+        }
+
         guard let remaining = self.usageUnitsRemaining,
               let consumed = self.usageUnitsConsumedThisBillingCycle
         else {
@@ -222,6 +226,7 @@ public struct AugmentStatusSnapshot: Sendable {
 
     private static func formatResetDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: Date())
     }

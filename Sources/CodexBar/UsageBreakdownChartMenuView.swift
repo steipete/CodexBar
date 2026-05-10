@@ -34,6 +34,7 @@ struct UsageBreakdownChartMenuView: View {
                 Text("No usage breakdown data.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .accessibilityLabel("No usage breakdown data available.")
             } else {
                 Chart {
                     ForEach(model.points) { point in
@@ -64,6 +65,11 @@ struct UsageBreakdownChartMenuView: View {
                 }
                 .chartLegend(.hidden)
                 .frame(height: 130)
+                .accessibilityLabel("Usage breakdown chart")
+                .accessibilityValue(
+                    model.points.isEmpty
+                        ? "No data"
+                        : "\(model.points.count) days of usage data across \(model.services.count) services")
                 .chartOverlay { proxy in
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {
@@ -146,7 +152,7 @@ struct UsageBreakdownChartMenuView: View {
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
 
     private static func makeModel(from breakdown: [OpenAIDashboardDailyBreakdown]) -> Model {
-        let sorted = breakdown
+        let sorted = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: breakdown)
             .sorted { lhs, rhs in lhs.day < rhs.day }
 
         var points: [Point] = []

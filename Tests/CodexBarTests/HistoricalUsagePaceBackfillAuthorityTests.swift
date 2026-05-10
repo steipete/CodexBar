@@ -343,4 +343,45 @@ extension HistoricalUsagePaceTests {
         #expect(computed != nil)
         #expect(abs((computed?.deltaPercent ?? 0) - (linear?.deltaPercent ?? 0)) < 0.001)
     }
+
+    @MainActor
+    @Test
+    func `usage store computes linear pace for providers with quota windows`() throws {
+        let suite = "HistoricalUsagePaceTests-generic-provider-\(UUID().uuidString)"
+        let store = try Self.makeUsageStoreForBackfillTests(
+            suite: suite,
+            historyFileURL: Self.makeTempURL())
+
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 40,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+            resetDescription: nil)
+
+        let pace = store.weeklyPace(provider: .zai, window: window, now: now)
+
+        #expect(pace != nil)
+        #expect(abs((pace?.deltaPercent ?? 0) - (40 - (3.0 / 7.0 * 100.0))) < 0.001)
+    }
+
+    @MainActor
+    @Test
+    func `usage store returns nil pace when generic window lacks explicit duration`() throws {
+        let suite = "HistoricalUsagePaceTests-no-window-minutes-\(UUID().uuidString)"
+        let store = try Self.makeUsageStoreForBackfillTests(
+            suite: suite,
+            historyFileURL: Self.makeTempURL())
+
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 40,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+            resetDescription: nil)
+
+        let pace = store.weeklyPace(provider: .factory, window: window, now: now)
+
+        #expect(pace == nil)
+    }
 }

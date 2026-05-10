@@ -91,72 +91,78 @@ extension CostUsageScanner {
                 guard line.bytes.containsAscii(#""type":"assistant""#) else { return }
                 guard line.bytes.containsAscii(#""usage""#) else { return }
 
-                guard
-                    let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
-                    let type = obj["type"] as? String,
-                    type == "assistant"
-                else { return }
-                guard Self.matchesClaudeProviderFilter(obj: obj, filter: providerFilter) else { return }
+                autoreleasepool {
+                    guard
+                        let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
+                        let type = obj["type"] as? String,
+                        type == "assistant"
+                    else { return }
+                    guard Self.matchesClaudeProviderFilter(obj: obj, filter: providerFilter) else { return }
 
-                guard let tsText = obj["timestamp"] as? String else { return }
-                guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText) else { return }
+                    guard let tsText = obj["timestamp"] as? String else { return }
+                    guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText)
+                    else { return }
 
-                guard let message = obj["message"] as? [String: Any] else { return }
-                guard let model = message["model"] as? String else { return }
-                guard let usage = message["usage"] as? [String: Any] else { return }
+                    guard let message = obj["message"] as? [String: Any] else { return }
+                    guard let model = message["model"] as? String else { return }
+                    guard let usage = message["usage"] as? [String: Any] else { return }
 
-                let input = max(0, toInt(usage["input_tokens"]))
-                let cacheCreate = max(0, toInt(usage["cache_creation_input_tokens"]))
-                let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
-                let output = max(0, toInt(usage["output_tokens"]))
-                if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 { return }
+                    let input = max(0, toInt(usage["input_tokens"]))
+                    let cacheCreate = max(0, toInt(usage["cache_creation_input_tokens"]))
+                    let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
+                    let output = max(0, toInt(usage["output_tokens"]))
+                    if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 { return }
 
-                let cost = CostUsagePricing.claudeCostUSD(
-                    model: model,
-                    inputTokens: input,
-                    cacheReadInputTokens: cacheRead,
-                    cacheCreationInputTokens: cacheCreate,
-                    outputTokens: output)
-                let costNanos = cost.map { Int(($0 * costScale).rounded()) } ?? 0
-                let tokens = ClaudeTokens(
-                    input: input,
-                    cacheRead: cacheRead,
-                    cacheCreate: cacheCreate,
-                    output: output,
-                    costNanos: costNanos)
+                    let cost = CostUsagePricing.claudeCostUSD(
+                        model: model,
+                        inputTokens: input,
+                        cacheReadInputTokens: cacheRead,
+                        cacheCreationInputTokens: cacheCreate,
+                        outputTokens: output)
+                    let costNanos = cost.map { Int(($0 * costScale).rounded()) } ?? 0
+                    let tokens = ClaudeTokens(
+                        input: input,
+                        cacheRead: cacheRead,
+                        cacheCreate: cacheCreate,
+                        output: output,
+                        costNanos: costNanos)
 
-                guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
-                else { return }
+                    guard CostUsageDayRange.isInRange(
+                        dayKey: dayKey,
+                        since: range.scanSinceKey,
+                        until: range.scanUntilKey)
+                    else { return }
 
-                let messageId = message["id"] as? String
-                let requestId = obj["requestId"] as? String
-                let sessionId = obj["sessionId"] as? String
-                    ?? obj["session_id"] as? String
-                    ?? (obj["metadata"] as? [String: Any])?["sessionId"] as? String
-                    ?? (message["metadata"] as? [String: Any])?["sessionId"] as? String
-                let normalizedModel = CostUsagePricing.normalizeClaudeModel(model)
-                let row = ClaudeUsageRow(
-                    dayKey: dayKey,
-                    model: normalizedModel,
-                    sessionId: sessionId,
-                    messageId: messageId,
-                    requestId: requestId,
-                    isSidechain: toBool(obj["isSidechain"]),
-                    pathRole: pathRole,
-                    input: tokens.input,
-                    cacheRead: tokens.cacheRead,
-                    cacheCreate: tokens.cacheCreate,
-                    output: tokens.output,
-                    costNanos: tokens.costNanos)
+                    let messageId = message["id"] as? String
+                    let requestId = obj["requestId"] as? String
+                    let sessionId = obj["sessionId"] as? String
+                        ?? obj["session_id"] as? String
+                        ?? (obj["metadata"] as? [String: Any])?["sessionId"] as? String
+                        ?? (message["metadata"] as? [String: Any])?["sessionId"] as? String
+                    let normalizedModel = CostUsagePricing.normalizeClaudeModel(model)
+                    let row = ClaudeUsageRow(
+                        dayKey: dayKey,
+                        model: normalizedModel,
+                        sessionId: sessionId,
+                        messageId: messageId,
+                        requestId: requestId,
+                        isSidechain: toBool(obj["isSidechain"]),
+                        pathRole: pathRole,
+                        input: tokens.input,
+                        cacheRead: tokens.cacheRead,
+                        cacheCreate: tokens.cacheCreate,
+                        output: tokens.output,
+                        costNanos: tokens.costNanos)
 
-                // Streaming chunks share message.id + requestId inside a file.
-                // Keep overwriting so the final cumulative chunk wins.
-                if let messageId, let requestId {
-                    let key = "\(messageId):\(requestId)"
-                    keyedRows[key] = row
-                } else {
-                    // Older logs omit IDs; treat each line as distinct to avoid dropping usage.
-                    unkeyedRows.append(row)
+                    // Streaming chunks share message.id + requestId inside a file.
+                    // Keep overwriting so the final cumulative chunk wins.
+                    if let messageId, let requestId {
+                        let key = "\(messageId):\(requestId)"
+                        keyedRows[key] = row
+                    } else {
+                        // Older logs omit IDs; treat each line as distinct to avoid dropping usage.
+                        unkeyedRows.append(row)
+                    }
                 }
             })) ?? startOffset
 

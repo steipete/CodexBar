@@ -6,6 +6,23 @@ final class AugmentStatusProbeTests: XCTestCase {
         try AugmentStatusProbe(baseURL: XCTUnwrap(URL(string: "http://127.0.0.1:1")), timeout: 0.1)
     }
 
+    @MainActor
+    func test_sessionKeepaliveStartLogsActualIntervals() {
+        var messages: [String] = []
+        let keepalive = AugmentSessionKeepalive { message in
+            messages.append(message)
+        }
+
+        keepalive.start()
+        defer { keepalive.stop() }
+
+        XCTAssertTrue(messages.contains { $0.contains("Check interval: 60s (1 minute)") })
+        XCTAssertTrue(messages.contains { $0.contains("Refresh buffer: 300s (5 minutes before expiry)") })
+        XCTAssertTrue(messages.contains { $0.contains("Min refresh interval: 60s (1 minute)") })
+        XCTAssertFalse(messages.contains { $0.contains("every 5 minutes") })
+        XCTAssertFalse(messages.contains { $0.contains("2 minutes") })
+    }
+
     func test_debugRawProbe_returnsFormattedOutput() async throws {
         // Given: A probe instance
         let probe = try self.failingProbe()
@@ -87,6 +104,44 @@ final class AugmentStatusProbeTests: XCTestCase {
         XCTAssertTrue(
             output.contains("Credits Balance") || output.contains("Probe Failed"),
             "Should contain credits information or failure message")
+    }
+
+    func test_creditsLimit_prefersUsageUnitsAvailable() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageUnitsAvailable": 100,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 100)
+    }
+
+    func test_creditsLimit_fallsBackToRemainingPlusConsumedWhenAvailableMissing() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 25)
+    }
+
+    func test_creditsLimit_ignoresZeroAvailableValue() throws {
+        let response = try JSONDecoder().decode(AugmentCreditsResponse.self, from: Data("""
+        {
+          "usageUnitsRemaining": 15,
+          "usageUnitsConsumedThisBillingCycle": 10,
+          "usageUnitsAvailable": 0,
+          "usageBalanceStatus": "active"
+        }
+        """.utf8))
+
+        XCTAssertEqual(response.creditsLimit, 25)
     }
 
     // MARK: - Cookie Domain Filtering Tests

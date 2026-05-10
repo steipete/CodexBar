@@ -15,24 +15,25 @@ enum CLIRenderer {
         context: RenderContext) -> String
     {
         let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
+        let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
         let now = Date()
         var lines: [String] = []
         lines.append(self.headerLine(context.header, useColor: context.useColor))
         self.appendPrimaryLines(
             provider: provider,
             snapshot: snapshot,
-            metadata: meta,
+            labels: labels,
             context: context,
             now: now,
             lines: &lines)
         self.appendSecondaryLines(
             provider: provider,
             snapshot: snapshot,
-            metadata: meta,
+            labels: labels,
             context: context,
             now: now,
             lines: &lines)
-        self.appendTertiaryLines(snapshot: snapshot, metadata: meta, context: context, now: now, lines: &lines)
+        self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
         self.appendCreditsLine(provider: provider, credits: credits, useColor: context.useColor, lines: &lines)
         self.appendIdentityAndNotes(
             provider: provider,
@@ -62,7 +63,7 @@ enum CLIRenderer {
     private static func appendPrimaryLines(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        metadata: ProviderMetadata,
+        labels: RateWindowLabels,
         context: RenderContext,
         now: Date,
         lines: inout [String])
@@ -70,7 +71,7 @@ enum CLIRenderer {
         if let primary = snapshot.primary {
             self.appendRateWindowLines(
                 provider: provider,
-                title: metadata.sessionLabel,
+                title: labels.primary,
                 window: primary,
                 includePace: false,
                 context: context,
@@ -90,7 +91,7 @@ enum CLIRenderer {
     private static func appendSecondaryLines(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        metadata: ProviderMetadata,
+        labels: RateWindowLabels,
         context: RenderContext,
         now: Date,
         lines: inout [String])
@@ -98,7 +99,7 @@ enum CLIRenderer {
         guard let weekly = snapshot.secondary else { return }
         self.appendRateWindowLines(
             provider: provider,
-            title: metadata.weeklyLabel,
+            title: labels.secondary,
             window: weekly,
             includePace: true,
             context: context,
@@ -108,16 +109,43 @@ enum CLIRenderer {
 
     private static func appendTertiaryLines(
         snapshot: UsageSnapshot,
-        metadata: ProviderMetadata,
+        labels: RateWindowLabels,
         context: RenderContext,
         now: Date,
         lines: inout [String])
     {
-        guard metadata.supportsOpus, let opus = snapshot.tertiary else { return }
-        lines.append(self.rateLine(title: metadata.opusLabel ?? "Sonnet", window: opus, useColor: context.useColor))
+        guard labels.showsTertiary, let opus = snapshot.tertiary else { return }
+        lines.append(self.rateLine(title: labels.tertiary, window: opus, useColor: context.useColor))
         if let reset = self.resetLine(for: opus, style: context.resetStyle, now: now) {
             lines.append(self.subtleLine(reset, useColor: context.useColor))
         }
+    }
+
+    private struct RateWindowLabels {
+        let primary: String
+        let secondary: String
+        let tertiary: String
+        let showsTertiary: Bool
+    }
+
+    private static func rateWindowLabels(
+        provider: UsageProvider,
+        metadata: ProviderMetadata,
+        snapshot: UsageSnapshot) -> RateWindowLabels
+    {
+        if provider == .factory, snapshot.tertiary != nil {
+            return RateWindowLabels(
+                primary: "5-hour",
+                secondary: "Weekly",
+                tertiary: "Monthly",
+                showsTertiary: true)
+        }
+
+        return RateWindowLabels(
+            primary: metadata.sessionLabel,
+            secondary: metadata.weeklyLabel,
+            tertiary: metadata.opusLabel ?? "Sonnet",
+            showsTertiary: metadata.supportsOpus)
     }
 
     private static func appendCreditsLine(
@@ -199,7 +227,9 @@ enum CLIRenderer {
         now: Date,
         lines: inout [String])
     {
-        if provider == .warp || provider == .kilo {
+        if provider == .warp || provider == .kilo || provider == .mistral || provider == .deepseek ||
+            provider == .crof
+        {
             if let reset = self.resetLineForDetailBackedWindow(window: window, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
@@ -223,7 +253,7 @@ enum CLIRenderer {
         style: ResetTimeDisplayStyle,
         now: Date) -> String?
     {
-        // Warp/Kilo use resetDescription for non-reset detail.
+        // Some provider snapshots use resetDescription for non-reset detail.
         // Only render "Resets ..." when a concrete reset date exists.
         guard window.resetsAt != nil else { return nil }
         let resetOnlyWindow = RateWindow(

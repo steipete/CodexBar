@@ -85,4 +85,17 @@ struct KimiK2UsageFetcherTests {
             return message == "Root JSON is not an object."
         }
     }
+
+    @Test
+    func `converts api key credits into text only snapshot`() {
+        let usage = KimiK2UsageSummary(
+            consumed: 10,
+            remaining: 25,
+            averageTokens: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        #expect(usage.primary == nil)
+        #expect(usage.identity?.providerID == .kimik2)
+        #expect(usage.identity?.loginMethod == "Credits: 25 left")
+    }
 }

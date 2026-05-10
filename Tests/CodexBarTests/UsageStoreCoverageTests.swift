@@ -134,7 +134,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func backgroundRefreshOnlyTracksEnabledProviders() throws {
+    func `background refresh only tracks enabled providers`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-refresh")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -167,7 +167,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func cleanupPreservesEnabledButUnavailableProviderState() throws {
+    func `cleanup preserves enabled but unavailable provider state`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-preserve-unavailable")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -204,7 +204,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func backgroundWorkExcludesEnabledButUnavailableProviders() throws {
+    func `background work excludes enabled but unavailable providers`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-unavailable")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -229,7 +229,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func visibleUnavailableProviderGetsExplicitUserFacingState() throws {
+    func `visible unavailable provider gets explicit user facing state`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-unavailable-message")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -256,7 +256,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func refreshClearsEnabledButUnavailableCachedState() async throws {
+    func `refresh clears enabled but unavailable cached state`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-cleanup")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -305,7 +305,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func refreshClearsEnabledButUnavailableFailureState() async throws {
+    func `refresh clears enabled but unavailable failure state`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-failure-cleanup")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -340,7 +340,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func unavailableProviderWithOnlyCachedStatusGetsSingleCleanupPass() async throws {
+    func `unavailable provider with only cached status gets single cleanup pass`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-status-cleanup")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = true
@@ -372,7 +372,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func statusIndicatorsAndFailureGate() {
+    func `status indicators and failure gate`() {
         #expect(!ProviderStatusIndicator.none.hasIssue)
         #expect(ProviderStatusIndicator.maintenance.hasIssue)
         #expect(ProviderStatusIndicator.unknown.label == "Status unknown")
@@ -387,6 +387,15 @@ struct UsageStoreCoverageTests {
         #expect(third)
         gate.reset()
         #expect(gate.streak == 0)
+    }
+
+    @Test
+    func `token account error message ignores cancellation`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-token-account-cancel")
+        let store = Self.makeUsageStore(settings: settings)
+
+        #expect(store.tokenAccountErrorMessage(CancellationError()) == nil)
+        #expect(store.tokenAccountErrorMessage(ProviderFetchError.noAvailableStrategy(.copilot)) != nil)
     }
 
     private static func makeSettingsStore(
@@ -423,7 +432,8 @@ struct UsageStoreCoverageTests {
         UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+            settings: settings,
+            environmentBase: [:])
     }
 }
 

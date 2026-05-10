@@ -11,6 +11,11 @@ extension SettingsStore {
         _ = self.debugKeepCLISessionsAlive
         _ = self.statusChecksEnabled
         _ = self.sessionQuotaNotificationsEnabled
+        _ = self.quotaWarningNotificationsEnabled
+        _ = self.quotaWarningThresholds
+        _ = self.quotaWarningWindowEnabled(.session)
+        _ = self.quotaWarningWindowEnabled(.weekly)
+        _ = self.quotaWarningSoundEnabled
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.menuBarShowsBrandIconWithPercent
@@ -22,12 +27,14 @@ extension SettingsStore {
         _ = self.costUsageEnabled
         _ = self.hidePersonalInfo
         _ = self.randomBlinkEnabled
+        _ = self.confettiOnWeeklyLimitResetsEnabled
         _ = self.claudeOAuthKeychainPromptMode
         _ = self.claudeOAuthKeychainReadStrategy
         _ = self.claudeWebExtrasEnabled
         _ = self.showOptionalCreditsAndExtraUsage
         _ = self.openAIWebAccessEnabled
         _ = self.openAIWebBatterySaverEnabled
+        _ = self.providerStorageFootprintsEnabled
         _ = self.codexUsageDataSource
         _ = self.codexActiveSource
         _ = self.claudeUsageDataSource

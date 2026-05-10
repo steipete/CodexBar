@@ -1,0 +1,12 @@
+# CodexBar
+
+CodexBar shows OpenAI Codex and Claude Code usage limits in the macOS menu bar.
+
+Canonical documentation:
+- CodexBar — every AI coding limit in your menu bar: https://codexbar.app/ - A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 29 providers — Codex, Claude, Cursor, Gemini, Copilot, and 24 more.
+
+Source: https://github.com/steipete/CodexBar
+
+Guidance for agents:
+- Prefer the canonical documentation URLs above over README excerpts or package metadata.
+- Fetch only the pages needed for the current task; this is an index, not a full-site corpus.

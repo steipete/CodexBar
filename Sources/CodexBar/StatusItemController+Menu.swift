@@ -10,25 +10,71 @@ extension StatusItemController {
     private static let menuCardBaseWidth: CGFloat = 310
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
     private static let overviewRowIdentifierPrefix = "overviewRow-"
-    private static let menuOpenRefreshDelay: Duration = .seconds(1.2)
+    private static let defaultMenuOpenRefreshDelay: Duration = .seconds(1.2)
+    #if DEBUG
+    private static var menuOpenRefreshDelayForTesting: Duration = .seconds(1.2)
+    static func setMenuOpenRefreshDelayForTesting(_ delay: Duration) {
+        self.menuOpenRefreshDelayForTesting = delay
+    }
+
+    static func resetMenuOpenRefreshDelayForTesting() {
+        self.menuOpenRefreshDelayForTesting = self.defaultMenuOpenRefreshDelay
+    }
+    #endif
+
+    private static var menuOpenRefreshDelay: Duration {
+        #if DEBUG
+        menuOpenRefreshDelayForTesting
+        #else
+        defaultMenuOpenRefreshDelay
+        #endif
+    }
+
     static let usageBreakdownChartID = "usageBreakdownChart"
     static let creditsHistoryChartID = "creditsHistoryChart"
     static let costHistoryChartID = "costHistoryChart"
     static let usageHistoryChartID = "usageHistoryChart"
+    static let storageBreakdownID = "storageBreakdown"
 
-    private func menuCardWidth(for providers: [UsageProvider], menu: NSMenu? = nil) -> CGFloat {
-        _ = menu
-        return Self.menuCardBaseWidth
+    private func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
+        switch action {
+        case .refresh:
+            ("r", [.command])
+        case .settings:
+            (",", [.command])
+        case .quit:
+            ("q", [.command])
+        default:
+            nil
+        }
+    }
+
+    private func menuCardWidth(
+        for providers: [UsageProvider],
+        sections: [MenuDescriptor.Section]) -> CGFloat
+    {
+        _ = providers
+        let baselineWidth = Self.menuCardBaseWidth
+        return max(baselineWidth, self.measuredStandardMenuWidth(for: sections, baseWidth: baselineWidth))
+    }
+
+    private func measuredStandardMenuWidth(for sections: [MenuDescriptor.Section], baseWidth: CGFloat) -> CGFloat {
+        let measuringMenu = NSMenu()
+        measuringMenu.autoenablesItems = false
+        self.addActionableSections(sections, to: measuringMenu, width: baseWidth)
+        return ceil(measuringMenu.size.width)
+    }
+
+    func renderedMenuWidth(for menu: NSMenu) -> CGFloat {
+        let measuredWidth = ceil(menu.size.width)
+        return max(measuredWidth, Self.menuCardBaseWidth)
     }
 
     func makeMenu() -> NSMenu {
         guard self.shouldMergeIcons else {
             return self.makeMenu(for: nil)
         }
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        menu.delegate = self
-        return menu
+        return self.makeBaseMenu()
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -38,7 +84,11 @@ extension StatusItemController {
             if Self.menuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
                 self.store.requestOpenAIDashboardRefreshIfStale(reason: "submenu open")
             }
-            self.openMenus[ObjectIdentifier(menu)] = menu
+            if Self.menuRefreshEnabled {
+                // Intentionally skip open-menu tracking when refresh is disabled (tests).
+                // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
+                self.openMenus[ObjectIdentifier(menu)] = menu
+            }
             // Removed redundant async refresh - single pass is sufficient after initial layout
             return
         }
@@ -68,7 +118,11 @@ extension StatusItemController {
             self.markMenuFresh(menu)
             // Heights are already set during populateMenu, no need to remeasure
         }
-        self.openMenus[ObjectIdentifier(menu)] = menu
+        if Self.menuRefreshEnabled {
+            // Intentionally skip open-menu tracking when refresh is disabled (tests).
+            // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
+            self.openMenus[ObjectIdentifier(menu)] = menu
+        }
         // Only schedule refresh after menu is registered as open - refreshNow is called async
         if Self.menuRefreshEnabled {
             self.scheduleOpenMenuRefresh(for: menu)
@@ -76,6 +130,10 @@ extension StatusItemController {
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        self.forgetClosedMenu(menu)
+    }
+
+    func forgetClosedMenu(_ menu: NSMenu) {
         let key = ObjectIdentifier(menu)
 
         self.openMenus.removeValue(forKey: key)
@@ -114,7 +172,6 @@ extension StatusItemController {
         } else {
             switcherSelection?.provider ?? provider
         }
-        let menuWidth = self.menuCardWidth(for: enabledProviders, menu: menu)
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
         let codexAccountDisplay = isOverviewSelected ? nil : self.codexAccountMenuDisplay(for: currentProvider)
         let tokenAccountDisplay = isOverviewSelected ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
@@ -122,6 +179,16 @@ extension StatusItemController {
         let openAIContext = self.openAIWebContext(
             currentProvider: currentProvider,
             showAllTokenAccounts: showAllTokenAccounts)
+        let descriptor = MenuDescriptor.build(
+            provider: selectedProvider,
+            store: self.store,
+            settings: self.settings,
+            account: self.account,
+            managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+            codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
+            updateReady: self.updater.updateStatus.isUpdateReady,
+            includeContextualActions: !isOverviewSelected)
+        let menuWidth = self.menuCardWidth(for: enabledProviders, sections: descriptor.sections)
 
         let hasTokenSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let hasCodexSwitcher = menu.items.contains { $0.view is CodexAccountSwitcherView }
@@ -132,6 +199,13 @@ extension StatusItemController {
         let tokenSwitcherCompatible = tokenAccountDisplay == nil && !hasTokenSwitcher
         let codexSwitcherCompatible = codexAccountDisplay == self.lastCodexAccountMenuDisplay &&
             ((codexAccountDisplay == nil && !hasCodexSwitcher) || (codexAccountDisplay != nil && hasCodexSwitcher))
+        let reusableRowWidthsMatch = self.reusableFixedWidthRows(in: menu).allSatisfy { item in
+            guard let view = item.view else { return false }
+            return abs(view.frame.width - menuWidth) <= 0.5
+        }
+        let providerSwitcherWidthMatches = (menu.items.first?.view as? ProviderSwitcherView).map { view in
+            abs(view.frame.width - menuWidth) <= 0.5
+        } ?? false
         let canSmartUpdate = self.shouldMergeIcons &&
             enabledProviders.count > 1 &&
             !isOverviewSelected &&
@@ -141,36 +215,79 @@ extension StatusItemController {
             switcherOverviewAvailabilityMatches &&
             tokenSwitcherCompatible &&
             codexSwitcherCompatible &&
+            reusableRowWidthsMatch &&
             !menu.items.isEmpty &&
             menu.items.first?.view is ProviderSwitcherView
 
+        #if DEBUG
+        if self.openMenus[ObjectIdentifier(menu)] != nil {
+            self.menuLogger.debug(
+                "populateMenu(open): provider=\(String(describing: provider)) " +
+                    "display=\(enabledProviders.map(\.rawValue)) " +
+                    "available=\(self.store.enabledProviders().map(\.rawValue)) " +
+                    "selection=\(String(describing: switcherSelection)) " +
+                    "last=\(String(describing: self.lastMergedSwitcherSelection)) " +
+                    "smart=\(canSmartUpdate)")
+        }
+        #endif
+
         if canSmartUpdate {
-            self.updateMenuContent(
+            self.updateMenuContentPreservingSwitcher(
                 menu,
-                provider: selectedProvider,
-                currentProvider: currentProvider,
-                menuWidth: menuWidth,
-                openAIContext: openAIContext)
+                context: MenuUpdateContext(
+                    provider: selectedProvider,
+                    currentProvider: currentProvider,
+                    switcherSelection: switcherSelection ?? .provider(currentProvider),
+                    menuWidth: menuWidth,
+                    codexAccountDisplay: nil,
+                    tokenAccountDisplay: nil,
+                    openAIContext: openAIContext))
             return
         }
 
+        let canPreserveProviderSwitcher = self.shouldMergeIcons &&
+            enabledProviders.count > 1 &&
+            switcherProvidersMatch &&
+            switcherUsageBarsShowUsedMatch &&
+            switcherOverviewAvailabilityMatches &&
+            providerSwitcherWidthMatches &&
+            !menu.items.isEmpty &&
+            menu.items.first?.view is ProviderSwitcherView
+
+        #if DEBUG
+        if self.openMenus[ObjectIdentifier(menu)] != nil {
+            self.menuLogger.debug(
+                "populateMenu(open): preserveSwitcher=\(canPreserveProviderSwitcher) " +
+                    "widthMatch=\(providerSwitcherWidthMatches)")
+        }
+        #endif
+
+        if canPreserveProviderSwitcher {
+            self.updateMenuContentPreservingSwitcher(
+                menu,
+                context: MenuUpdateContext(
+                    provider: selectedProvider,
+                    currentProvider: currentProvider,
+                    switcherSelection: switcherSelection ?? .provider(currentProvider),
+                    menuWidth: menuWidth,
+                    codexAccountDisplay: codexAccountDisplay,
+                    tokenAccountDisplay: tokenAccountDisplay,
+                    openAIContext: openAIContext))
+            return
+        }
+
+        #if DEBUG
+        if self.openMenus[ObjectIdentifier(menu)] != nil, menu.items.first?.view is ProviderSwitcherView {
+            self.menuLogger.debug("populateMenu(open): rebuilding whole menu and replacing provider switcher")
+        }
+        #endif
         menu.removeAllItems()
-
-        let descriptor = MenuDescriptor.build(
-            provider: selectedProvider,
-            store: self.store,
-            settings: self.settings,
-            account: self.account,
-            managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
-            codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
-            updateReady: self.updater.updateStatus.isUpdateReady,
-            includeContextualActions: !isOverviewSelected)
-
         self.addProviderSwitcherIfNeeded(
             to: menu,
             enabledProviders: enabledProviders,
             includesOverview: includesOverview,
-            selection: switcherSelection ?? .provider(currentProvider))
+            selection: switcherSelection ?? .provider(currentProvider),
+            width: menuWidth)
         // Track which providers the switcher was built with for smart update detection
         if self.shouldMergeIcons, enabledProviders.count > 1 {
             self.lastSwitcherProviders = enabledProviders
@@ -178,96 +295,99 @@ extension StatusItemController {
             self.lastMergedSwitcherSelection = switcherSelection
             self.lastSwitcherIncludesOverview = includesOverview
         }
-        self.addCodexAccountSwitcherIfNeeded(to: menu, display: codexAccountDisplay)
+        self.addCodexAccountSwitcherIfNeeded(to: menu, display: codexAccountDisplay, width: menuWidth)
         self.lastCodexAccountMenuDisplay = codexAccountDisplay
-        self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay)
+        self.addTokenAccountSwitcherIfNeeded(to: menu, display: tokenAccountDisplay, width: menuWidth)
         let menuContext = MenuCardContext(
             currentProvider: currentProvider,
             selectedProvider: selectedProvider,
             menuWidth: menuWidth,
             tokenAccountDisplay: tokenAccountDisplay,
             openAIContext: openAIContext)
-        if isOverviewSelected {
-            if self.addOverviewRows(
-                to: menu,
-                enabledProviders: enabledProviders,
-                menuWidth: menuWidth)
-            {
-                menu.addItem(.separator())
-            } else {
-                self.addOverviewEmptyState(to: menu, enabledProviders: enabledProviders)
-                menu.addItem(.separator())
-            }
-        } else {
-            let addedOpenAIWebItems = self.addMenuCards(to: menu, context: menuContext)
-            self.addOpenAIWebItemsIfNeeded(
-                to: menu,
-                currentProvider: currentProvider,
-                context: openAIContext,
-                addedOpenAIWebItems: addedOpenAIWebItems)
-            if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
-                menu.addItem(.separator())
-            }
-        }
+        self.addPrimaryMenuContent(
+            to: menu,
+            context: menuContext,
+            switcherSelection: switcherSelection ?? .provider(currentProvider))
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
     }
 
-    /// Smart update: only rebuild content sections when switching providers (keep the switcher intact).
-    private func updateMenuContent(
+    private func reusableFixedWidthRows(in menu: NSMenu) -> [NSMenuItem] {
+        guard !menu.items.isEmpty else { return [] }
+
+        var reusableRows: [NSMenuItem] = []
+        var index = 0
+        if menu.items.first?.view is ProviderSwitcherView {
+            reusableRows.append(menu.items[0])
+            index = 2
+        }
+        if menu.items.count > index,
+           menu.items[index].view is CodexAccountSwitcherView
+        {
+            reusableRows.append(menu.items[index])
+            index += 2
+        }
+        if menu.items.count > index,
+           menu.items[index].view is TokenAccountSwitcherView
+        {
+            reusableRows.append(menu.items[index])
+        }
+        return reusableRows
+    }
+
+    /// Smart update: rebuild everything below the provider switcher while keeping the switcher view intact.
+    private struct MenuUpdateContext {
+        let provider: UsageProvider?
+        let currentProvider: UsageProvider
+        let switcherSelection: ProviderSwitcherSelection
+        let menuWidth: CGFloat
+        let codexAccountDisplay: CodexAccountMenuDisplay?
+        let tokenAccountDisplay: TokenAccountMenuDisplay?
+        let openAIContext: OpenAIWebContext
+    }
+
+    /// Smart update: rebuild everything below the provider switcher while keeping the switcher view intact.
+    private func updateMenuContentPreservingSwitcher(
         _ menu: NSMenu,
-        provider: UsageProvider?,
-        currentProvider: UsageProvider,
-        menuWidth: CGFloat,
-        openAIContext: OpenAIWebContext)
+        context: MenuUpdateContext)
     {
         // Batch menu updates to prevent visual flickering during provider switch.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
-        var contentStartIndex = 0
-        if menu.items.first?.view is ProviderSwitcherView {
-            contentStartIndex = 2
-        }
-        if menu.items.count > contentStartIndex,
-           menu.items[contentStartIndex].view is CodexAccountSwitcherView
-        {
-            contentStartIndex += 2
-        }
-        if menu.items.count > contentStartIndex,
-           menu.items[contentStartIndex].view is TokenAccountSwitcherView
-        {
-            contentStartIndex += 2
-        }
+        let contentStartIndex = menu.items.first?.view is ProviderSwitcherView ? 2 : 0
+        (menu.items.first?.view as? ProviderSwitcherView)?.updateSelection(context.switcherSelection)
         while menu.items.count > contentStartIndex {
             menu.removeItem(at: contentStartIndex)
         }
 
+        self.lastMergedSwitcherSelection = context.switcherSelection
+        let enabledProviders = self.store.enabledProvidersForDisplay()
+        self.lastSwitcherProviders = enabledProviders
+        self.lastSwitcherUsageBarsShowUsed = self.settings.usageBarsShowUsed
+        self.lastSwitcherIncludesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
+        self.addCodexAccountSwitcherIfNeeded(to: menu, display: context.codexAccountDisplay, width: context.menuWidth)
+        self.lastCodexAccountMenuDisplay = context.codexAccountDisplay
+        self.addTokenAccountSwitcherIfNeeded(to: menu, display: context.tokenAccountDisplay, width: context.menuWidth)
+
         let descriptor = MenuDescriptor.build(
-            provider: provider,
+            provider: context.provider,
             store: self.store,
             settings: self.settings,
             account: self.account,
             managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
             codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
-            updateReady: self.updater.updateStatus.isUpdateReady)
+            updateReady: self.updater.updateStatus.isUpdateReady,
+            includeContextualActions: context.switcherSelection != .overview)
 
         let menuContext = MenuCardContext(
-            currentProvider: currentProvider,
-            selectedProvider: provider,
-            menuWidth: menuWidth,
-            tokenAccountDisplay: nil,
-            openAIContext: openAIContext)
-        let addedOpenAIWebItems = self.addMenuCards(to: menu, context: menuContext)
-        self.addOpenAIWebItemsIfNeeded(
-            to: menu,
-            currentProvider: currentProvider,
-            context: openAIContext,
-            addedOpenAIWebItems: addedOpenAIWebItems)
-        if self.addUsageHistoryMenuItemIfNeeded(to: menu, provider: currentProvider) {
-            menu.addItem(.separator())
-        }
-        self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
+            currentProvider: context.currentProvider,
+            selectedProvider: context.provider,
+            menuWidth: context.menuWidth,
+            tokenAccountDisplay: context.tokenAccountDisplay,
+            openAIContext: context.openAIContext)
+        self.addPrimaryMenuContent(to: menu, context: menuContext, switcherSelection: context.switcherSelection)
+        self.addActionableSections(descriptor.sections, to: menu, width: context.menuWidth)
     }
 
     private struct OpenAIWebContext {
@@ -313,28 +433,30 @@ extension StatusItemController {
         to menu: NSMenu,
         enabledProviders: [UsageProvider],
         includesOverview: Bool,
-        selection: ProviderSwitcherSelection)
+        selection: ProviderSwitcherSelection,
+        width: CGFloat)
     {
         guard self.shouldMergeIcons, enabledProviders.count > 1 else { return }
         let switcherItem = self.makeProviderSwitcherItem(
             providers: enabledProviders,
             includesOverview: includesOverview,
             selected: selection,
-            menu: menu)
+            menu: menu,
+            width: width)
         menu.addItem(switcherItem)
         menu.addItem(.separator())
     }
 
-    private func addTokenAccountSwitcherIfNeeded(to menu: NSMenu, display: TokenAccountMenuDisplay?) {
+    private func addTokenAccountSwitcherIfNeeded(to menu: NSMenu, display: TokenAccountMenuDisplay?, width: CGFloat) {
         guard let display, display.showSwitcher else { return }
-        let switcherItem = self.makeTokenAccountSwitcherItem(display: display, menu: menu)
+        let switcherItem = self.makeTokenAccountSwitcherItem(display: display, menu: menu, width: width)
         menu.addItem(switcherItem)
         menu.addItem(.separator())
     }
 
-    private func addCodexAccountSwitcherIfNeeded(to menu: NSMenu, display: CodexAccountMenuDisplay?) {
+    private func addCodexAccountSwitcherIfNeeded(to menu: NSMenu, display: CodexAccountMenuDisplay?, width: CGFloat) {
         guard let display else { return }
-        let switcherItem = self.makeCodexAccountSwitcherItem(display: display, menu: menu)
+        let switcherItem = self.makeCodexAccountSwitcherItem(display: display, menu: menu, width: width)
         menu.addItem(switcherItem)
         menu.addItem(.separator())
     }
@@ -356,8 +478,9 @@ extension StatusItemController {
 
         for (index, row) in rows.enumerated() {
             let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.provider.rawValue)"
+            let storageText = self.store.storageFootprintText(for: row.provider)
             let item = self.makeMenuCardItem(
-                OverviewMenuCardRowView(model: row.model, width: menuWidth),
+                OverviewMenuCardRowView(model: row.model, storageText: storageText, width: menuWidth),
                 id: identifier,
                 width: menuWidth,
                 onClick: { [weak self, weak menu] in
@@ -421,6 +544,9 @@ extension StatusItemController {
                     menu.addItem(.separator())
                 }
             }
+            if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
+                menu.addItem(.separator())
+            }
             return false
         }
 
@@ -444,6 +570,9 @@ extension StatusItemController {
             UsageMenuCardView(model: model, width: context.menuWidth),
             id: "menuCard",
             width: context.menuWidth))
+        if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
+            menu.addItem(.separator())
+        }
         if context.openAIContext.canShowBuyCredits {
             menu.addItem(self.makeBuyCreditsItem())
         }
@@ -471,6 +600,41 @@ extension StatusItemController {
             }
         }
         menu.addItem(.separator())
+    }
+
+    private func addPrimaryMenuContent(
+        to menu: NSMenu,
+        context: MenuCardContext,
+        switcherSelection: ProviderSwitcherSelection)
+    {
+        self.store.refreshStorageFootprintsForOverview()
+        if switcherSelection == .overview {
+            let enabledProviders = self.store.enabledProvidersForDisplay()
+            if self.addOverviewRows(
+                to: menu,
+                enabledProviders: enabledProviders,
+                menuWidth: context.menuWidth)
+            {
+                menu.addItem(.separator())
+            } else {
+                self.addOverviewEmptyState(to: menu, enabledProviders: enabledProviders)
+                menu.addItem(.separator())
+            }
+        } else {
+            let addedOpenAIWebItems = self.addMenuCards(to: menu, context: context)
+            self.addOpenAIWebItemsIfNeeded(
+                to: menu,
+                currentProvider: context.currentProvider,
+                context: context.openAIContext,
+                addedOpenAIWebItems: addedOpenAIWebItems)
+            if self.addUsageHistoryMenuItemIfNeeded(
+                to: menu,
+                provider: context.currentProvider,
+                width: context.menuWidth)
+            {
+                menu.addItem(.separator())
+            }
+        }
     }
 
     private func addActionableSections(_ sections: [MenuDescriptor.Section], to menu: NSMenu, width: CGFloat) {
@@ -502,10 +666,19 @@ extension StatusItemController {
                     }
                     menu.addItem(item)
                 case let .action(title, action):
+                    if case .refresh = action {
+                        menu.addItem(self.makePersistentMenuActionItem(title: title, action: action, width: width))
+                        continue
+                    }
+
                     let (selector, represented) = self.selector(for: action)
                     let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
                     item.target = self
                     item.representedObject = represented
+                    if let shortcut = self.shortcut(for: action) {
+                        item.keyEquivalent = shortcut.key
+                        item.keyEquivalentModifierMask = shortcut.modifiers
+                    }
                     if let iconName = action.systemImageName,
                        let image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)
                     {
@@ -560,8 +733,58 @@ extension StatusItemController {
         }
     }
 
+    private func makePersistentMenuActionItem(
+        title: String,
+        action: MenuDescriptor.MenuAction,
+        width: CGFloat) -> NSMenuItem
+    {
+        let shortcut = self.shortcut(for: action)
+        let row = PersistentMenuActionItemView(
+            title: title,
+            systemImageName: action.systemImageName,
+            shortcutText: shortcut.map { self.shortcutLabel(for: $0) },
+            width: width,
+            onClick: { [weak self] in
+                self?.performPersistentMenuAction(action)
+            })
+
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: shortcut?.key ?? "")
+        item.keyEquivalentModifierMask = shortcut?.modifiers ?? NSEvent.ModifierFlags()
+        item.isEnabled = true
+        item.view = row
+        item.toolTip = title
+        return item
+    }
+
+    private func performPersistentMenuAction(_ action: MenuDescriptor.MenuAction) {
+        switch action {
+        case .refresh:
+            self.refreshNow()
+        default:
+            break
+        }
+    }
+
+    private func shortcutLabel(for shortcut: (key: String, modifiers: NSEvent.ModifierFlags)) -> String {
+        var label = ""
+        if shortcut.modifiers.contains(.control) {
+            label += "^"
+        }
+        if shortcut.modifiers.contains(.option) {
+            label += "⌥"
+        }
+        if shortcut.modifiers.contains(.shift) {
+            label += "⇧"
+        }
+        if shortcut.modifiers.contains(.command) {
+            label += "⌘"
+        }
+        label += shortcut.key.uppercased()
+        return label
+    }
+
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {
-        let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         let view = self.makeWrappedSecondaryTextView(text: text)
         let height = self.menuTextItemHeight(for: view, width: width)
         view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
@@ -601,12 +824,18 @@ extension StatusItemController {
     }
 
     func makeMenu(for provider: UsageProvider?) -> NSMenu {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        menu.delegate = self
+        let menu = self.makeBaseMenu()
         if let provider {
             self.menuProviders[ObjectIdentifier(menu)] = provider
         }
+        return menu
+    }
+
+    private func makeBaseMenu() -> NSMenu {
+        let menu = StatusItemMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        menu.persistentActionDelegate = self
         return menu
     }
 
@@ -614,13 +843,14 @@ extension StatusItemController {
         providers: [UsageProvider],
         includesOverview: Bool,
         selected: ProviderSwitcherSelection,
-        menu: NSMenu) -> NSMenuItem
+        menu: NSMenu,
+        width: CGFloat) -> NSMenuItem
     {
         let view = ProviderSwitcherView(
             providers: providers,
             selected: selected,
             includesOverview: includesOverview,
-            width: self.menuCardWidth(for: providers, menu: menu),
+            width: width,
             showsIcons: self.settings.switcherShowsIcons,
             iconProvider: { [weak self] provider in
                 self?.switcherIcon(for: provider) ?? NSImage()
@@ -630,22 +860,34 @@ extension StatusItemController {
             },
             onSelect: { [weak self, weak menu] selection in
                 guard let self, let menu else { return }
+                let provider: UsageProvider?
                 switch selection {
                 case .overview:
                     self.settings.mergedMenuLastSelectedWasOverview = true
-                    self.lastMergedSwitcherSelection = .overview
-                    let provider = self.resolvedMenuProvider()
-                    self.lastMenuProvider = provider ?? .codex
-                    self.populateMenu(menu, provider: provider)
-                case let .provider(provider):
+                    provider = self.resolvedMenuProvider()
+                case let .provider(selectedProvider):
                     self.settings.mergedMenuLastSelectedWasOverview = false
-                    self.lastMergedSwitcherSelection = .provider(provider)
-                    self.selectedMenuProvider = provider
-                    self.lastMenuProvider = provider
-                    self.populateMenu(menu, provider: provider)
+                    self.selectedMenuProvider = selectedProvider
+                    provider = selectedProvider
                 }
-                self.markMenuFresh(menu)
-                self.applyIcon(phase: nil)
+                switch selection {
+                case .overview:
+                    self.lastMenuProvider = provider ?? .codex
+                case let .provider(provider):
+                    self.lastMenuProvider = provider
+                }
+                self.lastMergedSwitcherSelection = selection
+                self.providerSwitcherUpdateToken &+= 1
+                let updateToken = self.providerSwitcherUpdateToken
+                Task { @MainActor [weak self, weak menu] in
+                    await Task.yield()
+                    guard let self, let menu else { return }
+                    guard self.providerSwitcherUpdateToken == updateToken else { return }
+                    self.applyIcon(phase: nil)
+                    guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+                    self.populateMenu(menu, provider: provider)
+                    self.markMenuFresh(menu)
+                }
             })
         let item = NSMenuItem()
         item.view = view
@@ -655,23 +897,29 @@ extension StatusItemController {
 
     private func makeTokenAccountSwitcherItem(
         display: TokenAccountMenuDisplay,
-        menu: NSMenu) -> NSMenuItem
+        menu: NSMenu,
+        width: CGFloat) -> NSMenuItem
     {
         let view = TokenAccountSwitcherView(
             accounts: display.accounts,
             selectedIndex: display.activeIndex,
-            width: self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu),
-            onSelect: { [weak self, weak menu] index in
-                guard let self, let menu else { return }
+            width: width,
+            onSelect: { [weak self, weak menu] index -> Task<Void, Never>? in
+                guard let self, let menu else { return nil }
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
-                Task { @MainActor in
-                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await self.store.refresh()
-                    }
-                }
+                // Immediately rebuild to show the new selection, then refresh data
+                // and rebuild again once fresh data arrives.
                 self.populateMenu(menu, provider: display.provider)
                 self.markMenuFresh(menu)
                 self.applyIcon(phase: nil)
+                return Task { @MainActor [weak self, weak menu] in
+                    guard let self else { return }
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(display.provider)
+                    }
+                    guard let menu else { return }
+                    self.refreshOpenMenuIfStillVisible(menu, provider: display.provider)
+                }
             })
         let item = NSMenuItem()
         item.view = view
@@ -681,12 +929,13 @@ extension StatusItemController {
 
     private func makeCodexAccountSwitcherItem(
         display: CodexAccountMenuDisplay,
-        menu: NSMenu) -> NSMenuItem
+        menu: NSMenu,
+        width: CGFloat) -> NSMenuItem
     {
         let view = CodexAccountSwitcherView(
             accounts: display.accounts,
             selectedAccountID: display.activeVisibleAccountID,
-            width: self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu),
+            width: width,
             onSelect: { [weak self, weak menu] visibleAccountID in
                 guard let self else { return }
                 self.handleCodexVisibleAccountSelection(visibleAccountID, menu: menu)
@@ -752,7 +1001,9 @@ extension StatusItemController {
         let accounts = self.settings.tokenAccounts(for: provider)
         guard accounts.count > 1 else { return nil }
         let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0
-        let showAll = self.settings.showAllTokenAccountsInMenu
+        let canShowAllCopilotAccounts = provider == .copilot &&
+            accounts.count <= UsageStore.tokenAccountMenuSnapshotLimit
+        let showAll = canShowAllCopilotAccounts || self.settings.showAllTokenAccountsInMenu
         let snapshots = showAll ? (self.store.accountSnapshots[provider] ?? []) : []
         return TokenAccountMenuDisplay(
             provider: provider,
@@ -783,14 +1034,12 @@ extension StatusItemController {
     }
 
     func refreshOpenMenusIfNeeded() {
+        guard Self.menuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
+        var orphanedKeys: [ObjectIdentifier] = []
         for (key, menu) in self.openMenus {
             guard key == ObjectIdentifier(menu) else {
-                // Clean up orphaned menu entries from all tracking dictionaries
-                self.openMenus.removeValue(forKey: key)
-                self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
-                self.menuProviders.removeValue(forKey: key)
-                self.menuVersions.removeValue(forKey: key)
+                orphanedKeys.append(key)
                 continue
             }
 
@@ -805,6 +1054,14 @@ extension StatusItemController {
                 self.markMenuFresh(menu)
                 // Heights are already set during populateMenu, no need to remeasure
             }
+        }
+
+        // Clean up orphaned menu entries from all tracking dictionaries.
+        for key in orphanedKeys {
+            self.openMenus.removeValue(forKey: key)
+            self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+            self.menuProviders.removeValue(forKey: key)
+            self.menuVersions.removeValue(forKey: key)
         }
     }
 
@@ -860,6 +1117,10 @@ extension StatusItemController {
             guard let self, let menu else { return }
             try? await Task.sleep(for: Self.menuOpenRefreshDelay)
             guard !Task.isCancelled else { return }
+            guard Self.menuRefreshEnabled else { return }
+            #if DEBUG
+            self.onDelayedMenuRefreshAttemptForTesting?()
+            #endif
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
             guard !self.store.isRefreshing else { return }
             let retryProviders = self.delayedRefreshRetryProviders(for: menu)
@@ -911,7 +1172,7 @@ extension StatusItemController {
         }
         for item in cardItems {
             guard let view = item.view else { continue }
-            let width = self.menuCardWidth(for: self.store.enabledProvidersForDisplay(), menu: menu)
+            let width = self.renderedMenuWidth(for: menu)
             let height = self.menuCardHeight(for: view, width: width)
             view.frame = NSRect(
                 origin: .zero,
@@ -994,6 +1255,7 @@ extension StatusItemController {
         let hasCredits = model.creditsText != nil
         let hasExtraUsage = model.providerCost != nil
         let hasCost = model.tokenUsage != nil
+        let hasStorage = self.store.storageFootprintText(for: provider) != nil
         let bottomPadding = CGFloat(hasCredits ? 4 : 6)
         let sectionSpacing = CGFloat(6)
         let usageBottomPadding = bottomPadding
@@ -1022,7 +1284,13 @@ extension StatusItemController {
                 submenu: usageSubmenu))
         }
 
-        if hasCredits || hasExtraUsage || hasCost {
+        if hasStorage || hasCredits || hasExtraUsage || hasCost {
+            menu.addItem(.separator())
+        }
+
+        if self.addStorageMenuCardSection(to: menu, provider: provider, width: width),
+           hasCredits || hasExtraUsage || hasCost
+        {
             menu.addItem(.separator())
         }
 
@@ -1076,6 +1344,23 @@ extension StatusItemController {
                 width: width,
                 submenu: costSubmenu))
         }
+    }
+
+    @discardableResult
+    private func addStorageMenuCardSection(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
+        guard let storageText = self.store.storageFootprintText(for: provider) else { return false }
+        let storageView = StorageMenuCardSectionView(
+            storageText: storageText,
+            topPadding: 6,
+            bottomPadding: 6,
+            width: width)
+        let storageSubmenu = self.makeStorageBreakdownSubmenu(provider: provider)
+        menu.addItem(self.makeMenuCardItem(
+            storageView,
+            id: "menuCardStorage",
+            width: width,
+            submenu: storageSubmenu))
+        return true
     }
 
     private func switcherIcon(for provider: UsageProvider) -> NSImage {
@@ -1204,7 +1489,7 @@ extension StatusItemController {
         submenu.addItem(titleItem)
 
         if let window = timeLimit.windowLabel {
-            let item = NSMenuItem(title: "Window: \(window)", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: String(format: L("mcp_window"), window), action: nil, keyEquivalent: "")
             item.isEnabled = false
             submenu.addItem(item)
         }
@@ -1212,7 +1497,7 @@ extension StatusItemController {
             let reset = self.settings.resetTimeDisplayStyle == .absolute
                 ? UsageFormatter.resetDescription(from: resetTime)
                 : UsageFormatter.resetCountdownDescription(from: resetTime)
-            let item = NSMenuItem(title: "Resets: \(reset)", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: String(format: L("mcp_resets"), reset), action: nil, keyEquivalent: "")
             item.isEnabled = false
             submenu.addItem(item)
         }
@@ -1223,14 +1508,19 @@ extension StatusItemController {
         }
         for detail in sortedDetails {
             let usage = UsageFormatter.tokenCountString(detail.usage)
-            let item = NSMenuItem(title: "\(detail.modelCode): \(usage)", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(
+                title: String(format: L("mcp_model_usage"), detail.modelCode, usage),
+                action: nil,
+                keyEquivalent: "")
             submenu.addItem(item)
         }
         return submenu
     }
 
     private func makeUsageBreakdownSubmenu() -> NSMenu? {
-        guard !(self.store.openAIDashboard?.usageBreakdown ?? []).isEmpty else { return nil }
+        let breakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: self.store.openAIDashboard?.usageBreakdown ?? [])
+        guard !breakdown.isEmpty else { return nil }
         return self.makeHostedSubviewPlaceholderMenu(chartID: Self.usageBreakdownChartID)
     }
 
@@ -1245,12 +1535,18 @@ extension StatusItemController {
         return self.makeHostedSubviewPlaceholderMenu(chartID: Self.costHistoryChartID, provider: provider)
     }
 
+    private func makeStorageBreakdownSubmenu(provider: UsageProvider) -> NSMenu? {
+        guard self.store.storageFootprint(for: provider)?.components.isEmpty == false else { return nil }
+        return self.makeHostedSubviewPlaceholderMenu(chartID: Self.storageBreakdownID, provider: provider)
+    }
+
     private func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {
         let ids: Set = [
             Self.usageBreakdownChartID,
             Self.creditsHistoryChartID,
             Self.costHistoryChartID,
             Self.usageHistoryChartID,
+            Self.storageBreakdownID,
         ]
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }
@@ -1270,8 +1566,7 @@ extension StatusItemController {
     }
 
     private func refreshHostedSubviewHeights(in menu: NSMenu) {
-        let enabledProviders = self.store.enabledProvidersForDisplay()
-        let width = self.menuCardWidth(for: enabledProviders, menu: menu)
+        let width = self.renderedMenuWidth(for: menu)
 
         for item in menu.items {
             guard let view = item.view else { continue }
@@ -1280,102 +1575,6 @@ extension StatusItemController {
             let height = view.fittingSize.height
             view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
         }
-    }
-
-    func menuCardModel(
-        for provider: UsageProvider?,
-        snapshotOverride: UsageSnapshot? = nil,
-        errorOverride: String? = nil) -> UsageMenuCardView.Model?
-    {
-        let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
-        let metadata = self.store.metadata(for: target)
-
-        let snapshot = snapshotOverride ?? self.store.snapshot(for: target)
-        let surface: CodexConsumerProjection.Surface = if snapshotOverride != nil || errorOverride != nil {
-            .overrideCard
-        } else {
-            .liveCard
-        }
-        let now = Date()
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
-            for: target,
-            surface: surface,
-            snapshotOverride: snapshotOverride,
-            errorOverride: errorOverride,
-            now: now)
-        let credits: CreditsSnapshot?
-        let creditsError: String?
-        let dashboard: OpenAIDashboardSnapshot?
-        let dashboardError: String?
-        let tokenSnapshot: CostUsageTokenSnapshot?
-        let tokenError: String?
-        if let codexProjection {
-            credits = codexProjection.credits?.snapshot
-            creditsError = codexProjection.credits?.userFacingError
-            dashboard = nil
-            dashboardError = codexProjection.userFacingErrors.dashboard
-            if surface == .liveCard {
-                tokenSnapshot = self.store.tokenSnapshot(for: target)
-                tokenError = self.store.tokenError(for: target)
-            } else {
-                tokenSnapshot = nil
-                tokenError = nil
-            }
-        } else if target == .claude || target == .vertexai, snapshotOverride == nil {
-            credits = nil
-            creditsError = nil
-            dashboard = nil
-            dashboardError = nil
-            tokenSnapshot = self.store.tokenSnapshot(for: target)
-            tokenError = self.store.tokenError(for: target)
-        } else {
-            credits = nil
-            creditsError = nil
-            dashboard = nil
-            dashboardError = nil
-            tokenSnapshot = nil
-            tokenError = nil
-        }
-
-        let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
-        let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
-        // Abacus uses primary for monthly credits (no secondary window)
-        let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
-        let weeklyPace = if let codexProjection,
-                            let weekly = codexProjection.rateWindow(for: .weekly)
-        {
-            self.store.weeklyPace(provider: target, window: weekly, now: now)
-        } else {
-            paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: target, window: window, now: now)
-            }
-        }
-        let input = UsageMenuCardView.Model.Input(
-            provider: target,
-            metadata: metadata,
-            snapshot: snapshot,
-            codexProjection: codexProjection,
-            credits: credits,
-            creditsError: creditsError,
-            dashboard: dashboard,
-            dashboardError: dashboardError,
-            tokenSnapshot: tokenSnapshot,
-            tokenError: tokenError,
-            account: self.store.accountInfo(for: target),
-            isRefreshing: self.store.shouldShowRefreshingMenuCard(for: target),
-            lastError: errorOverride
-                ?? codexProjection?.userFacingErrors.usage
-                ?? self.store.userFacingError(for: target),
-            usageBarsShowUsed: self.settings.usageBarsShowUsed,
-            resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
-            tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
-            showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
-            sourceLabel: sourceLabel,
-            kiloAutoMode: kiloAutoMode,
-            hidePersonalInfo: self.settings.hidePersonalInfo,
-            weeklyPace: weeklyPace,
-            now: now)
-        return UsageMenuCardView.Model.make(input)
     }
 
     @objc private func menuCardNoOp(_ sender: NSMenuItem) {

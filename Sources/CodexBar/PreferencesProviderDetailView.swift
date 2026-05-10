@@ -11,6 +11,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     let settingsPickers: [ProviderSettingsPickerDescriptor]
     let settingsToggles: [ProviderSettingsToggleDescriptor]
     let settingsFields: [ProviderSettingsFieldDescriptor]
+    let settingsActions: [ProviderSettingsActionsDescriptor]
     let settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?
     let errorDisplay: ProviderErrorDisplay?
     @Binding var isErrorExpanded: Bool
@@ -28,6 +29,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         settingsPickers: [ProviderSettingsPickerDescriptor],
         settingsToggles: [ProviderSettingsToggleDescriptor],
         settingsFields: [ProviderSettingsFieldDescriptor],
+        settingsActions: [ProviderSettingsActionsDescriptor] = [],
         settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?,
         errorDisplay: ProviderErrorDisplay?,
         isErrorExpanded: Binding<Bool>,
@@ -44,6 +46,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self.settingsPickers = settingsPickers
         self.settingsToggles = settingsToggles
         self.settingsFields = settingsFields
+        self.settingsActions = settingsActions
         self.settingsTokenAccounts = settingsTokenAccounts
         self.errorDisplay = errorDisplay
         self._isErrorExpanded = isErrorExpanded
@@ -99,7 +102,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
 
                 if let errorDisplay {
                     ProviderErrorView(
-                        title: "Last \(self.store.metadata(for: self.provider).displayName) fetch failed:",
+                        title: String(
+                            format: L("last_fetch_failed_with_provider"),
+                            self.store.metadata(for: self.provider).displayName),
                         display: errorDisplay,
                         isExpanded: self.$isErrorExpanded,
                         onCopy: { self.onCopyError(errorDisplay.full) })
@@ -118,12 +123,17 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                         ForEach(self.settingsFields) { field in
                             ProviderSettingsFieldRowView(field: field)
                         }
+                        ForEach(self.settingsActions) { descriptor in
+                            ProviderSettingsActionsRowView(descriptor: descriptor)
+                        }
                     }
                 }
 
                 if self.showsSupplementarySettingsContent {
                     self.supplementarySettingsContent
                 }
+
+                ProviderQuotaWarningSettingsView(provider: self.provider, settings: self.store.settings)
 
                 if !self.settingsToggles.isEmpty {
                     ProviderSettingsSection(title: "Options") {
@@ -143,6 +153,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     private var hasSettings: Bool {
         !self.settingsPickers.isEmpty ||
             !self.settingsFields.isEmpty ||
+            !self.settingsActions.isEmpty ||
             self.settingsTokenAccounts != nil
     }
 
@@ -430,7 +441,8 @@ private struct ProviderMetricInlineRow: View {
                     tint: self.progressColor,
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
-                    paceOnTop: self.metric.paceOnTop)
+                    paceOnTop: self.metric.paceOnTop,
+                    warningMarkerPercents: self.metric.warningMarkerPercents)
                     .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -540,17 +552,21 @@ private struct ProviderMetricInlineCostRow: View {
                 .frame(width: self.labelWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
-                UsageProgressBar(
-                    percent: self.section.percentUsed,
-                    tint: self.progressColor,
-                    accessibilityLabel: "Usage used")
-                    .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
+                if let percentUsed = self.section.percentUsed {
+                    UsageProgressBar(
+                        percent: percentUsed,
+                        tint: self.progressColor,
+                        accessibilityLabel: "Usage used")
+                        .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
+                }
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(String(format: "%.0f%% used", self.section.percentUsed))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
+                    if let percentLine = self.section.percentLine {
+                        Text(percentLine)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
                     Spacer(minLength: 8)
                     Text(self.section.spendLine)
                         .font(.footnote)

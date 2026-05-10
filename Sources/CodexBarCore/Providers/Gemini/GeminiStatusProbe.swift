@@ -475,20 +475,280 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         // Resolve symlinks to find the actual installation
-        let fm = FileManager.default
-        var realPath = geminiPath
-        if let resolved = try? fm.destinationOfSymbolicLink(atPath: geminiPath) {
-            if resolved.hasPrefix("/") {
-                realPath = resolved
-            } else {
-                realPath = (geminiPath as NSString).deletingLastPathComponent + "/" + resolved
+        let resolvedGeminiPath = URL(fileURLWithPath: geminiPath).resolvingSymlinksInPath().path
+
+        // Try the legacy layouts first — they're cheap file reads and cover the common cases
+        // (Homebrew, npm/bun sibling, Nix) without spawning subprocesses or walking the tree.
+        if let credentials = Self.extractOAuthCredentialsFromLegacyPaths(realGeminiPath: resolvedGeminiPath) {
+            return credentials
+        }
+
+        // For fnm-managed installs, ask fnm where the package lives
+        if Self.isLikelyFnmManagedPath(geminiPath) || Self.isLikelyFnmManagedPath(resolvedGeminiPath),
+           let fnmPath = TTYCommandRunner.which("fnm"),
+           let packageRoot = Self.resolveGeminiPackageRootViaFnm(fnmPath: fnmPath, environment: env),
+           let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
+        {
+            return credentials
+        }
+
+        // Fall back to walking up the directory tree from the binary
+        if let packageRoot = Self.findGeminiPackageRoot(startingAt: resolvedGeminiPath),
+           let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
+        {
+            return credentials
+        }
+
+        return nil
+    }
+
+    private static func isLikelyFnmManagedPath(_ path: String) -> Bool {
+        let normalized = path.replacingOccurrences(of: "\\", with: "/")
+        return normalized.contains("/fnm_multishells/")
+            || (normalized.contains("/node-versions/") && normalized.contains("/fnm/"))
+    }
+
+    private static func resolveGeminiPackageRootViaFnm(
+        fnmPath: String,
+        environment: [String: String]) -> String?
+    {
+        guard let currentVersion = runProcess(
+            executable: fnmPath,
+            arguments: ["current"],
+            environment: environment,
+            timeout: 2.0),
+            !currentVersion.isEmpty
+        else {
+            return nil
+        }
+
+        // Prefer npm root -g because require.resolve searches from the current
+        // working directory and often fails for globally-installed packages.
+        if let npmRoot = runProcess(
+            executable: fnmPath,
+            arguments: [
+                "exec",
+                "--using",
+                currentVersion,
+                "npm",
+                "root",
+                "-g",
+            ],
+            environment: environment,
+            timeout: 4.0),
+            !npmRoot.isEmpty
+        {
+            let packageRoot = "\(npmRoot)/@google/gemini-cli"
+            let packageJSONPath = "\(packageRoot)/package.json"
+            if FileManager.default.fileExists(atPath: packageJSONPath) {
+                return packageRoot
             }
         }
 
-        // Navigate from bin/gemini to the oauth2.js file
-        // Homebrew path: .../libexec/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js
-        // Bun/npm path: .../node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js (sibling package)
-        let binDir = (realPath as NSString).deletingLastPathComponent
+        // Fallback for non-npm global installations.
+        if let packageJSONPath = runProcess(
+            executable: fnmPath,
+            arguments: [
+                "exec",
+                "--using",
+                currentVersion,
+                "node",
+                "-p",
+                "require.resolve('@google/gemini-cli/package.json')",
+            ],
+            environment: environment,
+            timeout: 4.0),
+            !packageJSONPath.isEmpty
+        {
+            return (packageJSONPath as NSString).deletingLastPathComponent
+        }
+
+        return nil
+    }
+
+    private static func runProcess(
+        executable: String,
+        arguments: [String],
+        environment: [String: String],
+        timeout: TimeInterval) -> String?
+    {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+
+        var mergedEnvironment = environment
+        mergedEnvironment["PATH"] = PathBuilder.effectivePATH(
+            purposes: [.tty, .nodeTooling],
+            env: environment,
+            loginPATH: LoginShellPathCache.shared.current)
+        process.environment = mergedEnvironment
+
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        process.standardInput = nil
+
+        let exitSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            exitSemaphore.signal()
+        }
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
+        if !didExit {
+            if process.isRunning {
+                process.terminate()
+                _ = exitSemaphore.wait(timeout: .now() + 0.5)
+            }
+            return nil
+        }
+
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        guard process.terminationStatus == 0,
+              let output = String(data: data, encoding: .utf8)?
+                  .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !output.isEmpty
+        else {
+            return nil
+        }
+
+        return output.components(separatedBy: .newlines).first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func findGeminiPackageRoot(startingAt path: String) -> String? {
+        let fileManager = FileManager.default
+        var currentURL = URL(fileURLWithPath: path).standardizedFileURL
+
+        var isDirectory: ObjCBool = false
+        if !fileManager.fileExists(atPath: currentURL.path, isDirectory: &isDirectory) || !isDirectory.boolValue {
+            currentURL.deleteLastPathComponent()
+        }
+
+        // Bound the walk so an unrelated Gemini install elsewhere on the host
+        // (e.g. a global npm/brew install unrelated to the resolved binary) can't
+        // contaminate discovery started from the actual binary path.
+        let maxAscents = 8
+        for _ in 0...maxAscents {
+            let packageJSONURL = currentURL.appendingPathComponent("package.json")
+            if let data = try? Data(contentsOf: packageJSONURL),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               json["name"] as? String == "@google/gemini-cli"
+            {
+                return currentURL.path
+            }
+
+            // Also check for a global Node installation layout:
+            // <current>/lib/node_modules/@google/gemini-cli/package.json
+            let globalPackageJSONURL = currentURL
+                .appendingPathComponent("lib")
+                .appendingPathComponent("node_modules")
+                .appendingPathComponent("@google")
+                .appendingPathComponent("gemini-cli")
+                .appendingPathComponent("package.json")
+            if let data = try? Data(contentsOf: globalPackageJSONURL),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               json["name"] as? String == "@google/gemini-cli"
+            {
+                return globalPackageJSONURL.deletingLastPathComponent().path
+            }
+
+            let parentURL = currentURL.deletingLastPathComponent()
+            if parentURL.path == currentURL.path {
+                return nil
+            }
+            currentURL = parentURL
+        }
+
+        return nil
+    }
+
+    private static func extractOAuthCredentials(fromGeminiPackageRoot packageRoot: String) -> OAuthClientCredentials? {
+        // Check the standard distributed file first, then any sibling core package
+        let oauthFile = "dist/src/code_assist/oauth2.js"
+        let candidatePaths = [
+            "\(packageRoot)/\(oauthFile)",
+            "\(packageRoot)/node_modules/@google/gemini-cli-core/\(oauthFile)",
+        ]
+
+        for path in candidatePaths {
+            if let content = try? String(contentsOfFile: path, encoding: .utf8),
+               let credentials = Self.parseOAuthCredentials(from: content)
+            {
+                return credentials
+            }
+        }
+
+        return Self.extractOAuthCredentialsFromBundle(packageRoot: packageRoot)
+    }
+
+    private static func extractOAuthCredentialsFromBundle(packageRoot: String) -> OAuthClientCredentials? {
+        let bundleRoot = URL(fileURLWithPath: packageRoot).appendingPathComponent("bundle", isDirectory: true)
+        let entryURL = bundleRoot.appendingPathComponent("gemini.js")
+
+        guard FileManager.default.fileExists(atPath: entryURL.path) else {
+            return nil
+        }
+
+        var pendingURLs = [entryURL]
+        var visitedPaths = Set<String>()
+
+        while !pendingURLs.isEmpty {
+            let currentURL = pendingURLs.removeFirst()
+            let standardizedPath = currentURL.standardizedFileURL.path
+            guard visitedPaths.insert(standardizedPath).inserted,
+                  let content = try? String(contentsOf: currentURL, encoding: .utf8)
+            else {
+                continue
+            }
+
+            if let credentials = Self.parseOAuthCredentials(from: content) {
+                return credentials
+            }
+
+            let imports = Self.extractRelativeJavaScriptImports(from: content)
+            for importPath in imports {
+                let nextURL = URL(fileURLWithPath: importPath, relativeTo: currentURL.deletingLastPathComponent())
+                    .standardizedFileURL
+                guard nextURL.path.hasPrefix(bundleRoot.path) else { continue }
+                pendingURLs.append(nextURL)
+            }
+        }
+
+        return nil
+    }
+
+    private static func extractRelativeJavaScriptImports(from content: String) -> [String] {
+        let patterns = [
+            #"(?:import|export)\s+(?:[^;]*?\s+from\s+)?[\"'](\./[^\"']+\.js)[\"']"#,
+            #"import\(\s*[\"'](\./[^\"']+\.js)[\"']\s*\)"#,
+        ]
+
+        var discoveredPaths: [String] = []
+        var seen = Set<String>()
+        let fullRange = NSRange(content.startIndex..., in: content)
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            for match in regex.matches(in: content, range: fullRange) {
+                guard let range = Range(match.range(at: 1), in: content) else { continue }
+                let path = String(content[range])
+                if seen.insert(path).inserted {
+                    discoveredPaths.append(path)
+                }
+            }
+        }
+
+        return discoveredPaths
+    }
+
+    private static func extractOAuthCredentialsFromLegacyPaths(realGeminiPath: String) -> OAuthClientCredentials? {
+        let binDir = (realGeminiPath as NSString).deletingLastPathComponent
         let baseDir = (binDir as NSString).deletingLastPathComponent
 
         let oauthSubpath =
@@ -509,8 +769,10 @@ public struct GeminiStatusProbe: Sendable {
         ]
 
         for path in possiblePaths {
-            if let content = try? String(contentsOfFile: path, encoding: .utf8) {
-                return self.parseOAuthCredentials(from: content)
+            if let content = try? String(contentsOfFile: path, encoding: .utf8),
+               let credentials = Self.parseOAuthCredentials(from: content)
+            {
+                return credentials
             }
         }
 

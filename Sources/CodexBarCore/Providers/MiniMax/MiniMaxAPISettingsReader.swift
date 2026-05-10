@@ -2,6 +2,11 @@ import Foundation
 
 public struct MiniMaxAPISettingsReader: Sendable {
     public static let apiTokenKey = "MINIMAX_API_KEY"
+    public static let codingPlanAPITokenKey = "MINIMAX_CODING_API_KEY"
+    public static let apiTokenEnvironmentKeys = [
+        Self.codingPlanAPITokenKey,
+        Self.apiTokenKey,
+    ]
 
     public enum APIKeyKind: Sendable {
         case codingPlan
@@ -12,7 +17,9 @@ public struct MiniMaxAPISettingsReader: Sendable {
     public static func apiToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        if let token = self.cleaned(environment[apiTokenKey]) { return token }
+        for key in self.apiTokenEnvironmentKeys {
+            if let token = self.cleaned(environment[key]) { return token }
+        }
         return nil
     }
 
@@ -52,7 +59,8 @@ public enum MiniMaxAPISettingsError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .missingToken:
-            "MiniMax API token not found. Set apiKey in ~/.codexbar/config.json or MINIMAX_API_KEY."
+            "MiniMax API token not found. Set apiKey in ~/.codexbar/config.json, " +
+                "MINIMAX_CODING_API_KEY, or MINIMAX_API_KEY."
         }
     }
 }

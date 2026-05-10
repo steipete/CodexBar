@@ -26,6 +26,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeOAuthKeychainPromptMode
         _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
+        _ = settings.claudePeakHoursEnabled
     }
 
     @MainActor
@@ -77,12 +78,27 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 context.settings.claudeOAuthPromptFreeCredentialsEnabled = enabled
             })
 
+        let peakHoursBinding = Binding(
+            get: { context.settings.claudePeakHoursEnabled },
+            set: { context.settings.claudePeakHoursEnabled = $0 })
+
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
                 title: "Avoid Keychain prompts",
                 subtitle: subtitle,
                 binding: promptFreeBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "claude-peak-hours",
+                title: "Show peak hours indicator",
+                subtitle: "Show whether Claude is in peak usage hours.",
+                binding: peakHoursBinding,
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
@@ -194,13 +210,12 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runClaudeLoginFlow()
-        return true
     }
 
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
         if context.snapshot?.secondary == nil {
-            entries.append(.text("Weekly usage unavailable for this account.", .secondary))
+            entries.append(.text(L("Weekly usage unavailable for this account."), .secondary))
         }
 
         if let cost = context.snapshot?.providerCost,
@@ -209,7 +224,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         {
             let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text("Extra usage: \(used) / \(limit)", .primary))
+            entries.append(.text(String(format: L("extra_usage_format"), used, limit), .primary))
         }
     }
 

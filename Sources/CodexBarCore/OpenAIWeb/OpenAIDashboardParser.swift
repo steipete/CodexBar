@@ -153,11 +153,49 @@ public enum OpenAIDashboardParser {
     }
 
     private static func parseCreditsUsed(_ text: String) -> Double {
-        let cleaned = text
-            .replacingOccurrences(of: ",", with: "")
-            .replacingOccurrences(of: "credits", with: "", options: .caseInsensitive)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return Double(cleaned) ?? 0
+        guard let raw = self.firstNumberToken(in: text) else { return 0 }
+        let token = raw
+            .replacingOccurrences(of: "\u{00A0}", with: "")
+            .replacingOccurrences(of: "\u{202F}", with: "")
+            .replacingOccurrences(of: " ", with: "")
+        let hasComma = token.contains(",")
+        let hasDot = token.contains(".")
+        if hasComma, hasDot {
+            return TextParsing.firstNumber(pattern: #"([0-9][0-9.,\s\p{Zs}]*)"#, text: token) ?? 0
+        }
+        if hasComma {
+            if self.usesLocalizedDecimalCommaCreditLabel(text) {
+                return Double(token.replacingOccurrences(of: ",", with: ".")) ?? 0
+            }
+            if token.range(of: #"^\d{1,3}(,\d{3})+$"#, options: .regularExpression) != nil {
+                return Double(token.replacingOccurrences(of: ",", with: "")) ?? 0
+            }
+            return Double(token.replacingOccurrences(of: ",", with: ".")) ?? 0
+        }
+        return Double(token) ?? 0
+    }
+
+    private static func usesLocalizedDecimalCommaCreditLabel(_ text: String) -> Bool {
+        text
+            .lowercased()
+            .contains("crédit")
+    }
+
+    private static func firstNumberToken(in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"([0-9][0-9.,\s\p{Zs}]*)"#,
+            options: [])
+        else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let tokenRange = Range(match.range(at: 1), in: text)
+        else {
+            return nil
+        }
+        return String(text[tokenRange])
     }
 
     // MARK: - Private
@@ -294,6 +332,7 @@ public enum OpenAIDashboardParser {
     private static func isFiveHourLimitLine(_ line: String) -> Bool {
         let lower = line.lowercased()
         if lower.contains("5h") { return true }
+        if lower.range(of: #"\b5\s*h\b"#, options: .regularExpression) != nil { return true }
         if lower.contains("5-hour") { return true }
         if lower.contains("5 hour") { return true }
         return false
@@ -305,6 +344,7 @@ public enum OpenAIDashboardParser {
         if lower.contains("7-day") { return true }
         if lower.contains("7 day") { return true }
         if lower.contains("7d") { return true }
+        if lower.range(of: #"\b7\s*d\b"#, options: .regularExpression) != nil { return true }
         return false
     }
 

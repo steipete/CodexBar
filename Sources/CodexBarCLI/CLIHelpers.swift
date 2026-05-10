@@ -17,7 +17,6 @@ extension CodexBarCLI {
         if let rawOverride, let parsed = ProviderSelection(argument: rawOverride) {
             return parsed
         }
-        if enabled.count >= 3 { return .all }
         if enabled.count == 2 {
             let enabledSet = Set(enabled)
             let primary = Set(ProviderDescriptorRegistry.all.filter(\ .metadata.isPrimaryProvider).map(\ .id))
@@ -26,6 +25,7 @@ extension CodexBarCLI {
             }
             return .custom(enabled)
         }
+        if enabled.count >= 3 { return .custom(enabled) }
         if let first = enabled.first { return ProviderSelection(provider: first) }
         return .single(.codex)
     }
@@ -360,6 +360,10 @@ extension CodexBarCLI {
 
     static func _costSignatureForTesting() -> CommandSignature {
         CommandSignature.describe(CostOptions())
+    }
+
+    static func _cacheSignatureForTesting() -> CommandSignature {
+        CommandSignature.describe(CacheOptions())
     }
 
     static func _decodeFormatForTesting(from values: ParsedValues) -> OutputFormat {

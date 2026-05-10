@@ -80,6 +80,9 @@ This is OS/keychain ACL behavior, not a `ThisDeviceOnly` migration issue.
 - Browser-imported Claude session cookies are cached in keychain service `com.steipete.codexbar.cache`.
 - Account key is `cookie.claude`.
 - Cache writes use `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+- Users can clear browser-cookie cache entries from **Preferences → Debug → Caches** or with
+  `codexbar cache clear --cookies`. `--provider <id>` scopes cookie clearing to one provider and includes scoped
+  Codex managed-account cookie keys.
 
 ## What still uses `ThisDeviceOnly`
 

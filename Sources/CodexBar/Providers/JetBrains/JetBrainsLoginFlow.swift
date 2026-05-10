@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 
 @MainActor
 extension StatusItemController {
@@ -17,10 +18,10 @@ extension StatusItemController {
             let ideNames = detectedIDEs.prefix(3).map(\.displayName).joined(separator: ", ")
             let hasQuotaFile = !JetBrainsIDEDetector.detectInstalledIDEs().isEmpty
             let message = hasQuotaFile
-                ? "Detected: \(ideNames). Select your preferred IDE in Settings, then refresh CodexBar."
-                : "Detected: \(ideNames). Use AI Assistant once to generate quota data, then refresh CodexBar."
+                ? String(format: L("jetbrains_detected_select"), ideNames)
+                : String(format: L("jetbrains_detected_generate"), ideNames)
             self.presentLoginAlert(
-                title: "JetBrains AI is ready",
+                title: L("JetBrains AI is ready"),
                 message: message)
         }
     }

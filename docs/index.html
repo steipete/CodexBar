@@ -3,174 +3,246 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CodexBar</title>
+    <title>CodexBar — every AI coding limit in your menu bar</title>
     <meta
       name="description"
-      content="Tiny macOS menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, and z.ai limits visible."
+      content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 29 providers — Codex, Claude, Cursor, Gemini, Copilot, and 24 more."
     />
-    <meta name="theme-color" content="#0b1016" />
+    <meta name="theme-color" content="#0a0a0c" />
     <link rel="canonical" href="https://codexbar.app/" />
 
     <meta property="og:title" content="CodexBar" />
     <meta
       property="og:description"
-      content="Tiny macOS menu bar app that keeps your Codex, Claude Code, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, and z.ai limits visible."
+      content="Track usage windows, credits, and resets across 29 AI coding providers from your macOS menu bar."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://codexbar.app/" />
-    <meta property="og:image" content="https://codexbar.app/codexbar.png" />
+    <meta property="og:image" content="https://codexbar.app/social.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:image" content="https://codexbar.app/social.png" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" href="./icon.png" type="image/png" />
     <link rel="apple-touch-icon" href="./icon.png" />
-    <link rel="stylesheet" href="./site.css?v=a1b2c3d" />
+    <link rel="stylesheet" href="./site.css?v=2" />
   </head>
   <body>
-    <main class="wrap">
-      <header class="top" data-animate="1">
-        <a class="brand" href="https://github.com/steipete/CodexBar" aria-label="CodexBar on GitHub">
-          <span class="name">
-            <h1 class="title">CodexBar</h1>
-            <p class="tagline">Codex, Claude Code, Cursor, Gemini, Antigravity, Droid, Copilot, z.ai limits.</p>
-          </span>
-        </a>
-        <nav class="links" aria-label="Links">
-          <a class="btn primary" href="https://github.com/steipete/CodexBar/releases/latest">Download</a>
-          <a class="btn ghost" href="https://github.com/steipete/CodexBar">Source</a>
-        </nav>
-      </header>
+    <header class="masthead">
+      <a class="brand" href="./" aria-label="CodexBar">
+        <img class="mark" src="./icon.png" alt="" width="28" height="28" />
+        <span class="wordmark">CodexBar</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md">Docs</a>
+        <a href="https://github.com/steipete/CodexBar">Source</a>
+        <a class="btn primary" href="https://github.com/steipete/CodexBar/releases/latest">Download</a>
+      </nav>
+    </header>
 
-      <section class="hero" aria-label="Overview">
-        <div class="copy" data-animate="2">
-          <div class="badges" aria-label="Highlights">
-            <span class="badge">macOS 14+</span>
-            <span class="badge">Apple Silicon + Intel</span>
-            <span class="badge">Free &amp; open source</span>
-            <span class="badge">No passwords stored</span>
-          </div>
-          <div class="hero-heading">
-            <img class="hero-icon" src="./icon.png" alt="" aria-hidden="true" width="40" height="40" />
-            <div>
-              <h2>Stay ahead of resets.</h2>
-              <p>
-                CodexBar keeps session + weekly limits (and credits) in the menu bar, so you know when you're safe to ship.
-              </p>
-            </div>
-          </div>
-          <p class="requirement">Requirements: macOS 14+ (Apple Silicon + Intel).</p>
-          <div class="cta">
-            <a class="btn primary" href="https://github.com/steipete/CodexBar/releases/latest">Download latest</a>
-            <a class="btn" href="https://github.com/steipete/CodexBar">View on GitHub</a>
-          </div>
-          <p class="brew-line">
-            Homebrew: <code id="brew-cmd">brew install --cask steipete/tap/codexbar</code>
-            <button class="copy-btn" onclick="copyBrew()" aria-label="Copy to clipboard" title="Copy to clipboard">
-              <svg class="icon-copy" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="5" y="5" width="9" height="9" rx="1.5"/>
-                <path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/>
+    <main>
+      <section class="lede">
+        <h1>Every AI coding limit, in your menu&nbsp;bar.</h1>
+        <p class="dek">
+          CodexBar tracks usage windows, credit balances, and reset countdowns across the providers you actually pay for —
+          one status item each, or merge them into one.
+        </p>
+        <div class="actions">
+          <a class="btn primary lg" href="https://github.com/steipete/CodexBar/releases/latest">Download for macOS</a>
+          <div class="brew" role="group" aria-label="Homebrew install command">
+            <code id="brew-cmd">brew install --cask steipete/tap/codexbar</code>
+            <button class="brew-copy" type="button" aria-label="Copy to clipboard" title="Copy">
+              <svg class="ic" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="5" y="5" width="9" height="9" rx="1.5" />
+                <path d="M5 11H3.5A1.5 1.5 0 0 1 2 9.5v-7A1.5 1.5 0 0 1 3.5 1h7A1.5 1.5 0 0 1 12 2.5V5" />
               </svg>
-              <svg class="icon-check" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 8 6 11 13 4"/>
+              <svg class="ok" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="3 8 6 11 13 4" />
               </svg>
             </button>
-          </p>
-          <p class="brew-line">Linuxbrew (CLI only): <code>brew install steipete/tap/codexbar</code></p>
-          <p class="note">
-            GitHub Releases builds update via Sparkle. Homebrew installs update via <code>brew upgrade</code>.
-          </p>
-          <script>
-            function copyBrew() {
-              const cmd = document.getElementById('brew-cmd').textContent;
-              navigator.clipboard.writeText(cmd).then(() => {
-                document.querySelector('.copy-btn').classList.add('copied');
-                setTimeout(() => document.querySelector('.copy-btn').classList.remove('copied'), 1500);
-              });
-            }
-          </script>
-          <ul class="bullets" aria-label="What it does">
-            <li>One status item per provider (Codex, Claude, Cursor, Gemini, Antigravity, Droid, Copilot, z.ai, Kilo).</li>
-            <li>Session + weekly bars with reset times and optional credits.</li>
-            <li>Web-backed limits via browser cookies (Codex, Claude, Cursor, Droid).</li>
-            <li>Two-bar icon: session on top, weekly on bottom, dimmed on errors.</li>
-            <li>Minimal UI, no Dock icon.</li>
-          </ul>
+          </div>
         </div>
-        <figure class="shot hero-shot" data-animate="3">
-          <img src="./codexbar.png" alt="CodexBar menu bar popover showing session and weekly usage." />
-          <figcaption>Menu card shows session + weekly usage, resets, and credits when available.</figcaption>
-        </figure>
+        <p class="fineprint">Free &amp; open source · macOS 14+ · Universal on GitHub Releases · Apple Silicon via Homebrew</p>
       </section>
 
-      <section class="details" aria-label="Details" data-animate="4">
-        <div class="card">
-          <h3>Install &amp; updates</h3>
-          <p>
-            Download from GitHub Releases or install via Homebrew. Sparkle updates are enabled on GitHub builds only.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Providers</h3>
-          <p>
-            Codex · Claude Code · Cursor · Gemini · Antigravity · Droid · Copilot · z.ai · Kilo<br />
-            Open to new providers — see the <a href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">provider guide</a>.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Privacy</h3>
-          <p>
-            Reuses existing browser cookies (Safari/Chrome/Firefox) for dashboard access — no passwords stored. When cookies
-            are missing, CodexBar falls back to local CLI output. Audit notes in
-            <a href="https://github.com/steipete/CodexBar/issues/12">issue #12</a>.
-          </p>
-        </div>
+      <section class="providers" aria-labelledby="providers-h">
+        <header class="section-head">
+          <h2 id="providers-h">29 providers, one menu bar</h2>
+          <p>Each tile becomes a status item with its own usage window, reset countdown, and provider menu.</p>
+        </header>
+        <ul class="grid">
+        <li><a class="provider" style="--brand:#49A3B0" href="https://github.com/steipete/CodexBar/blob/main/docs/codex.md">
+          <span class="chip">C</span><span class="meta"><span class="name">Codex</span><span class="auth">OAuth</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#CC7C5E" href="https://github.com/steipete/CodexBar/blob/main/docs/claude.md">
+          <span class="chip">C</span><span class="meta"><span class="name">Claude</span><span class="auth">OAuth</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#1A1A1A" href="https://github.com/steipete/CodexBar/blob/main/docs/cursor.md">
+          <span class="chip">C</span><span class="meta"><span class="name">Cursor</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#3B82F6" href="https://github.com/steipete/CodexBar/blob/main/docs/opencode.md">
+          <span class="chip">O</span><span class="meta"><span class="name">OpenCode</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#3B82F6" href="https://github.com/steipete/CodexBar/blob/main/docs/opencode.md">
+          <span class="chip">O</span><span class="meta"><span class="name">OpenCode Go</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#FF6A00" href="https://github.com/steipete/CodexBar/blob/main/docs/alibaba-coding-plan.md">
+          <span class="chip">A</span><span class="meta"><span class="name">Alibaba</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#AB87EA" href="https://github.com/steipete/CodexBar/blob/main/docs/gemini.md">
+          <span class="chip">G</span><span class="meta"><span class="name">Gemini</span><span class="auth">OAuth</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#60BA7E" href="https://github.com/steipete/CodexBar/blob/main/docs/antigravity.md">
+          <span class="chip">A</span><span class="meta"><span class="name">Antigravity</span><span class="auth">Local</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#FF6B35" href="https://github.com/steipete/CodexBar/blob/main/docs/factory.md">
+          <span class="chip">D</span><span class="meta"><span class="name">Droid</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#A855F7" href="https://github.com/steipete/CodexBar/blob/main/docs/copilot.md">
+          <span class="chip">C</span><span class="meta"><span class="name">Copilot</span><span class="auth">Device flow</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#E85A6A" href="https://github.com/steipete/CodexBar/blob/main/docs/zai.md">
+          <span class="chip">z</span><span class="meta"><span class="name">z.ai</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#FE6060" href="https://github.com/steipete/CodexBar/blob/main/docs/minimax.md">
+          <span class="chip">M</span><span class="meta"><span class="name">MiniMax</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#FE603C" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi.md">
+          <span class="chip">K</span><span class="meta"><span class="name">Kimi</span><span class="auth">Token</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#4C00FF" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi-k2.md">
+          <span class="chip">K</span><span class="meta"><span class="name">Kimi K2</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#F27027" href="https://github.com/steipete/CodexBar/blob/main/docs/kilo.md">
+          <span class="chip">K</span><span class="meta"><span class="name">Kilo</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#FF9900;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/kiro.md">
+          <span class="chip">K</span><span class="meta"><span class="name">Kiro</span><span class="auth">CLI</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#4285F4" href="https://github.com/steipete/CodexBar/blob/main/docs/vertexai.md">
+          <span class="chip">V</span><span class="meta"><span class="name">Vertex AI</span><span class="auth">gcloud</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#6366F1" href="https://github.com/steipete/CodexBar/blob/main/docs/augment.md">
+          <span class="chip">A</span><span class="meta"><span class="name">Augment</span><span class="auth">CLI</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#DC2626" href="https://github.com/steipete/CodexBar/blob/main/docs/amp.md">
+          <span class="chip">A</span><span class="meta"><span class="name">Amp</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#888888" href="https://github.com/steipete/CodexBar/blob/main/docs/ollama.md">
+          <span class="chip">O</span><span class="meta"><span class="name">Ollama</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#141414" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
+          <span class="chip">S</span><span class="meta"><span class="name">Synthetic</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#FF3399" href="https://github.com/steipete/CodexBar/blob/main/docs/jetbrains.md">
+          <span class="chip">J</span><span class="meta"><span class="name">JetBrains AI</span><span class="auth">Local</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#7B68EE" href="https://github.com/steipete/CodexBar/blob/main/docs/warp.md">
+          <span class="chip">W</span><span class="meta"><span class="name">Warp</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#6467F2" href="https://github.com/steipete/CodexBar/blob/main/docs/openrouter.md">
+          <span class="chip">O</span><span class="meta"><span class="name">OpenRouter</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#20B2AA" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
+          <span class="chip">P</span><span class="meta"><span class="name">Perplexity</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#38BDF8" href="https://github.com/steipete/CodexBar/blob/main/docs/abacus.md">
+          <span class="chip">A</span><span class="meta"><span class="name">Abacus AI</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#FF500F" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
+          <span class="chip">M</span><span class="meta"><span class="name">Mistral</span><span class="auth">Cookies</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#527DF0" href="https://github.com/steipete/CodexBar/blob/main/docs/deepseek.md">
+          <span class="chip">D</span><span class="meta"><span class="name">DeepSeek</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider" style="--brand:#44C800;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/codebuff.md">
+          <span class="chip">C</span><span class="meta"><span class="name">Codebuff</span><span class="auth">API key</span></span>
+        </a></li>
+        <li><a class="provider add" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">
+          <span class="chip">+</span><span class="meta"><span class="name">Your provider</span><span class="auth">Authoring guide</span></span>
+        </a></li>
+        </ul>
       </section>
 
-      <section class="details" aria-label="Features" data-animate="5">
-        <div class="card">
-          <h3>Usage tracking</h3>
-          <p>
-            Session + weekly meters with reset countdowns, plus optional credits and code review limits.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Status + widgets</h3>
-          <p>
-            Provider status polling with incident badges, plus a WidgetKit snapshot that mirrors the menu card.
-          </p>
-        </div>
-        <div class="card">
-          <h3>CLI + automation</h3>
-          <p>
-            Bundled <code>codexbar</code> CLI for scripts and CI, with Linux CLI builds on GitHub Releases.
-          </p>
-        </div>
+      <section class="showcase">
+      <figure class="shot">
+        <img src="./codexbar.png" alt="CodexBar menu bar popover showing provider tiles with usage bars, reset countdowns, and credit details." />
+      </figure>
+      <div class="features">
+        <article>
+          <h3>Resets you can plan around</h3>
+          <p>Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
+        </article>
+        <article>
+          <h3>Credits, spend, and cost scans</h3>
+          <p>Credit balances and monthly spend where the provider exposes them, plus a local cost scan over the last 30 days for Codex and Claude.</p>
+        </article>
+        <article>
+          <h3>Status &amp; incidents</h3>
+          <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
+        </article>
+        <article>
+          <h3>CLI &amp; widgets</h3>
+          <p>WidgetKit widgets for supported providers and a bundled <code>codexbar</code> CLI for scripts and CI — macOS and Linux builds on every release.</p>
+        </article>
+      </div>
       </section>
 
-      <section class="details permissions" aria-label="Permissions" data-animate="6">
-        <div class="card">
-          <h3>macOS permissions</h3>
-          <p>
-            Full Disk Access only for Safari cookies, Keychain access for tokens, and Files &amp; Folders prompts when
-            provider CLIs access project directories.
-          </p>
-        </div>
-      </section>
-
-      <section class="links-row" aria-label="Docs links" data-animate="7">
-        <a class="link-pill" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md">Docs</a>
-        <a class="link-pill" href="https://github.com/steipete/CodexBar/blob/main/docs/cli.md">CLI</a>
-        <a class="link-pill" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">Provider guide</a>
-      </section>
-
-      <footer class="foot" data-animate="8">
+      <section class="detail">
+      <article class="block">
+        <h3>Install &amp; updates</h3>
         <p>
-          Built by <a href="https://steipete.me">Peter Steinberger</a> •
-          <a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">Changelog</a> •
-          <a href="https://github.com/steipete/CodexBar/blob/main/LICENSE">MIT</a> •
-          <a href="https://codexbar.app">codexbar.app</a> •
-          <a href="https://trimmy.app">trimmy.app</a>
+          Universal app via <a href="https://github.com/steipete/CodexBar/releases/latest">GitHub Releases</a> with Sparkle auto-updates, or
+          <code>brew install --cask steipete/tap/codexbar</code> for Apple Silicon (updates via <code>brew upgrade</code>).
         </p>
-      </footer>
+      </article>
+      <article class="block">
+        <h3>CLI</h3>
+        <p>
+          A bundled <code>codexbar</code> binary plus standalone tarballs for macOS and Linux on each release. On Linux:
+          <code>brew install steipete/tap/codexbar</code>.
+        </p>
+      </article>
+      <article class="block">
+        <h3>Privacy</h3>
+        <p>
+          Reuses existing provider sessions — OAuth, device flow, API keys, browser cookies, local files — so no passwords are stored.
+          Audit notes in <a href="https://github.com/steipete/CodexBar/issues/12">issue #12</a>.
+        </p>
+      </article>
+      <article class="block">
+        <h3>macOS permissions</h3>
+        <p>
+          Full Disk Access for Safari cookies, Keychain access for cookie decryption and OAuth flows, and Files &amp; Folders prompts
+          when provider helpers read project directories.
+        </p>
+      </article>
+      </section>
     </main>
+
+    <footer class="foot">
+      <p>
+        Built by <a href="https://steipete.me">Peter Steinberger</a> ·
+        <a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">Changelog</a> ·
+        <a href="https://github.com/steipete/CodexBar/blob/main/LICENSE">MIT</a> ·
+        <a href="https://trimmy.app">trimmy.app</a>
+      </p>
+    </footer>
+
+    <script>
+      (function () {
+        var btn = document.querySelector('.brew-copy');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var text = document.getElementById('brew-cmd').textContent;
+          if (!navigator.clipboard) return;
+          navigator.clipboard.writeText(text).then(function () {
+            btn.classList.add('copied');
+            setTimeout(function () { btn.classList.remove('copied'); }, 1500);
+          });
+        });
+      })();
+    </script>
   </body>
 </html>

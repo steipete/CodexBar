@@ -21,9 +21,11 @@ struct UsageFormatterTests {
         let now = Date()
         let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
         let text = UsageFormatter.updatedString(from: fiveHoursAgo, now: now)
-        #expect(text.contains("Updated"))
-        // Check for relative time format (varies by locale: "ago" in English, "전" in Korean, etc.)
-        #expect(text.contains("5") || text.lowercased().contains("hour") || text.contains("시간"))
+        #expect(text.hasPrefix("Updated "))
+        // Output must stay in English regardless of the host system locale,
+        // matching the surrounding hardcoded English UI labels.
+        #expect(text.contains("5"))
+        #expect(text.lowercased().contains("ago"))
     }
 
     @Test
@@ -221,5 +223,15 @@ struct UsageFormatterTests {
     func `credits string formats correctly`() {
         let result = UsageFormatter.creditsString(from: 42.5)
         #expect(result == "42.5 left")
+    }
+
+    @Test
+    func `byte count string formats binary units`() {
+        #expect(UsageFormatter.byteCountString(0) == "0 B")
+        #expect(UsageFormatter.byteCountString(512) == "512 B")
+        #expect(UsageFormatter.byteCountString(1536) == "1.5 KB")
+        #expect(UsageFormatter.byteCountString(10 * 1024) == "10 KB")
+        #expect(UsageFormatter.byteCountString(5 * 1024 * 1024) == "5 MB")
+        #expect(UsageFormatter.byteCountString(Int64(1536 * 1024 * 1024)) == "1.5 GB")
     }
 }

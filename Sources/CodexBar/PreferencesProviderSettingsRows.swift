@@ -196,6 +196,47 @@ struct ProviderSettingsFieldRowView: View {
                     }
                 }
             }
+
+            if let footer = self.field.footerText, !footer.isEmpty {
+                Text(footer)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+@MainActor
+struct ProviderSettingsActionsRowView: View {
+    let descriptor: ProviderSettingsActionsDescriptor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(self.descriptor.title)
+                .font(.subheadline.weight(.semibold))
+
+            if !self.descriptor.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(self.descriptor.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let actions = self.descriptor.actions.filter { $0.isVisible?() ?? true }
+            if !actions.isEmpty {
+                HStack(spacing: 10) {
+                    ForEach(actions) { action in
+                        Button(action.title) {
+                            Task { @MainActor in
+                                await action.perform()
+                            }
+                        }
+                        .applyProviderSettingsButtonStyle(action.style)
+                        .controlSize(.small)
+                    }
+                }
+            }
         }
     }
 }
@@ -207,9 +248,23 @@ struct ProviderSettingsTokenAccountsRowView: View {
     @State private var newToken: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(self.descriptor.title)
-                .font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(self.descriptor.title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+                if let title = self.descriptor.primaryAddActionTitle,
+                   let action = self.descriptor.primaryAddAction
+                {
+                    Button(title) {
+                        Task { @MainActor in
+                            await action()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
 
             if !self.descriptor.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(self.descriptor.subtitle)
@@ -224,46 +279,64 @@ struct ProviderSettingsTokenAccountsRowView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                let selectedIndex = min(self.descriptor.activeIndex(), max(0, accounts.count - 1))
-                Picker("", selection: Binding(
-                    get: { selectedIndex },
-                    set: { index in self.descriptor.setActiveIndex(index) }))
-                {
-                    ForEach(Array(accounts.enumerated()), id: \.offset) { index, account in
-                        Text(account.displayName).tag(index)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
+                        HStack(alignment: .center, spacing: 10) {
+                            Button {
+                                self.descriptor.setActiveIndex(index)
+                            } label: {
+                                HStack(alignment: .center, spacing: 8) {
+                                    Image(systemName: self.isActive(index: index, accountCount: accounts.count) ?
+                                        "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(self.isActive(index: index, accountCount: accounts.count) ?
+                                            Color.accentColor : Color.secondary)
+                                    Text(account.displayName)
+                                        .font(
+                                            .footnote.weight(
+                                                self.isActive(index: index, accountCount: accounts.count) ?
+                                                    .semibold : .regular))
+                                        .foregroundStyle(.primary)
+                                    Spacer(minLength: 0)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Button("Remove") {
+                                self.descriptor.removeAccount(account.id)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        if index < accounts.count - 1 {
+                            Divider()
+                        }
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .controlSize(.small)
-
-                Button("Remove selected account") {
-                    let account = accounts[selectedIndex]
-                    self.descriptor.removeAccount(account.id)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
 
-            HStack(spacing: 8) {
-                TextField("Label", text: self.$newLabel)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.footnote)
-                SecureField(self.descriptor.placeholder, text: self.$newToken)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.footnote)
-                Button("Add") {
-                    let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !label.isEmpty, !token.isEmpty else { return }
-                    self.descriptor.addAccount(label, token)
-                    self.newLabel = ""
-                    self.newToken = ""
+            if self.descriptor.primaryAddAction == nil {
+                HStack(spacing: 8) {
+                    TextField("Label", text: self.$newLabel)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.footnote)
+                    SecureField(self.descriptor.placeholder, text: self.$newToken)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.footnote)
+                    Button("Add") {
+                        let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !label.isEmpty, !token.isEmpty else { return }
+                        self.descriptor.addAccount(label, token)
+                        self.newLabel = ""
+                        self.newToken = ""
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                        self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                    self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
             HStack(spacing: 10) {
@@ -279,6 +352,12 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 .controlSize(.small)
             }
         }
+    }
+
+    private func isActive(index: Int, accountCount: Int) -> Bool {
+        guard accountCount > 0 else { return false }
+        let selectedIndex = min(self.descriptor.activeIndex(), max(0, accountCount - 1))
+        return selectedIndex == index
     }
 }
 

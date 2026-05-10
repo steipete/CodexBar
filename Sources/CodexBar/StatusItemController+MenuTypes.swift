@@ -15,7 +15,9 @@ extension ProviderSwitcherSelection {
 
 struct OverviewMenuCardRowView: View {
     let model: UsageMenuCardView.Model
+    let storageText: String?
     let width: CGFloat
+    @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,6 +31,22 @@ struct OverviewMenuCardRowView: View {
                     showBottomDivider: false,
                     bottomPadding: 6,
                     width: self.width)
+            }
+            if let storageText {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("Storage:")
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    Text(storageText)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, self.hasUsageBlock ? 0 : 8)
+                .padding(.bottom, 6)
+                .frame(width: self.width, alignment: .leading)
             }
         }
         .frame(width: self.width, alignment: .leading)

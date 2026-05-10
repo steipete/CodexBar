@@ -3,8 +3,8 @@ import Testing
 @testable import CodexBar
 
 struct OpenAIWebRefreshGateTests {
-    @Test("Battery saver keeps background OpenAI web refreshes off")
-    func batterySaverDisablesBackgroundRefresh() {
+    @Test
+    func `Battery saver keeps background OpenAI web refreshes off`() {
         let shouldRun = UsageStore.shouldRunOpenAIWebRefresh(.init(
             accessEnabled: true,
             batterySaverEnabled: true,
@@ -13,8 +13,8 @@ struct OpenAIWebRefreshGateTests {
         #expect(shouldRun == false)
     }
 
-    @Test("Disabling battery saver restores normal OpenAI web refreshes")
-    func disabledBatterySaverAllowsBackgroundRefresh() {
+    @Test
+    func `Disabling battery saver restores normal OpenAI web refreshes`() {
         let shouldRun = UsageStore.shouldRunOpenAIWebRefresh(.init(
             accessEnabled: true,
             batterySaverEnabled: false,
@@ -23,8 +23,8 @@ struct OpenAIWebRefreshGateTests {
         #expect(shouldRun == true)
     }
 
-    @Test("Manual refresh still forces OpenAI web refreshes with battery saver enabled")
-    func manualRefreshBypassesBatterySaver() {
+    @Test
+    func `Manual refresh still forces OpenAI web refreshes with battery saver enabled`() {
         let shouldRun = UsageStore.shouldRunOpenAIWebRefresh(.init(
             accessEnabled: true,
             batterySaverEnabled: true,
@@ -33,22 +33,22 @@ struct OpenAIWebRefreshGateTests {
         #expect(shouldRun == true)
     }
 
-    @Test("Battery saver stale-submenu refresh respects the cooldown")
-    func batterySaverStaleRefreshDoesNotForce() {
+    @Test
+    func `Battery saver stale-submenu refresh respects the cooldown`() {
         let shouldForce = UsageStore.forceOpenAIWebRefreshForStaleRequest(batterySaverEnabled: true)
 
         #expect(shouldForce == false)
     }
 
-    @Test("Normal stale-submenu refresh still forces when battery saver is off")
-    func nonBatterySaverStaleRefreshForces() {
+    @Test
+    func `Normal stale-submenu refresh still forces when battery saver is off`() {
         let shouldForce = UsageStore.forceOpenAIWebRefreshForStaleRequest(batterySaverEnabled: false)
 
         #expect(shouldForce == true)
     }
 
-    @Test("Recent successful dashboard refresh stays throttled")
-    func recentSuccessSkipsRefresh() {
+    @Test
+    func `Recent successful dashboard refresh stays throttled`() {
         let now = Date()
 
         let shouldSkip = UsageStore.shouldSkipOpenAIWebRefresh(.init(
@@ -63,8 +63,8 @@ struct OpenAIWebRefreshGateTests {
         #expect(shouldSkip == true)
     }
 
-    @Test("Recent failed dashboard refresh also stays throttled")
-    func recentFailureSkipsRefresh() {
+    @Test
+    func `Recent failed dashboard refresh also stays throttled`() {
         let now = Date()
 
         let shouldSkip = UsageStore.shouldSkipOpenAIWebRefresh(.init(
@@ -79,8 +79,8 @@ struct OpenAIWebRefreshGateTests {
         #expect(shouldSkip == true)
     }
 
-    @Test("Force refresh bypasses throttle after failures")
-    func forceRefreshBypassesCooldown() {
+    @Test
+    func `Force refresh bypasses throttle after failures`() {
         let now = Date()
 
         let shouldSkip = UsageStore.shouldSkipOpenAIWebRefresh(.init(
@@ -95,8 +95,8 @@ struct OpenAIWebRefreshGateTests {
         #expect(shouldSkip == false)
     }
 
-    @Test("Account switches bypass the prior-attempt cooldown")
-    func accountChangeBypassesCooldown() {
+    @Test
+    func `Account switches bypass the prior-attempt cooldown`() {
         let now = Date()
 
         let shouldSkip = UsageStore.shouldSkipOpenAIWebRefresh(.init(

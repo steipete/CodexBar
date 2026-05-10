@@ -12,17 +12,17 @@ enum MenuBarDisplayMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .percent: "Percent"
-        case .pace: "Pace"
-        case .both: "Both"
+        case .percent: L("display_mode_percent")
+        case .pace: L("display_mode_pace")
+        case .both: L("display_mode_both")
         }
     }
 
     var description: String {
         switch self {
-        case .percent: "Show remaining/used percentage (e.g. 45%)"
-        case .pace: "Show pace indicator (e.g. +5%)"
-        case .both: "Show both percentage and pace (e.g. 45% · +5%)"
+        case .percent: L("display_mode_percent_desc")
+        case .pace: L("display_mode_pace_desc")
+        case .both: L("display_mode_both_desc")
         }
     }
 }

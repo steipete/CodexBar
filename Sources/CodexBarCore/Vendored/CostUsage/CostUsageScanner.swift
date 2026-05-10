@@ -235,7 +235,8 @@ enum CostUsageScanner {
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
         case .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba, .factory, .copilot,
              .minimax, .manus, .kilo, .kiro, .kimi,
-             .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp, .perplexity, .abacus:
+             .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp, .perplexity, .abacus,
+             .mistral, .deepseek, .codebuff, .crof, .windsurf, .venice, .commandcode, .stepfun:
             return emptyReport
         }
     }
@@ -503,22 +504,25 @@ enum CostUsageScanner {
 
         func parseSessionMetadata(from lineData: Data) -> CodexSessionMetadata? {
             guard !lineData.isEmpty else { return nil }
-            guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any] else { return nil }
-            guard obj["type"] as? String == "session_meta" else { return nil }
-            let payload = obj["payload"] as? [String: Any]
-            return CodexSessionMetadata(
-                sessionId: payload?["session_id"] as? String
-                    ?? payload?["sessionId"] as? String
-                    ?? payload?["id"] as? String
-                    ?? obj["session_id"] as? String
-                    ?? obj["sessionId"] as? String
-                    ?? obj["id"] as? String,
-                forkedFromId: payload?["forked_from_id"] as? String
-                    ?? payload?["forkedFromId"] as? String
-                    ?? payload?["parent_session_id"] as? String
-                    ?? payload?["parentSessionId"] as? String,
-                forkTimestamp: payload?["timestamp"] as? String
-                    ?? obj["timestamp"] as? String)
+            return autoreleasepool {
+                guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any]
+                else { return nil }
+                guard obj["type"] as? String == "session_meta" else { return nil }
+                let payload = obj["payload"] as? [String: Any]
+                return CodexSessionMetadata(
+                    sessionId: payload?["session_id"] as? String
+                        ?? payload?["sessionId"] as? String
+                        ?? payload?["id"] as? String
+                        ?? obj["session_id"] as? String
+                        ?? obj["sessionId"] as? String
+                        ?? obj["id"] as? String,
+                    forkedFromId: payload?["forked_from_id"] as? String
+                        ?? payload?["forkedFromId"] as? String
+                        ?? payload?["parent_session_id"] as? String
+                        ?? payload?["parentSessionId"] as? String,
+                    forkTimestamp: payload?["timestamp"] as? String
+                        ?? obj["timestamp"] as? String)
+            }
         }
 
         do {
@@ -573,54 +577,57 @@ enum CostUsageScanner {
                 prefixBytes: 512 * 1024,
                 onLine: { line in
                     guard !line.bytes.isEmpty, !line.wasTruncated else { return }
-                    guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
-                    else { return }
+                    autoreleasepool {
+                        guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
+                        else { return }
 
-                    if obj["type"] as? String == "session_meta" {
-                        let payload = obj["payload"] as? [String: Any]
-                        if sessionId == nil {
-                            sessionId = payload?["session_id"] as? String
-                                ?? payload?["sessionId"] as? String
-                                ?? payload?["id"] as? String
-                                ?? obj["session_id"] as? String
-                                ?? obj["sessionId"] as? String
-                                ?? obj["id"] as? String
+                        if obj["type"] as? String == "session_meta" {
+                            let payload = obj["payload"] as? [String: Any]
+                            if sessionId == nil {
+                                sessionId = payload?["session_id"] as? String
+                                    ?? payload?["sessionId"] as? String
+                                    ?? payload?["id"] as? String
+                                    ?? obj["session_id"] as? String
+                                    ?? obj["sessionId"] as? String
+                                    ?? obj["id"] as? String
+                            }
+                            return
                         }
-                        return
-                    }
 
-                    guard obj["type"] as? String == "event_msg" else { return }
-                    guard let payload = obj["payload"] as? [String: Any] else { return }
-                    guard payload["type"] as? String == "token_count" else { return }
-                    guard let info = payload["info"] as? [String: Any] else { return }
-                    guard let timestamp = obj["timestamp"] as? String else { return }
+                        guard obj["type"] as? String == "event_msg" else { return }
+                        guard let payload = obj["payload"] as? [String: Any] else { return }
+                        guard payload["type"] as? String == "token_count" else { return }
+                        guard let info = payload["info"] as? [String: Any] else { return }
+                        guard let timestamp = obj["timestamp"] as? String else { return }
 
-                    func toInt(_ value: Any?) -> Int {
-                        if let number = value as? NSNumber { return number.intValue }
-                        return 0
-                    }
+                        func toInt(_ value: Any?) -> Int {
+                            if let number = value as? NSNumber { return number.intValue }
+                            return 0
+                        }
 
-                    if let total = info["total_token_usage"] as? [String: Any] {
-                        let next = CostUsageCodexTotals(
-                            input: toInt(total["input_tokens"]),
-                            cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                            output: toInt(total["output_tokens"]))
-                        previousTotals = next
-                        snapshots.append(CodexTimestampedTotals(
-                            timestamp: timestamp,
-                            date: parsedSnapshotDate(timestamp: timestamp),
-                            totals: next))
-                    } else if let last = info["last_token_usage"] as? [String: Any] {
-                        let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                        let next = CostUsageCodexTotals(
-                            input: base.input + toInt(last["input_tokens"]),
-                            cached: base.cached + toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]),
-                            output: base.output + toInt(last["output_tokens"]))
-                        previousTotals = next
-                        snapshots.append(CodexTimestampedTotals(
-                            timestamp: timestamp,
-                            date: parsedSnapshotDate(timestamp: timestamp),
-                            totals: next))
+                        if let total = info["total_token_usage"] as? [String: Any] {
+                            let next = CostUsageCodexTotals(
+                                input: toInt(total["input_tokens"]),
+                                cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
+                                output: toInt(total["output_tokens"]))
+                            previousTotals = next
+                            snapshots.append(CodexTimestampedTotals(
+                                timestamp: timestamp,
+                                date: parsedSnapshotDate(timestamp: timestamp),
+                                totals: next))
+                        } else if let last = info["last_token_usage"] as? [String: Any] {
+                            let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            let next = CostUsageCodexTotals(
+                                input: base.input + toInt(last["input_tokens"]),
+                                cached: base
+                                    .cached + toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]),
+                                output: base.output + toInt(last["output_tokens"]))
+                            previousTotals = next
+                            snapshots.append(CodexTimestampedTotals(
+                                timestamp: timestamp,
+                                date: parsedSnapshotDate(timestamp: timestamp),
+                                totals: next))
+                        }
                     }
                 })
         } catch {
@@ -702,141 +709,143 @@ enum CostUsageScanner {
                         return
                     }
 
-                    guard
-                        let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
-                        let type = obj["type"] as? String
-                    else { return }
+                    autoreleasepool {
+                        guard
+                            let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
+                            let type = obj["type"] as? String
+                        else { return }
 
-                    if type == "session_meta" {
-                        let payload = obj["payload"] as? [String: Any]
-                        if sessionId == nil {
-                            sessionId = payload?["session_id"] as? String
-                                ?? payload?["sessionId"] as? String
-                                ?? payload?["id"] as? String
-                                ?? obj["session_id"] as? String
-                                ?? obj["sessionId"] as? String
-                                ?? obj["id"] as? String
-                        }
-                        if forkedFromId == nil {
-                            forkedFromId = payload?["forked_from_id"] as? String
-                                ?? payload?["forkedFromId"] as? String
-                                ?? payload?["parent_session_id"] as? String
-                                ?? payload?["parentSessionId"] as? String
-                        }
-                        if inheritedTotals == nil, let forkedFromId {
-                            let forkedAt = payload?["timestamp"] as? String
-                                ?? obj["timestamp"] as? String
-                                ?? ""
-                            inheritedTotals = inheritedTotalsResolver?(forkedFromId, forkedAt)
-                            remainingInheritedTotals = inheritedTotals
-                        }
-                        return
-                    }
-
-                    guard let tsText = obj["timestamp"] as? String else { return }
-                    guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText)
-                    else { return }
-
-                    if type == "turn_context" {
-                        if let payload = obj["payload"] as? [String: Any] {
-                            if let model = payload["model"] as? String {
-                                currentModel = model
-                            } else if let info = payload["info"] as? [String: Any],
-                                      let model = info["model"] as? String
-                            {
-                                currentModel = model
+                        if type == "session_meta" {
+                            let payload = obj["payload"] as? [String: Any]
+                            if sessionId == nil {
+                                sessionId = payload?["session_id"] as? String
+                                    ?? payload?["sessionId"] as? String
+                                    ?? payload?["id"] as? String
+                                    ?? obj["session_id"] as? String
+                                    ?? obj["sessionId"] as? String
+                                    ?? obj["id"] as? String
                             }
+                            if forkedFromId == nil {
+                                forkedFromId = payload?["forked_from_id"] as? String
+                                    ?? payload?["forkedFromId"] as? String
+                                    ?? payload?["parent_session_id"] as? String
+                                    ?? payload?["parentSessionId"] as? String
+                            }
+                            if inheritedTotals == nil, let forkedFromId {
+                                let forkedAt = payload?["timestamp"] as? String
+                                    ?? obj["timestamp"] as? String
+                                    ?? ""
+                                inheritedTotals = inheritedTotalsResolver?(forkedFromId, forkedAt)
+                                remainingInheritedTotals = inheritedTotals
+                            }
+                            return
                         }
-                        return
-                    }
 
-                    guard type == "event_msg" else { return }
-                    guard let payload = obj["payload"] as? [String: Any] else { return }
-                    guard (payload["type"] as? String) == "token_count" else { return }
+                        guard let tsText = obj["timestamp"] as? String else { return }
+                        guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText)
+                        else { return }
 
-                    let info = payload["info"] as? [String: Any]
-                    let modelFromInfo = info?["model"] as? String
-                        ?? info?["model_name"] as? String
-                        ?? payload["model"] as? String
-                        ?? obj["model"] as? String
-                    let model = modelFromInfo ?? currentModel ?? "gpt-5"
+                        if type == "turn_context" {
+                            if let payload = obj["payload"] as? [String: Any] {
+                                if let model = payload["model"] as? String {
+                                    currentModel = model
+                                } else if let info = payload["info"] as? [String: Any],
+                                          let model = info["model"] as? String
+                                {
+                                    currentModel = model
+                                }
+                            }
+                            return
+                        }
 
-                    func toInt(_ v: Any?) -> Int {
-                        if let n = v as? NSNumber { return n.intValue }
-                        return 0
-                    }
+                        guard type == "event_msg" else { return }
+                        guard let payload = obj["payload"] as? [String: Any] else { return }
+                        guard (payload["type"] as? String) == "token_count" else { return }
 
-                    let total = (info?["total_token_usage"] as? [String: Any])
-                    let last = (info?["last_token_usage"] as? [String: Any])
+                        let info = payload["info"] as? [String: Any]
+                        let modelFromInfo = info?["model"] as? String
+                            ?? info?["model_name"] as? String
+                            ?? payload["model"] as? String
+                            ?? obj["model"] as? String
+                        let model = currentModel ?? modelFromInfo ?? "gpt-5"
 
-                    var deltaInput = 0
-                    var deltaCached = 0
-                    var deltaOutput = 0
+                        func toInt(_ v: Any?) -> Int {
+                            if let n = v as? NSNumber { return n.intValue }
+                            return 0
+                        }
 
-                    func adjustedLastDelta(_ rawDelta: CostUsageCodexTotals) -> CostUsageCodexTotals {
-                        guard var remaining = remainingInheritedTotals else { return rawDelta }
+                        let total = (info?["total_token_usage"] as? [String: Any])
+                        let last = (info?["last_token_usage"] as? [String: Any])
 
-                        let adjusted = CostUsageCodexTotals(
-                            input: max(0, rawDelta.input - remaining.input),
-                            cached: max(0, rawDelta.cached - remaining.cached),
-                            output: max(0, rawDelta.output - remaining.output))
+                        var deltaInput = 0
+                        var deltaCached = 0
+                        var deltaOutput = 0
 
-                        remaining.input = max(0, remaining.input - rawDelta.input)
-                        remaining.cached = max(0, remaining.cached - rawDelta.cached)
-                        remaining.output = max(0, remaining.output - rawDelta.output)
-                        remainingInheritedTotals = if remaining.input == 0, remaining.cached == 0,
-                                                      remaining.output == 0
-                        {
-                            nil
+                        func adjustedLastDelta(_ rawDelta: CostUsageCodexTotals) -> CostUsageCodexTotals {
+                            guard var remaining = remainingInheritedTotals else { return rawDelta }
+
+                            let adjusted = CostUsageCodexTotals(
+                                input: max(0, rawDelta.input - remaining.input),
+                                cached: max(0, rawDelta.cached - remaining.cached),
+                                output: max(0, rawDelta.output - remaining.output))
+
+                            remaining.input = max(0, remaining.input - rawDelta.input)
+                            remaining.cached = max(0, remaining.cached - rawDelta.cached)
+                            remaining.output = max(0, remaining.output - rawDelta.output)
+                            remainingInheritedTotals = if remaining.input == 0, remaining.cached == 0,
+                                                          remaining.output == 0
+                            {
+                                nil
+                            } else {
+                                remaining
+                            }
+
+                            return adjusted
+                        }
+
+                        if let total {
+                            let rawTotals = CostUsageCodexTotals(
+                                input: toInt(total["input_tokens"]),
+                                cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
+                                output: toInt(total["output_tokens"]))
+
+                            let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
+                                CostUsageCodexTotals(
+                                    input: max(0, rawTotals.input - inheritedTotals.input),
+                                    cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                                    output: max(0, rawTotals.output - inheritedTotals.output))
+                            } else {
+                                rawTotals
+                            }
+
+                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            deltaInput = max(0, currentTotals.input - prev.input)
+                            deltaCached = max(0, currentTotals.cached - prev.cached)
+                            deltaOutput = max(0, currentTotals.output - prev.output)
+                            previousTotals = currentTotals
+                            remainingInheritedTotals = nil
+                        } else if let last {
+                            let rawDelta = CostUsageCodexTotals(
+                                input: max(0, toInt(last["input_tokens"])),
+                                cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
+                                output: max(0, toInt(last["output_tokens"])))
+                            let adjustedDelta = adjustedLastDelta(rawDelta)
+                            deltaInput = adjustedDelta.input
+                            deltaCached = adjustedDelta.cached
+                            deltaOutput = adjustedDelta.output
+                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            previousTotals = CostUsageCodexTotals(
+                                input: prev.input + deltaInput,
+                                cached: prev.cached + deltaCached,
+                                output: prev.output + deltaOutput)
                         } else {
-                            remaining
+                            return
                         }
 
-                        return adjusted
+                        if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
+                        let cachedClamp = min(deltaCached, deltaInput)
+                        add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
                     }
-
-                    if let total {
-                        let rawTotals = CostUsageCodexTotals(
-                            input: toInt(total["input_tokens"]),
-                            cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                            output: toInt(total["output_tokens"]))
-
-                        let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
-                            CostUsageCodexTotals(
-                                input: max(0, rawTotals.input - inheritedTotals.input),
-                                cached: max(0, rawTotals.cached - inheritedTotals.cached),
-                                output: max(0, rawTotals.output - inheritedTotals.output))
-                        } else {
-                            rawTotals
-                        }
-
-                        let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                        deltaInput = max(0, currentTotals.input - prev.input)
-                        deltaCached = max(0, currentTotals.cached - prev.cached)
-                        deltaOutput = max(0, currentTotals.output - prev.output)
-                        previousTotals = currentTotals
-                        remainingInheritedTotals = nil
-                    } else if let last {
-                        let rawDelta = CostUsageCodexTotals(
-                            input: max(0, toInt(last["input_tokens"])),
-                            cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
-                            output: max(0, toInt(last["output_tokens"])))
-                        let adjustedDelta = adjustedLastDelta(rawDelta)
-                        deltaInput = adjustedDelta.input
-                        deltaCached = adjustedDelta.cached
-                        deltaOutput = adjustedDelta.output
-                        let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                        previousTotals = CostUsageCodexTotals(
-                            input: prev.input + deltaInput,
-                            cached: prev.cached + deltaCached,
-                            output: prev.output + deltaOutput)
-                    } else {
-                        return
-                    }
-
-                    if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-                    let cachedClamp = min(deltaCached, deltaInput)
-                    add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
                 })
         } catch {
             self.log.warning(

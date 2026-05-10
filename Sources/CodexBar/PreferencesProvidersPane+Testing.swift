@@ -53,7 +53,8 @@ extension ProvidersPane {
                     lastAppActiveRunAtByID.removeValue(forKey: id)
                 }
             },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
         return impl.settingsPickers(context: context)
             .filter { $0.isVisible?() ?? true }
     }
@@ -248,6 +249,8 @@ enum ProvidersPaneTestHarness {
             setActiveIndex: { _ in },
             addAccount: { _, _ in },
             removeAccount: { _ in },
+            primaryAddActionTitle: nil,
+            primaryAddAction: nil,
             openConfigFile: {},
             reloadFromDisk: {})
 

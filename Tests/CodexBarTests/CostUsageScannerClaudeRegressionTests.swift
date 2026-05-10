@@ -114,6 +114,51 @@ struct CostUsageScannerClaudeRegressionTests {
     }
 
     @Test
+    func `claude opus 4 7 issue row gets priced`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 23)
+        let fileURL = try env.writeClaudeProjectFile(
+            relativePath: "project-a/opus-47.jsonl",
+            contents: env.jsonl([
+                [
+                    "message": [
+                        "model": "claude-opus-4-7",
+                        "id": "msg_01NrvWoSMk2Eig6vkCgyRZqc",
+                        "type": "message",
+                        "role": "assistant",
+                        "usage": [
+                            "input_tokens": 6,
+                            "cache_creation_input_tokens": 1389,
+                            "cache_read_input_tokens": 50352,
+                            "output_tokens": 3922,
+                        ],
+                    ],
+                    "requestId": "req_011CaLLcFQD712ZnCTxHFk71",
+                    "type": "assistant",
+                    "timestamp": "2026-04-23T07:51:34.428Z",
+                    "sessionId": "39d4b923-8273-4c35-ad9c-e098395286f1",
+                ],
+            ]))
+
+        let parsed = CostUsageScanner.parseClaudeFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            providerFilter: .all)
+
+        #expect(parsed.rows.count == 1)
+        #expect(parsed.rows[0].model == "claude-opus-4-7")
+        #expect(parsed.rows[0].input == 6)
+        #expect(parsed.rows[0].cacheCreate == 1389)
+        #expect(parsed.rows[0].cacheRead == 50352)
+        #expect(parsed.rows[0].output == 3922)
+
+        let expected = 0.13193725
+        #expect(abs((Double(parsed.rows[0].costNanos) / 1_000_000_000) - expected) < 0.000000001)
+    }
+
+    @Test
     func `claude streaming keeps the last cumulative chunk`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

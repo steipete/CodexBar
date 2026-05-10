@@ -26,4 +26,11 @@ struct CLIOutputTests {
         let error = first?["error"] as? [String: Any]
         #expect(error?["message"] as? String == "Nope")
     }
+
+    @Test
+    func `exit omits generic error when command already emitted payload`() {
+        #expect(!CodexBarCLI.shouldPrintExitError(code: .success, message: nil))
+        #expect(!CodexBarCLI.shouldPrintExitError(code: .failure, message: nil))
+        #expect(CodexBarCLI.shouldPrintExitError(code: .failure, message: "Nope"))
+    }
 }

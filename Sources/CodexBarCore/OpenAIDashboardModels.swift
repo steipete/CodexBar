@@ -36,7 +36,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         self.codeReviewLimit = codeReviewLimit
         self.creditEvents = creditEvents
         self.dailyBreakdown = dailyBreakdown
-        self.usageBreakdown = usageBreakdown
+        self.usageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: usageBreakdown)
         self.creditsPurchaseURL = creditsPurchaseURL
         self.primaryLimit = primaryLimit
         self.secondaryLimit = secondaryLimit
@@ -72,9 +72,11 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             [OpenAIDashboardDailyBreakdown].self,
             forKey: .dailyBreakdown)
             ?? Self.makeDailyBreakdown(from: self.creditEvents, maxDays: 30)
-        self.usageBreakdown = try container.decodeIfPresent(
+        let decodedUsageBreakdown = try container.decodeIfPresent(
             [OpenAIDashboardDailyBreakdown].self,
             forKey: .usageBreakdown) ?? []
+        self.usageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: decodedUsageBreakdown)
         self.creditsPurchaseURL = try container.decodeIfPresent(String.self, forKey: .creditsPurchaseURL)
         self.primaryLimit = try container.decodeIfPresent(RateWindow.self, forKey: .primaryLimit)
         self.secondaryLimit = try container.decodeIfPresent(RateWindow.self, forKey: .secondaryLimit)
@@ -144,6 +146,33 @@ public struct OpenAIDashboardDailyBreakdown: Codable, Equatable, Sendable {
         self.day = day
         self.services = services
         self.totalCreditsUsed = totalCreditsUsed
+    }
+
+    public static func isSkillUsageService(_ service: String) -> Bool {
+        service
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .hasPrefix("skillusage:")
+    }
+
+    public static func removingSkillUsageServices(
+        from breakdown: [OpenAIDashboardDailyBreakdown])
+        -> [OpenAIDashboardDailyBreakdown]
+    {
+        breakdown.compactMap { day in
+            guard !day.services.isEmpty else {
+                return day.totalCreditsUsed > 0 ? day : nil
+            }
+
+            let services = day.services.filter { !self.isSkillUsageService($0.service) }
+            guard !services.isEmpty else { return nil }
+
+            let total = services.reduce(0) { $0 + $1.creditsUsed }
+            return OpenAIDashboardDailyBreakdown(
+                day: day.day,
+                services: services,
+                totalCreditsUsed: total)
+        }
     }
 }
 

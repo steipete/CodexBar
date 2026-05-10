@@ -85,6 +85,17 @@ struct OpenAIDashboardParserTests {
     }
 
     @Test
+    func `parses spaced five hour limit label`() {
+        let body = """
+        Limite 5 h
+        72 % restant
+        """
+        let limits = OpenAIDashboardParser.parseRateLimits(bodyText: body)
+        #expect(abs((limits.primary?.usedPercent ?? 0) - 28) < 0.001)
+        #expect(limits.primary?.windowMinutes == 300)
+    }
+
+    @Test
     func `parses plan from client bootstrap`() {
         let html = """
         <html>
@@ -109,7 +120,7 @@ struct OpenAIDashboardParserTests {
         </body>
         </html>
         """
-        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro Lite")
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro 5x")
     }
 
     @Test
@@ -124,6 +135,26 @@ struct OpenAIDashboardParserTests {
         #expect(abs((events.first?.creditsUsed ?? 0) - 397.205) < 0.0001)
         #expect(events.last?.service == "GitHub Code Review")
         #expect(abs((events.last?.creditsUsed ?? 0) - 506.235) < 0.0001)
+    }
+
+    @Test
+    func `parses credit event amount with localized credit label`() {
+        let rows: [[String]] = [
+            ["Dec 18, 2025", "CLI", "397,205 crédits"],
+        ]
+        let events = OpenAIDashboardParser.parseCreditEvents(rows: rows)
+        #expect(events.count == 1)
+        #expect(abs((events.first?.creditsUsed ?? 0) - 397.205) < 0.0001)
+    }
+
+    @Test
+    func `parses credit event amount with english comma thousands`() {
+        let rows: [[String]] = [
+            ["Dec 18, 2025", "CLI", "1,234 credits"],
+        ]
+        let events = OpenAIDashboardParser.parseCreditEvents(rows: rows)
+        #expect(events.count == 1)
+        #expect(events.first?.creditsUsed == 1234)
     }
 
     @Test

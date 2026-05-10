@@ -33,31 +33,8 @@ struct CompositeLogHandler: LogHandler {
         }
     }
 
-    // swiftlint:disable:next function_parameter_count
-    func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt)
-    {
-        self.primary.log(
-            level: level,
-            message: message,
-            metadata: metadata,
-            source: source,
-            file: file,
-            function: function,
-            line: line)
-        self.secondary.log(
-            level: level,
-            message: message,
-            metadata: metadata,
-            source: source,
-            file: file,
-            function: function,
-            line: line)
+    func log(event: LogEvent) {
+        self.primary.log(event: event)
+        self.secondary.log(event: event)
     }
 }
