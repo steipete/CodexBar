@@ -322,6 +322,70 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `refresh updates cache when fetched catalog canonicalizes alias model id`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+
+        let canonicalizedCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-4o-mini": {
+                "id": "gpt-4o-mini",
+                "cost": { "input": 99, "output": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": { "input": 99, "output": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "google-vertex-anthropic": {
+            "id": "google-vertex-anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          }
+        }
+        """.utf8)
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: Date(timeIntervalSince1970: 1 + ModelsDevCache.ttlSeconds + 1),
+            cacheRoot: root,
+            client: ModelsDevClient(transport: MockTransport(
+                result: .success((canonicalizedCatalog, Self.response(status: 200))))))
+
+        let defaultLookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "google-vertex-anthropic",
+            modelID: "claude-sonnet-4-6@default",
+            cacheRoot: root))
+        let baseLookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "google-vertex-anthropic",
+            modelID: "claude-sonnet-4-6",
+            cacheRoot: root))
+
+        #expect(defaultLookup.pricing.inputCostPerToken == 99 / 1_000_000.0)
+        #expect(baseLookup.pricing.inputCostPerToken == 99 / 1_000_000.0)
+    }
+
+    @Test
     func `fresh cache does not refresh`() async throws {
         let root = try Self.cacheRoot()
         try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
