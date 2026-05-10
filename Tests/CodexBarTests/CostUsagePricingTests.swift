@@ -64,7 +64,8 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        #expect(cost == 90 * 5e-6 + 10 * 5e-7 + 5 * 3e-5)
+        let expected = (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
+        #expect(cost == expected)
     }
 
     @Test
@@ -77,7 +78,8 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        #expect(cost == 100 * 3e-5 + 5 * 1.8e-4)
+        let expected = (100.0 * 3e-5) + (5.0 * 1.8e-4)
+        #expect(cost == expected)
     }
 
     @Test
@@ -117,7 +119,8 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        #expect(cost == 90 * 10e-6 + 10 * 1e-6 + 5 * 20e-6)
+        let expected = (90.0 * 10e-6) + (10.0 * 1e-6) + (5.0 * 20e-6)
+        #expect(cost == expected)
     }
 
     @Test
@@ -143,7 +146,8 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        #expect(cost == 90 * 2e-6 + 10 * 0.2e-6 + 5 * 8e-6)
+        let expected = (90.0 * 2e-6) + (10.0 * 0.2e-6) + (5.0 * 8e-6)
+        #expect(cost == expected)
         #expect(CostUsagePricing.codexDisplayLabel(model: "gpt-5.3-codex-spark") == "Research Preview")
     }
 
@@ -170,7 +174,8 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        #expect(cost == 90 * 5e-6 + 10 * 5e-7 + 5 * 3e-5)
+        let expected = (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
+        #expect(cost == expected)
     }
 
     @Test
@@ -208,7 +213,8 @@ struct CostUsagePricingTests {
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
             outputTokens: 5)
-        #expect(cost == 10 * 5e-6 + 5 * 2.5e-5)
+        let expected = (10.0 * 5e-6) + (5.0 * 2.5e-5)
+        #expect(cost == expected)
     }
 
     @Test
@@ -257,7 +263,12 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        #expect(cost == 200_000 * 3e-6 + 10 * 6e-6 + 5 * 0.3e-6 + 5 * 3.75e-6 + 5 * 15e-6)
+        let expected = (200_000.0 * 3e-6)
+            + (10.0 * 6e-6)
+            + (5.0 * 0.3e-6)
+            + (5.0 * 3.75e-6)
+            + (5.0 * 15e-6)
+        #expect(cost == expected)
     }
 
     private static func seedModelsDevCache(_ json: String) throws -> URL {
