@@ -88,8 +88,8 @@ extension SettingsStore {
         get { self.configSnapshot.providerConfig(for: .kilo)?.kiloEnabledOrganizationIDs ?? [] }
         set {
             let cleaned = Array(KiloOrgIDLinkedHashSet(newValue
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }))
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }))
             self.updateProviderConfig(provider: .kilo) { entry in
                 entry.kiloEnabledOrganizationIDs = cleaned.isEmpty ? nil : cleaned
             }
@@ -125,7 +125,7 @@ extension SettingsStore {
     }
 }
 
-// Small order-preserving set used to dedupe enabled IDs without sorting.
+/// Small order-preserving set used to dedupe enabled IDs without sorting.
 private struct KiloOrgIDLinkedHashSet<Element: Hashable>: Sequence {
     private var seen: Set<Element> = []
     private var ordered: [Element] = []

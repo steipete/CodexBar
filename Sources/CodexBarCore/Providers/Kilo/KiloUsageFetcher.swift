@@ -234,6 +234,7 @@ public enum KiloUsageError: LocalizedError, Sendable, Equatable {
     }
 }
 
+// swiftlint:disable:next type_body_length
 public struct KiloUsageFetcher: Sendable {
     private struct KiloPassFields {
         let used: Double?

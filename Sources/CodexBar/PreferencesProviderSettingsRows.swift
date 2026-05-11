@@ -397,7 +397,7 @@ struct ProviderSettingsOrganizationsRowView: View {
             }
 
             let entries = self.descriptor.entries()
-            if entries.allSatisfy({ $0.isLocked }) {
+            if entries.allSatisfy(\.isLocked) {
                 Text("No organizations loaded. Click Refresh after setting your API key.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -408,22 +408,21 @@ struct ProviderSettingsOrganizationsRowView: View {
                             get: { entry.isEnabled },
                             set: { newValue in
                                 self.descriptor.onToggle(entry.id, newValue)
-                            }))
-                        {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(entry.title)
-                                    .font(.footnote)
-                                if let subtitle = entry.subtitle,
-                                   !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                {
-                                    Text(subtitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                            })) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(entry.title)
+                                        .font(.footnote)
+                                    if let subtitle = entry.subtitle,
+                                       !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    {
+                                        Text(subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
-                        }
-                        .toggleStyle(.checkbox)
-                        .disabled(entry.isLocked)
+                            .toggleStyle(.checkbox)
+                                .disabled(entry.isLocked)
                     }
                 }
             }
