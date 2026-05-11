@@ -84,8 +84,8 @@ struct CostUsagePricingTests {
             outputTokens: 10,
             modelsDevCacheRoot: root)
 
-        #expect(gpt54 == (272_001.0 * 5e-6) + (10.0 * 2.25e-5))
-        #expect(gpt55 == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
+        #expect(gpt54 == (272_000.0 * 2.5e-6) + (1.0 * 5e-6) + (10.0 * 1.5e-5))
+        #expect(gpt55 == (272_000.0 * 5e-6) + (1.0 * 1e-5) + (10.0 * 3e-5))
     }
 
     @Test
@@ -113,9 +113,15 @@ struct CostUsagePricingTests {
             inputTokens: 100,
             cachedInputTokens: 20,
             outputTokens: 10)
+        let gpt54Mini = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.4-mini",
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10)
 
         #expect(gpt54 == (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
         #expect(gpt55 == (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5))
+        #expect(gpt54Mini == (80.0 * 1.5e-6) + (20.0 * 1.5e-7) + (10.0 * 9e-6))
     }
 
     @Test
@@ -185,7 +191,7 @@ struct CostUsagePricingTests {
             modelsDevCacheRoot: root)
 
         #expect(atBoundary == (272_000.0 * 5e-6) + (10.0 * 3e-5))
-        #expect(aboveBoundary == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
+        #expect(aboveBoundary == (272_000.0 * 5e-6) + (1.0 * 1e-5) + (10.0 * 3e-5))
     }
 
     @Test

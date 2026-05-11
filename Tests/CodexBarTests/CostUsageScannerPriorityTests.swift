@@ -156,11 +156,54 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let standardTurnBase = (272_001.0 * 1e-5) + (10.0 * 4.5e-5)
+        let standardTurnBase = (272_000.0 * 5e-6) + (1.0 * 1e-5) + (10.0 * 3e-5)
         let priorityFirstRow = (300_000.0 * 1.25e-5) + (5.0 * 7.5e-5)
         let prioritySecondRow = (100_001.0 * 1.25e-5) + (5.0 * 7.5e-5)
 
         let expected = standardTurnBase + priorityFirstRow + prioritySecondRow
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
+    }
+
+    @Test
+    func `codex cumulative totals do not trigger long context pricing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let iso3 = env.isoString(for: day.addingTimeInterval(3))
+        let entries: [[String: Any]] = [
+            ["type": "turn_context", "timestamp": iso0, "payload": ["model": "gpt-5.5"]],
+            ["type": "event_msg", "timestamp": iso1, "payload": ["type": "task_started", "turn_id": "standard-turn"]],
+            self.totalTokenCount(timestamp: iso1, input: 180_000, cached: 100_000, output: 100),
+            self.totalTokenCount(timestamp: iso2, input: 360_000, cached: 200_000, output: 200),
+            ["type": "event_msg", "timestamp": iso3, "payload": ["type": "task_started", "turn_id": "priority-turn"]],
+            self.totalTokenCount(timestamp: iso3, input: 540_000, cached: 300_000, output: 300),
+        ]
+        _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
+
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try CodexPriorityTraceScannerTests.createTestLogsDatabase(at: dbURL)
+        try self.insertPriorityTrace(dbURL: dbURL, timestamp: iso3)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: dbURL)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let standardRow = (Double(80000) * 5e-6) + (Double(100_000) * 5e-7) + (Double(100) * 3e-5)
+        let priorityRow = (Double(80000) * 1.25e-5) + (Double(100_000) * 1.25e-6) + (Double(100) * 7.5e-5)
+        let expected = standardRow + standardRow + priorityRow
+
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
     }
 
@@ -172,6 +215,23 @@ struct CostUsageScannerPriorityTests {
                 "type": "token_count",
                 "info": [
                     "last_token_usage": [
+                        "input_tokens": input,
+                        "cached_input_tokens": cached,
+                        "output_tokens": output,
+                    ],
+                ],
+            ],
+        ]
+    }
+
+    private func totalTokenCount(timestamp: String, input: Int, cached: Int, output: Int) -> [String: Any] {
+        [
+            "type": "event_msg",
+            "timestamp": timestamp,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "total_token_usage": [
                         "input_tokens": input,
                         "cached_input_tokens": cached,
                         "output_tokens": output,
