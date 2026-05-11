@@ -49,6 +49,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing API via Ory Kratos session cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
+| Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
 | Crof | API key from config/env → credit balance + requests quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |

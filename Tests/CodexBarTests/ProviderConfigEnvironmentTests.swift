@@ -52,6 +52,21 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for moonshot`() {
+        let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .moonshot,
+            config: config)
+
+        let key = MoonshotSettingsReader.apiKeyEnvironmentKeys.first
+        #expect(key != nil)
+        guard let key else { return }
+
+        #expect(env[key] == "moon-token")
+    }
+
+    @Test
     func `ignores legacy API key override for deepseek`() {
         let config = ProviderConfig(id: .deepseek, apiKey: "ds-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

@@ -72,6 +72,31 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `menu bar display text uses moonshot balance`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-moonshot-balance",
+            provider: .moonshot)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .moonshot,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Balance: $49.58 · $0.42 in deficit"))
+
+        store._setSnapshotForTesting(snapshot, provider: .moonshot)
+        store._setErrorForTesting(nil, provider: .moonshot)
+
+        let displayText = controller.menuBarDisplayText(for: .moonshot, snapshot: snapshot)
+
+        #expect(snapshot.primary == nil)
+        #expect(displayText == "$49.58")
+    }
+
+    @Test
     func `menu bar display text uses mistral current month api spend`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-mistral-spend",

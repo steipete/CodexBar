@@ -66,7 +66,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         else {
             return nil
         }
-        guard provider == .openrouter || provider == .mimo else {
+        guard provider == .openrouter || provider == .mimo || provider == .moonshot else {
             return (label: "Plan", value: rawPlan)
         }
 

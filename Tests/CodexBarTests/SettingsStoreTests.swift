@@ -1097,6 +1097,7 @@ struct SettingsStoreTests {
             .augment,
             .jetbrains,
             .kimik2,
+            .moonshot,
             .amp,
             .ollama,
             .synthetic,
