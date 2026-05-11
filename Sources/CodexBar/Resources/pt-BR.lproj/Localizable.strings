@@ -462,6 +462,8 @@
 "section_menu_content" = "Conteúdo do menu";
 "show_usage_as_used_title" = "Mostrar uso como consumido";
 "show_usage_as_used_subtitle" = "As barras de progresso preenchem conforme você consome a cota (em vez de mostrar o restante).";
+"show_quota_warning_markers_title" = "Mostrar marcadores de alerta de cota";
+"show_quota_warning_markers_subtitle" = "Desenha marcas de limite nas barras de uso quando os alertas de cota estão configurados.";
 "show_reset_time_as_clock_title" = "Mostrar renovação como horário";
 "show_reset_time_as_clock_subtitle" = "Mostra horários de renovação como horas absolutas, em vez de contagens regressivas.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso extra";
