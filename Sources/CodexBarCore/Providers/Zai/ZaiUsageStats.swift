@@ -498,20 +498,23 @@ public struct ZaiHourlyBar: Sendable {
 public enum ZaiHourlyBars: Sendable {
     public static func from(modelData: ZaiModelUsageData, range: ZaiHourlyRange) -> [ZaiHourlyBar] {
         let calendar = Calendar.current
+        let now = Date()
         let referenceDate: Date = switch range {
         case let .today(ref): ref
-        case .last24h: Date()
+        case .last24h: now
         }
 
         let todayStart = calendar.startOfDay(for: referenceDate)
+        let cutoff: Date = switch range {
+        case .today: todayStart
+        case .last24h: calendar.date(byAdding: .hour, value: -24, to: now) ?? now
+        }
 
         var bars: [ZaiHourlyBar] = []
         for (index, timeString) in modelData.xTime.enumerated() {
             guard let hourDate = parseHourDate(timeString) else { continue }
 
-            if case .today = range {
-                if hourDate < todayStart { continue }
-            }
+            if hourDate < cutoff { continue }
 
             var segments: [(model: String, tokens: Int)] = []
             for item in modelData.modelDataList {
@@ -560,9 +563,9 @@ extension ZaiUsageFetcher {
         }
 
         let baseURL: URL = if let host = ZaiSettingsReader.apiHost(environment: environment),
-                              let hostURL = URL(string: host), hostURL.scheme != nil
+                              let resolved = Self.modelUsageURL(baseURLString: host)
         {
-            hostURL.appendingPathComponent("api/monitor/usage/model-usage")
+            resolved
         } else {
             region.modelUsageURL
         }
@@ -672,6 +675,23 @@ extension ZaiUsageFetcher {
             planName: snapshot.planName,
             modelUsage: modelUsage,
             updatedAt: snapshot.updatedAt)
+    }
+
+    private static func modelUsageURL(baseURLString: String) -> URL? {
+        guard let cleaned = ZaiSettingsReader.cleaned(baseURLString) else { return nil }
+        let path = "api/monitor/usage/model-usage"
+
+        if let url = URL(string: cleaned), url.scheme != nil {
+            if url.path.isEmpty || url.path == "/" {
+                return url.appendingPathComponent(path)
+            }
+            return url
+        }
+        guard let base = URL(string: "https://\(cleaned)") else { return nil }
+        if base.path.isEmpty || base.path == "/" {
+            return base.appendingPathComponent(path)
+        }
+        return base
     }
 }
 
