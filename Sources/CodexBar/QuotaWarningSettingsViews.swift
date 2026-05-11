@@ -105,7 +105,9 @@ struct ProviderQuotaWarningSettingsView: View {
 
                 if self.settings.quotaWarningEnabled(provider: self.provider, window: window) {
                     QuotaWarningThresholdField(
-                        title: String(format: L("quota_warning_window_warn_at"), window.localizedCapitalizedDisplayName),
+                        title: String(
+                            format: L("quota_warning_window_warn_at"),
+                            window.localizedCapitalizedDisplayName),
                         subtitle: "",
                         thresholds: {
                             self.settings.resolvedQuotaWarningThresholds(provider: self.provider, window: window)
@@ -141,15 +143,15 @@ struct ProviderQuotaWarningSettingsView: View {
     }
 }
 
-private extension QuotaWarningWindow {
-    var localizedDisplayName: String {
+extension QuotaWarningWindow {
+    fileprivate var localizedDisplayName: String {
         switch self {
         case .session: L("quota_warning_session")
         case .weekly: L("quota_warning_weekly")
         }
     }
 
-    var localizedCapitalizedDisplayName: String {
+    fileprivate var localizedCapitalizedDisplayName: String {
         switch self {
         case .session: L("quota_warning_session_capitalized")
         case .weekly: L("quota_warning_weekly_capitalized")
