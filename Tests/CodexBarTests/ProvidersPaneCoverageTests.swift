@@ -54,7 +54,7 @@ struct ProvidersPaneCoverageTests {
         #expect(picker?.options.map(\.id) == [
             MenuBarMetricPreference.automatic.rawValue,
         ])
-        #expect(picker?.subtitle == "Shows the Moonshot balance in the menu bar.")
+        #expect(picker?.subtitle == "Shows the Moonshot / Kimi API balance in the menu bar.")
     }
 
     @Test

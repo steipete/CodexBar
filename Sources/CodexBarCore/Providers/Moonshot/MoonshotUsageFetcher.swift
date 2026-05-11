@@ -55,6 +55,25 @@ public struct MoonshotUsageSummary: Sendable {
     }
 }
 
+private struct MoonshotBalanceResponse: Decodable {
+    let code: Int
+    let data: MoonshotBalanceData
+    let scode: String
+    let status: Bool
+}
+
+private struct MoonshotBalanceData: Decodable {
+    let availableBalance: Double
+    let voucherBalance: Double
+    let cashBalance: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case availableBalance = "available_balance"
+        case voucherBalance = "voucher_balance"
+        case cashBalance = "cash_balance"
+    }
+}
+
 public enum MoonshotUsageError: LocalizedError, Sendable {
     case missingCredentials
     case networkError(String)
@@ -77,6 +96,7 @@ public enum MoonshotUsageError: LocalizedError, Sendable {
 
 public struct MoonshotUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.moonshotUsage)
+    private static let timeoutSeconds: TimeInterval = 15
 
     public static func fetchUsage(
         apiKey: String,
@@ -92,6 +112,7 @@ public struct MoonshotUsageFetcher: Sendable {
         request.httpMethod = "GET"
         request.setValue("Bearer \(cleaned)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = Self.timeoutSeconds
 
         let (data, response) = try await session.data(for: request)
 
@@ -100,9 +121,8 @@ public struct MoonshotUsageFetcher: Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
-            Self.log.error("Moonshot API returned \(httpResponse.statusCode): \(body)")
-            throw MoonshotUsageError.apiError(body)
+            Self.log.error("Moonshot API returned HTTP \(httpResponse.statusCode)")
+            throw MoonshotUsageError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
         let summary = try self.parseSummary(data: data)
@@ -118,42 +138,21 @@ public struct MoonshotUsageFetcher: Sendable {
     }
 
     private static func parseSummary(data: Data) throws -> MoonshotUsageSummary {
-        guard let json = try? JSONSerialization.jsonObject(with: data),
-              let dictionary = json as? [String: Any]
-        else {
-            throw MoonshotUsageError.parseFailed("Root JSON is not an object.")
+        let response: MoonshotBalanceResponse
+        do {
+            response = try JSONDecoder().decode(MoonshotBalanceResponse.self, from: data)
+        } catch {
+            throw MoonshotUsageError.parseFailed(error.localizedDescription)
         }
 
-        guard let payload = dictionary["data"] as? [String: Any] else {
-            throw MoonshotUsageError.parseFailed("Missing data object.")
-        }
-        guard let availableBalance = self.double(from: payload["available_balance"]) else {
-            throw MoonshotUsageError.parseFailed("Missing available_balance.")
-        }
-        guard let voucherBalance = self.double(from: payload["voucher_balance"]) else {
-            throw MoonshotUsageError.parseFailed("Missing voucher_balance.")
-        }
-        guard let cashBalance = self.double(from: payload["cash_balance"]) else {
-            throw MoonshotUsageError.parseFailed("Missing cash_balance.")
+        guard response.code == 0, response.status else {
+            throw MoonshotUsageError.apiError("code \(response.code), scode \(response.scode)")
         }
 
         return MoonshotUsageSummary(
-            availableBalance: availableBalance,
-            voucherBalance: voucherBalance,
-            cashBalance: cashBalance,
+            availableBalance: response.data.availableBalance,
+            voucherBalance: response.data.voucherBalance,
+            cashBalance: response.data.cashBalance,
             updatedAt: Date())
-    }
-
-    private static func double(from raw: Any?) -> Double? {
-        if let value = raw as? Double {
-            return value
-        }
-        if let value = raw as? Int {
-            return Double(value)
-        }
-        if let value = raw as? String {
-            return Double(value)
-        }
-        return nil
     }
 }

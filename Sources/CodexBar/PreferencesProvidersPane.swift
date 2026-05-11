@@ -541,7 +541,7 @@ struct ProvidersPane: View {
         case .deepseek:
             L("menu_bar_metric_subtitle_deepseek")
         case .moonshot:
-            "Shows the Moonshot balance in the menu bar."
+            L("menu_bar_metric_subtitle_moonshot")
         case .mistral:
             L("menu_bar_metric_subtitle_mistral")
         case .kimik2:

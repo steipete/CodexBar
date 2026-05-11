@@ -258,6 +258,14 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: `https://status.deepseek.com` (link only, no auto-polling).
 - Details: `docs/deepseek.md`.
 
+## Moonshot / Kimi API
+- API key via `MOONSHOT_API_KEY` / `MOONSHOT_KEY` env var or provider config.
+- Reads `GET /v1/users/me/balance` from the selected Moonshot region.
+- Region: international (`api.moonshot.ai`) or China mainland (`api.moonshot.cn`), configurable in Settings or `MOONSHOT_REGION`.
+- Shows available balance; negative cash balance is surfaced as a deficit.
+- Status: none yet.
+- Details: `docs/moonshot.md`.
+
 ## Venice
 - API key via `VENICE_API_KEY` / `VENICE_KEY` env var or Venice token accounts.
 - Shows current DIEM or USD balance; DIEM epoch allocation progress when available.

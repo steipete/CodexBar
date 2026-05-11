@@ -468,6 +468,7 @@
 "menu_bar_metric_title" = "菜单栏指标";
 "menu_bar_metric_subtitle" = "选择哪个窗口驱动菜单栏百分比。";
 "menu_bar_metric_subtitle_deepseek" = "在菜单栏显示 DeepSeek 余额。";
+"menu_bar_metric_subtitle_moonshot" = "在菜单栏显示 Moonshot / Kimi API 余额。";
 "menu_bar_metric_subtitle_mistral" = "在菜单栏显示 Mistral API 本月支出。";
 "menu_bar_metric_subtitle_kimik2" = "在菜单栏显示 Kimi K2 API Key 额度。";
 "automatic" = "自动";
