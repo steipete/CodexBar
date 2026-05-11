@@ -1,7 +1,7 @@
 import Foundation
 
 enum CostUsagePricing {
-    private static let codexPriorityInputTokenLimit = 400_000
+    private static let codexPriorityInputTokenLimit = 272_000
 
     struct CodexPricing {
         let inputCostPerToken: Double

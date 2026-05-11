@@ -128,12 +128,12 @@ struct CostUsagePricingTests {
     func `codex priority cost is unavailable for long context requests`() {
         let gpt55 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
-            inputTokens: 400_001,
+            inputTokens: 272_001,
             cachedInputTokens: 0,
             outputTokens: 10)
         let gpt54Mini = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.4-mini",
-            inputTokens: 400_001,
+            inputTokens: 272_001,
             cachedInputTokens: 0,
             outputTokens: 10)
 
@@ -142,14 +142,14 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex priority cost remains available at long context input boundary`() {
+    func `codex priority cost remains available at priority input boundary`() {
         let gpt55 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
-            inputTokens: 400_000,
+            inputTokens: 272_000,
             cachedInputTokens: 0,
             outputTokens: 10)
 
-        #expect(gpt55 == (400_000.0 * 1.25e-5) + (10.0 * 7.5e-5))
+        #expect(gpt55 == (272_000.0 * 1.25e-5) + (10.0 * 7.5e-5))
     }
 
     @Test

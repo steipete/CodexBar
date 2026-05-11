@@ -121,7 +121,7 @@ struct CostUsageScannerPriorityTests {
     }
 
     @Test
-    func `codex pricing applies long context tiers per token row`() throws {
+    func `codex pricing skips priority surcharge for long context rows`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -157,10 +157,10 @@ struct CostUsageScannerPriorityTests {
             now: day,
             options: options)
         let standardTurnBase = (272_000.0 * 5e-6) + (1.0 * 1e-5) + (10.0 * 3e-5)
-        let priorityFirstRow = (300_000.0 * 1.25e-5) + (5.0 * 7.5e-5)
+        let standardFirstRow = (272_000.0 * 5e-6) + (28000.0 * 1e-5) + (5.0 * 3e-5)
         let prioritySecondRow = (100_001.0 * 1.25e-5) + (5.0 * 7.5e-5)
 
-        let expected = standardTurnBase + priorityFirstRow + prioritySecondRow
+        let expected = standardTurnBase + standardFirstRow + prioritySecondRow
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
     }
 
@@ -177,10 +177,10 @@ struct CostUsageScannerPriorityTests {
         let entries: [[String: Any]] = [
             ["type": "turn_context", "timestamp": iso0, "payload": ["model": "gpt-5.5"]],
             ["type": "event_msg", "timestamp": iso1, "payload": ["type": "task_started", "turn_id": "standard-turn"]],
-            self.totalTokenCount(timestamp: iso1, input: 180_000, cached: 100_000, output: 100),
-            self.totalTokenCount(timestamp: iso2, input: 360_000, cached: 200_000, output: 200),
+            self.totalTokenCount(timestamp: iso1, input: 120_000, cached: 60000, output: 100),
+            self.totalTokenCount(timestamp: iso2, input: 240_000, cached: 120_000, output: 200),
             ["type": "event_msg", "timestamp": iso3, "payload": ["type": "task_started", "turn_id": "priority-turn"]],
-            self.totalTokenCount(timestamp: iso3, input: 540_000, cached: 300_000, output: 300),
+            self.totalTokenCount(timestamp: iso3, input: 360_000, cached: 180_000, output: 300),
         ]
         _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
 
@@ -200,8 +200,8 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let standardRow = (Double(80000) * 5e-6) + (Double(100_000) * 5e-7) + (Double(100) * 3e-5)
-        let priorityRow = (Double(80000) * 1.25e-5) + (Double(100_000) * 1.25e-6) + (Double(100) * 7.5e-5)
+        let standardRow = (Double(60000) * 5e-6) + (Double(60000) * 5e-7) + (Double(100) * 3e-5)
+        let priorityRow = (Double(60000) * 1.25e-5) + (Double(60000) * 1.25e-6) + (Double(100) * 7.5e-5)
         let expected = standardRow + standardRow + priorityRow
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
