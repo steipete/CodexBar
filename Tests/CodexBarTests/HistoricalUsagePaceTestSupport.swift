@@ -94,7 +94,7 @@ extension HistoricalUsagePaceTests {
     }
 
     static func normalizeReset(_ value: Date) -> Date {
-        let bucket = 60.0
+        let bucket = 5 * 60.0
         let rounded = (value.timeIntervalSinceReferenceDate / bucket).rounded() * bucket
         return Date(timeIntervalSinceReferenceDate: rounded)
     }
