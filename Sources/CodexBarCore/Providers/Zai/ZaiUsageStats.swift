@@ -96,6 +96,10 @@ extension ZaiLimitEntry {
         return "\(description) window"
     }
 
+    var isMCPMonthlyMarker: Bool {
+        self.type == .timeLimit && self.unit == .minutes && self.number == 1
+    }
+
     private var computedUsedPercent: Double? {
         guard let limit = self.usage, limit > 0 else { return nil }
 
@@ -197,6 +201,9 @@ extension ZaiUsageSnapshot {
     }
 
     private static func resetDescription(for limit: ZaiLimitEntry) -> String? {
+        if limit.isMCPMonthlyMarker {
+            return "Monthly"
+        }
         if let label = limit.windowLabel {
             return label
         }
