@@ -409,6 +409,7 @@
 "language_system" = "跟随系统";
 "language_english" = "English";
 "language_chinese_simplified" = "简体中文";
+"language_portuguese_brazilian" = "Português (Brasil)";
 "start_at_login_title" = "开机启动";
 "start_at_login_subtitle" = "启动 Mac 时自动打开 CodexBar。";
 "show_cost_summary" = "显示费用摘要";
