@@ -2,6 +2,9 @@
 
 ## 0.26 — Unreleased
 
+### Fixed
+- ChatGPT credits: restrict purchase links to real HTTPS `chatgpt.com` settings/usage/billing/credits paths and drop query/fragment data (#903). Thanks @ThiagoCAltoe!
+
 ## 0.25.1 — 2026-05-11
 
 ### Fixed
