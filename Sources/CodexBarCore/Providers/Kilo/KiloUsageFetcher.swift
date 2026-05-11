@@ -257,6 +257,7 @@ public struct KiloUsageFetcher: Sendable {
 
     public static func fetchUsage(
         apiKey: String,
+        scope: KiloUsageScope = .personal,
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> KiloUsageSnapshot
     {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -264,13 +265,7 @@ public struct KiloUsageFetcher: Sendable {
         }
 
         let baseURL = KiloSettingsReader.apiURL(environment: environment)
-        let batchURL = try self.makeBatchURL(baseURL: baseURL)
-
-        var request = URLRequest(url: batchURL)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 15
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let request = try self.makeRequest(baseURL: baseURL, apiKey: apiKey, scope: scope)
 
         let data: Data
         let response: URLResponse
@@ -297,6 +292,31 @@ public struct KiloUsageFetcher: Sendable {
 
     static func _buildBatchURLForTesting(baseURL: URL) throws -> URL {
         try self.makeBatchURL(baseURL: baseURL)
+    }
+
+    static func _buildRequestForTesting(
+        baseURL: URL,
+        apiKey: String,
+        scope: KiloUsageScope) throws -> URLRequest
+    {
+        try self.makeRequest(baseURL: baseURL, apiKey: apiKey, scope: scope)
+    }
+
+    private static func makeRequest(
+        baseURL: URL,
+        apiKey: String,
+        scope: KiloUsageScope) throws -> URLRequest
+    {
+        let batchURL = try self.makeBatchURL(baseURL: baseURL)
+        var request = URLRequest(url: batchURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let orgId = scope.organizationID {
+            request.setValue(orgId, forHTTPHeaderField: "X-KILOCODE-ORGANIZATIONID")
+        }
+        return request
     }
 
     static func _parseSnapshotForTesting(_ data: Data) throws -> KiloUsageSnapshot {
