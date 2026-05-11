@@ -94,7 +94,7 @@ struct CodexAccountPromotionServiceTests {
         let liveAuthData = try container.writeLiveOAuthAuthFile(
             email: "alpha@example.com",
             accountID: "acct-alpha",
-            apiKey: "sk-fresh-live")
+            apiKey: "fixture-fresh-live-api-key")
 
         let result = try await container.makeService().promoteManagedAccount(id: target.id)
         let accounts = try container.loadAccounts().accounts
@@ -293,7 +293,7 @@ struct CodexAccountPromotionServiceTests {
         _ = try container.writeLiveOAuthAuthFile(
             email: "alpha@example.com",
             accountID: "acct-alpha",
-            apiKey: "sk-mixed-live")
+            apiKey: "fixture-mixed-live-api-key")
 
         let result = try await container.makeService().promoteManagedAccount(id: target.id)
         let importedID: UUID
@@ -359,7 +359,7 @@ struct CodexAccountPromotionServiceTests {
         let liveAuthData = try container.writeLiveOAuthAuthFile(
             email: "alpha@example.com",
             accountID: "acct-alpha",
-            apiKey: "sk-refreshed-live")
+            apiKey: "fixture-refreshed-live-api-key")
         let swapper = RecordingCodexLiveAuthSwapper()
         let store = RecordingManagedCodexAccountStore(base: container.fileStore) { accounts in
             if accounts.account(id: existingManagedLive.id)?

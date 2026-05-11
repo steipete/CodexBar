@@ -50,7 +50,7 @@ struct CodexAccountPromotionExecutionTests {
         let liveAuthData = try container.writeLiveOAuthAuthFile(
             email: "alpha@example.com",
             accountID: "acct-alpha",
-            apiKey: "sk-refreshed-live")
+            apiKey: "fixture-refreshed-live-api-key")
         let originalLiveAuthData = try #require(try container.liveAuthData())
         let context = try await self.makeContext(container: container, targetID: target.id)
         let plan = CodexDisplacedLivePreservationPlanner().makePlan(context: context)

@@ -186,7 +186,7 @@ final class CodexAccountPromotionTestContainer {
     }
 
     @discardableResult
-    func writeLiveAPIKeyAuthFile(apiKey: String = "sk-live-only") throws -> Data {
+    func writeLiveAPIKeyAuthFile(apiKey: String = "fixture-live-api-key") throws -> Data {
         let data = try JSONSerialization.data(
             withJSONObject: ["OPENAI_API_KEY": apiKey],
             options: [.sortedKeys])
