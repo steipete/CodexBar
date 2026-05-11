@@ -231,13 +231,13 @@ private struct UsageMenuCardHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
-                Text(self.model.providerName)
-                    .font(.headline)
+                Text(self.model.providerName).font(.headline)
                     .fontWeight(.semibold)
+                    .lineLimit(1).truncationMode(.tail).layoutPriority(1)
                 Spacer()
-                Text(self.model.email)
-                    .font(.subheadline)
+                Text(self.model.email).font(.subheadline)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1).truncationMode(.middle)
             }
             let subtitleAlignment: VerticalAlignment = self.model.subtitleStyle == .error ? .top : .firstTextBaseline
             HStack(alignment: subtitleAlignment) {

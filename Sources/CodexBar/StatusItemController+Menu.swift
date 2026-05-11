@@ -177,7 +177,13 @@ extension StatusItemController {
             switcherSelection?.provider ?? provider
         }
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
-        let codexAccountDisplay = isOverviewSelected ? nil : self.codexAccountMenuDisplay(for: currentProvider)
+        let rawCodexAccountDisplay = isOverviewSelected ? nil : self.codexAccountMenuDisplay(for: currentProvider)
+        let codexAccountDisplay = isOverviewSelected
+            ? nil
+            : self.stableCodexAccountMenuDisplay(
+                rawCodexAccountDisplay,
+                menu: menu,
+                provider: currentProvider)
         let tokenAccountDisplay = isOverviewSelected ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
         let showAllAccounts = (tokenAccountDisplay?.showAll ?? false) || (codexAccountDisplay?.showAll ?? false)
         let openAIContext = self.openAIWebContext(
@@ -244,8 +250,8 @@ extension StatusItemController {
                     currentProvider: currentProvider,
                     switcherSelection: switcherSelection ?? .provider(currentProvider),
                     menuWidth: menuWidth,
-                    codexAccountDisplay: nil,
-                    tokenAccountDisplay: nil,
+                    codexAccountDisplay: codexAccountDisplay,
+                    tokenAccountDisplay: tokenAccountDisplay,
                     openAIContext: openAIContext))
             return
         }
@@ -969,9 +975,9 @@ extension StatusItemController {
             accounts: display.accounts,
             selectedAccountID: display.activeVisibleAccountID,
             width: width,
-            onSelect: { [weak self, weak menu] visibleAccountID in
+            onSelect: { [weak self, weak menu] account in
                 guard let self else { return }
-                self.handleCodexVisibleAccountSelection(visibleAccountID, menu: menu)
+                self.handleCodexVisibleAccountSelection(account, menu: menu)
             })
         let item = NSMenuItem()
         item.view = view
@@ -980,8 +986,9 @@ extension StatusItemController {
     }
 
     @discardableResult
-    private func handleCodexVisibleAccountSelection(_ visibleAccountID: String, menu: NSMenu?) -> Bool {
-        guard self.settings.selectCodexVisibleAccount(id: visibleAccountID) else { return false }
+    private func handleCodexVisibleAccountSelection(_ account: CodexVisibleAccount, menu: NSMenu?) -> Bool {
+        let visibleAccountID = account.id
+        self.settings.selectDisplayedCodexVisibleAccount(account)
         if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
             self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
         }
@@ -1027,38 +1034,6 @@ extension StatusItemController {
             return .overview
         }
         return .provider(self.resolvedMenuProvider(enabledProviders: enabledProviders) ?? .codex)
-    }
-
-    private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
-        guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
-        let accounts = self.settings.tokenAccounts(for: provider)
-        guard accounts.count > 1 else { return nil }
-        let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0
-        let showAll = self.settings.multiAccountMenuLayout == .stacked
-        let snapshots = showAll ? (self.store.accountSnapshots[provider] ?? []) : []
-        return TokenAccountMenuDisplay(
-            provider: provider,
-            accounts: accounts,
-            snapshots: snapshots,
-            activeIndex: activeIndex,
-            layout: showAll ? .stacked : .segmented)
-    }
-
-    private func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {
-        guard provider == .codex else { return nil }
-        let projection = self.settings.codexVisibleAccountProjection
-        guard projection.visibleAccounts.count > 1 else { return nil }
-        let showAll = self.settings.multiAccountMenuLayout == .stacked
-        let accounts = showAll
-            ? self.store.limitedCodexVisibleAccounts(
-                projection.visibleAccounts,
-                activeVisibleAccountID: projection.activeVisibleAccountID)
-            : projection.visibleAccounts
-        return CodexAccountMenuDisplay(
-            accounts: accounts,
-            snapshots: showAll ? self.store.codexAccountSnapshots : [],
-            activeVisibleAccountID: projection.activeVisibleAccountID,
-            layout: showAll ? .stacked : .segmented)
     }
 
     private func menuNeedsRefresh(_ menu: NSMenu) -> Bool {

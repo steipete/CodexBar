@@ -196,6 +196,14 @@ extension SettingsStore {
         return true
     }
 
+    func selectDisplayedCodexVisibleAccount(_ account: CodexVisibleAccount) {
+        if self.selectCodexVisibleAccount(id: account.id) {
+            return
+        }
+        // An open menu can preserve a previously rendered account row while the live projection is briefly incomplete.
+        self.codexActiveSource = account.selectionSource
+    }
+
     func selectAuthenticatedManagedCodexAccount(_ account: ManagedCodexAccount) {
         if let visibleAccountID = self.codexVisibleAccountProjection.visibleAccounts
             .first(where: { $0.storedAccountID == account.id })?

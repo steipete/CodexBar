@@ -239,6 +239,124 @@ struct StatusMenuCodexSwitcherTests {
     }
 
     @Test
+    func `merged codex menu smart refresh keeps account switcher visible`() throws {
+        self.disableMenuCardsForTesting()
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer { StatusItemController.setMenuRefreshEnabledForTesting(false) }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.multiAccountMenuLayout = .segmented
+
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .codex || provider == .claude)
+        }
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .liveSystem
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 1)
+
+        controller.menuContentVersion &+= 1
+        controller.refreshOpenMenusIfNeeded()
+
+        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 1)
+
+        settings._test_liveSystemCodexAccount = nil
+        controller.menuContentVersion &+= 1
+        controller.refreshOpenMenusIfNeeded()
+
+        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 1)
+
+        controller.menuDidClose(menu)
+        controller.menuContentVersion &+= 1
+        controller.menuWillOpen(menu)
+
+        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 0)
+    }
+
+    @Test
+    func `codex menu can select preserved switcher row during transient account projection`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnlyCodex(settings)
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .managedAccount(id: managedAccountID)
+
+        let liveAccount = try #require(settings.codexVisibleAccountProjection.visibleAccounts
+            .first { $0.selectionSource == .liveSystem })
+        settings._test_liveSystemCodexAccount = nil
+
+        #expect(settings.codexVisibleAccountProjection.visibleAccounts.map(\.email) == ["managed@example.com"])
+        settings.selectDisplayedCodexVisibleAccount(liveAccount)
+        #expect(settings.codexActiveSource == .liveSystem)
+    }
+
+    @Test
     func `codex stacked multi account layout shows account cards`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -430,6 +548,84 @@ struct StatusMenuCodexSwitcherTests {
         #expect(view.frame.width == 310)
         #expect(view.intrinsicContentSize.width == 310)
         #expect(view.fittingSize.width == 310)
+    }
+
+    @Test
+    func `codex switcher middle truncates long account emails`() {
+        let accounts = [
+            CodexVisibleAccount(
+                id: "live:provider:account-personal",
+                email: "local-person-with-an-extremely-long-name@example.com",
+                workspaceLabel: nil,
+                workspaceAccountID: "account-managed",
+                storedAccountID: nil,
+                selectionSource: .liveSystem,
+                isActive: true,
+                isLive: true,
+                canReauthenticate: true,
+                canRemove: false),
+            CodexVisibleAccount(
+                id: "managed:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                email: "second-person-with-an-extremely-long-name@example.com",
+                workspaceLabel: nil,
+                workspaceAccountID: "account-gmail",
+                storedAccountID: UUID(),
+                selectionSource: .managedAccount(id: UUID()),
+                isActive: false,
+                isLive: false,
+                canReauthenticate: true,
+                canRemove: true),
+        ]
+
+        let view = CodexAccountSwitcherView(
+            accounts: accounts,
+            selectedAccountID: accounts.first?.id,
+            width: 220,
+            onSelect: { _ in })
+        let titles = view._test_buttonTitles()
+
+        #expect(titles.count == 2)
+        #expect(titles[0].hasPrefix("local"))
+        #expect(titles[0].contains("…"))
+        #expect(titles[0].hasSuffix(".com"))
+        #expect(titles[1].hasPrefix("second"))
+        #expect(titles[1].contains("…"))
+        #expect(titles[1].hasSuffix(".com"))
+    }
+
+    @Test
+    func `codex account switcher passes the selected displayed account`() throws {
+        let managedID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let accounts = [
+            CodexVisibleAccount(
+                id: "live@example.com",
+                email: "live@example.com",
+                storedAccountID: nil,
+                selectionSource: .liveSystem,
+                isActive: true,
+                isLive: true,
+                canReauthenticate: true,
+                canRemove: false),
+            CodexVisibleAccount(
+                id: "managed@example.com",
+                email: "managed@example.com",
+                storedAccountID: managedID,
+                selectionSource: .managedAccount(id: managedID),
+                isActive: false,
+                isLive: false,
+                canReauthenticate: true,
+                canRemove: true),
+        ]
+        var selectedAccount: CodexVisibleAccount?
+        let view = CodexAccountSwitcherView(
+            accounts: accounts,
+            selectedAccountID: accounts.first?.id,
+            width: 220,
+            onSelect: { selectedAccount = $0 })
+
+        view._test_selectAccount(id: "managed@example.com")
+
+        #expect(selectedAccount == accounts[1])
     }
 
     @Test

@@ -938,7 +938,7 @@ final class TokenAccountSwitcherView: NSView {
                 button.setButtonType(.toggle)
                 button.controlSize = .small
                 button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-                button.cell?.lineBreakMode = .byTruncatingTail
+                button.cell?.lineBreakMode = account.displayName.contains("@") ? .byTruncatingMiddle : .byTruncatingTail
                 button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
                 button.wantsLayer = true
                 button.layer?.cornerRadius = 6
@@ -997,7 +997,7 @@ final class TokenAccountSwitcherView: NSView {
 
 final class CodexAccountSwitcherView: NSView {
     private let accounts: [CodexVisibleAccount]
-    private let onSelect: (String) -> Void
+    private let onSelect: (CodexVisibleAccount) -> Void
     private var selectedAccountID: String
     private var buttons: [NSButton] = []
     private let preferredSize: NSSize
@@ -1015,7 +1015,7 @@ final class CodexAccountSwitcherView: NSView {
         accounts: [CodexVisibleAccount],
         selectedAccountID: String?,
         width: CGFloat,
-        onSelect: @escaping (String) -> Void)
+        onSelect: @escaping (CodexVisibleAccount) -> Void)
     {
         self.accounts = accounts
         self.onSelect = onSelect
@@ -1115,7 +1115,7 @@ final class CodexAccountSwitcherView: NSView {
         }
 
         guard let workspace = account.menuWorkspaceLabel else {
-            return self.truncateTail(account.email, toFit: availableTextWidth)
+            return self.truncateMiddle(account.email, toFit: availableTextWidth)
         }
 
         let separator = "|"
@@ -1127,7 +1127,7 @@ final class CodexAccountSwitcherView: NSView {
         var workspaceWidth = max(minimumWorkspaceWidth, contentWidth - emailWidth)
 
         func makeTitle() -> String {
-            let email = self.truncateTail(account.email, toFit: emailWidth)
+            let email = self.truncateMiddle(account.email, toFit: emailWidth)
             let workspace = self.truncateTail(workspace, toFit: workspaceWidth)
             return "\(email)\(separator)\(workspace)"
         }
@@ -1135,7 +1135,7 @@ final class CodexAccountSwitcherView: NSView {
         var title = makeTitle()
         var attempts = 0
         while self.textWidth(title) > availableTextWidth, attempts < 16 {
-            let emailText = self.truncateTail(account.email, toFit: emailWidth)
+            let emailText = self.truncateMiddle(account.email, toFit: emailWidth)
             let workspaceText = self.truncateTail(workspace, toFit: workspaceWidth)
             let emailRenderedWidth = self.textWidth(emailText)
             let workspaceRenderedWidth = self.textWidth(workspaceText)
@@ -1181,6 +1181,52 @@ final class CodexAccountSwitcherView: NSView {
         return candidate + ellipsis
     }
 
+    private func truncateMiddle(_ text: String, toFit width: CGFloat) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return text }
+        if self.textWidth(trimmed) <= width {
+            return trimmed
+        }
+
+        let ellipsis = "…"
+        let ellipsisWidth = self.textWidth(ellipsis)
+        guard ellipsisWidth < width else { return ellipsis }
+
+        var prefix = ""
+        var suffix = ""
+        var prefixIndex = trimmed.startIndex
+        var suffixIndex = trimmed.endIndex
+        var best = ellipsis
+        var takeSuffixNext = true
+
+        while prefixIndex < suffixIndex {
+            let nextPrefix: String
+            let nextSuffix: String
+            if takeSuffixNext {
+                let previousIndex = trimmed.index(before: suffixIndex)
+                nextPrefix = prefix
+                nextSuffix = String(trimmed[previousIndex]) + suffix
+                suffixIndex = previousIndex
+            } else {
+                nextPrefix = prefix + String(trimmed[prefixIndex])
+                nextSuffix = suffix
+                prefixIndex = trimmed.index(after: prefixIndex)
+            }
+
+            let candidate = nextPrefix + ellipsis + nextSuffix
+            if self.textWidth(candidate) > width {
+                break
+            }
+
+            prefix = nextPrefix
+            suffix = nextSuffix
+            best = candidate
+            takeSuffixNext.toggle()
+        }
+
+        return best
+    }
+
     private func textWidth(_ text: String) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [.font: self.buttonFont]
         return ceil((text as NSString).size(withAttributes: attributes).width)
@@ -1197,10 +1243,10 @@ final class CodexAccountSwitcherView: NSView {
 
     @objc private func handleSelect(_ sender: NSButton) {
         guard let accountID = sender.identifier?.rawValue else { return }
-        guard self.accounts.contains(where: { $0.id == accountID }) else { return }
+        guard let account = self.accounts.first(where: { $0.id == accountID }) else { return }
         self.selectedAccountID = accountID
         self.updateButtonStyles()
-        self.onSelect(accountID)
+        self.onSelect(account)
     }
 
     #if DEBUG
@@ -1210,6 +1256,11 @@ final class CodexAccountSwitcherView: NSView {
 
     func _test_buttonToolTips() -> [String?] {
         self.buttons.map(\.toolTip)
+    }
+
+    func _test_selectAccount(id: String) {
+        guard let button = self.buttons.first(where: { $0.identifier?.rawValue == id }) else { return }
+        self.handleSelect(button)
     }
     #endif
 }
