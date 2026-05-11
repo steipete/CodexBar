@@ -143,9 +143,11 @@ jobs:
             lipo -archs "$BIN" | tr ' ' '\n' | grep -Fx "${{ matrix.asset-arch }}"
           else
             "$BIN" --help
-            "$BIN" --version
             file "$BIN" | grep -q "${{ matrix.asset-arch }}"
           fi
+          printf '%s\n' "${RELEASE_TAG#v}" > "$BIN_DIR/VERSION"
+          "$BIN" --version | grep -Fx "CodexBar ${RELEASE_TAG#v}"
+          rm "$BIN_DIR/VERSION"
 
       - name: Package
         id: pkg
@@ -164,9 +166,10 @@ jobs:
           OUT_DIR="$(mktemp -d)"
           install -m 0755 "$BIN_DIR/CodexBarCLI" "$OUT_DIR/CodexBarCLI"
           ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
+          printf '%s\n' "${SAFE_REF_NAME#v}" > "$OUT_DIR/VERSION"
 
           ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.platform }}-${{ matrix.asset-arch }}.tar.gz"
-          (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar)
+          (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar VERSION)
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
           else

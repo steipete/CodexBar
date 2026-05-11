@@ -97,6 +97,28 @@ struct CLIEntryTests {
     }
 
     @Test
+    func `CLI version falls back to adjacent VERSION file`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-cli-version-file-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let emptyBundleURL = root.appendingPathComponent("Empty.bundle", isDirectory: true)
+        let binURL = root.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: emptyBundleURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: binURL, withIntermediateDirectories: true)
+
+        let helperURL = binURL.appendingPathComponent("CodexBarCLI")
+        try Data().write(to: helperURL)
+        try "v3.2.1\n".write(
+            to: binURL.appendingPathComponent("VERSION"),
+            atomically: true,
+            encoding: .utf8)
+
+        let emptyBundle = try #require(Bundle(url: emptyBundleURL))
+        #expect(CodexBarCLI.currentVersion(bundle: emptyBundle, executablePath: helperURL.path) == "3.2.1")
+    }
+
+    @Test
     func `render open AI web dashboard text includes summary`() {
         let event = CreditEvent(
             date: Date(timeIntervalSince1970: 1_700_000_000),
