@@ -8,10 +8,9 @@ private func appLanguageDefaults() -> UserDefaults {
     return UserDefaults(suiteName: "CodexBar") ?? .standard
 }
 
-private func codexBarLocalizationResourceBundle(
+func codexBarLocalizationResourceBundle(
     mainBundle: Bundle = .main,
-    bundleName: String = "CodexBar_CodexBar")
-    -> Bundle
+    bundleName: String = "CodexBar_CodexBar") -> Bundle
 {
     guard mainBundle.bundleURL.pathExtension == "app" else {
         return Bundle.module

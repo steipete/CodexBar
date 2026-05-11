@@ -2,6 +2,9 @@
 
 ## 0.26 — Unreleased
 
+### Fixed
+- Settings: avoid packaged-app crashes from SwiftPM localization bundle lookup when opening Settings or About (#896, fixes #891). Thanks @lederniermagicien!
+
 ## 0.25 — 2026-05-10
 
 ### Highlights
