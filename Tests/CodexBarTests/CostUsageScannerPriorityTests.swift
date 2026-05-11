@@ -25,7 +25,7 @@ struct CostUsageScannerPriorityTests {
         _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
 
         let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
-        try CodexPriorityTraceScannerTests.createTestLogsDatabase(at: dbURL)
+        try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
         try self.insertPriorityTrace(dbURL: dbURL, timestamp: iso3)
 
         var options = CostUsageScanner.Options(
@@ -67,7 +67,7 @@ struct CostUsageScannerPriorityTests {
         _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
 
         let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
-        try CodexPriorityTraceScannerTests.createTestLogsDatabase(at: dbURL)
+        try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
         try self.insertPriorityTrace(dbURL: dbURL, timestamp: iso3, model: "gpt-5.4")
 
         var options = CostUsageScanner.Options(
@@ -141,7 +141,7 @@ struct CostUsageScannerPriorityTests {
         _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
 
         let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
-        try CodexPriorityTraceScannerTests.createTestLogsDatabase(at: dbURL)
+        try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
         try self.insertPriorityTrace(dbURL: dbURL, timestamp: iso2)
 
         var options = CostUsageScanner.Options(
@@ -185,7 +185,7 @@ struct CostUsageScannerPriorityTests {
         _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
 
         let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
-        try CodexPriorityTraceScannerTests.createTestLogsDatabase(at: dbURL)
+        try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
         try self.insertPriorityTrace(dbURL: dbURL, timestamp: iso3)
 
         var options = CostUsageScanner.Options(
@@ -242,7 +242,7 @@ struct CostUsageScannerPriorityTests {
     }
 
     private func insertPriorityTrace(dbURL: URL, timestamp: String, model: String = "gpt-5.5") throws {
-        try CodexPriorityTraceScannerTests.insertTestLog(
+        try CostUsageScannerCodexPriorityTests.insertTestLog(
             dbURL: dbURL,
             timestamp: timestamp,
             body: "thread_id=thread turn.id=priority-turn websocket request: "
