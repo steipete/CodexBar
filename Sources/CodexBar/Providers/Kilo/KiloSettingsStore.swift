@@ -73,3 +73,70 @@ extension SettingsStore {
         }
     }
 }
+
+extension SettingsStore {
+    var kiloKnownOrganizations: [KiloOrganization] {
+        get { self.configSnapshot.providerConfig(for: .kilo)?.kiloKnownOrganizations ?? [] }
+        set {
+            self.updateProviderConfig(provider: .kilo) { entry in
+                entry.kiloKnownOrganizations = newValue.isEmpty ? nil : newValue
+            }
+        }
+    }
+
+    var kiloEnabledOrganizationIDs: [String] {
+        get { self.configSnapshot.providerConfig(for: .kilo)?.kiloEnabledOrganizationIDs ?? [] }
+        set {
+            let cleaned = Array(KiloOrgIDLinkedHashSet(newValue
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }))
+            self.updateProviderConfig(provider: .kilo) { entry in
+                entry.kiloEnabledOrganizationIDs = cleaned.isEmpty ? nil : cleaned
+            }
+            self.logProviderModeChange(
+                provider: .kilo,
+                field: "enabledOrganizations",
+                value: cleaned.joined(separator: ","))
+        }
+    }
+
+    func setKiloKnownOrganizationsPruningEnabled(_ orgs: [KiloOrganization]) {
+        self.kiloKnownOrganizations = orgs
+        let validIDs = Set(orgs.map(\.id))
+        let pruned = self.kiloEnabledOrganizationIDs.filter { validIDs.contains($0) }
+        if pruned != self.kiloEnabledOrganizationIDs {
+            self.kiloEnabledOrganizationIDs = pruned
+        }
+    }
+
+    func kiloIsOrganizationEnabled(_ orgID: String) -> Bool {
+        self.kiloEnabledOrganizationIDs.contains(orgID)
+    }
+
+    func setKiloOrganization(_ orgID: String, enabled: Bool) {
+        var current = self.kiloEnabledOrganizationIDs
+        if enabled {
+            guard !current.contains(orgID) else { return }
+            current.append(orgID)
+        } else {
+            current.removeAll { $0 == orgID }
+        }
+        self.kiloEnabledOrganizationIDs = current
+    }
+}
+
+// Small order-preserving set used to dedupe enabled IDs without sorting.
+private struct KiloOrgIDLinkedHashSet<Element: Hashable>: Sequence {
+    private var seen: Set<Element> = []
+    private var ordered: [Element] = []
+
+    init(_ sequence: some Sequence<Element>) {
+        for element in sequence where self.seen.insert(element).inserted {
+            self.ordered.append(element)
+        }
+    }
+
+    func makeIterator() -> IndexingIterator<[Element]> {
+        self.ordered.makeIterator()
+    }
+}
