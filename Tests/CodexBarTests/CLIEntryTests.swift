@@ -116,6 +116,18 @@ struct CLIEntryTests {
 
         let emptyBundle = try #require(Bundle(url: emptyBundleURL))
         #expect(CodexBarCLI.currentVersion(bundle: emptyBundle, executablePath: helperURL.path) == "3.2.1")
+
+        try "3.2.2\n".write(
+            to: binURL.appendingPathComponent("VERSION"),
+            atomically: true,
+            encoding: .utf8)
+        #expect(CodexBarCLI.currentVersion(bundle: emptyBundle, executablePath: helperURL.path) == "3.2.2")
+
+        try "version-3.2.3\n".write(
+            to: binURL.appendingPathComponent("VERSION"),
+            atomically: true,
+            encoding: .utf8)
+        #expect(CodexBarCLI.currentVersion(bundle: emptyBundle, executablePath: helperURL.path) == "version-3.2.3")
     }
 
     @Test
