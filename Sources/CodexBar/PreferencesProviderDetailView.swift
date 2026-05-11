@@ -13,6 +13,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     let settingsFields: [ProviderSettingsFieldDescriptor]
     let settingsActions: [ProviderSettingsActionsDescriptor]
     let settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?
+    let settingsOrganizations: ProviderSettingsOrganizationsDescriptor?
     let errorDisplay: ProviderErrorDisplay?
     @Binding var isErrorExpanded: Bool
     let onCopyError: (String) -> Void
@@ -31,6 +32,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         settingsFields: [ProviderSettingsFieldDescriptor],
         settingsActions: [ProviderSettingsActionsDescriptor] = [],
         settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?,
+        settingsOrganizations: ProviderSettingsOrganizationsDescriptor? = nil,
         errorDisplay: ProviderErrorDisplay?,
         isErrorExpanded: Binding<Bool>,
         onCopyError: @escaping (String) -> Void,
@@ -48,6 +50,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self.settingsFields = settingsFields
         self.settingsActions = settingsActions
         self.settingsTokenAccounts = settingsTokenAccounts
+        self.settingsOrganizations = settingsOrganizations
         self.errorDisplay = errorDisplay
         self._isErrorExpanded = isErrorExpanded
         self.onCopyError = onCopyError
@@ -126,6 +129,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                         ForEach(self.settingsActions) { descriptor in
                             ProviderSettingsActionsRowView(descriptor: descriptor)
                         }
+                        if let organizations = self.settingsOrganizations {
+                            ProviderSettingsOrganizationsRowView(descriptor: organizations)
+                        }
                     }
                 }
 
@@ -154,7 +160,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         !self.settingsPickers.isEmpty ||
             !self.settingsFields.isEmpty ||
             !self.settingsActions.isEmpty ||
-            self.settingsTokenAccounts != nil
+            self.settingsTokenAccounts != nil ||
+            self.settingsOrganizations != nil
     }
 
     private var detailLabelWidth: CGFloat {

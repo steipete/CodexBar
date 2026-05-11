@@ -142,6 +142,34 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let reloadFromDisk: () -> Void
 }
 
+/// Shared organizations descriptor rendered in the Providers settings pane.
+///
+/// Used by providers that let the user opt in to additional account scopes
+/// (e.g. Kilo organizations) shown alongside the personal account.
+@MainActor
+struct ProviderSettingsOrganizationsDescriptor: Identifiable {
+    struct Entry: Identifiable {
+        let id: String
+        let title: String
+        let subtitle: String?
+        let isEnabled: Bool
+        let isLocked: Bool
+    }
+
+    struct RefreshOutcome {
+        let success: Bool
+        let errorMessage: String?
+    }
+
+    let id: String
+    let title: String
+    let subtitle: String?
+    let entries: () -> [Entry]
+    let onToggle: (String, Bool) -> Void
+    let onRefresh: () async -> RefreshOutcome
+    let canRefresh: () -> Bool
+}
+
 /// Shared picker descriptor rendered in the Providers settings pane.
 @MainActor
 struct ProviderSettingsPickerDescriptor: Identifiable {

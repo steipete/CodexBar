@@ -66,6 +66,7 @@ struct ProvidersPane: View {
                     settingsFields: self.extraSettingsFields(for: provider),
                     settingsActions: self.extraSettingsActions(for: provider),
                     settingsTokenAccounts: self.tokenAccountDescriptor(for: provider),
+                    settingsOrganizations: self.extraSettingsOrganizations(for: provider),
                     errorDisplay: self.providerErrorDisplay(provider),
                     isErrorExpanded: self.expandedBinding(for: provider),
                     onCopyError: { text in self.copyToPasteboard(text) },
@@ -354,6 +355,14 @@ struct ProvidersPane: View {
         let context = self.makeSettingsContext(provider: provider)
         return impl.settingsActions(context: context)
             .filter { $0.isVisible?() ?? true }
+    }
+
+    private func extraSettingsOrganizations(
+        for provider: UsageProvider) -> ProviderSettingsOrganizationsDescriptor?
+    {
+        guard let impl = ProviderCatalog.implementation(for: provider) else { return nil }
+        let context = self.makeSettingsContext(provider: provider)
+        return impl.settingsOrganizations(context: context)
     }
 
     func tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {

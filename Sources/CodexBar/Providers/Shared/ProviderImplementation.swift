@@ -50,6 +50,10 @@ protocol ProviderImplementation: Sendable {
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor]
 
+    /// Optional provider-specific organizations selection rendered in the Providers pane.
+    @MainActor
+    func settingsOrganizations(context: ProviderSettingsContext) -> ProviderSettingsOrganizationsDescriptor?
+
     /// Optional visibility gate for token account settings.
     @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool
@@ -141,6 +145,11 @@ extension ProviderImplementation {
     @MainActor
     func settingsPickers(context _: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         []
+    }
+
+    @MainActor
+    func settingsOrganizations(context _: ProviderSettingsContext) -> ProviderSettingsOrganizationsDescriptor? {
+        nil
     }
 
     @MainActor
