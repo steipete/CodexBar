@@ -489,6 +489,8 @@
 "section_menu_content" = "菜单内容";
 "show_usage_as_used_title" = "显示已使用用量";
 "show_usage_as_used_subtitle" = "进度条随用量消耗而填充（而非显示剩余量）。";
+"show_quota_warning_markers_title" = "显示配额警告标记";
+"show_quota_warning_markers_subtitle" = "配置配额警告后，在用量条上绘制阈值刻度标记。";
 "show_reset_time_as_clock_title" = "将重置时间显示为时钟";
 "show_reset_time_as_clock_subtitle" = "将重置时间显示为绝对时钟值而非倒计时。";
 "show_credits_extra_usage_title" = "显示积分 + 额外用量";

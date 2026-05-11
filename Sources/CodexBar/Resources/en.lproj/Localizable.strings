@@ -482,6 +482,8 @@
 "section_menu_content" = "Menu content";
 "show_usage_as_used_title" = "Show usage as used";
 "show_usage_as_used_subtitle" = "Progress bars fill as you consume quota (instead of showing remaining).";
+"show_quota_warning_markers_title" = "Show quota warning markers";
+"show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
 "show_reset_time_as_clock_title" = "Show reset time as clock";
 "show_reset_time_as_clock_subtitle" = "Display reset times as absolute clock values instead of countdowns.";
 "show_credits_extra_usage_title" = "Show credits + extra usage";

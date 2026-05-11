@@ -16,6 +16,7 @@ struct SettingsDefaultsState {
     var quotaWarningSessionEnabled: Bool
     var quotaWarningWeeklyEnabled: Bool
     var quotaWarningSoundEnabled: Bool
+    var quotaWarningMarkersVisible: Bool
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var menuBarShowsBrandIconWithPercent: Bool

@@ -629,6 +629,7 @@ struct ProvidersPane: View {
     }
 
     private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
+        guard self.settings.quotaWarningMarkersVisible else { return [] }
         guard self.settings.quotaWarningEnabled(provider: provider, window: window) else { return [] }
         return self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
     }

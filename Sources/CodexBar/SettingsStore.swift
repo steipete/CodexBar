@@ -288,6 +288,11 @@ extension SettingsStore {
             userDefaults.set(true, forKey: "sessionQuotaNotificationsEnabled")
         }
         let quotaWarnings = Self.loadQuotaWarningDefaults(userDefaults: userDefaults)
+        let quotaWarningMarkersVisibleDefault = userDefaults.object(forKey: "quotaWarningMarkersVisible") as? Bool
+        let quotaWarningMarkersVisible = quotaWarningMarkersVisibleDefault ?? true
+        if Self.isRunningTests, quotaWarningMarkersVisibleDefault == nil {
+            userDefaults.set(true, forKey: "quotaWarningMarkersVisible")
+        }
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
@@ -365,6 +370,7 @@ extension SettingsStore {
             quotaWarningSessionEnabled: quotaWarnings.sessionEnabled,
             quotaWarningWeeklyEnabled: quotaWarnings.weeklyEnabled,
             quotaWarningSoundEnabled: quotaWarnings.soundEnabled,
+            quotaWarningMarkersVisible: quotaWarningMarkersVisible,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
