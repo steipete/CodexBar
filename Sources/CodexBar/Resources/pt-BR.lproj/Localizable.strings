@@ -441,6 +441,7 @@
 "menu_bar_metric_title" = "Métrica da barra de menus";
 "menu_bar_metric_subtitle" = "Escolha qual janela define a porcentagem da barra de menus.";
 "menu_bar_metric_subtitle_deepseek" = "Mostra o saldo do DeepSeek na barra de menus.";
+"menu_bar_metric_subtitle_moonshot" = "Mostra o saldo da API Moonshot / Kimi na barra de menus.";
 "menu_bar_metric_subtitle_mistral" = "Mostra o gasto da API Mistral no mês atual na barra de menus.";
 "menu_bar_metric_subtitle_kimik2" = "Mostra os créditos da chave de API do Kimi K2 na barra de menus.";
 "automatic" = "Automático";

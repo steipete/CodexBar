@@ -2,6 +2,9 @@
 
 ## 0.26 — Unreleased
 
+### Added
+- Moonshot / Kimi API: add API-key balance tracking, CLI support, docs, and menu bar balance copy (#899). Thanks @giuseppebisemi!
+
 ### Fixed
 - Settings: apply the selected app language from packaged SwiftPM resources instead of falling back to English when the `.lproj` directory casing differs (#908).
 - ChatGPT credits: restrict purchase links to real HTTPS `chatgpt.com` settings/usage/billing/credits paths and drop query/fragment data (#903). Thanks @ThiagoCAltoe!
@@ -14,7 +17,6 @@
 - CLI: include a VERSION file in standalone release archives so `--version` reports the release tag outside the app bundle (#898). Thanks @ThiagoCAltoe!
 - Pi: rebuild stale session cost caches after cache-version migrations so refreshed cost history reflects current scanner data.
 - Keychain cache: reduce repeated development prompt churn by trusting the bundled helper when writing CodexBar-owned cache items (#888).
-
 ## 0.25 — 2026-05-10
 
 ### Highlights
