@@ -559,6 +559,18 @@ extension StatusItemController {
             return false
         }
 
+        if context.currentProvider == .kilo, self.store.kiloScopeSnapshots.count > 1 {
+            let cards = self.store.kiloScopeSnapshots.compactMap { scope in
+                self.menuCardModel(
+                    for: .kilo,
+                    snapshotOverride: scope.snapshot,
+                    errorOverride: scope.errorMessage,
+                    forceOverrideCard: scope.snapshot == nil)
+            }
+            self.addStackedMenuCards(cards, to: menu, context: context)
+            return false
+        }
+
         guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
         if context.openAIContext.hasOpenAIWebMenuItems {
             let webItems = OpenAIWebMenuItems(
