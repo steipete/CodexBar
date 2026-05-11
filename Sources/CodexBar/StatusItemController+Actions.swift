@@ -93,9 +93,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     static func sanitizedCreditsPurchaseURL(_ raw: String?) -> String? {
         guard let raw, let url = URL(string: raw) else { return nil }
         guard Self.isAllowedChatGPTPurchaseHost(url) else { return nil }
-        let path = url.path.lowercased()
+        let pathComponents = url.pathComponents.map { $0.lowercased() }
         let allowed = ["settings", "usage", "billing", "credits"]
-        guard allowed.contains(where: { path.contains($0) }) else { return nil }
+        guard pathComponents.contains(where: { allowed.contains($0) }) else { return nil }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         components?.query = nil
         components?.fragment = nil

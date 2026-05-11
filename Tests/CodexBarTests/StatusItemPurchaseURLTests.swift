@@ -41,6 +41,9 @@ struct StatusItemPurchaseURLTests {
         #expect(
             StatusItemController.sanitizedCreditsPurchaseURL("https://chatgpt.com/backend-api/accounts")
                 == nil)
+        #expect(
+            StatusItemController.sanitizedCreditsPurchaseURL("https://chatgpt.com/backend-api/settings-token")
+                == nil)
         #expect(StatusItemController.sanitizedCreditsPurchaseURL("not a url") == nil)
     }
 }
