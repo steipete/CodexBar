@@ -227,6 +227,49 @@ struct ZaiUsageParsingTests {
         #expect(snapshot.tokenLimit?.usage == 40_000_000)
         #expect(snapshot.timeLimit?.usageDetails.first?.modelCode == "search-prime")
         #expect(snapshot.tokenLimit?.percentage == 34.0)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.secondary?.windowMinutes == nil)
+        #expect(usage.secondary?.resetDescription == "Monthly")
+    }
+
+    @Test
+    func `zai mcp time limit displays monthly instead of one minute window`() throws {
+        let json = """
+        {
+          "code": 200,
+          "msg": "Operation successful",
+          "data": {
+            "limits": [
+              {
+                "type": "TIME_LIMIT",
+                "unit": 5,
+                "number": 1,
+                "usage": 100,
+                "currentValue": 50,
+                "remaining": 50,
+                "percentage": 50,
+                "usageDetails": []
+              },
+              {
+                "type": "TOKENS_LIMIT",
+                "unit": 3,
+                "number": 5,
+                "percentage": 34,
+                "nextResetTime": 1768507567547
+              }
+            ]
+          },
+          "success": true
+        }
+        """
+
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.timeLimit?.windowDescription == "1 minute")
+        #expect(usage.secondary?.windowMinutes == nil)
+        #expect(usage.secondary?.resetDescription == "Monthly")
     }
 
     @Test
