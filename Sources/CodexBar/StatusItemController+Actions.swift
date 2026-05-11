@@ -90,13 +90,22 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.creditsPurchaseWindow = controller
     }
 
-    private static func sanitizedCreditsPurchaseURL(_ raw: String?) -> String? {
+    static func sanitizedCreditsPurchaseURL(_ raw: String?) -> String? {
         guard let raw, let url = URL(string: raw) else { return nil }
-        guard let host = url.host?.lowercased(), host.contains("chatgpt.com") else { return nil }
+        guard Self.isAllowedChatGPTPurchaseHost(url) else { return nil }
         let path = url.path.lowercased()
         let allowed = ["settings", "usage", "billing", "credits"]
         guard allowed.contains(where: { path.contains($0) }) else { return nil }
-        return url.absoluteString
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.query = nil
+        components?.fragment = nil
+        return components?.url?.absoluteString ?? url.absoluteString
+    }
+
+    private static func isAllowedChatGPTPurchaseHost(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https" else { return false }
+        guard let host = url.host?.lowercased() else { return false }
+        return host == "chatgpt.com" || host.hasSuffix(".chatgpt.com")
     }
 
     @objc func openStatusPage() {
