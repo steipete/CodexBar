@@ -29,6 +29,9 @@ extension UsageStore {
                 if provider == .codex {
                     self.codexAccountSnapshots = []
                 }
+                if provider == .kilo {
+                    self.kiloScopeSnapshots = []
+                }
                 self.tokenSnapshots.removeValue(forKey: provider)
                 self.tokenErrors[provider] = nil
                 self.failureGates[provider]?.reset()
@@ -50,6 +53,15 @@ extension UsageStore {
             return
         } else if provider == .codex {
             self.codexAccountSnapshots = []
+        }
+
+        if provider == .kilo, self.shouldFanOutKiloScopes() {
+            await self.refreshKiloScopes()
+            // Continue to also fetch the personal snapshot through the regular path
+            // so the existing single-card render keeps working when only personal is shown.
+            // The presence of multi-element kiloScopeSnapshots triggers stacked rendering.
+        } else if provider == .kilo {
+            await MainActor.run { self.kiloScopeSnapshots = [] }
         }
 
         let tokenAccounts = self.tokenAccounts(for: provider)

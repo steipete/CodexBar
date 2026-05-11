@@ -15,6 +15,7 @@ extension UsageStore {
         _ = self.lastFetchAttempts
         _ = self.accountSnapshots
         _ = self.codexAccountSnapshots
+        _ = self.kiloScopeSnapshots
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
@@ -131,6 +132,7 @@ final class UsageStore {
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
     var codexAccountSnapshots: [CodexAccountUsageSnapshot] = []
+    var kiloScopeSnapshots: [KiloScopeSnapshot] = []
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
