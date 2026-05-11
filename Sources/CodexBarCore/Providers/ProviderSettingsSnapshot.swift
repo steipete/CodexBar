@@ -18,6 +18,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         kilo: KiloProviderSettings? = nil,
         kimi: KimiProviderSettings? = nil,
         augment: AugmentProviderSettings? = nil,
+        moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
@@ -45,6 +46,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             kilo: kilo,
             kimi: kimi,
             augment: augment,
+            moonshot: moonshot,
             amp: amp,
             ollama: ollama,
             jetbrains: jetbrains,
@@ -225,6 +227,14 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct MoonshotProviderSettings: Sendable {
+        public let region: MoonshotRegion?
+
+        public init(region: MoonshotRegion? = nil) {
+            self.region = region
+        }
+    }
+
     public struct JetBrainsProviderSettings: Sendable {
         public let ideBasePath: String?
 
@@ -354,6 +364,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let kilo: KiloProviderSettings?
     public let kimi: KimiProviderSettings?
     public let augment: AugmentProviderSettings?
+    public let moonshot: MoonshotProviderSettings?
     public let amp: AmpProviderSettings?
     public let commandcode: CommandCodeProviderSettings?
     public let ollama: OllamaProviderSettings?
@@ -386,6 +397,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         kilo: KiloProviderSettings?,
         kimi: KimiProviderSettings?,
         augment: AugmentProviderSettings?,
+        moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings?,
         commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings?,
@@ -413,6 +425,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.kilo = kilo
         self.kimi = kimi
         self.augment = augment
+        self.moonshot = moonshot
         self.amp = amp
         self.commandcode = commandcode
         self.ollama = ollama
@@ -441,6 +454,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
+    case moonshot(ProviderSettingsSnapshot.MoonshotProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case commandcode(ProviderSettingsSnapshot.CommandCodeProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
@@ -470,6 +484,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
+    public var moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
@@ -503,6 +518,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .kilo(value): self.kilo = value
         case let .kimi(value): self.kimi = value
         case let .augment(value): self.augment = value
+        case let .moonshot(value): self.moonshot = value
         case let .amp(value): self.amp = value
         case let .commandcode(value): self.commandcode = value
         case let .ollama(value): self.ollama = value
@@ -534,6 +550,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             kilo: self.kilo,
             kimi: self.kimi,
             augment: self.augment,
+            moonshot: self.moonshot,
             amp: self.amp,
             commandcode: self.commandcode,
             ollama: self.ollama,

@@ -540,6 +540,8 @@ struct ProvidersPane: View {
         switch provider {
         case .deepseek:
             L("menu_bar_metric_subtitle_deepseek")
+        case .moonshot:
+            "Shows the Moonshot balance in the menu bar."
         case .mistral:
             L("menu_bar_metric_subtitle_mistral")
         case .kimik2:

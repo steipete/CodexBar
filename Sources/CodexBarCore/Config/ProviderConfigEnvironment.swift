@@ -63,6 +63,8 @@ public enum ProviderConfigEnvironment {
             SyntheticSettingsReader.apiKeyKey
         case .openrouter:
             OpenRouterSettingsReader.envKey
+        case .moonshot:
+            MoonshotSettingsReader.apiKeyEnvironmentKeys.first
         case .venice:
             VeniceSettingsReader.apiKeyEnvironmentKey
         default:

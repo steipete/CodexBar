@@ -562,6 +562,11 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .moonshot,
+           let balance = Self.moonshotBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
         if provider == .mistral,
            let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
         {
@@ -627,6 +632,19 @@ extension StatusItemController {
         return balance.map(String.init)
     }
 
+    nonisolated static func moonshotBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        self.displayValue(
+            from: snapshot?.loginMethod(for: .moonshot),
+            prefix: "Balance:",
+            removingSuffix: "")
+            .flatMap { value in
+                value
+                    .split(separator: "·", maxSplits: 1)
+                    .first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+    }
+
     nonisolated static func mistralSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
         self.displayValue(
             from: snapshot?.identity?.loginMethod,
@@ -654,7 +672,7 @@ extension StatusItemController {
         }
         let valueStart = rawValue.index(rawValue.startIndex, offsetBy: prefix.count)
         var value = rawValue[valueStart...].trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.hasSuffix(suffix) {
+        if !suffix.isEmpty, value.hasSuffix(suffix) {
             value = String(value.dropLast(suffix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return value.isEmpty ? nil : value
