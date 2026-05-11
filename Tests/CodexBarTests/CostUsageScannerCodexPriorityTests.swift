@@ -4,14 +4,14 @@ import SQLite3
 import Testing
 @testable import CodexBarCore
 
-struct CodexPriorityTraceScannerTests {
+struct CostUsageScannerCodexPriorityTests {
     @Test
     func `parses priority turn metadata without exposing request body`() {
         let body = "INFO thread_id=11111111-1111-1111-1111-111111111111 "
             + "turn.id=22222222-2222-2222-2222-222222222222 websocket request: "
             + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority","instructions":"secret prompt"}"#
 
-        let parsed = CodexPriorityTraceScanner.parseTraceRow(timestamp: "2026-05-10T12:00:00Z", body: body)
+        let parsed = CostUsageScanner.parseCodexPriorityTraceRow(timestamp: "2026-05-10T12:00:00Z", body: body)
 
         #expect(parsed?.threadID == "11111111-1111-1111-1111-111111111111")
         #expect(parsed?.turnID == "22222222-2222-2222-2222-222222222222")
@@ -23,16 +23,16 @@ struct CodexPriorityTraceScannerTests {
     func `ignores non priority malformed and non response request rows`() {
         let prefix = "thread_id=thread turn.id=turn websocket request: "
 
-        #expect(CodexPriorityTraceScanner.parseTraceRow(
+        #expect(CostUsageScanner.parseCodexPriorityTraceRow(
             timestamp: nil,
             body: prefix + #"{"type":"session.update","service_tier":"priority"}"#) == nil)
-        #expect(CodexPriorityTraceScanner.parseTraceRow(
+        #expect(CostUsageScanner.parseCodexPriorityTraceRow(
             timestamp: nil,
             body: prefix + #"{"type":"response.create"}"#) == nil)
-        #expect(CodexPriorityTraceScanner.parseTraceRow(
+        #expect(CostUsageScanner.parseCodexPriorityTraceRow(
             timestamp: nil,
             body: prefix + #"{"type":"response.create","service_tier":"default"}"#) == nil)
-        #expect(CodexPriorityTraceScanner.parseTraceRow(
+        #expect(CostUsageScanner.parseCodexPriorityTraceRow(
             timestamp: nil,
             body: prefix + #"{"#) == nil)
     }
@@ -55,7 +55,7 @@ struct CodexPriorityTraceScannerTests {
             thread_id=thread-b turn.id=turn-b websocket request: {"type":"response.create","model":"gpt-5.5"}
             """)
 
-        let turns = CodexPriorityTraceScanner.priorityTurns(databaseURL: dbURL)
+        let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
 
         #expect(turns.keys.sorted() == ["turn-a"])
         #expect(turns["turn-a"]?.threadID == "thread-a")
@@ -79,7 +79,7 @@ struct CodexPriorityTraceScannerTests {
             body: "thread_id=thread-new turn.id=turn-new websocket request: "
                 + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
 
-        let turns = CodexPriorityTraceScanner.priorityTurns(
+        let turns = CostUsageScanner.codexPriorityTurns(
             databaseURL: dbURL,
             sinceDayKey: "2026-05-10",
             untilDayKey: "2026-05-10")
@@ -115,7 +115,7 @@ struct CodexPriorityTraceScannerTests {
             body: "thread_id=thread-after turn.id=turn-after websocket request: "
                 + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
 
-        let turns = CodexPriorityTraceScanner.priorityTurns(
+        let turns = CostUsageScanner.codexPriorityTurns(
             databaseURL: dbURL,
             sinceDayKey: dayKey,
             untilDayKey: dayKey)

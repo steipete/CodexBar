@@ -1134,7 +1134,7 @@ enum CostUsageScanner {
         }
 
         let modelsDevCatalog = CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot)
-        let priorityTurns = CodexPriorityTraceScanner.priorityTurns(
+        let priorityTurns = Self.codexPriorityTurns(
             databaseURL: options.codexTraceDatabaseURL,
             sinceDayKey: range.sinceKey,
             untilDayKey: range.untilKey)

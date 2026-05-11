@@ -3,28 +3,28 @@ import Foundation
 import SQLite3
 #endif
 
-struct CodexPriorityTurnMetadata: Codable, Equatable, Sendable {
-    var threadID: String?
-    var turnID: String
-    var model: String?
-    var timestamp: String?
-}
+extension CostUsageScanner {
+    struct CodexPriorityTurnMetadata: Codable, Equatable, Sendable {
+        var threadID: String?
+        var turnID: String
+        var model: String?
+        var timestamp: String?
+    }
 
-enum CodexPriorityTraceScanner {
     private static let requestMarker = "websocket request:"
 
-    static func defaultDatabaseURL() -> URL {
+    static func defaultCodexPriorityDatabaseURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex", isDirectory: true)
             .appendingPathComponent("logs_2.sqlite", isDirectory: false)
     }
 
-    static func priorityTurns(
+    static func codexPriorityTurns(
         databaseURL: URL? = nil,
         sinceDayKey: String? = nil,
         untilDayKey: String? = nil) -> [String: CodexPriorityTurnMetadata]
     {
-        let url = databaseURL ?? self.defaultDatabaseURL()
+        let url = databaseURL ?? self.defaultCodexPriorityDatabaseURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [:] }
 
         #if canImport(SQLite3)
@@ -66,7 +66,7 @@ enum CodexPriorityTraceScanner {
             let timestamp = self.timestamp(stmt: stmt, index: 0)
             guard self.timestamp(timestamp, isInRangeSince: sinceDayKey, until: untilDayKey),
                   let body = self.text(stmt: stmt, index: 1),
-                  let parsed = self.parseTraceRow(timestamp: timestamp, body: body)
+                  let parsed = self.parseCodexPriorityTraceRow(timestamp: timestamp, body: body)
             else { continue }
             turns[parsed.turnID] = parsed
         }
@@ -76,7 +76,7 @@ enum CodexPriorityTraceScanner {
         #endif
     }
 
-    static func parseTraceRow(timestamp: String?, body: String) -> CodexPriorityTurnMetadata? {
+    static func parseCodexPriorityTraceRow(timestamp: String?, body: String) -> CodexPriorityTurnMetadata? {
         guard let markerRange = body.range(of: self.requestMarker) else { return nil }
         let prefix = String(body[..<markerRange.lowerBound])
         let jsonText = body[markerRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
