@@ -441,16 +441,26 @@ enum CostUsagePricing {
             return Double(below) * base + Double(over) * above
         }
 
-        return tiered(
-            nonCached,
-            base: pricing.inputCostPerToken,
-            above: pricing.inputCostPerTokenAboveThreshold,
-            threshold: pricing.thresholdTokens)
-            + tiered(
-                cached,
-                base: cachedRate,
-                above: pricing.cacheReadInputCostPerTokenAboveThreshold,
-                threshold: pricing.thresholdTokens)
+        func inputCost() -> Double {
+            guard let threshold = pricing.thresholdTokens else {
+                return (Double(nonCached) * pricing.inputCostPerToken) + (Double(cached) * cachedRate)
+            }
+
+            let cachedBaseTokens = min(cached, threshold)
+            let cachedAboveTokens = max(cached - threshold, 0)
+            let nonCachedBaseAllowance = max(threshold - cached, 0)
+            let nonCachedBaseTokens = min(nonCached, nonCachedBaseAllowance)
+            let nonCachedAboveTokens = max(nonCached - nonCachedBaseTokens, 0)
+            let cachedAboveRate = pricing.cacheReadInputCostPerTokenAboveThreshold ?? cachedRate
+            let nonCachedAboveRate = pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
+
+            return (Double(cachedBaseTokens) * cachedRate)
+                + (Double(cachedAboveTokens) * cachedAboveRate)
+                + (Double(nonCachedBaseTokens) * pricing.inputCostPerToken)
+                + (Double(nonCachedAboveTokens) * nonCachedAboveRate)
+        }
+
+        return inputCost()
             + tiered(
                 max(0, outputTokens),
                 base: pricing.outputCostPerToken,

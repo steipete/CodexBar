@@ -102,6 +102,24 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex cost applies long context threshold across cached and non cached input`() throws {
+        let root = try Self.cacheRoot()
+        let gpt55 = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 300_000,
+            cachedInputTokens: 200_000,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+
+        let cachedBase = 200_000.0 * 5e-7
+        let nonCachedBase = 72000.0 * 5e-6
+        let nonCachedAbove = 28000.0 * 1e-5
+        let output = 10.0 * 3e-5
+
+        #expect(gpt55 == cachedBase + nonCachedBase + nonCachedAbove + output)
+    }
+
+    @Test
     func `codex priority cost applies model specific fast rates`() {
         let gpt54 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.4",
