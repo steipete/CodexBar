@@ -35,6 +35,7 @@ extension StatusItemController {
     static let costHistoryChartID = "costHistoryChart"
     static let usageHistoryChartID = "usageHistoryChart"
     static let storageBreakdownID = "storageBreakdown"
+    static let zaiHourlyUsageChartID = "zaiHourlyUsageChart"
 
     private func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
         switch action {
@@ -667,6 +668,13 @@ extension StatusItemController {
                 context: context.openAIContext,
                 addedOpenAIWebItems: addedOpenAIWebItems)
             if self.addUsageHistoryMenuItemIfNeeded(
+                to: menu,
+                provider: context.currentProvider,
+                width: context.menuWidth)
+            {
+                menu.addItem(.separator())
+            }
+            if self.addZaiHourlyUsageMenuItemIfNeeded(
                 to: menu,
                 provider: context.currentProvider,
                 width: context.menuWidth)
@@ -1570,6 +1578,7 @@ extension StatusItemController {
             Self.costHistoryChartID,
             Self.usageHistoryChartID,
             Self.storageBreakdownID,
+            Self.zaiHourlyUsageChartID,
         ]
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }

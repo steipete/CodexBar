@@ -55,6 +55,14 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.zaiHourlyUsageChartID:
+            if let providerRawValue = placeholder.toolTip,
+               let provider = UsageProvider(rawValue: providerRawValue)
+            {
+                self.appendZaiHourlyUsageChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
         default:
             false
         }
@@ -197,5 +205,40 @@ extension StatusItemController {
     private func storageBreakdownMenuMaxHeight() -> CGFloat {
         let visibleHeight = NSScreen.main?.visibleFrame.height ?? 900
         return min(620, max(360, floor(visibleHeight * 0.72)))
+    }
+
+    @discardableResult
+    func appendZaiHourlyUsageChartItem(
+        to submenu: NSMenu,
+        provider: UsageProvider,
+        width: CGFloat) -> Bool
+    {
+        guard provider == .zai,
+              let snapshot = self.store.snapshot(for: provider),
+              let modelUsage = snapshot.zaiUsage?.modelUsage
+        else { return false }
+
+        if !Self.menuCardRenderingEnabled {
+            let chartItem = NSMenuItem()
+            chartItem.isEnabled = false
+            chartItem.representedObject = Self.zaiHourlyUsageChartID
+            chartItem.toolTip = provider.rawValue
+            submenu.addItem(chartItem)
+            return true
+        }
+
+        let chartView = ZaiHourlyUsageChartMenuView(modelUsage: modelUsage, width: width)
+        let hosting = MenuHostingView(rootView: chartView)
+        let controller = NSHostingController(rootView: chartView)
+        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+
+        let chartItem = NSMenuItem()
+        chartItem.view = hosting
+        chartItem.isEnabled = false
+        chartItem.representedObject = Self.zaiHourlyUsageChartID
+        chartItem.toolTip = provider.rawValue
+        submenu.addItem(chartItem)
+        return true
     }
 }

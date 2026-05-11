@@ -53,7 +53,7 @@ struct ZaiAPIFetchStrategy: ProviderFetchStrategy {
             throw ZaiSettingsError.missingToken
         }
         let region = context.settings?.zai?.apiRegion ?? .global
-        let usage = try await ZaiUsageFetcher.fetchUsage(
+        let usage = try await ZaiUsageFetcher.fetchUsageWithModelUsage(
             apiKey: apiKey,
             region: region,
             environment: context.env)

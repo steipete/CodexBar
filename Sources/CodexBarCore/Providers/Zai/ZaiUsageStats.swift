@@ -141,6 +141,7 @@ public struct ZaiUsageSnapshot: Sendable {
     public let sessionTokenLimit: ZaiLimitEntry?
     public let timeLimit: ZaiLimitEntry?
     public let planName: String?
+    public let modelUsage: ZaiModelUsageData?
     public let updatedAt: Date
 
     public init(
@@ -148,12 +149,14 @@ public struct ZaiUsageSnapshot: Sendable {
         sessionTokenLimit: ZaiLimitEntry? = nil,
         timeLimit: ZaiLimitEntry?,
         planName: String?,
+        modelUsage: ZaiModelUsageData? = nil,
         updatedAt: Date)
     {
         self.tokenLimit = tokenLimit
         self.sessionTokenLimit = sessionTokenLimit
         self.timeLimit = timeLimit
         self.planName = planName
+        self.modelUsage = modelUsage
         self.updatedAt = updatedAt
     }
 
@@ -418,6 +421,7 @@ public struct ZaiUsageFetcher: Sendable {
             sessionTokenLimit: sessionTokenLimit,
             timeLimit: timeLimit,
             planName: responseData.planName,
+            modelUsage: nil,
             updatedAt: Date())
     }
 
@@ -436,6 +440,267 @@ public struct ZaiUsageFetcher: Sendable {
         }
         return base
     }
+}
+
+// MARK: - Model Usage Data
+
+/// Per-model hourly token usage from the z.ai model-usage API
+public struct ZaiModelUsageData: Sendable {
+    public let xTime: [String]
+    public let modelDataList: [ZaiModelDataItem]
+
+    public init(xTime: [String], modelDataList: [ZaiModelDataItem]) {
+        self.xTime = xTime
+        self.modelDataList = modelDataList
+    }
+
+    public var modelNames: [String] {
+        self.modelDataList.compactMap(\.modelName)
+    }
+}
+
+public struct ZaiModelDataItem: Sendable {
+    public let modelName: String?
+    public let tokensUsage: [Int?]
+
+    public init(modelName: String?, tokensUsage: [Int?]) {
+        self.modelName = modelName
+        self.tokensUsage = tokensUsage
+    }
+}
+
+// MARK: - Hourly Chart Data
+
+public enum ZaiHourlyRange: Equatable, Sendable {
+    case today(referenceDate: Date)
+    case last24h
+
+    public var isToday: Bool {
+        if case .today = self { return true }
+        return false
+    }
+}
+
+public struct ZaiHourlyBar: Sendable {
+    public let label: String
+    public let segments: [(model: String, tokens: Int)]
+
+    public init(label: String, segments: [(model: String, tokens: Int)]) {
+        self.label = label
+        self.segments = segments
+    }
+
+    public var totalTokens: Int {
+        self.segments.reduce(0) { $0 + $1.tokens }
+    }
+}
+
+public enum ZaiHourlyBars: Sendable {
+    public static func from(modelData: ZaiModelUsageData, range: ZaiHourlyRange) -> [ZaiHourlyBar] {
+        let calendar = Calendar.current
+        let referenceDate: Date = switch range {
+        case let .today(ref): ref
+        case .last24h: Date()
+        }
+
+        let todayStart = calendar.startOfDay(for: referenceDate)
+
+        var bars: [ZaiHourlyBar] = []
+        for (index, timeString) in modelData.xTime.enumerated() {
+            guard let hourDate = parseHourDate(timeString) else { continue }
+
+            if case .today = range {
+                if hourDate < todayStart { continue }
+            }
+
+            var segments: [(model: String, tokens: Int)] = []
+            for item in modelData.modelDataList {
+                guard index < item.tokensUsage.count,
+                      let tokenCount = item.tokensUsage[index], tokenCount > 0
+                else { continue }
+                segments.append((model: item.modelName ?? "Unknown", tokens: tokenCount))
+            }
+
+            let total = segments.reduce(0) { $0 + $1.tokens }
+            guard total > 0 else { continue }
+
+            let label = self.formatHourLabel(hourDate: hourDate)
+            bars.append(ZaiHourlyBar(label: label, segments: segments))
+        }
+
+        return bars
+    }
+
+    public static func parseHourDate(_ string: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.date(from: string)
+    }
+
+    private static func formatHourLabel(hourDate: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: hourDate)
+    }
+}
+
+// MARK: - Model Usage Fetcher Extension
+
+extension ZaiUsageFetcher {
+    /// Fetches hourly model usage data for the last 24 hours
+    public static func fetchModelUsage(
+        apiKey: String,
+        region: ZaiAPIRegion = .global,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ZaiModelUsageData
+    {
+        guard !apiKey.isEmpty else {
+            throw ZaiUsageError.invalidCredentials
+        }
+
+        let baseURL: URL = if let host = ZaiSettingsReader.apiHost(environment: environment),
+                              let hostURL = URL(string: host), hostURL.scheme != nil
+        {
+            hostURL.appendingPathComponent("api/monitor/usage/model-usage")
+        } else {
+            region.modelUsageURL
+        }
+
+        let now = Date()
+        let calendar = Calendar.current
+        guard let startDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now)) else {
+            throw ZaiUsageError.parseFailed("Invalid date calculation")
+        }
+
+        let startComponents = calendar.dateComponents([.year, .month, .day, .hour], from: startDate)
+        let endComponents = calendar.dateComponents([.year, .month, .day, .hour], from: now)
+        let startTime = String(
+            format: "%04d-%02d-%02d %02d:00:00",
+            startComponents.year!,
+            startComponents.month!,
+            startComponents.day!,
+            startComponents.hour!)
+        let endTime = String(
+            format: "%04d-%02d-%02d %02d:59:59",
+            endComponents.year!,
+            endComponents.month!,
+            endComponents.day!,
+            endComponents.hour!)
+
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw ZaiUsageError.networkError("Invalid URL")
+        }
+        components.queryItems = [
+            URLQueryItem(name: "startTime", value: startTime),
+            URLQueryItem(name: "endTime", value: endTime),
+        ]
+
+        guard let requestURL = components.url else {
+            throw ZaiUsageError.networkError("Invalid URL")
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ZaiUsageError.networkError("Invalid response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            Self.log.error("z.ai model-usage API returned \(httpResponse.statusCode): \(errorMessage)")
+            throw ZaiUsageError.apiError("HTTP \(httpResponse.statusCode): \(errorMessage)")
+        }
+
+        guard !data.isEmpty else { return ZaiModelUsageData(xTime: [], modelDataList: []) }
+
+        return try Self.parseModelUsage(from: data)
+    }
+
+    static func parseModelUsage(from data: Data) throws -> ZaiModelUsageData {
+        let decoder = JSONDecoder()
+        let apiResponse = try decoder.decode(ZaiModelUsageAPIResponse.self, from: data)
+
+        guard apiResponse.isSuccess else {
+            throw ZaiUsageError.apiError(apiResponse.msg)
+        }
+
+        guard let responseData = apiResponse.data else {
+            return ZaiModelUsageData(xTime: [], modelDataList: [])
+        }
+
+        let items = responseData.modelDataList?.map { raw in
+            ZaiModelDataItem(
+                modelName: raw.modelName,
+                tokensUsage: raw.tokensUsage ?? [])
+        } ?? []
+
+        return ZaiModelUsageData(
+            xTime: responseData.xTime ?? [],
+            modelDataList: items)
+    }
+
+    /// Fetches both quota and model usage concurrently, returning a snapshot with both
+    public static func fetchUsageWithModelUsage(
+        apiKey: String,
+        region: ZaiAPIRegion = .global,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ZaiUsageSnapshot
+    {
+        async let quotaTask = Self.fetchUsage(apiKey: apiKey, region: region, environment: environment)
+        async let modelUsageTask = Self.fetchModelUsage(apiKey: apiKey, region: region, environment: environment)
+
+        let snapshot = try await quotaTask
+        let modelUsage: ZaiModelUsageData?
+        do {
+            modelUsage = try await modelUsageTask
+        } catch {
+            Self.log.info("z.ai model usage fetch failed (non-fatal): \(error.localizedDescription)")
+            modelUsage = nil
+        }
+
+        guard modelUsage != nil else { return snapshot }
+
+        return ZaiUsageSnapshot(
+            tokenLimit: snapshot.tokenLimit,
+            sessionTokenLimit: snapshot.sessionTokenLimit,
+            timeLimit: snapshot.timeLimit,
+            planName: snapshot.planName,
+            modelUsage: modelUsage,
+            updatedAt: snapshot.updatedAt)
+    }
+}
+
+// MARK: - Model Usage API Response (private)
+
+private struct ZaiModelUsageAPIResponse: Decodable {
+    let code: Int
+    let msg: String
+    let data: ZaiModelUsageRawData?
+    let success: Bool
+
+    var isSuccess: Bool {
+        self.success && self.code == 200
+    }
+}
+
+private struct ZaiModelUsageRawData: Decodable {
+    let xTime: [String]?
+    let modelDataList: [ZaiModelDataItemRaw]?
+
+    enum CodingKeys: String, CodingKey {
+        case xTime = "x_time"
+        case modelDataList
+    }
+}
+
+private struct ZaiModelDataItemRaw: Decodable {
+    let modelName: String?
+    let tokensUsage: [Int?]?
 }
 
 /// Errors that can occur during z.ai usage fetching
