@@ -632,3 +632,7 @@
 
 /* Additional keys */
 "not_found" = "未找到";
+
+/* Cost estimation */
+"cost_header_estimated" = "费用（估算）";
+"cost_estimate_hint" = "根据本地日志估算 · 可能与账单不同";

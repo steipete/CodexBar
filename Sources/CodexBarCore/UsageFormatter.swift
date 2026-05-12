@@ -109,6 +109,8 @@ public enum UsageFormatter {
         value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
     }
 
+    public static let costEstimateHint = "Estimated from local logs · may differ from your bill"
+
     /// Formats a currency value with the specified currency code.
     /// Uses FormatStyle with explicit en_US locale to ensure consistent formatting
     /// regardless of the user's system locale (e.g., pt-BR users see $54.72 not US$ 54,72).

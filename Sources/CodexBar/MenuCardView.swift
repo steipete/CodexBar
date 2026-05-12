@@ -181,7 +181,7 @@ struct UsageMenuCardView: View {
                     }
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text("cost_header_estimated")
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -598,7 +598,7 @@ struct UsageMenuCardCostSectionView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text("cost_header_estimated")
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -1556,7 +1556,7 @@ extension UsageMenuCardView.Model {
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
-            hintLine: nil,
+            hintLine: UsageFormatter.costEstimateHint,
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
