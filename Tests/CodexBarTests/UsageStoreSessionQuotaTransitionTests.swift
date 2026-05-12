@@ -213,6 +213,41 @@ struct UsageStoreSessionQuotaTransitionTests {
     }
 
     @Test
+    func `hidden quota warning markers do not disable warning notifications`() {
+        let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-warning-markers-hidden")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningMarkersVisible = false
+        settings.quotaWarningThresholds = [50, 20]
+        settings.setQuotaWarningWindowEnabled(.session, enabled: true)
+        settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        store.handleQuotaWarningTransitions(
+            provider: .codex,
+            snapshot: UsageSnapshot(
+                primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()))
+        store.handleQuotaWarningTransitions(
+            provider: .codex,
+            snapshot: UsageSnapshot(
+                primary: RateWindow(usedPercent: 55, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()))
+
+        #expect(notifier.quotaWarningPosts.count == 1)
+        #expect(notifier.quotaWarningPosts.first?.event.threshold == 50)
+    }
+
+    @Test
     func `quota warning crossing multiple thresholds posts most severe only`() {
         let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-warning-severe")
         settings.refreshFrequency = .manual
