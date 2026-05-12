@@ -1556,7 +1556,7 @@ extension UsageMenuCardView.Model {
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
-            hintLine: UsageFormatter.costEstimateHint,
+            hintLine: String(localized: "cost_estimate_hint"),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
