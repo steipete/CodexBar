@@ -128,16 +128,20 @@ struct KiloProviderImplementation: ProviderImplementation {
                 guard let settings else {
                     return .init(success: false, errorMessage: "Settings unavailable.")
                 }
-                let configured = settings.kiloAPIToken
-                let envKey = ProcessInfo.processInfo.environment[KiloSettingsReader.apiTokenKey] ?? ""
-                let apiKey = configured.isEmpty ? envKey : configured
-                guard !apiKey.isEmpty else {
+                let resolved: KiloResolvedBearerToken
+                do {
+                    resolved = try KiloBearerTokenResolver.resolve(
+                        source: settings.kiloUsageDataSource,
+                        apiKey: settings.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey)
+                } catch let error as LocalizedError {
                     return .init(
                         success: false,
-                        errorMessage: "Set the Kilo API key first.")
+                        errorMessage: error.errorDescription ?? "Failed to resolve Kilo credentials.")
+                } catch {
+                    return .init(success: false, errorMessage: error.localizedDescription)
                 }
                 do {
-                    let orgs = try await KiloUsageFetcher.fetchOrganizations(apiKey: apiKey)
+                    let orgs = try await KiloUsageFetcher.fetchOrganizations(apiKey: resolved.token)
                     await MainActor.run {
                         settings.setKiloKnownOrganizationsPruningEnabled(orgs)
                     }
@@ -151,8 +155,13 @@ struct KiloProviderImplementation: ProviderImplementation {
                 }
             },
             canRefresh: {
-                !settings.kiloAPIToken.isEmpty
-                    || !(ProcessInfo.processInfo.environment[KiloSettingsReader.apiTokenKey] ?? "").isEmpty
+                switch settings.kiloUsageDataSource {
+                case .api:
+                    !settings.kiloAPIToken.isEmpty
+                        || !(ProcessInfo.processInfo.environment[KiloSettingsReader.apiTokenKey] ?? "").isEmpty
+                case .cli, .auto:
+                    true
+                }
             })
     }
 }

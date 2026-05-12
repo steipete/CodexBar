@@ -41,29 +41,35 @@ extension UsageStore {
             await MainActor.run { self.kiloScopeSnapshots = [] }
             return
         }
-        let apiKey = self.settings.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey
-            ?? ProcessInfo.processInfo.environment[KiloSettingsReader.apiTokenKey]
-        guard let resolvedKey = apiKey, !resolvedKey.isEmpty else {
+        let env = ProcessInfo.processInfo.environment
+        let resolved: KiloResolvedBearerToken
+        do {
+            resolved = try KiloBearerTokenResolver.resolve(
+                source: self.settings.kiloUsageDataSource,
+                apiKey: self.settings.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey,
+                environment: env)
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
             await MainActor.run {
                 self.kiloScopeSnapshots = scopes.map {
                     KiloScopeSnapshot(
                         id: $0.scopeIdentifier,
                         scope: $0,
                         snapshot: nil,
-                        errorMessage: "Kilo API credentials missing.",
+                        errorMessage: message,
                         sourceLabel: nil)
                 }
             }
             return
         }
 
-        let env = ProcessInfo.processInfo.environment
         let results: [KiloScopeSnapshot] = await withTaskGroup(of: KiloScopeSnapshot.self) { group in
             for scope in scopes {
                 group.addTask {
                     do {
                         let raw = try await KiloUsageFetcher.fetchUsage(
-                            apiKey: resolvedKey,
+                            apiKey: resolved.token,
                             scope: scope,
                             environment: env)
                         let snapshot = raw.toUsageSnapshot()
@@ -73,7 +79,7 @@ extension UsageStore {
                             scope: scope,
                             snapshot: snapshot,
                             errorMessage: nil,
-                            sourceLabel: "api")
+                            sourceLabel: resolved.sourceLabel)
                     } catch {
                         return KiloScopeSnapshot(
                             id: scope.scopeIdentifier,
