@@ -1129,10 +1129,10 @@ extension StatusItemController {
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
-        // Kick off a user-initiated refresh on open (non-forced) and re-check after a delay.
+        // Kick off a refresh on open (non-forced) and re-check after a delay.
         // NEVER block menu opening with network requests.
         if !self.store.isRefreshing {
-            self.refreshStore(forceTokenUsage: false)
+            self.refreshStore(forceTokenUsage: false, refreshOpenMenusWhenComplete: false)
         }
         let key = ObjectIdentifier(menu)
         self.menuRefreshTasks[key]?.cancel()
@@ -1151,7 +1151,7 @@ extension StatusItemController {
             let retryMissingSnapshotCount = retryProviders.count { self.store.snapshot(for: $0) == nil }
             let willRetryRefresh = retryStaleProviderCount > 0 || retryMissingSnapshotCount > 0
             guard willRetryRefresh else { return }
-            self.refreshStore(forceTokenUsage: false)
+            self.refreshStore(forceTokenUsage: false, refreshOpenMenusWhenComplete: false)
         }
     }
 

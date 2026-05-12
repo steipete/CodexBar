@@ -329,7 +329,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeStoreChanges()
-                self.invalidateMenus(refreshOpenMenus: !self.store.isRefreshing)
+                self.invalidateMenus()
             }
         }
     }

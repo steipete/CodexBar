@@ -4,15 +4,21 @@ import CodexBarCore
 extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     // MARK: - Actions reachable from menus
 
-    func refreshStore(forceTokenUsage: Bool) {
+    func refreshStore(forceTokenUsage: Bool, refreshOpenMenusWhenComplete: Bool = true) {
         Task {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await self.store.refresh(forceTokenUsage: forceTokenUsage)
                 self.store.scheduleStorageFootprintRefreshForOverview(force: true)
                 self.invalidateMenus()
-                self.refreshOpenMenusIfNeeded()
+                if refreshOpenMenusWhenComplete {
+                    self.refreshOpenMenusIfNeeded()
+                }
             }
         }
+    }
+
+    func refreshOpenMenusAfterExplicitStoreAction() {
+        self.invalidateMenus(refreshOpenMenus: true)
     }
 
     @objc func refreshNow() {
@@ -32,6 +38,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await self.store.refresh(forceTokenUsage: false)
             }
+            self.refreshOpenMenusAfterExplicitStoreAction()
         }
     }
 
