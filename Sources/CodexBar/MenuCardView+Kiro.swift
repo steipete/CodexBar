@@ -25,12 +25,4 @@ extension UsageMenuCardView.Model {
         else { return nil }
         return plan
     }
-
-    static func kiroCreditNumber(_ value: Double) -> String {
-        let rounded = value.rounded()
-        if abs(value - rounded) < 0.005 {
-            return String(format: "%.0f", rounded)
-        }
-        return String(format: "%.2f", value)
-    }
 }

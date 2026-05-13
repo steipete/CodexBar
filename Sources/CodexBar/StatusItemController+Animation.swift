@@ -678,8 +678,11 @@ extension StatusItemController {
         let percentText = MenuBarDisplayText.percentText(
             window: snapshot?.primary,
             showUsed: showUsed)
-        let creditsLeft = Self.kiroCreditNumber(usage.creditsRemaining)
-        let usedTotal = "\(Self.kiroCreditNumber(usage.creditsUsed)) / \(Self.kiroCreditNumber(usage.creditsTotal))"
+        let creditsLeft = UsageFormatter.kiroCreditNumber(usage.creditsRemaining)
+        let usedTotal = [
+            UsageFormatter.kiroCreditNumber(usage.creditsUsed),
+            UsageFormatter.kiroCreditNumber(usage.creditsTotal),
+        ].joined(separator: " / ")
 
         switch mode {
         case .automatic, .creditsLeft:
@@ -699,14 +702,6 @@ extension StatusItemController {
             guard usage.creditsTotal > 0 else { return percentText }
             return usedTotal
         }
-    }
-
-    nonisolated static func kiroCreditNumber(_ value: Double) -> String {
-        let rounded = value.rounded()
-        if abs(value - rounded) < 0.005 {
-            return String(format: "%.0f", rounded)
-        }
-        return String(format: "%.2f", value)
     }
 
     private nonisolated static func displayValue(

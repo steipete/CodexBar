@@ -299,6 +299,7 @@ public struct KiroStatusProbe: Sendable {
         var email: String?
         for rawLine in stripped.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
             if line.localizedCaseInsensitiveContains("logged in with") {
                 authMethod = line.replacingOccurrences(
                     of: #"(?i)^\s*logged in with\s+"#,
@@ -311,6 +312,11 @@ public struct KiroStatusProbe: Sendable {
                     with: "",
                     options: [.regularExpression])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if email == nil,
+                      !line.contains(" "),
+                      line.contains("@")
+            {
+                email = line
             }
         }
         return KiroAccountInfo(

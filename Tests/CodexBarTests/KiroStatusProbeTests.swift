@@ -438,4 +438,17 @@ struct KiroStatusProbeTests {
         #expect(account.authMethod == "Google")
         #expect(account.email == "user@example.com")
     }
+
+    @Test
+    func `whoami legacy bare email parses account`() throws {
+        let probe = KiroStatusProbe()
+
+        let account = try probe.validateWhoAmIOutput(
+            stdout: "user@example.com",
+            stderr: "",
+            terminationStatus: 0)
+
+        #expect(account.authMethod == nil)
+        #expect(account.email == "user@example.com")
+    }
 }
