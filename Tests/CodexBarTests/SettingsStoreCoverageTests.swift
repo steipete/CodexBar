@@ -462,6 +462,29 @@ struct SettingsStoreCoverageTests {
         #expect(decoded.accessToken == "updated-access")
     }
 
+    @Test
+    func `upsert antigravity oauth account does not merge missing email accounts by fallback label`() {
+        let settings = Self.makeSettingsStore()
+        let first = AntigravityOAuthCredentials(
+            accessToken: "first-access",
+            refreshToken: "first-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: nil)
+        let second = AntigravityOAuthCredentials(
+            accessToken: "second-access",
+            refreshToken: "second-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_100),
+            email: nil)
+
+        settings.upsertAntigravityOAuthAccount(first)
+        settings.upsertAntigravityOAuthAccount(second)
+
+        let accounts = settings.tokenAccounts(for: .antigravity)
+        #expect(accounts.count == 2)
+        #expect(accounts.map(\.label) == ["Google Account 1", "Google Account 2"])
+        #expect(settings.selectedTokenAccount(for: .antigravity)?.id == accounts.last?.id)
+    }
+
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)

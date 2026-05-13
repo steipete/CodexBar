@@ -29,6 +29,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     public var environment: [String: String]
     public var dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
     public var oauthClientResolver: @Sendable () -> AntigravityOAuthClient?
+    public var credentialsUpdateHandler: @Sendable (AntigravityOAuthCredentials) async throws -> Void
 
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
     private static let userAgent = "antigravity"
@@ -44,6 +45,15 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         let store: AntigravityOAuthCredentialsStore?
         let dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
         let oauthClientResolver: @Sendable () -> AntigravityOAuthClient?
+        let credentialsUpdateHandler: @Sendable (AntigravityOAuthCredentials) async throws -> Void
+
+        func persistCredentials(_ credentials: AntigravityOAuthCredentials) async throws {
+            if let store {
+                try store.save(credentials)
+            } else {
+                try await self.credentialsUpdateHandler(credentials)
+            }
+        }
     }
 
     public init(
@@ -55,13 +65,15 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         },
         oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient? = {
             AntigravityOAuthConfig.resolvedClient()
-        })
+        },
+        credentialsUpdateHandler: @escaping @Sendable (AntigravityOAuthCredentials) async throws -> Void = { _ in })
     {
         self.timeout = timeout
         self.homeDirectory = homeDirectory
         self.environment = environment
         self.dataLoader = dataLoader
         self.oauthClientResolver = oauthClientResolver
+        self.credentialsUpdateHandler = credentialsUpdateHandler
     }
 
     public func fetch() async throws -> AntigravityStatusSnapshot {
@@ -69,20 +81,14 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         guard let credentials = source.credentials else {
             throw AntigravityRemoteFetchError.notLoggedIn
         }
-        return try await Self.fetchSnapshot(
+        return try await self.fetchSnapshot(
             using: credentials,
-            timeout: self.timeout,
-            store: source.store,
-            dataLoader: self.dataLoader,
-            oauthClientResolver: self.oauthClientResolver)
+            store: source.store)
     }
 
-    private static func fetchSnapshot(
+    private func fetchSnapshot(
         using initialCredentials: AntigravityOAuthCredentials,
-        timeout: TimeInterval,
-        store: AntigravityOAuthCredentialsStore?,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
-        oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient?) async throws
+        store: AntigravityOAuthCredentialsStore?) async throws
         -> AntigravityStatusSnapshot
     {
         guard let storedAccessToken = initialCredentials.accessToken?.trimmedNonEmpty else {
@@ -92,10 +98,11 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         var credentials = initialCredentials
         var accessToken = storedAccessToken
         let context = FetchContext(
-            timeout: timeout,
+            timeout: self.timeout,
             store: store,
-            dataLoader: dataLoader,
-            oauthClientResolver: oauthClientResolver)
+            dataLoader: self.dataLoader,
+            oauthClientResolver: self.oauthClientResolver,
+            credentialsUpdateHandler: self.credentialsUpdateHandler)
         if Self.shouldRefresh(expiryDate: credentials.expiryDate, now: Date()) {
             guard let refreshToken = credentials.refreshToken?.trimmedNonEmpty else {
                 throw AntigravityRemoteFetchError.notLoggedIn
@@ -115,18 +122,26 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         let claims = Self.extractClaims(from: credentials)
         let codeAssist = try await Self.loadCodeAssist(
             accessToken: accessToken,
-            timeout: timeout,
-            dataLoader: dataLoader)
+            timeout: self.timeout,
+            dataLoader: self.dataLoader)
         let projectId = try await Self.resolveProjectID(
             accessToken: accessToken,
             storedProjectID: credentials.projectID?.trimmedNonEmpty,
             initialResponse: codeAssist,
             context: context)
+        if let projectId, credentials.projectID?.trimmedNonEmpty != projectId {
+            credentials.projectID = projectId
+            do {
+                try await context.persistCredentials(credentials)
+            } catch {
+                Self.log.warning("Could not persist Antigravity project ID: \(error.localizedDescription)")
+            }
+        }
         let models = try await Self.fetchModelQuotas(
             accessToken: accessToken,
             projectId: projectId,
-            timeout: timeout,
-            dataLoader: dataLoader)
+            timeout: self.timeout,
+            dataLoader: self.dataLoader)
 
         return AntigravityStatusSnapshot(
             modelQuotas: models,
@@ -248,9 +263,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         }
 
         if let projectID = initialResponse.projectID {
-            if let store = context.store {
-                try? Self.updateStoredProjectID(projectID, store: store)
-            }
             return projectID
         }
 
@@ -275,9 +287,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 timeout: context.timeout,
                 dataLoader: context.dataLoader)
             if let projectID = onboardResponse.projectID {
-                if let store = context.store {
-                    try? Self.updateStoredProjectID(projectID, store: store)
-                }
                 return projectID
             }
         } catch {
@@ -293,9 +302,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 timeout: context.timeout,
                 dataLoader: context.dataLoader)
             if let projectID = refreshed.projectID {
-                if let store = context.store {
-                    try? Self.updateStoredProjectID(projectID, store: store)
-                }
                 return projectID
             }
         }
@@ -459,7 +465,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     {
         let primaryStore = Self.credentialsStore(homeDirectory: homeDirectory)
         if let tokenValue = environment[AntigravityOAuthCredentialsStore.environmentCredentialsKey] {
-            guard let credentials = AntigravityOAuthCredentialsStore.credentials(fromTokenAccountValue: tokenValue) else {
+            guard let credentials = AntigravityOAuthCredentialsStore.credentials(fromTokenAccountValue: tokenValue)
+            else {
                 throw AntigravityRemoteFetchError.parseFailed("Could not decode selected account credentials.")
             }
             return (credentials, nil)
@@ -507,9 +514,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         }
 
         let updatedCredentials = Self.updatedCredentials(credentials, refreshResponse: json)
-        if let store = context.store {
-            try store.save(updatedCredentials)
-        }
+        try await context.persistCredentials(updatedCredentials)
         return RefreshResult(accessToken: accessToken, credentials: updatedCredentials)
     }
 
@@ -548,13 +553,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             credentials.idToken = idToken
         }
         return credentials
-    }
-
-    private static func updateStoredProjectID(_ projectID: String, store: AntigravityOAuthCredentialsStore) throws {
-        guard var credentials = try store.load() else { return }
-        guard credentials.projectID?.trimmedNonEmpty != projectID else { return }
-        credentials.projectID = projectID
-        try store.save(credentials)
     }
 
     private static func formBody(_ values: [String: String]) -> Data? {

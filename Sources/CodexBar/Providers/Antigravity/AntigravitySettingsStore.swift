@@ -22,12 +22,14 @@ extension SettingsStore {
 
     func upsertAntigravityOAuthAccount(_ credentials: AntigravityOAuthCredentials) {
         guard let token = try? AntigravityOAuthCredentialsStore.tokenAccountValue(for: credentials) else { return }
-        let email = credentials.email?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let label = (email?.isEmpty == false) ? email! : "Google Account"
+        let trimmedEmail = credentials.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = (trimmedEmail?.isEmpty == false) ? trimmedEmail : nil
         let data = self.tokenAccountsData(for: .antigravity)
-        if let data,
+        let label = email ?? "Google Account \((data?.accounts.count ?? 0) + 1)"
+        if let email,
+           let data,
            let index = data.accounts.firstIndex(where: { account in
-               account.externalIdentifier == email || account.label == label
+               account.externalIdentifier == email
            })
         {
             let account = data.accounts[index]
@@ -36,8 +38,7 @@ extension SettingsStore {
                 accountID: account.id,
                 label: label,
                 token: token,
-                externalIdentifier: .some(email),
-                organizationID: .some(nil))
+                externalIdentifier: .some(email))
             self.setActiveTokenAccountIndex(index, for: .antigravity)
         } else {
             self.addTokenAccount(

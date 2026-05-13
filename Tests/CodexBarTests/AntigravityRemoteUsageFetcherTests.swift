@@ -2,6 +2,18 @@ import CodexBarCore
 import Foundation
 import Testing
 
+private actor AntigravityCredentialUpdateCapture {
+    private var captured: [AntigravityOAuthCredentials] = []
+
+    func append(_ credentials: AntigravityOAuthCredentials) {
+        self.captured.append(credentials)
+    }
+
+    func values() -> [AntigravityOAuthCredentials] {
+        self.captured
+    }
+}
+
 @Suite(.serialized)
 struct AntigravityRemoteUsageFetcherTests {
     @Test
@@ -116,6 +128,7 @@ struct AntigravityRemoteUsageFetcherTests {
             clientID: "selected-client-id",
             clientSecret: "selected-client-secret")
         let token = try AntigravityOAuthCredentialsStore.tokenAccountValue(for: selectedCredentials)
+        let updateCapture = AntigravityCredentialUpdateCapture()
 
         let dataLoader = GeminiAPITestHelpers.dataLoader { request in
             guard let url = request.url, let host = url.host else {
@@ -162,17 +175,79 @@ struct AntigravityRemoteUsageFetcherTests {
             timeout: 1,
             homeDirectory: env.homeURL.path,
             environment: [AntigravityOAuthCredentialsStore.environmentCredentialsKey: token],
-            dataLoader: dataLoader)
+            dataLoader: dataLoader,
+            credentialsUpdateHandler: { credentials in
+                await updateCapture.append(credentials)
+            })
         let snapshot = try await fetcher.fetch()
         let shared = try env.readAntigravityCredentials()
+        let updatedCredentials = await updateCapture.values()
 
         #expect(snapshot.accountEmail == "selected-new@example.com")
         #expect(shared["access_token"] as? String == "shared-token")
         #expect(shared["email"] as? String == "shared@example.com")
+        #expect(updatedCredentials.last?.accessToken == "selected-new-token")
+        #expect(updatedCredentials.last?.projectID == "selected-project-123")
     }
 
     @Test
-    func `remote fetch rejects invalid selected token account instead of falling back to shared credentials`() async throws {
+    func `remote fetch ignores selected token account project id persistence failure`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let selectedCredentials = AntigravityOAuthCredentials(
+            accessToken: "selected-token",
+            refreshToken: nil,
+            expiryDate: Date().addingTimeInterval(3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "selected@example.com"),
+            email: "selected@example.com",
+            projectID: nil,
+            clientID: nil,
+            clientSecret: nil)
+        let token = try AntigravityOAuthCredentialsStore.tokenAccountValue(for: selectedCredentials)
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+
+            switch host {
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.jsonData([
+                            "currentTier": ["id": "free-tier", "name": "free"],
+                            "cloudaicompanionProject": "selected-project-123",
+                        ]))
+                }
+                if url.path == "/v1internal:fetchAvailableModels" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: Self.availableModelsResponse())
+                }
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let fetcher = AntigravityRemoteUsageFetcher(
+            timeout: 1,
+            homeDirectory: env.homeURL.path,
+            environment: [AntigravityOAuthCredentialsStore.environmentCredentialsKey: token],
+            dataLoader: dataLoader,
+            credentialsUpdateHandler: { _ in
+                throw CocoaError(.fileWriteUnknown)
+            })
+        let snapshot = try await fetcher.fetch()
+
+        #expect(snapshot.accountEmail == "selected@example.com")
+    }
+
+    @Test
+    func `remote fetch rejects invalid selected token account`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeAntigravityCredentials(

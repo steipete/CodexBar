@@ -252,7 +252,10 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
 
     public static func tokenAccountValue(for credentials: AntigravityOAuthCredentials) throws -> String {
         let data = try JSONEncoder.antigravityCredentials.encode(credentials)
-        return String(decoding: data, as: UTF8.self)
+        guard let value = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.coderInvalidValue)
+        }
+        return value
     }
 
     public static func credentials(fromTokenAccountValue value: String) -> AntigravityOAuthCredentials? {
