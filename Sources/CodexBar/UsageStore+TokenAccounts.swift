@@ -62,6 +62,9 @@ extension UsageStore {
         }
 
         let originalVisibleAccountID = projection.activeVisibleAccountID
+        let originalSelectionSource = originalVisibleAccountID.flatMap {
+            projection.source(forVisibleAccountID: $0)
+        }
         let priorByAccountID = Dictionary(uniqueKeysWithValues: self.codexAccountSnapshots.map { ($0.id, $0) })
         var snapshots: [CodexAccountUsageSnapshot] = []
         var selectedOutcome: ProviderFetchOutcome?
@@ -98,7 +101,13 @@ extension UsageStore {
             self.codexAccountSnapshots = snapshots
         }
 
-        if let selectedOutcome {
+        let currentProjection = self.settings.codexVisibleAccountProjection
+        let currentSelectionSource = originalVisibleAccountID.flatMap {
+            currentProjection.source(forVisibleAccountID: $0)
+        }
+        let selectionStillMatches = currentProjection.activeVisibleAccountID == originalVisibleAccountID &&
+            currentSelectionSource == originalSelectionSource
+        if let selectedOutcome, selectionStillMatches {
             await self.applySelectedCodexVisibleAccountOutcome(
                 selectedOutcome,
                 snapshot: selectedSnapshot,

@@ -176,12 +176,16 @@ struct CodexManagedRoutingTests {
     @Test
     func `provider registry prefers live system routing when managed and live share email`() {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-same-email-prefers-live")
-        let managedHomePath = "/tmp/managed-remote-home"
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
         let liveHomePath = "/tmp/system-remote-home"
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
             email: "person@example.com",
-            managedHomePath: managedHomePath,
+            managedHomePath: managedHome.path,
             createdAt: 1,
             updatedAt: 1,
             lastAuthenticatedAt: 1)
@@ -206,7 +210,7 @@ struct CodexManagedRoutingTests {
 
         #expect(settings.codexResolvedActiveSource == .liveSystem)
         #expect(env["CODEX_HOME"] == liveHomePath)
-        #expect(env["CODEX_HOME"] != managedHomePath)
+        #expect(env["CODEX_HOME"] != managedHome.path)
     }
 
     @Test

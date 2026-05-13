@@ -865,6 +865,62 @@ struct StatusMenuCodexSwitcherTests {
 }
 
 extension StatusMenuCodexSwitcherTests {
+    @Test
+    func `codex stacked refresh discards selected outcome when visible selection changes mid flight`() async throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.multiAccountMenuLayout = .stacked
+        self.enableOnlyCodex(settings)
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .liveSystem
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(self.snapshot(email: "managed@example.com", percent: 77), provider: .codex)
+
+        let blocker = BlockingStatusMenuCodexFetchStrategy()
+        self.installBlockingCodexProvider(on: store, blocker: blocker)
+
+        let refreshTask = Task { @MainActor in
+            await store.refreshCodexVisibleAccountsForMenu()
+        }
+
+        await blocker.waitForStartCount(1)
+        #expect(settings.selectCodexVisibleAccount(id: "managed@example.com"))
+
+        await blocker.resume(with: .success(self.snapshot(email: "live@example.com", percent: 9)))
+        await blocker.waitForStartCount(2)
+        await blocker.resume(with: .success(self.snapshot(email: "managed@example.com", percent: 42)))
+        await refreshTask.value
+
+        #expect(settings.codexActiveSource == .managedAccount(id: managedAccountID))
+        #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "managed@example.com")
+        #expect(store.snapshots[.codex]?.primary?.usedPercent == 77)
+    }
+
     private static func writeCodexAuthFile(
         homeURL: URL,
         email: String,
@@ -936,13 +992,12 @@ private struct StatusMenuTestCodexFetchStrategy: ProviderFetchStrategy {
 
 private actor BlockingStatusMenuCodexFetchStrategy {
     private var waiters: [CheckedContinuation<Result<UsageSnapshot, Error>, Never>] = []
-    private var startedWaiters: [CheckedContinuation<Void, Never>] = []
-    private var didStart = false
+    private var startedWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var startCount = 0
 
     func awaitResult() async throws -> UsageSnapshot {
-        self.didStart = true
-        self.startedWaiters.forEach { $0.resume() }
-        self.startedWaiters.removeAll()
+        self.startCount += 1
+        self.resumeStartedWaitersIfReady()
         let result = await withCheckedContinuation { continuation in
             self.waiters.append(continuation)
         }
@@ -950,15 +1005,25 @@ private actor BlockingStatusMenuCodexFetchStrategy {
     }
 
     func waitUntilStarted() async {
-        if self.didStart { return }
+        await self.waitForStartCount(1)
+    }
+
+    func waitForStartCount(_ count: Int) async {
+        if self.startCount >= count { return }
         await withCheckedContinuation { continuation in
-            self.startedWaiters.append(continuation)
+            self.startedWaiters.append((count, continuation))
         }
     }
 
     func resume(with result: Result<UsageSnapshot, Error>) {
         self.waiters.forEach { $0.resume(returning: result) }
         self.waiters.removeAll()
+    }
+
+    private func resumeStartedWaitersIfReady() {
+        let readyWaiters = self.startedWaiters.filter { self.startCount >= $0.count }
+        self.startedWaiters.removeAll { self.startCount >= $0.count }
+        readyWaiters.forEach { $0.continuation.resume() }
     }
 }
 
