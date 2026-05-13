@@ -14,6 +14,9 @@ extension StatusItemController {
         }
         let result = await AntigravityLoginRunner.run(onPhaseChange: phaseHandler) {
             Task { @MainActor in
+                if let credentials = try? AntigravityOAuthCredentialsStore().load() {
+                    self.store.settings.upsertAntigravityOAuthAccount(credentials)
+                }
                 await store.refresh()
                 CodexBarLog.logger(LogCategories.login).info("Auto-refreshed after Antigravity auth")
             }

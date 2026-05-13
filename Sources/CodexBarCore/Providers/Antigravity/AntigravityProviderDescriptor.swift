@@ -87,8 +87,8 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
         true
     }
 
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let fetcher = AntigravityRemoteUsageFetcher()
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let fetcher = AntigravityRemoteUsageFetcher(environment: context.env)
         let snapshot = try await fetcher.fetch()
         let usage = if snapshot.modelQuotas.isEmpty {
             UsageSnapshot(

@@ -23,6 +23,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: DeepSeekSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .antigravity: TokenAccountSupport(
+            title: "Google accounts",
+            subtitle: "Store multiple Antigravity Google OAuth accounts for quick switching.",
+            placeholder: "Antigravity OAuth credentials JSON",
+            injection: .environment(key: AntigravityOAuthCredentialsStore.environmentCredentialsKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .zai: TokenAccountSupport(
             title: "API tokens",
             subtitle: "Stored in the CodexBar config file.",

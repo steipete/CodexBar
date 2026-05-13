@@ -208,6 +208,8 @@ public enum AntigravityOAuthConfig {
 }
 
 public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
+    public static let environmentCredentialsKey = "ANTIGRAVITY_OAUTH_CREDENTIALS_JSON"
+
     public let fileURL: URL
     private let fileManager: FileManager
 
@@ -246,6 +248,17 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
     public static func defaultURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         self.defaultDirectoryURL(home: home)
             .appendingPathComponent("oauth_creds.json")
+    }
+
+    public static func tokenAccountValue(for credentials: AntigravityOAuthCredentials) throws -> String {
+        let data = try JSONEncoder.antigravityCredentials.encode(credentials)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    public static func credentials(fromTokenAccountValue value: String) -> AntigravityOAuthCredentials? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(AntigravityOAuthCredentials.self, from: data)
     }
 
     private func applySecurePermissionsIfNeeded() throws {

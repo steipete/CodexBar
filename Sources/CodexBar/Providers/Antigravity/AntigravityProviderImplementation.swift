@@ -11,6 +11,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.antigravityUsageDataSource
+        _ = settings.tokenAccountsData(for: .antigravity)
     }
 
     @MainActor
@@ -56,11 +57,10 @@ struct AntigravityProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsActions(context: ProviderSettingsContext) -> [ProviderSettingsActionsDescriptor] {
-        let credentialsPath = AntigravityOAuthCredentialsStore().fileURL.path
-        let credentialsExist = FileManager.default.fileExists(atPath: credentialsPath)
-        let loginTitle = credentialsExist ? "Re-authenticate" : "Login with Google"
+        let accountCount = context.settings.tokenAccounts(for: .antigravity).count
+        let loginTitle = accountCount > 0 ? "Add Google Account" : "Login with Google"
         let subtitle = """
-        Stores credentials in ~/.codexbar/antigravity/oauth_creds.json. Uses Antigravity.app OAuth when available, \
+        Stores each signed-in Google account for quick Antigravity switching. Uses Antigravity.app OAuth when available, \
         or ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET as an override.
         """
         return [
@@ -88,6 +88,11 @@ struct AntigravityProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendUsageMenuEntries(context _: ProviderMenuUsageContext, entries _: inout [ProviderMenuEntry]) {}
+
+    @MainActor
+    func loginMenuAction(context _: ProviderMenuLoginContext) -> (label: String, action: MenuDescriptor.MenuAction)? {
+        ("Add Account...", .switchAccount(.antigravity))
+    }
 
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
