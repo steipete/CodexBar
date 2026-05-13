@@ -384,8 +384,13 @@ struct ProvidersPane: View {
                     }
                 }
             },
-            addAccount: { label, token in
-                self.settings.addTokenAccount(provider: provider, label: label, token: token)
+            showsOrganizationField: provider == .claude,
+            addAccount: { label, token, organizationID in
+                self.settings.addTokenAccount(
+                    provider: provider,
+                    label: label,
+                    token: token,
+                    organizationID: organizationID)
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
                         await self.store.refreshProvider(provider, allowDisabled: true)

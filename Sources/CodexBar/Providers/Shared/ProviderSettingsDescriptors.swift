@@ -134,7 +134,8 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let accounts: () -> [ProviderTokenAccount]
     let activeIndex: () -> Int
     let setActiveIndex: (Int) -> Void
-    let addAccount: (_ label: String, _ token: String) -> Void
+    let showsOrganizationField: Bool
+    let addAccount: (_ label: String, _ token: String, _ organizationID: String?) -> Void
     let removeAccount: (_ accountID: UUID) -> Void
     let primaryAddActionTitle: String?
     let primaryAddAction: (() async -> Void)?

@@ -246,6 +246,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     let descriptor: ProviderSettingsTokenAccountsDescriptor
     @State private var newLabel: String = ""
     @State private var newToken: String = ""
+    @State private var newOrgID: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -317,25 +318,35 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             if self.descriptor.primaryAddAction == nil {
-                HStack(spacing: 8) {
-                    TextField("Label", text: self.$newLabel)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.footnote)
-                    SecureField(self.descriptor.placeholder, text: self.$newToken)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.footnote)
-                    Button("Add") {
-                        let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !label.isEmpty, !token.isEmpty else { return }
-                        self.descriptor.addAccount(label, token)
-                        self.newLabel = ""
-                        self.newToken = ""
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        TextField("Label", text: self.$newLabel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                        SecureField(self.descriptor.placeholder, text: self.$newToken)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                        Button("Add") {
+                            let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !label.isEmpty, !token.isEmpty else { return }
+                            let orgID = self.newOrgID.trimmingCharacters(in: .whitespacesAndNewlines)
+                            self.descriptor.addAccount(label, token, orgID.isEmpty ? nil : orgID)
+                            self.newLabel = ""
+                            self.newToken = ""
+                            self.newOrgID = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                            self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                        self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if self.descriptor.showsOrganizationField {
+                        TextField("Org ID (optional)", text: self.$newOrgID)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                            .help("Optional organization ID for accounts linked to multiple Anthropic organizations.")
+                    }
                 }
             }
 

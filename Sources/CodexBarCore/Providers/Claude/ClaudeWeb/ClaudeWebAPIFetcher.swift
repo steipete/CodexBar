@@ -488,10 +488,8 @@ public enum ClaudeWebAPIFetcher {
                 sessionResets = self.parseISO8601Date(resetsAt)
             }
         }
-        guard let sessionPercent else {
-            // If we can't parse session utilization, treat this as a failure so callers can fall back to the CLI.
-            throw FetchError.invalidResponse
-        }
+        // Enterprise/credit-based accounts return null for five_hour; treat as 0% rather than an error.
+        let sessionPercent = sessionPercent ?? 0.0
 
         // Parse seven_day (weekly) usage
         var weeklyPercent: Double?
