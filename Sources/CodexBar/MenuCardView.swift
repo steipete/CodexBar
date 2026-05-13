@@ -1155,7 +1155,7 @@ extension UsageMenuCardView.Model {
         {
             let remaining = UsageFormatter.kiroCreditNumber(kiroUsage.creditsRemaining)
             let total = UsageFormatter.kiroCreditNumber(kiroUsage.creditsTotal)
-            primaryDetailText = "\(remaining) of \(total) credits left"
+            primaryDetailLeft = "\(remaining) of \(total) credits left"
         }
         if input.provider == .alibaba || input.provider == .mistral || input.provider == .manus,
            let detail = primary.resetDescription,
@@ -1275,7 +1275,11 @@ extension UsageMenuCardView.Model {
         {
             let remainingText = UsageFormatter.kiroCreditNumber(remaining)
             let totalText = UsageFormatter.kiroCreditNumber(total)
-            weeklyDetailText = "\(remainingText) of \(totalText) bonus credits left"
+            paceDetail = PaceDetail(
+                leftLabel: "\(remainingText) of \(totalText) bonus credits left",
+                rightLabel: nil,
+                pacePercent: nil,
+                paceOnTop: true)
         }
         if input.provider == .alibaba,
            let detail = weekly.resetDescription,
