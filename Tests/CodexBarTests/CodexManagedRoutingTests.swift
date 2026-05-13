@@ -37,6 +37,73 @@ struct CodexManagedRoutingTests {
         #expect(claudeEnv["CODEX_HOME"] == nil)
     }
 
+
+    @Test
+    func `provider registry scopes codex environment with source override without persisting selection`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-source-override-env")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/codex-managed-override-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-override-\(UUID().uuidString).json")
+        let store = FileManagedCodexAccountStore(fileURL: storeURL)
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .liveSystem
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": "/Users/example/.codex"],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil,
+            codexActiveSourceOverride: .managedAccount(id: managedAccount.id))
+
+        #expect(env["CODEX_HOME"] == managedAccount.managedHomePath)
+        #expect(settings.codexActiveSource == .liveSystem)
+    }
+
+    @Test
+    func `provider registry builds codex snapshot with source override without persisting selection`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-source-override-snapshot")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/codex-managed-override-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-snapshot-override-\(UUID().uuidString).json")
+        let store = FileManagedCodexAccountStore(fileURL: storeURL)
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .liveSystem
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            settings: settings,
+            tokenOverride: nil,
+            codexActiveSourceOverride: .managedAccount(id: UUID()))
+
+        #expect(snapshot.codex?.managedAccountTargetUnavailable == true)
+        #expect(settings.codexActiveSource == .liveSystem)
+    }
+
     @Test
     func `provider registry preserves ambient live system home when active source is live system`() {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-live-system-routing")
@@ -502,6 +569,51 @@ struct CodexManagedRoutingTests {
         let account = context.fetcher.loadAccountInfo()
         #expect(account.email == "managed@example.com")
         #expect(account.plan == "pro")
+    }
+
+
+    @Test
+    func `usage store builds codex fetch context with source override without persisting selection`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-usage-source-override")
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-usage-override-\(UUID().uuidString).json")
+        let managedStore = FileManagedCodexAccountStore(fileURL: storeURL)
+        try managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+        try self.writeCodexAuthFile(homeURL: managedHome, email: "override@example.com", plan: "pro")
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .liveSystem
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+
+        let context = store.makeFetchContext(
+            provider: .codex,
+            override: nil,
+            codexActiveSourceOverride: .managedAccount(id: managedAccount.id))
+
+        let account = context.fetcher.loadAccountInfo()
+        #expect(account.email == "override@example.com")
+        #expect(account.plan == "pro")
+        #expect(settings.codexActiveSource == .liveSystem)
     }
 
     @Test

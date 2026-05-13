@@ -70,13 +70,17 @@ struct ProviderRegistry {
     @MainActor
     static func makeSettingsSnapshot(
         settings: SettingsStore,
-        tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
+        tokenOverride: TokenAccountOverride?,
+        codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot
     {
         settings.ensureTokenAccountsLoaded()
         var builder = ProviderSettingsSnapshotBuilder(
             debugMenuEnabled: settings.debugMenuEnabled,
             debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)
-        let context = ProviderSettingsSnapshotContext(settings: settings, tokenOverride: tokenOverride)
+        let context = ProviderSettingsSnapshotContext(
+            settings: settings,
+            tokenOverride: tokenOverride,
+            codexActiveSourceOverride: codexActiveSourceOverride)
         for implementation in ProviderCatalog.all {
             if let contribution = implementation.settingsSnapshot(context: context) {
                 builder.apply(contribution)
@@ -90,7 +94,8 @@ struct ProviderRegistry {
         base: [String: String],
         provider: UsageProvider,
         settings: SettingsStore,
-        tokenOverride: TokenAccountOverride?) -> [String: String]
+        tokenOverride: TokenAccountOverride?,
+        codexActiveSourceOverride: CodexActiveSource? = nil) -> [String: String]
     {
         let account = ProviderTokenAccountSelection.selectedAccount(
             provider: provider,
@@ -116,9 +121,10 @@ struct ProviderRegistry {
         // Mac's Codex sessions, not as account-owned remote state. If we later want
         // account-scoped token history in the UI, that needs an explicit product decision and
         // presentation change so the two concepts are not conflated.
+        let codexActiveSource = codexActiveSourceOverride ?? settings.codexActiveSource
         if provider == .codex,
-           case .managedAccount = settings.codexActiveSource,
-           let managedHomePath = settings.activeManagedCodexRemoteHomePath
+           case .managedAccount = codexActiveSource,
+           let managedHomePath = settings.managedCodexRemoteHomePath(forActiveSource: codexActiveSource)
         {
             env = CodexHomeScope.scopedEnvironment(base: env, codexHome: managedHomePath)
         }
