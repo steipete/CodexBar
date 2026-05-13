@@ -136,6 +136,63 @@ struct FactoryMenuCardModelTests {
     }
 }
 
+struct KiroMenuCardModelTests {
+    @Test
+    func `kiro model shows account plan credits bonus and overages`() throws {
+        let now = Date()
+        let snapshot = KiroUsageSnapshot(
+            planName: "KIRO FREE",
+            accountEmail: "person@example.com",
+            authMethod: "Google",
+            creditsUsed: 0.17,
+            creditsTotal: 50,
+            creditsPercent: 0,
+            bonusCreditsUsed: 45.53,
+            bonusCreditsTotal: 2000,
+            bonusExpiryDays: 19,
+            overagesStatus: "Disabled",
+            manageURL: "https://app.kiro.dev/account/usage",
+            contextUsage: KiroContextUsageSnapshot(
+                totalPercentUsed: 1.3,
+                contextFilesPercent: 0.5,
+                toolsPercent: 0.8,
+                kiroResponsesPercent: 0,
+                promptsPercent: 0),
+            resetsAt: now.addingTimeInterval(3600),
+            updatedAt: now).toUsageSnapshot()
+        let metadata = try #require(ProviderDefaults.metadata[.kiro])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kiro,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.email == "person@example.com")
+        #expect(model.planText == "Kiro Free")
+        #expect(model.metrics.map(\.title) == ["Credits", "Bonus"])
+        #expect(model.metrics.first?.detailText == "49.83 of 50 credits left")
+        #expect(model.metrics.dropFirst().first?.detailText == "1954.47 of 2000 bonus credits left")
+        #expect(model.usageNotes.contains("Auth: Google"))
+        #expect(model.usageNotes.contains("Overages: Disabled"))
+        #expect(model.usageNotes.contains { $0.localizedCaseInsensitiveContains("Context window") } == false)
+    }
+}
+
 struct MiniMaxMenuCardModelTests {
     @Test
     func `minimax service metrics respect used and remaining display modes`() throws {

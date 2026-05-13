@@ -577,6 +577,12 @@ extension StatusItemController {
         {
             return credits
         }
+        if provider == .kiro {
+            return Self.kiroDisplayText(
+                snapshot: snapshot,
+                mode: self.settings.kiroMenuBarDisplayMode,
+                showUsed: self.settings.usageBarsShowUsed)
+        }
 
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
         let mode = self.settings.menuBarDisplayMode
@@ -657,6 +663,50 @@ extension StatusItemController {
             from: snapshot?.identity?.loginMethod,
             prefix: "Credits:",
             removingSuffix: " left")
+    }
+
+    nonisolated static func kiroDisplayText(
+        snapshot: UsageSnapshot?,
+        mode: KiroMenuBarDisplayMode,
+        showUsed: Bool)
+        -> String?
+    {
+        guard mode != .hidden else { return nil }
+        guard let usage = snapshot?.kiroUsage else {
+            return MenuBarDisplayText.percentText(window: snapshot?.primary, showUsed: showUsed)
+        }
+        let percentText = MenuBarDisplayText.percentText(
+            window: snapshot?.primary,
+            showUsed: showUsed)
+        let creditsLeft = Self.kiroCreditNumber(usage.creditsRemaining)
+        let usedTotal = "\(Self.kiroCreditNumber(usage.creditsUsed)) / \(Self.kiroCreditNumber(usage.creditsTotal))"
+
+        switch mode {
+        case .automatic, .creditsLeft:
+            if usage.creditsTotal > 0 {
+                return creditsLeft
+            }
+            return percentText
+        case .hidden:
+            return nil
+        case .percentLeft:
+            return MenuBarDisplayText.percentText(window: snapshot?.primary, showUsed: false)
+        case .creditsAndPercent:
+            guard usage.creditsTotal > 0 else { return percentText }
+            guard let percentText else { return creditsLeft }
+            return "\(creditsLeft) · \(percentText)"
+        case .usedAndTotal:
+            guard usage.creditsTotal > 0 else { return percentText }
+            return usedTotal
+        }
+    }
+
+    nonisolated static func kiroCreditNumber(_ value: Double) -> String {
+        let rounded = value.rounded()
+        if abs(value - rounded) < 0.005 {
+            return String(format: "%.0f", rounded)
+        }
+        return String(format: "%.2f", value)
     }
 
     private nonisolated static func displayValue(

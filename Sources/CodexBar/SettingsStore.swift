@@ -62,6 +62,30 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     }
 }
 
+enum KiroMenuBarDisplayMode: String, CaseIterable, Identifiable {
+    case automatic
+    case hidden
+    case creditsLeft
+    case percentLeft
+    case creditsAndPercent
+    case usedAndTotal
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .hidden: "Hidden"
+        case .creditsLeft: "Credits left"
+        case .percentLeft: "Percent left"
+        case .creditsAndPercent: "Credits + percent"
+        case .usedAndTotal: "Used / total"
+        }
+    }
+}
+
 enum MultiAccountMenuLayout: String, CaseIterable, Identifiable {
     case segmented
     case stacked
@@ -299,6 +323,8 @@ extension SettingsStore {
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
             ?? MenuBarDisplayMode.percent.rawValue
+        let kiroMenuBarDisplayModeRaw = userDefaults.string(forKey: "kiroMenuBarDisplayMode")
+            ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
         let multiAccountMenuLayoutRaw = userDefaults.string(forKey: "multiAccountMenuLayout") ?? {
             let legacyShowAll = userDefaults.object(forKey: "showAllTokenAccountsInMenu") as? Bool ?? false
@@ -375,6 +401,7 @@ extension SettingsStore {
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
+            kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,

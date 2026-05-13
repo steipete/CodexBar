@@ -294,7 +294,21 @@ struct MenuDescriptor {
         if let emailText, !emailText.isEmpty {
             entries.append(.text("Account: \(redactedEmail)", .secondary))
         }
-        if provider == .kilo {
+        if provider == .kiro {
+            if let plan = snapshot?.kiroUsage?.displayPlanName,
+               !plan.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                entries.append(.text("Plan: \(plan)", .secondary))
+            }
+            if let loginMethodText, !loginMethodText.isEmpty {
+                entries.append(.text("Auth: \(loginMethodText)", .secondary))
+            }
+            if let overages = snapshot?.kiroUsage?.overagesStatus,
+               !overages.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                entries.append(.text("Overages: \(overages)", .secondary))
+            }
+        } else if provider == .kilo {
             let kiloLogin = self.kiloLoginParts(loginMethod: loginMethodText)
             if let pass = kiloLogin.pass {
                 entries.append(.text("Plan: \(AccountFormatter.plan(pass, provider: provider))", .secondary))

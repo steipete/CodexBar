@@ -197,6 +197,23 @@ extension SettingsStore {
         set { self.menuBarDisplayModeRaw = newValue.rawValue }
     }
 
+    private var kiroMenuBarDisplayModeRaw: String? {
+        get { self.defaultsState.kiroMenuBarDisplayModeRaw }
+        set {
+            self.defaultsState.kiroMenuBarDisplayModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "kiroMenuBarDisplayMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "kiroMenuBarDisplayMode")
+            }
+        }
+    }
+
+    var kiroMenuBarDisplayMode: KiroMenuBarDisplayMode {
+        get { KiroMenuBarDisplayMode(rawValue: self.kiroMenuBarDisplayModeRaw ?? "") ?? .automatic }
+        set { self.kiroMenuBarDisplayModeRaw = newValue.rawValue }
+    }
+
     var multiAccountMenuLayout: MultiAccountMenuLayout {
         get { MultiAccountMenuLayout(rawValue: self.defaultsState.multiAccountMenuLayoutRaw) ?? .segmented }
         set {
