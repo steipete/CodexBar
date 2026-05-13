@@ -101,18 +101,27 @@ extension UsageStore {
             self.codexAccountSnapshots = snapshots
         }
 
-        let currentProjection = self.settings.codexVisibleAccountProjection
-        let currentSelectionSource = originalVisibleAccountID.flatMap {
-            currentProjection.source(forVisibleAccountID: $0)
-        }
-        let selectionStillMatches = currentProjection.activeVisibleAccountID == originalVisibleAccountID &&
-            currentSelectionSource == originalSelectionSource
+        let selectionStillMatches = self.codexVisibleSelectionStillMatches(
+            originalVisibleAccountID: originalVisibleAccountID,
+            originalSelectionSource: originalSelectionSource)
         if let selectedOutcome, selectionStillMatches {
             await self.applySelectedCodexVisibleAccountOutcome(
                 selectedOutcome,
                 snapshot: selectedSnapshot,
                 sourceLabel: selectedSourceLabel)
         }
+    }
+
+    func codexVisibleSelectionStillMatches(
+        originalVisibleAccountID: String?,
+        originalSelectionSource: CodexActiveSource?) -> Bool
+    {
+        let currentProjection = self.settings.codexVisibleAccountProjection
+        let currentSelectionSource = originalVisibleAccountID.flatMap {
+            currentProjection.source(forVisibleAccountID: $0)
+        }
+        return currentProjection.activeVisibleAccountID == originalVisibleAccountID &&
+            currentSelectionSource == originalSelectionSource
     }
 
     func refreshTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) async {

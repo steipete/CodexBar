@@ -8,6 +8,7 @@
 
 ### Fixed
 - Settings: apply the selected app language from packaged SwiftPM resources instead of falling back to English when the `.lproj` directory casing differs (#908).
+- Codex: route menu account refreshes through the resolved live-vs-managed account source so matched accounts keep using the stable `CODEX_HOME` (#932, fixes #931). Thanks @ThiagoCAltoe!
 - ChatGPT credits: restrict purchase links to real HTTPS `chatgpt.com` settings/usage/billing/credits paths and drop query/fragment data (#903). Thanks @ThiagoCAltoe!
 - z.ai: show the MCP quota bucket as monthly instead of a misleading 1-minute window (#904). Thanks @ThiagoCAltoe!
 - Menu: middle-truncate long account emails in Codex account controls and keep the Codex account switcher visible during merged-menu refreshes with transient account snapshots.

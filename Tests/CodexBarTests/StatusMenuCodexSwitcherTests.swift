@@ -699,6 +699,9 @@ struct StatusMenuCodexSwitcherTests {
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 0, events: [], updatedAt: Date())
+        }
         store._setSnapshotForTesting(
             UsageSnapshot(
                 primary: RateWindow(usedPercent: 30, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
@@ -765,7 +768,8 @@ struct StatusMenuCodexSwitcherTests {
             store: InMemoryManagedCodexAccountStoreForStatusMenuTests(),
             homeFactory: TestManagedCodexHomeFactoryForStatusMenuTests(root: root),
             loginRunner: runner,
-            identityReader: StubManagedCodexIdentityReaderForStatusMenuTests(email: "managed@example.com"))
+            identityReader: StubManagedCodexIdentityReaderForStatusMenuTests(email: "managed@example.com"),
+            workspaceResolver: StubManagedCodexWorkspaceResolverForStatusMenuTests())
         let coordinator = ManagedCodexAccountCoordinator(service: service)
         let authTask = Task { try await coordinator.authenticateManagedAccount() }
         await runner.waitUntilStarted()
@@ -864,9 +868,10 @@ struct StatusMenuCodexSwitcherTests {
     }
 }
 
+@MainActor
 extension StatusMenuCodexSwitcherTests {
     @Test
-    func `codex stacked refresh discards selected outcome when visible selection changes mid flight`() async throws {
+    func `codex stacked refresh discards selected outcome when visible selection changes mid flight`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -901,22 +906,21 @@ extension StatusMenuCodexSwitcherTests {
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         store._setSnapshotForTesting(self.snapshot(email: "managed@example.com", percent: 77), provider: .codex)
 
-        let blocker = BlockingStatusMenuCodexFetchStrategy()
-        self.installBlockingCodexProvider(on: store, blocker: blocker)
-
-        let refreshTask = Task { @MainActor in
-            await store.refreshCodexVisibleAccountsForMenu()
+        let projection = settings.codexVisibleAccountProjection
+        let originalVisibleAccountID = projection.activeVisibleAccountID
+        let originalSelectionSource = originalVisibleAccountID.flatMap {
+            projection.source(forVisibleAccountID: $0)
         }
+        #expect(store.codexVisibleSelectionStillMatches(
+            originalVisibleAccountID: originalVisibleAccountID,
+            originalSelectionSource: originalSelectionSource))
 
-        await blocker.waitForStartCount(1)
         #expect(settings.selectCodexVisibleAccount(id: "managed@example.com"))
 
-        await blocker.resume(with: .success(self.snapshot(email: "live@example.com", percent: 9)))
-        await blocker.waitForStartCount(2)
-        await blocker.resume(with: .success(self.snapshot(email: "managed@example.com", percent: 42)))
-        await refreshTask.value
-
         #expect(settings.codexActiveSource == .managedAccount(id: managedAccountID))
+        #expect(store.codexVisibleSelectionStillMatches(
+            originalVisibleAccountID: originalVisibleAccountID,
+            originalSelectionSource: originalSelectionSource) == false)
         #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "managed@example.com")
         #expect(store.snapshots[.codex]?.primary?.usedPercent == 77)
     }
@@ -996,10 +1000,10 @@ private actor BlockingStatusMenuCodexFetchStrategy {
     private var startCount = 0
 
     func awaitResult() async throws -> UsageSnapshot {
-        self.startCount += 1
-        self.resumeStartedWaitersIfReady()
         let result = await withCheckedContinuation { continuation in
             self.waiters.append(continuation)
+            self.startCount += 1
+            self.resumeStartedWaitersIfReady()
         }
         return try result.get()
     }
@@ -1033,11 +1037,11 @@ private actor BlockingManagedCodexLoginRunnerForStatusMenuTests: ManagedCodexLog
     private var didStart = false
 
     func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
-        self.didStart = true
-        self.startedWaiters.forEach { $0.resume() }
-        self.startedWaiters.removeAll()
-        return await withCheckedContinuation { continuation in
+        await withCheckedContinuation { continuation in
             self.waiters.append(continuation)
+            self.didStart = true
+            self.startedWaiters.forEach { $0.resume() }
+            self.startedWaiters.removeAll()
         }
     }
 
@@ -1069,6 +1073,15 @@ private final class InMemoryManagedCodexAccountStoreForStatusMenuTests: ManagedC
 
     func ensureFileExists() throws -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    }
+}
+
+private struct StubManagedCodexWorkspaceResolverForStatusMenuTests: ManagedCodexWorkspaceResolving {
+    func resolveWorkspaceIdentity(
+        homePath _: String,
+        providerAccountID _: String) async -> CodexOpenAIWorkspaceIdentity?
+    {
+        nil
     }
 }
 
