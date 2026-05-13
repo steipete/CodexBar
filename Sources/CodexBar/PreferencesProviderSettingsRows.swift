@@ -330,7 +330,9 @@ struct ProviderSettingsTokenAccountsRowView: View {
                             let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
                             let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !label.isEmpty, !token.isEmpty else { return }
-                            let orgID = self.newOrgID.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let orgID = self.descriptor.showsOrganizationField
+                                ? self.newOrgID.trimmingCharacters(in: .whitespacesAndNewlines)
+                                : ""
                             self.descriptor.addAccount(label, token, orgID.isEmpty ? nil : orgID)
                             self.newLabel = ""
                             self.newToken = ""
