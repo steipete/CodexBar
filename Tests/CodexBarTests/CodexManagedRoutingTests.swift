@@ -37,7 +37,6 @@ struct CodexManagedRoutingTests {
         #expect(claudeEnv["CODEX_HOME"] == nil)
     }
 
-
     @Test
     func `provider registry scopes codex environment with source override without persisting selection`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-source-override-env")
@@ -570,7 +569,6 @@ struct CodexManagedRoutingTests {
         #expect(account.email == "managed@example.com")
         #expect(account.plan == "pro")
     }
-
 
     @Test
     func `usage store builds codex fetch context with source override without persisting selection`() throws {

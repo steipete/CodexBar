@@ -40,7 +40,9 @@ extension SettingsStore {
         return try store.loadAccounts()
     }
 
-    private func managedCodexAccountStoreState(activeSource: CodexActiveSource? = nil) -> ManagedCodexAccountStoreState {
+    private func managedCodexAccountStoreState(
+        activeSource: CodexActiveSource? = nil) -> ManagedCodexAccountStoreState
+    {
         let source = activeSource ?? self.codexResolvedActiveSource
         guard case let .managedAccount(id) = source else {
             return .none
@@ -183,8 +185,8 @@ extension SettingsStore {
     }
 
     func codexAccountReconciliationSnapshot(
-        activeSourceOverride: CodexActiveSource?
-    ) -> CodexAccountReconciliationSnapshot {
+        activeSourceOverride: CodexActiveSource?) -> CodexAccountReconciliationSnapshot
+    {
         self.codexAccountReconciler(
             activeSource: activeSourceOverride ?? self.codexPersistedActiveSource)
             .loadSnapshot()
@@ -500,8 +502,8 @@ extension SettingsStore {
 extension SettingsStore {
     func codexSettingsSnapshot(
         tokenOverride: TokenAccountOverride?,
-        activeSourceOverride: CodexActiveSource? = nil
-    ) -> ProviderSettingsSnapshot.CodexProviderSettings {
+        activeSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot.CodexProviderSettings
+    {
         let reconciliationSnapshot = self.codexAccountReconciliationSnapshot(
             activeSourceOverride: activeSourceOverride)
         let resolvedActiveSource = CodexActiveSourceResolver.resolve(from: reconciliationSnapshot)
