@@ -109,7 +109,7 @@ enum AntigravityLoginRunner {
         }
     }
 
-    private static func makeAuthorizationURL(
+    static func makeAuthorizationURL(
         redirectURL: URL,
         state: String,
         oauthClient: AntigravityOAuthClient) throws -> URL
@@ -123,7 +123,7 @@ enum AntigravityLoginRunner {
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "scope", value: AntigravityOAuthConfig.scopes.joined(separator: " ")),
             URLQueryItem(name: "access_type", value: "offline"),
-            URLQueryItem(name: "prompt", value: "consent"),
+            URLQueryItem(name: "prompt", value: "select_account consent"),
             URLQueryItem(name: "state", value: state),
         ]
         guard let url = components.url else {
