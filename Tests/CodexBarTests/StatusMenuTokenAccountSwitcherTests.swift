@@ -1,11 +1,12 @@
 import AppKit
 import CodexBarCore
 import Foundation
-import XCTest
+import Testing
 @testable import CodexBar
 
+@Suite(.serialized)
 @MainActor
-final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
+struct StatusMenuTokenAccountSwitcherTests {
     private func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(false)
@@ -93,7 +94,8 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
                 loginMethod: "OAuth"))
     }
 
-    func test_tokenAccountMenuSelectionRefreshesProviderWhileGlobalRefreshIsActive() async throws {
+    @Test
+    func `token account menu selection refreshes provider while global refresh is active`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -115,31 +117,32 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
-        defer { withExtendedLifetime(controller) {} }
+        defer { controller.releaseStatusItemsForTesting() }
 
         let refreshTask = Task { @MainActor in
             await store.refresh()
         }
         await blocker.waitUntilStarted(count: 1)
-        XCTAssertTrue(store.isRefreshing)
+        #expect(store.isRefreshing)
 
         let menu = controller.makeMenu()
         defer { withExtendedLifetime(menu) {} }
         controller.menuWillOpen(menu)
-        let switcher = try XCTUnwrap(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
+        let switcher = try #require(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
 
-        let selectionTask = try XCTUnwrap(switcher._test_select(index: 1))
+        let selectionTask = try #require(switcher._test_select(index: 1))
         await blocker.waitUntilStarted(count: 2)
-        XCTAssertEqual(settings.tokenAccountsData(for: .claude)?.clampedActiveIndex(), 1)
+        #expect(settings.tokenAccountsData(for: .claude)?.clampedActiveIndex() == 1)
 
         await blocker.resumeAll(with: .success(self.snapshot(percent: 17)))
         await selectionTask.value
         await refreshTask.value
         let startedCallCount = await blocker.startedCallCount()
-        XCTAssertGreaterThanOrEqual(startedCallCount, 2)
+        #expect(startedCallCount >= 2)
     }
 
-    func test_multiAccountSegmentedLayoutShowsCopilotSwitcher() {
+    @Test
+    func `multi account segmented layout shows copilot switcher`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -164,11 +167,12 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
         let menu = controller.makeMenu(for: .copilot)
         controller.menuWillOpen(menu)
 
-        XCTAssertNotNil(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
-        XCTAssertEqual(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") }, ["menuCard"])
+        _ = try #require(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
+        #expect(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") } == ["menuCard"])
     }
 
-    func test_multiAccountStackedLayoutShowsCopilotCards() {
+    @Test
+    func `multi account stacked layout shows copilot cards`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -201,8 +205,8 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
         let menu = controller.makeMenu(for: .copilot)
         controller.menuWillOpen(menu)
 
-        XCTAssertNil(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
-        XCTAssertEqual(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") }, ["menuCard-0", "menuCard-1"])
+        #expect(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first == nil)
+        #expect(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") } == ["menuCard-0", "menuCard-1"])
     }
 }
 
@@ -238,13 +242,15 @@ private actor BlockingTokenAccountFetchStrategy {
     private var startedCount = 0
 
     func awaitResult() async throws -> UsageSnapshot {
-        self.startedCount += 1
-        self.resumeStartedWaiters()
         if let resolvedResult {
+            self.startedCount += 1
+            self.resumeStartedWaiters()
             return try resolvedResult.get()
         }
         let result = await withCheckedContinuation { continuation in
             self.waiters.append(continuation)
+            self.startedCount += 1
+            self.resumeStartedWaiters()
         }
         return try result.get()
     }
