@@ -27,15 +27,8 @@ struct GlobalQuotaWarningSettingsView: View {
                 .toggleStyle(.checkbox)
             }
 
-            QuotaWarningThresholdField(
-                title: L("quota_warning_warn_at"),
-                subtitle: L("quota_warning_global_threshold_subtitle"),
-                thresholds: { self.settings.quotaWarningThresholds },
-                setThresholds: { self.settings.quotaWarningThresholds = $0 })
-                .disabled(!self.settings.quotaWarningWindowEnabled(.session) && !self.settings
-                    .quotaWarningWindowEnabled(.weekly))
-                .opacity(!self.settings.quotaWarningWindowEnabled(.session) && !self.settings
-                    .quotaWarningWindowEnabled(.weekly) ? 0.55 : 1)
+            self.windowThresholdField(.session)
+            self.windowThresholdField(.weekly)
 
             Toggle(isOn: self.$settings.quotaWarningSoundEnabled) {
                 Text(L("quota_warning_sound"))
@@ -44,6 +37,16 @@ struct GlobalQuotaWarningSettingsView: View {
             .toggleStyle(.checkbox)
         }
         .padding(.leading, 20)
+    }
+
+    private func windowThresholdField(_ window: QuotaWarningWindow) -> some View {
+        QuotaWarningThresholdField(
+            title: String(format: L("quota_warning_window_warn_at"), window.localizedCapitalizedDisplayName),
+            subtitle: L("quota_warning_global_threshold_subtitle"),
+            thresholds: { self.settings.quotaWarningThresholds(window) },
+            setThresholds: { self.settings.setQuotaWarningThresholds(window, thresholds: $0) })
+            .disabled(!self.settings.quotaWarningWindowEnabled(window))
+            .opacity(!self.settings.quotaWarningWindowEnabled(window) ? 0.55 : 1)
     }
 }
 
@@ -73,7 +76,7 @@ struct ProviderQuotaWarningSettingsView: View {
                         self.settings.setQuotaWarningOverride(
                             provider: self.provider,
                             window: window,
-                            thresholds: self.settings.quotaWarningThresholds,
+                            thresholds: self.settings.quotaWarningThresholds(window),
                             enabled: self.settings.quotaWarningWindowEnabled(window))
                     } else {
                         self.settings.setQuotaWarningOverride(
@@ -127,7 +130,7 @@ struct ProviderQuotaWarningSettingsView: View {
                 }
             } else {
                 Text(String(format: L("quota_warning_inherited"), Self.thresholdText(
-                    self.settings.quotaWarningThresholds,
+                    self.settings.quotaWarningThresholds(window),
                     enabled: self.settings.quotaWarningWindowEnabled(window))))
                     .font(.footnote)
                     .foregroundStyle(.secondary)

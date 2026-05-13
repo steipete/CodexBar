@@ -116,7 +116,32 @@ extension SettingsStore {
         set {
             let sanitized = QuotaWarningThresholds.sanitized(newValue)
             self.defaultsState.quotaWarningThresholdsRaw = sanitized
+            self.defaultsState.quotaWarningSessionThresholdsRaw = sanitized
+            self.defaultsState.quotaWarningWeeklyThresholdsRaw = sanitized
             self.userDefaults.set(sanitized, forKey: "quotaWarningThresholds")
+            self.userDefaults.set(sanitized, forKey: "quotaWarningSessionThresholds")
+            self.userDefaults.set(sanitized, forKey: "quotaWarningWeeklyThresholds")
+        }
+    }
+
+    func quotaWarningThresholds(_ window: QuotaWarningWindow) -> [Int] {
+        switch window {
+        case .session:
+            QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningSessionThresholdsRaw)
+        case .weekly:
+            QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningWeeklyThresholdsRaw)
+        }
+    }
+
+    func setQuotaWarningThresholds(_ window: QuotaWarningWindow, thresholds: [Int]) {
+        let sanitized = QuotaWarningThresholds.sanitized(thresholds)
+        switch window {
+        case .session:
+            self.defaultsState.quotaWarningSessionThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningSessionThresholds")
+        case .weekly:
+            self.defaultsState.quotaWarningWeeklyThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningWeeklyThresholds")
         }
     }
 

@@ -609,6 +609,27 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `global quota warning thresholds resolve independently by window`() throws {
+        let suite = "SettingsStoreTests-quota-warning-window-thresholds"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.setQuotaWarningThresholds(.session, thresholds: [25])
+        store.setQuotaWarningThresholds(.weekly, thresholds: [75, 10])
+
+        #expect(store.quotaWarningThresholds(.session) == [25])
+        #expect(store.quotaWarningThresholds(.weekly) == [75, 10])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [25])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .weekly) == [75, 10])
+    }
+
+    @Test
     func `provider quota warning windows override global enablement independently`() throws {
         let suite = "SettingsStoreTests-quota-warning-provider-window-override"
         let defaults = try #require(UserDefaults(suiteName: suite))
