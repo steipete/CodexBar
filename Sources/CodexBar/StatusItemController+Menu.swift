@@ -206,7 +206,7 @@ extension StatusItemController {
         let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
         let switcherSelectionMatches = switcherSelection == self.lastMergedSwitcherSelection
         let switcherOverviewAvailabilityMatches = includesOverview == self.lastSwitcherIncludesOverview
-        let tokenSwitcherCompatible = tokenAccountDisplay == nil && !hasTokenSwitcher
+        let tokenSwitcherCompatible = (tokenAccountDisplay?.showSwitcher == true) == hasTokenSwitcher
         let codexSwitcherCompatible = codexAccountDisplay == self.lastCodexAccountMenuDisplay &&
             ((codexAccountDisplay?.showSwitcher == true && hasCodexSwitcher) ||
                 (codexAccountDisplay?.showSwitcher != true && !hasCodexSwitcher))
@@ -292,6 +292,8 @@ extension StatusItemController {
             self.menuLogger.debug("populateMenu(open): rebuilding whole menu and replacing provider switcher")
         }
         #endif
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         menu.removeAllItems()
         self.addProviderSwitcherIfNeeded(
             to: menu,
@@ -321,6 +323,7 @@ extension StatusItemController {
             context: menuContext,
             switcherSelection: switcherSelection ?? .provider(currentProvider))
         self.addActionableSections(descriptor.sections, to: menu, width: menuWidth)
+        CATransaction.commit()
     }
 
     private func reusableFixedWidthRows(in menu: NSMenu) -> [NSMenuItem] {
