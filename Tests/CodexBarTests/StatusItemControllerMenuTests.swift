@@ -5,6 +5,26 @@ import Testing
 @testable import CodexBar
 
 struct StatusItemControllerMenuTests {
+    @MainActor
+    private final class RecordingUpdater: UpdaterProviding {
+        var automaticallyChecksForUpdates = false
+        var automaticallyDownloadsUpdates = false
+        let isAvailable = true
+        let unavailableReason: String? = nil
+        let updateStatus = UpdateStatus(isUpdateReady: true)
+        var checkForUpdatesCount = 0
+        var installUpdateCount = 0
+
+        func checkForUpdates(_ sender: Any?) {
+            _ = sender
+            self.checkForUpdatesCount += 1
+        }
+
+        func installUpdate() {
+            self.installUpdateCount += 1
+        }
+    }
+
     private func makeSnapshot(
         primary: RateWindow?,
         secondary: RateWindow?,
@@ -109,5 +129,36 @@ struct StatusItemControllerMenuTests {
         parentItem.submenu = NSMenu(title: "Session")
         submenuMenu.addItem(parentItem)
         #expect(ceil(submenuMenu.size.width) < 310)
+    }
+
+    @Test
+    @MainActor
+    func `update menu action installs prepared update instead of checking again`() throws {
+        let suite = "StatusItemControllerMenuTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let updater = RecordingUpdater()
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: updater,
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+
+        controller.installUpdate()
+
+        #expect(updater.installUpdateCount == 1)
+        #expect(updater.checkForUpdatesCount == 0)
     }
 }

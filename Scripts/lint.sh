@@ -13,6 +13,18 @@ ensure_tools() {
 
 cmd="${1:-lint}"
 
+developer_dir="$(xcode-select -p 2>/dev/null || true)"
+sourcekit_lib_dir=""
+if [[ -n "${developer_dir}" && -d "${developer_dir}/Toolchains/XcodeDefault.xctoolchain/usr/lib/sourcekitdInProc.framework" ]]; then
+  sourcekit_lib_dir="${developer_dir}/Toolchains/XcodeDefault.xctoolchain/usr/lib"
+elif [[ -d /Library/Developer/CommandLineTools/usr/lib/sourcekitdInProc.framework ]]; then
+  sourcekit_lib_dir="/Library/Developer/CommandLineTools/usr/lib"
+fi
+
+if [[ -n "${sourcekit_lib_dir}" ]]; then
+  export DYLD_FRAMEWORK_PATH="${sourcekit_lib_dir}${DYLD_FRAMEWORK_PATH:+:${DYLD_FRAMEWORK_PATH}}"
+fi
+
 case "$cmd" in
   lint)
     ensure_tools

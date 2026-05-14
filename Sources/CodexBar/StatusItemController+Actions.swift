@@ -43,7 +43,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func installUpdate() {
-        self.updater.checkForUpdates(nil)
+        self.updater.installUpdate()
     }
 
     @objc func openDashboard() {

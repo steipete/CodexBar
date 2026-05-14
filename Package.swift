@@ -60,15 +60,18 @@ let package = Package(
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                 ]),
-            .testTarget(
-                name: "CodexBarLinuxTests",
-                dependencies: ["CodexBarCore", "CodexBarCLI"],
-                path: "TestsLinux",
-                swiftSettings: [
-                    .enableUpcomingFeature("StrictConcurrency"),
-                    .enableExperimentalFeature("SwiftTesting"),
-                ]),
         ]
+
+        #if os(Linux)
+        targets.append(.testTarget(
+            name: "CodexBarLinuxTests",
+            dependencies: ["CodexBarCore", "CodexBarCLI"],
+            path: "TestsLinux",
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency"),
+                .enableExperimentalFeature("SwiftTesting"),
+            ]))
+        #endif
 
         #if os(macOS)
         targets.append(contentsOf: [

@@ -1,8 +1,18 @@
 import SwiftUI
 
-extension EnvironmentValues {
-    @Entry var menuItemHighlighted: Bool = false
+// swiftformat:disable environmentEntry
+private struct MenuItemHighlightedKey: EnvironmentKey {
+    static let defaultValue = false
 }
+
+extension EnvironmentValues {
+    var menuItemHighlighted: Bool {
+        get { self[MenuItemHighlightedKey.self] }
+        set { self[MenuItemHighlightedKey.self] = newValue }
+    }
+}
+
+// swiftformat:enable environmentEntry
 
 enum MenuHighlightStyle {
     static let selectionText = Color(nsColor: .selectedMenuItemTextColor)

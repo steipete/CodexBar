@@ -125,6 +125,7 @@ protocol UpdaterProviding: AnyObject {
     var unavailableReason: String? { get }
     var updateStatus: UpdateStatus { get }
     func checkForUpdates(_ sender: Any?)
+    func installUpdate()
 }
 
 /// No-op updater used for debug builds and non-bundled runs to suppress Sparkle dialogs.
@@ -140,6 +141,7 @@ final class DisabledUpdaterController: UpdaterProviding {
     }
 
     func checkForUpdates(_ sender: Any?) {}
+    func installUpdate() {}
 }
 
 @MainActor
@@ -158,12 +160,25 @@ import Sparkle
 
 @MainActor
 final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDelegate {
+    private final class ImmediateInstallHandler: @unchecked Sendable {
+        private let handler: () -> Void
+
+        init(_ handler: @escaping () -> Void) {
+            self.handler = handler
+        }
+
+        func install() {
+            self.handler()
+        }
+    }
+
     private lazy var controller = SPUStandardUpdaterController(
         startingUpdater: false,
         updaterDelegate: self,
         userDriverDelegate: nil)
     let updateStatus = UpdateStatus()
     let unavailableReason: String? = nil
+    private var immediateInstallHandler: ImmediateInstallHandler?
 
     init(savedAutoUpdate: Bool) {
         super.init()
@@ -191,20 +206,61 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
         self.controller.checkForUpdates(sender)
     }
 
-    nonisolated func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
-        Task { @MainActor in
-            self.updateStatus.isUpdateReady = true
+    func installUpdate() {
+        guard let immediateInstallHandler else {
+            DispatchQueue.main.async { [weak self] in
+                self?.controller.checkForUpdates(nil)
+            }
+            return
         }
+
+        immediateInstallHandler.install()
+    }
+
+    nonisolated func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
+        _ = updater
+        _ = item
     }
 
     nonisolated func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
+        _ = updater
+        _ = item
+        _ = error
         Task { @MainActor in
+            self.immediateInstallHandler = nil
             self.updateStatus.isUpdateReady = false
         }
     }
 
     nonisolated func userDidCancelDownload(_ updater: SPUUpdater) {
+        _ = updater
         Task { @MainActor in
+            self.immediateInstallHandler = nil
+            self.updateStatus.isUpdateReady = false
+        }
+    }
+
+    nonisolated func updater(
+        _ updater: SPUUpdater,
+        willInstallUpdateOnQuit item: SUAppcastItem,
+        immediateInstallationBlock immediateInstallHandler: @escaping () -> Void)
+        -> Bool
+    {
+        _ = updater
+        _ = item
+        let installHandler = ImmediateInstallHandler(immediateInstallHandler)
+        Task { @MainActor in
+            self.immediateInstallHandler = installHandler
+            self.updateStatus.isUpdateReady = true
+        }
+        return true
+    }
+
+    nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        _ = updater
+        _ = error
+        Task { @MainActor in
+            self.immediateInstallHandler = nil
             self.updateStatus.isUpdateReady = false
         }
     }
@@ -219,10 +275,12 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
         Task { @MainActor in
             switch choice {
             case .install, .skip:
+                self.immediateInstallHandler = nil
                 self.updateStatus.isUpdateReady = false
             case .dismiss:
                 self.updateStatus.isUpdateReady = downloaded
             @unknown default:
+                self.immediateInstallHandler = nil
                 self.updateStatus.isUpdateReady = false
             }
         }
