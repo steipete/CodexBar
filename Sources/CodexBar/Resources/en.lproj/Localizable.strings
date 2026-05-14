@@ -81,6 +81,7 @@
 "Codex login failed" = "Codex login failed";
 "Codex login timed out" = "Codex login timed out";
 "CodexBar Lifecycle Keepalive" = "CodexBar Lifecycle Keepalive";
+"CodexBar can't show its menu bar icon" = "CodexBar can't show its menu bar icon";
 "CodexBar could not read managed account storage. " = "CodexBar could not read managed account storage. ";
 "Configure…" = "Configure…";
 "Connected" = "Connected";
@@ -110,6 +111,7 @@
 "Designs" = "Designs";
 "Disable Keychain access" = "Disable Keychain access";
 "Disabled" = "Disabled";
+"Dismiss" = "Dismiss";
 "Disconnected" = "Disconnected";
 "Display" = "Display";
 "Display mode" = "Display mode";
@@ -208,6 +210,7 @@
 "Open Console" = "Open Console";
 "Open Dashboard" = "Open Dashboard";
 "Open Mistral Admin" = "Open Mistral Admin";
+"Open Menu Bar Settings" = "Open Menu Bar Settings";
 "Open Ollama Settings" = "Open Ollama Settings";
 "Open Terminal" = "Open Terminal";
 "Open Usage Page" = "Open Usage Page";
@@ -597,6 +600,7 @@
 "login_shell_path" = "Login shell PATH (startup capture)";
 "cleared" = "Cleared.";
 "no_fetch_attempts" = "No fetch attempts yet.";
+"macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on.";
 
 /* Metric preferences */
 "metric_pref_automatic" = "Automatic";
@@ -907,3 +911,20 @@
 "source_windsurf_web" = "Windsurf Web";
 "tomorrow, %@" = "tomorrow, %@";
 "≈ %d%% run-out risk" = "≈ %d%% run-out risk";
+
+/* Cost estimation */
+"cost_header_estimated" = "Cost (estimated)";
+"cost_estimate_hint" = "Estimated from local logs · may differ from your bill";
+"Est. total (30d): %@" = "Est. total (30d): %@";
+"Estimated from local Codex logs for the selected account." = "Estimated from local Codex logs for the selected account.";
+"Estimated from local Claude logs at API rates; token totals include cache read/write tokens and may differ from Claude Code /status." = "Estimated from local Claude logs at API rates; token totals include cache read/write tokens and may differ from Claude Code /status.";
+"Estimated from local logs · may differ from your bill" = "Estimated from local logs · may differ from your bill";
+"Latest billing day" = "Latest billing day";
+"Latest billing day (%@)" = "Latest billing day (%@)";
+"Reported by AWS Cost Explorer; daily billing data can lag." = "Reported by AWS Cost Explorer; daily billing data can lag.";
+"Could not open Cursor login in your browser." = "Could not open Cursor login in your browser.";
+"Sign in to cursor.com in your browser, then refresh Cursor in CodexBar." = "Sign in to cursor.com in your browser, then refresh Cursor in CodexBar.";
+"Timed out waiting for Cursor login. %@" = "Timed out waiting for Cursor login. %@";
+"Timed out waiting for Cursor login. %@ Last error: %@" = "Timed out waiting for Cursor login. %@ Last error: %@";
+"Org ID (optional)" = "Org ID (optional)";
+"Optional organization ID for accounts linked to multiple Anthropic organizations." = "Optional organization ID for accounts linked to multiple Anthropic organizations.";

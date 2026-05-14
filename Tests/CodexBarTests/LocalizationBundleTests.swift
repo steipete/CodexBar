@@ -43,8 +43,22 @@ struct LocalizationBundleTests {
         }
     }
 
+    @Test
+    func `packaged app resolves raw copied localization resources from main bundle`() throws {
+        let fixture = try Self.makeAppBundleFixture(
+            includeLocalizationBundle: false,
+            includeMainLocalization: true)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        let bundle = codexBarLocalizationResourceBundle(mainBundle: fixture.appBundle)
+
+        #expect(bundle.bundleURL == fixture.appBundle.bundleURL)
+        #expect(bundle.path(forResource: "en", ofType: "lproj") != nil)
+    }
+
     private static func makeAppBundleFixture(
-        includeLocalizationBundle: Bool) throws -> (root: URL, appBundle: Bundle)
+        includeLocalizationBundle: Bool,
+        includeMainLocalization: Bool = false) throws -> (root: URL, appBundle: Bundle)
     {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "codexbar-localization-\(UUID().uuidString)",
@@ -71,18 +85,26 @@ struct LocalizationBundleTests {
             atomically: true,
             encoding: .utf8)
 
+        if includeMainLocalization {
+            try Self.writeEnglishLocalization(to: resourcesURL.appendingPathComponent("en.lproj", isDirectory: true))
+        }
+
         if includeLocalizationBundle {
             let lprojURL = resourcesURL
                 .appendingPathComponent("CodexBar_CodexBar.bundle", isDirectory: true)
                 .appendingPathComponent("en.lproj", isDirectory: true)
-            try FileManager.default.createDirectory(at: lprojURL, withIntermediateDirectories: true)
-            try "\"Settings\" = \"Settings\";\n".write(
-                to: lprojURL.appendingPathComponent("Localizable.strings"),
-                atomically: true,
-                encoding: .utf8)
+            try Self.writeEnglishLocalization(to: lprojURL)
         }
 
         let appBundle = try #require(Bundle(url: appURL))
         return (root, appBundle)
+    }
+
+    private static func writeEnglishLocalization(to lprojURL: URL) throws {
+        try FileManager.default.createDirectory(at: lprojURL, withIntermediateDirectories: true)
+        try "\"Settings\" = \"Settings\";\n".write(
+            to: lprojURL.appendingPathComponent("Localizable.strings"),
+            atomically: true,
+            encoding: .utf8)
     }
 }

@@ -66,6 +66,7 @@ struct ProvidersPane: View {
                     settingsFields: self.extraSettingsFields(for: provider),
                     settingsActions: self.extraSettingsActions(for: provider),
                     settingsTokenAccounts: self.tokenAccountDescriptor(for: provider),
+                    settingsOrganizations: self.extraSettingsOrganizations(for: provider),
                     errorDisplay: self.providerErrorDisplay(provider),
                     isErrorExpanded: self.expandedBinding(for: provider),
                     onCopyError: { text in self.copyToPasteboard(text) },
@@ -356,6 +357,14 @@ struct ProvidersPane: View {
             .filter { $0.isVisible?() ?? true }
     }
 
+    private func extraSettingsOrganizations(
+        for provider: UsageProvider) -> ProviderSettingsOrganizationsDescriptor?
+    {
+        guard let impl = ProviderCatalog.implementation(for: provider) else { return nil }
+        let context = self.makeSettingsContext(provider: provider)
+        return impl.settingsOrganizations(context: context)
+    }
+
     func tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {
         guard let support = TokenAccountSupportCatalog.support(for: provider) else { return nil }
         let context = self.makeSettingsContext(provider: provider)
@@ -384,8 +393,13 @@ struct ProvidersPane: View {
                     }
                 }
             },
-            addAccount: { label, token in
-                self.settings.addTokenAccount(provider: provider, label: label, token: token)
+            showsOrganizationField: provider == .claude,
+            addAccount: { label, token, organizationID in
+                self.settings.addTokenAccount(
+                    provider: provider,
+                    label: label,
+                    token: token,
+                    organizationID: organizationID)
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
                         await self.store.refreshProvider(provider, allowDisabled: true)

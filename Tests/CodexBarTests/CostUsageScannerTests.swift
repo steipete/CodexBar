@@ -416,6 +416,91 @@ struct CostUsageScannerTests {
     }
 
     @Test
+    func `codex incremental parsing keeps current turn id`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let iso3 = env.isoString(for: day.addingTimeInterval(3))
+
+        let model = "openai/gpt-5.5"
+        let turnID = "22222222-2222-2222-2222-222222222222"
+        let turnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": iso0,
+            "payload": [
+                "model": model,
+            ],
+        ]
+        let taskStarted: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": [
+                "type": "task_started",
+                "id": turnID,
+            ],
+        ]
+        let firstTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso2,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "total_token_usage": [
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    ],
+                ],
+            ],
+        ]
+
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "priority-session.jsonl",
+            contents: env.jsonl([turnContext, taskStarted, firstTokenCount]))
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+
+        let first = CostUsageScanner.parseCodexFile(fileURL: fileURL, range: range)
+        #expect(first.lastCodexTurnID == turnID)
+        #expect(first.rows.map(\.turnID) == [turnID])
+
+        let secondTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso3,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "total_token_usage": [
+                        "input_tokens": 160,
+                        "cached_input_tokens": 40,
+                        "output_tokens": 16,
+                    ],
+                ],
+            ],
+        ]
+        try env.jsonl([turnContext, taskStarted, firstTokenCount, secondTokenCount])
+            .write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let delta = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: range,
+            startOffset: first.parsedBytes,
+            initialModel: first.lastModel,
+            initialTotals: first.lastTotals,
+            initialCodexTurnID: first.lastCodexTurnID)
+
+        #expect(delta.lastCodexTurnID == turnID)
+        #expect(delta.rows.map(\.turnID) == [turnID])
+        #expect(delta.rows.first?.input == 60)
+        #expect(delta.rows.first?.cached == 20)
+        #expect(delta.rows.first?.output == 6)
+    }
+
+    @Test
     func `claude incremental parsing reads appended lines only`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

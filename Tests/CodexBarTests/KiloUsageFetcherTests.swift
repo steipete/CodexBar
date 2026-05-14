@@ -700,6 +700,78 @@ struct KiloUsageFetcherTests {
             context: self.makeContext(sourceMode: .api)))
     }
 
+    @Test
+    func `request builder adds org header for organization scope`() throws {
+        let baseURL = try #require(URL(string: "https://kilo.example/trpc"))
+        let request = try KiloUsageFetcher._buildRequestForTesting(
+            baseURL: baseURL,
+            apiKey: "test-token",
+            scope: .organization(id: "org_42", name: "Acme"))
+        #expect(request.value(forHTTPHeaderField: "X-KILOCODE-ORGANIZATIONID") == "org_42")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+    }
+
+    @Test
+    func `request builder omits org header for personal scope`() throws {
+        let baseURL = try #require(URL(string: "https://kilo.example/trpc"))
+        let request = try KiloUsageFetcher._buildRequestForTesting(
+            baseURL: baseURL,
+            apiKey: "test-token",
+            scope: .personal)
+        #expect(request.value(forHTTPHeaderField: "X-KILOCODE-ORGANIZATIONID") == nil)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+    }
+
+    @Test
+    func `parseOrganizations decodes tRPC array shape`() throws {
+        let json = #"""
+        [
+          {
+            "result": {
+              "data": {
+                "json": [
+                  { "id": "org_1", "name": "Alpha", "role": "owner" },
+                  { "id": "org_2", "name": "Beta", "role": "member" }
+                ]
+              }
+            }
+          }
+        ]
+        """#
+        let orgs = try KiloUsageFetcher._parseOrganizationsForTesting(Data(json.utf8))
+        #expect(orgs.count == 2)
+        #expect(orgs[0].id == "org_1")
+        #expect(orgs[0].name == "Alpha")
+        #expect(orgs[0].role == "owner")
+        #expect(orgs[1].id == "org_2")
+        #expect(orgs[1].role == "member")
+    }
+
+    @Test
+    func `parseOrganizations decodes profile REST shape`() throws {
+        let json = #"""
+        {
+          "user": { "email": "test@example.com" },
+          "organizations": [
+            { "id": "org_42", "name": "Gamma" }
+          ]
+        }
+        """#
+        let orgs = try KiloUsageFetcher._parseOrganizationsForTesting(Data(json.utf8))
+        #expect(orgs.count == 1)
+        #expect(orgs[0].id == "org_42")
+        #expect(orgs[0].role == nil)
+    }
+
+    @Test
+    func `parseOrganizations returns empty for no orgs`() throws {
+        let json = #"""
+        { "user": { "email": "x@y" }, "organizations": [] }
+        """#
+        let orgs = try KiloUsageFetcher._parseOrganizationsForTesting(Data(json.utf8))
+        #expect(orgs.isEmpty)
+    }
+
     private func makeTemporaryHomeDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

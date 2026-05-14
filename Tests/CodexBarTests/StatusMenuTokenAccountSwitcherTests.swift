@@ -206,6 +206,122 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
         XCTAssertNil(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
         XCTAssertEqual(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") }, ["menuCard-0", "menuCard-1"])
     }
+
+    func test_multiAccountStackedLayoutIgnoresStaleSnapshotsAndKeepsMenuCapped() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.multiAccountMenuLayout = .stacked
+        self.enableOnly(.copilot, settings)
+        for index in 0..<8 {
+            settings.addTokenAccount(provider: .copilot, label: "Account \(index)", token: "gh_\(index)")
+        }
+        settings.setActiveTokenAccountIndex(7, for: .copilot)
+        let accounts = settings.tokenAccounts(for: .copilot)
+        let staleAccounts = (0..<2).map { index in
+            ProviderTokenAccount(
+                id: UUID(),
+                label: "Removed \(index)",
+                token: "stale_\(index)",
+                addedAt: TimeInterval(index),
+                lastUsed: nil)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let staleSnapshots = staleAccounts.enumerated().map { index, account in
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: self.snapshot(percent: Double(70 + index)),
+                error: nil,
+                sourceLabel: "stale")
+        }
+        let currentSnapshots = accounts.enumerated().map { index, account in
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: self.snapshot(percent: Double(10 + index)),
+                error: nil,
+                sourceLabel: "current")
+        }
+        store.accountSnapshots[.copilot] = staleSnapshots + currentSnapshots
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu(for: .copilot)
+        controller.menuWillOpen(menu)
+
+        XCTAssertNil(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
+        XCTAssertEqual(
+            self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") },
+            ["menuCard-0", "menuCard-1", "menuCard-2", "menuCard-3", "menuCard-4", "menuCard-5"])
+    }
+
+    func test_tokenAccountSwitchDefersOpenMenuRebuildUntilAfterSwitcherAction() async throws {
+        self.disableMenuCardsForTesting()
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer { StatusItemController.setMenuRefreshEnabledForTesting(false) }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.multiAccountMenuLayout = .segmented
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .claude || provider == .codex)
+        }
+        settings.addTokenAccount(provider: .claude, label: "Primary", token: "Bearer sk-ant-oat-primary")
+        settings.addTokenAccount(provider: .claude, label: "Secondary", token: "Bearer sk-ant-oat-secondary")
+        settings.setActiveTokenAccountIndex(0, for: .claude)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let blocker = BlockingTokenAccountFetchStrategy()
+        self.installBlockingClaudeProvider(on: store, blocker: blocker)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let switcher = try XCTUnwrap(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
+
+        let selectionTask = try XCTUnwrap(switcher._test_select(index: 1))
+
+        XCTAssertEqual(rebuildCount, 0)
+        for _ in 0..<20 where rebuildCount == 0 {
+            await Task.yield()
+        }
+        XCTAssertEqual(rebuildCount, 1)
+
+        await blocker.waitUntilStarted(count: 1)
+        await blocker.resumeAll(with: .success(self.snapshot(percent: 17)))
+        await selectionTask.value
+    }
 }
 
 private struct StatusMenuTokenAccountFetchStrategy: ProviderFetchStrategy {

@@ -85,6 +85,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let tertiary: RateWindow?
     public let extraRateWindows: [NamedRateWindow]?
     public let providerCost: ProviderCostSnapshot?
+    public let kiroUsage: KiroUsageDetails?
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
@@ -98,6 +99,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case tertiary
         case extraRateWindows
         case providerCost
+        case kiroUsage
         case openRouterUsage
         case updatedAt
         case identity
@@ -111,6 +113,7 @@ public struct UsageSnapshot: Codable, Sendable {
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
+        kiroUsage: KiroUsageDetails? = nil,
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
@@ -123,6 +126,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.secondary = secondary
         self.tertiary = tertiary
         self.extraRateWindows = extraRateWindows
+        self.kiroUsage = kiroUsage
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
@@ -139,6 +143,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
+        self.kiroUsage = try container.decodeIfPresent(KiroUsageDetails.self, forKey: .kiroUsage)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
@@ -170,6 +175,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encode(self.tertiary, forKey: .tertiary)
         try container.encodeIfPresent(self.extraRateWindows, forKey: .extraRateWindows)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
+        try container.encodeIfPresent(self.kiroUsage, forKey: .kiroUsage)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encode(self.updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(self.identity, forKey: .identity)
@@ -247,6 +253,15 @@ public struct UsageSnapshot: Codable, Sendable {
         self.identity(for: provider)?.loginMethod
     }
 
+    public var hasRateLimitWindows: Bool {
+        self.primary != nil || self.secondary != nil || self.tertiary != nil ||
+            !(self.extraRateWindows?.isEmpty ?? true)
+    }
+
+    public func rateLimitsUnavailable(for provider: UsageProvider) -> Bool {
+        UsageLimitsAvailability.resolve(provider: provider, snapshot: self).isUnavailable
+    }
+
     /// Keep this initializer-style copy in sync with UsageSnapshot fields so relabeling/scoping never drops data.
     public func withIdentity(_ identity: ProviderIdentitySnapshot?) -> UsageSnapshot {
         UsageSnapshot(
@@ -254,6 +269,7 @@ public struct UsageSnapshot: Codable, Sendable {
             secondary: self.secondary,
             tertiary: self.tertiary,
             extraRateWindows: self.extraRateWindows,
+            kiroUsage: self.kiroUsage,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
@@ -316,6 +332,11 @@ public struct AccountInfo: Equatable, Sendable {
     public let email: String?
     public let plan: String?
 
+    public var hasIdentity: Bool {
+        self.email?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
+            self.plan?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
     public init(email: String?, plan: String?) {
         self.email = email
         self.plan = plan
@@ -346,6 +367,40 @@ public enum UsageError: LocalizedError, Sendable {
         case .decodeFailed:
             "Could not parse Codex session log."
         }
+    }
+
+    public static func isNoRateLimitsFoundDescription(_ text: String?) -> Bool {
+        text?.trimmingCharacters(in: .whitespacesAndNewlines) == UsageError.noRateLimitsFound.errorDescription
+    }
+}
+
+public enum UsageLimitsAvailability: Equatable, Sendable {
+    case available
+    case unavailable
+
+    public var isUnavailable: Bool {
+        self == .unavailable
+    }
+
+    public static func resolve(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        account: AccountInfo? = nil,
+        lastErrorDescription: String? = nil) -> Self
+    {
+        guard provider == .codex else { return .available }
+
+        if let snapshot {
+            guard snapshot.identity(for: provider) != nil else { return .available }
+            return snapshot.hasRateLimitWindows ? .available : .unavailable
+        }
+
+        guard UsageError.isNoRateLimitsFoundDescription(lastErrorDescription),
+              account?.hasIdentity == true
+        else {
+            return .available
+        }
+        return .unavailable
     }
 }
 
@@ -393,6 +448,7 @@ private struct RPCRateLimitSnapshot: Decodable, Encodable {
     let primary: RPCRateLimitWindow?
     let secondary: RPCRateLimitWindow?
     let credits: RPCCreditsSnapshot?
+    let planType: String?
 }
 
 private struct RPCRateLimitWindow: Decodable, Encodable {
@@ -516,12 +572,19 @@ private final class CodexRPCClient: @unchecked Sendable {
         self.process.standardOutput = self.stdoutPipe
         self.process.standardError = self.stderrPipe
 
+        if let message = CodexCLILaunchGate.shared.backgroundSkipMessage(binary: resolvedExec) {
+            Self.log.warning("Codex RPC launch skipped after recent launch failure", metadata: ["binary": resolvedExec])
+            throw RPCWireError.startFailed(message)
+        }
+
         do {
             try self.process.run()
             Self.log.debug("Codex RPC started", metadata: ["binary": resolvedExec])
         } catch {
-            Self.log.warning("Codex RPC failed to start", metadata: ["error": error.localizedDescription])
-            throw RPCWireError.startFailed(error.localizedDescription)
+            let message = error.localizedDescription
+            let throttled = CodexCLILaunchGate.shared.recordLaunchFailure(binary: resolvedExec, message: message)
+            Self.log.warning("Codex RPC failed to start", metadata: ["error": message])
+            throw RPCWireError.startFailed(throttled ?? message)
         }
 
         let stdoutHandle = self.stdoutPipe.fileHandleForReading
@@ -748,6 +811,7 @@ public struct UsageFetcher: Sendable {
             // for the same pipe.
             let limits = try await rpc.fetchRateLimits().rateLimits
             let account = try? await rpc.fetchAccount()
+            let rateLimitsPlan = Self.normalizedCodexAccountField(limits.planType)
             let identity = ProviderIdentitySnapshot(
                 providerID: .codex,
                 accountEmail: account?.account.flatMap { details in
@@ -756,13 +820,15 @@ public struct UsageFetcher: Sendable {
                 accountOrganization: nil,
                 loginMethod: account?.account.flatMap { details in
                     if case let .chatgpt(_, plan) = details { plan } else { nil }
-                })
+                } ?? rateLimitsPlan)
+            let credits = Self.makeCredits(from: limits.credits)
+            let shouldReturnUnavailableUsage = credits == nil || rateLimitsPlan != nil
             let usage = CodexReconciledState.fromCLI(
                 primary: Self.makeWindow(from: limits.primary),
                 secondary: Self.makeWindow(from: limits.secondary),
                 identity: identity)?
                 .toUsageSnapshot()
-            let credits = Self.makeCredits(from: limits.credits)
+                ?? (shouldReturnUnavailableUsage ? Self.emptyCodexUsageSnapshotIfIdentified(identity: identity) : nil)
             guard usage != nil || credits != nil else {
                 throw UsageError.noRateLimitsFound
             }
@@ -879,6 +945,16 @@ public struct UsageFetcher: Sendable {
         return CreditsSnapshot(remaining: self.parseCredits(rpc.balance), events: [], updatedAt: Date())
     }
 
+    private static func emptyCodexUsageSnapshotIfIdentified(identity: ProviderIdentitySnapshot) -> UsageSnapshot? {
+        guard identity.accountEmail != nil || identity.loginMethod != nil else { return nil }
+        return UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: identity)
+    }
+
     private static func recoverUsageFromRPCError(_ error: Error) -> UsageSnapshot? {
         guard let body = self.decodeRateLimitsErrorBody(from: error) else { return nil }
         let identity = ProviderIdentitySnapshot(
@@ -983,13 +1059,22 @@ public struct UsageFetcher: Sendable {
 extension UsageFetcher {
     static func _mapCodexRPCLimitsForTesting(
         primary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?,
-        secondary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?) throws -> UsageSnapshot
+        secondary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?,
+        planType: String? = nil) throws -> UsageSnapshot
     {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: self.normalizedCodexAccountField(planType))
         guard let state = CodexReconciledState.fromCLI(
             primary: primary.map(self.makeTestingWindow),
             secondary: secondary.map(self.makeTestingWindow),
-            identity: nil)
+            identity: identity)
         else {
+            if let usage = self.emptyCodexUsageSnapshotIfIdentified(identity: identity) {
+                return usage
+            }
             throw UsageError.noRateLimitsFound
         }
         return state.toUsageSnapshot()

@@ -65,6 +65,6 @@ struct FactoryStatusFetchStrategy: ProviderFetchStrategy {
 
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
         guard context.settings?.factory?.cookieSource == .manual else { return nil }
-        return CookieHeaderNormalizer.normalize(context.settings?.factory?.manualCookieHeader)
+        return context.settings?.factory?.manualCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

@@ -4,7 +4,7 @@ enum CostUsageCacheIO {
     private static func artifactVersion(for provider: UsageProvider) -> Int {
         switch provider {
         case .codex:
-            4
+            6
         case .claude, .vertexai:
             2
         default:
@@ -76,8 +76,10 @@ struct CostUsageFileUsage: Codable {
     var parsedBytes: Int64?
     var lastModel: String?
     var lastTotals: CostUsageCodexTotals?
+    var lastCodexTurnID: String?
     var sessionId: String?
     var forkedFromId: String?
+    var codexRows: [CostUsageScanner.CodexUsageRow]?
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
 }
 

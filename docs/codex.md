@@ -81,6 +81,8 @@ Usage source picker:
   - Credits snapshot (balance, hasCredits, unlimited).
   - Account identity (email + plan type) when available.
 - App-server errors are terminal for the CLI strategy, except when Codex includes a recoverable `wham/usage` JSON body in the error text.
+- If macOS blocks or quarantines the `codex` executable, CodexBar records the launch failure and skips background CLI
+  launches for 30 minutes. Use a manual refresh after reinstalling or unblocking `codex` to retry immediately.
 
 ### Codex CLI PTY diagnostics (`/status`)
 - Manual/debug parser only; automatic background refresh and `CodexBarCLI usage --source cli` do not launch bare Codex TUI.

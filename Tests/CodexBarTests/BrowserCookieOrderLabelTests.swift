@@ -1,6 +1,6 @@
-import CodexBarCore
 import SweetCookieKit
 import Testing
+@testable import CodexBarCore
 
 struct BrowserCookieOrderStatusStringTests {
     #if os(macOS)
@@ -28,6 +28,19 @@ struct BrowserCookieOrderStatusStringTests {
         let order = ProviderDefaults.metadata[.factory]?.browserCookieOrder ?? Browser.defaultImportOrder
         let message = FactoryStatusProbeError.noSessionCookie.errorDescription ?? ""
         #expect(message.contains(order.loginHint))
+    }
+
+    @Test
+    func `opencode go automatic cookies use full provider browser order`() {
+        let order = OpenCodeWebCookieSupport.automaticImportOrder(provider: .opencodego)
+        #expect(order == ProviderDefaults.metadata[.opencodego]?.browserCookieOrder)
+        #expect(order.contains(.edge))
+        #expect(order.contains(.firefox))
+    }
+
+    @Test
+    func `opencode automatic cookies keep chrome only default`() {
+        #expect(OpenCodeWebCookieSupport.automaticImportOrder(provider: .opencode) == [.chrome])
     }
     #endif
 }

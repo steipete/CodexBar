@@ -237,6 +237,9 @@ struct CodexProviderImplementation: ProviderImplementation {
                 isEnabled: isEnabled,
                 isChecked: isChecked)
         }
+        guard submenuItems.count > 1 || submenuItems.contains(where: { $0.isEnabled && $0.action != nil }) else {
+            return
+        }
 
         entries.append(.submenu(
             "System Account",

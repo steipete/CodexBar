@@ -119,4 +119,35 @@ struct CodexSystemPromotionUITests {
         #expect(submenu.2[1].isEnabled)
         #expect(submenu.2[1].action == .requestCodexSystemPromotion(managedAccountID))
     }
+
+    @Test
+    func `codex menu descriptor hides single live system account submenu`() throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexSystemPromotionUITests-menu-single-live")
+        defer { container.tearDown() }
+
+        container.settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: container.liveHomeURL.path,
+            observedAt: Date())
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: container.usageStore,
+            settings: container.settings,
+            account: UsageFetcher().loadAccountInfo(),
+            managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(),
+            codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator(
+                service: container.makeService()),
+            updateReady: false)
+
+        let hasSystemAccountSubmenu = descriptor.sections
+            .flatMap(\.entries)
+            .contains { entry in
+                guard case let .submenu(title, _, _) = entry else { return false }
+                return title == "System Account"
+            }
+
+        #expect(!hasSystemAccountSubmenu)
+    }
 }

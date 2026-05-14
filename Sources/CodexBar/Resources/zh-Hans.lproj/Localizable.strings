@@ -389,12 +389,12 @@
 "metric_primary" = "主要（%@）";
 "metric_secondary" = "次要（%@）";
 "metric_tertiary" = "第三（%@）";
-"multiple_workspaces_found" = "CodexBar 发现了 %@ 的多个工作区。请选择要添加的工作区。";
+"multiple_workspaces_found" = "CodexBar 发现了 %1$@ 的多个工作区。请选择要添加的工作区。";
 "off_peak" = "非高峰";
-"off_peak_peak_in" = "非高峰 · 高峰将在 %@ 后开始";
-"peak_ends_in" = "高峰将在 %@ 后结束";
+"off_peak_peak_in" = "非高峰 · %@ 后进入高峰";
 "ory_session_…=…; csrftoken=…" = "ory_session_…=…; csrftoken=…";
-"overview_choose_providers" = "选择最多 %@ 个提供商";
+"overview_choose_providers" = "选择最多 %1$@ 个提供商";
+"peak_ends_in" = "高峰 · %@ 后结束";
 "remove_account_message" = "从 CodexBar 中移除 %@？其托管的 Codex 主目录将被删除。";
 "version_format" = "版本 %@";
 "vertex_ai_login_instructions" = "要使用 Vertex AI 跟踪，您需要通过 Google Cloud 进行认证。
@@ -919,3 +919,20 @@
 "source_windsurf_web" = "Windsurf Web";
 "tomorrow, %@" = "明天 %@";
 "≈ %d%% run-out risk" = "约 %d%% 用尽风险";
+
+/* Cost estimation */
+"cost_header_estimated" = "费用（估算）";
+"cost_estimate_hint" = "根据本地日志估算 · 可能与账单不同";
+"Est. total (30d): %@" = "估算总计（30 天）：%@";
+"Estimated from local Codex logs for the selected account." = "根据所选账户的本地 Codex 日志估算。";
+"Estimated from local Claude logs at API rates; token totals include cache read/write tokens and may differ from Claude Code /status." = "根据本地 Claude 日志按 API 费率估算；token 总数包含缓存读写 token，可能与 Claude Code /status 不同。";
+"Estimated from local logs · may differ from your bill" = "根据本地日志估算 · 可能与账单不同";
+"Latest billing day" = "最近账单日";
+"Latest billing day (%@)" = "最近账单日（%@）";
+"Reported by AWS Cost Explorer; daily billing data can lag." = "由 AWS Cost Explorer 报告；每日账单数据可能有延迟。";
+"Could not open Cursor login in your browser." = "无法在浏览器中打开 Cursor 登录。";
+"Sign in to cursor.com in your browser, then refresh Cursor in CodexBar." = "请在浏览器中登录 cursor.com，然后在 CodexBar 中刷新 Cursor。";
+"Timed out waiting for Cursor login. %@" = "等待 Cursor 登录超时。%@";
+"Timed out waiting for Cursor login. %@ Last error: %@" = "等待 Cursor 登录超时。%@ 上次错误：%@";
+"Org ID (optional)" = "组织 ID（可选）";
+"Optional organization ID for accounts linked to multiple Anthropic organizations." = "适用于关联多个 Anthropic 组织的账户，可填写可选组织 ID。";

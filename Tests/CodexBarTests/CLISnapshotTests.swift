@@ -121,6 +121,37 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders Codex plan only limits as unavailable`() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "pro")
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 1.2.3 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Limits: not available"))
+        #expect(output.contains("Account: user@example.com"))
+        #expect(output.contains("Plan: Pro 20x"))
+        #expect(!output.contains("Session:"))
+        #expect(!output.contains("Weekly:"))
+    }
+
+    @Test
     func `renders text snapshot for claude without weekly`() {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 2, windowMinutes: nil, resetsAt: nil, resetDescription: "3pm (Europe/Vienna)"),

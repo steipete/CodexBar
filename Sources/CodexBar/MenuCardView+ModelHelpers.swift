@@ -9,6 +9,16 @@ extension UsageMenuCardView.Model {
         let paceOnTop: Bool
     }
 
+    var isOverviewErrorOnly: Bool {
+        self.subtitleStyle == .error &&
+            self.metrics.isEmpty &&
+            self.usageNotes.isEmpty &&
+            self.creditsRemaining == nil &&
+            self.providerCost == nil &&
+            self.tokenUsage == nil &&
+            self.placeholder == nil
+    }
+
     static func progressColor(for provider: UsageProvider) -> Color {
         let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
         return Color(red: color.red, green: color.green, blue: color.blue)
@@ -20,6 +30,48 @@ extension UsageMenuCardView.Model {
         now: Date) -> String?
     {
         LocalizedUsageText.resetLine(for: window, style: style, now: now)
+    }
+
+    static func placeholder(input: Input) -> String? {
+        if self.shouldShowRateLimitsUnavailablePlaceholder(input: input) {
+            return "Limits not available"
+        }
+        if input.snapshot == nil, !input.isRefreshing, input.lastError == nil {
+            return "No usage yet"
+        }
+        return nil
+    }
+
+    static func lastError(input: Input) -> String? {
+        guard let lastError = input.lastError?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !lastError.isEmpty
+        else {
+            return nil
+        }
+        if self.shouldShowRateLimitsUnavailablePlaceholder(input: input, lastError: lastError) {
+            return nil
+        }
+        return lastError
+    }
+
+    private static func shouldShowRateLimitsUnavailablePlaceholder(input: Input, lastError: String? = nil) -> Bool {
+        let currentError = lastError ?? input.lastError
+        if let currentError = currentError?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !currentError.isEmpty,
+           !UsageError.isNoRateLimitsFoundDescription(currentError)
+        {
+            return false
+        }
+        return self.rateLimitsUnavailable(input: input, lastError: currentError)
+    }
+
+    private static func rateLimitsUnavailable(input: Input, lastError: String? = nil) -> Bool {
+        UsageLimitsAvailability.resolve(
+            provider: input.provider,
+            snapshot: input.snapshot,
+            account: input.account,
+            lastErrorDescription: lastError ?? input.lastError)
+            .isUnavailable
     }
 
     static func sessionPaceDetail(

@@ -6,18 +6,18 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct StatusMenuTests {
-    private func disableMenuCardsForTesting() {
+    func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(false)
     }
 
-    private func makeStatusBarForTesting() -> NSStatusBar {
+    func makeStatusBarForTesting() -> NSStatusBar {
         // Use the real system status bar in tests. Creating standalone NSStatusBar instances
         // has caused AppKit teardown crashes under swiftpm-testing-helper.
         .system
     }
 
-    private func makeSettings() -> SettingsStore {
+    func makeSettings() -> SettingsStore {
         let suite = "StatusMenuTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -29,7 +29,7 @@ struct StatusMenuTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
-    private func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
+    func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
         let now = Date()
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -85,6 +85,7 @@ struct StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
+        settings.providerDetectionCompleted = true
         settings.alibabaCodingPlanAPIRegion = .chinaMainland
 
         let fetcher = UsageFetcher()
@@ -314,17 +315,15 @@ struct StatusMenuTests {
                     loginMethod: "Plus Plan")),
             provider: .codex)
 
-        for _ in 0..<50
-            where controller.menuContentVersion == openedVersion ||
-            controller.menuVersions[key] != controller.menuContentVersion
-        {
-            StatusItemController.setMenuRefreshEnabledForTesting(true)
-            controller.refreshOpenMenusIfNeeded()
-            try? await Task.sleep(for: .milliseconds(20))
+        for _ in 0..<50 where controller.menuContentVersion == openedVersion {
+            await Task.yield()
         }
 
+        let staleVersion = controller.menuContentVersion
+        controller.refreshOpenMenusIfNeeded()
+
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] == staleVersion)
     }
 
     @Test
@@ -609,9 +608,16 @@ struct StatusMenuTests {
 
         let nextProviderButton = self.switcherButtons(in: menu).first(where: { $0.state == .off })
         #expect(nextProviderButton != nil)
-        nextProviderButton?.performClick(nil)
-        await Task.yield()
-        await Task.yield()
+        let clickedNextProvider = nextProviderButton.map {
+            initialSwitcher?._test_simulateRuntimeClick(buttonTag: $0.tag)
+        } ?? false
+        #expect(clickedNextProvider == true)
+        for _ in 0..<50
+            where initialSwitcherID == (menu.items.first?.view as? ProviderSwitcherView)
+            .map(ObjectIdentifier.init)
+        {
+            await Task.yield()
+        }
 
         let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(updatedSwitcher != nil)

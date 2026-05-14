@@ -265,6 +265,10 @@ extension UsageStore {
         override: TokenAccountOverride?,
         codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderFetchContext
     {
+        let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: provider,
+            settings: self.settings,
+            override: override)
         let sourceMode = self.sourceMode(for: provider)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
             settings: self.settings,
@@ -289,7 +293,16 @@ extension UsageStore {
             settings: snapshot,
             fetcher: fetcher,
             claudeFetcher: self.claudeFetcher,
-            browserDetection: self.browserDetection)
+            browserDetection: self.browserDetection,
+            selectedTokenAccountID: account?.id,
+            tokenAccountTokenUpdater: { [weak settings = self.settings] provider, accountID, token in
+                await MainActor.run {
+                    settings?.updateTokenAccount(
+                        provider: provider,
+                        accountID: accountID,
+                        token: token)
+                }
+            })
     }
 
     func sourceMode(for provider: UsageProvider) -> ProviderSourceMode {

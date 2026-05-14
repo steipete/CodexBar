@@ -37,6 +37,10 @@ struct ProviderRegistry {
                 isEnabled: { settings.isProviderEnabled(provider: provider, metadata: meta) },
                 descriptor: descriptor,
                 makeFetchContext: {
+                    let account = ProviderTokenAccountSelection.selectedAccount(
+                        provider: provider,
+                        settings: settings,
+                        override: nil)
                     let sourceMode = ProviderCatalog.implementation(for: provider)?
                         .sourceMode(context: ProviderSourceModeContext(provider: provider, settings: settings))
                         ?? .auto
@@ -59,7 +63,16 @@ struct ProviderRegistry {
                         settings: snapshot,
                         fetcher: fetcher,
                         claudeFetcher: claudeFetcher,
-                        browserDetection: browserDetection)
+                        browserDetection: browserDetection,
+                        selectedTokenAccountID: account?.id,
+                        tokenAccountTokenUpdater: { provider, accountID, token in
+                            await MainActor.run {
+                                settings.updateTokenAccount(
+                                    provider: provider,
+                                    accountID: accountID,
+                                    token: token)
+                            }
+                        })
                 })
             specs[provider] = spec
         }

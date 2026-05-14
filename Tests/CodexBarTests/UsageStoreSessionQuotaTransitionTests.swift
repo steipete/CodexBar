@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct UsageStoreSessionQuotaTransitionTests {
@@ -117,6 +117,46 @@ struct UsageStoreSessionQuotaTransitionTests {
         store.handleSessionQuotaTransition(provider: .claude, snapshot: depleted)
 
         #expect(notifier.posts.isEmpty)
+    }
+
+    @Test
+    func `claude spend limit fallback does not emit session or quota warning notifications`() throws {
+        let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-claude-spend-limit")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.sessionQuotaNotificationsEnabled = true
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningThresholds = [50, 20]
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+        let json = """
+        {
+          "extra_usage": {
+            "is_enabled": true,
+            "monthly_limit": 600,
+            "used_credits": 434.43,
+            "utilization": 72,
+            "currency": "USD"
+          }
+        }
+        """
+        let claude = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
+            Data(json.utf8),
+            subscriptionType: "enterprise")
+        let snapshot = ClaudeOAuthFetchStrategy._snapshotForTesting(from: claude)
+
+        store.handleSessionQuotaTransition(provider: .claude, snapshot: snapshot)
+        store.handleQuotaWarningTransitions(provider: .claude, snapshot: snapshot)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.providerCost?.period == "Spend limit")
+        #expect(notifier.posts.isEmpty)
+        #expect(notifier.quotaWarningPosts.isEmpty)
     }
 
     @Test

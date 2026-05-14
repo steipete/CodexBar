@@ -337,13 +337,31 @@ struct TokenAccountCLIContext {
         provider: UsageProvider,
         account: ProviderTokenAccount?) -> ProviderSourceMode
     {
-        guard base == .auto,
-              provider == .claude
-        else {
+        guard provider == .claude else {
             return base
         }
         let config = self.providerConfig(for: provider)
-        return self.claudeCredentialRouting(account: account, config: config).isOAuth ? .oauth : base
+        let routing = self.claudeCredentialRouting(account: account, config: config)
+
+        if base == .auto {
+            return routing.isOAuth ? .oauth : base
+        }
+
+        guard base == .cli, account != nil else {
+            return base
+        }
+
+        // Claude CLI usage is ambient to the active local CLI profile, so per-token-account
+        // CLI reads can be mislabeled as separate accounts. Use the selected account's
+        // routable credential instead.
+        switch routing {
+        case .oauth:
+            return .oauth
+        case .webCookie:
+            return .web
+        case .none:
+            return base
+        }
     }
 
     func preferredSourceMode(for provider: UsageProvider) -> ProviderSourceMode {

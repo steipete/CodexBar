@@ -1,7 +1,25 @@
+import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBar
 
 struct AntigravityLoginAlertTests {
+    @Test
+    func `authorization URL asks Google to select an account`() throws {
+        let redirectURL = try #require(URL(string: "http://127.0.0.1:54321/callback"))
+        let url = try AntigravityLoginRunner.makeAuthorizationURL(
+            redirectURL: redirectURL,
+            state: "state",
+            oauthClient: AntigravityOAuthClient(
+                clientID: "client.apps.googleusercontent.com",
+                clientSecret: "secret"))
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let prompt = components.queryItems?.first(where: { $0.name == "prompt" })?.value
+
+        #expect(prompt?.split(separator: " ").contains("select_account") == true)
+        #expect(prompt?.split(separator: " ").contains("consent") == true)
+    }
+
     @Test
     func `returns alert for timeout`() {
         let result = AntigravityLoginRunner.Result(outcome: .timedOut)

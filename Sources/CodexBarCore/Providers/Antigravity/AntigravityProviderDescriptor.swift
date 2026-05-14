@@ -87,8 +87,18 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
         true
     }
 
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let fetcher = AntigravityRemoteUsageFetcher()
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let fetcher = AntigravityRemoteUsageFetcher(
+            environment: context.env,
+            credentialsUpdateHandler: { credentials in
+                guard let accountID = context.selectedTokenAccountID,
+                      let updater = context.tokenAccountTokenUpdater
+                else {
+                    return
+                }
+                let token = try AntigravityOAuthCredentialsStore.tokenAccountValue(for: credentials)
+                await updater(.antigravity, accountID, token)
+            })
         let snapshot = try await fetcher.fetch()
         let usage = if snapshot.modelQuotas.isEmpty {
             UsageSnapshot(

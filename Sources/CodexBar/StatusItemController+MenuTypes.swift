@@ -64,7 +64,7 @@ struct OpenAIWebMenuItems {
     let canShowBuyCredits: Bool
 }
 
-struct TokenAccountMenuDisplay {
+struct TokenAccountMenuDisplay: Equatable {
     let provider: UsageProvider
     let accounts: [ProviderTokenAccount]
     let snapshots: [TokenAccountUsageSnapshot]
@@ -77,6 +77,48 @@ struct TokenAccountMenuDisplay {
 
     var showSwitcher: Bool {
         self.layout == .segmented
+    }
+
+    static func == (lhs: TokenAccountMenuDisplay, rhs: TokenAccountMenuDisplay) -> Bool {
+        lhs.provider == rhs.provider &&
+            lhs.accountIdentity == rhs.accountIdentity &&
+            lhs.activeIndex == rhs.activeIndex &&
+            lhs.layout == rhs.layout &&
+            lhs.snapshotIdentity == rhs.snapshotIdentity
+    }
+
+    private var accountIdentity: [AccountIdentity] {
+        self.accounts.map { account in
+            AccountIdentity(
+                id: account.id,
+                label: account.label,
+                externalIdentifier: account.externalIdentifier,
+                organizationID: account.organizationID)
+        }
+    }
+
+    private var snapshotIdentity: [SnapshotIdentity] {
+        self.snapshots.map { snapshot in
+            SnapshotIdentity(
+                id: snapshot.id,
+                hasSnapshot: snapshot.snapshot != nil,
+                error: snapshot.error,
+                sourceLabel: snapshot.sourceLabel)
+        }
+    }
+
+    private struct AccountIdentity: Equatable {
+        let id: UUID
+        let label: String
+        let externalIdentifier: String?
+        let organizationID: String?
+    }
+
+    private struct SnapshotIdentity: Equatable {
+        let id: UUID
+        let hasSnapshot: Bool
+        let error: String?
+        let sourceLabel: String?
     }
 }
 

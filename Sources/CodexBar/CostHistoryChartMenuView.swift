@@ -150,9 +150,11 @@ struct CostHistoryChartMenuView: View {
             }
 
             if let total = self.totalCostUSD {
-                Text(String(format: L("Total (30d): %@"), UsageFormatter.usdString(total)))
+                Text(String(format: L("Est. total (30d): %@"), UsageFormatter.usdString(total)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
             }
         }
         .padding(.horizontal, 16)

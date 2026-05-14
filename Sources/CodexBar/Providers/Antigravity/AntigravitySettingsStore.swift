@@ -19,6 +19,35 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .antigravity, field: "usageSource", value: newValue.rawValue)
         }
     }
+
+    func upsertAntigravityOAuthAccount(_ credentials: AntigravityOAuthCredentials) {
+        guard let token = try? AntigravityOAuthCredentialsStore.tokenAccountValue(for: credentials) else { return }
+        let trimmedEmail = credentials.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = (trimmedEmail?.isEmpty == false) ? trimmedEmail : nil
+        let data = self.tokenAccountsData(for: .antigravity)
+        let label = email ?? "Google Account \((data?.accounts.count ?? 0) + 1)"
+        if let email,
+           let data,
+           let index = data.accounts.firstIndex(where: { account in
+               account.externalIdentifier == email
+           })
+        {
+            let account = data.accounts[index]
+            self.updateTokenAccount(
+                provider: .antigravity,
+                accountID: account.id,
+                label: label,
+                token: token,
+                externalIdentifier: .some(email))
+            self.setActiveTokenAccountIndex(index, for: .antigravity)
+        } else {
+            self.addTokenAccount(
+                provider: .antigravity,
+                label: label,
+                token: token,
+                externalIdentifier: email)
+        }
+    }
 }
 
 extension SettingsStore {

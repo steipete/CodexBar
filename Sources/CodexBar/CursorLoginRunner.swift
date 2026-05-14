@@ -1,12 +1,10 @@
 import AppKit
 import CodexBarCore
 import Foundation
-import WebKit
 
-/// Handles Cursor login flow using a WebKit-based browser window.
-/// Captures session cookies after successful authentication.
+/// Opens Cursor in the user's browser and waits until the normal browser-cookie importer can read a session.
 @MainActor
-final class CursorLoginRunner: NSObject {
+final class CursorLoginRunner {
     enum Phase {
         case loading
         case waitingLogin
@@ -25,198 +23,93 @@ final class CursorLoginRunner: NSObject {
         let email: String?
     }
 
-    private let browserDetection: BrowserDetection
-    private var webView: WKWebView?
-    private var window: NSWindow?
-    private var continuation: CheckedContinuation<Result, Never>?
-    private var phaseCallback: ((Phase) -> Void)?
-    private var hasCompletedLogin = false
+    typealias SnapshotLoader = @Sendable () async throws -> CursorStatusSnapshot
+    typealias Sleeper = @Sendable (UInt64) async throws -> Void
+    typealias SessionCacheResetter = @Sendable () async -> Void
+
+    private let loadSnapshot: SnapshotLoader
+    private let openURL: @MainActor (URL) -> Bool
+    private let sleeper: Sleeper
+    private let resetSessionCache: SessionCacheResetter
+    private let timeout: TimeInterval
+    private let pollInterval: TimeInterval
     private let logger = CodexBarLog.logger(LogCategories.cursorLogin)
 
-    private static let dashboardURL = URL(string: "https://cursor.com/dashboard")!
-    private static let loginURLPattern = "authenticator.cursor.sh"
+    static let authURL = URL(string: "https://authenticator.cursor.sh/")!
 
-    init(browserDetection: BrowserDetection) {
-        self.browserDetection = browserDetection
-        super.init()
+    init(
+        browserDetection: BrowserDetection,
+        timeout: TimeInterval = 120,
+        pollInterval: TimeInterval = 2,
+        openURL: @escaping @MainActor (URL) -> Bool = { NSWorkspace.shared.open($0) },
+        loadSnapshot: SnapshotLoader? = nil,
+        sleeper: @escaping Sleeper = { try await Task.sleep(nanoseconds: $0) },
+        resetSessionCache: @escaping SessionCacheResetter = {
+            CookieHeaderCache.clear(provider: .cursor)
+            CursorSessionStore.shared.clearCookies()
+        })
+    {
+        self.timeout = timeout
+        self.pollInterval = pollInterval
+        self.openURL = openURL
+        self.sleeper = sleeper
+        self.resetSessionCache = resetSessionCache
+        self.loadSnapshot = loadSnapshot ?? {
+            let probe = CursorStatusProbe(browserDetection: browserDetection)
+            return try await probe.fetch(allowCachedSessions: false)
+        }
     }
 
-    /// Runs the Cursor login flow in a browser window.
-    /// Returns the result after the user completes login or cancels.
-    func run(onPhaseChange: @escaping @Sendable (Phase) -> Void) async -> Result {
-        // Keep this instance alive during the flow.
-        WebKitTeardown.retain(self)
-        self.phaseCallback = onPhaseChange
+    func run(onPhaseChange: @escaping @MainActor (Phase) -> Void) async -> Result {
         onPhaseChange(.loading)
         self.logger.info("Cursor login started")
+        await self.resetSessionCache()
 
-        return await withCheckedContinuation { continuation in
-            self.continuation = continuation
-            self.setupWindow()
-        }
-    }
-
-    private func setupWindow() {
-        // Use a non-persistent store for the login flow; cookies are persisted explicitly.
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent()
-
-        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 480, height: 640), configuration: config)
-        webView.navigationDelegate = self
-        self.webView = webView
-
-        // Create window
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
-            defer: false)
-        window.isReleasedWhenClosed = false
-        window.title = L("Cursor Login")
-        window.contentView = webView
-        window.center()
-        window.delegate = self
-        window.makeKeyAndOrderFront(nil)
-        self.window = window
-        self.logger.info("Cursor login window opened")
-
-        // Navigate to dashboard (will redirect to login if not authenticated)
-        let request = URLRequest(url: Self.dashboardURL)
-        webView.load(request)
-    }
-
-    private func complete(with result: Result) {
-        guard let continuation = self.continuation else { return }
-        self.continuation = nil
-        self.logger.info("Cursor login completed", metadata: ["outcome": "\(result.outcome)"])
-        self.scheduleCleanup()
-        continuation.resume(returning: result)
-    }
-
-    private func scheduleCleanup() {
-        self.logger.info("Cursor login window closing")
-        WebKitTeardown.scheduleCleanup(owner: self, window: self.window, webView: self.webView)
-    }
-
-    private func captureSessionCookies() async {
-        guard let webView = self.webView else { return }
-
-        let dataStore = webView.configuration.websiteDataStore
-        let cookies = await dataStore.httpCookieStore.allCookies()
-
-        // Filter for cursor.com cookies
-        let cursorCookies = cookies.filter { cookie in
-            cookie.domain.contains("cursor.com") || cookie.domain.contains("cursor.sh")
+        guard self.openURL(Self.authURL) else {
+            let message = L("Could not open Cursor login in your browser.")
+            onPhaseChange(.failed(message))
+            self.logger.error("Cursor login browser launch failed")
+            return Result(outcome: .failed(message), email: nil)
         }
 
-        guard !cursorCookies.isEmpty else {
-            self.phaseCallback?(.failed("No session cookies found"))
-            self.logger.warning("Cursor login failed: no session cookies found")
-            self.complete(with: Result(outcome: .failed("No session cookies found"), email: nil))
-            return
-        }
+        onPhaseChange(.waitingLogin)
+        let deadline = Date().addingTimeInterval(self.timeout)
+        var lastError: Error?
 
-        // Save cookies to the session store
-        await CursorSessionStore.shared.setCookies(cursorCookies)
-        self.logger.info("Cursor session cookies captured", metadata: ["count": "\(cursorCookies.count)"])
-
-        // Try to get user email
-        let email = await self.fetchUserEmail()
-
-        self.hasCompletedLogin = true
-        self.phaseCallback?(.success)
-        self.complete(with: Result(outcome: .success, email: email))
-    }
-
-    private func fetchUserEmail() async -> String? {
-        do {
-            let probe = CursorStatusProbe(browserDetection: self.browserDetection)
-            let snapshot = try await probe.fetch()
-            return snapshot.accountEmail
-        } catch {
-            return nil
-        }
-    }
-}
-
-// MARK: - WKNavigationDelegate
-
-extension CursorLoginRunner: WKNavigationDelegate {
-    nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        Task { @MainActor in
-            guard let url = webView.url else { return }
-
-            let urlString = url.absoluteString
-
-            // Check if on login page
-            if urlString.contains(Self.loginURLPattern) {
-                self.phaseCallback?(.waitingLogin)
-                return
-            }
-
-            // Check if on dashboard (login successful)
-            if urlString.contains("cursor.com/dashboard"), !self.hasCompletedLogin {
-                await self.captureSessionCookies()
-            }
-        }
-    }
-
-    nonisolated func webView(
-        _ webView: WKWebView,
-        didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!)
-    {
-        Task { @MainActor in
-            guard let url = webView.url else { return }
-            let urlString = url.absoluteString
-
-            // Detect redirect to dashboard after login
-            if urlString.contains("cursor.com/dashboard"), !self.hasCompletedLogin {
-                // Wait a moment for cookies to be set, then capture
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                await self.captureSessionCookies()
-            }
-        }
-    }
-
-    nonisolated func webView(
-        _ webView: WKWebView,
-        didFail navigation: WKNavigation!,
-        withError error: Error)
-    {
-        Task { @MainActor in
-            self.phaseCallback?(.failed(error.localizedDescription))
-            self.logger.error("Cursor login navigation failed", metadata: ["error": error.localizedDescription])
-            self.complete(with: Result(outcome: .failed(error.localizedDescription), email: nil))
-        }
-    }
-
-    nonisolated func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error)
-    {
-        Task { @MainActor in
-            // Ignore cancelled navigations (common during redirects)
-            let nsError = error as NSError
-            if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled {
-                return
-            }
-            self.phaseCallback?(.failed(error.localizedDescription))
-            self.logger.error("Cursor login navigation failed", metadata: ["error": error.localizedDescription])
-            self.complete(with: Result(outcome: .failed(error.localizedDescription), email: nil))
-        }
-    }
-}
-
-// MARK: - NSWindowDelegate
-
-extension CursorLoginRunner: NSWindowDelegate {
-    nonisolated func windowWillClose(_ notification: Notification) {
-        Task { @MainActor in
-            if !self.hasCompletedLogin {
+        repeat {
+            if Task.isCancelled {
                 self.logger.info("Cursor login cancelled")
-                self.complete(with: Result(outcome: .cancelled, email: nil))
+                return Result(outcome: .cancelled, email: nil)
             }
+
+            do {
+                let snapshot = try await self.loadSnapshot()
+                onPhaseChange(.success)
+                self.logger.info("Cursor login completed", metadata: ["outcome": "success"])
+                return Result(outcome: .success, email: snapshot.accountEmail)
+            } catch {
+                lastError = error
+            }
+
+            guard Date() < deadline else { break }
+            let delay = UInt64(max(0.1, self.pollInterval) * 1_000_000_000)
+            try? await self.sleeper(delay)
+        } while true
+
+        let message = Self.timeoutMessage(lastError: lastError)
+        onPhaseChange(.failed(message))
+        self.logger.warning("Cursor login timed out", metadata: ["error": message])
+        return Result(outcome: .failed(message), email: nil)
+    }
+
+    private static func timeoutMessage(lastError: Error?) -> String {
+        let hint = L("Sign in to cursor.com in your browser, then refresh Cursor in CodexBar.")
+        guard let lastError else {
+            return String(format: L("Timed out waiting for Cursor login. %@"), hint)
         }
+        return String(
+            format: L("Timed out waiting for Cursor login. %@ Last error: %@"),
+            hint,
+            lastError.localizedDescription)
     }
 }

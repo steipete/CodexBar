@@ -210,31 +210,36 @@ public struct GeminiStatusProbe: Sendable {
             "now": "\(Date())",
         ])
 
-        guard let storedAccessToken = creds.accessToken, !storedAccessToken.isEmpty else {
-            Self.log.error("No access token found")
-            throw GeminiStatusProbeError.notLoggedIn
-        }
+        var accessToken = creds.accessToken?.isEmpty == false ? creds.accessToken : nil
+        var idToken = creds.idToken
+        let needsRefresh = accessToken == nil || creds.expiryDate.map { $0 < Date() } == true
+        if needsRefresh {
+            if accessToken == nil {
+                Self.log.info("No access token found; attempting refresh from stored Gemini credentials")
+            } else if let expiry = creds.expiryDate {
+                Self.log.info("Token expired; attempting refresh", metadata: [
+                    "expiry": "\(expiry)",
+                ])
+            }
 
-        var accessToken = storedAccessToken
-        if let expiry = creds.expiryDate, expiry < Date() {
-            Self.log.info("Token expired; attempting refresh", metadata: [
-                "expiry": "\(expiry)",
-            ])
-
-            guard let refreshToken = creds.refreshToken else {
+            guard let refreshToken = creds.refreshToken, !refreshToken.isEmpty else {
                 Self.log.error("No refresh token available")
                 throw GeminiStatusProbeError.notLoggedIn
             }
-
             accessToken = try await Self.refreshAccessToken(
                 refreshToken: refreshToken,
                 timeout: timeout,
                 homeDirectory: homeDirectory,
                 dataLoader: dataLoader)
+            idToken = (try? Self.loadCredentials(homeDirectory: homeDirectory).idToken) ?? idToken
+        }
+        guard let accessToken else {
+            Self.log.error("No access token found")
+            throw GeminiStatusProbeError.notLoggedIn
         }
 
         // Extract account info from JWT
-        let claims = Self.extractClaimsFromToken(creds.idToken)
+        let claims = Self.extractClaimsFromToken(idToken)
 
         // Load Code Assist status to get project ID and tier (aligned with CLI setupUser logic)
         let caStatus = await Self.loadCodeAssistStatus(

@@ -23,6 +23,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: DeepSeekSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .antigravity: TokenAccountSupport(
+            title: "Google accounts",
+            subtitle: "Store multiple Antigravity Google OAuth accounts for quick switching.",
+            placeholder: "Antigravity OAuth credentials JSON",
+            injection: .environment(key: AntigravityOAuthCredentialsStore.environmentCredentialsKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .zai: TokenAccountSupport(
             title: "API tokens",
             subtitle: "Stored in the CodexBar config file.",
@@ -53,8 +60,8 @@ extension TokenAccountSupportCatalog {
             cookieName: nil),
         .factory: TokenAccountSupport(
             title: "Session tokens",
-            subtitle: "Store multiple Factory Cookie headers.",
-            placeholder: "Cookie: …",
+            subtitle: "Store multiple Factory Cookie or Authorization headers.",
+            placeholder: "Cookie: … or Authorization: Bearer …",
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),

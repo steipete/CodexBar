@@ -18,6 +18,8 @@ public enum ProviderSourceMode: String, CaseIterable, Sendable, Codable {
 }
 
 public struct ProviderFetchContext: Sendable {
+    public typealias TokenAccountTokenUpdater = @Sendable (UsageProvider, UUID, String) async -> Void
+
     public let runtime: ProviderRuntime
     public let sourceMode: ProviderSourceMode
     public let includeCredits: Bool
@@ -29,6 +31,8 @@ public struct ProviderFetchContext: Sendable {
     public let fetcher: UsageFetcher
     public let claudeFetcher: any ClaudeUsageFetching
     public let browserDetection: BrowserDetection
+    public let selectedTokenAccountID: UUID?
+    public let tokenAccountTokenUpdater: TokenAccountTokenUpdater?
 
     public init(
         runtime: ProviderRuntime,
@@ -41,7 +45,9 @@ public struct ProviderFetchContext: Sendable {
         settings: ProviderSettingsSnapshot?,
         fetcher: UsageFetcher,
         claudeFetcher: any ClaudeUsageFetching,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        selectedTokenAccountID: UUID? = nil,
+        tokenAccountTokenUpdater: TokenAccountTokenUpdater? = nil)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -54,6 +60,8 @@ public struct ProviderFetchContext: Sendable {
         self.fetcher = fetcher
         self.claudeFetcher = claudeFetcher
         self.browserDetection = browserDetection
+        self.selectedTokenAccountID = selectedTokenAccountID
+        self.tokenAccountTokenUpdater = tokenAccountTokenUpdater
     }
 }
 

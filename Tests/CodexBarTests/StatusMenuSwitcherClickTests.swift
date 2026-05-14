@@ -81,4 +81,27 @@ struct StatusMenuSwitcherClickTests {
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
         #expect(settings.selectedMenuProvider == .codex)
     }
+
+    @Test
+    func `switcher hover styling keeps layout stable`() {
+        let view = ProviderSwitcherView(
+            providers: [.codex, .claude, .cursor, .factory, .zai, .minimax, .alibaba],
+            selected: .provider(.codex),
+            includesOverview: true,
+            width: 300,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { _ in })
+
+        let initialSize = view.intrinsicContentSize
+        let initialFrames = view._test_buttonFrames()
+
+        view._test_setHoveredButtonTag(3)
+        view._test_setHoveredButtonTag(6)
+        view._test_setHoveredButtonTag(nil as Int?)
+
+        #expect(view.intrinsicContentSize == initialSize)
+        #expect(view._test_buttonFrames() == initialFrames)
+    }
 }

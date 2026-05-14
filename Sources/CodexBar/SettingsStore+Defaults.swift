@@ -116,7 +116,32 @@ extension SettingsStore {
         set {
             let sanitized = QuotaWarningThresholds.sanitized(newValue)
             self.defaultsState.quotaWarningThresholdsRaw = sanitized
+            self.defaultsState.quotaWarningSessionThresholdsRaw = sanitized
+            self.defaultsState.quotaWarningWeeklyThresholdsRaw = sanitized
             self.userDefaults.set(sanitized, forKey: "quotaWarningThresholds")
+            self.userDefaults.set(sanitized, forKey: "quotaWarningSessionThresholds")
+            self.userDefaults.set(sanitized, forKey: "quotaWarningWeeklyThresholds")
+        }
+    }
+
+    func quotaWarningThresholds(_ window: QuotaWarningWindow) -> [Int] {
+        switch window {
+        case .session:
+            QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningSessionThresholdsRaw)
+        case .weekly:
+            QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningWeeklyThresholdsRaw)
+        }
+    }
+
+    func setQuotaWarningThresholds(_ window: QuotaWarningWindow, thresholds: [Int]) {
+        let sanitized = QuotaWarningThresholds.sanitized(thresholds)
+        switch window {
+        case .session:
+            self.defaultsState.quotaWarningSessionThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningSessionThresholds")
+        case .weekly:
+            self.defaultsState.quotaWarningWeeklyThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningWeeklyThresholds")
         }
     }
 
@@ -203,6 +228,23 @@ extension SettingsStore {
     var menuBarDisplayMode: MenuBarDisplayMode {
         get { MenuBarDisplayMode(rawValue: self.menuBarDisplayModeRaw ?? "") ?? .percent }
         set { self.menuBarDisplayModeRaw = newValue.rawValue }
+    }
+
+    private var kiroMenuBarDisplayModeRaw: String? {
+        get { self.defaultsState.kiroMenuBarDisplayModeRaw }
+        set {
+            self.defaultsState.kiroMenuBarDisplayModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "kiroMenuBarDisplayMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "kiroMenuBarDisplayMode")
+            }
+        }
+    }
+
+    var kiroMenuBarDisplayMode: KiroMenuBarDisplayMode {
+        get { KiroMenuBarDisplayMode(rawValue: self.kiroMenuBarDisplayModeRaw ?? "") ?? .automatic }
+        set { self.kiroMenuBarDisplayModeRaw = newValue.rawValue }
     }
 
     var multiAccountMenuLayout: MultiAccountMenuLayout {

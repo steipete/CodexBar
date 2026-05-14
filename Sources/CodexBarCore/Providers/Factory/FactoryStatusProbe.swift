@@ -835,23 +835,32 @@ public struct FactoryStatusProbe: Sendable {
         let log: (String) -> Void = { msg in logger?("[factory] \(msg)") }
         var lastError: Error?
 
-        if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
-            log("Using manual cookie header")
-            let bearer = Self.bearerToken(fromHeader: override)
-            let candidates = [
-                self.baseURL,
-                Self.authBaseURL,
-                Self.apiBaseURL,
-            ]
-            for baseURL in candidates {
-                do {
-                    return try await self.fetchWithCookieHeader(
-                        override,
-                        bearerToken: bearer,
-                        baseURL: baseURL)
-                } catch {
-                    lastError = error
+        let manualOverride = cookieHeaderOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if manualOverride?.isEmpty == false {
+            guard let override = Self.manualCredentials(from: manualOverride) else {
+                throw FactoryStatusProbeError.noSessionCookie
+            }
+            if let cookieHeader = override.cookieHeader {
+                log("Using manual cookie header")
+                let candidates = [
+                    self.baseURL,
+                    Self.authBaseURL,
+                    Self.apiBaseURL,
+                ]
+                for baseURL in candidates {
+                    do {
+                        return try await self.fetchWithCookieHeader(
+                            cookieHeader,
+                            bearerToken: override.bearerToken,
+                            baseURL: baseURL)
+                    } catch {
+                        lastError = error
+                    }
                 }
+            }
+            if let bearerToken = override.bearerToken {
+                log("Using manual Factory bearer token")
+                return try await self.fetchWithBearerToken(bearerToken, logger: log)
             }
             if let lastError { throw lastError }
             throw FactoryStatusProbeError.noSessionCookie
@@ -1195,14 +1204,6 @@ public struct FactoryStatusProbe: Sendable {
 
     private static func cookieHeader(from cookies: [HTTPCookie]) -> String {
         cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-    }
-
-    private static func bearerToken(fromHeader cookieHeader: String) -> String? {
-        for pair in CookieHeaderNormalizer.pairs(from: cookieHeader) where pair.name == "access-token" {
-            let token = pair.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !token.isEmpty { return token }
-        }
-        return nil
     }
 
     private func fetchWithCookieHeader(

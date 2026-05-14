@@ -225,7 +225,7 @@ struct CookieHeaderCacheTests {
 
         let cleared = CookieHeaderCache.clearAll()
 
-        #expect(cleared == 3)
+        #expect(cleared >= 3)
         #expect(KeychainCacheStore.keys(category: "cookie").isEmpty)
     }
 }

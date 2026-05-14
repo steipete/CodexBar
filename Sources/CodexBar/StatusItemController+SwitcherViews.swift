@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import QuartzCore
 
 enum ProviderSwitcherSelection: Equatable {
     case overview
@@ -585,6 +586,10 @@ final class ProviderSwitcherView: NSView {
     }
 
     private func updateButtonStyles() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
         for button in self.buttons {
             let isSelected = button.state == .on
             let isHovered = self.hoveredButtonTag == button.tag
@@ -601,6 +606,17 @@ final class ProviderSwitcherView: NSView {
             (button as? InlineIconToggleButton)?.setContentTintColor(button.contentTintColor)
         }
     }
+
+    #if DEBUG
+    func _test_buttonFrames() -> [NSRect] {
+        self.buttons.map(\.frame)
+    }
+
+    func _test_setHoveredButtonTag(_ tag: Int?) {
+        self.hoveredButtonTag = tag
+        self.updateButtonStyles()
+    }
+    #endif
 
     private func isLightMode() -> Bool {
         self.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua

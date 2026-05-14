@@ -86,6 +86,35 @@ struct CodexUsageFetcherFallbackTests {
     }
 
     @Test
+    func `CLI usage loads plan only RPC response as unavailable limits`() async throws {
+        let stubCLIPath = try self.makePlanOnlyStubCodexCLI()
+        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+
+        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let snapshot = try await fetcher.loadLatestUsage()
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.accountEmail(for: .codex) == "stub@example.com")
+        #expect(snapshot.loginMethod(for: .codex) == "pro")
+        #expect(snapshot.rateLimitsUnavailable(for: .codex))
+    }
+
+    @Test
+    func `CLI plan and credits response without usage windows keeps unavailable limits`() async throws {
+        let stubCLIPath = try self.makePlanOnlyStubCodexCLI(includeCredits: true)
+        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+
+        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let snapshot = try await fetcher.loadLatestCLIAccountSnapshot()
+
+        #expect(snapshot.usage?.primary == nil)
+        #expect(snapshot.usage?.secondary == nil)
+        #expect(snapshot.usage?.rateLimitsUnavailable(for: .codex) == true)
+        #expect(snapshot.credits?.remaining == 21)
+    }
+
+    @Test
     func `CLI usage fails when RPC body recovery misses session lane`() async throws {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.partialDecodeBodyMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
@@ -289,6 +318,72 @@ struct CodexUsageFetcherFallbackTests {
         """
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-fallback-stub-\(UUID().uuidString)", isDirectory: false)
+        try Data(script.utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
+    }
+
+    private func makePlanOnlyStubCodexCLI(includeCredits: Bool = false) throws -> String {
+        let creditsPayload = includeCredits
+            ? [
+                ",",
+                "                                \"credits\": {",
+                "                                    \"hasCredits\": True,",
+                "                                    \"unlimited\": False,",
+                "                                    \"balance\": \"21\"",
+                "                                }",
+            ].joined(separator: "\n")
+            : ""
+        let script = """
+        #!/usr/bin/python3
+        import json
+        import sys
+
+        args = sys.argv[1:]
+        if "app-server" in args:
+            for line in sys.stdin:
+                if not line.strip():
+                    continue
+                message = json.loads(line)
+                method = message.get("method")
+                if method == "initialized":
+                    continue
+
+                identifier = message.get("id")
+                if method == "initialize":
+                    payload = {"id": identifier, "result": {}}
+                elif method == "account/rateLimits/read":
+                    payload = {
+                        "id": identifier,
+                        "result": {
+                            "rateLimits": {
+                                "planType": "pro"
+                                \(creditsPayload)
+                            }
+                        }
+                    }
+                elif method == "account/read":
+                    payload = {
+                        "id": identifier,
+                        "result": {
+                            "account": {
+                                "type": "chatgpt",
+                                "email": "stub@example.com",
+                                "planType": "pro"
+                            },
+                            "requiresOpenaiAuth": False
+                        }
+                    }
+                else:
+                    payload = {"id": identifier, "result": {}}
+
+                print(json.dumps(payload), flush=True)
+        else:
+            sys.stderr.write("unexpected non app-server Codex invocation\\n")
+            sys.exit(92)
+        """
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-plan-only-stub-\(UUID().uuidString)", isDirectory: false)
         try Data(script.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url.path

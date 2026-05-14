@@ -234,6 +234,7 @@ public enum KiloUsageError: LocalizedError, Sendable, Equatable {
     }
 }
 
+// swiftlint:disable:next type_body_length
 public struct KiloUsageFetcher: Sendable {
     private struct KiloPassFields {
         let used: Double?
@@ -257,6 +258,7 @@ public struct KiloUsageFetcher: Sendable {
 
     public static func fetchUsage(
         apiKey: String,
+        scope: KiloUsageScope = .personal,
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> KiloUsageSnapshot
     {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -264,13 +266,7 @@ public struct KiloUsageFetcher: Sendable {
         }
 
         let baseURL = KiloSettingsReader.apiURL(environment: environment)
-        let batchURL = try self.makeBatchURL(baseURL: baseURL)
-
-        var request = URLRequest(url: batchURL)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 15
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let request = try self.makeRequest(baseURL: baseURL, apiKey: apiKey, scope: scope)
 
         let data: Data
         let response: URLResponse
@@ -297,6 +293,170 @@ public struct KiloUsageFetcher: Sendable {
 
     static func _buildBatchURLForTesting(baseURL: URL) throws -> URL {
         try self.makeBatchURL(baseURL: baseURL)
+    }
+
+    static func _buildRequestForTesting(
+        baseURL: URL,
+        apiKey: String,
+        scope: KiloUsageScope) throws -> URLRequest
+    {
+        try self.makeRequest(baseURL: baseURL, apiKey: apiKey, scope: scope)
+    }
+
+    private static func makeRequest(
+        baseURL: URL,
+        apiKey: String,
+        scope: KiloUsageScope) throws -> URLRequest
+    {
+        let batchURL = try self.makeBatchURL(baseURL: baseURL)
+        var request = URLRequest(url: batchURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let orgId = scope.organizationID {
+            request.setValue(orgId, forHTTPHeaderField: "X-KILOCODE-ORGANIZATIONID")
+        }
+        return request
+    }
+
+    public static func fetchOrganizations(
+        apiKey: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> [KiloOrganization]
+    {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw KiloUsageError.missingCredentials
+        }
+
+        let baseURL = KiloSettingsReader.apiURL(environment: environment)
+        let trpcRequest = try self.makeOrgListTRPCRequest(baseURL: baseURL, apiKey: apiKey)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: trpcRequest)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw KiloUsageError.networkError("Invalid response")
+            }
+            if httpResponse.statusCode == 404 {
+                return try await self.fetchOrganizationsRESTFallback(apiKey: apiKey)
+            }
+            if let mapped = self.statusError(for: httpResponse.statusCode) {
+                throw mapped
+            }
+            return try self.parseOrganizations(data: data)
+        } catch let error as KiloUsageError {
+            throw error
+        } catch {
+            throw KiloUsageError.networkError(error.localizedDescription)
+        }
+    }
+
+    static func _parseOrganizationsForTesting(_ data: Data) throws -> [KiloOrganization] {
+        try self.parseOrganizations(data: data)
+    }
+
+    private static func makeOrgListTRPCRequest(
+        baseURL: URL,
+        apiKey: String) throws -> URLRequest
+    {
+        let endpoint = baseURL.appendingPathComponent("user.getOrganizations")
+        let inputData = try JSONSerialization.data(
+            withJSONObject: ["0": ["json": NSNull()]] as [String: Any])
+        guard let inputString = String(data: inputData, encoding: .utf8),
+              var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
+        else {
+            throw KiloUsageError.parseFailed("Invalid org list endpoint")
+        }
+        components.queryItems = [
+            URLQueryItem(name: "batch", value: "1"),
+            URLQueryItem(name: "input", value: inputString),
+        ]
+        guard let url = components.url else {
+            throw KiloUsageError.parseFailed("Invalid org list endpoint")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    private static func fetchOrganizationsRESTFallback(apiKey: String) async throws -> [KiloOrganization] {
+        guard let url = URL(string: "https://api.kilo.ai/api/profile") else {
+            throw KiloUsageError.parseFailed("Invalid REST fallback URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw KiloUsageError.networkError("Invalid response")
+        }
+        if let mapped = self.statusError(for: httpResponse.statusCode) {
+            throw mapped
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw KiloUsageError.apiError(httpResponse.statusCode)
+        }
+        return try self.parseOrganizations(data: data)
+    }
+
+    private static func parseOrganizations(data: Data) throws -> [KiloOrganization] {
+        guard let root = try? JSONSerialization.jsonObject(with: data) else {
+            throw KiloUsageError.parseFailed("Invalid JSON")
+        }
+
+        // tRPC batch shape: [ { result: { data: { json: [orgs] } } } ]
+        if let entries = root as? [[String: Any]],
+           let first = entries.first,
+           let resultObject = first["result"] as? [String: Any]
+        {
+            if let dataObject = resultObject["data"] as? [String: Any],
+               let payload = dataObject["json"] as? [[String: Any]]
+            {
+                return self.decodeOrganizations(payload)
+            }
+            if let payload = resultObject["data"] as? [[String: Any]] {
+                return self.decodeOrganizations(payload)
+            }
+        }
+
+        // REST profile shape: { user: ..., organizations: [orgs] }
+        if let dictionary = root as? [String: Any] {
+            if let orgs = dictionary["organizations"] as? [[String: Any]] {
+                return self.decodeOrganizations(orgs)
+            }
+            // Some single-procedure tRPC shapes flatten to { result: { data: { json: { organizations: [...] }}}}
+            if let resultObject = dictionary["result"] as? [String: Any],
+               let dataObject = resultObject["data"] as? [String: Any]
+            {
+                if let payload = dataObject["json"] as? [[String: Any]] {
+                    return self.decodeOrganizations(payload)
+                }
+                if let payload = dataObject["json"] as? [String: Any],
+                   let orgs = payload["organizations"] as? [[String: Any]]
+                {
+                    return self.decodeOrganizations(orgs)
+                }
+            }
+        }
+
+        return []
+    }
+
+    private static func decodeOrganizations(_ raw: [[String: Any]]) -> [KiloOrganization] {
+        raw.compactMap { item -> KiloOrganization? in
+            guard let id = item["id"] as? String, !id.isEmpty else { return nil }
+            let name = (item["name"] as? String).map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            } ?? id
+            let role = (item["role"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedRole = (role?.isEmpty ?? true) ? nil : role
+            return KiloOrganization(id: id, name: name.isEmpty ? id : name, role: normalizedRole)
+        }
     }
 
     static func _parseSnapshotForTesting(_ data: Data) throws -> KiloUsageSnapshot {

@@ -119,6 +119,77 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
+    func `refreshes when stored Gemini credentials only have refresh token`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: nil,
+            refreshToken: "refresh-token",
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let binURL = try env.writeFakeGeminiCLI()
+        let previousValue = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
+        setenv("GEMINI_CLI_PATH", binURL.path, 1)
+        defer {
+            if let previousValue {
+                setenv("GEMINI_CLI_PATH", previousValue, 1)
+            } else {
+                unsetenv("GEMINI_CLI_PATH")
+            }
+        }
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+
+            switch host {
+            case "oauth2.googleapis.com":
+                let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                guard body.contains("client_id=test-client-id") else {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 400, body: Data())
+                }
+                let json = GeminiAPITestHelpers.jsonData([
+                    "access_token": "new-token",
+                    "expires_in": 3600,
+                    "id_token": GeminiAPITestHelpers.makeIDToken(email: "user@example.com"),
+                ])
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 200, body: json)
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistStandardTierResponse())
+                }
+                let auth = request.value(forHTTPHeaderField: "Authorization")
+                guard auth == "Bearer new-token" else {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 401, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(snapshot.accountEmail == "user@example.com")
+
+        let updated = try env.readCredentials()
+        #expect(updated["access_token"] as? String == "new-token")
+    }
+
+    @Test
     func `refreshes expired token with nix share layout`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }

@@ -4,6 +4,61 @@ import SwiftUI
 import Testing
 @testable import CodexBar
 
+struct OverviewMenuCardVisibilityTests {
+    @Test
+    func `overview hides cards that only contain an error`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: "No Cursor session found.",
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: Date()))
+
+        #expect(model.isOverviewErrorOnly)
+    }
+
+    @Test
+    func `overview keeps cards with graceful unavailable placeholders`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "pro"),
+            isRefreshing: false,
+            lastError: UsageError.noRateLimitsFound.errorDescription,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: Date()))
+
+        #expect(model.placeholder == "Limits not available")
+        #expect(!model.isOverviewErrorOnly)
+    }
+}
+
 struct FactoryMenuCardModelTests {
     @Test
     func `factory token rate billing uses time window labels`() throws {
@@ -133,6 +188,63 @@ struct FactoryMenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
         #expect(hidden.providerCost == nil)
+    }
+}
+
+struct KiroMenuCardModelTests {
+    @Test
+    func `kiro model shows account plan credits bonus and overages`() throws {
+        let now = Date()
+        let snapshot = KiroUsageSnapshot(
+            planName: "KIRO FREE",
+            accountEmail: "person@example.com",
+            authMethod: "Google",
+            creditsUsed: 0.17,
+            creditsTotal: 50,
+            creditsPercent: 0,
+            bonusCreditsUsed: 45.53,
+            bonusCreditsTotal: 2000,
+            bonusExpiryDays: 19,
+            overagesStatus: "Disabled",
+            manageURL: "https://app.kiro.dev/account/usage",
+            contextUsage: KiroContextUsageSnapshot(
+                totalPercentUsed: 1.3,
+                contextFilesPercent: 0.5,
+                toolsPercent: 0.8,
+                kiroResponsesPercent: 0,
+                promptsPercent: 0),
+            resetsAt: now.addingTimeInterval(3600),
+            updatedAt: now).toUsageSnapshot()
+        let metadata = try #require(ProviderDefaults.metadata[.kiro])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kiro,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.email == "person@example.com")
+        #expect(model.planText == "Kiro Free")
+        #expect(model.metrics.map(\.title) == ["Credits", "Bonus"])
+        #expect(model.metrics.first?.detailLeftText == "49.83 of 50 credits left")
+        #expect(model.metrics.dropFirst().first?.detailLeftText == "1954.47 of 2000 bonus credits left")
+        #expect(model.usageNotes.contains("Auth: Google"))
+        #expect(model.usageNotes.contains("Overages: Disabled"))
+        #expect(model.usageNotes.contains { $0.localizedCaseInsensitiveContains("Context window") } == false)
     }
 }
 
@@ -477,6 +589,7 @@ struct MenuCardModelTests {
 
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
         #expect(model.tokenUsage?.monthLine.contains("tokens") == true)
+        #expect(model.tokenUsage?.hintLine == "Estimated from local Codex logs for the selected account.")
     }
 
     @Test

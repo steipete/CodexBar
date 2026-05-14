@@ -2,14 +2,54 @@ import Foundation
 
 public struct KiroUsageSnapshot: Sendable {
     public let planName: String
+    public let displayPlanName: String
+    public let accountEmail: String?
+    public let authMethod: String?
     public let creditsUsed: Double
     public let creditsTotal: Double
     public let creditsPercent: Double
     public let bonusCreditsUsed: Double?
     public let bonusCreditsTotal: Double?
     public let bonusExpiryDays: Int?
+    public let overagesStatus: String?
+    public let manageURL: String?
+    public let contextUsage: KiroContextUsageSnapshot?
     public let resetsAt: Date?
     public let updatedAt: Date
+
+    public init(
+        planName: String,
+        displayPlanName: String? = nil,
+        accountEmail: String? = nil,
+        authMethod: String? = nil,
+        creditsUsed: Double,
+        creditsTotal: Double,
+        creditsPercent: Double,
+        bonusCreditsUsed: Double?,
+        bonusCreditsTotal: Double?,
+        bonusExpiryDays: Int?,
+        overagesStatus: String? = nil,
+        manageURL: String? = nil,
+        contextUsage: KiroContextUsageSnapshot? = nil,
+        resetsAt: Date?,
+        updatedAt: Date)
+    {
+        self.planName = planName
+        self.displayPlanName = displayPlanName ?? KiroStatusProbe.displayPlanName(planName)
+        self.accountEmail = accountEmail
+        self.authMethod = authMethod
+        self.creditsUsed = creditsUsed
+        self.creditsTotal = creditsTotal
+        self.creditsPercent = creditsPercent
+        self.bonusCreditsUsed = bonusCreditsUsed
+        self.bonusCreditsTotal = bonusCreditsTotal
+        self.bonusExpiryDays = bonusExpiryDays
+        self.overagesStatus = overagesStatus
+        self.manageURL = manageURL
+        self.contextUsage = contextUsage
+        self.resetsAt = resetsAt
+        self.updatedAt = updatedAt
+    }
 
     public func toUsageSnapshot() -> UsageSnapshot {
         let primary = RateWindow(
@@ -37,18 +77,107 @@ public struct KiroUsageSnapshot: Sendable {
 
         let identity = ProviderIdentitySnapshot(
             providerID: .kiro,
-            accountEmail: nil,
-            accountOrganization: self.planName,
-            loginMethod: self.planName)
+            accountEmail: self.accountEmail,
+            accountOrganization: nil,
+            loginMethod: self.authMethod)
+
+        let kiroUsage = KiroUsageDetails(
+            planName: self.planName,
+            displayPlanName: self.displayPlanName,
+            creditsUsed: self.creditsUsed,
+            creditsTotal: self.creditsTotal,
+            creditsRemaining: self.creditsRemaining,
+            bonusCreditsUsed: self.bonusCreditsUsed,
+            bonusCreditsTotal: self.bonusCreditsTotal,
+            bonusCreditsRemaining: self.bonusCreditsRemaining,
+            bonusExpiryDays: self.bonusExpiryDays,
+            overagesStatus: self.overagesStatus,
+            manageURL: self.manageURL,
+            contextUsage: self.contextUsage)
 
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: nil,
+            kiroUsage: kiroUsage,
             providerCost: nil,
             zaiUsage: nil,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    public var creditsRemaining: Double {
+        max(0, self.creditsTotal - self.creditsUsed)
+    }
+
+    public var bonusCreditsRemaining: Double? {
+        guard let bonusCreditsUsed, let bonusCreditsTotal else { return nil }
+        return max(0, bonusCreditsTotal - bonusCreditsUsed)
+    }
+}
+
+public struct KiroContextUsageSnapshot: Codable, Equatable, Sendable {
+    public let totalPercentUsed: Double
+    public let contextFilesPercent: Double?
+    public let toolsPercent: Double?
+    public let kiroResponsesPercent: Double?
+    public let promptsPercent: Double?
+
+    public init(
+        totalPercentUsed: Double,
+        contextFilesPercent: Double?,
+        toolsPercent: Double?,
+        kiroResponsesPercent: Double?,
+        promptsPercent: Double?)
+    {
+        self.totalPercentUsed = totalPercentUsed
+        self.contextFilesPercent = contextFilesPercent
+        self.toolsPercent = toolsPercent
+        self.kiroResponsesPercent = kiroResponsesPercent
+        self.promptsPercent = promptsPercent
+    }
+}
+
+public struct KiroUsageDetails: Codable, Equatable, Sendable {
+    public let planName: String
+    public let displayPlanName: String
+    public let creditsUsed: Double
+    public let creditsTotal: Double
+    public let creditsRemaining: Double
+    public let bonusCreditsUsed: Double?
+    public let bonusCreditsTotal: Double?
+    public let bonusCreditsRemaining: Double?
+    public let bonusExpiryDays: Int?
+    public let overagesStatus: String?
+    public let manageURL: String?
+    public let contextUsage: KiroContextUsageSnapshot?
+
+    public init(
+        planName: String,
+        displayPlanName: String,
+        creditsUsed: Double,
+        creditsTotal: Double,
+        creditsRemaining: Double,
+        bonusCreditsUsed: Double?,
+        bonusCreditsTotal: Double?,
+        bonusCreditsRemaining: Double?,
+        bonusExpiryDays: Int?,
+        overagesStatus: String?,
+        manageURL: String?,
+        contextUsage: KiroContextUsageSnapshot?)
+    {
+        self.planName = planName
+        self.displayPlanName = displayPlanName
+        self.creditsUsed = creditsUsed
+        self.creditsTotal = creditsTotal
+        self.creditsRemaining = creditsRemaining
+        self.bonusCreditsUsed = bonusCreditsUsed
+        self.bonusCreditsTotal = bonusCreditsTotal
+        self.bonusCreditsRemaining = bonusCreditsRemaining
+        self.bonusExpiryDays = bonusExpiryDays
+        self.overagesStatus = overagesStatus
+        self.manageURL = manageURL
+        self.contextUsage = contextUsage
     }
 }
 
@@ -105,9 +234,19 @@ public struct KiroStatusProbe: Sendable {
     }
 
     public func fetch() async throws -> KiroUsageSnapshot {
-        try await self.ensureLoggedIn()
+        let account = try await self.ensureLoggedIn()
         let output = try await self.runUsageCommand()
-        return try self.parse(output: output)
+        var contextUsage: KiroContextUsageSnapshot?
+        do {
+            contextUsage = try await self.fetchContextUsage()
+        } catch {
+            Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
+        }
+        return try self.parse(
+            output: output,
+            accountEmail: account.email,
+            authMethod: account.authMethod,
+            contextUsage: contextUsage)
     }
 
     private struct KiroCLIResult {
@@ -117,15 +256,20 @@ public struct KiroStatusProbe: Sendable {
         let terminatedForIdle: Bool
     }
 
-    private func ensureLoggedIn() async throws {
+    struct KiroAccountInfo: Equatable {
+        let authMethod: String?
+        let email: String?
+    }
+
+    private func ensureLoggedIn() async throws -> KiroAccountInfo {
         let result = try await self.runCommand(arguments: ["whoami"], timeout: 5.0)
-        try self.validateWhoAmIOutput(
+        return try self.validateWhoAmIOutput(
             stdout: result.stdout,
             stderr: result.stderr,
             terminationStatus: result.terminationStatus)
     }
 
-    func validateWhoAmIOutput(stdout: String, stderr: String, terminationStatus: Int32) throws {
+    func validateWhoAmIOutput(stdout: String, stderr: String, terminationStatus: Int32) throws -> KiroAccountInfo {
         let trimmedStdout = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedStderr = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         let combined = trimmedStderr.isEmpty ? trimmedStdout : trimmedStderr
@@ -145,6 +289,39 @@ public struct KiroStatusProbe: Sendable {
         if combined.isEmpty {
             throw KiroStatusProbeError.cliFailed("Kiro CLI whoami returned no output.")
         }
+
+        return self.parseWhoAmIOutput(combined)
+    }
+
+    func parseWhoAmIOutput(_ output: String) -> KiroAccountInfo {
+        let stripped = Self.stripANSI(output)
+        var authMethod: String?
+        var email: String?
+        for rawLine in stripped.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            if line.localizedCaseInsensitiveContains("logged in with") {
+                authMethod = line.replacingOccurrences(
+                    of: #"(?i)^\s*logged in with\s+"#,
+                    with: "",
+                    options: [.regularExpression])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if line.localizedCaseInsensitiveContains("email:") {
+                email = line.replacingOccurrences(
+                    of: #"(?i)^\s*email:\s*"#,
+                    with: "",
+                    options: [.regularExpression])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if email == nil,
+                      !line.contains(" "),
+                      line.contains("@")
+            {
+                email = line
+            }
+        }
+        return KiroAccountInfo(
+            authMethod: authMethod?.nilIfEmpty,
+            email: email?.nilIfEmpty)
     }
 
     private func runUsageCommand() async throws -> String {
@@ -186,6 +363,17 @@ public struct KiroStatusProbe: Sendable {
         }
 
         return result.stdout
+    }
+
+    private func fetchContextUsage() async throws -> KiroContextUsageSnapshot? {
+        let result = try await self.runCommand(
+            arguments: ["chat", "--no-interactive", "/context"],
+            timeout: 8.0,
+            idleTimeout: 3.0)
+        let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? result.stderr
+            : result.stdout
+        return self.parseContextUsage(output: output)
     }
 
     private func runCommand(
@@ -333,7 +521,12 @@ public struct KiroStatusProbe: Sendable {
         }
     }
 
-    func parse(output: String) throws -> KiroUsageSnapshot {
+    func parse(
+        output: String,
+        accountEmail: String? = nil,
+        authMethod: String? = nil,
+        contextUsage: KiroContextUsageSnapshot? = nil) throws -> KiroUsageSnapshot
+    {
         let stripped = Self.stripANSI(output)
 
         let trimmed = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -361,37 +554,15 @@ public struct KiroStatusProbe: Sendable {
         var matchedCredits = false
         var matchedNewFormat = false
 
-        // Parse plan name from "| KIRO FREE" or similar (legacy format)
-        var planName = "Kiro"
-        if let planMatch = stripped.range(of: #"\|\s*(KIRO\s+\w+)"#, options: .regularExpression) {
-            let raw = String(stripped[planMatch]).replacingOccurrences(of: "|", with: "")
-            planName = raw.trimmingCharacters(in: .whitespaces)
-        }
-
-        // Parse plan name from "Plan: Q Developer Pro" (new format, kiro-cli 1.24+)
-        if let newPlanMatch = stripped.range(of: #"Plan:\s*(.+)"#, options: .regularExpression) {
-            let line = String(stripped[newPlanMatch])
-            // Extract just the plan name, stopping at newline
-            let planLine = line.replacingOccurrences(of: "Plan:", with: "").trimmingCharacters(in: .whitespaces)
-            if let firstLine = planLine.split(separator: "\n").first {
-                planName = String(firstLine).trimmingCharacters(in: .whitespaces)
-                matchedNewFormat = true
-            }
-        }
+        let parsedPlan = Self.parsePlanName(from: stripped)
+        let planName = parsedPlan.name
+        matchedNewFormat = parsedPlan.matchedNewFormat
 
         // Check if this is a managed plan with no usage data
         let isManagedPlan = lowered.contains("managed by admin")
             || lowered.contains("managed by organization")
 
-        // Parse reset date from "resets on 01/01"
-        var resetsAt: Date?
-        if let resetMatch = stripped.range(of: #"resets on (\d{2}/\d{2})"#, options: .regularExpression) {
-            let resetStr = String(stripped[resetMatch])
-            if let dateRange = resetStr.range(of: #"\d{2}/\d{2}"#, options: .regularExpression) {
-                let dateStr = String(resetStr[dateRange])
-                resetsAt = Self.parseResetDate(dateStr)
-            }
-        }
+        let resetsAt = Self.parseResetDate(in: stripped)
 
         // Parse credits percentage from "████...█ X%"
         var creditsPercent: Double = 0
@@ -420,24 +591,16 @@ public struct KiroStatusProbe: Sendable {
             creditsPercent = (creditsUsed / creditsTotal) * 100.0
         }
 
-        // Parse bonus credits from "Bonus credits: X.XX/Y credits used, expires in Z days"
-        var bonusUsed: Double?
-        var bonusTotal: Double?
-        var bonusExpiryDays: Int?
-        if let bonusMatch = stripped.range(of: #"Bonus credits:\s*(\d+\.?\d*)/(\d+)"#, options: .regularExpression) {
-            let bonusStr = String(stripped[bonusMatch])
-            let numbers = bonusStr.matches(of: /(\d+\.?\d*)/)
-            if numbers.count >= 2 {
-                bonusUsed = Double(String(numbers[0].output.1))
-                bonusTotal = Double(String(numbers[1].output.1))
-            }
-        }
-        if let expiryMatch = stripped.range(of: #"expires in (\d+) days?"#, options: .regularExpression) {
-            let expiryStr = String(stripped[expiryMatch])
-            if let numMatch = expiryStr.range(of: #"\d+"#, options: .regularExpression) {
-                bonusExpiryDays = Int(String(expiryStr[numMatch]))
-            }
-        }
+        let bonusCredits = Self.parseBonusCredits(in: stripped)
+
+        let overagesStatus = Self.firstCapture(
+            in: stripped,
+            pattern: #"(?i)Overages:\s*([^\n]+)"#)
+            .map(Self.cleanInlineValue)
+            .flatMap(\.nilIfEmpty)
+        let manageURL = Self.firstCapture(
+            in: stripped,
+            pattern: #"https://app\.kiro\.dev/account/usage"#)
 
         // Managed plans in new format may omit usage metrics. Only fall back to zeros when
         // we did not parse any usage values, so we do not mask real metrics.
@@ -445,12 +608,18 @@ public struct KiroStatusProbe: Sendable {
             // Managed plans don't expose credits; return snapshot with plan name only
             return KiroUsageSnapshot(
                 planName: planName,
+                displayPlanName: Self.displayPlanName(planName),
+                accountEmail: accountEmail?.nilIfEmpty,
+                authMethod: authMethod?.nilIfEmpty,
                 creditsUsed: 0,
                 creditsTotal: 0,
                 creditsPercent: 0,
-                bonusCreditsUsed: nil,
-                bonusCreditsTotal: nil,
-                bonusExpiryDays: nil,
+                bonusCreditsUsed: bonusCredits.used,
+                bonusCreditsTotal: bonusCredits.total,
+                bonusExpiryDays: bonusCredits.expiryDays,
+                overagesStatus: overagesStatus,
+                manageURL: manageURL,
+                contextUsage: contextUsage,
                 resetsAt: nil,
                 updatedAt: Date())
         }
@@ -464,14 +633,37 @@ public struct KiroStatusProbe: Sendable {
 
         return KiroUsageSnapshot(
             planName: planName,
+            displayPlanName: Self.displayPlanName(planName),
+            accountEmail: accountEmail?.nilIfEmpty,
+            authMethod: authMethod?.nilIfEmpty,
             creditsUsed: creditsUsed,
             creditsTotal: creditsTotal,
             creditsPercent: creditsPercent,
-            bonusCreditsUsed: bonusUsed,
-            bonusCreditsTotal: bonusTotal,
-            bonusExpiryDays: bonusExpiryDays,
+            bonusCreditsUsed: bonusCredits.used,
+            bonusCreditsTotal: bonusCredits.total,
+            bonusExpiryDays: bonusCredits.expiryDays,
+            overagesStatus: overagesStatus,
+            manageURL: manageURL,
+            contextUsage: contextUsage,
             resetsAt: resetsAt,
             updatedAt: Date())
+    }
+
+    func parseContextUsage(output: String) -> KiroContextUsageSnapshot? {
+        let stripped = Self.stripANSI(output)
+        guard let total = Self.firstCapture(
+            in: stripped,
+            pattern: #"(?i)Context window:\s*(\d+\.?\d*)%\s+used"#)
+            .flatMap(Double.init)
+        else {
+            return nil
+        }
+        return KiroContextUsageSnapshot(
+            totalPercentUsed: total,
+            contextFilesPercent: Self.percent(after: "Context files", in: stripped),
+            toolsPercent: Self.percent(after: "Tools", in: stripped),
+            kiroResponsesPercent: Self.percent(after: "Kiro responses", in: stripped),
+            promptsPercent: Self.percent(after: "Your prompts", in: stripped))
     }
 
     private static func stripANSI(_ text: String) -> String {
@@ -484,7 +676,87 @@ public struct KiroStatusProbe: Sendable {
         return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "")
     }
 
+    private static func parsePlanName(from text: String) -> (name: String, matchedNewFormat: Bool) {
+        var planName = "Kiro"
+        var matchedNewFormat = false
+
+        // Parse plan name from "| KIRO FREE" or similar (legacy format)
+        if let planMatch = text.range(of: #"\|\s*(KIRO\s+\w+)"#, options: .regularExpression) {
+            let raw = String(text[planMatch]).replacingOccurrences(of: "|", with: "")
+            planName = raw.trimmingCharacters(in: .whitespaces)
+        }
+
+        // Parse plan name from "Estimated Usage | resets on 2026-06-01 | KIRO FREE" (kiro-cli 2.x)
+        if let estimatedMatch = text.range(
+            of: #"Estimated Usage\s*\|[^\n|]*\|\s*([A-Z][A-Z0-9 ]+)"#,
+            options: .regularExpression)
+        {
+            let line = String(text[estimatedMatch])
+            if let plan = line.split(separator: "|").last?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !plan.isEmpty
+            {
+                planName = plan
+            }
+        }
+
+        // Parse plan name from "Plan: Q Developer Pro" (new format, kiro-cli 1.24+)
+        if let newPlanMatch = text.range(of: #"Plan:\s*(.+)"#, options: .regularExpression) {
+            let line = String(text[newPlanMatch])
+            let planLine = line.replacingOccurrences(of: "Plan:", with: "").trimmingCharacters(in: .whitespaces)
+            if let firstLine = planLine.split(separator: "\n").first {
+                planName = String(firstLine).trimmingCharacters(in: .whitespaces)
+                matchedNewFormat = true
+            }
+        }
+
+        return (planName, matchedNewFormat)
+    }
+
+    private static func parseResetDate(in text: String) -> Date? {
+        guard let resetMatch = text.range(
+            of: #"resets on (\d{4}-\d{2}-\d{2}|\d{2}/\d{2})"#,
+            options: .regularExpression)
+        else { return nil }
+
+        let resetStr = String(text[resetMatch])
+        guard let dateRange = resetStr.range(
+            of: #"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}"#,
+            options: .regularExpression)
+        else { return nil }
+
+        return Self.parseResetDate(String(resetStr[dateRange]))
+    }
+
+    private static func parseBonusCredits(in text: String) -> (used: Double?, total: Double?, expiryDays: Int?) {
+        var used: Double?
+        var total: Double?
+        var expiryDays: Int?
+        if let bonusMatch = text.range(of: #"Bonus credits:\s*(\d+\.?\d*)/(\d+)"#, options: .regularExpression) {
+            let bonusStr = String(text[bonusMatch])
+            let numbers = bonusStr.matches(of: /(\d+\.?\d*)/)
+            if numbers.count >= 2 {
+                used = Double(String(numbers[0].output.1))
+                total = Double(String(numbers[1].output.1))
+            }
+        }
+        if let expiryMatch = text.range(of: #"expires in (\d+) days?"#, options: .regularExpression) {
+            let expiryStr = String(text[expiryMatch])
+            if let numMatch = expiryStr.range(of: #"\d+"#, options: .regularExpression) {
+                expiryDays = Int(String(expiryStr[numMatch]))
+            }
+        }
+        return (used, total, expiryDays)
+    }
+
     private static func parseResetDate(_ dateStr: String) -> Date? {
+        if dateStr.contains("-") {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = Calendar.current.timeZone
+            formatter.dateFormat = "yyyy-MM-dd"
+            return formatter.date(from: dateStr)
+        }
+
         // Format: MM/DD - assume current or next year
         let parts = dateStr.split(separator: "/")
         guard parts.count == 2,
@@ -510,6 +782,45 @@ public struct KiroStatusProbe: Sendable {
         return calendar.date(from: components)
     }
 
+    public static func displayPlanName(_ planName: String) -> String {
+        let cleaned = Self.cleanInlineValue(planName)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: [.regularExpression])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.localizedCaseInsensitiveContains("KIRO") else {
+            return cleaned.isEmpty ? planName : cleaned
+        }
+        return cleaned
+            .split(separator: " ")
+            .map { word in
+                if word.caseInsensitiveCompare("KIRO") == .orderedSame { return "Kiro" }
+                return word.prefix(1).uppercased() + word.dropFirst().lowercased()
+            }
+            .joined(separator: " ")
+    }
+
+    private static func percent(after label: String, in text: String) -> Double? {
+        let escaped = NSRegularExpression.escapedPattern(for: label)
+        return self.firstCapture(
+            in: text,
+            pattern: #"(?i)"# + escaped + #"\s+(\d+\.?\d*)%"#)
+            .flatMap(Double.init)
+    }
+
+    private static func firstCapture(in text: String, pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: nsRange) else { return nil }
+        let captureIndex = match.numberOfRanges > 1 ? 1 : 0
+        guard let range = Range(match.range(at: captureIndex), in: text) else { return nil }
+        return String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func cleanInlineValue(_ text: String) -> String {
+        self.stripANSI(text)
+            .replacingOccurrences(of: #"\x1B|\[[0-9;?]*[A-Za-z]"#, with: "", options: [.regularExpression])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func isUsageOutputComplete(_ output: String) -> Bool {
         let stripped = self.stripANSI(output).lowercased()
         return stripped.contains("covered in plan")
@@ -517,5 +828,11 @@ public struct KiroStatusProbe: Sendable {
             || stripped.contains("bonus credits")
             || stripped.contains("plan:")
             || stripped.contains("managed by admin")
+    }
+}
+
+extension String {
+    fileprivate var nilIfEmpty: String? {
+        self.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
     }
 }

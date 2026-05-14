@@ -35,3 +35,20 @@ Kilo supports API and CLI-backed auth. Source mode can be `auto`, `api`, or `cli
 - Missing API token: set `KILO_API_KEY` or provider `apiKey`.
 - Missing CLI session file: run `kilo login` to create `~/.local/share/kilo/auth.json`.
 - Unauthorized API token (401/403): refresh `KILO_API_KEY` or rerun `kilo login`.
+
+## Organizations
+
+CodexBar can show usage for any Kilo organization the API key belongs to.
+
+- Open Preferences → Providers → Kilo, set the API key, then click **Refresh
+  organizations**.
+- Toggle the organizations you want to display alongside Personal. Personal is
+  always shown.
+- When at least one organization is enabled, the menu renders one Kilo card per
+  enabled scope.
+- The CodexBar fetcher sends the standard `X-KILOCODE-ORGANIZATIONID` header on
+  every usage call to scope the response to that organization.
+- CLI source mode (`auth.json`): the header is applied to CLI-resolved tokens
+  as well. If a CLI token isn't authorized for the chosen organization, that
+  card surfaces an unauthorized error while Personal and other enabled scopes
+  continue to render normally.

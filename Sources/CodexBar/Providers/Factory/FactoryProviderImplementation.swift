@@ -49,7 +49,7 @@ struct FactoryProviderImplementation: ProviderImplementation {
                 source: context.settings.factoryCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
                 auto: "Automatic imports browser cookies and WorkOS tokens.",
-                manual: "Paste a Cookie header from app.factory.ai.",
+                manual: "Paste a Cookie or Authorization header from app.factory.ai.",
                 off: "Factory cookies are disabled.")
         }
 

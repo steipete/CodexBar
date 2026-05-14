@@ -84,4 +84,84 @@ struct KiloProviderImplementation: ProviderImplementation {
                 onActivate: nil),
         ]
     }
+
+    @MainActor
+    func settingsOrganizations(
+        context: ProviderSettingsContext) -> ProviderSettingsOrganizationsDescriptor?
+    {
+        let settings = context.settings
+        let store = context.store
+        return ProviderSettingsOrganizationsDescriptor(
+            id: "kilo-organizations",
+            title: "Organizations",
+            subtitle: "Show usage for organizations you belong to. Personal account is always shown.",
+            entries: {
+                var entries: [ProviderSettingsOrganizationsDescriptor.Entry] = [
+                    .init(
+                        id: "personal",
+                        title: "Personal account",
+                        subtitle: nil,
+                        isEnabled: true,
+                        isLocked: true),
+                ]
+                for org in settings.kiloKnownOrganizations {
+                    entries.append(
+                        .init(
+                            id: org.id,
+                            title: org.name,
+                            subtitle: org.role,
+                            isEnabled: settings.kiloIsOrganizationEnabled(org.id),
+                            isLocked: false))
+                }
+                return entries
+            },
+            onToggle: { orgID, enabled in
+                guard orgID != "personal" else { return }
+                settings.setKiloOrganization(orgID, enabled: enabled)
+                Task { @MainActor in
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await store.refreshProvider(.kilo, allowDisabled: true)
+                    }
+                }
+            },
+            onRefresh: { [weak settings] in
+                guard let settings else {
+                    return .init(success: false, errorMessage: "Settings unavailable.")
+                }
+                let resolved: KiloResolvedBearerToken
+                do {
+                    resolved = try KiloBearerTokenResolver.resolve(
+                        source: settings.kiloUsageDataSource,
+                        apiKey: settings.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey)
+                } catch let error as LocalizedError {
+                    return .init(
+                        success: false,
+                        errorMessage: error.errorDescription ?? "Failed to resolve Kilo credentials.")
+                } catch {
+                    return .init(success: false, errorMessage: error.localizedDescription)
+                }
+                do {
+                    let orgs = try await KiloUsageFetcher.fetchOrganizations(apiKey: resolved.token)
+                    await MainActor.run {
+                        settings.setKiloKnownOrganizationsPruningEnabled(orgs)
+                    }
+                    return .init(success: true, errorMessage: nil)
+                } catch let error as LocalizedError {
+                    return .init(
+                        success: false,
+                        errorMessage: error.errorDescription ?? "Failed to load organizations.")
+                } catch {
+                    return .init(success: false, errorMessage: error.localizedDescription)
+                }
+            },
+            canRefresh: {
+                switch settings.kiloUsageDataSource {
+                case .api:
+                    !settings.kiloAPIToken.isEmpty
+                        || !(ProcessInfo.processInfo.environment[KiloSettingsReader.apiTokenKey] ?? "").isEmpty
+                case .cli, .auto:
+                    true
+                }
+            })
+    }
 }

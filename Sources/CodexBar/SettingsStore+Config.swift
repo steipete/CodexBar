@@ -11,7 +11,9 @@ extension SettingsStore {
     }
 
     func resolvedQuotaWarningThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
-        self.quotaWarningConfig(for: provider).thresholds(for: window, global: self.quotaWarningThresholds)
+        self.quotaWarningConfig(for: provider).thresholds(
+            for: window,
+            global: self.quotaWarningThresholds(window))
     }
 
     func quotaWarningEnabled(provider: UsageProvider, window: QuotaWarningWindow) -> Bool {

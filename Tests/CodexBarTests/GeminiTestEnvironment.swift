@@ -42,11 +42,16 @@ struct GeminiTestEnvironment {
         try data.write(to: self.geminiDir.appendingPathComponent("settings.json"), options: .atomic)
     }
 
-    func writeCredentials(accessToken: String, refreshToken: String?, expiry: Date, idToken: String?) throws {
+    func writeCredentials(
+        accessToken: String?,
+        refreshToken: String?,
+        expiry: Date,
+        idToken: String?) throws
+    {
         var payload: [String: Any] = [
-            "access_token": accessToken,
             "expiry_date": expiry.timeIntervalSince1970 * 1000,
         ]
+        if let accessToken { payload["access_token"] = accessToken }
         if let refreshToken { payload["refresh_token"] = refreshToken }
         if let idToken { payload["id_token"] = idToken }
         let data = try JSONSerialization.data(withJSONObject: payload)

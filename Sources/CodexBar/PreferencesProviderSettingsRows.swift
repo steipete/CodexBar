@@ -246,6 +246,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     let descriptor: ProviderSettingsTokenAccountsDescriptor
     @State private var newLabel: String = ""
     @State private var newToken: String = ""
+    @State private var newOrgID: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -317,25 +318,38 @@ struct ProviderSettingsTokenAccountsRowView: View {
             }
 
             if self.descriptor.primaryAddAction == nil {
-                HStack(spacing: 8) {
-                    TextField(L("Label"), text: self.$newLabel)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.footnote)
-                    SecureField(L(self.descriptor.placeholder), text: self.$newToken)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.footnote)
-                    Button(L("Add")) {
-                        let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !label.isEmpty, !token.isEmpty else { return }
-                        self.descriptor.addAccount(label, token)
-                        self.newLabel = ""
-                        self.newToken = ""
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        TextField(L("Label"), text: self.$newLabel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                        SecureField(L(self.descriptor.placeholder), text: self.$newToken)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                        Button(L("Add")) {
+                            let label = self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let token = self.newToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !label.isEmpty, !token.isEmpty else { return }
+                            let orgID = self.descriptor.showsOrganizationField
+                                ? self.newOrgID.trimmingCharacters(in: .whitespacesAndNewlines)
+                                : ""
+                            self.descriptor.addAccount(label, token, orgID.isEmpty ? nil : orgID)
+                            self.newLabel = ""
+                            self.newToken = ""
+                            self.newOrgID = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                            self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(self.newLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                        self.newToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if self.descriptor.showsOrganizationField {
+                        TextField(L("Org ID (optional)"), text: self.$newOrgID)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.footnote)
+                            .help(
+                                L("Optional organization ID for accounts linked to multiple Anthropic organizations."))
+                    }
                 }
             }
 
@@ -369,6 +383,82 @@ extension View {
             self.buttonStyle(.bordered)
         case .link:
             self.buttonStyle(.link)
+        }
+    }
+}
+
+@MainActor
+struct ProviderSettingsOrganizationsRowView: View {
+    let descriptor: ProviderSettingsOrganizationsDescriptor
+    @State private var errorMessage: String?
+    @State private var isRefreshing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(self.descriptor.title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+            }
+
+            if let subtitle = self.descriptor.subtitle,
+               !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let entries = self.descriptor.entries()
+            if entries.allSatisfy(\.isLocked) {
+                Text("No organizations loaded. Click Refresh after setting your API key.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(entries) { entry in
+                        Toggle(isOn: Binding(
+                            get: { entry.isEnabled },
+                            set: { newValue in
+                                self.descriptor.onToggle(entry.id, newValue)
+                            })) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(entry.title)
+                                        .font(.footnote)
+                                    if let subtitle = entry.subtitle,
+                                       !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    {
+                                        Text(subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                                .disabled(entry.isLocked)
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button("Refresh organizations") {
+                    Task { @MainActor in
+                        self.isRefreshing = true
+                        let result = await self.descriptor.onRefresh()
+                        self.isRefreshing = false
+                        self.errorMessage = result.success ? nil : result.errorMessage
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!self.descriptor.canRefresh() || self.isRefreshing)
+                if let errorMessage = self.errorMessage, !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
         }
     }
 }

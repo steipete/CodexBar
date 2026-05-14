@@ -34,6 +34,11 @@ enum CLIRenderer {
             now: now,
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
+        self.appendLimitsUnavailableLine(
+            provider: provider,
+            snapshot: snapshot,
+            useColor: context.useColor,
+            lines: &lines)
         self.appendCreditsLine(provider: provider, credits: credits, useColor: context.useColor, lines: &lines)
         self.appendIdentityAndNotes(
             provider: provider,
@@ -159,6 +164,16 @@ enum CLIRenderer {
             "Credits",
             value: UsageFormatter.creditsString(from: credits.remaining),
             useColor: useColor))
+    }
+
+    private static func appendLimitsUnavailableLine(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard snapshot.rateLimitsUnavailable(for: provider) else { return }
+        lines.append(self.labelValueLine("Limits", value: "not available", useColor: useColor))
     }
 
     private static func appendIdentityAndNotes(

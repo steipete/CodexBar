@@ -113,6 +113,65 @@ struct CodexCLIWindowNormalizationTests {
     }
 
     @Test
+    func `maps plan only RPC limits into empty identified snapshot`() throws {
+        let snapshot = try UsageFetcher._mapCodexRPCLimitsForTesting(
+            primary: nil,
+            secondary: nil,
+            planType: "pro")
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.loginMethod(for: .codex) == "pro")
+        #expect(snapshot.rateLimitsUnavailable(for: .codex))
+    }
+
+    @Test
+    func `codex no rate limit error means limits unavailable without snapshot`() {
+        let availability = UsageLimitsAvailability.resolve(
+            provider: .codex,
+            snapshot: nil,
+            account: AccountInfo(email: "user@example.com", plan: nil),
+            lastErrorDescription: UsageError.noRateLimitsFound.errorDescription)
+
+        #expect(availability == .unavailable)
+    }
+
+    @Test
+    func `codex no rate limit error stays available without account context`() {
+        let availability = UsageLimitsAvailability.resolve(
+            provider: .codex,
+            snapshot: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            lastErrorDescription: UsageError.noRateLimitsFound.errorDescription)
+
+        #expect(availability == .available)
+    }
+
+    @Test
+    func `codex windowed snapshot wins over stale no rate limit error`() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(),
+            identity: identity)
+        let availability = UsageLimitsAvailability.resolve(
+            provider: .codex,
+            snapshot: snapshot,
+            lastErrorDescription: UsageError.noRateLimitsFound.errorDescription)
+
+        #expect(availability == .available)
+    }
+
+    @Test
     func `maps weekly only status snapshot into secondary`() throws {
         let status = CodexStatusSnapshot(
             credits: nil,

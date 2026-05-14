@@ -8,13 +8,29 @@ extension StatusItemController {
         guard accounts.count > 1 else { return nil }
         let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0
         let showAll = self.settings.multiAccountMenuLayout == .stacked
-        let snapshots = showAll ? (self.store.accountSnapshots[provider] ?? []) : []
+        let displayAccounts = showAll
+            ? self.store.limitedTokenAccounts(accounts, selected: self.settings.selectedTokenAccount(for: provider))
+            : accounts
+        let snapshots = showAll
+            ? self.tokenAccountSnapshots(for: provider, matching: displayAccounts)
+            : []
         return TokenAccountMenuDisplay(
             provider: provider,
-            accounts: accounts,
+            accounts: displayAccounts,
             snapshots: snapshots,
             activeIndex: activeIndex,
             layout: showAll ? .stacked : .segmented)
+    }
+
+    private func tokenAccountSnapshots(
+        for provider: UsageProvider,
+        matching accounts: [ProviderTokenAccount]) -> [TokenAccountUsageSnapshot]
+    {
+        var snapshotsByID: [UUID: TokenAccountUsageSnapshot] = [:]
+        for snapshot in self.store.accountSnapshots[provider] ?? [] {
+            snapshotsByID[snapshot.account.id] = snapshot
+        }
+        return accounts.compactMap { snapshotsByID[$0.id] }
     }
 
     func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {

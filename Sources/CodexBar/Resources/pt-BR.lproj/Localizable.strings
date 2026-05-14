@@ -604,3 +604,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
+
+/* Cost estimation */
+"cost_header_estimated" = "Custo (estimado)";
+"cost_estimate_hint" = "Estimado a partir de logs locais · pode diferir da sua fatura";

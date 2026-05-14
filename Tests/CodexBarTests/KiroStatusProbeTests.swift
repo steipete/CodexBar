@@ -17,6 +17,7 @@ struct KiroStatusProbeTests {
         let snapshot = try probe.parse(output: output)
 
         #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.displayPlanName == "Kiro Free")
         #expect(snapshot.creditsPercent == 25)
         #expect(snapshot.creditsUsed == 12.50)
         #expect(snapshot.creditsTotal == 50)
@@ -39,6 +40,7 @@ struct KiroStatusProbeTests {
         let snapshot = try probe.parse(output: output)
 
         #expect(snapshot.planName == "KIRO PRO")
+        #expect(snapshot.displayPlanName == "Kiro Pro")
         #expect(snapshot.creditsPercent == 80)
         #expect(snapshot.creditsUsed == 40.00)
         #expect(snapshot.creditsTotal == 50)
@@ -202,6 +204,65 @@ struct KiroStatusProbeTests {
         #expect(snapshot.resetsAt != nil)
     }
 
+    @Test
+    func `parses kiro cli two usage format`() throws {
+        let output = """
+        \u{001B}[1mEstimated Usage\u{001B}[0m | resets on 2026-06-01 | \u{001B}[mKIRO FREE\u{001B}[0m
+
+        🎁 Bonus credits: 45.53/2000 credits used, expires in 19 days
+
+        \u{001B}[1mCredits\u{001B}[0m (0.17 of 50 covered in plan)
+        ████████████████████████████████████████████████████████████████████████████████ 0%
+
+        Overages: \u{001B}[1mDisabled\u{001B}[0m
+
+        To manage your plan or configure overages navigate to https://app.kiro.dev/account/usage
+        """
+
+        let probe = KiroStatusProbe()
+        let snapshot = try probe.parse(
+            output: output,
+            accountEmail: "person@example.com",
+            authMethod: "Google")
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.displayPlanName == "Kiro Free")
+        #expect(snapshot.accountEmail == "person@example.com")
+        #expect(snapshot.authMethod == "Google")
+        #expect(snapshot.creditsUsed == 0.17)
+        #expect(snapshot.creditsTotal == 50)
+        #expect(snapshot.creditsRemaining == 49.83)
+        #expect(snapshot.bonusCreditsUsed == 45.53)
+        #expect(snapshot.bonusCreditsTotal == 2000)
+        #expect(snapshot.bonusCreditsRemaining == 1954.47)
+        #expect(snapshot.bonusExpiryDays == 19)
+        #expect(snapshot.overagesStatus == "Disabled")
+        #expect(snapshot.manageURL == "https://app.kiro.dev/account/usage")
+        #expect(snapshot.resetsAt != nil)
+    }
+
+    @Test
+    func `parses context usage`() throws {
+        let output = """
+        Context window: 1.3% used (estimated)
+        ██████████████████████████████████████████████████████████████████████████████ 1.3%
+
+        █ Context files 0.5% (estimated)
+        █ Tools 0.8% (estimated)
+        █ Kiro responses 0.0% (estimated)
+        █ Your prompts 0.0% (estimated)
+        """
+
+        let probe = KiroStatusProbe()
+        let context = try #require(probe.parseContextUsage(output: output))
+
+        #expect(context.totalPercentUsed == 1.3)
+        #expect(context.contextFilesPercent == 0.5)
+        #expect(context.toolsPercent == 0.8)
+        #expect(context.kiroResponsesPercent == 0)
+        #expect(context.promptsPercent == 0)
+    }
+
     // MARK: - Snapshot Conversion
 
     @Test
@@ -225,8 +286,10 @@ struct KiroStatusProbeTests {
         #expect(usage.primary?.usedPercent == 25.0)
         #expect(usage.primary?.resetsAt == resetDate)
         #expect(usage.secondary?.usedPercent == 25.0) // 5/20 * 100
-        #expect(usage.loginMethod(for: .kiro) == "KIRO PRO")
-        #expect(usage.accountOrganization(for: .kiro) == "KIRO PRO")
+        #expect(usage.loginMethod(for: .kiro) == nil)
+        #expect(usage.accountOrganization(for: .kiro) == nil)
+        #expect(usage.kiroUsage?.displayPlanName == "Kiro Pro")
+        #expect(usage.kiroUsage?.creditsRemaining == 75)
     }
 
     @Test
@@ -364,9 +427,28 @@ struct KiroStatusProbeTests {
     func `whoami success does not throw`() throws {
         let probe = KiroStatusProbe()
 
-        try probe.validateWhoAmIOutput(
+        let account = try probe.validateWhoAmIOutput(
+            stdout: """
+            Logged in with Google
+            Email: user@example.com
+            """,
+            stderr: "",
+            terminationStatus: 0)
+
+        #expect(account.authMethod == "Google")
+        #expect(account.email == "user@example.com")
+    }
+
+    @Test
+    func `whoami legacy bare email parses account`() throws {
+        let probe = KiroStatusProbe()
+
+        let account = try probe.validateWhoAmIOutput(
             stdout: "user@example.com",
             stderr: "",
             terminationStatus: 0)
+
+        #expect(account.authMethod == nil)
+        #expect(account.email == "user@example.com")
     }
 }
