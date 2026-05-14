@@ -15,6 +15,19 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `claude token account descriptor shows organization field`() throws {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-claude-org-field")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let claudeDescriptor = try #require(pane._test_tokenAccountDescriptor(for: .claude))
+        #expect(claudeDescriptor.showsOrganizationField)
+
+        let copilotDescriptor = try #require(pane._test_tokenAccountDescriptor(for: .copilot))
+        #expect(!copilotDescriptor.showsOrganizationField)
+    }
+
+    @Test
     func `open router menu bar metric picker shows only automatic and primary`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-openrouter-picker")
         let store = Self.makeUsageStore(settings: settings)

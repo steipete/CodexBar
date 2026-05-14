@@ -489,7 +489,7 @@ public enum ClaudeWebAPIFetcher {
             }
         }
         // Enterprise/credit-based accounts return null for five_hour; treat as 0% rather than an error.
-        let sessionPercent = sessionPercent ?? 0.0
+        let resolvedSessionPercent = sessionPercent ?? 0.0
 
         // Parse seven_day (weekly) usage
         var weeklyPercent: Double?
@@ -519,7 +519,7 @@ public enum ClaudeWebAPIFetcher {
         }
 
         return WebUsageData(
-            sessionPercentUsed: sessionPercent,
+            sessionPercentUsed: resolvedSessionPercent,
             sessionResetsAt: sessionResets,
             weeklyPercentUsed: weeklyPercent,
             weeklyResetsAt: weeklyResets,
