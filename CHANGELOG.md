@@ -3,6 +3,7 @@
 ## 0.26 — Unreleased
 
 ### Added
+- Codex: add tiered long-context and Fast/Priority pricing to local cost history using local app-server priority traces (#917). Thanks @iam-brain!
 - Localization: add Simplified Chinese translations for Claude peak-hour labels (#921). Thanks @whtis!
 - Display: add a setting to hide quota-warning tick marks on usage bars while keeping quota warning notifications active (#918, fixes #916). Thanks @ThiagoCAltoe!
 - Menu: add an opt-in setting for provider changelog links, starting with Codex, Claude Code, and Gemini CLI (#929, fixes #660). Thanks @ThiagoCAltoe!

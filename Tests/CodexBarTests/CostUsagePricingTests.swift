@@ -69,7 +69,7 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex cost applies gpt54 and gpt55 long context tiers`() throws {
+    func `codex cost applies gpt54 and gpt55 long context rates to full session`() throws {
         let root = try Self.cacheRoot()
         let gpt54 = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
@@ -84,8 +84,8 @@ struct CostUsagePricingTests {
             outputTokens: 10,
             modelsDevCacheRoot: root)
 
-        #expect(gpt54 == (272_000.0 * 2.5e-6) + (1.0 * 5e-6) + (10.0 * 1.5e-5))
-        #expect(gpt55 == (272_000.0 * 5e-6) + (1.0 * 1e-5) + (10.0 * 3e-5))
+        #expect(gpt54 == (272_001.0 * 5e-6) + (10.0 * 2.25e-5))
+        #expect(gpt55 == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
     }
 
     @Test
@@ -102,7 +102,7 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex cost applies long context threshold across cached and non cached input`() throws {
+    func `codex cost applies long context rates to all cached and non cached input`() throws {
         let root = try Self.cacheRoot()
         let gpt55 = CostUsagePricing.codexCostUSD(
             model: "gpt-5.5",
@@ -111,12 +111,11 @@ struct CostUsagePricingTests {
             outputTokens: 10,
             modelsDevCacheRoot: root)
 
-        let cachedBase = 200_000.0 * 5e-7
-        let nonCachedBase = 72000.0 * 5e-6
-        let nonCachedAbove = 28000.0 * 1e-5
-        let output = 10.0 * 3e-5
+        let cached = 200_000.0 * 1e-6
+        let nonCached = 100_000.0 * 1e-5
+        let output = 10.0 * 4.5e-5
 
-        #expect(gpt55 == cachedBase + nonCachedBase + nonCachedAbove + output)
+        #expect(gpt55 == cached + nonCached + output)
     }
 
     @Test
@@ -209,7 +208,7 @@ struct CostUsagePricingTests {
             modelsDevCacheRoot: root)
 
         #expect(atBoundary == (272_000.0 * 5e-6) + (10.0 * 3e-5))
-        #expect(aboveBoundary == (272_000.0 * 5e-6) + (1.0 * 1e-5) + (10.0 * 3e-5))
+        #expect(aboveBoundary == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
     }
 
     @Test

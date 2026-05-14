@@ -68,21 +68,24 @@ struct CostUsageScannerCodexPriorityTests {
         defer { env.cleanup() }
         let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
         try Self.createTestLogsDatabase(at: dbURL)
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let previousDay = try #require(Calendar.current.date(byAdding: .day, value: -1, to: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
         try Self.insertTestLog(
             dbURL: dbURL,
-            timestamp: "2026-05-09T23:59:59Z",
+            timestamp: env.isoString(for: previousDay),
             body: "thread_id=thread-old turn.id=turn-old websocket request: "
                 + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
         try Self.insertTestLog(
             dbURL: dbURL,
-            timestamp: "2026-05-10T12:00:00Z",
+            timestamp: env.isoString(for: day),
             body: "thread_id=thread-new turn.id=turn-new websocket request: "
                 + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
 
         let turns = CostUsageScanner.codexPriorityTurns(
             databaseURL: dbURL,
-            sinceDayKey: "2026-05-10",
-            untilDayKey: "2026-05-10")
+            sinceDayKey: dayKey,
+            untilDayKey: dayKey)
 
         #expect(turns.keys.sorted() == ["turn-new"])
     }

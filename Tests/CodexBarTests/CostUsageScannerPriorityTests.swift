@@ -156,8 +156,8 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let standardTurnBase = (272_000.0 * 5e-6) + (1.0 * 1e-5) + (10.0 * 3e-5)
-        let standardFirstRow = (272_000.0 * 5e-6) + (28000.0 * 1e-5) + (5.0 * 3e-5)
+        let standardTurnBase = (272_001.0 * 1e-5) + (10.0 * 4.5e-5)
+        let standardFirstRow = (300_000.0 * 1e-5) + (5.0 * 4.5e-5)
         let prioritySecondRow = (100_001.0 * 1.25e-5) + (5.0 * 7.5e-5)
 
         let expected = standardTurnBase + standardFirstRow + prioritySecondRow

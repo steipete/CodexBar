@@ -434,38 +434,20 @@ enum CostUsagePricing {
         let nonCached = max(0, inputTokens - cached)
         let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
 
-        func tiered(_ tokens: Int, base: Double, above: Double?, threshold: Int?) -> Double {
-            guard let threshold, let above else { return Double(tokens) * base }
-            let below = min(tokens, threshold)
-            let over = max(tokens - threshold, 0)
-            return Double(below) * base + Double(over) * above
-        }
+        let usesLongContextRates = pricing.thresholdTokens.map { max(0, inputTokens) > $0 } ?? false
+        let inputRate = usesLongContextRates
+            ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
+            : pricing.inputCostPerToken
+        let cachedInputRate = usesLongContextRates
+            ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? cachedRate
+            : cachedRate
+        let outputRate = usesLongContextRates
+            ? pricing.outputCostPerTokenAboveThreshold ?? pricing.outputCostPerToken
+            : pricing.outputCostPerToken
 
-        func inputCost() -> Double {
-            guard let threshold = pricing.thresholdTokens else {
-                return (Double(nonCached) * pricing.inputCostPerToken) + (Double(cached) * cachedRate)
-            }
-
-            let cachedBaseTokens = min(cached, threshold)
-            let cachedAboveTokens = max(cached - threshold, 0)
-            let nonCachedBaseAllowance = max(threshold - cached, 0)
-            let nonCachedBaseTokens = min(nonCached, nonCachedBaseAllowance)
-            let nonCachedAboveTokens = max(nonCached - nonCachedBaseTokens, 0)
-            let cachedAboveRate = pricing.cacheReadInputCostPerTokenAboveThreshold ?? cachedRate
-            let nonCachedAboveRate = pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
-
-            return (Double(cachedBaseTokens) * cachedRate)
-                + (Double(cachedAboveTokens) * cachedAboveRate)
-                + (Double(nonCachedBaseTokens) * pricing.inputCostPerToken)
-                + (Double(nonCachedAboveTokens) * nonCachedAboveRate)
-        }
-
-        return inputCost()
-            + tiered(
-                max(0, outputTokens),
-                base: pricing.outputCostPerToken,
-                above: pricing.outputCostPerTokenAboveThreshold,
-                threshold: pricing.thresholdTokens)
+        return (Double(nonCached) * inputRate)
+            + (Double(cached) * cachedInputRate)
+            + (Double(max(0, outputTokens)) * outputRate)
     }
 
     private static func codexCostUSD(
