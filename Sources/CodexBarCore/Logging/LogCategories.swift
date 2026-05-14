@@ -7,6 +7,7 @@ public enum LogCategories {
     public static let auggieCLI = "auggie-cli"
     public static let augment = "augment"
     public static let augmentKeepalive = "augment-keepalive"
+    public static let bedrockUsage = "bedrock-usage"
     public static let browserCookieGate = "browser-cookie-gate"
     public static let claudeCLI = "claude-cli"
     public static let claudeProbe = "claude-probe"

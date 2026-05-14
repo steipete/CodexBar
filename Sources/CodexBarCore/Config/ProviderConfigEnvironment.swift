@@ -6,6 +6,9 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
+        if provider == .bedrock {
+            return self.applyBedrockOverrides(base: base, config: config)
+        }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
         if let key = self.directAPIKeyEnvironmentKey(for: provider) {
@@ -70,5 +73,23 @@ public enum ProviderConfigEnvironment {
         default:
             nil
         }
+    }
+
+    private static func applyBedrockOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let accessKeyID = config.sanitizedAPIKey {
+            env[BedrockSettingsReader.accessKeyIDKey] = accessKeyID
+        }
+        if let secretAccessKey = config.sanitizedSecretKey {
+            env[BedrockSettingsReader.secretAccessKeyKey] = secretAccessKey
+        }
+        if let region = config.sanitizedRegion {
+            env[BedrockSettingsReader.regionKeys[0]] = region
+        }
+        return env
     }
 }

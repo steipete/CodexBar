@@ -296,6 +296,7 @@ private struct ProviderSwitchChip: View {
         case .venice: "Venice"
         case .commandcode: "Command Code"
         case .stepfun: "StepFun"
+        case .bedrock: "Bedrock"
         }
     }
 }
@@ -683,6 +684,8 @@ enum WidgetColors {
             Color(red: 0, green: 0, blue: 0)
         case .stepfun:
             Color(red: 255 / 255, green: 140 / 255, blue: 0 / 255) // StepFun orange
+        case .bedrock:
+            Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
         }
     }
 }

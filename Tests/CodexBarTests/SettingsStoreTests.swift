@@ -1198,6 +1198,7 @@ struct SettingsStoreTests {
             .venice,
             .commandcode,
             .stepfun,
+            .bedrock,
         ])
 
         // Move one provider; ensure it's persisted across instances.

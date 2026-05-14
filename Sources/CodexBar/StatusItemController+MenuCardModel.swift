@@ -50,7 +50,7 @@ extension StatusItemController {
                 tokenSnapshot = nil
                 tokenError = nil
             }
-        } else if target == .claude || target == .vertexai, snapshotOverride == nil {
+        } else if target == .claude || target == .vertexai || target == .bedrock, snapshotOverride == nil {
             credits = nil
             creditsError = nil
             dashboard = nil

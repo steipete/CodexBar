@@ -92,6 +92,7 @@ public enum ProviderDescriptorRegistry {
         .venice: VeniceProviderDescriptor.descriptor,
         .commandcode: CommandCodeProviderDescriptor.descriptor,
         .stepfun: StepFunProviderDescriptor.descriptor,
+        .bedrock: BedrockProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

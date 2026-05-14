@@ -78,6 +78,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var source: ProviderSourceMode?
     public var extrasEnabled: Bool?
     public var apiKey: String?
+    public var secretKey: String?
     public var cookieHeader: String?
     public var cookieSource: ProviderCookieSource?
     public var region: String?
@@ -95,6 +96,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         source: ProviderSourceMode? = nil,
         extrasEnabled: Bool? = nil,
         apiKey: String? = nil,
+        secretKey: String? = nil,
         cookieHeader: String? = nil,
         cookieSource: ProviderCookieSource? = nil,
         region: String? = nil,
@@ -111,6 +113,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.source = source
         self.extrasEnabled = extrasEnabled
         self.apiKey = apiKey
+        self.secretKey = secretKey
         self.cookieHeader = cookieHeader
         self.cookieSource = cookieSource
         self.region = region
@@ -127,8 +130,16 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         Self.clean(self.apiKey)
     }
 
+    public var sanitizedSecretKey: String? {
+        Self.clean(self.secretKey)
+    }
+
     public var sanitizedCookieHeader: String? {
         Self.clean(self.cookieHeader)
+    }
+
+    public var sanitizedRegion: String? {
+        Self.clean(self.region)
     }
 
     public var sanitizedEnterpriseHost: String? {

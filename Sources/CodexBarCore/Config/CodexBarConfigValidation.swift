@@ -125,53 +125,9 @@ public enum CodexBarConfigValidator {
                 message: "cookieSource manual is set but cookieHeader is missing for \(provider.rawValue)."))
         }
 
-        if let region = entry.region, !region.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            switch provider {
-            case .minimax:
-                if MiniMaxAPIRegion(rawValue: region) == nil {
-                    issues.append(CodexBarConfigIssue(
-                        severity: .error,
-                        provider: provider,
-                        field: "region",
-                        code: "invalid_region",
-                        message: "Region \(region) is not a valid MiniMax region."))
-                }
-            case .zai:
-                if ZaiAPIRegion(rawValue: region) == nil {
-                    issues.append(CodexBarConfigIssue(
-                        severity: .error,
-                        provider: provider,
-                        field: "region",
-                        code: "invalid_region",
-                        message: "Region \(region) is not a valid z.ai region."))
-                }
-            case .alibaba:
-                if AlibabaCodingPlanAPIRegion(rawValue: region) == nil {
-                    issues.append(CodexBarConfigIssue(
-                        severity: .error,
-                        provider: provider,
-                        field: "region",
-                        code: "invalid_region",
-                        message: "Region \(region) is not a valid Alibaba Coding Plan region."))
-                }
-            case .moonshot:
-                if MoonshotRegion(rawValue: region) == nil {
-                    issues.append(CodexBarConfigIssue(
-                        severity: .error,
-                        provider: provider,
-                        field: "region",
-                        code: "invalid_region",
-                        message: "Region \(region) is not a valid Moonshot region."))
-                }
-            default:
-                issues.append(CodexBarConfigIssue(
-                    severity: .warning,
-                    provider: provider,
-                    field: "region",
-                    code: "region_unused",
-                    message: "region is set but \(provider.rawValue) does not use regions."))
-            }
-        }
+        self.validateSecretKey(entry, issues: &issues)
+
+        self.validateRegion(entry, issues: &issues)
 
         if let workspaceID = entry.workspaceID,
            !workspaceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -208,5 +164,86 @@ public enum CodexBarConfigValidator {
                 code: "token_accounts_unused",
                 message: "tokenAccounts are set but \(provider.rawValue) does not support token accounts."))
         }
+    }
+
+    private static func validateSecretKey(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
+        guard let secretKey = entry.secretKey,
+              !secretKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              entry.id != .bedrock
+        else {
+            return
+        }
+
+        issues.append(CodexBarConfigIssue(
+            severity: .warning,
+            provider: entry.id,
+            field: "secretKey",
+            code: "secret_key_unused",
+            message: "secretKey is set but only bedrock uses secretKey."))
+    }
+
+    private static func validateRegion(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
+        let provider = entry.id
+        guard let region = entry.region?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !region.isEmpty
+        else {
+            return
+        }
+
+        switch provider {
+        case .minimax:
+            self.validateKnownRegion(
+                region,
+                provider: provider,
+                isValid: MiniMaxAPIRegion(rawValue: region) != nil,
+                displayName: "MiniMax",
+                issues: &issues)
+        case .zai:
+            self.validateKnownRegion(
+                region,
+                provider: provider,
+                isValid: ZaiAPIRegion(rawValue: region) != nil,
+                displayName: "z.ai",
+                issues: &issues)
+        case .alibaba:
+            self.validateKnownRegion(
+                region,
+                provider: provider,
+                isValid: AlibabaCodingPlanAPIRegion(rawValue: region) != nil,
+                displayName: "Alibaba Coding Plan",
+                issues: &issues)
+        case .moonshot:
+            self.validateKnownRegion(
+                region,
+                provider: provider,
+                isValid: MoonshotRegion(rawValue: region) != nil,
+                displayName: "Moonshot",
+                issues: &issues)
+        case .bedrock:
+            break
+        default:
+            issues.append(CodexBarConfigIssue(
+                severity: .warning,
+                provider: provider,
+                field: "region",
+                code: "region_unused",
+                message: "region is set but \(provider.rawValue) does not use regions."))
+        }
+    }
+
+    private static func validateKnownRegion(
+        _ region: String,
+        provider: UsageProvider,
+        isValid: Bool,
+        displayName: String,
+        issues: inout [CodexBarConfigIssue])
+    {
+        guard !isValid else { return }
+        issues.append(CodexBarConfigIssue(
+            severity: .error,
+            provider: provider,
+            field: "region",
+            code: "invalid_region",
+            message: "Region \(region) is not a valid \(displayName) region."))
     }
 }

@@ -51,7 +51,6 @@ struct ProviderConfigEnvironmentTests {
         #expect(ProviderTokenResolver.doubaoToken(environment: env) == "db-token")
     }
 
-    @Test
     func `applies API key override for moonshot`() {
         let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
@@ -64,6 +63,43 @@ struct ProviderConfigEnvironmentTests {
         guard let key else { return }
 
         #expect(env[key] == "moon-token")
+    }
+
+    @Test
+    func `bedrock config maps AWS credential fields`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIATEST",
+            secretKey: "secret",
+            cookieHeader: "legacy-cookie-secret",
+            region: "us-west-2")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .bedrock,
+            config: config)
+
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "AKIATEST")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "secret")
+        #expect(env[BedrockSettingsReader.regionKeys[0]] == "us-west-2")
+        #expect(!env.values.contains("legacy-cookie-secret"))
+    }
+
+    @Test
+    func `bedrock config merges secret and region without replacing environment access key`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: nil,
+            secretKey: "config-secret",
+            region: "eu-central-1")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [BedrockSettingsReader.accessKeyIDKey: "env-access"],
+            provider: .bedrock,
+            config: config)
+
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "env-access")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "config-secret")
+        #expect(env[BedrockSettingsReader.regionKeys[0]] == "eu-central-1")
+        #expect(BedrockSettingsReader.hasCredentials(environment: env))
     }
 
     @Test

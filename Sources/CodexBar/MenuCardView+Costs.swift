@@ -23,13 +23,22 @@ extension UsageMenuCardView.Model {
         snapshot: CostUsageTokenSnapshot?,
         error: String?) -> TokenUsageSection?
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
+        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+            return nil
+        }
         guard enabled else { return nil }
         guard let snapshot else { return nil }
 
         let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
+            if provider == .bedrock {
+                let label = Self.bedrockLatestBillingDayLabel(from: snapshot)
+                if let sessionTokens {
+                    return "\(label): \(sessionCost) · \(sessionTokens) tokens"
+                }
+                return "\(label): \(sessionCost)"
+            }
             if let sessionTokens {
                 return "Today: \(sessionCost) · \(sessionTokens) tokens"
             }
@@ -61,9 +70,52 @@ extension UsageMenuCardView.Model {
             "Estimated from local Codex logs for the selected account."
         case .claude, .vertexai:
             String(localized: "cost_estimate_hint")
+        case .bedrock:
+            "Reported by AWS Cost Explorer; daily billing data can lag."
         default:
             nil
         }
+    }
+
+    private static func bedrockLatestBillingDayLabel(from snapshot: CostUsageTokenSnapshot) -> String {
+        guard let entry = bedrockLatestBillingDay(from: snapshot.daily),
+              let displayDate = bedrockDisplayDate(from: entry.date)
+        else { return "Latest billing day" }
+        return "Latest billing day (\(displayDate))"
+    }
+
+    private static func bedrockLatestBillingDay(from entries: [CostUsageDailyReport.Entry])
+        -> CostUsageDailyReport.Entry?
+    {
+        entries.max { lhs, rhs in
+            let lDate = Self.bedrockBillingDate(from: lhs.date) ?? .distantPast
+            let rDate = Self.bedrockBillingDate(from: rhs.date) ?? .distantPast
+            if lDate != rDate { return lDate < rDate }
+            let lCost = lhs.costUSD ?? -1
+            let rCost = rhs.costUSD ?? -1
+            if lCost != rCost { return lCost < rCost }
+            let lTokens = lhs.totalTokens ?? -1
+            let rTokens = rhs.totalTokens ?? -1
+            if lTokens != rTokens { return lTokens < rTokens }
+            return lhs.date < rhs.date
+        }
+    }
+
+    private static func bedrockDisplayDate(from text: String) -> String? {
+        guard let date = bedrockBillingDate(from: text) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
+    }
+
+    private static func bedrockBillingDate(from text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     static func providerCostSection(

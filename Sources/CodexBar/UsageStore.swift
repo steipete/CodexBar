@@ -906,6 +906,7 @@ extension UsageStore {
                 .venice: "Venice debug log not yet implemented",
                 .commandcode: "Command Code debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
+                .bedrock: "Bedrock debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -978,7 +979,7 @@ extension UsageStore {
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun:
+                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
@@ -1341,7 +1342,7 @@ extension UsageStore {
     }
 
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard provider == .codex || provider == .claude || provider == .vertexai else {
+        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
@@ -1392,10 +1393,23 @@ extension UsageStore {
         do {
             let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
+            let environment = provider == .bedrock
+                ? ProviderRegistry.makeEnvironment(
+                    base: self.environmentBase,
+                    provider: provider,
+                    settings: self.settings,
+                    tokenOverride: nil)
+                : self.environmentBase
+            // CostUsageFetcher scans local Codex session logs from this machine. That data is
+            // intentionally presented as provider-level local telemetry rather than managed-account
+            // remote state, so managed Codex account selection does not retarget this fetch.
+            // If the UI later needs account-scoped token history, it should label and source that
+            // separately instead of silently changing the meaning of this section.
             let snapshot = try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
                 group.addTask(priority: .utility) {
                     try await fetcher.loadTokenSnapshot(
                         provider: provider,
+                        environment: environment,
                         now: now,
                         forceRefresh: force,
                         allowVertexClaudeFallback: !self.isEnabled(.claude),

@@ -3,6 +3,7 @@
 ## 0.26 — Unreleased
 
 ### Added
+- AWS Bedrock: add Cost Explorer usage and monthly budget tracking (#897). Thanks @afalk42!
 - z.ai: add an hourly per-model token usage chart in the menu (#913). Thanks @n1majne3!
 - Kilo: add organization selection, scoped organization fetches, and stacked Kilo usage cards (#920). Thanks @NoeFabris!
 - Antigravity: add Google OAuth token-account switching with selected-account refresh persistence (#937, fixes #936). Thanks @hhh2210!
