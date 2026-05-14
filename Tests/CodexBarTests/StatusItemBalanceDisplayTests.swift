@@ -147,6 +147,101 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `kiro menu bar automatic uses credits left`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-automatic",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .automatic
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = Self.kiroSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+
+        #expect(displayText == "49.83")
+    }
+
+    @Test
+    func `kiro menu bar credits and percent combines values`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-both",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .creditsAndPercent
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = Self.kiroSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+
+        #expect(displayText == "49.83 · 0%")
+    }
+
+    @Test
+    func `kiro menu bar hidden suppresses text value`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-hidden",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .hidden
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = Self.kiroSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+
+        #expect(displayText == nil)
+    }
+
+    @Test
+    func `kiro menu bar used and total formats credits`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-used-total",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .usedAndTotal
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = Self.kiroSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+
+        #expect(displayText == "0.17 / 50")
+    }
+
+    @Test
+    func `kiro managed plan display falls back to percent`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-managed",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .automatic
+        settings.usageBarsShowUsed = false
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = KiroUsageSnapshot(
+            planName: "Q Developer Pro",
+            creditsUsed: 0,
+            creditsTotal: 0,
+            creditsPercent: 0,
+            bonusCreditsUsed: nil,
+            bonusCreditsTotal: nil,
+            bonusExpiryDays: nil,
+            resetsAt: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+
+        #expect(displayText == "100%")
+    }
+
+    @Test
     func `mistral primary window is nil even when billing end date is set`() {
         let endDate = Date(timeIntervalSinceNow: 3600)
         let snapshot = MistralUsageSnapshot(
@@ -214,6 +309,29 @@ struct StatusItemBalanceDisplayTests {
             keyLimit: 20,
             keyUsage: 5,
             rateLimit: nil,
+            updatedAt: Date()).toUsageSnapshot()
+    }
+
+    private static func kiroSnapshot() -> UsageSnapshot {
+        KiroUsageSnapshot(
+            planName: "KIRO FREE",
+            accountEmail: "person@example.com",
+            authMethod: "Google",
+            creditsUsed: 0.17,
+            creditsTotal: 50,
+            creditsPercent: 0,
+            bonusCreditsUsed: 45.53,
+            bonusCreditsTotal: 2000,
+            bonusExpiryDays: 19,
+            overagesStatus: "Disabled",
+            manageURL: "https://app.kiro.dev/account/usage",
+            contextUsage: KiroContextUsageSnapshot(
+                totalPercentUsed: 1.3,
+                contextFilesPercent: 0.5,
+                toolsPercent: 0.8,
+                kiroResponsesPercent: 0,
+                promptsPercent: 0),
+            resetsAt: Date(),
             updatedAt: Date()).toUsageSnapshot()
     }
 }

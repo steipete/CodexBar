@@ -165,6 +165,11 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         if !self.model.email.isEmpty {
             infoLabels.append("Account")
         }
+        if self.provider == .kiro,
+           self.model.metrics.isEmpty == false
+        {
+            infoLabels.append("Auth")
+        }
         if let planRow = Self.planRow(provider: self.provider, planText: self.model.planText) {
             infoLabels.append(planRow.label)
         }
@@ -305,6 +310,13 @@ private struct ProviderDetailInfoGrid: View {
 
             if !email.isEmpty {
                 ProviderDetailInfoRow(label: "Account", value: email, labelWidth: self.labelWidth)
+            }
+
+            if self.provider == .kiro,
+               let authMethod = self.store.snapshot(for: self.provider)?.loginMethod(for: .kiro),
+               !authMethod.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                ProviderDetailInfoRow(label: "Auth", value: authMethod, labelWidth: self.labelWidth)
             }
 
             if let planRow = ProviderDetailView<EmptyView>.planRow(
