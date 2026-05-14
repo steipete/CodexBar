@@ -10,6 +10,7 @@
 
 ### Fixed
 - Kimi: rebalance provider icon alignment within its viewBox (#912). Thanks @giuseppebisemi!
+- Menu bar: detect when macOS Tahoe hides CodexBar behind the new Allow in Menu Bar setting and show recovery guidance (#945, fixes #890). Thanks @pdurlej!
 - Claude: show Enterprise OAuth spend-limit usage when the API returns only `extra_usage` data instead of session windows (#925).
 - CLI: route Claude token-account `--source cli` reads through the selected OAuth/session credential so `--all-accounts` no longer relabels ambient CLI usage (#403).
 - Codex: keep session and weekly quota-warning marker thresholds independent so usage bars do not duplicate marker lines (#938, fixes #927). Thanks @iam-brain!
