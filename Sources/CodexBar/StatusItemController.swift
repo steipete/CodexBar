@@ -268,6 +268,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.wireBindings()
         self.updateVisibility()
         self.updateIcons()
+        self.scheduleTahoeAllowListVisibilityCheck()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(self.handleDebugReplayNotification(_:)),
