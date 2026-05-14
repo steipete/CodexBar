@@ -80,7 +80,7 @@ actor HistoricalUsageHistoryStore {
     private static let backfillCalibrationMinimumCredits = 0.001
     private static let backfillSampleFractions: [Double] = (0...14).map { Double($0) / 14.0 }
     private static let coverageTolerance: TimeInterval = 16 * 60 * 60
-    private static let resetBucketSeconds: TimeInterval = 60
+    private static let resetBucketSeconds: TimeInterval = 5 * 60
 
     private let fileURL: URL
     private var records: [HistoricalUsageRecord] = []
@@ -762,7 +762,7 @@ enum CodexHistoricalPaceEvaluator {
     static let minimumWeeksForRisk = 5
     private static let recencyTauWeeks: Double = 3
     private static let epsilon: Double = 1e-9
-    private static let resetBucketSeconds: TimeInterval = 60
+    private static let resetBucketSeconds: TimeInterval = 5 * 60
 
     static func evaluate(window: RateWindow, now: Date, dataset: CodexHistoricalDataset?) -> UsagePace? {
         guard let dataset else { return nil }
