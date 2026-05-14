@@ -11,7 +11,7 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
         ProviderPresentation { context in
-            context.store.sourceLabel(for: context.provider)
+            LocalizedProviderText.sourceLabel(context.store.sourceLabel(for: context.provider))
         }
     }
 
@@ -68,11 +68,7 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
                 options: cookieOptions,
                 isVisible: nil,
                 onChange: nil,
-                trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .alibaba) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
-                }),
+                trailingText: { ProviderCookieSourceUI.cachedTrailingText(provider: .alibaba) }),
             ProviderSettingsPickerDescriptor(
                 id: "alibaba-coding-plan-region",
                 title: "Gateway region",

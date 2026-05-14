@@ -49,7 +49,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.antigravityUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .antigravity)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : LocalizedProviderText.sourceLabel(label)
                 }),
         ]
     }

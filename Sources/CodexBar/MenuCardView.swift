@@ -11,8 +11,8 @@ struct UsageMenuCardView: View {
 
             var labelSuffix: String {
                 switch self {
-                case .left: "left"
-                case .used: "used"
+                case .left: L("left")
+                case .used: L("used")
                 }
             }
 
@@ -181,7 +181,7 @@ struct UsageMenuCardView: View {
                     }
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text(L("Cost"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -241,7 +241,7 @@ private struct UsageMenuCardHeaderView: View {
             }
             let subtitleAlignment: VerticalAlignment = self.model.subtitleStyle == .error ? .top : .firstTextBaseline
             HStack(alignment: subtitleAlignment) {
-                Text(self.model.subtitleText)
+                Text(L(self.model.subtitleText))
                     .font(.footnote)
                     .foregroundStyle(self.subtitleColor)
                     .lineLimit(self.model.subtitleStyle == .error ? 4 : 1)
@@ -314,7 +314,7 @@ private struct CopyIconButton: View {
                 .frame(width: 18, height: 18)
         }
         .buttonStyle(CopyIconButtonStyle(isHighlighted: self.isHighlighted))
-        .accessibilityLabel(self.didCopy ? "Copied" : "Copy error")
+        .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy error"))
     }
 
     private func copyToPasteboard() {
@@ -331,14 +331,14 @@ private struct ProviderCostContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(self.section.title)
+            Text(L(self.section.title))
                 .font(.body)
                 .fontWeight(.medium)
             if let percentUsed = self.section.percentUsed {
                 UsageProgressBar(
                     percent: percentUsed,
                     tint: self.progressColor,
-                    accessibilityLabel: "Extra usage spent")
+                    accessibilityLabel: L("Extra usage spent"))
             }
             HStack(alignment: .firstTextBaseline) {
                 Text(self.section.spendLine)
@@ -362,11 +362,11 @@ private struct MetricRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(self.title)
+            Text(L(self.title))
                 .font(.body)
                 .fontWeight(.medium)
             if let statusText = self.metric.statusText {
-                Text(statusText)
+                Text(L(statusText))
                     .font(.footnote)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                     .lineLimit(1)
@@ -374,7 +374,7 @@ private struct MetricRow: View {
                 UsageProgressBar(
                     percent: self.metric.percent,
                     tint: self.progressColor,
-                    accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
+                    accessibilityLabel: L(self.metric.percentStyle.accessibilityLabel),
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
                     warningMarkerPercents: self.metric.warningMarkerPercents)
@@ -385,7 +385,7 @@ private struct MetricRow: View {
                             .lineLimit(1)
                         Spacer()
                         if let rightLabel = self.metric.resetText {
-                            Text(rightLabel)
+                            Text(L(rightLabel))
                                 .font(.footnote)
                                 .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                                 .lineLimit(1)
@@ -394,14 +394,14 @@ private struct MetricRow: View {
                     if self.metric.detailLeftText != nil || self.metric.detailRightText != nil {
                         HStack(alignment: .firstTextBaseline) {
                             if let detailLeft = self.metric.detailLeftText {
-                                Text(detailLeft)
+                                Text(L(detailLeft))
                                     .font(.footnote)
                                     .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
                                     .lineLimit(1)
                             }
                             Spacer()
                             if let detailRight = self.metric.detailRightText {
-                                Text(detailRight)
+                                Text(L(detailRight))
                                     .font(.footnote)
                                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                                     .lineLimit(1)
@@ -411,7 +411,7 @@ private struct MetricRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if let detail = self.metric.detailText {
-                    Text(detail)
+                    Text(L(detail))
                         .font(.footnote)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(1)
@@ -429,7 +429,7 @@ private struct UsageNotesContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(self.notes.enumerated()), id: \.offset) { _, note in
-                Text(note)
+                Text(L(note))
                     .font(.footnote)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                     .lineLimit(2)
@@ -550,14 +550,14 @@ private struct CreditsBarContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Credits")
+            Text(L("Credits"))
                 .font(.body)
                 .fontWeight(.medium)
             if let percentLeft {
                 UsageProgressBar(
                     percent: percentLeft,
                     tint: self.progressColor,
-                    accessibilityLabel: "Credits remaining")
+                    accessibilityLabel: L("Credits remaining"))
                 HStack(alignment: .firstTextBaseline) {
                     Text(self.creditsText)
                         .font(.caption)
@@ -598,7 +598,7 @@ struct UsageMenuCardCostSectionView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
+                            Text(L("Cost"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -920,14 +920,14 @@ extension UsageMenuCardView.Model {
         }
 
         if isRefreshing, snapshot == nil {
-            return ("Refreshing...", .loading)
+            return (L("Refreshing"), .loading)
         }
 
         if let updated = snapshot?.updatedAt {
-            return (UsageFormatter.updatedString(from: updated, now: now), .info)
+            return (LocalizedUsageText.updatedString(from: updated, now: now), .info)
         }
 
-        return ("Not fetched yet", .info)
+        return (L("Not fetched yet"), .info)
     }
 
     private struct RedactedText {
@@ -1437,7 +1437,7 @@ extension UsageMenuCardView.Model {
 
         let remaining = UsageFormatter.usdString(keyRemaining)
         let limit = UsageFormatter.usdString(keyLimit)
-        return "\(remaining)/\(limit) left"
+        return String(format: L("%1$@/%2$@ left"), remaining, limit)
     }
 
     private static func syntheticRegenDetail(
@@ -1453,21 +1453,21 @@ extension UsageMenuCardView.Model {
               let resetsAt = weekly.resetsAt
         else { return nil }
 
-        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
-        let resetText = "Regenerates \(countdown)"
+        let countdown = LocalizedUsageText.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = String(format: L("Regenerates %@"), countdown)
 
         let nextRegenPercent = (nextRegenAmount / cost.limit) * 100
         let afterNextRegenRemaining = min(100, weekly.remainingPercent + nextRegenPercent)
         let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
-        let suffix = showUsed ? "used after next regen" : "after next regen"
+        let suffix = showUsed ? L("used after next regen") : L("after next regen")
         let ticksToFull = max(0, cost.used) / nextRegenAmount
         let left = String(format: "%.0f%% %@", afterNextRegen, suffix)
         let right = if ticksToFull <= 0.1 {
-            "Near full"
+            L("Near full")
         } else if ticksToFull < 1.5 {
-            "Full in ~1 regen"
+            L("Full in ~1 regen")
         } else {
-            String(format: "Full in ~%.0f regens", ceil(ticksToFull))
+            String(format: L("Full in ~%.0f regens"), ceil(ticksToFull))
         }
         return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
     }
@@ -1482,22 +1482,22 @@ extension UsageMenuCardView.Model {
               nextRegenPercent > 0
         else { return nil }
 
-        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
-        let resetText = "Regenerates \(countdown)"
+        let countdown = LocalizedUsageText.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = String(format: L("Regenerates %@"), countdown)
 
         let afterNextRegenRemaining = min(100, window.remainingPercent + nextRegenPercent)
         let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
-        let suffix = showUsed ? "used after next regen" : "after next regen"
+        let suffix = showUsed ? L("used after next regen") : L("after next regen")
         let left = String(format: "%.0f%% %@", afterNextRegen, suffix)
 
         let missingPercent = max(0, window.usedPercent)
         let ticksToFull = missingPercent / nextRegenPercent
         let right = if ticksToFull <= 0.1 {
-            "Near full"
+            L("Near full")
         } else if ticksToFull < 1.5 {
-            "Full in ~1 regen"
+            L("Full in ~1 regen")
         } else {
-            String(format: "Full in ~%.0f regens", ceil(ticksToFull))
+            String(format: L("Full in ~%.0f regens"), ceil(ticksToFull))
         }
 
         return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
@@ -1510,7 +1510,7 @@ extension UsageMenuCardView.Model {
     {
         guard metadata.supportsCredits else { return nil }
         if let credits {
-            return UsageFormatter.creditsString(from: credits.remaining)
+            return LocalizedUsageText.creditsString(from: credits.remaining)
         }
         if let error, !error.isEmpty {
             return error.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1537,9 +1537,9 @@ extension UsageMenuCardView.Model {
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
             if let sessionTokens {
-                return "Today: \(sessionCost) · \(sessionTokens) tokens"
+                return String(format: L("Today: %1$@ · %2$@ tokens"), sessionCost, sessionTokens)
             }
-            return "Today: \(sessionCost)"
+            return String(format: L("Today: %@"), sessionCost)
         }()
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
@@ -1548,9 +1548,9 @@ extension UsageMenuCardView.Model {
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let monthLine: String = {
             if let monthTokens {
-                return "Last 30 days: \(monthCost) · \(monthTokens) tokens"
+                return String(format: L("Last 30 days: %1$@ · %2$@ tokens"), monthCost, monthTokens)
             }
-            return "Last 30 days: \(monthCost)"
+            return String(format: L("Last 30 days: %@"), monthCost)
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
@@ -1576,7 +1576,7 @@ extension UsageMenuCardView.Model {
             return ProviderCostSection(
                 title: "Extra usage",
                 percentUsed: nil,
-                spendLine: "Balance: \(balance)",
+                spendLine: String(format: L("Balance: %@"), balance),
                 percentLine: nil)
         }
 
@@ -1597,13 +1597,13 @@ extension UsageMenuCardView.Model {
         }
 
         let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
-        let periodLabel = cost.period ?? "This month"
+        let periodLabel = cost.period ?? L("This month")
 
         return ProviderCostSection(
             title: title,
             percentUsed: percentUsed,
-            spendLine: "\(periodLabel): \(used) / \(limit)",
-            percentLine: String(format: "%.0f%% used", min(100, max(0, percentUsed))))
+            spendLine: String(format: L("%1$@: %2$@ / %3$@"), L(periodLabel), used, limit),
+            percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))))
     }
 
     private static func clamped(_ value: Double) -> Double {

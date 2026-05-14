@@ -89,14 +89,14 @@ struct AboutPane: View {
                             Spacer()
                             Picker("", selection: self.updateChannelBinding) {
                                 ForEach(UpdateChannel.allCases) { channel in
-                                    Text(channel.displayName).tag(channel)
+                                    Text(L(channel.displayName)).tag(channel)
                                 }
                             }
                             .pickerStyle(.menu)
                             .labelsHidden()
                         }
                         .frame(maxWidth: 280)
-                        Text(self.updateChannel.description)
+                        Text(L(self.updateChannel.description))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)

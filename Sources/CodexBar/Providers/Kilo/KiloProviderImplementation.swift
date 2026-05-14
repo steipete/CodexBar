@@ -63,7 +63,7 @@ struct KiloProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.kiloUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .kilo)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : LocalizedProviderText.sourceLabel(label)
                 }),
         ]
     }

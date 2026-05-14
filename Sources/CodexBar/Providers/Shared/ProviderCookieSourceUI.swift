@@ -30,7 +30,11 @@ enum ProviderCookieSourceUI {
         off: String) -> String
     {
         if keychainDisabled {
-            return source == .off ? off : "\(self.keychainDisabledPrefix) \(manual)"
+            return source == .off
+                ? off
+                : String(
+                    format: L("Keychain access is disabled in Advanced, so browser cookie import is unavailable. %@"),
+                    L(manual))
         }
         switch source {
         case .auto:
@@ -40,5 +44,13 @@ enum ProviderCookieSourceUI {
         case .off:
             return off
         }
+    }
+
+    @MainActor
+    static func cachedTrailingText(provider: UsageProvider) -> String? {
+        guard let entry = CookieHeaderCache.load(provider: provider) else { return nil }
+        let when = entry.storedAt.relativeDescription()
+        let source = LocalizedProviderText.sourceLabel(entry.sourceLabel)
+        return String(format: L("Cached: %@ • %@"), source, when)
     }
 }

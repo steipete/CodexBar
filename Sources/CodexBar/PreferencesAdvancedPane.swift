@@ -78,8 +78,9 @@ struct AdvancedPane: View {
                         subtitle: L("hide_personal_info_subtitle"),
                         binding: self.$settings.hidePersonalInfo)
                     PreferenceToggleRow(
-                        title: "Show provider storage usage",
-                        subtitle: "Show local disk usage in menus. Scans known provider-owned paths in the background.",
+                        title: L("Show provider storage usage"),
+                        subtitle: L(
+                            "Show local disk usage in menus. Scans known provider-owned paths in the background."),
                         binding: self.$settings.providerStorageFootprintsEnabled)
                 }
 

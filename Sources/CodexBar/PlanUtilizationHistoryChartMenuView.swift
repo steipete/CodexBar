@@ -115,7 +115,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
 
             if model.points.isEmpty {
                 ZStack {
-                    Text(Self.emptyStateText(title: effectiveSelectedSeries?.title))
+                    Text(Self.localizedEmptyStateText(title: effectiveSelectedSeries?.title))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -146,8 +146,11 @@ struct PlanUtilizationHistoryChartMenuView: View {
                     }
                     .chartLegend(.hidden)
                     .frame(height: Layout.chartHeight)
-                    .accessibilityLabel("Plan utilization chart")
-                    .accessibilityValue(model.points.isEmpty ? "No data" : "\(model.points.count) utilization samples")
+                    .accessibilityLabel(L("Plan utilization chart"))
+                    .accessibilityValue(
+                        model.points.isEmpty
+                            ? L("No data")
+                            : String(format: L("%@ utilization samples"), "\(model.points.count)"))
                     .chartOverlay { proxy in
                         GeometryReader { geo in
                             MouseLocationReader { location in
@@ -158,7 +161,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
                         }
                     }
 
-                Text(self.detailLine(model: model, windowMinutes: effectiveSelectedSeries?.history.windowMinutes ?? 0))
+                Text(self.localizedDetailLine(
+                    model: model,
+                    windowMinutes: effectiveSelectedSeries?.history.windowMinutes ?? 0))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -621,6 +626,13 @@ struct PlanUtilizationHistoryChartMenuView: View {
         return "No utilization data yet."
     }
 
+    private static func localizedEmptyStateText(title: String?) -> String {
+        if let title {
+            return String(format: L("No %@ utilization data yet."), L(title).lowercased())
+        }
+        return L("No utilization data yet.")
+    }
+
     #if DEBUG
     struct ModelSnapshot: Equatable {
         let pointCount: Int
@@ -733,6 +745,11 @@ struct PlanUtilizationHistoryChartMenuView: View {
         return Self.detailLine(point: activePoint, windowMinutes: windowMinutes)
     }
 
+    private func localizedDetailLine(model: Model, windowMinutes: Int) -> String {
+        let activePoint = self.selectedPoint(model: model) ?? model.points.last
+        return Self.localizedDetailLine(point: activePoint, windowMinutes: windowMinutes)
+    }
+
     private func updateSelection(
         location: CGPoint?,
         model: Model,
@@ -786,6 +803,20 @@ extension PlanUtilizationHistoryChartMenuView {
         }
         let usedText = used.formatted(.number.precision(.fractionLength(0...1)))
         return "\(dateLabel): \(usedText)% used"
+    }
+
+    private static func localizedDetailLine(point: Point?, windowMinutes: Int) -> String {
+        guard let point else {
+            return "-"
+        }
+
+        let dateLabel = self.detailDateLabel(for: point.date, windowMinutes: windowMinutes)
+        let used = max(0, min(100, point.usedPercent))
+        if !point.isObserved {
+            return String(format: L("%1$@: %2$@"), dateLabel, "-")
+        }
+        let usedText = used.formatted(.number.precision(.fractionLength(0...1)))
+        return String(format: L("%1$@: %2$@%% used"), dateLabel, usedText)
     }
 
     private nonisolated static func detailDateLabel(for date: Date, windowMinutes: Int) -> String {

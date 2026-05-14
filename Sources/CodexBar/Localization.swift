@@ -58,6 +58,14 @@ private func localizedBundle() -> Bundle {
     return resourceBundle
 }
 
+func codexBarLocalizationLocale() -> Locale {
+    let language = appLanguageDefaults().string(forKey: "appLanguage") ?? ""
+    if !language.isEmpty {
+        return Locale(identifier: language)
+    }
+    return .autoupdatingCurrent
+}
+
 private func lprojBundle(named language: String, in resourceBundle: Bundle) -> Bundle? {
     let candidates = [language, language.lowercased()]
     for candidate in candidates where !candidate.isEmpty {
@@ -70,10 +78,26 @@ private func lprojBundle(named language: String, in resourceBundle: Bundle) -> B
     return nil
 }
 
+private func localizedString(for key: String) -> String {
+    let bundle = localizedBundle()
+    let value = bundle.localizedString(forKey: key, value: nil, table: nil)
+    guard value == key else { return value }
+
+    let resourceBundle = codexBarLocalizationResourceBundle()
+    guard bundle.bundleURL.lastPathComponent != "en.lproj",
+          let englishBundle = lprojBundle(named: "en", in: resourceBundle)
+    else {
+        return value
+    }
+
+    let fallback = englishBundle.localizedString(forKey: key, value: nil, table: nil)
+    return fallback == key ? value : fallback
+}
+
 func L(_ key: String) -> String {
-    localizedBundle().localizedString(forKey: key, value: nil, table: nil)
+    localizedString(for: key)
 }
 
 func L(_ key: String, _ arguments: CVarArg...) -> String {
-    String(format: localizedBundle().localizedString(forKey: key, value: nil, table: nil), arguments: arguments)
+    String(format: localizedString(for: key), arguments: arguments)
 }

@@ -24,6 +24,25 @@ struct LocalizationBundleTests {
         #expect(bundle.bundleURL == fixture.appBundle.bundleURL)
     }
 
+    @Test
+    func `bundled localization files do not contain empty values`() throws {
+        let bundle = codexBarLocalizationResourceBundle()
+        let lprojURLs = try FileManager.default.contentsOfDirectory(
+            at: bundle.bundleURL,
+            includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+
+        for lprojURL in lprojURLs {
+            let stringsURL = lprojURL.appendingPathComponent("Localizable.strings")
+            let data = try Data(contentsOf: stringsURL)
+            let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+            let strings = try #require(plist as? [String: String])
+            let emptyKeys = strings.keys.filter { strings[$0]?.isEmpty == true }
+
+            #expect(emptyKeys.isEmpty)
+        }
+    }
+
     private static func makeAppBundleFixture(
         includeLocalizationBundle: Bool) throws -> (root: URL, appBundle: Bundle)
     {

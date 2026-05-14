@@ -11,7 +11,7 @@ struct CodexProviderImplementation: ProviderImplementation {
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
         ProviderPresentation { context in
-            context.store.version(for: context.provider) ?? "not detected"
+            context.store.version(for: context.provider) ?? L("not detected")
         }
     }
 
@@ -157,7 +157,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.codexUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .codex)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : LocalizedProviderText.sourceLabel(label)
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "codex-cookie-source",
@@ -168,11 +168,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 options: cookieOptions,
                 isVisible: { context.settings.openAIWebAccessEnabled },
                 onChange: nil,
-                trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .codex) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
-                }),
+                trailingText: { ProviderCookieSourceUI.cachedTrailingText(provider: .codex) }),
         ]
     }
 
@@ -202,11 +198,11 @@ struct CodexProviderImplementation: ProviderImplementation {
 
         if let credits = context.store.credits {
             entries.append(.text(
-                String(format: L("credits_remaining"), UsageFormatter.creditsString(from: credits.remaining)),
+                String(format: L("credits_remaining"), LocalizedUsageText.creditsString(from: credits.remaining)),
                 .primary))
             if let latest = credits.events.first {
                 entries.append(.text(
-                    String(format: L("last_spend"), UsageFormatter.creditEventSummary(latest)),
+                    String(format: L("last_spend"), LocalizedUsageText.creditEventSummary(latest)),
                     .secondary))
             }
         } else {

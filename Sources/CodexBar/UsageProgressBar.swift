@@ -118,7 +118,7 @@ struct UsageProgressBar: View {
         }
         .frame(height: 6)
         .accessibilityLabel(self.accessibilityLabel)
-        .accessibilityValue("\(Int(self.clamped)) percent")
+        .accessibilityValue(String(format: L("%@ percent"), "\(Int(self.clamped))"))
     }
 
     private static func paceStripePaths(size: CGSize, scale: CGFloat) -> (punched: Path, center: Path) {

@@ -406,6 +406,6 @@ struct ProviderSettingsDescriptorTests {
             .presentation(context: context)
             .detailLine(context)
 
-        #expect(detailLine == store.sourceLabel(for: .alibaba))
+        #expect(detailLine == LocalizedProviderText.sourceLabel(store.sourceLabel(for: .alibaba)))
     }
 }

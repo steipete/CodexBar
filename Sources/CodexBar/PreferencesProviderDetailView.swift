@@ -225,7 +225,7 @@ private struct ProviderDetailHeaderView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .help("Refresh")
+                .help(L("Refresh"))
 
                 Toggle("", isOn: self.$isEnabled)
                     .labelsHidden()
@@ -284,11 +284,11 @@ private struct ProviderDetailInfoGrid: View {
 
     var body: some View {
         let status = self.store.status(for: self.provider)
-        let source = self.store.sourceLabel(for: self.provider)
-        let version = self.store.version(for: self.provider) ?? "not detected"
+        let source = LocalizedProviderText.sourceLabel(self.store.sourceLabel(for: self.provider))
+        let version = self.store.version(for: self.provider) ?? L("not detected")
         let updated = self.updatedText
         let email = self.model.email
-        let enabledText = self.isEnabled ? "Enabled" : "Disabled"
+        let enabledText = self.isEnabled ? L("Enabled") : L("Disabled")
 
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
             ProviderDetailInfoRow(label: "State", value: enabledText, labelWidth: self.labelWidth)
@@ -299,7 +299,7 @@ private struct ProviderDetailInfoGrid: View {
             if let status {
                 ProviderDetailInfoRow(
                     label: "Status",
-                    value: status.description ?? status.indicator.label,
+                    value: LocalizedProviderText.statusText(status),
                     labelWidth: self.labelWidth)
             }
 
@@ -320,15 +320,15 @@ private struct ProviderDetailInfoGrid: View {
 
     private var updatedText: String {
         if let updated = self.store.snapshot(for: self.provider)?.updatedAt {
-            return UsageFormatter.updatedString(from: updated)
+            return LocalizedUsageText.updatedString(from: updated)
         }
         if self.store.refreshingProviders.contains(self.provider) {
-            return "Refreshing"
+            return L("Refreshing")
         }
         if self.store.unavailableMessage(for: self.provider) != nil {
-            return "Unavailable"
+            return L("Unavailable")
         }
-        return "Not fetched yet"
+        return L("Not fetched yet")
     }
 }
 
@@ -339,7 +339,7 @@ private struct ProviderDetailInfoRow: View {
 
     var body: some View {
         GridRow {
-            Text(self.label)
+            Text(L(self.label))
                 .frame(width: self.labelWidth, alignment: .leading)
             Text(self.value)
                 .lineLimit(2)
@@ -416,9 +416,9 @@ struct ProviderMetricsInlineView: View {
 
     private var placeholderText: String {
         if !self.isEnabled {
-            return "Disabled — no recent data"
+            return L("Disabled — no recent data")
         }
-        return self.model.placeholder ?? "No usage yet"
+        return self.model.placeholder.map { L($0) } ?? L("No usage yet")
     }
 }
 
@@ -430,7 +430,7 @@ private struct ProviderMetricInlineRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(self.title)
+            Text(L(self.title))
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
                 .frame(width: self.labelWidth, alignment: .leading)
@@ -439,7 +439,7 @@ private struct ProviderMetricInlineRow: View {
                 UsageProgressBar(
                     percent: self.metric.percent,
                     tint: self.progressColor,
-                    accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
+                    accessibilityLabel: L(self.metric.percentStyle.accessibilityLabel),
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
                     warningMarkerPercents: self.metric.warningMarkerPercents)
@@ -506,7 +506,7 @@ private struct ProviderUsageNotesInlineView: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(self.notes.enumerated()), id: \.offset) { _, note in
-                    Text(note)
+                    Text(L(note))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -526,7 +526,7 @@ private struct ProviderMetricInlineTextRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(self.title)
+            Text(L(self.title))
                 .font(.subheadline.weight(.semibold))
                 .frame(width: self.labelWidth, alignment: .leading)
 
@@ -547,7 +547,7 @@ private struct ProviderMetricInlineCostRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(self.section.title)
+            Text(L(self.section.title))
                 .font(.subheadline.weight(.semibold))
                 .frame(width: self.labelWidth, alignment: .leading)
 
@@ -556,7 +556,7 @@ private struct ProviderMetricInlineCostRow: View {
                     UsageProgressBar(
                         percent: percentUsed,
                         tint: self.progressColor,
-                        accessibilityLabel: "Usage used")
+                        accessibilityLabel: L("Usage used"))
                         .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
                 }
 

@@ -44,6 +44,6 @@ struct MenuCardSubtitleTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.subtitleText == UsageFormatter.updatedString(from: updatedAt, now: now))
+        #expect(model.subtitleText == LocalizedUsageText.updatedString(from: updatedAt, now: now))
     }
 }

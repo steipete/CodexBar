@@ -71,7 +71,7 @@ struct WindsurfProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.windsurfUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .windsurf)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : LocalizedProviderText.sourceLabel(label)
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "windsurf-cookie-source",

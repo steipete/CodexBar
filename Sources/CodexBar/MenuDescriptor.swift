@@ -113,7 +113,7 @@ struct MenuDescriptor {
                     sections.append(accountSection)
                 }
             } else {
-                sections.append(Section(entries: [.text("No usage configured.", .secondary)]))
+                sections.append(Section(entries: [.text(L("No usage configured."), .secondary)]))
             }
         }
 
@@ -242,11 +242,11 @@ struct MenuDescriptor {
                 if cost.currencyCode == "Quota" {
                     let used = String(format: "%.0f", cost.used)
                     let limit = String(format: "%.0f", cost.limit)
-                    entries.append(.text("Quota: \(used) / \(limit)", .primary))
+                    entries.append(.text(String(format: L("Quota: %@ / %@"), used, limit), .primary))
                 }
             }
         } else {
-            entries.append(.text("No usage yet", .secondary))
+            entries.append(.text(L("No usage yet"), .secondary))
         }
 
         let usageContext = ProviderMenuUsageContext(
@@ -294,15 +294,17 @@ struct MenuDescriptor {
         let redactedEmail = PersonalInfoRedactor.redactEmail(emailText, isEnabled: hidePersonalInfo)
 
         if let emailText, !emailText.isEmpty {
-            entries.append(.text("Account: \(redactedEmail)", .secondary))
+            entries.append(.text(String(format: L("Account: %@"), redactedEmail), .secondary))
         }
         if provider == .kilo {
             let kiloLogin = self.kiloLoginParts(loginMethod: loginMethodText)
             if let pass = kiloLogin.pass {
-                entries.append(.text("Plan: \(AccountFormatter.plan(pass, provider: provider))", .secondary))
+                entries.append(.text(
+                    String(format: L("Plan: %@"), AccountFormatter.plan(pass, provider: provider)),
+                    .secondary))
             }
             for detail in kiloLogin.details {
-                entries.append(.text("Activity: \(detail)", .secondary))
+                entries.append(.text(String(format: L("Activity: %@"), detail), .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
             if provider == .openrouter || provider == .mimo,
@@ -315,19 +317,25 @@ struct MenuDescriptor {
                         options: [.regularExpression])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 let value = balanceValue.isEmpty ? loginMethodText : balanceValue
-                entries.append(.text("Balance: \(AccountFormatter.plan(value, provider: provider))", .secondary))
+                entries.append(.text(
+                    String(format: L("Balance: %@"), AccountFormatter.plan(value, provider: provider)),
+                    .secondary))
             } else {
-                entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText, provider: provider))", .secondary))
+                entries.append(.text(
+                    String(format: L("Plan: %@"), AccountFormatter.plan(loginMethodText, provider: provider)),
+                    .secondary))
             }
         }
 
         if metadata.usesAccountFallback {
             if emailText?.isEmpty ?? true, let fallbackEmail = fallback.email, !fallbackEmail.isEmpty {
                 let redacted = PersonalInfoRedactor.redactEmail(fallbackEmail, isEnabled: hidePersonalInfo)
-                entries.append(.text("Account: \(redacted)", .secondary))
+                entries.append(.text(String(format: L("Account: %@"), redacted), .secondary))
             }
             if loginMethodText?.isEmpty ?? true, let fallbackPlan = fallback.plan, !fallbackPlan.isEmpty {
-                entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan, provider: provider))", .secondary))
+                entries.append(.text(
+                    String(format: L("Plan: %@"), AccountFormatter.plan(fallbackPlan, provider: provider)),
+                    .secondary))
             }
         }
 
@@ -455,10 +463,9 @@ struct MenuDescriptor {
               let status = store.status(for: target),
               status.indicator != .none else { return nil }
 
-        let description = status.description?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let label = description?.isEmpty == false ? description! : status.indicator.label
+        let label = LocalizedProviderText.statusText(status)
         if let updated = status.updatedAt {
-            let freshness = UsageFormatter.updatedString(from: updated)
+            let freshness = LocalizedUsageText.updatedString(from: updated)
             return "\(label) — \(freshness)"
         }
         return label
@@ -510,12 +517,12 @@ struct MenuDescriptor {
         showUsed: Bool,
         resetOverride: String? = nil)
     {
-        let line = UsageFormatter
+        let line = LocalizedUsageText
             .usageLine(remaining: window.remainingPercent, used: window.usedPercent, showUsed: showUsed)
-        entries.append(.text("\(title): \(line)", .primary))
+        entries.append(.text("\(L(title)): \(line)", .primary))
         if let resetOverride {
             entries.append(.text(resetOverride, .secondary))
-        } else if let reset = UsageFormatter.resetLine(for: window, style: resetStyle) {
+        } else if let reset = LocalizedUsageText.resetLine(for: window, style: resetStyle) {
             entries.append(.text(reset, .secondary))
         }
     }

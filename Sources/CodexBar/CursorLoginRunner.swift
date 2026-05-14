@@ -72,7 +72,7 @@ final class CursorLoginRunner: NSObject {
             backing: .buffered,
             defer: false)
         window.isReleasedWhenClosed = false
-        window.title = "Cursor Login"
+        window.title = L("Cursor Login")
         window.contentView = webView
         window.center()
         window.delegate = self

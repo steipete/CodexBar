@@ -474,7 +474,7 @@ struct ProvidersPane: View {
             ]
         } else if SettingsStore.isBalanceOnlyProvider(provider) {
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("automatic")),
             ]
         } else if provider == .abacus {
             let metadata = self.store.metadata(for: provider)

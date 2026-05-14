@@ -10,7 +10,7 @@ struct StorageMenuCardSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Storage")
+            Text(L("Storage"))
                 .font(.body)
                 .fontWeight(.medium)
             Text(self.storageText)
@@ -67,16 +67,16 @@ struct StorageBreakdownMenuView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Storage")
+                Text(L("Storage"))
                     .font(.body)
                     .fontWeight(.medium)
-                Text("Total: \(UsageFormatter.byteCountString(self.footprint.totalBytes))")
+                Text(String(format: L("Total: %@"), UsageFormatter.byteCountString(self.footprint.totalBytes)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if self.visibleComponents.isEmpty {
-                Text("No local data found")
+                Text(L("No local data found"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -88,7 +88,9 @@ struct StorageBreakdownMenuView: View {
             }
 
             if self.footprint.components.count > self.visibleComponents.count {
-                Text("\(self.footprint.components.count - self.visibleComponents.count) more items")
+                Text(String(
+                    format: L("%@ more items"),
+                    "\(self.footprint.components.count - self.visibleComponents.count)"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -96,7 +98,7 @@ struct StorageBreakdownMenuView: View {
                 Divider()
                     .padding(.vertical, 2)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Cleanup ideas")
+                    Text(L("Cleanup ideas"))
                         .font(.body)
                         .fontWeight(.medium)
                     ForEach(self.cleanupRecommendations) { recommendation in
@@ -105,7 +107,9 @@ struct StorageBreakdownMenuView: View {
                 }
             }
             if !self.footprint.unreadablePaths.isEmpty {
-                Text("\(self.footprint.unreadablePaths.count) unreadable item(s) skipped")
+                Text(String(
+                    format: L("%@ unreadable item(s) skipped"),
+                    "\(self.footprint.unreadablePaths.count)"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -210,8 +214,8 @@ struct StoragePathCopyButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(self.didCopy ? "Copied" : "Copy path")
-        .accessibilityLabel(self.didCopy ? "Copied" : "Copy path")
+        .help(self.didCopy ? L("Copied") : L("Copy path"))
+        .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy path"))
     }
 
     static func copyToPasteboard(_ path: String) {

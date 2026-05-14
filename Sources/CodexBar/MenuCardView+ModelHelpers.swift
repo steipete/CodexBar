@@ -19,7 +19,7 @@ extension UsageMenuCardView.Model {
         style: ResetTimeDisplayStyle,
         now: Date) -> String?
     {
-        UsageFormatter.resetLine(for: window, style: style, now: now)
+        LocalizedUsageText.resetLine(for: window, style: style, now: now)
     }
 
     static func sessionPaceDetail(

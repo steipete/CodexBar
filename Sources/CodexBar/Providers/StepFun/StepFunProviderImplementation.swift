@@ -95,11 +95,7 @@ struct StepFunProviderImplementation: ProviderImplementation {
                 options: cookieOptions,
                 isVisible: nil,
                 onChange: nil,
-                trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .stepfun) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
-                }),
+                trailingText: { ProviderCookieSourceUI.cachedTrailingText(provider: .stepfun) }),
         ]
     }
 

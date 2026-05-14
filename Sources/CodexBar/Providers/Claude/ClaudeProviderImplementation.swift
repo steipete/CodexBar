@@ -10,7 +10,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
         ProviderPresentation { context in
-            var versionText = context.store.version(for: context.provider) ?? "not detected"
+            var versionText = context.store.version(for: context.provider) ?? L("not detected")
             if let parenRange = versionText.range(of: "(") {
                 versionText = versionText[..<parenRange.lowerBound].trimmingCharacters(in: .whitespaces)
             }
@@ -172,7 +172,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 trailingText: {
                     guard context.settings.claudeUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .claude)
-                    return label == "auto" ? nil : label
+                    return label == "auto" ? nil : LocalizedProviderText.sourceLabel(label)
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "claude-keychain-prompt-policy",
@@ -193,11 +193,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 options: cookieOptions,
                 isVisible: nil,
                 onChange: nil,
-                trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .claude) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
-                }),
+                trailingText: { ProviderCookieSourceUI.cachedTrailingText(provider: .claude) }),
         ]
     }
 

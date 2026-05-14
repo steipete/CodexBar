@@ -31,10 +31,10 @@ struct UsageBreakdownChartMenuView: View {
         let model = Self.makeModel(from: self.breakdown)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No usage breakdown data.")
+                Text(L("No usage breakdown data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("No usage breakdown data available.")
+                    .accessibilityLabel(L("No usage breakdown data available."))
             } else {
                 Chart {
                     ForEach(model.points) { point in
@@ -65,11 +65,14 @@ struct UsageBreakdownChartMenuView: View {
                 }
                 .chartLegend(.hidden)
                 .frame(height: 130)
-                .accessibilityLabel("Usage breakdown chart")
+                .accessibilityLabel(L("Usage breakdown chart"))
                 .accessibilityValue(
                     model.points.isEmpty
-                        ? "No data"
-                        : "\(model.points.count) days of usage data across \(model.services.count) services")
+                        ? L("No data")
+                        : String(
+                            format: L("%1$@ days of usage data across %2$@ services"),
+                            "\(model.points.count)",
+                            "\(model.services.count)"))
                 .chartOverlay { proxy in
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {
@@ -368,17 +371,17 @@ struct UsageBreakdownChartMenuView: View {
               let day = model.breakdownByDayKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return (L("Hover a bar for details"), nil)
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         let total = day.totalCreditsUsed.formatted(.number.precision(.fractionLength(0...2)))
         if day.services.isEmpty {
-            return ("\(dayLabel): \(total)", nil)
+            return (String(format: L("%1$@: %2$@"), dayLabel, total), nil)
         }
         if day.services.count <= 1, let first = day.services.first {
             let used = first.creditsUsed.formatted(.number.precision(.fractionLength(0...2)))
-            return ("\(dayLabel): \(used)", first.service)
+            return (String(format: L("%1$@: %2$@"), dayLabel, used), first.service)
         }
 
         let services = day.services
@@ -390,6 +393,6 @@ struct UsageBreakdownChartMenuView: View {
             .map { "\($0.service) \($0.creditsUsed.formatted(.number.precision(.fractionLength(0...2))))" }
             .joined(separator: " · ")
 
-        return ("\(dayLabel): \(total)", services)
+        return (String(format: L("%1$@: %2$@"), dayLabel, total), services)
     }
 }
