@@ -6,8 +6,12 @@ APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
 APP_BUNDLE="CodexBar.app"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 source "$ROOT/version.env"
-ZIP_NAME="${APP_NAME}-${MARKETING_VERSION}.zip"
-DSYM_ZIP="${APP_NAME}-${MARKETING_VERSION}.dSYM.zip"
+source "$ROOT/Scripts/release_artifacts.sh"
+
+# Allow building a universal binary if ARCHES is provided; default to universal (arm64 + x86_64).
+ARCHES_VALUE=${ARCHES:-"arm64 x86_64"}
+ZIP_NAME=$(codexbar_app_zip_name "$MARKETING_VERSION" "$ARCHES_VALUE")
+DSYM_ZIP=$(codexbar_dsym_zip_name "$MARKETING_VERSION" "$ARCHES_VALUE")
 
 if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" || -z "${APP_STORE_CONNECT_KEY_ID:-}" || -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
   echo "Missing APP_STORE_CONNECT_* env vars (API key, key id, issuer id)." >&2
@@ -30,8 +34,6 @@ fi
 echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > /tmp/codexbar-api-key.p8
 trap 'rm -f /tmp/codexbar-api-key.p8 /tmp/${APP_NAME}Notarize.zip' EXIT
 
-# Allow building a universal binary if ARCHES is provided; default to universal (arm64 + x86_64).
-ARCHES_VALUE=${ARCHES:-"arm64 x86_64"}
 ARCH_LIST=( ${ARCHES_VALUE} )
 for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c release --arch "$ARCH"
@@ -94,8 +96,10 @@ if [[ ! -d "$DSYM_PATH" ]]; then
   exit 1
 fi
 if [[ ${#ARCH_LIST[@]} -gt 1 ]]; then
-  MERGED_DSYM="${PREFERRED_ARCH_DIR}/${APP_NAME}.dSYM-universal"
-  rm -rf "$MERGED_DSYM"
+  MERGED_DSYM_ROOT="${PREFERRED_ARCH_DIR}/${APP_NAME}.dSYM-universal"
+  MERGED_DSYM="${MERGED_DSYM_ROOT}/${APP_NAME}.dSYM"
+  rm -rf "$MERGED_DSYM_ROOT"
+  mkdir -p "$MERGED_DSYM_ROOT"
   cp -R "$DSYM_PATH" "$MERGED_DSYM"
   DWARF_PATH="${MERGED_DSYM}/Contents/Resources/DWARF/${APP_NAME}"
   BINARIES=()

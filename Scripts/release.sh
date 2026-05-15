@@ -5,11 +5,15 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
 source "$ROOT/version.env"
+source "$ROOT/Scripts/release_artifacts.sh"
 source "$HOME/Projects/agent-scripts/release/sparkle_lib.sh"
 
 APPCAST="$ROOT/appcast.xml"
 APP_NAME="CodexBar"
-ARTIFACT_PREFIX="CodexBar-"
+ARCHES_VALUE=${ARCHES:-"arm64 x86_64"}
+APP_ZIP=$(codexbar_app_zip_name "$MARKETING_VERSION" "$ARCHES_VALUE")
+DSYM_ZIP=$(codexbar_dsym_zip_name "$MARKETING_VERSION" "$ARCHES_VALUE")
+ARTIFACT_PREFIX="CodexBar-macos-[A-Za-z0-9_+-]+-"
 BUNDLE_ID="com.steipete.codexbar"
 TAG="v${MARKETING_VERSION}"
 
@@ -40,13 +44,13 @@ trap 'rm -f "$KEY_FILE" "$NOTES_FILE"' EXIT
 git tag -s -f -m "${APP_NAME} ${MARKETING_VERSION}" "$TAG"
 git push -f origin "$TAG"
 
-gh release create "$TAG" ${APP_NAME}-${MARKETING_VERSION}.zip ${APP_NAME}-${MARKETING_VERSION}.dSYM.zip \
+gh release create "$TAG" "$APP_ZIP" "$DSYM_ZIP" \
   --title "${APP_NAME} ${MARKETING_VERSION}" \
   --notes-file "$NOTES_FILE"
 
 SPARKLE_PRIVATE_KEY_FILE="$KEY_FILE" \
   "$ROOT/Scripts/make_appcast.sh" \
-  "${APP_NAME}-${MARKETING_VERSION}.zip" \
+  "$APP_ZIP" \
   "https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"
 
 verify_appcast_entry "$APPCAST" "$MARKETING_VERSION" "$KEY_FILE"
