@@ -55,15 +55,19 @@ struct StatusMenuSwitcherRefreshTests {
         let nextProviderButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .off })
         #expect(initialSwitcher._test_simulateRuntimeClick(buttonTag: nextProviderButton.tag) == true)
 
-        for _ in 0..<50 {
+        var replacementSwitcher: ProviderSwitcherView?
+        for _ in 0..<100 {
             await Task.yield()
-            guard let currentSwitcher = menu.items.first?.view as? ProviderSwitcherView,
-                  initialSwitcherID == ObjectIdentifier(currentSwitcher)
-            else { break }
+            if let currentSwitcher = menu.items.first?.view as? ProviderSwitcherView,
+               initialSwitcherID != ObjectIdentifier(currentSwitcher)
+            {
+                replacementSwitcher = currentSwitcher
+                break
+            }
             try? await Task.sleep(for: .milliseconds(20))
         }
 
-        let updatedSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        let updatedSwitcher = try #require(replacementSwitcher)
         #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
         #expect(updatedSwitcher.frame.width == 310)
     }
