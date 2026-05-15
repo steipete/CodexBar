@@ -98,11 +98,11 @@ extension CodexBarCLI {
         return "\u{001B}[1;36m\(header)\u{001B}[0m"
     }
 
-    private static func costProviders(from selection: ProviderSelection) -> [UsageProvider] {
+    static func costProviders(from selection: ProviderSelection) -> [UsageProvider] {
         selection.asList.filter { Self.costSupportedProviders.contains($0) }
     }
 
-    private static func makeCostPayload(
+    static func makeCostPayload(
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot?,
         error: Error?) -> CostPayload

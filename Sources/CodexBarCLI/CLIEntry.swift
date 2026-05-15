@@ -39,6 +39,8 @@ enum CodexBarCLI {
                 await self.runUsage(invocation.parsedValues)
             case ["cost"]:
                 await self.runCost(invocation.parsedValues)
+            case ["serve"]:
+                await self.runServe(invocation.parsedValues)
             case ["config", "validate"]:
                 self.runConfigValidate(invocation.parsedValues)
             case ["config", "dump"]:
@@ -62,6 +64,7 @@ enum CodexBarCLI {
     private static func commandDescriptors() -> [CommandDescriptor] {
         let usageSignature = CommandSignature.describe(UsageOptions())
         let costSignature = CommandSignature.describe(CostOptions())
+        let serveSignature = CommandSignature.describe(ServeOptions())
         let configSignature = CommandSignature.describe(ConfigOptions())
         let cacheSignature = CommandSignature.describe(CacheOptions())
 
@@ -76,6 +79,11 @@ enum CodexBarCLI {
                 abstract: "Print local cost usage as text or JSON",
                 discussion: nil,
                 signature: costSignature),
+            CommandDescriptor(
+                name: "serve",
+                abstract: "Serve usage and cost JSON over localhost HTTP",
+                discussion: nil,
+                signature: serveSignature),
             CommandDescriptor(
                 name: "config",
                 abstract: "Config utilities",
