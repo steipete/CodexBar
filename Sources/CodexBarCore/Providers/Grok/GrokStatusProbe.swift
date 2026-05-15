@@ -100,8 +100,12 @@ public struct GrokStatusProbe: Sendable {
         let localSummary = GrokLocalSessionScanner.summarize(env: env)
         let cliVersion = Self.detectVersion(env: env)
 
-        if billing == nil, credentials == nil, localSummary.sessionCount == 0 {
-            // Nothing to show; surface the RPC error or auth-required hint.
+        // `localSummary` is *not* currently projected into a visible RateWindow or
+        // identity field, so a stale `~/.grok/sessions/` directory must not
+        // suppress the auth-required hint. Only swallow the RPC error when we
+        // actually have something rendrable for the user — credentials or a
+        // billing response.
+        if billing == nil, credentials == nil {
             throw rpcError ?? GrokRPCError.notAuthenticated
         }
 

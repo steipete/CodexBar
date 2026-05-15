@@ -158,6 +158,10 @@ public enum GrokCredentialsStore {
         var legacyCandidate: (String, [String: Any])?
         for (scope, value) in root {
             guard let entry = value as? [String: Any] else { continue }
+            // Only accept entries that actually carry a usable bearer token. A
+            // stale/partial OIDC record (key missing or empty) must not shadow a
+            // healthy legacy session entry.
+            guard let key = entry["key"] as? String, !key.isEmpty else { continue }
             if scope.hasPrefix(self.oidcScopePrefix) {
                 oidcCandidate = (scope, entry)
             } else if scope == self.legacySessionScope || scope.contains("/sign-in") {

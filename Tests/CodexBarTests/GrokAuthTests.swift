@@ -72,6 +72,28 @@ struct GrokAuthTests {
     }
 
     @Test
+    func `falls back to legacy when OIDC entry has no key`() throws {
+        // A stale/partial OIDC record must not shadow a healthy legacy session.
+        let json = #"""
+        {
+          "https://auth.x.ai::stale-client": {
+            "auth_mode": "oidc",
+            "email": "stale@example.com"
+          },
+          "https://accounts.x.ai/sign-in": {
+            "key": "healthy-legacy-token",
+            "auth_mode": "session",
+            "email": "healthy@example.com"
+          }
+        }
+        """#
+        let data = Data(json.utf8)
+        let creds = try GrokCredentialsStore.parse(data: data)
+        #expect(creds.accessToken == "healthy-legacy-token")
+        #expect(creds.email == "healthy@example.com")
+    }
+
+    @Test
     func `prefers OIDC entry over legacy session when both present`() throws {
         let json = #"""
         {
