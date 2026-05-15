@@ -210,7 +210,10 @@ extension CodexBarCLI {
         return response
     }
 
-    private static func serveUsage(provider rawProvider: String?, config: CodexBarConfig) async -> CLILocalHTTPResponse {
+    private static func serveUsage(
+        provider rawProvider: String?,
+        config: CodexBarConfig) async -> CLILocalHTTPResponse
+    {
         let selection: ProviderSelection
         do {
             selection = try Self.serveProviderSelection(rawProvider: rawProvider, config: config)
@@ -292,7 +295,7 @@ extension CodexBarCLI {
         config: CodexBarConfig) throws -> ProviderSelection
     {
         guard let rawProvider, !rawProvider.isEmpty else {
-            return Self.providerSelection(rawOverride: nil, enabled: config.enabledProviders())
+            return providerSelection(rawOverride: nil, enabled: config.enabledProviders())
         }
         guard let selection = ProviderSelection(argument: rawProvider) else {
             throw CLIServeArgumentError.invalidProvider(rawProvider)
@@ -306,6 +309,6 @@ extension CodexBarCLI {
     }
 
     private static func serveError(status: CLIHTTPStatus, message: String) -> CLILocalHTTPResponse {
-        Self.serveJSON(ServeErrorPayload(error: message), status: status)
+        serveJSON(ServeErrorPayload(error: message), status: status)
     }
 }
