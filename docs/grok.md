@@ -14,12 +14,22 @@ No browser cookies, no direct REST calls.
 
 ## Data sources + fallback order
 
-1) **`grok agent stdio` ACP JSON-RPC** (primary)
-   - Spawns `grok agent stdio` as a subprocess.
-   - Sends `initialize` with `protocolVersion: "1"` and minimal `clientCapabilities`.
-   - Calls the `x.ai/billing` method (no params) to retrieve `BillingConfigResponse`.
-   - Requires the user to be logged in via `grok login` (OAuth session — SuperGrok).
-2) **Local session signals** (always available, used to surface identity even if RPC fails)
+1) **`~/.grok/auth.json` (primary; always works for SuperGrok subscribers)**
+   - Reads `email`, `team_id`, `first_name`/`last_name`, plan-hint (`auth_mode`)
+     for the identity row in the menu.
+2) **`grok agent stdio` ACP JSON-RPC** (best-effort, currently disabled in grok 0.1.210)
+   - We spawn `grok agent stdio` and call `initialize` + `x.ai/billing` (no params).
+   - **Known limitation:** in grok 0.1.210 the `x.ai/billing` extension method
+     is only wired in the interactive TUI; the agent-stdio surface returns
+     `-32601 Method not found`. The provider degrades silently to identity-only
+     when this happens. When xAI exposes billing on the agent protocol, no
+     code change is required.
+   - One non-obvious quirk: grok's ACP parser does not unescape `\/` in method
+     names. `Foundation.JSONSerialization.data` defaults to escaping forward
+     slashes, so payloads must be re-encoded with `\/` → `/` before being
+     written to stdin or grok will silently drop them (12s client-side
+     timeout instead of the expected error response).
+3) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
      and the most recent session timestamp.
