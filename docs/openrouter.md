@@ -24,7 +24,8 @@ The OpenRouter provider fetches usage data from two API endpoints:
 
 1. **Credits API** (`/api/v1/credits`): Returns total credits purchased and total usage. The balance is calculated as `total_credits - total_usage`.
 
-2. **Key API** (`/api/v1/key`): Returns rate limit information for your API key.
+2. **Key API** (`/api/v1/key`): Returns rate limit information for your API key, plus daily,
+   weekly, and monthly key usage when available.
 
 ## Display
 
@@ -32,6 +33,8 @@ The OpenRouter menu card shows:
 
 - **Primary meter**: Credit usage percentage (how much of your purchased credits have been used)
 - **Balance**: Displayed in the identity section as "Balance: $X.XX"
+- **Spend cadence**: Daily and weekly API key usage from `/api/v1/key`, shown as
+  "Today: $X.XX · This week: $Y.YY" when the endpoint returns those fields
 
 ## CLI Usage
 

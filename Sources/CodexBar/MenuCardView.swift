@@ -828,11 +828,32 @@ extension UsageMenuCardView.Model {
             return []
         }
 
-        return switch openRouter.keyQuotaStatus {
-        case .available: []
-        case .noLimitConfigured: ["No limit set for the API key"]
-        case .unavailable: ["API key limit unavailable right now"]
+        var notes = Self.openRouterSpendNotes(openRouter)
+        switch openRouter.keyQuotaStatus {
+        case .available:
+            break
+        case .noLimitConfigured:
+            notes.append("No limit set for the API key")
+        case .unavailable:
+            notes.append("API key limit unavailable right now")
         }
+        return notes
+    }
+
+    private static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {
+        var parts: [String] = []
+        if let daily = usage.keyUsageDaily {
+            parts.append("Today: \(Self.openRouterCurrencyString(daily))")
+        }
+        if let weekly = usage.keyUsageWeekly {
+            parts.append("This week: \(Self.openRouterCurrencyString(weekly))")
+        }
+        guard !parts.isEmpty else { return [] }
+        return [parts.joined(separator: " · ")]
+    }
+
+    private static func openRouterCurrencyString(_ value: Double) -> String {
+        String(format: "$%.2f", value)
     }
 
     private static func email(
