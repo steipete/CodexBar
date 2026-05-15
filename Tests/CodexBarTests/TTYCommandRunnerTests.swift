@@ -141,6 +141,24 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
+    func `codex status probe uses non persistent thread storage`() {
+        let stateHome = URL(fileURLWithPath: "/tmp/codexbar status \"state\"", isDirectory: true)
+        let args = CodexStatusProbeIsolation.codexArguments(stateHome: stateHome)
+
+        #expect(args.starts(with: ["-s", "read-only", "-a", "untrusted"]))
+        #expect(args.contains("history.persistence=\"none\""))
+        #expect(args.contains("experimental_thread_store={type=\"in_memory\",id=\"codexbar-status\"}"))
+        #expect(args.contains("sqlite_home=\"/tmp/codexbar status \\\"state\\\"\""))
+    }
+
+    @Test
+    func `codex status probe avoids root working directory when home exists`() {
+        let home = "/Users/tester"
+        let workingDirectory = CodexStatusProbeIsolation.workingDirectory(environment: ["HOME": home])
+        #expect(workingDirectory?.path == home)
+    }
+
+    @Test
     func `sets working directory when provided`() throws {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("codexbar-tty-\(UUID().uuidString)", isDirectory: true)

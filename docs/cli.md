@@ -44,6 +44,11 @@ See `docs/configuration.md` for the schema.
 - `codexbar cost` prints local token cost usage for Claude + Codex without web/CLI access.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
+- `codexbar serve` starts a foreground localhost-only HTTP server for usage and cost JSON.
+  - `--port <port>` defaults to `8080`.
+  - `--refresh-interval <seconds>` defaults to `60` and controls the in-memory response cache TTL.
+  - v1 binds to `127.0.0.1` only. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
+  - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`.
 - `codexbar cache clear` clears local CodexBar caches.
   - `--cookies` removes cached browser-cookie headers from the CodexBar Keychain cache.
   - `--cookies --provider <id>` removes browser-cookie cache entries for that provider, including managed Codex account scopes.
@@ -106,6 +111,7 @@ codexbar --format json --pretty   # machine output
 codexbar --format json --provider both
 codexbar cost                     # local cost usage (last 30 days + today)
 codexbar cost --provider claude --format json --pretty
+codexbar serve --port 8080        # localhost HTTP JSON server
 COPILOT_API_TOKEN=... codexbar --provider copilot --format json --pretty
 codexbar --status                 # include status page indicator/description
 codexbar --provider codex --source oauth --format json --pretty

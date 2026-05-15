@@ -273,7 +273,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `open menu refreshes after store data changes`() async {
+    func `open menu defers store data refresh until next open`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -323,6 +323,10 @@ struct StatusMenuTests {
         controller.refreshOpenMenusIfNeeded()
 
         #expect(controller.menuContentVersion != openedVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        controller.menuDidClose(menu)
+        controller.menuWillOpen(menu)
         #expect(controller.menuVersions[key] == staleVersion)
     }
 
@@ -562,72 +566,6 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `merged provider switch rebuilds stale width switcher rows`() async {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = true
-        settings.selectedMenuProvider = .codex
-
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
-        }
-        let activeProviders: [UsageProvider] = [.codex, .claude]
-        _ = settings.setMergedOverviewProviderSelection(
-            provider: .codex,
-            isSelected: false,
-            activeProviders: activeProviders)
-        _ = settings.setMergedOverviewProviderSelection(
-            provider: .claude,
-            isSelected: false,
-            activeProviders: activeProviders)
-
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-
-        let menu = controller.makeMenu()
-        StatusItemController.setMenuRefreshEnabledForTesting(true)
-        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
-        controller.menuWillOpen(menu)
-
-        let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
-        #expect(initialSwitcher != nil)
-        let initialSwitcherID = initialSwitcher.map(ObjectIdentifier.init)
-        initialSwitcher?.frame.size.width = 250
-
-        let nextProviderButton = self.switcherButtons(in: menu).first(where: { $0.state == .off })
-        #expect(nextProviderButton != nil)
-        let clickedNextProvider = nextProviderButton.map {
-            initialSwitcher?._test_simulateRuntimeClick(buttonTag: $0.tag)
-        } ?? false
-        #expect(clickedNextProvider == true)
-        for _ in 0..<50
-            where initialSwitcherID == (menu.items.first?.view as? ProviderSwitcherView)
-            .map(ObjectIdentifier.init)
-        {
-            await Task.yield()
-        }
-
-        let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
-        #expect(updatedSwitcher != nil)
-        if let initialSwitcherID, let updatedSwitcher {
-            #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
-            #expect(updatedSwitcher.frame.width == 310)
-        }
-    }
-
-    @Test
     func `merged switcher includes overview tab when multiple providers enabled`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -759,7 +697,8 @@ struct StatusMenuTests {
             isSelected: true,
             activeProviders: activeProviders)
         controller.menuContentVersion &+= 1
-        controller.refreshOpenMenusIfNeeded()
+        controller.menuDidClose(menu)
+        controller.menuWillOpen(menu)
 
         let updatedButtons = self.switcherButtons(in: menu)
         #expect(updatedButtons.count == activeProviders.count + 1)
@@ -1325,6 +1264,8 @@ extension StatusMenuTests {
         let submenu = controller.makeHostedSubviewPlaceholderMenu(
             chartID: StatusItemController.costHistoryChartID,
             provider: .codex)
+        #expect(submenu.autoenablesItems == false)
+        #expect(submenu.items.first?.isEnabled == true)
 
         controller.hydrateHostedSubviewMenuIfNeeded(submenu)
         #expect(submenu.items.count == 1)
@@ -1352,6 +1293,7 @@ extension StatusMenuTests {
         #expect(submenu.items.count == 1)
         #expect(submenu.items.first?.title != "No data available")
         #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
+        #expect(submenu.items.first?.isEnabled == true)
     }
 
     @Test

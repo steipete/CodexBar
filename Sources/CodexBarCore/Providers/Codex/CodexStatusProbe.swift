@@ -204,15 +204,21 @@ public struct CodexStatusProbe {
         cols: UInt16,
         timeout: TimeInterval) async throws -> CodexStatusSnapshot
     {
+        let stateHome = try CodexStatusProbeIsolation.supportDirectory(environment: self.environment)
+        let extraArgs = CodexStatusProbeIsolation.codexArguments(stateHome: stateHome)
+        let workingDirectory = CodexStatusProbeIsolation.workingDirectory(environment: self.environment)
         let text: String
         if self.keepCLISessionsAlive {
             do {
                 text = try await CodexCLISession.shared.captureStatus(
                     binary: binary,
-                    timeout: timeout,
-                    rows: rows,
-                    cols: cols,
-                    environment: self.environment)
+                    options: .init(
+                        timeout: timeout,
+                        rows: rows,
+                        cols: cols,
+                        environment: self.environment,
+                        extraArgs: extraArgs,
+                        workingDirectory: workingDirectory))
             } catch CodexCLISession.SessionError.processExited {
                 throw CodexStatusProbeError.timedOut
             } catch CodexCLISession.SessionError.timedOut {
@@ -235,7 +241,8 @@ public struct CodexStatusProbe {
                         rows: rows,
                         cols: cols,
                         timeout: timeout,
-                        extraArgs: ["-s", "read-only", "-a", "untrusted"],
+                        workingDirectory: workingDirectory,
+                        extraArgs: extraArgs,
                         baseEnvironment: self.environment,
                         forceCodexStatusMode: true))
             } catch let TTYCommandRunner.Error.launchFailed(message) {

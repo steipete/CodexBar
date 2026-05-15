@@ -9,9 +9,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await self.store.refresh(forceTokenUsage: forceTokenUsage)
                 self.store.scheduleStorageFootprintRefreshForOverview(force: true)
-                self.invalidateMenus()
                 if refreshOpenMenusWhenComplete {
-                    self.refreshOpenMenusIfNeeded()
+                    self.refreshOpenMenusAfterExplicitStoreAction()
+                } else {
+                    self.invalidateMenus()
                 }
             }
         }
@@ -28,6 +29,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     nonisolated func performPersistentRefreshAction() {
         Task { @MainActor [weak self] in
             self?.refreshNow()
+        }
+    }
+
+    nonisolated func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection) {
+        Task { @MainActor [weak self] in
+            self?.navigateProviderSwitcher(direction)
         }
     }
 

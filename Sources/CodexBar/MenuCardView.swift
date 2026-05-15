@@ -828,11 +828,32 @@ extension UsageMenuCardView.Model {
             return []
         }
 
-        return switch openRouter.keyQuotaStatus {
-        case .available: []
-        case .noLimitConfigured: ["No limit set for the API key"]
-        case .unavailable: ["API key limit unavailable right now"]
+        var notes = Self.openRouterSpendNotes(openRouter)
+        switch openRouter.keyQuotaStatus {
+        case .available:
+            break
+        case .noLimitConfigured:
+            notes.append("No limit set for the API key")
+        case .unavailable:
+            notes.append("API key limit unavailable right now")
         }
+        return notes
+    }
+
+    private static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {
+        var parts: [String] = []
+        if let daily = usage.keyUsageDaily {
+            parts.append("Today: \(Self.openRouterCurrencyString(daily))")
+        }
+        if let weekly = usage.keyUsageWeekly {
+            parts.append("This week: \(Self.openRouterCurrencyString(weekly))")
+        }
+        guard !parts.isEmpty else { return [] }
+        return [parts.joined(separator: " · ")]
+    }
+
+    private static func openRouterCurrencyString(_ value: Double) -> String {
+        String(format: "$%.2f", value)
     }
 
     private static func email(
@@ -1143,6 +1164,12 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
+        if input.provider == .copilot,
+           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !detail.isEmpty
+        {
+            primaryDetailLeft = detail
+        }
         if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1298,6 +1325,12 @@ extension UsageMenuCardView.Model {
            !detail.isEmpty
         {
             weeklyResetText = detail
+        }
+        if input.provider == .copilot,
+           let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !detail.isEmpty
+        {
+            paceDetail = PaceDetail(leftLabel: detail, rightLabel: nil, pacePercent: nil, paceOnTop: true)
         }
         // Perplexity bonus credits don't reset; show balance without "Resets" prefix.
         if input.provider == .perplexity,

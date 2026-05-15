@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuHostedSubmenuRefreshTests {
     @Test
-    func `open hosted submenu defers parent menu rebuild until submenu closes`() throws {
+    func `open parent menu defers data rebuild until next open`() throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         let previousMenuRefresh = StatusItemController.menuRefreshEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -45,12 +45,20 @@ struct StatusMenuHostedSubmenuRefreshTests {
         controller.menuVersions[parentKey] = controller.menuContentVersion
 
         let costItem = try #require(menu.items.first { ($0.representedObject as? String) == "menuCardCost" })
+        #expect(costItem.view == nil)
         let submenu = try #require(costItem.submenu)
+        let submenuAction = try #require(costItem.action)
+        #expect(NSStringFromSelector(submenuAction) == "submenuAction:")
+        #expect((costItem.target as? NSMenu) === submenu)
+        #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
+        #expect(submenu.minimumWidth >= StatusItemController.menuCardBaseWidth)
+        #expect(submenu.items.first?.view == nil)
 
         StatusItemController.setMenuRefreshEnabledForTesting(true)
         controller.menuWillOpen(submenu)
         let submenuKey = ObjectIdentifier(submenu)
         #expect(controller.openMenus[submenuKey] === submenu)
+        #expect(submenu.items.first?.view != nil)
 
         let oldParentVersion = try #require(controller.menuVersions[parentKey])
         controller.menuContentVersion &+= 1
@@ -59,6 +67,10 @@ struct StatusMenuHostedSubmenuRefreshTests {
 
         controller.menuDidClose(submenu)
         #expect(controller.openMenus[submenuKey] == nil)
+
+        #expect(controller.menuVersions[parentKey] == oldParentVersion)
+        controller.menuDidClose(menu)
+        controller.menuWillOpen(menu)
         #expect(controller.menuVersions[parentKey] == controller.menuContentVersion)
     }
 

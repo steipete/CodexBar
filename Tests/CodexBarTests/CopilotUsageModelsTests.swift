@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 struct CopilotUsageModelsTests {
     @Test
@@ -271,6 +271,55 @@ struct CopilotUsageModelsTests {
 
         #expect(response.quotaSnapshots.chat?.hasPercentRemaining == true)
         #expect(response.quotaSnapshots.chat?.percentRemaining == 25)
+    }
+
+    @Test
+    func `preserves over quota percent remaining`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "paid",
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "entitlement": 500,
+                  "remaining": -75,
+                  "percent_remaining": -15,
+                  "quota_id": "premium_interactions"
+                }
+              }
+            }
+            """)
+
+        let snapshot = try #require(response.quotaSnapshots.premiumInteractions)
+        #expect(snapshot.percentRemaining == -15)
+        #expect(snapshot.usedPercent == 115)
+        #expect(snapshot.overQuotaUsedPercent == 115)
+        let window = try #require(CopilotUsageFetcher.makeRateWindow(from: snapshot))
+        #expect(window.usedPercent == 115)
+        #expect(window.resetDescription == "115% used")
+    }
+
+    @Test
+    func `derives over quota percent from negative remaining`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "paid",
+              "quota_snapshots": {
+                "chat": {
+                  "entitlement": 500,
+                  "remaining": -75,
+                  "quota_id": "chat"
+                }
+              }
+            }
+            """)
+
+        let snapshot = try #require(response.quotaSnapshots.chat)
+        #expect(snapshot.hasPercentRemaining)
+        #expect(snapshot.percentRemaining == -15)
+        #expect(snapshot.usedPercent == 115)
+        #expect(snapshot.overQuotaUsedPercent == 115)
     }
 
     @Test

@@ -45,7 +45,7 @@ What it does:
 - Packages `CodexBar.app` with Info.plist and Icon.icns
 - Embeds Sparkle.framework, Updater, Autoupdate, XPCs
 - Codesigns **everything** with runtime + timestamp (deep) and adds rpath
-- Zips to `CodexBar-<version>.zip`
+- Zips to `CodexBar-macos-universal-<version>.zip`
 - Submits to notarytool, waits, staples, validates
 
 Gotchas fixed:
@@ -58,7 +58,7 @@ Gotchas fixed:
 After notarization:
 ```
 SPARKLE_PRIVATE_KEY_FILE=/path/to/ed25519-priv.key \
-./Scripts/make_appcast.sh CodexBar-0.1.0.zip \
+./Scripts/make_appcast.sh CodexBar-macos-universal-0.1.0.zip \
   https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml
 Generates HTML release notes from `CHANGELOG.md` (via `Scripts/changelog-to-html.sh`) and embeds them into the appcast entry.
 ```
@@ -88,7 +88,7 @@ After publishing the GitHub release, update the tap cask + CLI formula (see `doc
   - Sparkle ed25519 private key path: `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle/sparkle-private-key-KEEP-SECURE.txt` (primary) and `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle-VibeTunnel/sparkle-private-key-KEEP-SECURE.txt` (older backup)
   - Upload the dSYM archive alongside the app zip on the GitHub release; the release script now automates this and will fail if it’s missing.
   - After publishing the release, run `Scripts/check-release-assets.sh <tag>` to confirm both the app zip and dSYM zip are present on GitHub.
-  - Generate the appcast + HTML release notes: `./Scripts/make_appcast.sh CodexBar-<ver>.zip https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml`
+  - Generate the appcast + HTML release notes: `./Scripts/make_appcast.sh CodexBar-macos-universal-<ver>.zip https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml`
   - Beta channel: prefix the command with `SPARKLE_CHANNEL=beta` to tag the entry.
   - Verify the enclosure signature + size: `SPARKLE_PRIVATE_KEY_FILE=... ./Scripts/verify_appcast.sh <ver>`
 - [ ] Upload zip + appcast to feed; publish tag + GitHub release so Sparkle URL is live (avoid 404)
@@ -100,7 +100,7 @@ After publishing the GitHub release, update the tap cask + CLI formula (see `doc
 - [ ] Changelog sanity: single top-level title, no duplicate version sections, versions strictly descending with no repeats
 - [ ] Release pages: title format `CodexBar <version>`, notes as Markdown list (no stray blank lines)
 - [ ] Changelog/release notes are user-facing: avoid internal-only bullets (build numbers, script bumps) and keep entries concise
-- [ ] Download uploaded `CodexBar-<ver>.zip`, unzip via `ditto`, run, and verify signature (`spctl -a -t exec -vv CodexBar.app` + `stapler validate`)
+- [ ] Download uploaded `CodexBar-macos-universal-<ver>.zip`, unzip via `ditto`, run, and verify signature (`spctl -a -t exec -vv CodexBar.app` + `stapler validate`)
 - [ ] Confirm `appcast.xml` points to the new zip/version and renders the HTML release notes (not escaped tags)
 - [ ] Verify on GitHub Releases: assets present (zip, appcast), release notes match changelog, version/tag correct
 - [ ] Open the appcast URL in browser to confirm the new entry is visible and enclosure URL is reachable

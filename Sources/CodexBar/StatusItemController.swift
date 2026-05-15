@@ -457,12 +457,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         guard Self.menuRefreshEnabled else { return }
         if !self.openMenus.isEmpty {
             guard refreshOpenMenus else { return }
-            self.refreshOpenMenusIfNeeded()
+            self.refreshOpenMenusAllowingParentRebuild()
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 // AppKit can ignore menu mutations while tracking; retry on the next run loop.
                 await Task.yield()
-                self.refreshOpenMenusIfNeeded()
+                self.refreshOpenMenusAllowingParentRebuild()
             }
             return
         }
@@ -520,7 +520,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.updateVisibility()
         self.updateIcons()
         if shouldRefreshOpenMenus {
-            self.refreshOpenMenusIfNeeded()
+            self.refreshOpenMenusForStructureChange()
         }
     }
 

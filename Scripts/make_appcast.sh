@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ZIP=${1:?
-"Usage: $0 CodexBar-<ver>.zip"}
+"Usage: $0 CodexBar-macos-<arch>-<ver>.zip"}
 FEED_URL=${2:-"https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"}
 PRIVATE_KEY_FILE=${SPARKLE_PRIVATE_KEY_FILE:-}
 SPARKLE_CHANNEL=${SPARKLE_CHANNEL:-}
@@ -21,8 +21,8 @@ ZIP_NAME=$(basename "$ZIP")
 ZIP_BASE="${ZIP_NAME%.zip}"
 VERSION=${SPARKLE_RELEASE_VERSION:-}
 if [[ -z "$VERSION" ]]; then
-  if [[ "$ZIP_NAME" =~ ^CodexBar-([0-9]+(\.[0-9]+){1,2}([-.][^.]*)?)\.zip$ ]]; then
-    VERSION="${BASH_REMATCH[1]}"
+  if [[ "$ZIP_NAME" =~ ^CodexBar-(macos-[A-Za-z0-9_+-]+-)?([0-9]+(\.[0-9]+){1,2}([-.][^.]*)?)\.zip$ ]]; then
+    VERSION="${BASH_REMATCH[2]}"
   else
     echo "Could not infer version from $ZIP_NAME; set SPARKLE_RELEASE_VERSION." >&2
     exit 1
