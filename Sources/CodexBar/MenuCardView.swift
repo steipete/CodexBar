@@ -1164,6 +1164,12 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
+        if input.provider == .copilot,
+           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !detail.isEmpty
+        {
+            primaryDetailLeft = detail
+        }
         if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1319,6 +1325,12 @@ extension UsageMenuCardView.Model {
            !detail.isEmpty
         {
             weeklyResetText = detail
+        }
+        if input.provider == .copilot,
+           let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !detail.isEmpty
+        {
+            paceDetail = PaceDetail(leftLabel: detail, rightLabel: nil, pacePercent: nil, paceOnTop: true)
         }
         // Perplexity bonus credits don't reset; show balance without "Resets" prefix.
         if input.provider == .perplexity,

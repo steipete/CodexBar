@@ -5,9 +5,14 @@ import Testing
 
 private final class RefreshShortcutRecorder: StatusItemMenuPersistentActionDelegate {
     var refreshCount = 0
+    var navigationDirections: [StatusItemMenuProviderNavigationDirection] = []
 
     func performPersistentRefreshAction() {
         self.refreshCount += 1
+    }
+
+    func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection) {
+        self.navigationDirections.append(direction)
     }
 }
 

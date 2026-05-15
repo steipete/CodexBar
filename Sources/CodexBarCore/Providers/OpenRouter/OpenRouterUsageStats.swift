@@ -45,11 +45,11 @@ public struct OpenRouterKeyData: Decodable, Sendable {
     public let limit: Double?
     /// Current usage
     public let usage: Double?
-    /// API key usage for the current UTC day
+    /// API key usage for the current UTC day.
     public let usageDaily: Double?
-    /// API key usage for the current UTC week
+    /// API key usage for the current UTC week.
     public let usageWeekly: Double?
-    /// API key usage for the current UTC month
+    /// API key usage for the current UTC month.
     public let usageMonthly: Double?
 
     private enum CodingKeys: String, CodingKey {

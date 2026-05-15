@@ -64,8 +64,8 @@ public struct CopilotUsageFetcher: Sendable {
         }
 
         let usage = try JSONDecoder().decode(CopilotUsageResponse.self, from: data)
-        let premium = self.makeRateWindow(from: usage.quotaSnapshots.premiumInteractions)
-        let chat = self.makeRateWindow(from: usage.quotaSnapshots.chat)
+        let premium = Self.makeRateWindow(from: usage.quotaSnapshots.premiumInteractions)
+        let chat = Self.makeRateWindow(from: usage.quotaSnapshots.chat)
 
         let primary: RateWindow?
         let secondary: RateWindow?
@@ -129,17 +129,19 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
     }
 
-    private func makeRateWindow(from snapshot: CopilotUsageResponse.QuotaSnapshot?) -> RateWindow? {
+    static func makeRateWindow(from snapshot: CopilotUsageResponse.QuotaSnapshot?) -> RateWindow? {
         guard let snapshot else { return nil }
         guard !snapshot.isPlaceholder else { return nil }
         guard snapshot.hasPercentRemaining else { return nil }
-        // percent_remaining is 0-100 based on the JSON example in the web app source
-        let usedPercent = max(0, 100 - snapshot.percentRemaining)
+        let usedPercent = snapshot.usedPercent
+        let overQuotaDescription = snapshot.overQuotaUsedPercent.map { used in
+            String(format: "%.0f%% used", used)
+        }
 
         return RateWindow(
             usedPercent: usedPercent,
             windowMinutes: nil, // Not provided
             resetsAt: nil, // Not provided per-quota in the simplified snapshot
-            resetDescription: nil)
+            resetDescription: overQuotaDescription)
     }
 }

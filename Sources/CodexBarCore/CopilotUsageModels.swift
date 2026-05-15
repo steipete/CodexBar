@@ -22,6 +22,14 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         public let percentRemaining: Double
         public let quotaId: String
         public let hasPercentRemaining: Bool
+        public var usedPercent: Double {
+            max(0, 100 - self.percentRemaining)
+        }
+
+        public var overQuotaUsedPercent: Double? {
+            self.usedPercent > 100 ? self.usedPercent : nil
+        }
+
         public var isPlaceholder: Bool {
             self.entitlement == 0 && self.remaining == 0 && self.percentRemaining == 0 && self.quotaId.isEmpty
         }
@@ -55,14 +63,14 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             self.remaining = decodedRemaining ?? 0
             let decodedPercent = Self.decodeNumberIfPresent(container: container, key: .percentRemaining)
             if let decodedPercent {
-                self.percentRemaining = max(0, min(100, decodedPercent))
+                self.percentRemaining = decodedPercent
                 self.hasPercentRemaining = true
             } else if let entitlement = decodedEntitlement,
                       entitlement > 0,
                       let remaining = decodedRemaining
             {
                 let derived = (remaining / entitlement) * 100
-                self.percentRemaining = max(0, min(100, derived))
+                self.percentRemaining = derived
                 self.hasPercentRemaining = true
             } else {
                 // Without percent_remaining and both inputs for derivation, the percent is unknown.

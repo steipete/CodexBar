@@ -133,21 +133,16 @@ struct OpenRouterUsageStatsTests {
                 let body = #"{"data":{"total_credits":100,"total_usage":40}}"#
                 return Self.makeResponse(url: url, body: body, statusCode: 200)
             case "/api/v1/key":
-                let body = """
-                {
-                  "data": {
-                    "limit": 20,
-                    "usage": 0.5,
-                    "usage_daily": 0.12,
-                    "usage_weekly": 0.74,
-                    "usage_monthly": 3.25,
-                    "rate_limit": {
-                      "requests": 120,
-                      "interval": "10s"
-                    }
-                  }
-                }
-                """
+                let body = #"""
+                {"data":{
+                  "limit":20,
+                  "usage":0.5,
+                  "usage_daily":0.12,
+                  "usage_weekly":0.74,
+                  "usage_monthly":4.56,
+                  "rate_limit":{"requests":120,"interval":"10s"}
+                }}
+                """#
                 return Self.makeResponse(url: url, body: body, statusCode: 200)
             default:
                 return Self.makeResponse(url: url, body: "{}", statusCode: 404)
@@ -169,7 +164,7 @@ struct OpenRouterUsageStatsTests {
         #expect(usage.keyUsage == 0.5)
         #expect(usage.keyUsageDaily == 0.12)
         #expect(usage.keyUsageWeekly == 0.74)
-        #expect(usage.keyUsageMonthly == 3.25)
+        #expect(usage.keyUsageMonthly == 4.56)
         #expect(usage.keyRemaining == 19.5)
         #expect(usage.keyUsedPercent == 2.5)
         #expect(usage.keyQuotaStatus == .available)
@@ -218,7 +213,7 @@ struct OpenRouterUsageStatsTests {
             keyUsage: nil,
             keyUsageDaily: 0.12,
             keyUsageWeekly: 0.74,
-            keyUsageMonthly: 3.25,
+            keyUsageMonthly: 4.56,
             rateLimit: nil,
             updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
         let snapshot = openRouter.toUsageSnapshot()
@@ -231,7 +226,7 @@ struct OpenRouterUsageStatsTests {
         #expect(decoded.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
         #expect(decoded.openRouterUsage?.keyUsageDaily == 0.12)
         #expect(decoded.openRouterUsage?.keyUsageWeekly == 0.74)
-        #expect(decoded.openRouterUsage?.keyUsageMonthly == 3.25)
+        #expect(decoded.openRouterUsage?.keyUsageMonthly == 4.56)
     }
 
     private static func makeResponse(
