@@ -5,6 +5,8 @@ import Darwin
 import Glibc
 #endif
 
+private let requestReadTimeoutMilliseconds: Int32 = 5_000
+
 struct CLILocalHTTPRequest {
     let method: String
     let target: String
@@ -108,6 +110,8 @@ final class CLILocalHTTPServer {
     }
 
     func run() async throws {
+        ignoreSIGPIPE()
+
         #if canImport(Darwin)
         let streamType = SOCK_STREAM
         #else
@@ -182,6 +186,9 @@ private func readRequest(_ fd: Int32) -> CLILocalHTTPRequest? {
     let bufferSize = buffer.count
 
     while data.count < 16_384 {
+        guard waitForReadable(fd, timeoutMilliseconds: requestReadTimeoutMilliseconds) else {
+            return nil
+        }
         let count = buffer.withUnsafeMutableBytes { rawBuffer in
             recv(fd, rawBuffer.baseAddress, bufferSize, 0)
         }
@@ -199,11 +206,41 @@ private func sendResponse(_ response: CLILocalHTTPResponse, to fd: Int32) {
         guard let base = rawBuffer.baseAddress else { return }
         var sent = 0
         while sent < data.count {
-            let count = send(fd, base.advanced(by: sent), data.count - sent, 0)
+            let count = send(fd, base.advanced(by: sent), data.count - sent, sendNoSignalFlags())
             guard count > 0 else { break }
             sent += count
         }
     }
+}
+
+private func waitForReadable(_ fd: Int32, timeoutMilliseconds: Int32) -> Bool {
+    var pollFD = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+    while true {
+        let result = poll(&pollFD, 1, timeoutMilliseconds)
+        if result > 0 {
+            return (pollFD.revents & Int16(POLLIN)) != 0
+        }
+        if result == -1, errno == EINTR {
+            continue
+        }
+        return false
+    }
+}
+
+private func sendNoSignalFlags() -> Int32 {
+    #if canImport(Darwin)
+    0
+    #else
+    MSG_NOSIGNAL
+    #endif
+}
+
+private func ignoreSIGPIPE() {
+    #if canImport(Darwin)
+    _ = Darwin.signal(SIGPIPE, SIG_IGN)
+    #else
+    _ = Glibc.signal(SIGPIPE, SIG_IGN)
+    #endif
 }
 
 private func closeSocket(_ fd: Int32) {
