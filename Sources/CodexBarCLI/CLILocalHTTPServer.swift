@@ -7,7 +7,7 @@ import Glibc
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
 
-struct CLILocalHTTPRequest {
+struct CLILocalHTTPRequest: Sendable {
     let method: String
     let target: String
     let path: String
@@ -44,7 +44,7 @@ struct CLILocalHTTPRequest {
     }
 }
 
-enum CLIHTTPStatus {
+enum CLIHTTPStatus: Sendable {
     case ok
     case badRequest
     case notFound
@@ -72,7 +72,7 @@ enum CLIHTTPStatus {
     }
 }
 
-struct CLILocalHTTPResponse {
+struct CLILocalHTTPResponse: Sendable {
     let status: CLIHTTPStatus
     let body: Data
     let contentType: String
@@ -97,7 +97,7 @@ struct CLILocalHTTPResponse {
 }
 
 final class CLILocalHTTPServer {
-    typealias Handler = (CLILocalHTTPRequest) async -> CLILocalHTTPResponse
+    typealias Handler = @Sendable (CLILocalHTTPRequest) async -> CLILocalHTTPResponse
 
     private let host: String
     private let port: UInt16
@@ -160,24 +160,30 @@ final class CLILocalHTTPServer {
             var clientLength = socklen_t(MemoryLayout<sockaddr>.size)
             let clientFD = accept(serverFD, &clientAddress, &clientLength)
             guard clientFD >= 0 else { continue }
-            await self.handle(clientFD)
-            closeSocket(clientFD)
+            let handler = self.handler
+            Task {
+                defer { closeSocket(clientFD) }
+                await handleClient(clientFD, handler: handler)
+            }
         }
     }
+}
 
-    private func handle(_ clientFD: Int32) async {
-        guard let request = readRequest(clientFD) else {
-            sendResponse(
-                CLILocalHTTPResponse(
-                    status: .badRequest,
-                    body: Data(#"{"error":"invalid request"}"#.utf8)),
-                to: clientFD)
-            return
-        }
-
-        let response = await self.handler(request)
-        sendResponse(response, to: clientFD)
+private func handleClient(
+    _ clientFD: Int32,
+    handler: @Sendable (CLILocalHTTPRequest) async -> CLILocalHTTPResponse) async
+{
+    guard let request = readRequest(clientFD) else {
+        sendResponse(
+            CLILocalHTTPResponse(
+                status: .badRequest,
+                body: Data(#"{"error":"invalid request"}"#.utf8)),
+            to: clientFD)
+        return
     }
+
+    let response = await handler(request)
+    sendResponse(response, to: clientFD)
 }
 
 private func readRequest(_ fd: Int32) -> CLILocalHTTPRequest? {

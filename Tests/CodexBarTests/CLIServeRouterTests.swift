@@ -1,3 +1,4 @@
+import Commander
 import Testing
 @testable import CodexBarCLI
 
@@ -40,5 +41,38 @@ struct CLIServeRouterTests {
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
+    }
+
+    @Test
+    func `serve numeric options reject malformed values`() {
+        #expect(CodexBarCLI.decodeServePort(from: ParsedValues(
+            positional: [],
+            options: ["port": ["abc"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServePort(from: ParsedValues(
+            positional: [],
+            options: ["port": ["0"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServePort(from: ParsedValues(
+            positional: [],
+            options: ["port": ["65536"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServePort(from: ParsedValues(
+            positional: [],
+            options: [:],
+            flags: [])) == 8080)
+
+        #expect(CodexBarCLI.decodeServeRefreshInterval(from: ParsedValues(
+            positional: [],
+            options: ["refreshInterval": ["later"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServeRefreshInterval(from: ParsedValues(
+            positional: [],
+            options: ["refreshInterval": ["-1"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServeRefreshInterval(from: ParsedValues(
+            positional: [],
+            options: [:],
+            flags: [])) == 60)
     }
 }

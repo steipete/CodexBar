@@ -60,7 +60,7 @@ private struct ServeHealthPayload: Encodable {
     let status: String
 }
 
-private final class CLIServeResponseCache {
+private actor CLIServeResponseCache {
     private struct Entry {
         let expiresAt: Date
         let response: CLILocalHTTPResponse
@@ -140,16 +140,28 @@ extension CodexBarCLI {
         }
     }
 
-    private static func decodeServePort(from values: ParsedValues) -> UInt16? {
+    static func decodeServePort(from values: ParsedValues) -> UInt16? {
         let raw = values.options["port"]?.last
-        let parsed = raw.flatMap(Int.init) ?? 8080
+        let parsed: Int
+        if let raw {
+            guard let value = Int(raw) else { return nil }
+            parsed = value
+        } else {
+            parsed = 8080
+        }
         guard parsed > 0, parsed <= Int(UInt16.max) else { return nil }
         return UInt16(parsed)
     }
 
-    private static func decodeServeRefreshInterval(from values: ParsedValues) -> TimeInterval? {
+    static func decodeServeRefreshInterval(from values: ParsedValues) -> TimeInterval? {
         let raw = values.options["refreshInterval"]?.last
-        let parsed = raw.flatMap(Double.init) ?? 60
+        let parsed: Double
+        if let raw {
+            guard let value = Double(raw) else { return nil }
+            parsed = value
+        } else {
+            parsed = 60
+        }
         guard parsed >= 0 else { return nil }
         return parsed
     }
@@ -201,12 +213,12 @@ extension CodexBarCLI {
         makeResponse: () async -> CLILocalHTTPResponse) async -> CLILocalHTTPResponse
     {
         let now = Date()
-        if let cached = cache.response(for: key, now: now) {
+        if let cached = await cache.response(for: key, now: now) {
             return cached
         }
 
         let response = await makeResponse()
-        cache.store(response, for: key, ttl: refreshInterval, now: now)
+        await cache.store(response, for: key, ttl: refreshInterval, now: now)
         return response
     }
 
