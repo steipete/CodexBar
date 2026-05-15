@@ -4,6 +4,7 @@
 
 ### Fixed
 - Codex: keep background `/status` probes out of Codex Desktop history by using isolated non-persistent CLI storage (#953).
+- Menu: stabilize the Cost submenu by using a native menu item and deferring open-menu rebuilds while tracking (#954). Thanks @getogrand!
 
 ## 0.26.0 — 2026-05-15
 
