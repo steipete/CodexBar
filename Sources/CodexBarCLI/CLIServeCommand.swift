@@ -309,6 +309,6 @@ extension CodexBarCLI {
     }
 
     private static func serveError(status: CLIHTTPStatus, message: String) -> CLILocalHTTPResponse {
-        Self.serveJSON(ServeErrorPayload(error: message), status: status)
+        serveJSON(ServeErrorPayload(error: message), status: status)
     }
 }

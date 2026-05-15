@@ -231,7 +231,7 @@ private func sendNoSignalFlags() -> Int32 {
     #if canImport(Darwin)
     0
     #else
-    MSG_NOSIGNAL
+    Int32(MSG_NOSIGNAL)
     #endif
 }
 
