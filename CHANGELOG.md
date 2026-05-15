@@ -2,6 +2,9 @@
 
 ## 0.26.1 — Unreleased
 
+### Added
+- CLI: add `codexbar serve` for localhost JSON access to usage and cost endpoints (#957). Thanks @ThiagoCAltoe!
+
 ### Fixed
 - Codex: keep background `/status` probes out of Codex Desktop history by using isolated non-persistent CLI storage (#953).
 - Menu: stabilize the Cost submenu by using a native menu item and deferring open-menu rebuilds while tracking (#954). Thanks @getogrand!
