@@ -22,8 +22,8 @@ final class GrokRPCClient: @unchecked Sendable {
         executable: String = "grok",
         arguments: [String] = ["agent", "stdio"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        initializeTimeoutSeconds: TimeInterval = 8.0,
-        requestTimeoutSeconds: TimeInterval = 12.0) throws
+        initializeTimeoutSeconds: TimeInterval = 4.0,
+        requestTimeoutSeconds: TimeInterval = 3.0) throws
     {
         self.initializeTimeoutSeconds = initializeTimeoutSeconds
         self.requestTimeoutSeconds = requestTimeoutSeconds
@@ -198,7 +198,18 @@ final class GrokRPCClient: @unchecked Sendable {
     }
 
     private func sendPayload(_ payload: [String: Any]) throws {
-        let data = try JSONSerialization.data(withJSONObject: payload)
+        let raw = try JSONSerialization.data(withJSONObject: payload)
+        // Foundation's JSONSerialization escapes "/" as "\/" by default. Grok's
+        // ACP server treats the escaped form as a *different* method name (it does
+        // not unescape before lookup), so `x.ai/billing` becomes "Method not found"
+        // when sent as `x.ai\/billing`. Re-encode without slash escapes to match
+        // the on-the-wire shape the grok agent expects.
+        let unescaped = String(data: raw, encoding: .utf8)?
+            .replacingOccurrences(of: "\\/", with: "/")
+        let data = unescaped.flatMap { $0.data(using: .utf8) } ?? raw
+        if let preview = String(data: data.prefix(200), encoding: .utf8) {
+            Self.log.debug("grok rpc -> \(preview)")
+        }
         self.stdinPipe.fileHandleForWriting.write(data)
         self.stdinPipe.fileHandleForWriting.write(Data([0x0A]))
     }
@@ -206,6 +217,9 @@ final class GrokRPCClient: @unchecked Sendable {
     private func readNextMessage() async throws -> [String: Any] {
         for await lineData in self.stdoutLineStream {
             if lineData.isEmpty { continue }
+            if let preview = String(data: lineData.prefix(300), encoding: .utf8) {
+                Self.log.debug("grok rpc <- \(preview)")
+            }
             if let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] {
                 return json
             }

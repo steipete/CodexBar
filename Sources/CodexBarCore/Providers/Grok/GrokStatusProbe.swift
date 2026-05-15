@@ -65,12 +65,16 @@ public struct GrokStatusProbe: Sendable {
             process.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8) else { return nil }
-            // Output is like "grok 0.1.210 (8b63e9068c)"
+            // Output is like "grok 0.1.210 (8b63e9068c)" — strip the leading "grok " so
+            // callers can prefix the CLI name themselves without duplicating it.
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let firstLine = trimmed.split(separator: "\n").first {
-                return String(firstLine).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            return trimmed.isEmpty ? nil : trimmed
+            let firstLine = trimmed.split(separator: "\n").first.map(String.init) ?? trimmed
+            let withoutPrefix = firstLine.replacingOccurrences(
+                of: #"^grok\s+"#,
+                with: "",
+                options: [.regularExpression])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return withoutPrefix.isEmpty ? nil : withoutPrefix
         } catch {
             return nil
         }

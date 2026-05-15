@@ -117,8 +117,14 @@ public enum GrokCredentialsStore {
     }
 
     public static func parse(data: Data) throws -> GrokCredentials {
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw GrokCredentialsError.decodeFailed("Invalid JSON")
+        let raw: Any
+        do {
+            raw = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw GrokCredentialsError.decodeFailed(error.localizedDescription)
+        }
+        guard let root = raw as? [String: Any] else {
+            throw GrokCredentialsError.decodeFailed("Invalid JSON (expected object at root)")
         }
 
         // `auth.json` is a map keyed by scope URL. Prefer the OIDC scope (SuperGrok),
