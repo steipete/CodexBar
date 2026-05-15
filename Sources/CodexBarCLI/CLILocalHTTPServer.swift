@@ -5,7 +5,7 @@ import Darwin
 import Glibc
 #endif
 
-private let requestReadTimeoutMilliseconds: Int32 = 5_000
+private let requestReadTimeoutMilliseconds: Int32 = 5000
 
 struct CLILocalHTTPRequest {
     let method: String
@@ -185,7 +185,7 @@ private func readRequest(_ fd: Int32) -> CLILocalHTTPRequest? {
     var buffer = [UInt8](repeating: 0, count: 4096)
     let bufferSize = buffer.count
 
-    while data.count < 16_384 {
+    while data.count < 16384 {
         guard waitForReadable(fd, timeoutMilliseconds: requestReadTimeoutMilliseconds) else {
             return nil
         }
