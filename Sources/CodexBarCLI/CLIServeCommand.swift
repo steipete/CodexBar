@@ -132,9 +132,10 @@ extension CodexBarCLI {
                 refreshInterval: refreshInterval)
         }
 
-        Self.writeStderr("CodexBar server listening on http://127.0.0.1:\(port)\n")
         do {
-            try await server.run()
+            try await server.run {
+                Self.writeStderr("CodexBar server listening on http://127.0.0.1:\(port)\n")
+            }
         } catch {
             Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .runtime)
         }
@@ -218,8 +219,21 @@ extension CodexBarCLI {
         }
 
         let response = await makeResponse()
-        await cache.store(response, for: key, ttl: refreshInterval, now: now)
+        if Self.shouldCacheServeResponse(response) {
+            await cache.store(response, for: key, ttl: refreshInterval, now: now)
+        }
         return response
+    }
+
+    static func shouldCacheServeResponse(_ response: CLILocalHTTPResponse) -> Bool {
+        guard response.status == .ok else { return false }
+        guard let payload = try? JSONSerialization.jsonObject(with: response.body) as? [[String: Any]] else {
+            return true
+        }
+        return !payload.contains { item in
+            guard let error = item["error"] else { return false }
+            return !(error is NSNull)
+        }
     }
 
     private static func serveUsage(

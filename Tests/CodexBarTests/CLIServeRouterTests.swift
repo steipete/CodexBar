@@ -1,4 +1,5 @@
 import Commander
+import Foundation
 import Testing
 @testable import CodexBarCLI
 
@@ -74,5 +75,22 @@ struct CLIServeRouterTests {
             positional: [],
             options: [:],
             flags: [])) == 60)
+    }
+
+    @Test
+    func `serve cache skips provider error payloads`() {
+        let success = CLILocalHTTPResponse(
+            status: .ok,
+            body: Data(#"[{"provider":"codex","source":"local"}]"#.utf8))
+        let providerError = CLILocalHTTPResponse(
+            status: .ok,
+            body: Data(#"[{"provider":"codex","source":"local","error":{"message":"temporary"}}]"#.utf8))
+        let routeError = CLILocalHTTPResponse(
+            status: .badRequest,
+            body: Data(#"{"error":"bad request"}"#.utf8))
+
+        #expect(CodexBarCLI.shouldCacheServeResponse(success))
+        #expect(!CodexBarCLI.shouldCacheServeResponse(providerError))
+        #expect(!CodexBarCLI.shouldCacheServeResponse(routeError))
     }
 }

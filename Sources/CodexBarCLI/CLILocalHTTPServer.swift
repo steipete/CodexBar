@@ -109,7 +109,7 @@ final class CLILocalHTTPServer {
         self.handler = handler
     }
 
-    func run() async throws {
+    func run(onListening: @Sendable () -> Void = {}) async throws {
         ignoreSIGPIPE()
 
         #if canImport(Darwin)
@@ -154,6 +154,7 @@ final class CLILocalHTTPServer {
         guard listen(serverFD, 16) == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
+        onListening()
 
         while true {
             var clientAddress = sockaddr()
