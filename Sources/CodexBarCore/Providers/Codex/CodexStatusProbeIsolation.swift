@@ -2,13 +2,12 @@ import Foundation
 
 enum CodexStatusProbeIsolation {
     static func supportDirectory(environment: [String: String]) throws -> URL {
-        let baseURL: URL
-        if let tmp = environment["TMPDIR"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !tmp.isEmpty
+        let baseURL: URL = if let tmp = environment["TMPDIR"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !tmp.isEmpty
         {
-            baseURL = URL(fileURLWithPath: tmp, isDirectory: true)
+            URL(fileURLWithPath: tmp, isDirectory: true)
         } else {
-            baseURL = FileManager.default.temporaryDirectory
+            FileManager.default.temporaryDirectory
         }
 
         let directory = baseURL

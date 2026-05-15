@@ -35,6 +35,15 @@ actor CodexCLISession {
     private var sessionArguments: [String] = []
     private var sessionWorkingDirectory: URL?
 
+    struct CaptureOptions {
+        let timeout: TimeInterval
+        let rows: UInt16
+        let cols: UInt16
+        let environment: [String: String]
+        let extraArgs: [String]
+        let workingDirectory: URL?
+    }
+
     private struct RollingBuffer {
         private let maxNeedle: Int
         private var tail = Data()
@@ -86,20 +95,9 @@ actor CodexCLISession {
     // swiftlint:disable cyclomatic_complexity
     func captureStatus(
         binary: String,
-        timeout: TimeInterval,
-        rows: UInt16,
-        cols: UInt16,
-        environment: [String: String],
-        extraArgs: [String],
-        workingDirectory: URL?) async throws -> String
+        options: CaptureOptions) async throws -> String
     {
-        try self.ensureStarted(
-            binary: binary,
-            rows: rows,
-            cols: cols,
-            environment: environment,
-            extraArgs: extraArgs,
-            workingDirectory: workingDirectory)
+        try self.ensureStarted(binary: binary, options: options)
         if let startedAt {
             let sinceStart = Date().timeIntervalSince(startedAt)
             if sinceStart < 0.4 {
@@ -127,7 +125,7 @@ actor CodexCLISession {
         var updateScanBuffer = RollingBuffer(maxNeedle: updateMaxNeedle)
 
         var buffer = Data()
-        let deadline = Date().addingTimeInterval(timeout)
+        let deadline = Date().addingTimeInterval(options.timeout)
         var nextCursorCheckAt = Date(timeIntervalSince1970: 0)
 
         var skippedCodexUpdate = false
@@ -262,20 +260,16 @@ actor CodexCLISession {
 
     private func ensureStarted(
         binary: String,
-        rows: UInt16,
-        cols: UInt16,
-        environment: [String: String],
-        extraArgs: [String],
-        workingDirectory: URL?) throws
+        options: CaptureOptions) throws
     {
         if let proc = self.process,
            proc.isRunning,
            self.binaryPath == binary,
-           self.ptyRows == rows,
-           self.ptyCols == cols,
-           self.sessionEnvironment == environment,
-           self.sessionArguments == extraArgs,
-           self.sessionWorkingDirectory == workingDirectory
+           self.ptyRows == options.rows,
+           self.ptyCols == options.cols,
+           self.sessionEnvironment == options.environment,
+           self.sessionArguments == options.extraArgs,
+           self.sessionWorkingDirectory == options.workingDirectory
         {
             return
         }
@@ -283,7 +277,7 @@ actor CodexCLISession {
 
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
-        var win = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
+        var win = winsize(ws_row: options.rows, ws_col: options.cols, ws_xpixel: 0, ws_ypixel: 0)
         guard openpty(&primaryFD, &secondaryFD, nil, nil, &win) == 0 else {
             throw SessionError.launchFailed("openpty failed")
         }
@@ -295,15 +289,15 @@ actor CodexCLISession {
         let proc = Process()
         let resolvedURL = URL(fileURLWithPath: binary)
         proc.executableURL = resolvedURL
-        proc.arguments = extraArgs
+        proc.arguments = options.extraArgs
         proc.standardInput = secondaryHandle
         proc.standardOutput = secondaryHandle
         proc.standardError = secondaryHandle
-        proc.currentDirectoryURL = workingDirectory
+        proc.currentDirectoryURL = options.workingDirectory
 
         let env = TTYCommandRunner.enrichedEnvironment(
-            baseEnv: environment,
-            home: environment["HOME"] ?? NSHomeDirectory())
+            baseEnv: options.environment,
+            home: options.environment["HOME"] ?? NSHomeDirectory())
         proc.environment = env
 
         do {
@@ -339,11 +333,11 @@ actor CodexCLISession {
         self.processGroup = processGroup
         self.binaryPath = binary
         self.startedAt = Date()
-        self.ptyRows = rows
-        self.ptyCols = cols
-        self.sessionEnvironment = environment
-        self.sessionArguments = extraArgs
-        self.sessionWorkingDirectory = workingDirectory
+        self.ptyRows = options.rows
+        self.ptyCols = options.cols
+        self.sessionEnvironment = options.environment
+        self.sessionArguments = options.extraArgs
+        self.sessionWorkingDirectory = options.workingDirectory
     }
 
     private func cleanup() {

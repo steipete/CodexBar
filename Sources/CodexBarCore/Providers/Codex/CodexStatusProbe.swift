@@ -212,12 +212,13 @@ public struct CodexStatusProbe {
             do {
                 text = try await CodexCLISession.shared.captureStatus(
                     binary: binary,
-                    timeout: timeout,
-                    rows: rows,
-                    cols: cols,
-                    environment: self.environment,
-                    extraArgs: extraArgs,
-                    workingDirectory: workingDirectory)
+                    options: .init(
+                        timeout: timeout,
+                        rows: rows,
+                        cols: cols,
+                        environment: self.environment,
+                        extraArgs: extraArgs,
+                        workingDirectory: workingDirectory))
             } catch CodexCLISession.SessionError.processExited {
                 throw CodexStatusProbeError.timedOut
             } catch CodexCLISession.SessionError.timedOut {

@@ -141,7 +141,7 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
-    func `codex status probe uses non persistent thread storage`() throws {
+    func `codex status probe uses non persistent thread storage`() {
         let stateHome = URL(fileURLWithPath: "/tmp/codexbar status \"state\"", isDirectory: true)
         let args = CodexStatusProbeIsolation.codexArguments(stateHome: stateHome)
 
