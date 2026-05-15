@@ -64,7 +64,7 @@ Or download release tarballs from GitHub Releases:
 - [Manus](docs/manus.md) — Browser `session_id` auth for credit balance, monthly credits, and daily refresh tracking.
 - [MiniMax](docs/minimax.md) — API token, cookie header, or browser cookies for coding-plan usage.
 - [Kimi](docs/kimi.md) — Auth token (JWT from `kimi-auth` cookie) for weekly quota + 5‑hour rate limit.
-- [Kimi K2](docs/kimi-k2.md) — API key for credit-based usage totals.
+- [Kimi K2 (unofficial)](docs/kimi-k2.md) — Legacy API key flow for credit-based usage totals.
 - [Kilo](docs/kilo.md) — API token with CLI-auth fallback for Kilo Pass usage.
 - [Kiro](docs/kiro.md) — CLI-based usage; monthly credits + bonus credits.
 - [Vertex AI](docs/vertexai.md) — Google Cloud gcloud OAuth with token cost tracking from local Claude logs.

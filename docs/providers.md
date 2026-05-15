@@ -33,7 +33,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Kimi | Auth token from `kimi-auth` cookie/manual token/env → usage API (`web`). |
 | Kilo | API token from config/env → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | Device-flow/env/config token → `copilot_internal` API (`api`). |
-| Kimi K2 | API key from config/env → credit endpoint (`api`). |
+| Kimi K2 (unofficial) | API key from config/env → legacy credit endpoint (`api`). |
 | Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | Augment | `auggie` CLI first, then browser-cookie web fallback (`cli`, `web`). |
@@ -103,9 +103,10 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: none yet.
 - Details: `docs/kilo.md`.
 
-## Kimi K2
+## Kimi K2 (unofficial)
 - API key via `~/.codexbar/config.json` or `KIMI_K2_API_KEY`/`KIMI_API_KEY` env var.
-- Shows credit usage based on consumed/remaining totals.
+- Shows credit usage from the legacy `kimi-k2.ai` consumed/remaining totals.
+- Use Moonshot / Kimi API for the official Kimi API account and billing surface.
 - Status: none yet.
 - Details: `docs/kimi-k2.md`.
 
