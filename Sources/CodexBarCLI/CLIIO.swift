@@ -43,22 +43,25 @@ extension CodexBarCLI {
         bundle: Bundle = .main,
         executablePath: String? = CommandLine.arguments.first) -> String?
     {
-        self.currentVersion(
+        if let version = self.currentVersion(bundleVersion: nil, executablePath: executablePath) {
+            return version
+        }
+        return self.currentVersion(
             bundleVersion: bundle.infoDictionary?["CFBundleShortVersionString"] as? String,
-            executablePath: executablePath)
+            executablePath: nil)
     }
 
     static func currentVersion(bundleVersion: String?, executablePath: String?) -> String? {
-        if let version = bundleVersion {
-            return version
+        if let executablePath, !executablePath.isEmpty {
+            let executableURL = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath()
+            if let version = Self.adjacentVersionFileVersion(for: executableURL) {
+                return version
+            }
+            if let version = Self.containingAppVersion(for: executableURL) {
+                return version
+            }
         }
-        guard let executablePath, !executablePath.isEmpty else { return nil }
-
-        let executableURL = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath()
-        if let version = Self.containingAppVersion(for: executableURL) {
-            return version
-        }
-        return Self.adjacentVersionFileVersion(for: executableURL)
+        return Self.normalizedBundleVersion(bundleVersion)
     }
 
     static func containingAppVersion(for executableURL: URL) -> String? {
@@ -93,6 +96,14 @@ extension CodexBarCLI {
         if trimmed.hasPrefix("v"), trimmed.dropFirst().first?.isNumber == true {
             return String(trimmed.dropFirst())
         }
+        return trimmed
+    }
+
+    static func normalizedBundleVersion(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              trimmed != "CodexBar"
+        else { return nil }
         return trimmed
     }
 

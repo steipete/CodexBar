@@ -79,6 +79,7 @@
 "Codex login failed" = "Falha no login do Codex";
 "Codex login timed out" = "Tempo esgotado no login do Codex";
 "CodexBar Lifecycle Keepalive" = "Keepalive do ciclo de vida do CodexBar";
+"CodexBar can't show its menu bar icon" = "O CodexBar não consegue mostrar o ícone na barra de menus";
 "CodexBar could not read managed account storage. " = "O CodexBar não conseguiu ler o armazenamento de contas gerenciadas. ";
 "Configure…" = "Configurar…";
 "Connected" = "Conectado";
@@ -109,6 +110,7 @@
 "Disable Keychain access" = "Desativar acesso ao Keychain";
 "Disabled" = "Desativado";
 "Disconnected" = "Desconectado";
+"Dismiss" = "Dispensar";
 "Display" = "Exibição";
 "Display mode" = "Modo de exibição";
 "Display reset times as absolute clock values instead of countdowns." = "Mostra horários de renovação como horas absolutas, em vez de contagens regressivas.";
@@ -205,6 +207,7 @@
 "Open Coding Plan" = "Abrir Coding Plan";
 "Open Console" = "Abrir console";
 "Open Dashboard" = "Abrir dashboard";
+"Open Menu Bar Settings" = "Abrir ajustes da barra de menus";
 "Open Mistral Admin" = "Abrir Mistral Admin";
 "Open Ollama Settings" = "Abrir ajustes do Ollama";
 "Open Terminal" = "Abrir Terminal";
@@ -415,6 +418,26 @@
 "check_provider_status_subtitle" = "Consulta páginas de status da OpenAI/Claude e o Google Workspace para Gemini/Antigravity, exibindo incidentes no ícone e no menu.";
 "session_quota_notifications_title" = "Notificações de cota de sessão";
 "session_quota_notifications_subtitle" = "Notifica quando a cota de sessão de 5 horas chega a 0% e quando fica disponível novamente.";
+"quota_warning_notifications_title" = "Notificações de alerta de cota";
+"quota_warning_notifications_subtitle" = "Avisa quando a cota restante da sessão ou da semana fica abaixo dos limites configurados.";
+"quota_warnings_title" = "Alertas de cota";
+"quota_warning_session" = "sessão";
+"quota_warning_session_capitalized" = "Sessão";
+"quota_warning_weekly" = "semanal";
+"quota_warning_weekly_capitalized" = "Semanal";
+"quota_warning_warn_at" = "Alertar em";
+"quota_warning_global_threshold_subtitle" = "Percentuais restantes para as janelas de sessão e semanal, a menos que um provedor defina valores próprios.";
+"quota_warning_sound" = "Reproduzir som de notificação";
+"quota_warning_provider_inherits" = "Usa as configurações globais de alerta de cota, a menos que uma janela seja personalizada aqui.";
+"quota_warning_customize_thresholds" = "Personalizar limites de %@";
+"quota_warning_enable_warnings" = "Ativar alertas de %@";
+"quota_warning_window_warn_at" = "%@: alertar em";
+"quota_warning_off" = "Desativado";
+"quota_warning_inherited" = "Usando global: %@";
+"quota_warning_depleted_only" = "somente ao esgotar";
+"quota_warning_upper" = "Limite superior";
+"quota_warning_lower" = "Limite inferior";
+"apply" = "Aplicar";
 "quit_app" = "Encerrar CodexBar";
 
 /* Tab titles */
@@ -572,6 +595,7 @@
 "login_shell_path" = "PATH do shell de login (captura na inicialização)";
 "cleared" = "Limpo.";
 "no_fetch_attempts" = "Ainda sem tentativas de busca.";
+"macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "O macOS Tahoe pode bloquear apps da barra de menus em Ajustes do Sistema → Barra de Menus → Permitir na Barra de Menus. O CodexBar está em execução, mas o macOS pode estar ocultando seu ícone. Abra os ajustes da Barra de Menus e ative o CodexBar.";
 
 /* Metric preferences */
 "metric_pref_automatic" = "Automático";

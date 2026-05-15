@@ -1,8 +1,5 @@
 import CodexBarCore
 import Commander
-#if canImport(AppKit)
-import AppKit
-#endif
 #if canImport(Darwin)
 import Darwin
 #else

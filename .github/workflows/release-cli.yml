@@ -137,16 +137,47 @@ jobs:
 
           BIN_DIR="${{ steps.build.outputs.bin_dir }}"
           BIN="$BIN_DIR/CodexBarCLI"
+          run_with_timeout() {
+            local output="$1"
+            shift
+            "$@" > "$output" &
+            local pid=$!
+            local run_status=
+            for _ in {1..20}; do
+              if ! kill -0 "$pid" 2>/dev/null; then
+                set +e
+                wait "$pid"
+                run_status=$?
+                set -e
+                break
+              fi
+              sleep 1
+            done
+            if [[ -z "$run_status" ]]; then
+              kill "$pid" 2>/dev/null || true
+              wait "$pid" 2>/dev/null || true
+              echo "$* timed out." >&2
+              exit 124
+            fi
+            if [[ "$run_status" -ne 0 ]]; then
+              cat "$output" >&2 || true
+              exit "$run_status"
+            fi
+          }
+
           echo "BIN=$BIN"
           file "$BIN"
           if [[ "${{ matrix.platform }}" == "macos" ]]; then
             lipo -archs "$BIN" | tr ' ' '\n' | grep -Fx "${{ matrix.asset-arch }}"
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-smoke-${{ matrix.name }}.txt" "$BIN" config validate --format json
           else
-            "$BIN" --help
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
             file "$BIN" | grep -q "${{ matrix.asset-arch }}"
           fi
           printf '%s\n' "${RELEASE_TAG#v}" > "$BIN_DIR/VERSION"
-          "$BIN" --version | grep -Fx "CodexBar ${RELEASE_TAG#v}"
+          VERSION_OUTPUT="$RUNNER_TEMP/codexbar-cli-version-${{ matrix.name }}.txt"
+          run_with_timeout "$VERSION_OUTPUT" "$BIN" --version
+          grep -Fx "CodexBar ${RELEASE_TAG#v}" "$VERSION_OUTPUT"
           rm "$BIN_DIR/VERSION"
 
       - name: Package
