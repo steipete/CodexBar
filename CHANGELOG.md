@@ -2,6 +2,9 @@
 
 ## 0.26.1 — Unreleased
 
+### Fixed
+- Localization: add Brazilian Portuguese quota-warning settings strings (#958). Thanks @ThiagoCAltoe!
+
 ## 0.26.0 — 2026-05-15
 
 ### Added
