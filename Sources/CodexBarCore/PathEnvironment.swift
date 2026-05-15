@@ -117,6 +117,39 @@ public enum BinaryLocator {
             home: home)
     }
 
+    public static func resolveGrokBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "grok",
+            overrideKey: "GROK_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: self.grokWellKnownPaths(home: home),
+            fileManager: fileManager,
+            home: home)
+    }
+
+    /// Well-known install locations for the Grok Build CLI binary.
+    /// Covers the installer's default (`~/.grok/bin/grok`) and the symlinks it sometimes
+    /// creates into `~/.local/bin` and `/usr/local/bin`.
+    static func grokWellKnownPaths(home: String) -> [String] {
+        [
+            "\(home)/.grok/bin/grok",
+            "\(home)/.local/bin/grok",
+            "/usr/local/bin/grok",
+            "/opt/homebrew/bin/grok",
+        ]
+    }
+
     public static func resolveAuggieBinary(
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,
