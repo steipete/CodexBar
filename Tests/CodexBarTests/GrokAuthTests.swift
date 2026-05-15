@@ -13,8 +13,8 @@ struct GrokAuthTests {
             "create_time": "2026-05-15T13:31:33.384327Z",
             "user_id": "user-uuid",
             "email": "user@example.com",
-            "first_name": "Tai",
-            "last_name": "Baran",
+            "first_name": "Ada",
+            "last_name": "Lovelace",
             "team_id": "team-uuid",
             "refresh_token": "refresh-secret",
             "expires_at": "2026-05-22T19:31:33.384327Z",
@@ -31,7 +31,7 @@ struct GrokAuthTests {
         #expect(creds.email == "user@example.com")
         #expect(creds.teamId == "team-uuid")
         #expect(creds.authMode == "oidc")
-        #expect(creds.displayName == "Tai Baran")
+        #expect(creds.displayName == "Ada Lovelace")
         #expect(creds.loginMethod == "SuperGrok")
         #expect(creds.expiresAt != nil)
     }
