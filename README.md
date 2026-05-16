@@ -82,6 +82,7 @@ printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider eleve
 - [Ollama](docs/ollama.md) — Browser cookies for Ollama Cloud usage windows.
 - [JetBrains AI](docs/jetbrains.md) — Local XML-based quota from JetBrains IDE configuration; monthly credits tracking.
 - [Warp](docs/warp.md) — API token for GraphQL request limits and monthly credits.
+- [ElevenLabs](docs/elevenlabs.md) — API key for character credits and voice slot usage.
 - [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
 - Perplexity — Account usage credits from Perplexity usage data.
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.

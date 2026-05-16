@@ -40,6 +40,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
+| ElevenLabs | API key from config/env → subscription usage API (`api`). |
 | Ollama | Web settings page via browser cookies (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
@@ -175,6 +176,14 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Shows monthly credits usage and next refresh time.
 - Status: none yet.
 - Details: `docs/warp.md`.
+
+## ElevenLabs
+- API key from Settings, token accounts, `ELEVENLABS_API_KEY`, or `XI_API_KEY`.
+- Reads `GET /v1/user/subscription` from `api.elevenlabs.io`.
+- Shows character credit usage, reset timing, and voice slot usage when available.
+- Override the API base URL with `ELEVENLABS_API_URL`.
+- Status: `https://status.elevenlabs.io` (link only, no auto-polling).
+- Details: `docs/elevenlabs.md`.
 
 ## Vertex AI
 - OAuth credentials from `gcloud auth application-default login` (ADC).
