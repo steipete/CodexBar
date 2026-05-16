@@ -100,18 +100,24 @@ public struct GrokStatusProbe: Sendable {
         let localSummary = GrokLocalSessionScanner.summarize(env: env)
         let cliVersion = Self.detectVersion(env: env)
 
+        // Grok session tokens expire after ~7 days. An expired record on disk
+        // must be treated like a missing credential when deciding whether to
+        // mask the RPC auth error: otherwise we render a snapshot with stale
+        // identity and no `grok login` hint while billing silently 401s.
+        let activeCredentials = credentials.flatMap { $0.isExpired ? nil : $0 }
+
         // `localSummary` is *not* currently projected into a visible RateWindow or
         // identity field, so a stale `~/.grok/sessions/` directory must not
         // suppress the auth-required hint. Only swallow the RPC error when we
-        // actually have something rendrable for the user — credentials or a
-        // billing response.
-        if billing == nil, credentials == nil {
+        // actually have something rendrable for the user — fresh credentials
+        // or a billing response.
+        if billing == nil, activeCredentials == nil {
             throw rpcError ?? GrokRPCError.notAuthenticated
         }
 
         return GrokUsageSnapshot(
             billing: billing,
-            credentials: credentials,
+            credentials: activeCredentials,
             localSummary: localSummary,
             cliVersion: cliVersion,
             updatedAt: Date())
