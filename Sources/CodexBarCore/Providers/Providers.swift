@@ -200,4 +200,14 @@ public enum ProviderBrowserCookieDefaults {
         nil
         #endif
     }
+
+    /// Grok is normally signed in through Chrome; keep this narrow so CLI/live probes do not touch
+    /// unrelated browser keychains.
+    public static var grokCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 }

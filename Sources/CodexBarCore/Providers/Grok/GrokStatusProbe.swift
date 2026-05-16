@@ -2,6 +2,7 @@ import Foundation
 
 public struct GrokUsageSnapshot: Sendable {
     public let billing: GrokBillingResponse?
+    public let webBilling: GrokWebBillingSnapshot?
     public let credentials: GrokCredentials?
     public let localSummary: GrokLocalSessionSummary?
     public let cliVersion: String?
@@ -9,12 +10,14 @@ public struct GrokUsageSnapshot: Sendable {
 
     public init(
         billing: GrokBillingResponse?,
+        webBilling: GrokWebBillingSnapshot? = nil,
         credentials: GrokCredentials?,
         localSummary: GrokLocalSessionSummary?,
         cliVersion: String?,
         updatedAt: Date)
     {
         self.billing = billing
+        self.webBilling = webBilling
         self.credentials = credentials
         self.localSummary = localSummary
         self.cliVersion = cliVersion
@@ -22,7 +25,8 @@ public struct GrokUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary window: monthly credit usage from billing config (preferred), otherwise nil.
+        // Primary window: monthly credit usage from the CLI RPC, falling back to
+        // the web billing RPC used by grok.com when the agent surface lacks billing.
         var primary: RateWindow?
         if let billing,
            let percent = billing.monthlyUsedPercent
@@ -31,6 +35,14 @@ public struct GrokUsageSnapshot: Sendable {
                 usedPercent: percent,
                 windowMinutes: nil,
                 resetsAt: billing.billingPeriodEndDate,
+                resetDescription: nil)
+        } else if let webBilling,
+                  let percent = webBilling.usedPercent
+        {
+            primary = RateWindow(
+                usedPercent: percent,
+                windowMinutes: nil,
+                resetsAt: webBilling.resetsAt,
                 resetDescription: nil)
         }
 
@@ -100,24 +112,21 @@ public struct GrokStatusProbe: Sendable {
         let localSummary = GrokLocalSessionScanner.summarize(env: env)
         let cliVersion = Self.detectVersion(env: env)
 
-        // Grok session tokens expire after ~7 days. An expired record on disk
-        // must be treated like a missing credential when deciding whether to
-        // mask the RPC auth error: otherwise we render a snapshot with stale
-        // identity and no `grok login` hint while billing silently 401s.
-        let activeCredentials = credentials.flatMap { $0.isExpired ? nil : $0 }
-
         // `localSummary` is *not* currently projected into a visible RateWindow or
         // identity field, so a stale `~/.grok/sessions/` directory must not
-        // suppress the auth-required hint. Only swallow the RPC error when we
-        // actually have something renderable for the user — fresh credentials
-        // or a billing response.
-        if billing == nil, activeCredentials == nil {
+        // suppress the auth-required hint. CLI-only fetches need a billing
+        // response; the provider pipeline owns the separate web fallback.
+        if billing == nil {
             throw rpcError ?? GrokRPCError.notAuthenticated
         }
 
         return GrokUsageSnapshot(
             billing: billing,
-            credentials: Self.credentialsForSnapshot(credentials: credentials, billing: billing),
+            webBilling: nil,
+            credentials: Self.credentialsForSnapshot(
+                credentials: credentials,
+                billing: billing,
+                webBilling: nil),
             localSummary: localSummary,
             cliVersion: cliVersion,
             updatedAt: Date())
@@ -125,11 +134,24 @@ public struct GrokStatusProbe: Sendable {
 
     static func credentialsForSnapshot(
         credentials: GrokCredentials?,
-        billing: GrokBillingResponse?) -> GrokCredentials?
+        billing: GrokBillingResponse?,
+        webBilling: GrokWebBillingSnapshot? = nil) -> GrokCredentials?
     {
-        // If billing succeeded, the CLI accepted/refreshed auth and the local
+        // If remote usage succeeded, xAI accepted auth and the local
         // identity is still useful even when the persisted expires_at is stale.
-        if billing != nil { return credentials }
+        if billing != nil || webBilling != nil { return credentials }
         return credentials.flatMap { $0.isExpired ? nil : $0 }
+    }
+
+    static func shouldSurfaceRemoteAuthError(_ error: Error?) -> Bool {
+        guard let error = error as? GrokWebBillingError else { return false }
+        switch error {
+        case let .requestFailed(status, _):
+            return status == 401 || status == 403
+        case let .rpcFailed(status, _):
+            return status == 16
+        case .missingCredentials, .emptyResponse, .invalidResponse, .parseFailed:
+            return false
+        }
     }
 }

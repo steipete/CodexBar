@@ -432,7 +432,10 @@ extension CodexBarCLI {
     }
 
     static func sourceModeRequiresWebSupport(_ sourceMode: ProviderSourceMode, provider: UsageProvider) -> Bool {
-        switch sourceMode {
+        guard provider != .grok else {
+            return false
+        }
+        return switch sourceMode {
         case .web:
             true
         case .auto:

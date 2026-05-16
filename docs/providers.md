@@ -54,7 +54,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Crof | API key from config/env → credit balance + requests quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
-| Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`); local `~/.grok/sessions` signals as fallback. |
+| Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`) → grok.com billing gRPC-web via Chrome session cookies (`web`); local `~/.grok/sessions` signals as fallback. |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -300,6 +300,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## Grok
 - `grok agent stdio` (ACP) JSON-RPC `x.ai/billing` method; requires `grok login` (SuperGrok OAuth/OIDC).
 - Reads cached credentials from `~/.grok/auth.json` for identity (email, team).
+- Falls back to grok.com's billing gRPC-web endpoint via Chrome session cookies when the CLI does not expose billing.
+- CLI/test runs do not import browser cookies unless `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set.
 - Local fallback aggregates `~/.grok/sessions/**/signals.json` token counts when the RPC is unavailable.
 - Status: link only to `https://status.x.ai` (no auto-polling yet).
 - Details: `docs/grok.md`.

@@ -124,10 +124,23 @@ struct GrokAuthTests {
         """#
         let expired = try GrokCredentialsStore.parse(data: Data(pastJson.utf8))
         let billing = try JSONDecoder().decode(GrokBillingResponse.self, from: Data(#"{}"#.utf8))
+        let webBilling = GrokWebBillingSnapshot(
+            usedPercent: 42,
+            resetsAt: Date(timeIntervalSince1970: 1_800_000_000))
 
         #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: nil) == nil)
         #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: billing)?
             .email == "grok@example.com")
+        #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: nil, webBilling: webBilling)?
+            .email == "grok@example.com")
+    }
+
+    @Test
+    func `remote auth failures surface even with fresh local credentials`() {
+        #expect(GrokStatusProbe.shouldSurfaceRemoteAuthError(GrokWebBillingError.requestFailed(401, "unauthorized")))
+        #expect(GrokStatusProbe.shouldSurfaceRemoteAuthError(GrokWebBillingError.requestFailed(403, "forbidden")))
+        #expect(GrokStatusProbe.shouldSurfaceRemoteAuthError(GrokWebBillingError.rpcFailed(16, "token expired")))
+        #expect(!GrokStatusProbe.shouldSurfaceRemoteAuthError(GrokWebBillingError.parseFailed))
     }
 
     @Test
