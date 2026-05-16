@@ -37,6 +37,14 @@ struct LocalizationBundleTests {
         #expect(bundle.path(forResource: "en", ofType: "lproj") != nil)
     }
 
+    @Test
+    func `managed Codex login failure includes CLI recovery guidance`() {
+        let message = L("managed_login_failed")
+
+        #expect(message.contains("codex --version"))
+        #expect(message.contains("@openai/codex@latest"))
+    }
+
     private static func makeAppBundleFixture(
         includeLocalizationBundle: Bool,
         includeMainLocalization: Bool = false) throws -> (root: URL, appBundle: Bundle)

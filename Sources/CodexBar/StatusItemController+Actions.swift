@@ -367,7 +367,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         } else if let error = error as? ManagedCodexAccountServiceError {
             let message = switch error {
             case .loginFailed:
-                "Managed Codex login did not complete. Try again after finishing the browser login flow."
+                L("managed_login_failed")
             case .missingEmail:
                 "Codex login completed, but no account email was available. " +
                     "Try again after confirming the account is fully signed in."

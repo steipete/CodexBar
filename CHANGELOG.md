@@ -11,6 +11,7 @@
 
 ### Fixed
 - Codex: prefer per-event token usage over divergent total counters when scanning local cost history, preventing large false cost spikes (#968). Thanks @Ifan24!
+- Codex: improve managed account login recovery guidance when macOS blocks or moves a stale `codex` CLI to Trash (#977).
 - Kimi K2: label the legacy provider as unofficial and remove links that presented the legacy endpoint as an official Kimi account surface (#967, fixes #473). Thanks @mturac!
 - OpenAI: shorten the provider label to "OpenAI" so the menu tab no longer clips.
 - Packaging: skip slow widget App Intents metadata during dev restarts and preserve the previous app bundle if required metadata generation times out.
