@@ -133,7 +133,7 @@ struct OpenAIAPICreditBalanceTests {
               "results": [
                 {
                   "object": "organization.costs.result",
-                  "amount": { "value": 12.50, "currency": "usd" },
+                  "amount": { "value": "12.50", "currency": "usd" },
                   "line_item": "Text tokens"
                 },
                 {
