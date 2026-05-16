@@ -33,6 +33,26 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
 
+    private final class RedirectGuardDelegate: NSObject, URLSessionTaskDelegate {
+        func urlSession(
+            _ session: URLSession,
+            task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping (URLRequest?) -> Void)
+        {
+            guard let sourceHost = task.originalRequest?.url?.host?.lowercased(),
+                  let destinationHost = request.url?.host?.lowercased(),
+                  sourceHost == destinationHost,
+                  request.url?.scheme?.lowercased() == "https"
+            else {
+                completionHandler(nil)
+                return
+            }
+            completionHandler(request)
+        }
+    }
+
     private struct ServerRequest {
         let serverID: String
         let args: String?
@@ -73,14 +93,24 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         "renewAt",
         "renew_at",
     ]
+    private static let redirectGuardDelegate = RedirectGuardDelegate()
+    private static let redirectGuardSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        return URLSession(
+            configuration: configuration,
+            delegate: self.redirectGuardDelegate,
+            delegateQueue: nil)
+    }()
 
     public static func fetchUsage(
         cookieHeader: String,
         timeout: TimeInterval,
         now: Date = Date(),
         workspaceIDOverride: String? = nil,
-        session: URLSession = .shared) async throws -> OpenCodeGoUsageSnapshot
+        session: URLSession? = nil) async throws -> OpenCodeGoUsageSnapshot
     {
+        let session = session ?? self.redirectGuardSession
         guard let requestCookieHeader = OpenCodeWebCookieSupport.requestCookieHeader(from: cookieHeader) else {
             throw OpenCodeGoUsageError.invalidCredentials
         }
