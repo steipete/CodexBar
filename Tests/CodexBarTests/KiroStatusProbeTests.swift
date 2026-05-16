@@ -242,6 +242,31 @@ struct KiroStatusProbeTests {
     }
 
     @Test
+    func `parses kiro overage credits and estimated cost`() throws {
+        let output = """
+        Estimated Usage | resets on 2026-06-01 | KIRO PRO
+        Credits (1000.00 of 1000 covered in plan)
+        ████████████████████████████████████████████████████████████████████████████████ 100%
+
+        Overages: Enabled  billed at $0.04 per request
+        Credits used: 40.29
+        Est. cost: $1.61 USD
+
+        To manage your plan or configure overages navigate to https://app.kiro.dev/account/usage
+        """
+
+        let probe = KiroStatusProbe()
+        let snapshot = try probe.parse(output: output)
+
+        #expect(snapshot.planName == "KIRO PRO")
+        #expect(snapshot.creditsUsed == 1000)
+        #expect(snapshot.creditsTotal == 1000)
+        #expect(snapshot.overagesStatus == "Enabled  billed at $0.04 per request")
+        #expect(snapshot.overageCreditsUsed == 40.29)
+        #expect(snapshot.estimatedOverageCostUSD == 1.61)
+    }
+
+    @Test
     func `parses context usage`() throws {
         let output = """
         Context window: 1.3% used (estimated)

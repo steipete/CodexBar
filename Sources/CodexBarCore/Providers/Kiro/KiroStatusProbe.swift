@@ -12,6 +12,8 @@ public struct KiroUsageSnapshot: Sendable {
     public let bonusCreditsTotal: Double?
     public let bonusExpiryDays: Int?
     public let overagesStatus: String?
+    public let overageCreditsUsed: Double?
+    public let estimatedOverageCostUSD: Double?
     public let manageURL: String?
     public let contextUsage: KiroContextUsageSnapshot?
     public let resetsAt: Date?
@@ -29,6 +31,8 @@ public struct KiroUsageSnapshot: Sendable {
         bonusCreditsTotal: Double?,
         bonusExpiryDays: Int?,
         overagesStatus: String? = nil,
+        overageCreditsUsed: Double? = nil,
+        estimatedOverageCostUSD: Double? = nil,
         manageURL: String? = nil,
         contextUsage: KiroContextUsageSnapshot? = nil,
         resetsAt: Date?,
@@ -45,6 +49,8 @@ public struct KiroUsageSnapshot: Sendable {
         self.bonusCreditsTotal = bonusCreditsTotal
         self.bonusExpiryDays = bonusExpiryDays
         self.overagesStatus = overagesStatus
+        self.overageCreditsUsed = overageCreditsUsed
+        self.estimatedOverageCostUSD = estimatedOverageCostUSD
         self.manageURL = manageURL
         self.contextUsage = contextUsage
         self.resetsAt = resetsAt
@@ -92,6 +98,8 @@ public struct KiroUsageSnapshot: Sendable {
             bonusCreditsRemaining: self.bonusCreditsRemaining,
             bonusExpiryDays: self.bonusExpiryDays,
             overagesStatus: self.overagesStatus,
+            overageCreditsUsed: self.overageCreditsUsed,
+            estimatedOverageCostUSD: self.estimatedOverageCostUSD,
             manageURL: self.manageURL,
             contextUsage: self.contextUsage)
 
@@ -149,6 +157,8 @@ public struct KiroUsageDetails: Codable, Equatable, Sendable {
     public let bonusCreditsRemaining: Double?
     public let bonusExpiryDays: Int?
     public let overagesStatus: String?
+    public let overageCreditsUsed: Double?
+    public let estimatedOverageCostUSD: Double?
     public let manageURL: String?
     public let contextUsage: KiroContextUsageSnapshot?
 
@@ -163,6 +173,8 @@ public struct KiroUsageDetails: Codable, Equatable, Sendable {
         bonusCreditsRemaining: Double?,
         bonusExpiryDays: Int?,
         overagesStatus: String?,
+        overageCreditsUsed: Double?,
+        estimatedOverageCostUSD: Double?,
         manageURL: String?,
         contextUsage: KiroContextUsageSnapshot?)
     {
@@ -176,6 +188,8 @@ public struct KiroUsageDetails: Codable, Equatable, Sendable {
         self.bonusCreditsRemaining = bonusCreditsRemaining
         self.bonusExpiryDays = bonusExpiryDays
         self.overagesStatus = overagesStatus
+        self.overageCreditsUsed = overageCreditsUsed
+        self.estimatedOverageCostUSD = estimatedOverageCostUSD
         self.manageURL = manageURL
         self.contextUsage = contextUsage
     }
@@ -598,6 +612,14 @@ public struct KiroStatusProbe: Sendable {
             pattern: #"(?i)Overages:\s*([^\n]+)"#)
             .map(Self.cleanInlineValue)
             .flatMap(\.nilIfEmpty)
+        let overageCreditsUsed = Self.firstCapture(
+            in: stripped,
+            pattern: #"(?i)Credits used:\s*(\d+\.?\d*)"#)
+            .flatMap(Double.init)
+        let estimatedOverageCostUSD = Self.firstCapture(
+            in: stripped,
+            pattern: #"(?i)Est\.\s*cost:\s*\$?(\d+\.?\d*)\s*USD"#)
+            .flatMap(Double.init)
         let manageURL = Self.firstCapture(
             in: stripped,
             pattern: #"https://app\.kiro\.dev/account/usage"#)
@@ -618,6 +640,8 @@ public struct KiroStatusProbe: Sendable {
                 bonusCreditsTotal: bonusCredits.total,
                 bonusExpiryDays: bonusCredits.expiryDays,
                 overagesStatus: overagesStatus,
+                overageCreditsUsed: overageCreditsUsed,
+                estimatedOverageCostUSD: estimatedOverageCostUSD,
                 manageURL: manageURL,
                 contextUsage: contextUsage,
                 resetsAt: nil,
@@ -643,6 +667,8 @@ public struct KiroStatusProbe: Sendable {
             bonusCreditsTotal: bonusCredits.total,
             bonusExpiryDays: bonusCredits.expiryDays,
             overagesStatus: overagesStatus,
+            overageCreditsUsed: overageCreditsUsed,
+            estimatedOverageCostUSD: estimatedOverageCostUSD,
             manageURL: manageURL,
             contextUsage: contextUsage,
             resetsAt: resetsAt,
