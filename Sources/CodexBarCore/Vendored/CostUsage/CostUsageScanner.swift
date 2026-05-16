@@ -93,19 +93,25 @@ enum CostUsageScanner {
             output: max(0, current.output - baseline.output))
     }
 
-    private static func codexMinNonZeroTotals(
-        _ preferred: CostUsageCodexTotals,
-        _ fallback: CostUsageCodexTotals) -> CostUsageCodexTotals
+    private static func codexDivergentTotalDelta(
+        rawBaseline: CostUsageCodexTotals?,
+        countedBaseline: CostUsageCodexTotals?,
+        current: CostUsageCodexTotals) -> CostUsageCodexTotals
     {
-        func choose(_ first: Int, _ second: Int) -> Int {
-            if first > 0, second > 0 { return min(first, second) }
-            return max(first, second)
+        let rawBaseline = rawBaseline ?? .init(input: 0, cached: 0, output: 0)
+        let countedBaseline = countedBaseline ?? .init(input: 0, cached: 0, output: 0)
+
+        func delta(raw: Int, counted: Int, current: Int) -> Int {
+            if current >= raw {
+                return max(0, current - raw)
+            }
+            return max(0, current - counted)
         }
 
         return CostUsageCodexTotals(
-            input: choose(preferred.input, fallback.input),
-            cached: choose(preferred.cached, fallback.cached),
-            output: choose(preferred.output, fallback.output))
+            input: delta(raw: rawBaseline.input, counted: countedBaseline.input, current: current.input),
+            cached: delta(raw: rawBaseline.cached, counted: countedBaseline.cached, current: current.cached),
+            output: delta(raw: rawBaseline.output, counted: countedBaseline.output, current: current.output))
     }
 
     private struct CodexScanResources {
@@ -696,11 +702,12 @@ enum CostUsageScanner {
                                 input: toInt(total["input_tokens"]),
                                 cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
                                 output: toInt(total["output_tokens"]))
-                            let rawDelta = Self.codexTotalDelta(from: rawTotalsBaseline, to: next)
-                            let countedDelta = Self.codexTotalDelta(from: previousTotals, to: next)
                             let delta = sawDivergentTotals
-                                ? Self.codexMinNonZeroTotals(rawDelta, countedDelta)
-                                : rawDelta
+                                ? Self.codexDivergentTotalDelta(
+                                    rawBaseline: rawTotalsBaseline,
+                                    countedBaseline: previousTotals,
+                                    current: next)
+                                : Self.codexTotalDelta(from: rawTotalsBaseline, to: next)
                             let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
                             let countedTotals = Self.codexAddTotals(base, delta)
                             previousTotals = countedTotals
@@ -948,11 +955,12 @@ enum CostUsageScanner {
                                 rawTotals
                             }
 
-                            let rawDelta = Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
-                            let countedDelta = Self.codexTotalDelta(from: previousTotals, to: currentTotals)
                             let delta = sawDivergentTotals
-                                ? Self.codexMinNonZeroTotals(rawDelta, countedDelta)
-                                : rawDelta
+                                ? Self.codexDivergentTotalDelta(
+                                    rawBaseline: rawTotalsBaseline,
+                                    countedBaseline: previousTotals,
+                                    current: currentTotals)
+                                : Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
                             deltaInput = delta.input
                             deltaCached = delta.cached
                             deltaOutput = delta.output

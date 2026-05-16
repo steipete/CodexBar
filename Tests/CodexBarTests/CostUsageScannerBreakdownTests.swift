@@ -244,6 +244,45 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex total only after divergent totals preserves zero raw dimensions`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 15)
+        let model = "openai/gpt-5.5"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "mixed-stale-dimension.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 100, cached: 0, output: 0),
+                    last: (input: 100, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 1000, cached: 900, output: 0),
+                    last: (input: 40, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 1050, cached: 900, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 190)
+        #expect(packed[safe: 1] == 0)
+        #expect(parsed.lastTotals == nil)
+    }
+
+    @Test
     func `codex total only after divergent totals can resume from counted baseline`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
