@@ -1,3 +1,4 @@
+import CodexBarCore
 import Commander
 import Foundation
 import Testing
@@ -18,6 +19,83 @@ struct CLIServeRouterTests {
                 method: "GET",
                 path: "/cost",
                 queryItems: ["provider": "codex"]) == .cost(provider: "codex"))
+    }
+
+    @Test
+    func `local request parser preserves host header`() throws {
+        let raw = """
+        GET /usage?provider=codex HTTP/1.1\r
+        Host: 127.0.0.1:8080\r
+        User-Agent: test\r
+        \r
+        """
+        let request = try #require(CLILocalHTTPRequest.parse(Data(raw.utf8)))
+
+        #expect(request.path == "/usage")
+        #expect(request.queryItems["provider"] == "codex")
+        #expect(request.headers["host"] == "127.0.0.1:8080")
+        #expect(request.headers["user-agent"] == "test")
+    }
+
+    @Test
+    func `local request parser rejects duplicate host headers`() {
+        let raw = """
+        GET /usage HTTP/1.1\r
+        Host: attacker.example\r
+        Host: 127.0.0.1\r
+        \r
+        """
+
+        #expect(CLILocalHTTPRequest.parse(Data(raw.utf8)) == nil)
+    }
+
+    @Test
+    func `serve host guard allows only loopback hosts`() {
+        #expect(CLIServeRequestGuard.isAllowedHost("127.0.0.1"))
+        #expect(CLIServeRequestGuard.isAllowedHost("127.0.0.1:8080"))
+        #expect(CLIServeRequestGuard.isAllowedHost("localhost"))
+        #expect(CLIServeRequestGuard.isAllowedHost("LOCALHOST:8080"))
+        #expect(CLIServeRequestGuard.isAllowedHost("localhost."))
+        #expect(CLIServeRequestGuard.isAllowedHost("localhost.:8080"))
+        #expect(CLIServeRequestGuard.isAllowedHost("[::1]"))
+        #expect(CLIServeRequestGuard.isAllowedHost("[::1]:8080"))
+
+        #expect(!CLIServeRequestGuard.isAllowedHost(nil))
+        #expect(!CLIServeRequestGuard.isAllowedHost(""))
+        #expect(!CLIServeRequestGuard.isAllowedHost("attacker.example"))
+        #expect(!CLIServeRequestGuard.isAllowedHost("attacker.example:8080"))
+        #expect(!CLIServeRequestGuard.isAllowedHost("127.0.0.1.attacker.example"))
+        #expect(!CLIServeRequestGuard.isAllowedHost("[::1].attacker.example"))
+    }
+
+    @Test
+    func `serve request handler rejects forbidden or missing host before routing`() async {
+        let forbidden = CLILocalHTTPRequest(
+            method: "GET",
+            target: "/health",
+            path: "/health",
+            queryItems: [:],
+            headers: ["host": "attacker.example"])
+        let missing = CLILocalHTTPRequest(
+            method: "GET",
+            target: "/health",
+            path: "/health",
+            queryItems: [:],
+            headers: [:])
+
+        let forbiddenResponse = await CodexBarCLI.handleServeRequest(
+            forbidden,
+            config: CodexBarConfig.makeDefault(),
+            cache: CLIServeResponseCache(),
+            refreshInterval: 0)
+        let missingResponse = await CodexBarCLI.handleServeRequest(
+            missing,
+            config: CodexBarConfig.makeDefault(),
+            cache: CLIServeResponseCache(),
+            refreshInterval: 0)
+
+        #expect(forbiddenResponse.status == .forbidden)
+        #expect(missingResponse.status == .forbidden)
     }
 
     @Test

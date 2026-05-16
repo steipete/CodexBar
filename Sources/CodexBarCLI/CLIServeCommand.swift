@@ -30,6 +30,39 @@ enum CLIServeRouteError: Error, Equatable {
     case notFound
 }
 
+enum CLIServeRequestGuard {
+    private static let allowedHosts: Set<String> = [
+        "127.0.0.1",
+        "localhost",
+        "localhost.",
+        "[::1]",
+    ]
+
+    static func isAllowedHost(_ rawHost: String?) -> Bool {
+        guard let rawHost else { return false }
+        let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !host.isEmpty else { return false }
+        let normalized: String
+        if host.hasPrefix("[") {
+            guard let closingBracket = host.firstIndex(of: "]") else { return false }
+            normalized = String(host[...closingBracket])
+            let remainder = host[host.index(after: closingBracket)...]
+            if !remainder.isEmpty {
+                guard remainder.first == ":",
+                      UInt16(remainder.dropFirst()) != nil
+                else { return false }
+            }
+        } else {
+            let parts = host.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            normalized = String(parts[0])
+            if parts.count == 2 {
+                guard UInt16(parts[1]) != nil else { return false }
+            }
+        }
+        return self.allowedHosts.contains(normalized)
+    }
+}
+
 enum CLIServeRouter {
     static func route(method: String, path: String, queryItems: [String: String]) throws -> CLIServeRoute {
         guard method.uppercased() == "GET" else {
@@ -60,7 +93,7 @@ private struct ServeHealthPayload: Encodable {
     let status: String
 }
 
-private actor CLIServeResponseCache {
+actor CLIServeResponseCache {
     private struct Entry {
         let expiresAt: Date
         let response: CLILocalHTTPResponse
@@ -167,12 +200,16 @@ extension CodexBarCLI {
         return parsed
     }
 
-    private static func handleServeRequest(
+    static func handleServeRequest(
         _ request: CLILocalHTTPRequest,
         config: CodexBarConfig,
         cache: CLIServeResponseCache,
         refreshInterval: TimeInterval) async -> CLILocalHTTPResponse
     {
+        guard CLIServeRequestGuard.isAllowedHost(request.headers["host"]) else {
+            return self.serveError(status: .forbidden, message: "forbidden host")
+        }
+
         let route: CLIServeRoute
         do {
             route = try CLIServeRouter.route(

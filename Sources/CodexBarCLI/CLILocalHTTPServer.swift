@@ -12,6 +12,7 @@ struct CLILocalHTTPRequest {
     let target: String
     let path: String
     let queryItems: [String: String]
+    let headers: [String: String]
 
     static func parse(_ data: Data) -> CLILocalHTTPRequest? {
         guard let raw = String(data: data, encoding: .utf8),
@@ -35,18 +36,42 @@ struct CLILocalHTTPRequest {
                 queryItems[item.name] = value
             }
         }
+        guard let headers = Self.parseHeaders(raw) else { return nil }
 
         return CLILocalHTTPRequest(
             method: method,
             target: target,
             path: path,
-            queryItems: queryItems)
+            queryItems: queryItems,
+            headers: headers)
+    }
+
+    private static func parseHeaders(_ raw: String) -> [String: String]? {
+        var headers: [String: String] = [:]
+        let lines = raw.components(separatedBy: "\r\n")
+        for line in lines.dropFirst() {
+            if line.isEmpty { break }
+            guard let separator = line.firstIndex(of: ":") else { continue }
+            let name = line[..<separator]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            guard !name.isEmpty else { continue }
+            if name == "host", headers[name] != nil {
+                return nil
+            }
+            let valueStart = line.index(after: separator)
+            let value = line[valueStart...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            headers[name] = value
+        }
+        return headers
     }
 }
 
 enum CLIHTTPStatus {
     case ok
     case badRequest
+    case forbidden
     case notFound
     case methodNotAllowed
     case internalServerError
@@ -55,6 +80,7 @@ enum CLIHTTPStatus {
         switch self {
         case .ok: 200
         case .badRequest: 400
+        case .forbidden: 403
         case .notFound: 404
         case .methodNotAllowed: 405
         case .internalServerError: 500
@@ -65,6 +91,7 @@ enum CLIHTTPStatus {
         switch self {
         case .ok: "OK"
         case .badRequest: "Bad Request"
+        case .forbidden: "Forbidden"
         case .notFound: "Not Found"
         case .methodNotAllowed: "Method Not Allowed"
         case .internalServerError: "Internal Server Error"
