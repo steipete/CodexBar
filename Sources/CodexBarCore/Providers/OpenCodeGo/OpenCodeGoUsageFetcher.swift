@@ -41,10 +41,9 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             newRequest request: URLRequest,
             completionHandler: @escaping (URLRequest?) -> Void)
         {
-            guard let sourceHost = task.originalRequest?.url?.host?.lowercased(),
-                  let destinationHost = request.url?.host?.lowercased(),
-                  sourceHost == destinationHost,
-                  request.url?.scheme?.lowercased() == "https"
+            guard OpenCodeGoUsageFetcher.allowsRedirect(
+                from: task.originalRequest?.url,
+                to: request.url)
             else {
                 completionHandler(nil)
                 return
@@ -128,6 +127,15 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             timeout: timeout,
             session: session)
         return try self.parseSubscription(text: subscriptionText, now: now)
+    }
+
+    static func allowsRedirect(from sourceURL: URL?, to destinationURL: URL?) -> Bool {
+        guard let sourceHost = sourceURL?.host?.lowercased(),
+              let destinationHost = destinationURL?.host?.lowercased(),
+              sourceHost == destinationHost,
+              destinationURL?.scheme?.lowercased() == "https"
+        else { return false }
+        return true
     }
 
     public static func dashboardURL(workspaceID raw: String?) -> URL {

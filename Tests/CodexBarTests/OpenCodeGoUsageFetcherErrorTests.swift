@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 @Suite(.serialized)
 struct OpenCodeGoUsageFetcherErrorTests {
@@ -26,6 +26,21 @@ struct OpenCodeGoUsageFetcherErrorTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [OpenCodeGoStubURLProtocol.self]
         return URLSession(configuration: config)
+    }
+
+    @Test
+    func `redirect guard allows only same-host https redirects`() {
+        #expect(OpenCodeGoUsageFetcher.allowsRedirect(
+            from: URL(string: "https://opencode.ai/_server"),
+            to: URL(string: "https://opencode.ai/workspace/wrk_TEST123/go")))
+
+        #expect(!OpenCodeGoUsageFetcher.allowsRedirect(
+            from: URL(string: "https://opencode.ai/_server"),
+            to: URL(string: "https://evil.example/steal")))
+
+        #expect(!OpenCodeGoUsageFetcher.allowsRedirect(
+            from: URL(string: "https://opencode.ai/_server"),
+            to: URL(string: "http://opencode.ai/insecure")))
     }
 
     @Test
