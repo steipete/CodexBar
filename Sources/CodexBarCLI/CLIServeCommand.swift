@@ -20,6 +20,7 @@ struct ServeOptions: CommanderParsable {
 }
 
 enum CLIServeRoute: Equatable {
+    case root
     case health
     case usage(provider: String?)
     case cost(provider: String?)
@@ -40,6 +41,8 @@ enum CLIServeRouter {
         let normalizedProvider = provider?.isEmpty == false ? provider : nil
 
         switch path {
+        case "/", "/index.html":
+            return .root
         case "/health":
             return .health
         case "/usage":
@@ -186,6 +189,11 @@ extension CodexBarCLI {
         }
 
         switch route {
+        case .root:
+            return CLILocalHTTPResponse(
+                status: .ok,
+                body: Data(CLIWebUI.html.utf8),
+                contentType: "text/html; charset=utf-8")
         case .health:
             return Self.serveJSON(ServeHealthPayload(status: "ok"))
         case let .usage(provider):
