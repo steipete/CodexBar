@@ -3,25 +3,32 @@ import Foundation
 
 extension UsageMenuCardView.Model {
     static func minimaxMetrics(services: [MiniMaxServiceUsage], input: Input) -> [Metric] {
-        let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
+        let percentStyle: PercentStyle = .used
+        let textGenerationCount = services.filter { $0.displayName == "Text Generation" }.count
 
         return services.enumerated().map { index, service in
             let used = service.usage
-            let remaining = service.remaining
-            let displayValue = input.usageBarsShowUsed ? used : remaining
-            let displayPercent = input.usageBarsShowUsed ? service.percent : (100 - service.percent)
+            let displayPercent = min(100, max(0, service.percent))
+            let usageLabel = "Usage: \(used.formatted()) / \(service.limit.formatted())"
+            let usedLabel = "Used \(String(format: "%.0f%%", displayPercent))"
+            let title = if service.displayName == "Text Generation", textGenerationCount > 1 {
+                "Text Generation · \(service.windowType == "Weekly" ? "Weekly" : "5h")"
+            } else {
+                service.displayName
+            }
 
             return Metric(
                 id: "minimax-service-\(index)",
-                title: service.displayName,
-                percent: min(100, max(0, displayPercent)),
+                title: title,
+                percent: displayPercent,
                 percentStyle: percentStyle,
                 resetText: service.resetDescription,
-                detailText: "\(displayValue)/\(service.limit)",
-                detailLeftText: service.windowType,
-                detailRightText: String(format: "%.0f%%", displayPercent),
+                detailText: service.timeRange,
+                detailLeftText: usageLabel,
+                detailRightText: usedLabel,
                 pacePercent: nil,
-                paceOnTop: true)
+                paceOnTop: true,
+                cardStyle: true)
         }
     }
 }

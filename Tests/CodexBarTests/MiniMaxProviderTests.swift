@@ -215,6 +215,67 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `text generation includes weekly window when provided`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = 1_700_000_000_000
+        let end = start + 5 * 60 * 60 * 1000
+        let weekStart = start - 2 * 24 * 60 * 60 * 1000
+        let weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "model_remains": [
+            {
+              "model_name": "MiniMax-M1",
+              "current_interval_total_count": 1000,
+              "current_interval_usage_count": 250,
+              "start_time": \(start),
+              "end_time": \(end),
+              "current_weekly_total_count": 6000,
+              "current_weekly_usage_count": 5376,
+              "weekly_start_time": \(weekStart),
+              "weekly_end_time": \(weekEnd)
+            }
+          ]
+        }
+        """
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+        let services = try #require(snapshot.services)
+        #expect(services.count == 2)
+        #expect(services[0].windowType == "5 hours")
+        #expect(services[1].windowType == "Weekly")
+        #expect(services[1].usage == 624)
+        #expect(services[1].limit == 6000)
+    }
+
+    @Test
+    func `legacy plan hides weekly when weekly total is missing or zero`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = 1_700_000_000_000
+        let end = start + 5 * 60 * 60 * 1000
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "model_remains": [
+            {
+              "model_name": "MiniMax-M1",
+              "current_interval_total_count": 1000,
+              "current_interval_usage_count": 250,
+              "start_time": \(start),
+              "end_time": \(end),
+              "current_weekly_total_count": 0,
+              "current_weekly_usage_count": 0
+            }
+          ]
+        }
+        """
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+        let services = try #require(snapshot.services)
+        #expect(services.count == 1)
+        #expect(services[0].windowType == "5 hours")
+    }
+
+    @Test
     func `parses multi service payload and utc offset reset`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 8 * 3600))

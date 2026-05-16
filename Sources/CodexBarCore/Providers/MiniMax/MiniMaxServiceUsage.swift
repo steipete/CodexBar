@@ -47,13 +47,34 @@ public struct MiniMaxServiceUsage: Sendable {
 
     /// The display name for this service
     public var displayName: String {
-        switch self.serviceType {
+        let normalized = self.serviceType.lowercased()
+        return switch normalized {
         case "text-generation":
             "Text Generation"
         case "text-to-speech":
             "Text to Speech"
         case "image":
             "Image"
+        case "text generation":
+            "Text Generation"
+        case "text to speech":
+            "Text to Speech"
+        case "image generation":
+            "Image Generation"
+        case "text to video":
+            "Text to Video"
+        case "image to video":
+            "Image to Video"
+        case "music generation":
+            "Music Generation"
+        case "music generation · v2.6":
+            "Music Generation · v2.6"
+        case "music cover":
+            "Music Cover"
+        case "lyrics generation":
+            "Lyrics Generation"
+        case "image understanding":
+            "Image Understanding"
         default:
             self.serviceType
         }

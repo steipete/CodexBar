@@ -37,6 +37,7 @@ struct UsageMenuCardView: View {
             let pacePercent: Double?
             let paceOnTop: Bool
             let warningMarkerPercents: [Double]
+            let cardStyle: Bool
 
             init(
                 id: String,
@@ -50,7 +51,8 @@ struct UsageMenuCardView: View {
                 detailRightText: String?,
                 pacePercent: Double?,
                 paceOnTop: Bool,
-                warningMarkerPercents: [Double] = [])
+                warningMarkerPercents: [Double] = [],
+                cardStyle: Bool = false)
             {
                 self.id = id
                 self.title = title
@@ -64,6 +66,7 @@ struct UsageMenuCardView: View {
                 self.pacePercent = pacePercent
                 self.paceOnTop = paceOnTop
                 self.warningMarkerPercents = warningMarkerPercents
+                self.cardStyle = cardStyle
             }
 
             var percentLabel: String {
@@ -425,6 +428,9 @@ private struct MetricRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(self.metric.cardStyle ? 10 : 0)
+        .background(self.metric.cardStyle ? Color.secondary.opacity(self.isHighlighted ? 0.2 : 0.08) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: self.metric.cardStyle ? 10 : 0))
     }
 }
 

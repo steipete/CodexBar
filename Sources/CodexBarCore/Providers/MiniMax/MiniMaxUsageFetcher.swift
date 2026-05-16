@@ -623,51 +623,36 @@ enum MiniMaxUsageParser {
         // Convert model_remains to services array for multi-service UI display
         var services: [MiniMaxServiceUsage] = []
         for item in payload.data.modelRemains {
-            // Skip services with no quota (limit = 0)
-            guard let modelName = item.modelName,
-                  let limit = item.currentIntervalTotalCount,
-                  limit > 0,
-                  let remaining = item.currentIntervalUsageCount
-            else {
-                continue
-            }
-
-            // Calculate usage and percentage
-            // current_interval_usage_count is REMAINING quota (not used)
-            let used = max(0, limit - remaining)
-            let percent = limit > 0 ? Double(used) / Double(limit) * 100.0 : 0.0
-
-            // Parse time window
-            let startTime = self.dateFromEpoch(item.startTime)
-            let endTime = self.dateFromEpoch(item.endTime)
-
-            // Determine window type and time range
-            let (windowType, timeRange) = self.parseWindowInfo(
-                startTime: startTime,
-                endTime: endTime,
-                now: now)
-
-            // Calculate reset time
-            let resetsAt = self.resetsAt(end: endTime, remains: item.remainsTime, now: now)
-            let resetDescription = self.resetDescription(
-                for: windowType,
-                timeRange: timeRange,
-                now: now,
-                resetsAt: resetsAt)
-
-            // Map model_name to service type identifier
+            guard let modelName = item.modelName else { continue }
             let serviceTypeIdentifier = self.mapModelNameToServiceType(modelName: modelName)
 
-            let serviceUsage = MiniMaxServiceUsage(
+            if let intervalService = self.makeServiceUsage(
                 serviceType: serviceTypeIdentifier,
-                windowType: windowType,
-                timeRange: timeRange,
-                usage: used,
-                limit: limit,
-                percent: min(100.0, max(0.0, percent)),
-                resetsAt: resetsAt,
-                resetDescription: resetDescription)
-            services.append(serviceUsage)
+                windowTypeOverride: nil,
+                total: item.currentIntervalTotalCount,
+                remaining: item.currentIntervalUsageCount,
+                start: item.startTime,
+                end: item.endTime,
+                remainsTime: item.remainsTime,
+                now: now)
+            {
+                services.append(intervalService)
+            }
+
+            // current_weekly_usage_count is also REMAINING quota; render only when weekly quota is real.
+            if serviceTypeIdentifier == "Text Generation",
+               let weeklyService = self.makeServiceUsage(
+                   serviceType: serviceTypeIdentifier,
+                   windowTypeOverride: "Weekly",
+                   total: item.currentWeeklyTotalCount,
+                   remaining: item.currentWeeklyUsageCount,
+                   start: item.weeklyStartTime,
+                   end: item.weeklyEndTime,
+                   remainsTime: item.weeklyRemainsTime,
+                   now: now)
+            {
+                services.append(weeklyService)
+            }
         }
 
         // Use first service for backward compatibility fields
@@ -1065,7 +1050,8 @@ enum MiniMaxUsageParser {
                   let windowType = item.windowType,
                   let timeRange = item.timeRange,
                   let usage = item.usage,
-                  let limit = item.limit
+                  let limit = item.limit,
+                  limit > 0
             else {
                 continue
             }
@@ -1226,6 +1212,44 @@ enum MiniMaxUsageParser {
         let timeRange = "\(startStr)-\(endStr)(UTC+8)"
 
         return (windowType: windowType, timeRange: timeRange)
+    }
+
+    private static func makeServiceUsage(
+        serviceType: String,
+        windowTypeOverride: String?,
+        total: Int?,
+        remaining: Int?,
+        start: Int?,
+        end: Int?,
+        remainsTime: Int?,
+        now: Date) -> MiniMaxServiceUsage?
+    {
+        guard let total, total > 0, let remaining else { return nil }
+        let used = max(0, total - remaining)
+        if used == 0, total == 0 { return nil }
+
+        let startTime = self.dateFromEpoch(start)
+        let endTime = self.dateFromEpoch(end)
+        var (windowType, timeRange) = self.parseWindowInfo(startTime: startTime, endTime: endTime, now: now)
+        if let windowTypeOverride { windowType = windowTypeOverride }
+
+        let resetsAt = self.resetsAt(end: endTime, remains: remainsTime, now: now)
+        let resetDescription = self.resetDescription(
+            for: windowType,
+            timeRange: timeRange,
+            now: now,
+            resetsAt: resetsAt)
+
+        let percent = Double(used) / Double(total) * 100.0
+        return MiniMaxServiceUsage(
+            serviceType: serviceType,
+            windowType: windowType,
+            timeRange: timeRange,
+            usage: used,
+            limit: total,
+            percent: min(100.0, max(0.0, percent)),
+            resetsAt: resetsAt,
+            resetDescription: resetDescription)
     }
 
     private static func mapModelNameToServiceType(modelName: String) -> String {
