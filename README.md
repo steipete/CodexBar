@@ -180,6 +180,9 @@ CLI install:
 ## Looking for a Windows version?
 - [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
 
+## Linux desktop integration?
+- [codexbar-waybar](https://github.com/Marouan-chak/codexbar-waybar) — Waybar custom module + GTK4 popover for Hyprland / Sway / other Wayland compositors, built on top of the bundled Linux CLI.
+
 ## Credits
 Inspired by [ccusage](https://github.com/ryoppippi/ccusage) (MIT), specifically the cost usage tracking.
 
