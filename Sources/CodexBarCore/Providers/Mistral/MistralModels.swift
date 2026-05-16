@@ -90,7 +90,64 @@ struct MistralPrice: Codable {
 
 // MARK: - Intermediate Snapshot
 
-public struct MistralUsageSnapshot: Sendable {
+public struct MistralDailyUsageBucket: Codable, Equatable, Sendable, Identifiable {
+    public struct ModelBreakdown: Codable, Equatable, Sendable, Identifiable {
+        public let name: String
+        public let cost: Double
+        public let inputTokens: Int
+        public let cachedTokens: Int
+        public let outputTokens: Int
+
+        public var id: String {
+            self.name
+        }
+
+        public var totalTokens: Int {
+            self.inputTokens + self.cachedTokens + self.outputTokens
+        }
+
+        public init(name: String, cost: Double, inputTokens: Int, cachedTokens: Int, outputTokens: Int) {
+            self.name = name
+            self.cost = cost
+            self.inputTokens = inputTokens
+            self.cachedTokens = cachedTokens
+            self.outputTokens = outputTokens
+        }
+    }
+
+    public let day: String
+    public let cost: Double
+    public let inputTokens: Int
+    public let cachedTokens: Int
+    public let outputTokens: Int
+    public let models: [ModelBreakdown]
+
+    public var id: String {
+        self.day
+    }
+
+    public var totalTokens: Int {
+        self.inputTokens + self.cachedTokens + self.outputTokens
+    }
+
+    public init(
+        day: String,
+        cost: Double,
+        inputTokens: Int,
+        cachedTokens: Int,
+        outputTokens: Int,
+        models: [ModelBreakdown])
+    {
+        self.day = day
+        self.cost = cost
+        self.inputTokens = inputTokens
+        self.cachedTokens = cachedTokens
+        self.outputTokens = outputTokens
+        self.models = models
+    }
+}
+
+public struct MistralUsageSnapshot: Codable, Sendable {
     public let totalCost: Double
     public let currency: String
     public let currencySymbol: String
@@ -98,6 +155,7 @@ public struct MistralUsageSnapshot: Sendable {
     public let totalOutputTokens: Int
     public let totalCachedTokens: Int
     public let modelCount: Int
+    public let daily: [MistralDailyUsageBucket]
     public let startDate: Date?
     public let endDate: Date?
     public let updatedAt: Date
@@ -110,6 +168,7 @@ public struct MistralUsageSnapshot: Sendable {
         totalOutputTokens: Int,
         totalCachedTokens: Int,
         modelCount: Int,
+        daily: [MistralDailyUsageBucket] = [],
         startDate: Date?,
         endDate: Date?,
         updatedAt: Date)
@@ -121,6 +180,7 @@ public struct MistralUsageSnapshot: Sendable {
         self.totalOutputTokens = totalOutputTokens
         self.totalCachedTokens = totalCachedTokens
         self.modelCount = modelCount
+        self.daily = daily.sorted { $0.day < $1.day }
         self.startDate = startDate
         self.endDate = endDate
         self.updatedAt = updatedAt
@@ -143,6 +203,7 @@ public struct MistralUsageSnapshot: Sendable {
             primary: nil,
             secondary: nil,
             providerCost: nil,
+            mistralUsage: self,
             updatedAt: self.updatedAt,
             identity: identity)
     }

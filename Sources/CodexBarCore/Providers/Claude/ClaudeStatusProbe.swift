@@ -806,11 +806,6 @@ public struct ClaudeStatusProbe: Sendable {
     private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
         let stopOnSubstrings = subcommand == "/usage"
             ? [
-                "Current week (all models)",
-                "Current week (Opus)",
-                "Current week (Sonnet only)",
-                "Current week (Sonnet)",
-                "Current session",
                 "Failed to load usage data",
                 "failed to load usage data",
                 "Failedto loadusagedata",
@@ -819,25 +814,37 @@ public struct ClaudeStatusProbe: Sendable {
             : []
         let idleTimeout: TimeInterval? = subcommand == "/usage" ? nil : 3.0
         let sendEnterEvery: TimeInterval? = subcommand == "/usage" ? 0.8 : nil
+        let stopWhenNormalized: (@Sendable (String) -> Bool)? = subcommand == "/usage"
+            ? { @Sendable normalizedScan in
+                Self.usageCaptureHasSessionValue(normalizedScan)
+            }
+            : nil
         do {
-            return try await ClaudeCLISession.shared.capture(
+            return try await ClaudeCLISession.current.capture(
                 subcommand: subcommand,
                 binary: binary,
                 timeout: timeout,
                 idleTimeout: idleTimeout,
                 stopOnSubstrings: stopOnSubstrings,
+                stopWhenNormalized: stopWhenNormalized,
                 settleAfterStop: subcommand == "/usage" ? 2.0 : 0.25,
                 sendEnterEvery: sendEnterEvery)
         } catch ClaudeCLISession.SessionError.processExited {
-            await ClaudeCLISession.shared.reset()
+            await ClaudeCLISession.current.reset()
             throw ClaudeStatusProbeError.timedOut
         } catch ClaudeCLISession.SessionError.timedOut {
             throw ClaudeStatusProbeError.timedOut
         } catch ClaudeCLISession.SessionError.launchFailed(_) {
             throw ClaudeStatusProbeError.claudeNotInstalled
         } catch {
-            await ClaudeCLISession.shared.reset()
+            await ClaudeCLISession.current.reset()
             throw error
         }
+    }
+
+    private static func usageCaptureHasSessionValue(_ normalizedText: String) -> Bool {
+        guard let labelRange = normalizedText.range(of: "currentsession") else { return false }
+        let tail = normalizedText[labelRange.upperBound...]
+        return tail.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%"#, options: .regularExpression) != nil
     }
 }

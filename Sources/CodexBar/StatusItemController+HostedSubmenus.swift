@@ -8,6 +8,7 @@ extension StatusItemController {
             Self.usageBreakdownChartID,
             Self.creditsHistoryChartID,
             Self.costHistoryChartID,
+            Self.openAIAPIUsageChartID,
             Self.usageHistoryChartID,
             Self.storageBreakdownID,
             Self.zaiHourlyUsageChartID,
@@ -59,6 +60,14 @@ extension StatusItemController {
                let provider = UsageProvider(rawValue: providerRawValue)
             {
                 self.appendCostHistoryChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
+        case Self.openAIAPIUsageChartID:
+            if let providerRawValue = placeholder.toolTip,
+               let provider = UsageProvider(rawValue: providerRawValue)
+            {
+                self.appendOpenAIAPIUsageChartItem(to: menu, provider: provider, width: width)
             } else {
                 false
             }
@@ -185,6 +194,40 @@ extension StatusItemController {
         chartItem.view = hosting
         chartItem.isEnabled = true
         chartItem.representedObject = Self.costHistoryChartID
+        submenu.addItem(chartItem)
+        return true
+    }
+
+    @discardableResult
+    func appendOpenAIAPIUsageChartItem(
+        to submenu: NSMenu,
+        provider: UsageProvider,
+        width: CGFloat)
+        -> Bool
+    {
+        guard provider == .openai,
+              let snapshot = self.store.snapshot(for: provider)?.openAIAPIUsage,
+              !snapshot.daily.isEmpty
+        else { return false }
+
+        if !Self.menuCardRenderingEnabled {
+            let chartItem = NSMenuItem()
+            chartItem.isEnabled = true
+            chartItem.representedObject = Self.openAIAPIUsageChartID
+            submenu.addItem(chartItem)
+            return true
+        }
+
+        let chartView = OpenAIAPIUsageChartMenuView(snapshot: snapshot, width: width)
+        let hosting = MenuHostingView(rootView: chartView)
+        let controller = NSHostingController(rootView: chartView)
+        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+
+        let chartItem = NSMenuItem()
+        chartItem.view = hosting
+        chartItem.isEnabled = true
+        chartItem.representedObject = Self.openAIAPIUsageChartID
         submenu.addItem(chartItem)
         return true
     }

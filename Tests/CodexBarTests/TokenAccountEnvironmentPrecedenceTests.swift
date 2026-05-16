@@ -123,6 +123,28 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `claude session account strips ambient admin api credentials in app environment builder`() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-claude-admin-strip-app")
+        settings.claudeAdminAPIKey = "sk-ant-admin-config"
+        settings.addTokenAccount(provider: .claude, label: "Session", token: "sk-ant-session-token")
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: [
+                "FOO": "bar",
+                ClaudeAdminAPISettingsReader.alternateAdminAPIKeyEnvironmentKey: "sk-ant-admin-base",
+                ClaudeOAuthCredentialsStore.environmentTokenKey: "sk-ant-oat-base",
+            ],
+            provider: .claude,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(env["FOO"] == "bar")
+        #expect(env[ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey] == nil)
+        #expect(env[ClaudeAdminAPISettingsReader.alternateAdminAPIKeyEnvironmentKey] == nil)
+        #expect(env[ClaudeOAuthCredentialsStore.environmentTokenKey] == nil)
+    }
+
+    @Test
     func `claude session key selection carries organization id in app settings snapshot`() throws {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-claude-org-app")
         settings.addTokenAccount(
@@ -194,6 +216,45 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
         #expect(env["FOO"] == "bar")
         #expect(env[ClaudeOAuthCredentialsStore.environmentTokenKey] == "sk-ant-oat-account-token")
+    }
+
+    @Test
+    func `claude session account strips ambient admin api credentials in CLI environment builder`() throws {
+        let accounts = ProviderTokenAccountData(
+            version: 1,
+            accounts: [
+                ProviderTokenAccount(
+                    id: UUID(),
+                    label: "Primary",
+                    token: "sk-ant-session-token",
+                    addedAt: 0,
+                    lastUsed: nil),
+            ],
+            activeIndex: 0)
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .claude,
+                    apiKey: "sk-ant-admin-config",
+                    tokenAccounts: accounts),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let account = try #require(tokenContext.resolvedAccounts(for: .claude).first)
+
+        let env = tokenContext.environment(
+            base: [
+                "FOO": "bar",
+                ClaudeAdminAPISettingsReader.alternateAdminAPIKeyEnvironmentKey: "sk-ant-admin-base",
+                ClaudeOAuthCredentialsStore.environmentTokenKey: "sk-ant-oat-base",
+            ],
+            provider: .claude,
+            account: account)
+
+        #expect(env["FOO"] == "bar")
+        #expect(env[ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey] == nil)
+        #expect(env[ClaudeAdminAPISettingsReader.alternateAdminAPIKeyEnvironmentKey] == nil)
+        #expect(env[ClaudeOAuthCredentialsStore.environmentTokenKey] == nil)
     }
 
     @Test

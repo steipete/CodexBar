@@ -33,6 +33,7 @@ extension StatusItemController {
     static let usageBreakdownChartID = "usageBreakdownChart"
     static let creditsHistoryChartID = "creditsHistoryChart"
     static let costHistoryChartID = "costHistoryChart"
+    static let openAIAPIUsageChartID = "openAIAPIUsageChart"
     static let usageHistoryChartID = "usageHistoryChart"
     static let storageBreakdownID = "storageBreakdown"
 
@@ -585,7 +586,9 @@ extension StatusItemController {
         }
 
         guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
-        if context.openAIContext.hasOpenAIWebMenuItems {
+        if context.openAIContext.hasOpenAIWebMenuItems || self
+            .hasOpenAIAPIUsageSubmenu(provider: context.currentProvider)
+        {
             let webItems = OpenAIWebMenuItems(
                 hasUsageBreakdown: context.openAIContext.hasUsageBreakdown,
                 hasCreditsHistory: context.openAIContext.hasCreditsHistory,
@@ -1256,7 +1259,7 @@ extension StatusItemController {
         width: CGFloat,
         webItems: OpenAIWebMenuItems)
     {
-        let hasUsageBlock = !model.metrics.isEmpty || model.placeholder != nil
+        let hasUsageBlock = model.hasUsageContent
         let hasCredits = model.creditsText != nil
         let hasExtraUsage = model.providerCost != nil
         let hasCost = model.tokenUsage != nil
@@ -1324,6 +1327,7 @@ extension StatusItemController {
             if hasCredits {
                 menu.addItem(.separator())
             }
+            let extraUsageSubmenu = self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
             let extraUsageView = UsageMenuCardExtraUsageSectionView(
                 model: model,
                 topPadding: sectionSpacing,
@@ -1332,7 +1336,8 @@ extension StatusItemController {
             menu.addItem(self.makeMenuCardItem(
                 extraUsageView,
                 id: "menuCardExtraUsage",
-                width: width))
+                width: width,
+                submenu: extraUsageSubmenu))
         }
         if hasCost {
             if hasCredits || hasExtraUsage {
@@ -1474,6 +1479,9 @@ extension StatusItemController {
         if webItems.hasUsageBreakdown {
             return self.makeUsageBreakdownSubmenu(width: width)
         }
+        if provider == .openai {
+            return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
+        }
         if provider == .zai {
             return self.makeZaiUsageDetailsSubmenu(snapshot: snapshot)
         }
@@ -1547,6 +1555,21 @@ extension StatusItemController {
                 width: width)
         }
         return self.makeHostedSubviewPlaceholderMenu(chartID: Self.costHistoryChartID, provider: provider)
+    }
+
+    private func makeOpenAIAPIUsageSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
+        guard self.hasOpenAIAPIUsageSubmenu(provider: provider) else { return nil }
+        if let width {
+            return self.makeHostedSubviewPlaceholderMenu(
+                chartID: Self.openAIAPIUsageChartID,
+                provider: provider,
+                width: width)
+        }
+        return self.makeHostedSubviewPlaceholderMenu(chartID: Self.openAIAPIUsageChartID, provider: provider)
+    }
+
+    private func hasOpenAIAPIUsageSubmenu(provider: UsageProvider) -> Bool {
+        provider == .openai && self.store.snapshot(for: provider)?.openAIAPIUsage?.daily.isEmpty == false
     }
 
     private func makeStorageBreakdownSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {

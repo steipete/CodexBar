@@ -71,7 +71,7 @@ extension SettingsStore {
     }
 
     func menuBarMetricSupportsExtraUsage(for provider: UsageProvider) -> Bool {
-        provider == .cursor
+        provider == .cursor || provider == .claude
     }
 
     func menuBarMetricSupportsExtraUsage(for provider: UsageProvider, snapshot: UsageSnapshot?) -> Bool {

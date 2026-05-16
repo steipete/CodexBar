@@ -16,6 +16,9 @@ struct ClaudePlanResolverTests {
         #expect(
             ClaudePlan.oauthLoginMethod(subscriptionType: "pro", rateLimitTier: "default_claude_ai")
                 == "Claude Pro")
+        #expect(
+            ClaudePlan.oauthLoginMethod(subscriptionType: "team", rateLimitTier: "default_claude_max_5x")
+                == "Claude Team")
         #expect(ClaudePlan.oauthLoginMethod(subscriptionType: nil, rateLimitTier: "default_claude_ai") == nil)
     }
 

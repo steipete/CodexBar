@@ -5,14 +5,14 @@ extension TokenAccountSupportCatalog {
         .openai: TokenAccountSupport(
             title: "API keys",
             subtitle: "Store multiple OpenAI API keys.",
-            placeholder: "sk-...",
-            injection: .environment(key: OpenAIAPISettingsReader.apiKeyEnvironmentKey),
+            placeholder: "sk-admin-...",
+            injection: .environment(key: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
         .claude: TokenAccountSupport(
-            title: "Session tokens",
-            subtitle: "Store Claude sessionKey cookies or OAuth access tokens.",
-            placeholder: "Paste sessionKey or OAuth token…",
+            title: "Claude credentials",
+            subtitle: "Store Claude sessionKey cookies, OAuth tokens, or Anthropic Admin API keys.",
+            placeholder: "Paste sessionKey, OAuth token, or sk-ant-admin…",
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: "sessionKey"),
@@ -119,6 +119,13 @@ extension TokenAccountSupportCatalog {
             subtitle: "Store multiple Venice API keys.",
             placeholder: "Paste API key…",
             injection: .environment(key: VeniceSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
+        .elevenlabs: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple ElevenLabs API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: ElevenLabsSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
         .stepfun: TokenAccountSupport(

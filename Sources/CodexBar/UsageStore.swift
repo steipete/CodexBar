@@ -876,6 +876,7 @@ extension UsageStore {
         let processEnvironment = self.environmentBase
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
         let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
         let deepSeekEnvironment = ProviderRegistry.makeEnvironment(
@@ -907,6 +908,7 @@ extension UsageStore {
                 .commandcode: "Command Code debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
                 .bedrock: "Bedrock debug log not yet implemented",
+                .grok: "Grok debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -965,6 +967,8 @@ extension UsageStore {
                         ollamaCookieHeader: ollamaCookieHeader)
                 case .openrouter:
                     return Self.apiKeyDebugLine(openRouterDebugContext)
+                case .elevenlabs:
+                    return Self.apiKeyDebugLine(elevenLabsDebugContext)
                 case .warp:
                     let resolution = ProviderTokenResolver.warpResolution()
                     let hasAny = resolution != nil
@@ -979,7 +983,7 @@ extension UsageStore {
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock:
+                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
@@ -1133,6 +1137,20 @@ extension UsageStore {
             resolution: ProviderTokenResolver.openRouterResolution(environment: environment),
             configToken: config?.sanitizedAPIKey,
             hasEnvToken: OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil,
+            hasTokenAccount: false)
+    }
+
+    private func elevenLabsAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
+        let config = self.settings.providerConfig(for: .elevenlabs)
+        let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: processEnvironment,
+            provider: .elevenlabs,
+            config: config)
+        return APIKeyDebugContext(
+            label: "ELEVENLABS_API_KEY",
+            resolution: ProviderTokenResolver.elevenLabsResolution(environment: environment),
+            configToken: config?.sanitizedAPIKey,
+            hasEnvToken: ElevenLabsSettingsReader.apiKey(environment: processEnvironment) != nil,
             hasTokenAccount: false)
     }
 

@@ -110,6 +110,12 @@ enum MenuBarMetricWindowResolver {
                 secondary: snapshot.secondary,
                 tertiary: snapshot.tertiary)
         }
+        if provider == .claude,
+           Self.shouldUseClaudeSpendLimit(providerCost: snapshot.providerCost, snapshot: snapshot),
+           let extraUsage = Self.extraUsageWindow(snapshot: snapshot)
+        {
+            return extraUsage
+        }
         return snapshot.primary ?? snapshot.secondary
     }
 
@@ -142,6 +148,22 @@ enum MenuBarMetricWindowResolver {
         let windows = [primary, secondary, tertiary].compactMap(\.self)
         guard !windows.isEmpty else { return nil }
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
+    }
+
+    private static func shouldUseClaudeSpendLimit(
+        providerCost: ProviderCostSnapshot?,
+        snapshot: UsageSnapshot)
+        -> Bool
+    {
+        guard providerCost?.limit ?? 0 > 0,
+              snapshot.secondary == nil,
+              snapshot.tertiary == nil
+        else { return false }
+        guard let primary = snapshot.primary else { return true }
+        return primary.usedPercent == 0
+            && primary.windowMinutes == 5 * 60
+            && primary.resetsAt == nil
+            && primary.resetDescription == nil
     }
 
     private static func extraUsageWindow(snapshot: UsageSnapshot?) -> RateWindow? {

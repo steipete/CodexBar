@@ -28,6 +28,9 @@ struct MistralUsageParserTests {
         #expect(snapshot.modelCount == 2)
         #expect(snapshot.currency == "EUR")
         #expect(snapshot.currencySymbol == "€")
+        #expect(snapshot.daily.map(\.day) == ["2025-11-14", "2025-11-24"])
+        #expect(snapshot.daily.first?.totalTokens == 11121 + 1115 + 20 + 500)
+        #expect(snapshot.daily.first?.models.first?.name == "mistral-large-latest")
     }
 
     @Test
@@ -54,6 +57,49 @@ struct MistralUsageParserTests {
         #expect(snapshot.totalCost == 0)
         #expect(snapshot.modelCount == 0)
         #expect(snapshot.currency == "EUR")
+    }
+
+    @Test
+    func `daily spend keeps non token Mistral units out of token totals`() throws {
+        let json = """
+        {
+          "libraries_api": {
+            "pages": {
+              "models": {
+                "mistral-ocr-latest": {
+                  "input": [
+                    {
+                      "billing_metric": "pages",
+                      "billing_display_name": "OCR pages",
+                      "billing_group": "input",
+                      "timestamp": "2025-11-15",
+                      "value": 42,
+                      "value_paid": 42
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "currency": "EUR",
+          "currency_symbol": "€",
+          "prices": [
+            {
+              "billing_metric": "pages",
+              "billing_group": "input",
+              "price": "0.01"
+            }
+          ]
+        }
+        """
+        let snapshot = try MistralUsageFetcher.parseResponse(data: Data(json.utf8), updatedAt: Date())
+
+        #expect(abs(snapshot.totalCost - 0.42) < 0.0001)
+        #expect(snapshot.totalInputTokens == 0)
+        #expect(abs((snapshot.daily.first?.cost ?? 0) - 0.42) < 0.0001)
+        #expect(snapshot.daily.first?.totalTokens == 0)
+        #expect(abs((snapshot.daily.first?.models.first?.cost ?? 0) - 0.42) < 0.0001)
+        #expect(snapshot.daily.first?.models.first?.totalTokens == 0)
     }
 
     @Test

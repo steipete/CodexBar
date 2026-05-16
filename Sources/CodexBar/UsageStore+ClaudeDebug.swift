@@ -106,6 +106,12 @@ extension UsageStore {
             case .auto:
                 lines.append("Auto source selected.")
                 return lines.joined(separator: "\n")
+            case .api:
+                let hasAdminKey = ProviderTokenResolver.claudeAdminAPIToken(
+                    environment: configuration.environment) != nil
+                lines.append("Admin API source selected.")
+                lines.append("hasAdminAPIKey=\(hasAdminKey)")
+                return lines.joined(separator: "\n")
             case .web:
                 do {
                     let web: ClaudeWebAPIFetcher.WebUsageData =

@@ -8,6 +8,25 @@ import Foundation
 actor ClaudeCLISession {
     static let shared = ClaudeCLISession()
     private static let log = CodexBarLog.logger(LogCategories.claudeCLI)
+    #if DEBUG
+    @TaskLocal private static var sessionOverrideForTesting: ClaudeCLISession?
+
+    static var current: ClaudeCLISession {
+        self.sessionOverrideForTesting ?? self.shared
+    }
+
+    static func withIsolatedSessionForTesting<T>(operation: () async throws -> T) async rethrows -> T {
+        let session = ClaudeCLISession()
+        defer { Task { await session.reset() } }
+        return try await self.$sessionOverrideForTesting.withValue(session) {
+            try await operation()
+        }
+    }
+    #else
+    static var current: ClaudeCLISession {
+        self.shared
+    }
+    #endif
 
     enum SessionError: LocalizedError {
         case launchFailed(String)
@@ -98,6 +117,7 @@ actor ClaudeCLISession {
         timeout: TimeInterval,
         idleTimeout: TimeInterval? = 3.0,
         stopOnSubstrings: [String] = [],
+        stopWhenNormalized: (@Sendable (String) -> Bool)? = nil,
         settleAfterStop: TimeInterval = 0.25,
         sendEnterEvery: TimeInterval? = nil) async throws -> String
     {
@@ -170,7 +190,7 @@ actor ClaudeCLISession {
                 }
             }
 
-            if stopNeedles.contains(where: normalizedScan.contains) {
+            if stopNeedles.contains(where: normalizedScan.contains) || (stopWhenNormalized?(normalizedScan) == true) {
                 stoppedEarly = true
                 break
             }

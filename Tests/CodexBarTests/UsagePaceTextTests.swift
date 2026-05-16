@@ -85,7 +85,7 @@ struct UsagePaceTextTests {
 
         #expect(detail != nil)
         #expect(detail?.leftLabel == "20% in deficit")
-        #expect(detail?.rightLabel != nil)
+        #expect(detail?.rightLabel == "Projected empty in 45m")
         #expect(detail?.stage == .farAhead)
     }
 
@@ -118,8 +118,7 @@ struct UsagePaceTextTests {
 
         let summary = UsagePaceText.sessionSummary(provider: .claude, window: window, now: now)
 
-        #expect(summary != nil)
-        #expect(summary?.hasPrefix("Pace:") == true)
+        #expect(summary == "Pace: 20% in deficit · Projected empty in 45m")
     }
 
     @Test

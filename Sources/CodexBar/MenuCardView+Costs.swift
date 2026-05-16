@@ -139,6 +139,16 @@ extension UsageMenuCardView.Model {
                 percentLine: nil)
         }
 
+        if provider == .openai || provider == .claude, cost.limit <= 0 {
+            let spend = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            let periodLabel = cost.period ?? "Last 30 days"
+            return ProviderCostSection(
+                title: "API spend",
+                percentUsed: nil,
+                spendLine: "\(periodLabel): \(spend)",
+                percentLine: nil)
+        }
+
         guard cost.limit > 0 else { return nil }
 
         let used: String

@@ -71,7 +71,7 @@ public struct ClaudeFetchPlan: Equatable, Sendable {
         switch self.input.selectedDataSource {
         case .auto:
             self.availableSteps.first
-        case .oauth, .web, .cli:
+        case .api, .oauth, .web, .cli:
             self.orderedSteps.first
         }
     }
@@ -80,7 +80,7 @@ public struct ClaudeFetchPlan: Equatable, Sendable {
         switch self.input.selectedDataSource {
         case .auto:
             self.availableSteps
-        case .oauth, .web, .cli:
+        case .api, .oauth, .web, .cli:
             self.orderedSteps
         }
     }
@@ -184,6 +184,8 @@ public enum ClaudeSourcePlanner {
                     self.step(.cli, reason: .cliAutoFallbackCLI, input: input),
                 ]
             }
+        case .api:
+            [self.step(.api, reason: .explicitSourceSelection, input: input)]
         case .oauth:
             [self.step(.oauth, reason: .explicitSourceSelection, input: input)]
         case .web:
@@ -209,7 +211,7 @@ public enum ClaudeSourcePlanner {
         input: ClaudeSourcePlanningInput) -> Bool
     {
         switch dataSource {
-        case .auto:
+        case .auto, .api:
             false
         case .oauth:
             input.hasOAuthCredentials

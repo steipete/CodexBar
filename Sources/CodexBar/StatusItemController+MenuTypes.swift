@@ -53,7 +53,7 @@ struct OverviewMenuCardRowView: View {
     }
 
     private var hasUsageBlock: Bool {
-        !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty || self.model.placeholder != nil
+        self.model.hasUsageContent
     }
 }
 

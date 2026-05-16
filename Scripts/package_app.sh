@@ -5,6 +5,7 @@ ALLOW_LLDB=${CODEXBAR_ALLOW_LLDB:-0}
 SIGNING_MODE=${CODEXBAR_SIGNING:-}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+LOWER_CONF=$(printf "%s" "$CONF" | tr '[:upper:]' '[:lower:]')
 
 # Load version info
 source "$ROOT/version.env"
@@ -100,6 +101,7 @@ PY
 
 generate_widget_appintents_metadata() {
   local widget_resources_dir="$1"
+  local metadata_mode="${CODEXBAR_WIDGET_METADATA_MODE:-}"
   local xcode_conf
   local host_arch
   local derived_dir
@@ -114,6 +116,29 @@ generate_widget_appintents_metadata() {
   local swiftc_path
   local toolchain_dir
   local xcode_version
+
+  if [[ -z "$metadata_mode" ]]; then
+    if [[ "${SIGNING_MODE:-}" == "adhoc" || "$LOWER_CONF" == "debug" ]]; then
+      metadata_mode="skip"
+    else
+      metadata_mode="required"
+    fi
+  fi
+
+  if [[ "$metadata_mode" == "skip" ]]; then
+    echo "Skipping widget App Intents metadata (CODEXBAR_WIDGET_METADATA_MODE=skip)."
+    return 0
+  fi
+
+  widget_metadata_warn_or_fail() {
+    local message="$1"
+    if [[ "$metadata_mode" == "required" ]]; then
+      echo "ERROR: ${message}" >&2
+      exit 1
+    fi
+    echo "WARN: ${message}; continuing without widget App Intents metadata." >&2
+    return 0
+  }
 
   xcode_conf="Release"
   if [[ "$LOWER_CONF" == "debug" ]]; then
@@ -135,16 +160,28 @@ generate_widget_appintents_metadata() {
   toolchain_dir=$(dirname "$(dirname "$(dirname "$swiftc_path")")")
   xcode_version=$(xcodebuild -version | awk '/Build version/ { print $3 }')
 
-  rm -rf "$derived_dir"
+  if [[ "${CODEXBAR_FORCE_WIDGET_METADATA_CLEAN:-0}" == "1" ]]; then
+    rm -rf "$derived_dir"
+  fi
   mkdir -p "$derived_dir"
   local xcodebuild_log="$derived_dir/xcodebuild.log"
-  local timeout_seconds="${CODEXBAR_WIDGET_METADATA_TIMEOUT_SECONDS:-60}"
+  local timeout_seconds="${CODEXBAR_WIDGET_METADATA_TIMEOUT_SECONDS:-}"
+  if [[ -z "$timeout_seconds" ]]; then
+    if [[ "$metadata_mode" == "required" ]]; then
+      timeout_seconds=600
+    else
+      timeout_seconds=45
+    fi
+  fi
+  echo "Generating widget App Intents metadata (${metadata_mode}, timeout ${timeout_seconds}s)."
   xcodebuild \
     -workspace "$ROOT/.swiftpm/xcode/package.xcworkspace" \
     -scheme CodexBarWidget \
     -configuration "$xcode_conf" \
     -destination "platform=macOS,arch=${host_arch}" \
     -derivedDataPath "$derived_dir" \
+    -skipPackageUpdates \
+    -disableAutomaticPackageResolution \
     -skipMacroValidation \
     -skipPackagePluginValidation \
     build >"$xcodebuild_log" 2>&1 &
@@ -154,32 +191,43 @@ generate_widget_appintents_metadata() {
     if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
       kill "$xcodebuild_pid" 2>/dev/null || true
       wait "$xcodebuild_pid" 2>/dev/null || true
-      if [[ "${SIGNING_MODE:-}" == "adhoc" || "${CODEXBAR_ALLOW_MISSING_WIDGET_METADATA:-0}" == "1" ]]; then
+      tail -40 "$xcodebuild_log" >&2 || true
+      if [[ "${CODEXBAR_ALLOW_MISSING_WIDGET_METADATA:-0}" == "1" ]]; then
         echo "WARN: Timed out generating widget App Intents metadata after ${timeout_seconds}s; continuing without it." >&2
         return 0
       fi
-      echo "ERROR: Timed out generating widget App Intents metadata after ${timeout_seconds}s." >&2
-      tail -80 "$xcodebuild_log" >&2 || true
-      exit 1
+      widget_metadata_warn_or_fail "Timed out generating widget App Intents metadata after ${timeout_seconds}s"
+      return 0
     fi
-    sleep 1
-    elapsed=$((elapsed + 1))
+    sleep 5
+    elapsed=$((elapsed + 5))
+    if (( elapsed > 0 && elapsed % 30 == 0 )); then
+      echo "Still generating widget App Intents metadata (${elapsed}s)..."
+    fi
   done
   if ! wait "$xcodebuild_pid"; then
-    echo "ERROR: Failed to build CodexBarWidget metadata inputs." >&2
     tail -80 "$xcodebuild_log" >&2 || true
-    exit 1
+    widget_metadata_warn_or_fail "Failed to build CodexBarWidget metadata inputs"
+    return 0
+  fi
+
+  local xcode_metadata_dir="$derived_dir/Build/Products/${xcode_conf}/CodexBarWidget.appintents/Metadata.appintents"
+  if [[ -f "$xcode_metadata_dir/extract.actionsdata" ]]; then
+    rm -rf "$widget_resources_dir/Metadata.appintents"
+    mkdir -p "$widget_resources_dir"
+    cp -R "$xcode_metadata_dir" "$widget_resources_dir/"
+    return 0
   fi
 
   if [[ ! -f "$source_file_list" ]]; then
-    echo "ERROR: Missing App Intents metadata inputs for CodexBarWidget." >&2
-    exit 1
+    widget_metadata_warn_or_fail "Missing App Intents metadata inputs for CodexBarWidget"
+    return 0
   fi
 
   find "$object_dir" -name '*.swiftconstvalues' | sort > "$const_values_list"
   if [[ ! -s "$const_values_list" ]]; then
-    echo "ERROR: Missing App Intents const-values outputs for CodexBarWidget." >&2
-    exit 1
+    widget_metadata_warn_or_fail "Missing App Intents const-values outputs for CodexBarWidget"
+    return 0
   fi
   rm -rf "$widget_resources_dir/Metadata.appintents"
   mkdir -p "$widget_resources_dir"
@@ -200,8 +248,8 @@ generate_widget_appintents_metadata() {
     --force >/dev/null
 
   if [[ ! -f "$widget_resources_dir/Metadata.appintents/extract.actionsdata" ]]; then
-    echo "ERROR: Failed to generate App Intents metadata for CodexBarWidget." >&2
-    exit 1
+    widget_metadata_warn_or_fail "Failed to generate App Intents metadata for CodexBarWidget"
+    return 0
   fi
 }
 
@@ -215,8 +263,10 @@ for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c "$CONF" --arch "$ARCH"
 done
 
-APP="$ROOT/CodexBar.app"
-rm -rf "$APP"
+APP_FINAL="$ROOT/CodexBar.app"
+APP_STAGE="$ROOT/.build/package/CodexBar.app"
+rm -rf "$APP_STAGE"
+APP="$APP_STAGE"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 mkdir -p "$APP/Contents/Helpers" "$APP/Contents/PlugIns"
 
@@ -230,7 +280,6 @@ fi
 BUNDLE_ID="com.steipete.codexbar"
 FEED_URL="https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"
 AUTO_CHECKS=true
-LOWER_CONF=$(printf "%s" "$CONF" | tr '[:upper:]' '[:lower:]')
 if [[ "$LOWER_CONF" == "debug" ]]; then
   BUNDLE_ID="com.steipete.codexbar.debug"
   FEED_URL=""
@@ -507,4 +556,7 @@ codesign "${CODESIGN_ARGS[@]}" \
   --entitlements "$APP_ENTITLEMENTS" \
   "$APP"
 
+rm -rf "$APP_FINAL"
+mv "$APP" "$APP_FINAL"
+APP="$APP_FINAL"
 echo "Created $APP"

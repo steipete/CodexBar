@@ -38,6 +38,6 @@ struct ClaudeWebEnterpriseUsageTests {
         #expect(parsed.extraUsageCost?.used == 41.32)
         #expect(parsed.extraUsageCost?.limit == 1000)
         #expect(parsed.extraUsageCost?.currencyCode == "USD")
-        #expect(parsed.extraUsageCost?.period == "Monthly")
+        #expect(parsed.extraUsageCost?.period == "Monthly cap")
     }
 }

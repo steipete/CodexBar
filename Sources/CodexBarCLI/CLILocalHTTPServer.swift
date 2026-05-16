@@ -7,7 +7,7 @@ import Glibc
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
 
-struct CLILocalHTTPRequest: Sendable {
+struct CLILocalHTTPRequest {
     let method: String
     let target: String
     let path: String
@@ -44,7 +44,7 @@ struct CLILocalHTTPRequest: Sendable {
     }
 }
 
-enum CLIHTTPStatus: Sendable {
+enum CLIHTTPStatus {
     case ok
     case badRequest
     case notFound
@@ -72,7 +72,7 @@ enum CLIHTTPStatus: Sendable {
     }
 }
 
-struct CLILocalHTTPResponse: Sendable {
+struct CLILocalHTTPResponse {
     let status: CLIHTTPStatus
     let body: Data
     let contentType: String

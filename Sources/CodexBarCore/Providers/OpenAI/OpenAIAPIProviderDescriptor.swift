@@ -9,19 +9,19 @@ public enum OpenAIAPIProviderDescriptor {
             id: .openai,
             metadata: ProviderMetadata(
                 id: .openai,
-                displayName: "OpenAI API",
-                sessionLabel: "API credits",
-                weeklyLabel: "Spend",
+                displayName: "OpenAI",
+                sessionLabel: "Spend",
+                weeklyLabel: "Requests",
                 opusLabel: nil,
                 supportsOpus: false,
-                supportsCredits: true,
-                creditsHint: "OpenAI API platform credit balance from the billing endpoint.",
-                toggleTitle: "Show OpenAI API balance",
+                supportsCredits: false,
+                creditsHint: "",
+                toggleTitle: "Show OpenAI usage",
                 cliName: "openai",
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                dashboardURL: "https://platform.openai.com/settings/organization/billing/overview",
+                dashboardURL: "https://platform.openai.com/usage",
                 statusPageURL: "https://status.openai.com"),
             branding: ProviderBranding(
                 iconStyle: .openai,
@@ -29,7 +29,7 @@ public enum OpenAIAPIProviderDescriptor {
                 color: ProviderColor(red: 0.06, green: 0.51, blue: 0.43)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "OpenAI API credit balance uses billing credits, not model cost estimates." }),
+                noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenAIAPIBalanceFetchStrategy()] })),
@@ -43,6 +43,20 @@ public enum OpenAIAPIProviderDescriptor {
 struct OpenAIAPIBalanceFetchStrategy: ProviderFetchStrategy {
     let id: String = "openai.api.balance"
     let kind: ProviderFetchKind = .apiToken
+    let usageFetcher: @Sendable (String) async throws -> OpenAIAPIUsageSnapshot
+    let balanceFetcher: @Sendable (String) async throws -> OpenAIAPICreditBalanceSnapshot
+
+    init(
+        usageFetcher: @escaping @Sendable (String) async throws -> OpenAIAPIUsageSnapshot = { apiKey in
+            try await OpenAIAPIUsageFetcher.fetchUsage(apiKey: apiKey)
+        },
+        balanceFetcher: @escaping @Sendable (String) async throws -> OpenAIAPICreditBalanceSnapshot = { apiKey in
+            try await OpenAIAPICreditBalanceFetcher.fetchBalance(apiKey: apiKey)
+        })
+    {
+        self.usageFetcher = usageFetcher
+        self.balanceFetcher = balanceFetcher
+    }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         Self.resolveToken(environment: context.env) != nil
@@ -53,10 +67,26 @@ struct OpenAIAPIBalanceFetchStrategy: ProviderFetchStrategy {
             throw OpenAIAPISettingsError.missingToken
         }
 
-        let balance = try await OpenAIAPICreditBalanceFetcher.fetchBalance(apiKey: apiKey)
-        return self.makeResult(
-            usage: balance.toUsageSnapshot(),
-            sourceLabel: "api")
+        do {
+            let usage = try await self.usageFetcher(apiKey)
+            return self.makeResult(
+                usage: usage.toUsageSnapshot(),
+                sourceLabel: "admin-api")
+        } catch {
+            let usageError = error
+            // Preserve the older balance-only path for project/user keys and admin API outages.
+            do {
+                let balance = try await self.balanceFetcher(apiKey)
+                return self.makeResult(
+                    usage: balance.toUsageSnapshot(),
+                    sourceLabel: "billing-api")
+            } catch {
+                if (usageError as? OpenAIAPIUsageError)?.isCredentialRejected != true {
+                    throw usageError
+                }
+                throw error
+            }
+        }
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

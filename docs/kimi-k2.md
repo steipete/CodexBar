@@ -8,13 +8,18 @@ read_when:
 
 # Kimi K2 provider
 
-Kimi K2 is API-only. Usage is reported by the credit counter behind `GET https://kimi-k2.ai/api/user/credits`,
-so CodexBar only needs a valid API key to pull your remaining balance and usage.
+> This is a legacy, unofficial provider for the `kimi-k2.ai` credit endpoint.
+> For the official Kimi API account and billing surface, use the Moonshot / Kimi
+> API provider instead.
+
+Kimi K2 is API-only. Usage is reported by the credit counter behind
+`GET https://kimi-k2.ai/api/user/credits`, so CodexBar only needs a valid API
+key for that legacy endpoint to pull your remaining balance and usage.
 
 ## Data sources + fallback order
 
 1) **API key** stored in `~/.codexbar/config.json` or supplied via `KIMI_K2_API_KEY` / `KIMI_API_KEY` / `KIMI_KEY`.
-   CodexBar stores the key in config after you paste it in Preferences → Providers → Kimi K2.
+   CodexBar stores the key in config after you paste it in Preferences → Providers → Kimi K2 (unofficial).
 2) **Credit endpoint**
    - `GET https://kimi-k2.ai/api/user/credits`
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`

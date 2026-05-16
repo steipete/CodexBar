@@ -50,10 +50,22 @@ public enum ProviderConfigEnvironment {
         return env
     }
 
+    public static func supportsAPIKeyOverride(for provider: UsageProvider) -> Bool {
+        if self.directAPIKeyEnvironmentKey(for: provider) != nil { return true }
+        switch provider {
+        case .copilot, .kimik2, .warp, .codebuff, .crof, .doubao:
+            return true
+        default:
+            return false
+        }
+    }
+
     private static func directAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
         switch provider {
         case .openai:
-            OpenAIAPISettingsReader.apiKeyEnvironmentKey
+            OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey
+        case .claude:
+            ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey
         case .zai:
             ZaiSettingsReader.apiTokenKey
         case .minimax:
@@ -66,6 +78,8 @@ public enum ProviderConfigEnvironment {
             SyntheticSettingsReader.apiKeyKey
         case .openrouter:
             OpenRouterSettingsReader.envKey
+        case .elevenlabs:
+            ElevenLabsSettingsReader.apiKeyEnvironmentKey
         case .moonshot:
             MoonshotSettingsReader.apiKeyEnvironmentKeys.first
         case .venice:

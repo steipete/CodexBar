@@ -256,14 +256,23 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
-          gh workflow run update-formula.yml \
-            --repo steipete/homebrew-tap \
-            -f formula=codexbar \
-            -f tag="${{ steps.release.outputs.tag }}" \
-            -f repository=steipete/CodexBar \
-            -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
-            -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
-            -f request_id="${{ steps.release.outputs.request_id }}"
+          for attempt in {1..6}; do
+            if gh workflow run update-formula.yml \
+              --repo steipete/homebrew-tap \
+              -f formula=codexbar \
+              -f tag="${{ steps.release.outputs.tag }}" \
+              -f repository=steipete/CodexBar \
+              -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
+              -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
+              -f request_id="${{ steps.release.outputs.request_id }}"; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 6 ]]; then
+              echo "Failed to dispatch tap update after ${attempt} attempts." >&2
+              exit 1
+            fi
+            sleep $((attempt * 30))
+          done
 
       - name: Wait for tap update
         env:
@@ -272,11 +281,19 @@ jobs:
         run: |
           set -euo pipefail
           for _ in {1..20}; do
-            run_id="$(gh run list --repo steipete/homebrew-tap --workflow update-formula.yml --json databaseId,displayTitle --jq '.[] | select(.displayTitle | contains("${{ steps.release.outputs.request_id }}")) | .databaseId' | head -n1)"
+            run_id="$(
+              gh run list \
+                --repo steipete/homebrew-tap \
+                --workflow update-formula.yml \
+                --json databaseId,displayTitle \
+                --jq '.[] | select(.displayTitle | contains("${{ steps.release.outputs.request_id }}")) | .databaseId' 2>/tmp/codexbar-tap-run-list.err \
+                | head -n1 || true
+            )"
             if [[ -n "$run_id" ]]; then
               gh run watch "$run_id" --repo steipete/homebrew-tap --exit-status
               exit 0
             fi
+            cat /tmp/codexbar-tap-run-list.err >&2 || true
             sleep 5
           done
           echo "Timed out waiting for tap workflow to appear." >&2

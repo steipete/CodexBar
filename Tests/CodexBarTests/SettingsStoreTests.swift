@@ -1186,6 +1186,7 @@ struct SettingsStoreTests {
             .synthetic,
             .warp,
             .openrouter,
+            .elevenlabs,
             .windsurf,
             .perplexity,
             .mimo,
@@ -1199,6 +1200,7 @@ struct SettingsStoreTests {
             .commandcode,
             .stepfun,
             .bedrock,
+            .grok,
         ])
 
         // Move one provider; ensure it's persisted across instances.

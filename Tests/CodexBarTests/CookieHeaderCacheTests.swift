@@ -213,19 +213,21 @@ struct CookieHeaderCacheTests {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
-        CookieHeaderCache.store(provider: .claude, cookieHeader: "auth=claude", sourceLabel: "Chrome")
-        CookieHeaderCache.store(
-            provider: .codex,
-            scope: .managedAccount(UUID()),
-            cookieHeader: "auth=codex",
-            sourceLabel: "Chrome")
-        KeychainCacheStore.store(
-            key: .cookie(provider: .cursor),
-            entry: WrongEntry(value: "invalid"))
+        KeychainCacheStore.withServiceOverrideForTesting("cookie-clear-all-\(UUID().uuidString)") {
+            CookieHeaderCache.store(provider: .claude, cookieHeader: "auth=claude", sourceLabel: "Chrome")
+            CookieHeaderCache.store(
+                provider: .codex,
+                scope: .managedAccount(UUID()),
+                cookieHeader: "auth=codex",
+                sourceLabel: "Chrome")
+            KeychainCacheStore.store(
+                key: .cookie(provider: .cursor),
+                entry: WrongEntry(value: "invalid"))
 
-        let cleared = CookieHeaderCache.clearAll()
+            let cleared = CookieHeaderCache.clearAll()
 
-        #expect(cleared >= 3)
-        #expect(KeychainCacheStore.keys(category: "cookie").isEmpty)
+            #expect(cleared >= 3)
+            #expect(KeychainCacheStore.keys(category: "cookie").isEmpty)
+        }
     }
 }

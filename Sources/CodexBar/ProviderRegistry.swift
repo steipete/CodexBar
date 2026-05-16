@@ -119,12 +119,18 @@ struct ProviderRegistry {
             provider: provider,
             config: settings.providerConfig(for: provider))
         // If token account is selected, use its token instead of config's apiKey
-        if let account, let override = TokenAccountSupportCatalog.envOverride(
-            for: provider,
-            token: account.token)
-        {
-            for (key, value) in override {
-                env[key] = value
+        if let account {
+            TokenAccountSupportCatalog.scrubEnvironmentForSelectedAccount(
+                &env,
+                provider: provider,
+                token: account.token)
+            if let override = TokenAccountSupportCatalog.envOverride(
+                for: provider,
+                token: account.token)
+            {
+                for (key, value) in override {
+                    env[key] = value
+                }
             }
         }
         // Managed Codex routing only scopes remote account fetches such as identity, plan,

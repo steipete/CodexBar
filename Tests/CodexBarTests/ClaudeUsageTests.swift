@@ -721,7 +721,7 @@ struct ClaudeUsageTests {
         #expect(cost?.currencyCode == "EUR")
         #expect(cost?.limit == 20)
         #expect(cost?.used == 0)
-        #expect(cost?.period == "Monthly")
+        #expect(cost?.period == "Monthly cap")
     }
 
     @Test
@@ -974,7 +974,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
         LOG_FILE='\(logURL.path)'
         while IFS= read -r line; do
           case "$line" in
-            "/usage")
+            *"/usage"*)
               printf 'usage\\n' >> "$LOG_FILE"
               cat <<'EOF'
         Current session
@@ -985,7 +985,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
         Dec 29 at 11:00PM
         EOF
               ;;
-            "/status")
+            *"/status"*)
               printf 'status\\n' >> "$LOG_FILE"
               cat <<'EOF'
         Account: cli@example.com
@@ -1000,24 +1000,6 @@ struct ClaudeAutoFetcherCharacterizationTests {
             [.posixPermissions: NSNumber(value: Int16(0o755))],
             ofItemAtPath: scriptURL.path)
         return scriptURL
-    }
-
-    private func withClaudeCLIPath<T>(_ path: String?, operation: () async throws -> T) async rethrows -> T {
-        let key = "CLAUDE_CLI_PATH"
-        let original = getenv(key).map { String(cString: $0) }
-        if let path {
-            setenv(key, path, 1)
-        } else {
-            unsetenv(key)
-        }
-        defer {
-            if let original {
-                setenv(key, original, 1)
-            } else {
-                unsetenv(key)
-            }
-        }
-        return try await operation()
     }
 
     private func withNoOAuthCredentials<T>(operation: () async throws -> T) async rethrows -> T {
@@ -1089,25 +1071,27 @@ struct ClaudeAutoFetcherCharacterizationTests {
             dataSource: .auto,
             manualCookieHeader: "sessionKey=sk-ant-session-token")
 
-        try await self.withClaudeCLIPath(fakeCLI.path) {
-            try await self.withClaudeWebStub(handler: { request in
-                webRequests.append(request.url?.path ?? "<missing>")
-                let url = try #require(request.url)
-                return Self.makeJSONResponse(url: url, body: "{}")
-            }, operation: {
-                let fetchOverride: @Sendable (String) async throws -> OAuthUsageResponse = { _ in usageResponse }
-                let snapshot = try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(
-                    fetchOverride,
-                    operation: {
-                        try await fetcher.loadLatestUsage(model: "sonnet")
-                    })
+        try await ClaudeCLISession.withIsolatedSessionForTesting {
+            try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(fakeCLI.path) {
+                try await self.withClaudeWebStub(handler: { request in
+                    webRequests.append(request.url?.path ?? "<missing>")
+                    let url = try #require(request.url)
+                    return Self.makeJSONResponse(url: url, body: "{}")
+                }, operation: {
+                    let fetchOverride: @Sendable (String) async throws -> OAuthUsageResponse = { _ in usageResponse }
+                    let snapshot = try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(
+                        fetchOverride,
+                        operation: {
+                            try await fetcher.loadLatestUsage(model: "sonnet")
+                        })
 
-                #expect(snapshot.primary.usedPercent == 7)
-                #expect(snapshot.secondary?.usedPercent == 21)
-                #expect(log.contents().isEmpty)
-                let requests = webRequests.current()
-                #expect(requests.isEmpty)
-            })
+                    #expect(snapshot.primary.usedPercent == 7)
+                    #expect(snapshot.secondary?.usedPercent == 21)
+                    #expect(log.contents().isEmpty)
+                    let requests = webRequests.current()
+                    #expect(requests.isEmpty)
+                })
+            }
         }
     }
 
@@ -1124,61 +1108,63 @@ struct ClaudeAutoFetcherCharacterizationTests {
             dataSource: .auto,
             manualCookieHeader: "sessionKey=sk-ant-session-token")
 
-        try await self.withClaudeCLIPath(fakeCLI.path) {
-            try await self.withNoOAuthCredentials {
-                try await self.withClaudeWebStub(handler: { request in
-                    let url = try #require(request.url)
-                    switch url.path {
-                    case "/api/organizations":
-                        return Self.makeJSONResponse(
-                            url: url,
-                            body: #"[{"uuid":"org-123","name":"Test Org","capabilities":["chat"]}]"#)
-                    case "/api/organizations/org-123/usage":
-                        let body = """
-                        {
-                          "five_hour": { "utilization": 11, "resets_at": "2025-12-23T16:00:00.000Z" },
-                          "seven_day": { "utilization": 22, "resets_at": "2025-12-29T23:00:00.000Z" },
-                          "seven_day_opus": { "utilization": 33 }
-                        }
-                        """
-                        return Self.makeJSONResponse(
-                            url: url,
-                            body: body)
-                    case "/api/account":
-                        let body = """
-                        {
-                          "email_address": "web@example.com",
-                          "memberships": [
+        try await ClaudeCLISession.withIsolatedSessionForTesting {
+            try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(fakeCLI.path) {
+                try await self.withNoOAuthCredentials {
+                    try await self.withClaudeWebStub(handler: { request in
+                        let url = try #require(request.url)
+                        switch url.path {
+                        case "/api/organizations":
+                            return Self.makeJSONResponse(
+                                url: url,
+                                body: #"[{"uuid":"org-123","name":"Test Org","capabilities":["chat"]}]"#)
+                        case "/api/organizations/org-123/usage":
+                            let body = """
                             {
-                              "organization": {
-                                "uuid": "org-123",
-                                "name": "Test Org",
-                                "rate_limit_tier": "claude_max",
-                                "billing_type": "stripe"
-                              }
+                              "five_hour": { "utilization": 11, "resets_at": "2025-12-23T16:00:00.000Z" },
+                              "seven_day": { "utilization": 22, "resets_at": "2025-12-29T23:00:00.000Z" },
+                              "seven_day_opus": { "utilization": 33 }
                             }
-                          ]
+                            """
+                            return Self.makeJSONResponse(
+                                url: url,
+                                body: body)
+                        case "/api/account":
+                            let body = """
+                            {
+                              "email_address": "web@example.com",
+                              "memberships": [
+                                {
+                                  "organization": {
+                                    "uuid": "org-123",
+                                    "name": "Test Org",
+                                    "rate_limit_tier": "claude_max",
+                                    "billing_type": "stripe"
+                                  }
+                                }
+                              ]
+                            }
+                            """
+                            return Self.makeJSONResponse(
+                                url: url,
+                                body: body)
+                        case "/api/organizations/org-123/overage_spend_limit":
+                            let body = """
+                            {"monthly_credit_limit":5000,"currency":"USD","used_credits":1200,"is_enabled":true}
+                            """
+                            return Self.makeJSONResponse(
+                                url: url,
+                                body: body)
+                        default:
+                            return Self.makeJSONResponse(url: url, body: "{}", statusCode: 404)
                         }
-                        """
-                        return Self.makeJSONResponse(
-                            url: url,
-                            body: body)
-                    case "/api/organizations/org-123/overage_spend_limit":
-                        let body = """
-                        {"monthly_credit_limit":5000,"currency":"USD","used_credits":1200,"is_enabled":true}
-                        """
-                        return Self.makeJSONResponse(
-                            url: url,
-                            body: body)
-                    default:
-                        return Self.makeJSONResponse(url: url, body: "{}", statusCode: 404)
-                    }
-                }, operation: {
-                    let snapshot = try await fetcher.loadLatestUsage(model: "sonnet")
+                    }, operation: {
+                        let snapshot = try await fetcher.loadLatestUsage(model: "sonnet")
 
-                    #expect(snapshot.rawText != nil)
-                    #expect(log.contents().contains("usage"))
-                })
+                        #expect(snapshot.rawText != nil)
+                        #expect(log.contents().contains("usage"))
+                    })
+                }
             }
         }
     }
@@ -1196,59 +1182,61 @@ struct ClaudeAutoFetcherCharacterizationTests {
             dataSource: .auto,
             manualCookieHeader: "sessionKey=sk-ant-session-token")
 
-        try await self.withClaudeCLIPath(fakeCLI.path) {
-            try await self.withNoOAuthCredentials {
-                try await self.withClaudeWebStub(handler: { request in
-                    let url = try #require(request.url)
-                    switch url.path {
-                    case "/api/organizations":
-                        return Self.makeJSONResponse(
-                            url: url,
-                            body: #"[{"uuid":"org-123","name":"Test Org","capabilities":["chat"]}]"#)
-                    case "/api/organizations/org-123/usage":
-                        let body = """
-                        {
-                          "five_hour": { "utilization": 11, "resets_at": "2025-12-23T16:00:00.000Z" },
-                          "seven_day": { "utilization": 22, "resets_at": "2025-12-29T23:00:00.000Z" },
-                          "seven_day_opus": { "utilization": 33 }
-                        }
-                        """
-                        return Self.makeJSONResponse(url: url, body: body)
-                    case "/api/account":
-                        let body = """
-                        {
-                          "email_address": "web@example.com",
-                          "memberships": [
+        try await ClaudeCLISession.withIsolatedSessionForTesting {
+            try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(fakeCLI.path) {
+                try await self.withNoOAuthCredentials {
+                    try await self.withClaudeWebStub(handler: { request in
+                        let url = try #require(request.url)
+                        switch url.path {
+                        case "/api/organizations":
+                            return Self.makeJSONResponse(
+                                url: url,
+                                body: #"[{"uuid":"org-123","name":"Test Org","capabilities":["chat"]}]"#)
+                        case "/api/organizations/org-123/usage":
+                            let body = """
                             {
-                              "organization": {
-                                "uuid": "org-123",
-                                "name": "Test Org",
-                                "rate_limit_tier": "claude_max",
-                                "billing_type": "stripe"
-                              }
+                              "five_hour": { "utilization": 11, "resets_at": "2025-12-23T16:00:00.000Z" },
+                              "seven_day": { "utilization": 22, "resets_at": "2025-12-29T23:00:00.000Z" },
+                              "seven_day_opus": { "utilization": 33 }
                             }
-                          ]
+                            """
+                            return Self.makeJSONResponse(url: url, body: body)
+                        case "/api/account":
+                            let body = """
+                            {
+                              "email_address": "web@example.com",
+                              "memberships": [
+                                {
+                                  "organization": {
+                                    "uuid": "org-123",
+                                    "name": "Test Org",
+                                    "rate_limit_tier": "claude_max",
+                                    "billing_type": "stripe"
+                                  }
+                                }
+                              ]
+                            }
+                            """
+                            return Self.makeJSONResponse(url: url, body: body)
+                        case "/api/organizations/org-123/overage_spend_limit":
+                            let body = """
+                            {"monthly_credit_limit":5000,"currency":"USD","used_credits":1200,"is_enabled":true}
+                            """
+                            return Self.makeJSONResponse(url: url, body: body)
+                        default:
+                            return Self.makeJSONResponse(url: url, body: "{}", statusCode: 404)
                         }
-                        """
-                        return Self.makeJSONResponse(url: url, body: body)
-                    case "/api/organizations/org-123/overage_spend_limit":
-                        let body = """
-                        {"monthly_credit_limit":5000,"currency":"USD","used_credits":1200,"is_enabled":true}
-                        """
-                        return Self.makeJSONResponse(url: url, body: body)
-                    default:
-                        return Self.makeJSONResponse(url: url, body: "{}", statusCode: 404)
-                    }
-                }, operation: {
-                    let snapshot = try await fetcher.loadLatestUsage(model: "sonnet")
+                    }, operation: {
+                        let snapshot = try await fetcher.loadLatestUsage(model: "sonnet")
 
-                    #expect(snapshot.primary.usedPercent == 11)
-                    #expect(snapshot.secondary?.usedPercent == 22)
-                    #expect(snapshot.opus?.usedPercent == 33)
-                    #expect(snapshot.accountEmail == "web@example.com")
-                    #expect(snapshot.loginMethod == "Claude Max")
-                    #expect(log.contents().isEmpty)
-                })
+                        #expect(snapshot.primary.usedPercent == 11)
+                        #expect(snapshot.secondary?.usedPercent == 22)
+                        #expect(snapshot.opus?.usedPercent == 33)
+                        #expect(snapshot.accountEmail == "web@example.com")
+                        #expect(snapshot.loginMethod == "Claude Max")
+                        #expect(log.contents().isEmpty)
+                    })
+                }
             }
         }
     }

@@ -12,4 +12,13 @@ struct ProviderMetadataStatusLinkTests {
                 "Expected \(provider.rawValue) statusLinkURL to be \(expected)")
         }
     }
+
+    @Test
+    func `kimi K2 metadata does not present legacy endpoint as official`() throws {
+        let meta = try #require(ProviderDefaults.metadata[.kimik2])
+
+        #expect(meta.displayName == "Kimi K2 (unofficial)")
+        #expect(meta.toggleTitle == "Show unofficial Kimi K2 usage")
+        #expect(meta.dashboardURL == nil)
+    }
 }

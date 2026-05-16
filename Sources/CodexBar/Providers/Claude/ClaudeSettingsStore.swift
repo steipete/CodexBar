@@ -10,6 +10,7 @@ extension SettingsStore {
         set {
             let source: ProviderSourceMode? = switch newValue {
             case .auto: .auto
+            case .api: .api
             case .oauth: .oauth
             case .web: .web
             case .cli: .cli
@@ -45,6 +46,16 @@ extension SettingsStore {
     }
 
     func ensureClaudeCookieLoaded() {}
+
+    var claudeAdminAPIKey: String {
+        get { self.configSnapshot.providerConfig(for: .claude)?.sanitizedAPIKey ?? "" }
+        set {
+            self.updateProviderConfig(provider: .claude) { entry in
+                entry.apiKey = self.normalizedConfigValue(newValue)
+            }
+            self.logSecretUpdate(provider: .claude, field: "apiKey", value: newValue)
+        }
+    }
 }
 
 extension SettingsStore {
@@ -66,7 +77,7 @@ extension SettingsStore {
         guard let source else { return .auto }
         switch source {
         case .auto, .api:
-            return .auto
+            return source == .api ? .api : .auto
         case .web:
             return .web
         case .cli:
@@ -85,6 +96,8 @@ extension SettingsStore {
             hasSelectedAccount ? "" : self.claudeCookieHeader
         case .oauth:
             ""
+        case .adminAPIKey:
+            ""
         case let .webCookie(header):
             header
         }
@@ -101,6 +114,9 @@ extension SettingsStore {
             return fallback
         }
         if routing.isOAuth {
+            return .off
+        }
+        if routing.adminAPIKey != nil {
             return .off
         }
         if self.tokenAccounts(for: .claude).isEmpty { return fallback }

@@ -408,7 +408,7 @@ struct UsageStoreCoverageTests {
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
 
-        return SettingsStore(
+        let settings = SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: zaiTokenStore,
@@ -426,6 +426,8 @@ struct UsageStoreCoverageTests {
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore())
+        settings.providerDetectionCompleted = true
+        return settings
     }
 
     private static func makeUsageStore(settings: SettingsStore) -> UsageStore {

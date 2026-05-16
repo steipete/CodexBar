@@ -9,20 +9,20 @@ public enum KimiK2ProviderDescriptor {
             id: .kimik2,
             metadata: ProviderMetadata(
                 id: .kimik2,
-                displayName: "Kimi K2",
+                displayName: "Kimi K2 (unofficial)",
                 sessionLabel: "Credits",
                 weeklyLabel: "Credits",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
                 creditsHint: "",
-                toggleTitle: "Show Kimi K2 usage",
+                toggleTitle: "Show unofficial Kimi K2 usage",
                 cliName: "kimik2",
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
-                dashboardURL: "https://kimi-k2.ai/my-credits",
+                dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .kimi,
@@ -30,7 +30,7 @@ public enum KimiK2ProviderDescriptor {
                 color: ProviderColor(red: 76 / 255, green: 0 / 255, blue: 255 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Kimi K2 cost summary is not available." }),
+                noDataMessage: { "Unofficial Kimi K2 cost summary is not available." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [KimiK2APIFetchStrategy()] })),

@@ -68,6 +68,52 @@ enum CostUsageScanner {
         let totals: CostUsageCodexTotals
     }
 
+    private static func codexTotalsEqual(_ lhs: CostUsageCodexTotals?, _ rhs: CostUsageCodexTotals?) -> Bool {
+        lhs?.input == rhs?.input && lhs?.cached == rhs?.cached && lhs?.output == rhs?.output
+    }
+
+    private static func codexAddTotals(
+        _ lhs: CostUsageCodexTotals,
+        _ rhs: CostUsageCodexTotals) -> CostUsageCodexTotals
+    {
+        CostUsageCodexTotals(
+            input: lhs.input + rhs.input,
+            cached: lhs.cached + rhs.cached,
+            output: lhs.output + rhs.output)
+    }
+
+    private static func codexTotalDelta(
+        from baseline: CostUsageCodexTotals?,
+        to current: CostUsageCodexTotals) -> CostUsageCodexTotals
+    {
+        let baseline = baseline ?? .init(input: 0, cached: 0, output: 0)
+        return CostUsageCodexTotals(
+            input: max(0, current.input - baseline.input),
+            cached: max(0, current.cached - baseline.cached),
+            output: max(0, current.output - baseline.output))
+    }
+
+    private static func codexDivergentTotalDelta(
+        rawBaseline: CostUsageCodexTotals?,
+        countedBaseline: CostUsageCodexTotals?,
+        current: CostUsageCodexTotals) -> CostUsageCodexTotals
+    {
+        let rawBaseline = rawBaseline ?? .init(input: 0, cached: 0, output: 0)
+        let countedBaseline = countedBaseline ?? .init(input: 0, cached: 0, output: 0)
+
+        func delta(raw: Int, counted: Int, current: Int) -> Int {
+            if current >= raw {
+                return max(0, current - raw)
+            }
+            return max(0, current - counted)
+        }
+
+        return CostUsageCodexTotals(
+            input: delta(raw: rawBaseline.input, counted: countedBaseline.input, current: current.input),
+            cached: delta(raw: rawBaseline.cached, counted: countedBaseline.cached, current: current.cached),
+            output: delta(raw: rawBaseline.output, counted: countedBaseline.output, current: current.output))
+    }
+
     private struct CodexScanResources {
         let fileIndex: CodexSessionFileIndex
         let inheritedResolver: CodexInheritedTotalsResolver
@@ -250,8 +296,8 @@ enum CostUsageScanner {
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
         case .openai, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba, .factory, .copilot,
              .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp, .ollama,
-             .synthetic, .openrouter, .warp, .perplexity, .mimo, .doubao, .abacus, .mistral, .deepseek, .codebuff,
-             .crof, .windsurf, .venice, .commandcode, .stepfun, .bedrock:
+             .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .abacus, .mistral,
+             .deepseek, .codebuff, .crof, .windsurf, .venice, .commandcode, .stepfun, .bedrock, .grok:
             return emptyReport
         }
     }
@@ -570,6 +616,8 @@ enum CostUsageScanner {
     {
         var sessionId: String?
         var previousTotals: CostUsageCodexTotals?
+        var rawTotalsBaseline: CostUsageCodexTotals?
+        var sawDivergentTotals = false
         var snapshots: [CodexTimestampedTotals] = []
         var warnedAboutUnparsedTimestamp = false
 
@@ -620,28 +668,57 @@ enum CostUsageScanner {
                             return 0
                         }
 
-                        if let total = info["total_token_usage"] as? [String: Any] {
+                        let total = info["total_token_usage"] as? [String: Any]
+                        let last = info["last_token_usage"] as? [String: Any]
+
+                        if let last {
+                            let rawDelta = CostUsageCodexTotals(
+                                input: max(0, toInt(last["input_tokens"])),
+                                cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
+                                output: max(0, toInt(last["output_tokens"])))
+                            let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            let next = Self.codexAddTotals(base, rawDelta)
+                            previousTotals = next
+
+                            if let total {
+                                let rawTotals = CostUsageCodexTotals(
+                                    input: toInt(total["input_tokens"]),
+                                    cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
+                                    output: toInt(total["output_tokens"]))
+                                rawTotalsBaseline = rawTotals
+                                if !Self.codexTotalsEqual(rawTotals, next) {
+                                    sawDivergentTotals = true
+                                }
+                            } else {
+                                rawTotalsBaseline = next
+                            }
+
+                            snapshots.append(CodexTimestampedTotals(
+                                timestamp: timestamp,
+                                date: parsedSnapshotDate(timestamp: timestamp),
+                                totals: next))
+                        } else if let total {
                             let next = CostUsageCodexTotals(
                                 input: toInt(total["input_tokens"]),
                                 cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
                                 output: toInt(total["output_tokens"]))
-                            previousTotals = next
-                            snapshots.append(CodexTimestampedTotals(
-                                timestamp: timestamp,
-                                date: parsedSnapshotDate(timestamp: timestamp),
-                                totals: next))
-                        } else if let last = info["last_token_usage"] as? [String: Any] {
+                            let delta = sawDivergentTotals
+                                ? Self.codexDivergentTotalDelta(
+                                    rawBaseline: rawTotalsBaseline,
+                                    countedBaseline: previousTotals,
+                                    current: next)
+                                : Self.codexTotalDelta(from: rawTotalsBaseline, to: next)
                             let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                            let next = CostUsageCodexTotals(
-                                input: base.input + toInt(last["input_tokens"]),
-                                cached: base
-                                    .cached + toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]),
-                                output: base.output + toInt(last["output_tokens"]))
-                            previousTotals = next
+                            let countedTotals = Self.codexAddTotals(base, delta)
+                            previousTotals = countedTotals
+                            rawTotalsBaseline = next
+                            if !Self.codexTotalsEqual(next, countedTotals) {
+                                sawDivergentTotals = true
+                            }
                             snapshots.append(CodexTimestampedTotals(
                                 timestamp: timestamp,
                                 date: parsedSnapshotDate(timestamp: timestamp),
-                                totals: next))
+                                totals: countedTotals))
                         }
                     }
                 })
@@ -671,6 +748,8 @@ enum CostUsageScanner {
         var inheritedTotals: CostUsageCodexTotals?
         var remainingInheritedTotals: CostUsageCodexTotals?
         var currentTurnID = initialCodexTurnID
+        var rawTotalsBaseline = initialTotals
+        var sawDivergentTotals = false
 
         var days: [String: [String: [Int]]] = [:]
         var rows: [CodexUsageRow] = []
@@ -828,7 +907,40 @@ enum CostUsageScanner {
                             return adjusted
                         }
 
-                        if let total {
+                        if let last {
+                            let rawDelta = CostUsageCodexTotals(
+                                input: max(0, toInt(last["input_tokens"])),
+                                cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
+                                output: max(0, toInt(last["output_tokens"])))
+                            let adjustedDelta = adjustedLastDelta(rawDelta)
+                            deltaInput = adjustedDelta.input
+                            deltaCached = adjustedDelta.cached
+                            deltaOutput = adjustedDelta.output
+                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            let countedTotals = Self.codexAddTotals(prev, adjustedDelta)
+                            previousTotals = countedTotals
+
+                            if let total {
+                                let rawTotals = CostUsageCodexTotals(
+                                    input: toInt(total["input_tokens"]),
+                                    cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
+                                    output: toInt(total["output_tokens"]))
+                                let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
+                                    CostUsageCodexTotals(
+                                        input: max(0, rawTotals.input - inheritedTotals.input),
+                                        cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                                        output: max(0, rawTotals.output - inheritedTotals.output))
+                                } else {
+                                    rawTotals
+                                }
+                                rawTotalsBaseline = currentTotals
+                                if !Self.codexTotalsEqual(currentTotals, countedTotals) {
+                                    sawDivergentTotals = true
+                                }
+                            } else {
+                                rawTotalsBaseline = countedTotals
+                            }
+                        } else if let total {
                             let rawTotals = CostUsageCodexTotals(
                                 input: toInt(total["input_tokens"]),
                                 cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
@@ -843,26 +955,22 @@ enum CostUsageScanner {
                                 rawTotals
                             }
 
+                            let delta = sawDivergentTotals
+                                ? Self.codexDivergentTotalDelta(
+                                    rawBaseline: rawTotalsBaseline,
+                                    countedBaseline: previousTotals,
+                                    current: currentTotals)
+                                : Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
+                            deltaInput = delta.input
+                            deltaCached = delta.cached
+                            deltaOutput = delta.output
                             let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                            deltaInput = max(0, currentTotals.input - prev.input)
-                            deltaCached = max(0, currentTotals.cached - prev.cached)
-                            deltaOutput = max(0, currentTotals.output - prev.output)
-                            previousTotals = currentTotals
+                            previousTotals = Self.codexAddTotals(prev, delta)
+                            rawTotalsBaseline = currentTotals
+                            if !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals) {
+                                sawDivergentTotals = true
+                            }
                             remainingInheritedTotals = nil
-                        } else if let last {
-                            let rawDelta = CostUsageCodexTotals(
-                                input: max(0, toInt(last["input_tokens"])),
-                                cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
-                                output: max(0, toInt(last["output_tokens"])))
-                            let adjustedDelta = adjustedLastDelta(rawDelta)
-                            deltaInput = adjustedDelta.input
-                            deltaCached = adjustedDelta.cached
-                            deltaOutput = adjustedDelta.output
-                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                            previousTotals = CostUsageCodexTotals(
-                                input: prev.input + deltaInput,
-                                cached: prev.cached + deltaCached,
-                                output: prev.output + deltaOutput)
                         } else {
                             return
                         }
@@ -902,7 +1010,9 @@ enum CostUsageScanner {
             days: days,
             parsedBytes: parsedBytes,
             lastModel: currentModel,
-            lastTotals: previousTotals,
+            lastTotals: sawDivergentTotals && !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals)
+                ? nil
+                : previousTotals,
             lastCodexTurnID: currentTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,

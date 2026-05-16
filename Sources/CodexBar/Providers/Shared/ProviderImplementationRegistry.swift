@@ -39,6 +39,7 @@ enum ProviderImplementationRegistry {
         case .ollama: OllamaProviderImplementation()
         case .synthetic: SyntheticProviderImplementation()
         case .openrouter: OpenRouterProviderImplementation()
+        case .elevenlabs: ElevenLabsProviderImplementation()
         case .warp: WarpProviderImplementation()
         case .windsurf: WindsurfProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
@@ -53,6 +54,7 @@ enum ProviderImplementationRegistry {
         case .commandcode: CommandCodeProviderImplementation()
         case .stepfun: StepFunProviderImplementation()
         case .bedrock: BedrockProviderImplementation()
+        case .grok: GrokProviderImplementation()
         }
     }
 

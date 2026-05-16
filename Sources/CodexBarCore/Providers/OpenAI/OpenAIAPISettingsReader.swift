@@ -1,8 +1,10 @@
 import Foundation
 
 public enum OpenAIAPISettingsReader {
+    public static let adminAPIKeyEnvironmentKey = "OPENAI_ADMIN_KEY"
     public static let apiKeyEnvironmentKey = "OPENAI_API_KEY"
     public static let apiKeyEnvironmentKeys = [
+        Self.adminAPIKeyEnvironmentKey,
         Self.apiKeyEnvironmentKey,
     ]
 

@@ -30,10 +30,11 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "openai-api-key",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. You can also provide OPENAI_API_KEY.",
+                title: "Admin API key",
+                subtitle: "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is preferred; " +
+                    "OPENAI_API_KEY still works.",
                 kind: .secure,
-                placeholder: "sk-...",
+                placeholder: "sk-admin-...",
                 binding: context.stringBinding(\.openAIAPIKey),
                 actions: [
                     ProviderSettingsActionDescriptor(

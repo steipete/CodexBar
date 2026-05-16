@@ -68,6 +68,11 @@ public struct OpenRouterRateLimit: Codable, Sendable {
     public let requests: Int
     /// Interval for the rate limit (e.g., "10s", "1m")
     public let interval: String
+
+    public init(requests: Int, interval: String) {
+        self.requests = requests
+        self.interval = interval
+    }
 }
 
 public enum OpenRouterKeyQuotaStatus: String, Codable, Sendable {

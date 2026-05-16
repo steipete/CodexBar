@@ -79,6 +79,7 @@ public enum ProviderDescriptorRegistry {
         .ollama: OllamaProviderDescriptor.descriptor,
         .synthetic: SyntheticProviderDescriptor.descriptor,
         .openrouter: OpenRouterProviderDescriptor.descriptor,
+        .elevenlabs: ElevenLabsProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
         .windsurf: WindsurfProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
@@ -93,6 +94,7 @@ public enum ProviderDescriptorRegistry {
         .commandcode: CommandCodeProviderDescriptor.descriptor,
         .stepfun: StepFunProviderDescriptor.descriptor,
         .bedrock: BedrockProviderDescriptor.descriptor,
+        .grok: GrokProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

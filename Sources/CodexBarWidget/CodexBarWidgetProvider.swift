@@ -52,7 +52,7 @@ enum ProviderChoice: String, AppEnum {
     init?(provider: UsageProvider) {
         switch provider {
         case .codex: self = .codex
-        case .openai: return nil // OpenAI API not yet supported in widgets
+        case .openai: return nil // OpenAI not yet supported in widgets
         case .claude: self = .claude
         case .gemini: self = .gemini
         case .alibaba: self = .alibaba
@@ -77,6 +77,7 @@ enum ProviderChoice: String, AppEnum {
         case .ollama: return nil // Ollama not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets
+        case .elevenlabs: return nil // ElevenLabs not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
         case .windsurf: return nil // Windsurf not yet supported in widgets
         case .perplexity: return nil // Perplexity not yet supported in widgets
@@ -91,6 +92,7 @@ enum ProviderChoice: String, AppEnum {
         case .commandcode: return nil // CommandCode not yet supported in widgets
         case .stepfun: return nil // StepFun not yet supported in widgets
         case .bedrock: return nil // Bedrock not yet supported in widgets
+        case .grok: return nil // Grok not yet supported in widgets
         }
     }
 }

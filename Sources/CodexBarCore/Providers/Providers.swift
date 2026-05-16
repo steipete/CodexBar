@@ -30,6 +30,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case synthetic
     case warp
     case openrouter
+    case elevenlabs
     case windsurf
     case perplexity
     case mimo
@@ -43,6 +44,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case commandcode
     case stepfun
     case bedrock
+    case grok
 }
 
 // swiftformat:enable sortDeclarations
@@ -75,6 +77,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case synthetic
     case warp
     case openrouter
+    case elevenlabs
     case windsurf
     case perplexity
     case mimo
@@ -88,6 +91,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case commandcode
     case stepfun
     case bedrock
+    case grok
     case combined
 }
 

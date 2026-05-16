@@ -35,6 +35,8 @@ struct StatusMenuSwitcherRefreshTests {
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store.isRefreshing = true
+        defer { store.isRefreshing = false }
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -49,33 +51,33 @@ struct StatusMenuSwitcherRefreshTests {
         #expect(controller.openMenus[ObjectIdentifier(menu)] === menu)
 
         let initialSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
-        let initialSwitcherID = ObjectIdentifier(initialSwitcher)
         initialSwitcher.frame.size.width = 250
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
 
         let nextProviderButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .off })
         #expect(initialSwitcher._test_simulateRuntimeClick(buttonTag: nextProviderButton.tag) == true)
 
-        var replacementSwitcher: ProviderSwitcherView?
-        for _ in 0..<100 {
+        for _ in 0..<100 where rebuildCount == 0 {
             await Task.yield()
-            if let currentSwitcher = menu.items.first?.view as? ProviderSwitcherView,
-               initialSwitcherID != ObjectIdentifier(currentSwitcher)
-            {
-                replacementSwitcher = currentSwitcher
-                break
-            }
-            try? await Task.sleep(for: .milliseconds(20))
+            try? await Task.sleep(for: .milliseconds(10))
         }
 
-        let updatedSwitcher = try #require(replacementSwitcher)
-        #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
+        #expect(rebuildCount == 1)
+        let updatedSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
         #expect(updatedSwitcher.frame.width == 310)
+        #expect(Self.switcherButtons(in: menu).first { $0.tag == nextProviderButton.tag }?.state == .on)
     }
 
     private static func makeSettings() -> SettingsStore {
         let suite = "StatusMenuSwitcherRefreshTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
         return SettingsStore(
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suite),

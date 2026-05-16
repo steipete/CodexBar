@@ -10,6 +10,25 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
+    func `tests suppress real keychain access by default`() {
+        guard ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1" else { return }
+
+        #expect(KeychainCacheStore.canUseRealKeychainForTesting == false)
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let entry = TestEntry(value: "implicit", storedAt: Date(timeIntervalSince1970: 0))
+
+        KeychainCacheStore.store(key: key, entry: entry)
+        defer { KeychainCacheStore.clear(key: key) }
+
+        switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
+        case let .found(loaded):
+            #expect(loaded == entry)
+        case .missing, .temporarilyUnavailable, .invalid:
+            #expect(Bool(false), "Expected implicit test cache entry")
+        }
+    }
+
+    @Test
     func `stores and loads entry`() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }

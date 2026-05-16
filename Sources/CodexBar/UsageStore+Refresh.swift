@@ -74,6 +74,9 @@ extension UsageStore {
             }
         }
 
+        let claudeAuthStateBeforeFetch = provider == .claude
+            ? await Self.captureClaudeRefreshAuthState(invalidateCredentialsFile: true)
+            : nil
         let fetchContext = spec.makeFetchContext()
         let descriptor = spec.descriptor
         // Keep provider fetch work off MainActor so slow keychain/process reads don't stall menu/UI responsiveness.
@@ -86,23 +89,20 @@ extension UsageStore {
             }
             return await group.next()!
         }
-        if provider == .claude,
-           ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
-        {
-            await MainActor.run {
-                self.snapshots.removeValue(forKey: .claude)
-                self.lastKnownResetSnapshots.removeValue(forKey: .claude)
-                self.errors[.claude] = nil
-                self.lastSourceLabels.removeValue(forKey: .claude)
-                self.lastFetchAttempts.removeValue(forKey: .claude)
-                self.accountSnapshots.removeValue(forKey: .claude)
-                self.tokenSnapshots.removeValue(forKey: .claude)
-                self.tokenErrors[.claude] = nil
-                self.failureGates[.claude]?.reset()
-                self.tokenFailureGates[.claude]?.reset()
-                self.lastTokenFetchAt.removeValue(forKey: .claude)
-            }
-        }
+        let claudeAuthFingerprintAfterFetch = provider == .claude
+            ? await Self.captureClaudeAuthFingerprintToken()
+            : nil
+        let claudeAuthChangedDuringFetch = Self.claudeAuthChangedDuringFetch(
+            provider: provider,
+            beforeFetch: claudeAuthStateBeforeFetch,
+            afterFetchFingerprintToken: claudeAuthFingerprintAfterFetch)
+        await Self.invalidateClaudeCredentialsFileCacheIfNeeded(changedDuringFetch: claudeAuthChangedDuringFetch)
+        let claudeCredentialsChanged = Self.claudeCredentialsChanged(
+            beforeFetch: claudeAuthStateBeforeFetch,
+            changedDuringFetch: claudeAuthChangedDuringFetch)
+        let shouldConsumeClaudeKeychainFingerprint = Self.shouldConsumeClaudeKeychainFingerprintChange(
+            beforeFetch: claudeAuthStateBeforeFetch,
+            changedDuringFetch: claudeAuthChangedDuringFetch)
         await MainActor.run {
             self.lastFetchAttempts[provider] = outcome.attempts
         }
@@ -117,6 +117,9 @@ extension UsageStore {
                 return
             }
             let backfilled = await MainActor.run {
+                if claudeCredentialsChanged {
+                    self.clearClaudeCredentialDerivedStateForCredentialSwapNow()
+                }
                 let backfilled = scoped.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider])
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
@@ -130,6 +133,9 @@ extension UsageStore {
                     self.seedCodexAccountScopedRefreshGuard(accountEmail: scoped.accountEmail(for: .codex))
                 }
                 return backfilled
+            }
+            if shouldConsumeClaudeKeychainFingerprint {
+                _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
             }
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
@@ -149,23 +155,171 @@ extension UsageStore {
             {
                 return
             }
-            await MainActor.run {
-                let hadPriorData = self.snapshots[provider] != nil
-                let shouldSurface =
-                    self.failureGates[provider]?
-                        .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
-                if shouldSurface {
-                    self.errors[provider] = error.localizedDescription
-                    self.snapshots.removeValue(forKey: provider)
-                } else {
-                    self.errors[provider] = nil
-                }
+            if claudeCredentialsChanged {
+                await self.clearClaudeCredentialDerivedStateForCredentialSwap()
             }
-            if let runtime = self.providerRuntimes[provider] {
-                let context = ProviderRuntimeContext(
-                    provider: provider, settings: self.settings, store: self)
-                runtime.providerDidFail(context: context, provider: provider, error: error)
+            if shouldConsumeClaudeKeychainFingerprint {
+                _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
+            }
+            await self.handleProviderFetchFailure(provider: provider, error: error)
+        }
+    }
+
+    private struct ClaudeRefreshAuthState {
+        let fingerprintToken: String
+        let credentialsFileChanged: Bool
+        let keychainFingerprintChanged: Bool
+    }
+
+    private nonisolated static func claudeCredentialsChanged(
+        beforeFetch: ClaudeRefreshAuthState?,
+        changedDuringFetch: Bool) -> Bool
+    {
+        beforeFetch?.credentialsFileChanged == true ||
+            beforeFetch?.keychainFingerprintChanged == true ||
+            changedDuringFetch
+    }
+
+    private nonisolated static func shouldConsumeClaudeKeychainFingerprintChange(
+        beforeFetch: ClaudeRefreshAuthState?,
+        changedDuringFetch: Bool) -> Bool
+    {
+        beforeFetch?.keychainFingerprintChanged == true || changedDuringFetch
+    }
+
+    private nonisolated static func claudeAuthChangedDuringFetch(
+        provider: UsageProvider,
+        beforeFetch: ClaudeRefreshAuthState?,
+        afterFetchFingerprintToken: String?) -> Bool
+    {
+        provider == .claude && afterFetchFingerprintToken != beforeFetch?.fingerprintToken
+    }
+
+    private nonisolated static func captureClaudeRefreshAuthState(
+        invalidateCredentialsFile: Bool) async -> ClaudeRefreshAuthState
+    {
+        await withTaskGroup(of: ClaudeRefreshAuthState.self, returning: ClaudeRefreshAuthState.self) { group in
+            group.addTask {
+                let fingerprintToken = ClaudeOAuthCredentialsStore.authFingerprintToken()
+                let credentialsFileChanged = invalidateCredentialsFile
+                    ? ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
+                    : false
+                let keychainFingerprintChanged = ClaudeOAuthCredentialsStore
+                    .claudeKeychainFingerprintChangedWithoutConsuming()
+                return ClaudeRefreshAuthState(
+                    fingerprintToken: fingerprintToken,
+                    credentialsFileChanged: credentialsFileChanged,
+                    keychainFingerprintChanged: keychainFingerprintChanged)
+            }
+            return await group.next()!
+        }
+    }
+
+    private nonisolated static func captureClaudeAuthFingerprintToken() async -> String {
+        await withTaskGroup(of: String.self, returning: String.self) { group in
+            group.addTask {
+                ClaudeOAuthCredentialsStore.authFingerprintToken()
+            }
+            return await group.next()!
+        }
+    }
+
+    private nonisolated static func invalidateClaudeCredentialsFileCacheIfChanged() async -> Bool {
+        await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
+            group.addTask {
+                ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
+            }
+            return await group.next()!
+        }
+    }
+
+    private nonisolated static func invalidateClaudeCredentialsFileCacheIfNeeded(changedDuringFetch: Bool) async {
+        guard changedDuringFetch else { return }
+        _ = await self.invalidateClaudeCredentialsFileCacheIfChanged()
+    }
+
+    private nonisolated static func consumeClaudeKeychainFingerprintChangeWithoutPrompt() async -> Bool {
+        await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
+            group.addTask {
+                ClaudeOAuthCredentialsStore.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
+            }
+            return await group.next()!
+        }
+    }
+
+    private func clearClaudeCredentialDerivedStateForCredentialSwap() async {
+        await MainActor.run {
+            self.clearClaudeCredentialDerivedStateForCredentialSwapNow()
+        }
+    }
+
+    private func clearClaudeCredentialDerivedStateForCredentialSwapNow() {
+        self.snapshots.removeValue(forKey: .claude)
+        self.lastKnownResetSnapshots.removeValue(forKey: .claude)
+        self.errors[.claude] = nil
+        self.lastSourceLabels.removeValue(forKey: .claude)
+        self.accountSnapshots.removeValue(forKey: .claude)
+        self.tokenSnapshots.removeValue(forKey: .claude)
+        self.tokenErrors[.claude] = nil
+        self.failureGates[.claude]?.reset()
+        self.tokenFailureGates[.claude]?.reset()
+        self.lastKnownSessionRemaining.removeValue(forKey: .claude)
+        self.lastKnownSessionWindowSource.removeValue(forKey: .claude)
+        self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != .claude }
+        self.lastTokenFetchAt.removeValue(forKey: .claude)
+    }
+
+    private func handleProviderFetchFailure(provider: UsageProvider, error: Error) async {
+        await MainActor.run {
+            let hadPriorData = self.snapshots[provider] != nil
+            let preservesPriorData = Self.shouldPreservePriorSnapshot(
+                after: error,
+                hadPriorData: hadPriorData)
+            let shouldSurface =
+                self.failureGates[provider]?
+                    .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
+            if preservesPriorData, !shouldSurface {
+                self.errors[provider] = nil
+                return
+            }
+            if shouldSurface {
+                self.errors[provider] = error.localizedDescription
+                if !preservesPriorData {
+                    self.snapshots.removeValue(forKey: provider)
+                }
+            } else {
+                self.errors[provider] = nil
             }
         }
+        if let runtime = self.providerRuntimes[provider] {
+            let context = ProviderRuntimeContext(
+                provider: provider, settings: self.settings, store: self)
+            runtime.providerDidFail(context: context, provider: provider, error: error)
+        }
+    }
+
+    private static func shouldPreservePriorSnapshot(after error: Error, hadPriorData: Bool) -> Bool {
+        guard hadPriorData else { return false }
+        if error is CancellationError { return true }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorTimedOut,
+                 NSURLErrorCancelled,
+                 NSURLErrorNetworkConnectionLost,
+                 NSURLErrorNotConnectedToInternet:
+                return true
+            default:
+                break
+            }
+        }
+
+        let message = error.localizedDescription.lowercased()
+        return message.contains("timed out") ||
+            message.contains("timeout") ||
+            message.contains("cancelled") ||
+            message.contains("network connection was lost") ||
+            message.contains("not connected to the internet")
     }
 }

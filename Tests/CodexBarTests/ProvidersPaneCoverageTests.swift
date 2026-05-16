@@ -170,6 +170,29 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `claude menu bar metric picker includes extra usage when spend limit is available`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-claude-extra-usage-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                providerCost: ProviderCostSnapshot(
+                    used: 67.03,
+                    limit: 1000,
+                    currencyCode: "USD",
+                    period: "Spend limit",
+                    updatedAt: Date()),
+                updatedAt: Date()),
+            provider: .claude)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .claude)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(ids.contains(MenuBarMetricPreference.extraUsage.rawValue))
+    }
+
+    @Test
     func `zai menu bar metric picker omits tertiary lane when snapshot has no 5-hour metric`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-zai-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)

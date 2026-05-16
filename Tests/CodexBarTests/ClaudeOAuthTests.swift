@@ -176,6 +176,7 @@ struct ClaudeOAuthTests {
         #expect(snap.providerCost?.currencyCode == "USD")
         #expect(snap.providerCost?.limit == 20.5)
         #expect(snap.providerCost?.used == 3.25)
+        #expect(snap.providerCost?.period == "Monthly cap")
     }
 
     @Test
@@ -195,6 +196,7 @@ struct ClaudeOAuthTests {
         #expect(snap.providerCost?.currencyCode == "USD")
         #expect(snap.providerCost?.limit == 20)
         #expect(snap.providerCost?.used == 5.2)
+        #expect(snap.providerCost?.period == "Monthly cap")
     }
 
     @Test

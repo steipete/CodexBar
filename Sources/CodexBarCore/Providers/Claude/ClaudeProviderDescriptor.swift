@@ -34,7 +34,7 @@ public enum ClaudeProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web, .cli, .oauth],
+                sourceModes: [.auto, .api, .web, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "claude",
@@ -44,7 +44,12 @@ public enum ClaudeProviderDescriptor {
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-        guard context.sourceMode != .api else { return [] }
+        if context.sourceMode == .api || self.hasAutoAdminAPIKey(context: context) {
+            return [ClaudeAdminAPIFetchStrategy()]
+        }
+        if ClaudeAdminAPIFetchStrategy.isSelectedAdminAPIAccount(context: context) {
+            return [ClaudeAdminAPIFetchStrategy()]
+        }
 
         let planningInput = await Self.makePlanningInput(context: context)
         let plan = ClaudeSourcePlanner.resolve(input: planningInput)
@@ -52,6 +57,8 @@ public enum ClaudeProviderDescriptor {
 
         return plan.orderedSteps.map { step in
             let strategy: any ProviderFetchStrategy = switch step.dataSource {
+            case .api:
+                ClaudeAdminAPIFetchStrategy()
             case .oauth:
                 ClaudeOAuthFetchStrategy()
             case .web:
@@ -67,6 +74,10 @@ public enum ClaudeProviderDescriptor {
             }
             return ClaudePlannedFetchStrategy(base: strategy, plannedStep: step)
         }
+    }
+
+    private static func hasAutoAdminAPIKey(context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto && ClaudeAdminAPISettingsReader.apiKey(environment: context.env) != nil
     }
 
     private static func makePlanningInput(context: ProviderFetchContext) async -> ClaudeSourcePlanningInput {
@@ -115,8 +126,10 @@ public enum ClaudeProviderDescriptor {
 
     private static func sourceDataSource(from mode: ProviderSourceMode) -> ClaudeUsageDataSource {
         switch mode {
-        case .auto, .api:
+        case .auto:
             .auto
+        case .api:
+            .api
         case .web:
             .web
         case .cli:
@@ -170,6 +183,49 @@ private struct ClaudePlannedFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         self.base.shouldFallback(on: error, context: context)
+    }
+}
+
+struct ClaudeAdminAPIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "claude.admin-api"
+    let kind: ProviderFetchKind = .apiToken
+    let usageFetcher: @Sendable (String) async throws -> ClaudeAdminAPIUsageSnapshot
+
+    init(
+        usageFetcher: @escaping @Sendable (String) async throws -> ClaudeAdminAPIUsageSnapshot = { apiKey in
+            try await ClaudeAdminAPIUsageFetcher.fetchUsage(apiKey: apiKey)
+        })
+    {
+        self.usageFetcher = usageFetcher
+    }
+
+    static func isSelectedAdminAPIAccount(context: ProviderFetchContext) -> Bool {
+        guard context.selectedTokenAccountID != nil else { return false }
+        return self.resolveToken(environment: context.env) != nil
+    }
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        Self.resolveToken(environment: context.env) != nil
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        guard let apiKey = Self.resolveToken(environment: context.env) else {
+            throw ClaudeAdminAPISettingsError.missingToken
+        }
+        let usage = try await self.usageFetcher(apiKey)
+        return self.makeResult(
+            usage: usage.toUsageSnapshot(),
+            sourceLabel: "admin-api")
+    }
+
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.runtime == .app &&
+            context.sourceMode == .auto &&
+            !Self.isSelectedAdminAPIAccount(context: context)
+    }
+
+    private static func resolveToken(environment: [String: String]) -> String? {
+        ProviderTokenResolver.claudeAdminAPIToken(environment: environment)
     }
 }
 

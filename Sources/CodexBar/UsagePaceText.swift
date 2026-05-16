@@ -9,6 +9,11 @@ enum UsagePaceText {
         let stage: UsagePace.Stage
     }
 
+    private enum DetailContext {
+        case session
+        case weekly
+    }
+
     static func weeklySummary(pace: UsagePace, now: Date = .init()) -> String {
         let detail = self.weeklyDetail(pace: pace, now: now)
         if let rightLabel = detail.rightLabel {
@@ -20,7 +25,7 @@ enum UsagePaceText {
     static func weeklyDetail(pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
         WeeklyDetail(
             leftLabel: self.detailLeftLabel(for: pace),
-            rightLabel: self.detailRightLabel(for: pace, now: now),
+            rightLabel: self.detailRightLabel(for: pace, context: .weekly, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
@@ -37,13 +42,14 @@ enum UsagePaceText {
         }
     }
 
-    private static func detailRightLabel(for pace: UsagePace, now: Date) -> String? {
+    private static func detailRightLabel(for pace: UsagePace, context: DetailContext, now: Date) -> String? {
         let etaLabel: String?
         if pace.willLastToReset {
             etaLabel = "Lasts until reset"
         } else if let etaSeconds = pace.etaSeconds {
             let etaText = Self.durationText(seconds: etaSeconds, now: now)
-            etaLabel = etaText == "now" ? "Runs out now" : "Runs out in \(etaText)"
+            let prefix = context == .session ? "Projected empty" : "Runs out"
+            etaLabel = etaText == "now" ? "\(prefix) now" : "\(prefix) in \(etaText)"
         } else {
             etaLabel = nil
         }
@@ -83,7 +89,7 @@ enum UsagePaceText {
         guard let pace = sessionPace(provider: provider, window: window, now: now) else { return nil }
         return WeeklyDetail(
             leftLabel: Self.detailLeftLabel(for: pace),
-            rightLabel: Self.detailRightLabel(for: pace, now: now),
+            rightLabel: Self.detailRightLabel(for: pace, context: .session, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }

@@ -129,4 +129,116 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         #expect(findSeries(history, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 10)
         #expect(findSeries(history, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 20)
     }
+
+    @Test
+    func `same claude email separates team and personal plan history keys`() throws {
+        let team = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "person@example.com",
+                accountOrganization: "Team Org",
+                loginMethod: "Claude Team"))
+        let max = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "person@example.com",
+                accountOrganization: nil,
+                loginMethod: "Claude Max"))
+
+        let teamKey = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .claude, snapshot: team))
+        let maxKey = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .claude, snapshot: max))
+
+        #expect(teamKey != maxKey)
+    }
+
+    @Test
+    func `claude email only identity keeps legacy history key`() throws {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "person@example.com",
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let identityKey = try #require(
+            UsageStore._planUtilizationAccountKeyForTesting(provider: .claude, snapshot: snapshot))
+        let legacyKey = try #require(
+            UsageStore._legacyClaudePlanUtilizationEmailAccountKeyForTesting(snapshot: snapshot))
+
+        #expect(identityKey == legacyKey)
+    }
+
+    @Test
+    func `claude compact and branded plan labels share history key`() throws {
+        let compact = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "person@example.com",
+                accountOrganization: nil,
+                loginMethod: "Max"))
+        let branded = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "person@example.com",
+                accountOrganization: nil,
+                loginMethod: "Claude Max"))
+
+        let compactKey = try #require(
+            UsageStore._planUtilizationAccountKeyForTesting(provider: .claude, snapshot: compact))
+        let brandedKey = try #require(
+            UsageStore._planUtilizationAccountKeyForTesting(provider: .claude, snapshot: branded))
+
+        #expect(compactKey == brandedKey)
+    }
+
+    @MainActor
+    @Test
+    func `new claude email discriminator adopts legacy email history`() throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "person@example.com",
+                accountOrganization: "Team Org",
+                loginMethod: "Claude Team"))
+        let legacyKey = try #require(
+            UsageStore._legacyClaudePlanUtilizationEmailAccountKeyForTesting(snapshot: snapshot))
+        let accountKey = try #require(
+            UsageStore._planUtilizationAccountKeyForTesting(provider: .claude, snapshot: snapshot))
+        let legacyWeekly = planSeries(name: .weekly, windowMinutes: 10080, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 42),
+        ])
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(
+            preferredAccountKey: legacyKey,
+            accounts: [
+                legacyKey: [legacyWeekly],
+            ])
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+
+        let history = store.planUtilizationHistory(for: .claude)
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+
+        #expect(history == [legacyWeekly])
+        #expect(buckets.accounts[legacyKey] == nil)
+        #expect(buckets.accounts[accountKey] == [legacyWeekly])
+        #expect(buckets.preferredAccountKey == accountKey)
+    }
 }

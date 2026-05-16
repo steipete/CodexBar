@@ -32,6 +32,7 @@ debug_*.swift
 .vscode/
 .codex/environments/
 .swiftpm-cache/
+.tmp-clang/
 
 # Debug/analysis docs
 docs/*-analysis.md

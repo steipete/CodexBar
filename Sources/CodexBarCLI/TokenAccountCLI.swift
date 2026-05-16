@@ -96,8 +96,14 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(codex: self.makeCodexSettingsSnapshot(account: account))
         case .claude:
             let routing = self.claudeCredentialRouting(account: account, config: config)
-            let claudeSource: ClaudeUsageDataSource = routing.isOAuth ? .oauth : .auto
-            let cookieSource = routing.isOAuth
+            let claudeSource: ClaudeUsageDataSource = if routing.adminAPIKey != nil {
+                .api
+            } else if routing.isOAuth {
+                .oauth
+            } else {
+                .auto
+            }
+            let cookieSource = routing.isOAuth || routing.adminAPIKey != nil
                 ? ProviderCookieSource.off
                 : self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
@@ -304,11 +310,15 @@ struct TokenAccountCLIContext {
             provider: provider,
             config: providerConfig)
         // If token account is selected, use its token instead of config's apiKey
-        if let account,
-           let override = TokenAccountSupportCatalog.envOverride(for: provider, token: account.token)
-        {
-            for (key, value) in override {
-                env[key] = value
+        if let account {
+            TokenAccountSupportCatalog.scrubEnvironmentForSelectedAccount(
+                &env,
+                provider: provider,
+                token: account.token)
+            if let override = TokenAccountSupportCatalog.envOverride(for: provider, token: account.token) {
+                for (key, value) in override {
+                    env[key] = value
+                }
             }
         }
         return env
@@ -344,6 +354,7 @@ struct TokenAccountCLIContext {
         let routing = self.claudeCredentialRouting(account: account, config: config)
 
         if base == .auto {
+            if routing.adminAPIKey != nil { return .api }
             return routing.isOAuth ? .oauth : base
         }
 
@@ -355,6 +366,8 @@ struct TokenAccountCLIContext {
         // CLI reads can be mislabeled as separate accounts. Use the selected account's
         // routable credential instead.
         switch routing {
+        case .adminAPIKey:
+            return .api
         case .oauth:
             return .oauth
         case .webCookie:

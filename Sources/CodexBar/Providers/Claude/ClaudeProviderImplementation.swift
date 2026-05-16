@@ -21,6 +21,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.claudeUsageDataSource
+        _ = settings.claudeAdminAPIKey
         _ = settings.claudeCookieSource
         _ = settings.claudeCookieHeader
         _ = settings.claudeOAuthKeychainPromptMode
@@ -57,6 +58,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
         switch context.settings.claudeUsageDataSource {
         case .auto: .auto
+        case .api: .api
         case .oauth: .oauth
         case .web: .web
         case .cli: .cli
@@ -203,8 +205,18 @@ struct ClaudeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        _ = context
-        return []
+        [
+            ProviderSettingsFieldDescriptor(
+                id: "claude-admin-api-key",
+                title: "Admin API key",
+                subtitle: "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key.",
+                kind: .secure,
+                placeholder: "sk-ant-admin...",
+                binding: context.stringBinding(\.claudeAdminAPIKey),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
+        ]
     }
 
     @MainActor

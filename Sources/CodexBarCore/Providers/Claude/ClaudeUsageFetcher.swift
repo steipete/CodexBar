@@ -455,6 +455,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             switch self.fetcher.dataSource {
             case .auto:
                 return try await self.executeAuto(model: model)
+            case .api:
+                throw ClaudeUsageError.parseFailed("Claude Admin API usage is handled by the provider descriptor.")
             case .oauth:
                 var snapshot = try await self.fetcher.loadViaOAuth(allowDelegatedRetry: true)
                 snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
@@ -536,6 +538,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
         private func execute(step: ClaudeFetchPlanStep, model: String) async throws -> ClaudeUsageSnapshot {
             switch step.dataSource {
+            case .api:
+                throw ClaudeUsageError.parseFailed("Planner emitted invalid api execution step.")
             case .oauth:
                 var snapshot = try await self.fetcher.loadViaOAuth(allowDelegatedRetry: true)
                 snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
@@ -927,7 +931,7 @@ extension ClaudeUsageFetcher {
             used: normalized.used,
             limit: normalized.limit,
             currencyCode: code,
-            period: isSpendLimit ? "Spend limit" : "Monthly",
+            period: isSpendLimit ? "Spend limit" : "Monthly cap",
             resetsAt: nil,
             updatedAt: Date())
     }

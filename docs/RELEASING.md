@@ -76,7 +76,7 @@ git tag v<version>
 CodexBar ships a Homebrew **Cask** in `../homebrew-tap`. When installed via Homebrew, CodexBar disables Sparkle and the app
 must be updated via `brew`.
 
-After publishing the GitHub release, update the tap cask + CLI formula (see `docs/releasing-homebrew.md`).
+After publishing the GitHub release, update the tap cask + CLI formula (see `docs/releasing-homebrew.md`). CLI tarballs are built by `.github/workflows/release-cli.yml` after the GitHub release is published. That workflow uploads `CodexBarCLI-v<version>-{macos-arm64,macos-x86_64,linux-aarch64,linux-x86_64}.tar.gz` plus checksums, then dispatches the Homebrew tap formula update. If the final dispatch is rate-limited, the tarballs may still be present; rerun or manually update the tap formula from the published assets.
 
 ## Checklist (quick)
 - [ ] Read both this file and `~/Projects/agent-scripts/docs/RELEASING-MAC.md`; resolve any conflicts toward CodexBar’s specifics.
@@ -87,12 +87,14 @@ After publishing the GitHub release, update the tap cask + CLI formula (see `doc
 - [ ] Generate Sparkle appcast with private key
   - Sparkle ed25519 private key path: `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle/sparkle-private-key-KEEP-SECURE.txt` (primary) and `/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle-VibeTunnel/sparkle-private-key-KEEP-SECURE.txt` (older backup)
   - Upload the dSYM archive alongside the app zip on the GitHub release; the release script now automates this and will fail if it’s missing.
-  - After publishing the release, run `Scripts/check-release-assets.sh <tag>` to confirm both the app zip and dSYM zip are present on GitHub.
+  - After publishing the release and the Release CLI workflow finishes, run `Scripts/check-release-assets.sh <tag>` to confirm the app zip, dSYM zip, CLI tarballs, and CLI checksums are present on GitHub.
   - Generate the appcast + HTML release notes: `./Scripts/make_appcast.sh CodexBar-macos-universal-<ver>.zip https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml`
   - Beta channel: prefix the command with `SPARKLE_CHANNEL=beta` to tag the entry.
   - Verify the enclosure signature + size: `SPARKLE_PRIVATE_KEY_FILE=... ./Scripts/verify_appcast.sh <ver>`
 - [ ] Upload zip + appcast to feed; publish tag + GitHub release so Sparkle URL is live (avoid 404)
 - [ ] Homebrew tap: update `../homebrew-tap/Casks/codexbar.rb` (url + sha256) and `../homebrew-tap/Formula/codexbar.rb` (CLI tarball urls + sha256), then verify:
+  - `gh run watch <release-cli-run-id> --exit-status`
+  - `Scripts/check-release-assets.sh v<version>`
   - `brew uninstall --cask codexbar || true`
   - `brew untap steipete/tap || true; brew tap steipete/tap`
   - `brew install --cask steipete/tap/codexbar && open -a CodexBar`

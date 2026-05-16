@@ -489,6 +489,33 @@ extension UsageStore {
             if provider == .codex {
                 return CodexHistoryOwnership.canonicalEmailHashKey(for: normalizedEmail)
             }
+            if provider == .claude {
+                let normalizedOrganization = identity.accountOrganization?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                let normalizedLoginMethod = identity.loginMethod?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                let normalizedPlan = ClaudePlan.fromCompatibilityLoginMethod(identity.loginMethod)?.rawValue
+                let organizationDiscriminator: String? =
+                    if let normalizedOrganization, !normalizedOrganization.isEmpty {
+                        "org:\(normalizedOrganization)"
+                    } else {
+                        nil
+                    }
+                let planDiscriminator = normalizedPlan.map { "plan:\($0)" }
+                let loginMethodDiscriminator: String? =
+                    if let normalizedLoginMethod, !normalizedLoginMethod.isEmpty {
+                        "plan:\(normalizedLoginMethod)"
+                    } else {
+                        nil
+                    }
+                let discriminator = organizationDiscriminator ?? planDiscriminator ?? loginMethodDiscriminator
+                guard let discriminator else {
+                    return self.sha256Hex("claude:email:\(normalizedEmail)")
+                }
+                return self.sha256Hex("\(provider.rawValue):email:\(normalizedEmail):\(discriminator)")
+            }
             return self.sha256Hex("\(provider.rawValue):email:\(normalizedEmail)")
         }
 
@@ -504,6 +531,15 @@ extension UsageStore {
         }
 
         return nil
+    }
+
+    private nonisolated static func legacyClaudePlanUtilizationEmailAccountKey(snapshot: UsageSnapshot) -> String? {
+        guard let identity = snapshot.identity(for: .claude) else { return nil }
+        let normalizedEmail = identity.accountEmail?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard let normalizedEmail, !normalizedEmail.isEmpty else { return nil }
+        return self.sha256Hex("claude:email:\(normalizedEmail)")
     }
 
     private func shouldDeferClaudePlanUtilizationHistory(provider: UsageProvider) -> Bool {
@@ -600,16 +636,21 @@ extension UsageStore {
         if let snapshot,
            let identityAccountKey = Self.planUtilizationIdentityAccountKey(provider: provider, snapshot: snapshot)
         {
+            let resolvedIdentityAccountKey = self.materializeLegacyClaudePlanUtilizationHistoryIfNeeded(
+                into: identityAccountKey,
+                provider: provider,
+                snapshot: snapshot,
+                providerBuckets: &providerBuckets)
             if shouldUpdatePreferredAccountKey {
-                providerBuckets.preferredAccountKey = identityAccountKey
+                providerBuckets.preferredAccountKey = resolvedIdentityAccountKey
             }
             if shouldAdoptUnscopedHistory {
                 self.adoptPlanUtilizationUnscopedHistoryIfNeeded(
-                    into: identityAccountKey,
+                    into: resolvedIdentityAccountKey,
                     provider: provider,
                     providerBuckets: &providerBuckets)
             }
-            return identityAccountKey
+            return resolvedIdentityAccountKey
         }
 
         if let stickyAccountKey = self.stickyPlanUtilizationAccountKey(providerBuckets: providerBuckets) {
@@ -705,6 +746,34 @@ extension UsageStore {
         let mergedHistory = Self.mergedPlanUtilizationHistories(provider: .codex, histories: historiesToMerge)
         providerBuckets.setHistories(mergedHistory, for: canonicalKey)
         return canonicalKey
+    }
+
+    private func materializeLegacyClaudePlanUtilizationHistoryIfNeeded(
+        into accountKey: String,
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        providerBuckets: inout PlanUtilizationHistoryBuckets) -> String
+    {
+        guard provider == .claude,
+              let legacyAccountKey = Self.legacyClaudePlanUtilizationEmailAccountKey(snapshot: snapshot),
+              legacyAccountKey != accountKey,
+              let legacyHistories = providerBuckets.accounts[legacyAccountKey],
+              !legacyHistories.isEmpty
+        else {
+            return accountKey
+        }
+
+        let existingHistories = providerBuckets.accounts[accountKey] ?? []
+        let mergedHistory = Self.mergedPlanUtilizationHistories(provider: provider, histories: [
+            existingHistories,
+            legacyHistories,
+        ])
+        providerBuckets.accounts.removeValue(forKey: legacyAccountKey)
+        providerBuckets.setHistories(mergedHistory, for: accountKey)
+        if providerBuckets.preferredAccountKey == legacyAccountKey {
+            providerBuckets.preferredAccountKey = accountKey
+        }
+        return accountKey
     }
 
     private func adoptPlanUtilizationUnscopedHistoryIfNeeded(
@@ -961,6 +1030,10 @@ extension UsageStore {
         account: ProviderTokenAccount) -> String?
     {
         self.planUtilizationAccountKey(provider: provider, account: account)
+    }
+
+    nonisolated static func _legacyClaudePlanUtilizationEmailAccountKeyForTesting(snapshot: UsageSnapshot) -> String? {
+        self.legacyClaudePlanUtilizationEmailAccountKey(snapshot: snapshot)
     }
 
     nonisolated static func _codexLegacyPlanUtilizationEmailHashKeyForTesting(
