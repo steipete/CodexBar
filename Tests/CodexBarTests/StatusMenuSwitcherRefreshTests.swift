@@ -21,6 +21,7 @@ struct StatusMenuSwitcherRefreshTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
+        settings.providerDetectionCompleted = true
         Self.enableCodexAndClaude(settings)
 
         let activeProviders: [UsageProvider] = [.codex, .claude]
