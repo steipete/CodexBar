@@ -902,7 +902,6 @@ extension UsageStore {
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
-<<<<<<< Updated upstream
                 .mimo: "Xiaomi MiMo debug log not yet implemented",
                 .doubao: "Doubao debug log not yet implemented",
                 .venice: "Venice debug log not yet implemented",

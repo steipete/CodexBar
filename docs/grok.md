@@ -1,5 +1,10 @@
 # Grok (xAI) Provider
 
+> **Credits**  
+> The core reverse engineering work that made this integration possible was performed by **Brandon Charleson**.  
+> Key discoveries include the `~/.grok/auth.json` format, the real production billing endpoint (`grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig`), and the protobuf message structures (`BillingPeriodUsage`, billing period timestamps, credit limits, etc.).  
+> This research enabled accurate usage tracking for Grok across third-party tools.
+
 CodexBar supports the official Grok Build CLI (`grok`) through seamless authentication sharing and real usage tracking.
 
 ## Requirements

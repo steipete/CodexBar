@@ -224,7 +224,6 @@ struct TokenAccountCLIContext {
                 mistral: ProviderSettingsSnapshot.MistralProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
-<<<<<<< Updated upstream
         case .stepfun:
             return self.makeSnapshot(
                 stepfun: ProviderSettingsSnapshot.StepFunProviderSettings(

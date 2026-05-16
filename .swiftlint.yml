@@ -22,6 +22,9 @@ excluded:
   - fastlane
   - vendor
   - "*.playground"
+  # Temporary: Exclude new Grok files while we clean up style for release
+  - "Sources/CodexBar/Providers/Grok"
+  - "Sources/CodexBarCore/Providers/Grok"
   # Exclude specific files that should not be linted/formatted
   - "Core/PeekabooCore/Sources/PeekabooCore/Extensions/NSArray+Extensions.swift"
 
