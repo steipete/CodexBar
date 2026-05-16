@@ -126,7 +126,8 @@ struct GrokAuthTests {
         let billing = try JSONDecoder().decode(GrokBillingResponse.self, from: Data(#"{}"#.utf8))
 
         #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: nil) == nil)
-        #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: billing)?.email == "grok@example.com")
+        #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: billing)?
+            .email == "grok@example.com")
     }
 
     @Test
