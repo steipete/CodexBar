@@ -4,7 +4,7 @@ import Foundation
 extension UsageMenuCardView.Model {
     static func minimaxMetrics(services: [MiniMaxServiceUsage], input: Input) -> [Metric] {
         let percentStyle: PercentStyle = .used
-        let textGenerationCount = services.filter { $0.displayName == "Text Generation" }.count
+        let textGenerationCount = services.count { $0.displayName == "Text Generation" }
 
         return services.enumerated().map { index, service in
             let used = service.usage

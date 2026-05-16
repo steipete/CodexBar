@@ -192,7 +192,7 @@ struct MiniMaxUsageParserTests {
           "current_subscribe_title": "Max",
           "model_remains": [
             {
-              "model_name": "MiniMax-M1",
+              "model_name": "M2.7-highspeed",
               "current_interval_total_count": 1000,
               "current_interval_usage_count": 250,
               "start_time": \(start),
@@ -242,7 +242,9 @@ struct MiniMaxUsageParserTests {
         let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
         let services = try #require(snapshot.services)
         #expect(services.count == 2)
+        #expect(services[0].serviceType == "Text Generation")
         #expect(services[0].windowType == "5 hours")
+        #expect(services[1].serviceType == "Text Generation")
         #expect(services[1].windowType == "Weekly")
         #expect(services[1].usage == 624)
         #expect(services[1].limit == 6000)

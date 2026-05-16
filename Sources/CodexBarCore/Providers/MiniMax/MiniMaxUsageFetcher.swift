@@ -627,28 +627,30 @@ enum MiniMaxUsageParser {
             let serviceTypeIdentifier = self.mapModelNameToServiceType(modelName: modelName)
 
             if let intervalService = self.makeServiceUsage(
-                serviceType: serviceTypeIdentifier,
-                windowTypeOverride: nil,
-                total: item.currentIntervalTotalCount,
-                remaining: item.currentIntervalUsageCount,
-                start: item.startTime,
-                end: item.endTime,
-                remainsTime: item.remainsTime,
+                ServiceUsageInput(
+                    serviceType: serviceTypeIdentifier,
+                    windowTypeOverride: nil,
+                    total: item.currentIntervalTotalCount,
+                    remaining: item.currentIntervalUsageCount,
+                    start: item.startTime,
+                    end: item.endTime,
+                    remainsTime: item.remainsTime),
                 now: now)
             {
                 services.append(intervalService)
             }
 
             // current_weekly_usage_count is also REMAINING quota; render only when weekly quota is real.
-            if serviceTypeIdentifier == "Text Generation",
+            if self.isTextGenerationModelName(modelName),
                let weeklyService = self.makeServiceUsage(
-                   serviceType: serviceTypeIdentifier,
-                   windowTypeOverride: "Weekly",
-                   total: item.currentWeeklyTotalCount,
-                   remaining: item.currentWeeklyUsageCount,
-                   start: item.weeklyStartTime,
-                   end: item.weeklyEndTime,
-                   remainsTime: item.weeklyRemainsTime,
+                   ServiceUsageInput(
+                       serviceType: serviceTypeIdentifier,
+                       windowTypeOverride: "Weekly",
+                       total: item.currentWeeklyTotalCount,
+                       remaining: item.currentWeeklyUsageCount,
+                       start: item.weeklyStartTime,
+                       end: item.weeklyEndTime,
+                       remainsTime: item.weeklyRemainsTime),
                    now: now)
             {
                 services.append(weeklyService)
@@ -1214,31 +1216,32 @@ enum MiniMaxUsageParser {
         return (windowType: windowType, timeRange: timeRange)
     }
 
-    private static func makeServiceUsage(
-        serviceType: String,
-        windowTypeOverride: String?,
-        total: Int?,
-        remaining: Int?,
-        start: Int?,
-        end: Int?,
-        remainsTime: Int?,
-        now: Date) -> MiniMaxServiceUsage?
-    {
-        guard let total, total > 0, let remaining else { return nil }
+    private struct ServiceUsageInput {
+        let serviceType: String
+        let windowTypeOverride: String?
+        let total: Int?
+        let remaining: Int?
+        let start: Int?
+        let end: Int?
+        let remainsTime: Int?
+    }
+
+    private static func makeServiceUsage(_ input: ServiceUsageInput, now: Date) -> MiniMaxServiceUsage? {
+        guard let total = input.total, total > 0, let remaining = input.remaining else { return nil }
         let used = max(0, total - remaining)
         if used == 0, total == 0 { return nil }
 
-        let startTime = self.dateFromEpoch(start)
-        let endTime = self.dateFromEpoch(end)
+        let startTime = self.dateFromEpoch(input.start)
+        let endTime = self.dateFromEpoch(input.end)
         var (windowType, timeRange) = self.parseWindowInfo(startTime: startTime, endTime: endTime, now: now)
-        if let windowTypeOverride { windowType = windowTypeOverride }
+        if let windowTypeOverride = input.windowTypeOverride { windowType = windowTypeOverride }
         if windowType.lowercased() == "weekly",
            let weeklyRange = self.formatMiniMaxDateTimeRange(startTime: startTime, endTime: endTime)
         {
             timeRange = weeklyRange
         }
 
-        let resetsAt = self.resetsAt(end: endTime, remains: remainsTime, now: now)
+        let resetsAt = self.resetsAt(end: endTime, remains: input.remainsTime, now: now)
         let resetDescription = self.resetDescription(
             for: windowType,
             timeRange: timeRange,
@@ -1247,7 +1250,7 @@ enum MiniMaxUsageParser {
 
         let percent = Double(used) / Double(total) * 100.0
         return MiniMaxServiceUsage(
-            serviceType: serviceType,
+            serviceType: input.serviceType,
             windowType: windowType,
             timeRange: timeRange,
             usage: used,
@@ -1258,12 +1261,12 @@ enum MiniMaxUsageParser {
     }
 
     private static func mapModelNameToServiceType(modelName: String) -> String {
-        let lower = modelName.lowercased()
-
         // Text Generation (文本生成): M2.7, M2.7-highspeed, MiniMax-M*, etc.
-        if lower.contains("minimax-m") {
+        if self.isTextGenerationModelName(modelName) {
             return "Text Generation"
         }
+
+        let lower = modelName.lowercased()
 
         // Text to Speech (语音合成): speech-hd, Speech 2.8, etc.
         if lower.contains("speech") {
@@ -1292,6 +1295,11 @@ enum MiniMaxUsageParser {
 
         // Default: use model name as-is
         return modelName
+    }
+
+    private static func isTextGenerationModelName(_ modelName: String) -> Bool {
+        let lower = modelName.lowercased()
+        return lower.contains("minimax-m") || lower.hasPrefix("m2.")
     }
 
     private static func formatMiniMaxDateTimeRange(startTime: Date?, endTime: Date?) -> String? {
