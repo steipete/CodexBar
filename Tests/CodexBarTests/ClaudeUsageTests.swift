@@ -721,7 +721,7 @@ struct ClaudeUsageTests {
         #expect(cost?.currencyCode == "EUR")
         #expect(cost?.limit == 20)
         #expect(cost?.used == 0)
-        #expect(cost?.period == "Monthly")
+        #expect(cost?.period == "Monthly cap")
     }
 
     @Test

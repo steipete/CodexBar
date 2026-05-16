@@ -16,6 +16,7 @@
 - Packaging: skip slow widget App Intents metadata during dev restarts and preserve the previous app bundle if required metadata generation times out.
 - Claude: keep Team and Personal Max plan-utilization history separate when the same email appears on multiple Claude accounts (#213).
 - Claude: keep the last successful usage card visible across transient probe timeouts while still clearing stale data after Claude auth changes.
+- Claude: label Extra usage denominators as the monthly cap so recharge balances are not confused with the maximum spend limit (#975).
 - Claude: wait for the CLI usage panel to finish rendering after the Current session label so slow Claude Code builds do not produce false "Missing Current session" errors (#959).
 - Claude: label five-hour session pace as "Projected empty" so it is not confused with the reset countdown (#960).
 - Claude: show Enterprise spend-limit usage in automatic menu bar metrics and expose the Extra usage metric picker when spend data is available (#964).
