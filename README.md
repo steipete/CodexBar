@@ -48,6 +48,15 @@ Or download release tarballs from GitHub Releases:
 - Install/sign in to the provider sources you rely on: CLIs, browser sessions, OAuth/device flow, API keys, local app files, or provider apps depending on the provider.
 - Optional: Settings → Providers → Codex → OpenAI cookies (Automatic or Manual) to add dashboard extras.
 
+### Set API keys from the CLI
+For API-key providers, store a key in `~/.codexbar/config.json` without opening Settings:
+
+```bash
+printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider elevenlabs --stdin
+```
+
+`set-api-key` trims the piped value, stores it with restrictive config-file permissions, and enables the provider by default. Use `--no-enable` to only save the key, or `--api-key <key>` for one-off local scripts where shell history is not a concern.
+
 ## Providers
 
 - [Codex](docs/codex.md) — OAuth API or local Codex CLI, plus optional OpenAI web dashboard extras.

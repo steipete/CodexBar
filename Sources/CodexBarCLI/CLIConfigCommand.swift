@@ -35,6 +35,114 @@ extension CodexBarCLI {
         Self.printJSON(config, pretty: output.pretty)
         Self.exit(code: .success, output: output, kind: .config)
     }
+
+    static func runConfigSetAPIKey(_ values: ParsedValues) {
+        let output = CLIOutputPreferences.from(values: values)
+
+        guard let rawProvider = values.options["provider"]?.last,
+              let provider = ProviderDescriptorRegistry.cliNameMap[rawProvider.lowercased()]
+        else {
+            Self.exit(
+                code: .failure,
+                message: "Unknown or missing provider. Use --provider <name>.",
+                output: output,
+                kind: .args)
+        }
+        guard ProviderConfigEnvironment.supportsAPIKeyOverride(for: provider) else {
+            Self.exit(
+                code: .failure,
+                message: "\(rawProvider) does not support config API keys.",
+                output: output,
+                kind: .args)
+        }
+
+        let apiKey: String
+        do {
+            apiKey = try Self.resolveConfigAPIKeyInput(
+                apiKey: values.options["apiKey"]?.last,
+                readFromStdin: values.flags.contains("stdin"))
+        } catch {
+            Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .args)
+        }
+
+        let enableProvider = !values.flags.contains("noEnable")
+        let store = CodexBarConfigStore()
+        var config = Self.loadConfig(output: output)
+        config = Self.configSettingAPIKey(
+            config,
+            provider: provider,
+            apiKey: apiKey,
+            enableProvider: enableProvider)
+
+        do {
+            try store.save(config)
+        } catch {
+            Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .config)
+        }
+
+        let result = ConfigSetAPIKeyResult(
+            provider: provider.rawValue,
+            enabled: config.providerConfig(for: provider)?.enabled ?? false,
+            configPath: store.fileURL.path)
+
+        switch output.format {
+        case .text:
+            let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+            let suffix = result.enabled ? " and enabled" : ""
+            print("Config: stored API key for \(name)\(suffix)")
+        case .json:
+            Self.printJSON(result, pretty: output.pretty)
+        }
+
+        Self.exit(code: .success, output: output, kind: .config)
+    }
+
+    static func resolveConfigAPIKeyInput(apiKey: String?, readFromStdin: Bool) throws -> String {
+        if apiKey != nil, readFromStdin {
+            throw CLIArgumentError("Use either --api-key or --stdin, not both.")
+        }
+
+        let raw: String? = if readFromStdin {
+            String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8)
+        } else {
+            apiKey
+        }
+
+        guard let value = Self.cleanConfigSecret(raw) else {
+            throw CLIArgumentError("Missing API key. Pass --api-key <key> or pipe it with --stdin.")
+        }
+        return value
+    }
+
+    static func configSettingAPIKey(
+        _ config: CodexBarConfig,
+        provider: UsageProvider,
+        apiKey: String,
+        enableProvider: Bool) -> CodexBarConfig
+    {
+        var updated = config.normalized()
+        var providerConfig = updated.providerConfig(for: provider) ?? ProviderConfig(id: provider)
+        providerConfig.apiKey = apiKey
+        if enableProvider {
+            providerConfig.enabled = true
+        }
+        updated.setProviderConfig(providerConfig)
+        return updated
+    }
+
+    private static func cleanConfigSecret(_ raw: String?) -> String? {
+        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
+            (value.hasPrefix("'") && value.hasSuffix("'"))
+        {
+            value.removeFirst()
+            value.removeLast()
+        }
+        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
 }
 
 struct ConfigOptions: CommanderParsable {
@@ -58,4 +166,45 @@ struct ConfigOptions: CommanderParsable {
 
     @Flag(name: .long("pretty"), help: "Pretty-print JSON output")
     var pretty: Bool = false
+}
+
+struct ConfigSetAPIKeyOptions: CommanderParsable {
+    @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
+    var verbose: Bool = false
+
+    @Flag(name: .long("json-output"), help: "Emit machine-readable logs")
+    var jsonOutput: Bool = false
+
+    @Option(name: .long("log-level"), help: "Set log level (trace|verbose|debug|info|warning|error|critical)")
+    var logLevel: String?
+
+    @Option(name: .long("format"), help: "Output format: text | json")
+    var format: OutputFormat?
+
+    @Flag(name: .long("json"), help: "")
+    var jsonShortcut: Bool = false
+
+    @Flag(name: .long("json-only"), help: "Emit JSON only (suppress non-JSON output)")
+    var jsonOnly: Bool = false
+
+    @Flag(name: .long("pretty"), help: "Pretty-print JSON output")
+    var pretty: Bool = false
+
+    @Option(name: .long("provider"), help: ProviderHelp.optionHelp)
+    var provider: String?
+
+    @Option(name: .long("api-key"), help: "API key to store")
+    var apiKey: String?
+
+    @Flag(name: .long("stdin"), help: "Read API key from stdin")
+    var stdin: Bool = false
+
+    @Flag(name: .long("no-enable"), help: "Store the key without enabling the provider")
+    var noEnable: Bool = false
+}
+
+private struct ConfigSetAPIKeyResult: Encodable {
+    let provider: String
+    let enabled: Bool
+    let configPath: String
 }
