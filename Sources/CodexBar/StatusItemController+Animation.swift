@@ -701,6 +701,58 @@ extension StatusItemController {
         case .usedAndTotal:
             guard usage.creditsTotal > 0 else { return percentText }
             return usedTotal
+        case .overageCreditsWhenExhausted:
+            return self.kiroOverageDisplayText(
+                usage: usage,
+                format: .credits,
+                fallback: creditsLeft,
+                percentFallback: percentText)
+        case .overageCostWhenExhausted:
+            return self.kiroOverageDisplayText(
+                usage: usage,
+                format: .cost,
+                fallback: creditsLeft,
+                percentFallback: percentText)
+        case .overageCreditsAndCostWhenExhausted:
+            return self.kiroOverageDisplayText(
+                usage: usage,
+                format: .creditsAndCost,
+                fallback: creditsLeft,
+                percentFallback: percentText)
+        }
+    }
+
+    private enum KiroOverageDisplayFormat {
+        case credits
+        case cost
+        case creditsAndCost
+    }
+
+    private nonisolated static func kiroOverageDisplayText(
+        usage: KiroUsageDetails,
+        format: KiroOverageDisplayFormat,
+        fallback: String,
+        percentFallback: String?)
+        -> String?
+    {
+        guard usage.creditsTotal > 0 else { return percentFallback }
+        guard usage.creditsRemaining <= 0 else { return fallback }
+
+        let credits = usage.overageCreditsUsed.map { "\(UsageFormatter.kiroCreditNumber($0)) over" }
+        let cost = usage.estimatedOverageCostUSD.map { "\(UsageFormatter.usdString($0)) over" }
+
+        switch format {
+        case .credits:
+            return credits ?? cost ?? fallback
+        case .cost:
+            return cost ?? credits ?? fallback
+        case .creditsAndCost:
+            if let credits, let cost {
+                let creditsValue = credits.replacingOccurrences(of: " over", with: "")
+                let costValue = cost.replacingOccurrences(of: " over", with: "")
+                return "\(creditsValue) · \(costValue)"
+            }
+            return credits ?? cost ?? fallback
         }
     }
 
