@@ -64,6 +64,19 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
+    func `flags visible item attached to a detached screen`() {
+        let snapshot = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+    }
+
+    @Test
     func `guidance shows once then repeats after a day`() throws {
         let defaults = try #require(UserDefaults(suiteName: "MenuBarVisibilityWatcherTests"))
         defaults.removePersistentDomain(forName: "MenuBarVisibilityWatcherTests")
@@ -148,6 +161,51 @@ struct MenuBarVisibilityWatcherTests {
         #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
             appLaunchedAt: launchedAt,
             now: launchedAt.addingTimeInterval(2),
+            snapshots: [healthy]))
+    }
+
+    @Test
+    func `screen change recovery triggers when a display is removed with visible status item`() {
+        let healthy = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+            previousScreenCount: 2,
+            currentScreenCount: 1,
+            snapshots: [healthy]))
+    }
+
+    @Test
+    func `screen change recovery triggers for blocked status item without display count change`() {
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+            previousScreenCount: 1,
+            currentScreenCount: 1,
+            snapshots: [blocked]))
+    }
+
+    @Test
+    func `screen change recovery ignores healthy item when display count does not shrink`() {
+        let healthy = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+            previousScreenCount: 1,
+            currentScreenCount: 2,
             snapshots: [healthy]))
     }
 }

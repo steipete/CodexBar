@@ -150,6 +150,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Monotonic token used to ignore stale deferred provider-switcher menu rebuilds.
     var providerSwitcherUpdateToken = 0
     var lastAppliedMergedIconRenderSignature: String?
+    var lastKnownScreenCount: Int
+    var pendingScreenChangePreviousCount: Int?
+    var screenChangeVisibilityTask: Task<Void, Never>?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     let menuLogger = CodexBarLog.logger(LogCategories.app)
     var selectedMenuProvider: UsageProvider? {
@@ -269,6 +272,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.statusBar = statusBar
         self.statusItem = Self.makeStatusItem(statusBar: statusBar)
+        self.lastKnownScreenCount = NSScreen.screens.count
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
         self.wireBindings()
@@ -297,6 +301,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 name: .codexbarProviderConfigDidChange,
                 object: nil)
         }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleScreenParametersDidChange(_:)),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil)
     }
 
     convenience init(
@@ -739,6 +748,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.isReleasedForTesting = true
         self.blinkTask?.cancel()
         self.loginTask?.cancel()
+        self.screenChangeVisibilityTask?.cancel()
+        self.pendingScreenChangePreviousCount = nil
         self.animationDriver?.stop()
         self.animationDriver = nil
         self.animationPhase = 0
@@ -777,6 +788,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.blinkTask?.cancel()
         self.loginTask?.cancel()
+        self.screenChangeVisibilityTask?.cancel()
+        self.pendingScreenChangePreviousCount = nil
         NotificationCenter.default.removeObserver(self)
     }
 }
