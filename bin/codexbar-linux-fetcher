@@ -792,17 +792,21 @@ def fetch_cursor() -> dict:
         or data.get("total_percent_used")
         or 0
     )
-    auto_pct = (
-        plan.get("autoPercentUsed")
-        or data.get("autoComposerPercentUsed")
-        or data.get("auto_composer_percent")
-        or None
+    def _first_not_none(*vals):
+        for v in vals:
+            if v is not None:
+                return v
+        return None
+
+    auto_pct = _first_not_none(
+        plan.get("autoPercentUsed"),
+        data.get("autoComposerPercentUsed"),
+        data.get("auto_composer_percent"),
     )
-    api_pct = (
-        plan.get("apiPercentUsed")
-        or data.get("apiPercentUsed")
-        or data.get("api_percent_used")
-        or None
+    api_pct = _first_not_none(
+        plan.get("apiPercentUsed"),
+        data.get("apiPercentUsed"),
+        data.get("api_percent_used"),
     )
     cycle_end = data.get("billingCycleEnd") or data.get("billing_cycle_end")
     if isinstance(cycle_end, str):

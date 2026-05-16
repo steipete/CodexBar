@@ -21,7 +21,7 @@ jobs:
         include:
           - name: linux-x64
             runs-on: ubuntu-24.04
-            asset-arch: x86_64
+            asset-arch: x86-64
           - name: linux-arm64
             runs-on: ubuntu-24.04-arm
             asset-arch: aarch64
