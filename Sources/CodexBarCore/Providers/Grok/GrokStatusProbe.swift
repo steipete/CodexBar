@@ -109,7 +109,7 @@ public struct GrokStatusProbe: Sendable {
         // `localSummary` is *not* currently projected into a visible RateWindow or
         // identity field, so a stale `~/.grok/sessions/` directory must not
         // suppress the auth-required hint. Only swallow the RPC error when we
-        // actually have something rendrable for the user — fresh credentials
+        // actually have something renderable for the user — fresh credentials
         // or a billing response.
         if billing == nil, activeCredentials == nil {
             throw rpcError ?? GrokRPCError.notAuthenticated
@@ -117,9 +117,19 @@ public struct GrokStatusProbe: Sendable {
 
         return GrokUsageSnapshot(
             billing: billing,
-            credentials: activeCredentials,
+            credentials: Self.credentialsForSnapshot(credentials: credentials, billing: billing),
             localSummary: localSummary,
             cliVersion: cliVersion,
             updatedAt: Date())
+    }
+
+    static func credentialsForSnapshot(
+        credentials: GrokCredentials?,
+        billing: GrokBillingResponse?) -> GrokCredentials?
+    {
+        // If billing succeeded, the CLI accepted/refreshed auth and the local
+        // identity is still useful even when the persisted expires_at is stale.
+        if billing != nil { return credentials }
+        return credentials.flatMap { $0.isExpired ? nil : $0 }
     }
 }

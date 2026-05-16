@@ -111,6 +111,25 @@ struct GrokAuthTests {
     }
 
     @Test
+    func `expired credentials are preserved when billing succeeds`() throws {
+        let pastJson = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "stale-token",
+            "email": "grok@example.com",
+            "team_id": "team_123",
+            "expires_at": "2020-01-01T00:00:00Z"
+          }
+        }
+        """#
+        let expired = try GrokCredentialsStore.parse(data: Data(pastJson.utf8))
+        let billing = try JSONDecoder().decode(GrokBillingResponse.self, from: Data(#"{}"#.utf8))
+
+        #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: nil) == nil)
+        #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: billing)?.email == "grok@example.com")
+    }
+
+    @Test
     func `falls back to legacy when OIDC entry has no key`() throws {
         // A stale/partial OIDC record must not shadow a healthy legacy session.
         let json = #"""
