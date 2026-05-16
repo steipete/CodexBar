@@ -957,7 +957,7 @@ private enum ClaudeWebExtraUsageCost {
             used: usedAmount,
             limit: limitAmount,
             currencyCode: currencyCode,
-            period: "Monthly",
+            period: "Monthly cap",
             resetsAt: nil,
             updatedAt: Date())
     }

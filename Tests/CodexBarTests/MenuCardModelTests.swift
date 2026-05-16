@@ -674,6 +674,48 @@ struct MiniMaxMenuCardModelTests {
     }
 }
 
+struct ClaudeMenuCardCostTests {
+    @Test
+    func `claude extra usage labels monthly denominator as cap`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 5,
+                limit: 20,
+                currencyCode: "USD",
+                period: "Monthly cap",
+                updatedAt: now),
+            updatedAt: now,
+            identity: nil)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.providerCost?.spendLine == "Monthly cap: $5.00 / $20.00")
+    }
+}
+
 struct MenuCardModelTests {
     @Test
     func `builds metrics using remaining percent`() throws {

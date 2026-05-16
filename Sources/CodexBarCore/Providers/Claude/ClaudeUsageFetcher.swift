@@ -931,7 +931,7 @@ extension ClaudeUsageFetcher {
             used: normalized.used,
             limit: normalized.limit,
             currencyCode: code,
-            period: isSpendLimit ? "Spend limit" : "Monthly",
+            period: isSpendLimit ? "Spend limit" : "Monthly cap",
             resetsAt: nil,
             updatedAt: Date())
     }

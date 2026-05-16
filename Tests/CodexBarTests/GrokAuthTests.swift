@@ -72,6 +72,65 @@ struct GrokAuthTests {
     }
 
     @Test
+    func `isExpired reflects past expires_at`() throws {
+        // Past expiry
+        let pastJson = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "stale-token",
+            "expires_at": "2020-01-01T00:00:00Z"
+          }
+        }
+        """#
+        let past = try GrokCredentialsStore.parse(data: Data(pastJson.utf8))
+        #expect(past.isExpired == true)
+
+        // Future expiry
+        let futureJson = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "fresh-token",
+            "expires_at": "2099-01-01T00:00:00Z"
+          }
+        }
+        """#
+        let future = try GrokCredentialsStore.parse(data: Data(futureJson.utf8))
+        #expect(future.isExpired == false)
+
+        // Missing expires_at — treated as non-expired so we never spuriously lock
+        // out clients whose auth.json shape predates this field.
+        let noExpiryJson = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "ageless-token"
+          }
+        }
+        """#
+        let noExpiry = try GrokCredentialsStore.parse(data: Data(noExpiryJson.utf8))
+        #expect(noExpiry.isExpired == false)
+    }
+
+    @Test
+    func `expired credentials are preserved when billing succeeds`() throws {
+        let pastJson = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "stale-token",
+            "email": "grok@example.com",
+            "team_id": "team_123",
+            "expires_at": "2020-01-01T00:00:00Z"
+          }
+        }
+        """#
+        let expired = try GrokCredentialsStore.parse(data: Data(pastJson.utf8))
+        let billing = try JSONDecoder().decode(GrokBillingResponse.self, from: Data(#"{}"#.utf8))
+
+        #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: nil) == nil)
+        #expect(GrokStatusProbe.credentialsForSnapshot(credentials: expired, billing: billing)?
+            .email == "grok@example.com")
+    }
+
+    @Test
     func `falls back to legacy when OIDC entry has no key`() throws {
         // A stale/partial OIDC record must not shadow a healthy legacy session.
         let json = #"""
