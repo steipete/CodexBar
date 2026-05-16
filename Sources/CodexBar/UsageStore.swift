@@ -902,13 +902,14 @@ extension UsageStore {
                 .kimi: "Kimi debug log not yet implemented",
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
+<<<<<<< Updated upstream
                 .mimo: "Xiaomi MiMo debug log not yet implemented",
                 .doubao: "Doubao debug log not yet implemented",
                 .venice: "Venice debug log not yet implemented",
                 .commandcode: "Command Code debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
                 .bedrock: "Bedrock debug log not yet implemented",
-                .grok: "Grok debug log not yet implemented",
+                .grok: "Grok debug log not yet implemented. The RAW PROTOBUF HEX should appear in Xcode / Console.app logs.",
             ]
             let buildText = {
                 switch provider {
@@ -981,6 +982,8 @@ extension UsageStore {
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
+                case .grok:
+                    return await GrokApiCreditsFetcher.latestDebugLog
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
                      .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok:

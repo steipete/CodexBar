@@ -86,11 +86,14 @@ public enum IconStyle: Sendable, CaseIterable {
     case mistral
     case deepseek
     case codebuff
+<<<<<<< Updated upstream
     case crof
     case venice
     case commandcode
     case stepfun
     case bedrock
+=======
+>>>>>>> Stashed changes
     case grok
     case combined
 }

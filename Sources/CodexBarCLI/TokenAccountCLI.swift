@@ -224,6 +224,7 @@ struct TokenAccountCLIContext {
                 mistral: ProviderSettingsSnapshot.MistralProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+<<<<<<< Updated upstream
         case .stepfun:
             return self.makeSnapshot(
                 stepfun: ProviderSettingsSnapshot.StepFunProviderSettings(
@@ -231,7 +232,8 @@ struct TokenAccountCLIContext {
                     manualToken: cookieHeader ?? "",
                     username: config?.sanitizedAPIKey ?? "",
                     password: ""))
-        default:
+        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp, .deepseek,
+             .codebuff, .grok:
             return nil
         }
     }

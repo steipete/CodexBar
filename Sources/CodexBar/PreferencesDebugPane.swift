@@ -108,6 +108,7 @@ struct DebugPane: View {
                         Text("Augment").tag(UsageProvider.augment)
                         Text("Amp").tag(UsageProvider.amp)
                         Text("Ollama").tag(UsageProvider.ollama)
+                        Text("Grok").tag(UsageProvider.grok)
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 460)

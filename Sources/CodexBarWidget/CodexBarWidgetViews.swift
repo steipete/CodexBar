@@ -258,7 +258,6 @@ private struct ProviderSwitchChip: View {
     private var shortLabel: String {
         switch self.provider {
         case .codex: "Codex"
-        case .openai: "OpenAI"
         case .claude: "Claude"
         case .gemini: "Gemini"
         case .antigravity: "Anti"
@@ -270,7 +269,6 @@ private struct ProviderSwitchChip: View {
         case .factory: "Droid"
         case .copilot: "Copilot"
         case .minimax: "MiniMax"
-        case .manus: "Manus"
         case .vertexai: "Vertex"
         case .kilo: "Kilo"
         case .kiro: "Kiro"
@@ -278,26 +276,16 @@ private struct ProviderSwitchChip: View {
         case .jetbrains: "JetBrains"
         case .kimi: "Kimi"
         case .kimik2: "Kimi K2"
-        case .moonshot: "Moonshot"
         case .amp: "Amp"
         case .ollama: "Ollama"
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
-        case .elevenlabs: "ElevenLabs"
         case .warp: "Warp"
-        case .windsurf: "Windsurf"
         case .perplexity: "Pplx"
-        case .mimo: "MiMo"
-        case .doubao: "Doubao"
         case .abacus: "Abacus"
         case .mistral: "Mistral"
         case .deepseek: "DeepSeek"
         case .codebuff: "Codebuff"
-        case .crof: "Crof"
-        case .venice: "Venice"
-        case .commandcode: "Command Code"
-        case .stepfun: "StepFun"
-        case .bedrock: "Bedrock"
         case .grok: "Grok"
         }
     }
@@ -610,8 +598,6 @@ enum WidgetColors {
         switch provider {
         case .codex:
             Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
-        case .openai:
-            Color(red: 15 / 255, green: 130 / 255, blue: 110 / 255)
         case .claude:
             Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
         case .gemini:
@@ -634,8 +620,6 @@ enum WidgetColors {
             Color(red: 168 / 255, green: 85 / 255, blue: 247 / 255) // Purple
         case .minimax:
             Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255)
-        case .manus:
-            Color(red: 24 / 255, green: 24 / 255, blue: 24 / 255)
         case .vertexai:
             Color(red: 66 / 255, green: 133 / 255, blue: 244 / 255) // Google Blue
         case .kilo:
@@ -650,8 +634,6 @@ enum WidgetColors {
             Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255) // Kimi orange
         case .kimik2:
             Color(red: 76 / 255, green: 0 / 255, blue: 255 / 255) // Kimi K2 purple
-        case .moonshot:
-            Color(red: 32 / 255, green: 93 / 255, blue: 235 / 255)
         case .amp:
             Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) // Amp red
         case .ollama:
@@ -660,18 +642,10 @@ enum WidgetColors {
             Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255) // Synthetic charcoal
         case .openrouter:
             Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
-        case .elevenlabs:
-            Color(red: 235 / 255, green: 235 / 255, blue: 230 / 255)
         case .warp:
             Color(red: 147 / 255, green: 139 / 255, blue: 180 / 255)
-        case .windsurf:
-            Color(red: 52 / 255, green: 232 / 255, blue: 187 / 255) // Windsurf #34e8bb
         case .perplexity:
             Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
-        case .mimo:
-            Color(red: 1.0, green: 105 / 255, blue: 0)
-        case .doubao:
-            Color(red: 45 / 255, green: 136 / 255, blue: 255 / 255) // Doubao blue
         case .abacus:
             Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
         case .mistral:
@@ -680,18 +654,8 @@ enum WidgetColors {
             Color(red: 82 / 255, green: 125 / 255, blue: 240 / 255)
         case .codebuff:
             Color(red: 68 / 255, green: 255 / 255, blue: 0 / 255) // Codebuff lime
-        case .crof:
-            Color(red: 46 / 255, green: 171 / 255, blue: 148 / 255)
-        case .venice:
-            Color(red: 51 / 255, green: 153 / 255, blue: 1.0)
-        case .commandcode:
-            Color(red: 0, green: 0, blue: 0)
-        case .stepfun:
-            Color(red: 255 / 255, green: 140 / 255, blue: 0 / 255) // StepFun orange
-        case .bedrock:
-            Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
         case .grok:
-            Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255) // Grok teal
+            Color(red: 30 / 255, green: 30 / 255, blue: 32 / 255) // Near-black Grok accent
         }
     }
 }
@@ -737,7 +701,6 @@ enum WidgetFormat {
 
     static func relativeDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
     }

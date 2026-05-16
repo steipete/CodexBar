@@ -50,6 +50,28 @@ public enum ProviderVersionDetector {
         return nil
     }
 
+    public static func grokVersion() -> String? {
+        let candidates = [
+            "\(FileManager.default.homeDirectoryForCurrentUser.path)/.grok/bin/grok",
+            "/usr/local/bin/grok",
+            "/opt/homebrew/bin/grok",
+        ]
+
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            if let v = Self.run(path: path, args: ["--version"]) { return v }
+            if let v = Self.run(path: path, args: ["version"])   { return v }
+            if let v = Self.run(path: path, args: ["-v"])        { return v }
+        }
+
+        if let path = TTYCommandRunner.which("grok") {
+            if let v = Self.run(path: path, args: ["--version"]) { return v }
+            if let v = Self.run(path: path, args: ["version"])   { return v }
+            if let v = Self.run(path: path, args: ["-v"])        { return v }
+        }
+
+        return nil
+    }
+
     static func run(path: String, args: [String], timeout: TimeInterval = 2.0) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
