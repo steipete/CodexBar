@@ -12,7 +12,7 @@ extension UsageMenuCardView.Model {
             let usageLabel = "Usage: \(used.formatted()) / \(service.limit.formatted())"
             let usedLabel = "Used \(String(format: "%.0f%%", displayPercent))"
             let title = if service.displayName == "Text Generation", textGenerationCount > 1 {
-                "Text Generation · \(service.windowType == "Weekly" ? "Weekly" : "5h")"
+                "Text Generation · \(Self.displayWindowBadge(for: service.windowType))"
             } else {
                 service.displayName
             }
@@ -30,5 +30,24 @@ extension UsageMenuCardView.Model {
                 paceOnTop: true,
                 cardStyle: true)
         }
+    }
+
+    private static func displayWindowBadge(for windowType: String) -> String {
+        let trimmed = windowType.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.lowercased()
+
+        if normalized == "weekly" {
+            return "Weekly"
+        }
+        if normalized == "5 hours" || normalized == "5 hour" || normalized == "5h" {
+            return "5h"
+        }
+        if normalized == "today" {
+            return "Today"
+        }
+        if normalized == "daily" {
+            return "Daily"
+        }
+        return trimmed.isEmpty ? windowType : trimmed
     }
 }

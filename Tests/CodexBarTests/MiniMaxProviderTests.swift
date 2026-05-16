@@ -246,6 +246,9 @@ struct MiniMaxUsageParserTests {
         #expect(services[1].windowType == "Weekly")
         #expect(services[1].usage == 624)
         #expect(services[1].limit == 6000)
+        #expect(services[1].timeRange.contains("/"))
+        #expect(services[1].timeRange.contains("UTC+8"))
+        #expect(!services[1].timeRange.hasPrefix("10:00-10:00"))
     }
 
     @Test

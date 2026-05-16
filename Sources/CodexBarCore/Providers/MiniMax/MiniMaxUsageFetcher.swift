@@ -1232,6 +1232,11 @@ enum MiniMaxUsageParser {
         let endTime = self.dateFromEpoch(end)
         var (windowType, timeRange) = self.parseWindowInfo(startTime: startTime, endTime: endTime, now: now)
         if let windowTypeOverride { windowType = windowTypeOverride }
+        if windowType.lowercased() == "weekly",
+           let weeklyRange = self.formatMiniMaxDateTimeRange(startTime: startTime, endTime: endTime)
+        {
+            timeRange = weeklyRange
+        }
 
         let resetsAt = self.resetsAt(end: endTime, remains: remainsTime, now: now)
         let resetDescription = self.resetDescription(
@@ -1287,6 +1292,17 @@ enum MiniMaxUsageParser {
 
         // Default: use model name as-is
         return modelName
+    }
+
+    private static func formatMiniMaxDateTimeRange(startTime: Date?, endTime: Date?) -> String? {
+        guard let startTime, let endTime else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        formatter.dateFormat = "MM/dd HH:mm"
+        let start = formatter.string(from: startTime)
+        let end = formatter.string(from: endTime)
+        return "\(start) - \(end)(UTC+8)"
     }
 }
 

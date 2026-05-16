@@ -653,6 +653,75 @@ struct MiniMaxMenuCardModelTests {
         #expect(used.metrics.first?.percent == 20)
         #expect(used.metrics.first?.cardStyle == true)
     }
+
+    @Test
+    func `text generation badge uses real window type when multiple windows exist`() throws {
+        let now = Date()
+        let minimax = MiniMaxUsageSnapshot(
+            planName: "Max",
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: now,
+            services: [
+                MiniMaxServiceUsage(
+                    serviceType: "text-generation",
+                    windowType: "Today",
+                    timeRange: "2026/05/16 00:00 - 2026/05/17 00:00",
+                    usage: 2,
+                    limit: 10,
+                    percent: 20,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: "Resets in 1 hour"),
+                MiniMaxServiceUsage(
+                    serviceType: "text-generation",
+                    windowType: "Weekly",
+                    timeRange: "05/11 00:00 - 05/18 00:00(UTC+8)",
+                    usage: 20,
+                    limit: 100,
+                    percent: 20,
+                    resetsAt: now.addingTimeInterval(7200),
+                    resetDescription: "Resets in 2 hours"),
+            ])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 1440, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            minimaxUsage: minimax,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .minimax,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Max"))
+        let metadata = try #require(ProviderDefaults.metadata[.minimax])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .minimax,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.count == 2)
+        #expect(model.metrics[0].title == "Text Generation · Today")
+        #expect(model.metrics[1].title == "Text Generation · Weekly")
+    }
 }
 
 struct ClaudeMenuCardCostTests {
