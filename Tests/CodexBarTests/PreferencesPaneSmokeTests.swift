@@ -76,6 +76,7 @@ struct PreferencesPaneSmokeTests {
         #expect(UserDefaults.standard.string(forKey: "appLanguage") == "zh-Hans")
         #expect(L("tab_general") == "通用")
         #expect(L("quota_warning_notifications_title") == "配额预警通知")
+        #expect(L("show_provider_storage_usage_title") == "显示提供商存储用量")
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {

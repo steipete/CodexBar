@@ -522,6 +522,8 @@
 "weekly_limit_confetti_subtitle" = "Mostra confete em tela cheia quando o uso semanal for renovado.";
 "hide_personal_info_title" = "Ocultar informações pessoais";
 "hide_personal_info_subtitle" = "Oculta endereços de e-mail na barra de menus e na UI do menu.";
+"show_provider_storage_usage_title" = "Mostrar uso de armazenamento dos provedores";
+"show_provider_storage_usage_subtitle" = "Mostra o uso de disco local nos menus. Verifica em segundo plano caminhos conhecidos pertencentes aos provedores.";
 "section_keychain_access" = "Acesso ao Keychain";
 "keychain_access_caption" = "Desativa todas as leituras e gravações do Keychain. A importação de cookies do navegador fica indisponível; cole cabeçalhos Cookie manualmente em Provedores.";
 "disable_keychain_access_title" = "Desativar acesso ao Keychain";
