@@ -99,7 +99,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         configuration.httpCookieStorage = nil
         return URLSession(
             configuration: configuration,
-            delegate: self.redirectGuardDelegate,
+            delegate: OpenCodeGoUsageFetcher.redirectGuardDelegate,
             delegateQueue: nil)
     }()
 
