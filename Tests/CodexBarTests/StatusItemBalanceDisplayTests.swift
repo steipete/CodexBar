@@ -283,6 +283,23 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `kiro menu bar overage mode ignores disabled overage values`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-overage-disabled",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .overageCreditsAndCostWhenExhausted
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = Self.exhaustedKiroSnapshot(overagesStatus: "Disabled")
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+
+        #expect(displayText == "0")
+    }
+
+    @Test
     func `kiro managed plan display falls back to percent`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-kiro-managed",
@@ -403,7 +420,9 @@ struct StatusItemBalanceDisplayTests {
             updatedAt: Date()).toUsageSnapshot()
     }
 
-    private static func exhaustedKiroSnapshot() -> UsageSnapshot {
+    private static func exhaustedKiroSnapshot(overagesStatus: String = "Enabled billed at $0.04 per request")
+        -> UsageSnapshot
+    {
         KiroUsageSnapshot(
             planName: "KIRO FREE",
             accountEmail: "person@example.com",
@@ -414,7 +433,7 @@ struct StatusItemBalanceDisplayTests {
             bonusCreditsUsed: nil,
             bonusCreditsTotal: nil,
             bonusExpiryDays: nil,
-            overagesStatus: "Enabled billed at $0.04 per request",
+            overagesStatus: overagesStatus,
             overageCreditsUsed: 40.29,
             estimatedOverageCostUSD: 1.61,
             manageURL: "https://app.kiro.dev/account/usage",

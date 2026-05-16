@@ -737,6 +737,13 @@ extension StatusItemController {
     {
         guard usage.creditsTotal > 0 else { return percentFallback }
         guard usage.creditsRemaining <= 0 else { return fallback }
+        guard usage.overagesStatus?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .hasPrefix("enabled") == true
+        else {
+            return fallback
+        }
 
         let credits = usage.overageCreditsUsed.map { "\(UsageFormatter.kiroCreditNumber($0)) over" }
         let cost = usage.estimatedOverageCostUSD.map { "\(UsageFormatter.usdString($0)) over" }
