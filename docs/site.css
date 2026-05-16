@@ -483,6 +483,21 @@ code {
     inset 0 -1px 0 rgba(0, 0, 0, 0.12);
 }
 
+.provider .chip-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  object-fit: contain;
+  background: #ffffff;
+  padding: 6px;
+}
+
+.provider .chip-logo.no-bg {
+  background: none;
+  padding: 0;
+}
+
 .provider .meta {
   display: flex;
   flex-direction: column;
