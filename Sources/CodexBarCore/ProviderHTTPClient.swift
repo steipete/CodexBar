@@ -57,7 +57,9 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
             let configuration = URLSessionConfiguration.default
             configuration.timeoutIntervalForRequest = 30
             configuration.timeoutIntervalForResource = 90
+            #if !canImport(FoundationNetworking)
             configuration.waitsForConnectivity = false
+            #endif
             self.session = URLSession(configuration: configuration)
         }
     }
