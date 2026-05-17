@@ -35,8 +35,12 @@ public enum GroqProviderDescriptor {
                 noDataMessage: { "Groq token cost history is not available via this endpoint." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-                    [GroqCookieFetchStrategy(), GroqAPIFetchStrategy()]
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    switch context.sourceMode {
+                    case .web: [GroqCookieFetchStrategy()]
+                    case .api: [GroqAPIFetchStrategy()]
+                    default: [GroqCookieFetchStrategy(), GroqAPIFetchStrategy()]
+                    }
                 })),
             cli: ProviderCLIConfig(
                 name: "groq",
@@ -76,7 +80,8 @@ struct GroqCookieFetchStrategy: ProviderFetchStrategy {
         #endif
     }
 
-    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
         if let importError = error as? GroqCookieImportError,
            case .noCookies = importError { return true }
         return false
