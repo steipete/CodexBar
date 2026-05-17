@@ -3,13 +3,19 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public final class ProviderHTTPClient: @unchecked Sendable {
+public protocol ProviderHTTPTransport: Sendable {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse)
+}
+
+extension URLSession: ProviderHTTPTransport {}
+
+public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendable {
     public static let shared = ProviderHTTPClient()
 
     private let session: URLSession
 
-    public init(session: URLSession? = nil) {
-        self.session = session ?? URLSession.shared
+    public init(session: URLSession = .shared) {
+        self.session = session
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {

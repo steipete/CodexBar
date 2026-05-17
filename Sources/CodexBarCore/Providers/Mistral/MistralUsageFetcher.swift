@@ -36,7 +36,7 @@ public enum MistralUsageFetcher {
             request.setValue(csrfToken, forHTTPHeaderField: "X-CSRFTOKEN")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MistralUsageError.apiError("Invalid response type")

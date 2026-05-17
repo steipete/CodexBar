@@ -54,7 +54,7 @@ public enum GrokWebBillingFetcher {
 
     public static func fetch(
         credentials: GrokCredentials,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         endpoint: URL = Self.defaultEndpoint) async throws -> GrokWebBillingSnapshot
     {
         try await self.fetch(
@@ -66,7 +66,7 @@ public enum GrokWebBillingFetcher {
 
     public static func fetch(
         cookieHeader: String,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         endpoint: URL = Self.defaultEndpoint) async throws -> GrokWebBillingSnapshot
     {
         try await self.fetch(
@@ -79,7 +79,7 @@ public enum GrokWebBillingFetcher {
     private static func fetch(
         authorizationHeader: String?,
         cookieHeader: String?,
-        session: URLSession,
+        session: any ProviderHTTPTransport,
         endpoint: URL) async throws -> GrokWebBillingSnapshot
     {
         do {
@@ -100,7 +100,7 @@ public enum GrokWebBillingFetcher {
     private static func fetchOnce(
         authorizationHeader: String?,
         cookieHeader: String?,
-        session: URLSession,
+        session: any ProviderHTTPTransport,
         endpoint: URL) async throws -> GrokWebBillingSnapshot
     {
         var request = URLRequest(url: endpoint)

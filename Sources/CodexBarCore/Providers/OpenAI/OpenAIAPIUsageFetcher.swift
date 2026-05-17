@@ -44,7 +44,7 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         costsURL: URL = Self.organizationCostsURL,
         completionsURL: URL = Self.organizationCompletionsUsageURL,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> OpenAIAPIUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -87,7 +87,7 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         range: DateRange,
-        session: URLSession) async throws -> CostsResponse
+        session: any ProviderHTTPTransport) async throws -> CostsResponse
     {
         let url = Self.url(
             baseURL: baseURL,
@@ -103,7 +103,7 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         range: DateRange,
-        session: URLSession) async throws -> CompletionsUsageResponse
+        session: any ProviderHTTPTransport) async throws -> CompletionsUsageResponse
     {
         let url = Self.url(
             baseURL: baseURL,
@@ -119,7 +119,7 @@ public enum OpenAIAPIUsageFetcher {
         url: URL,
         apiKey: String,
         endpoint: String,
-        session: URLSession) async throws -> Data
+        session: any ProviderHTTPTransport) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"

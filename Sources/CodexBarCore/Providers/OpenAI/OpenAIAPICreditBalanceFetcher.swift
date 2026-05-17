@@ -121,7 +121,7 @@ public enum OpenAIAPICreditBalanceFetcher {
     public static func fetchBalance(
         apiKey: String,
         url: URL = Self.creditGrantsURL,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> OpenAIAPICreditBalanceSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)

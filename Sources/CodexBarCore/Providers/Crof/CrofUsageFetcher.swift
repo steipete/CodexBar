@@ -41,7 +41,7 @@ public enum CrofUsageFetcher {
 
     public static func fetchUsage(
         apiKey: String,
-        session: URLSession = .shared) async throws -> CrofUsageSnapshot
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CrofUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {

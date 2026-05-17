@@ -7,7 +7,7 @@ extension GeminiStatusProbe {
     public static func defaultDataLoader(for request: URLRequest) async throws -> (Data, URLResponse) {
         let loader = Self.dataLoaderWithCurlFallback(
             primary: { request in
-                try await URLSession.shared.data(for: request)
+                try await ProviderHTTPClient.shared.data(for: request)
             },
             fallback: Self.curlDataLoader)
         return try await loader(request)

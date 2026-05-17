@@ -84,7 +84,7 @@ public struct OpenCodeUsageFetcher: Sendable {
         timeout: TimeInterval,
         now: Date = Date(),
         workspaceIDOverride: String? = nil,
-        session: URLSession = .shared) async throws -> OpenCodeUsageSnapshot
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> OpenCodeUsageSnapshot
     {
         guard let requestCookieHeader = OpenCodeWebCookieSupport.requestCookieHeader(from: cookieHeader) else {
             throw OpenCodeUsageError.invalidCredentials
@@ -108,7 +108,7 @@ public struct OpenCodeUsageFetcher: Sendable {
     private static func fetchWorkspaceID(
         cookieHeader: String,
         timeout: TimeInterval,
-        session: URLSession) async throws -> String
+        session: any ProviderHTTPTransport) async throws -> String
     {
         let text = try await self.fetchServerText(
             request: ServerRequest(
@@ -157,7 +157,7 @@ public struct OpenCodeUsageFetcher: Sendable {
         workspaceID: String,
         cookieHeader: String,
         timeout: TimeInterval,
-        session: URLSession) async throws -> String
+        session: any ProviderHTTPTransport) async throws -> String
     {
         let referer = URL(string: "https://opencode.ai/workspace/\(workspaceID)/billing") ?? self.baseURL
         let text = try await self.fetchServerText(
@@ -249,7 +249,7 @@ public struct OpenCodeUsageFetcher: Sendable {
         request serverRequest: ServerRequest,
         cookieHeader: String,
         timeout: TimeInterval,
-        session: URLSession) async throws -> String
+        session: any ProviderHTTPTransport) async throws -> String
     {
         let url = self.serverRequestURL(
             serverID: serverRequest.serverID,

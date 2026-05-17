@@ -271,7 +271,7 @@ public struct KiloUsageFetcher: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         } catch {
             throw KiloUsageError.networkError(error.localizedDescription)
         }
@@ -332,7 +332,7 @@ public struct KiloUsageFetcher: Sendable {
         let trpcRequest = try self.makeOrgListTRPCRequest(baseURL: baseURL, apiKey: apiKey)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: trpcRequest)
+            let (data, response) = try await ProviderHTTPClient.shared.data(for: trpcRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw KiloUsageError.networkError("Invalid response")
             }
@@ -391,7 +391,7 @@ public struct KiloUsageFetcher: Sendable {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw KiloUsageError.networkError("Invalid response")
         }

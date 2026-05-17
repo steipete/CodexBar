@@ -9,8 +9,8 @@ struct ProviderHTTPClientTests {
         StubURLProtocol.requests = []
         StubURLProtocol.handler = { request in
             StubURLProtocol.requests.append(request)
-            let response = HTTPURLResponse(
-                url: try #require(request.url),
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
                 statusCode: 200,
                 httpVersion: "HTTP/1.1",
                 headerFields: ["Content-Type": "application/json"])!
@@ -24,7 +24,7 @@ struct ProviderHTTPClientTests {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         let client = ProviderHTTPClient(session: URLSession(configuration: configuration))
-        let request = URLRequest(url: URL(string: "https://example.com/status")!)
+        let request = try URLRequest(url: #require(URL(string: "https://example.com/status")))
 
         let (data, response) = try await client.data(for: request)
 
@@ -40,11 +40,11 @@ final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) throws -> (Data, URLResponse))?
     nonisolated(unsafe) static var requests: [URLRequest] = []
 
-    override class func canInit(with request: URLRequest) -> Bool {
+    override static func canInit(with request: URLRequest) -> Bool {
         true
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
         request
     }
 

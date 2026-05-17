@@ -670,13 +670,13 @@ public struct CursorStatusProbe: Sendable {
     public let baseURL: URL
     public var timeout: TimeInterval = 15.0
     private let browserDetection: BrowserDetection
-    private let urlSession: URLSession
+    private let urlSession: any ProviderHTTPTransport
 
     public init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
         browserDetection: BrowserDetection,
-        urlSession: URLSession = .shared)
+        urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared)
     {
         self.baseURL = baseURL
         self.timeout = timeout
@@ -1160,7 +1160,7 @@ public struct CursorStatusProbe: Sendable {
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
         browserDetection: BrowserDetection,
-        urlSession: URLSession = .shared)
+        urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared)
     {
         _ = baseURL
         _ = timeout

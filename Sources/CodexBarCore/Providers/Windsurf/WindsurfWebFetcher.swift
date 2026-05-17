@@ -139,7 +139,7 @@ public enum WindsurfWebFetcher {
         manualSessionInput: String? = nil,
         timeout: TimeInterval = 15,
         logger: ((String) -> Void)? = nil,
-        session: URLSession = .shared) async throws -> UsageSnapshot
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> UsageSnapshot
     {
         let log: (String) -> Void = { msg in logger?("[windsurf-web] \(msg)") }
 
@@ -257,7 +257,7 @@ public enum WindsurfWebFetcher {
         sessionInfos: [WindsurfDevinSessionImporter.SessionInfo],
         timeout: TimeInterval,
         logger log: (String) -> Void,
-        session: URLSession) async throws -> UsageSnapshot
+        session: any ProviderHTTPTransport) async throws -> UsageSnapshot
     {
         var lastError: Error?
         for sessionInfo in sessionInfos {
@@ -316,7 +316,7 @@ public enum WindsurfWebFetcher {
     private static func fetchPlanStatus(
         auth: WindsurfDevinSessionAuth,
         timeout: TimeInterval,
-        session: URLSession) async throws -> WindsurfGetPlanStatusResponse
+        session: any ProviderHTTPTransport) async throws -> WindsurfGetPlanStatusResponse
     {
         guard let url = URL(string: self.getPlanStatusURL) else {
             throw WindsurfWebFetcherError.apiCallFailed("Invalid GetPlanStatus URL")
