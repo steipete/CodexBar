@@ -245,15 +245,13 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex token count model overrides stale turn context model`() throws {
+    func `codex token count model applies without turn context model`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
-        let iso0 = env.isoString(for: day)
 
         let contents = try env.jsonl([
-            self.codexTurnContext(timestamp: iso0, model: "openai/gpt-5.4"),
             self.codexTokenCount(
                 timestamp: env.isoString(for: day.addingTimeInterval(1)),
                 model: "openai/gpt-5.5",
@@ -270,7 +268,7 @@ struct CostUsageScannerBreakdownTests {
         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
 
         #expect(parsed.days[dayKey]?["gpt-5.5"] == [50, 10, 5])
-        #expect(parsed.days[dayKey]?["gpt-5.4"] == nil)
+        #expect(parsed.days[dayKey]?["gpt-5"] == nil)
     }
 
     @Test
