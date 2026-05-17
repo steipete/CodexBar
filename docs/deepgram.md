@@ -30,7 +30,7 @@ You can also configure the API key and project ID in CodexBar Settings → Provi
 
 The Deepgram provider fetches summarized usage data from the Deepgram Management API.
 
-1. **Usage API** (`/v1/projects/{PROJECT_ID}/usage`): Returns summarized project usage over a date range. The response includes fields such as `start`, `end`, `resolution`, and `results`.
+1. **Usage Breakdown API** (`/v1/projects/{PROJECT_ID}/usage/breakdown`): Returns summarized project usage over a date range. The response includes fields such as `start`, `end`, `resolution`, and `results`.
 
 Each usage result may include:
 
@@ -40,14 +40,13 @@ Each usage result may include:
 * `total_hours`
 * `requests`
 
-Deepgram's documented usage endpoint supports querying with `start` and `end` date parameters. The response includes summarized usage results for the selected period.
+Deepgram's usage breakdown endpoint supports querying with `start` and `end` date parameters. The response includes summarized usage results for the selected period.
 
 ## Display
 
 The Deepgram menu card shows:
 
-* **Primary usage**: Request count from the summarized usage response
-* **Usage notes**: Total audio hours and total billable hours when returned by Deepgram
+* **Usage notes**: Request count, total audio hours, and total billable hours when returned by Deepgram
 * **Identity**: Project ID used for the request
 
 Deepgram does not currently provide a credit balance through this provider. The provider displays usage, not remaining credits.
@@ -86,4 +85,3 @@ In that case, create or update a Deepgram API key with the `usage:read` scope fo
 * The provider uses `Authorization: Token <API_KEY>` for requests.
 * This provider currently reports usage metrics, not credit balance or per-request cost.
 * Summarized usage data is not limited to 90 days, while console logs are limited to 90 days.
-

@@ -853,6 +853,12 @@ extension UsageMenuCardView.Model {
             return self.openAIAPIUsageNotes(usage)
         }
 
+        if input.provider == .deepgram,
+           let usage = input.snapshot?.deepgramUsage
+        {
+            return usage.displayLines
+        }
+
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {

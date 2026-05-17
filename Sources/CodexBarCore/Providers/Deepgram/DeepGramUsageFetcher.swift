@@ -140,9 +140,53 @@ extension DeepgramUsageSnapshot {
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
+            deepgramUsage: self,
             updatedAt: self.updatedAt,
             identity: identity
         )
+    }
+
+    public var displayLines: [String] {
+        var lines: [String] = []
+        lines.append("Requests: \(Self.formatInteger(self.requests))")
+
+        var usageParts: [String] = []
+        if self.hours > 0 {
+            usageParts.append("\(Self.formatDecimal(self.hours)) audio hours")
+        }
+        if self.totalHours > 0 {
+            usageParts.append("\(Self.formatDecimal(self.totalHours)) billable hours")
+        }
+        if !usageParts.isEmpty {
+            lines.append(usageParts.joined(separator: " · "))
+        }
+
+        if let start, let end {
+            lines.append("Period: \(start) to \(end)")
+        }
+
+        return lines
+    }
+
+    private static func formatInteger(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    private static func formatDecimal(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.minimumFractionDigits = value == floor(value) ? 0 : 1
+        formatter.maximumFractionDigits = 1
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.1f", value)
     }
 }
 
@@ -241,6 +285,7 @@ public struct DeepgramUsageFetcher: Sendable {
             .appendingPathComponent("projects")
             .appendingPathComponent(projectID)
             .appendingPathComponent("usage")
+            .appendingPathComponent("breakdown")
 
         guard var components = URLComponents(url: usageURL, resolvingAgainstBaseURL: false) else {
             throw DeepgramUsageError.networkError("Invalid usage URL")
@@ -300,6 +345,18 @@ public struct DeepgramUsageFetcher: Sendable {
             Self.log.error("Deepgram raw response: \(self.responseSummary(data))")
             throw DeepgramUsageError.parseFailed(error.localizedDescription)
         }
+    }
+
+    static func _parseSnapshotForTesting(
+        _ data: Data,
+        projectID: String = "project-test",
+        updatedAt: Date = Date()
+    ) throws -> DeepgramUsageSnapshot {
+        try self.parseUsage(
+            data: data,
+            projectID: projectID,
+            updatedAt: updatedAt
+        )
     }
 
     private static func responseSummary(_ data: Data) -> String {
