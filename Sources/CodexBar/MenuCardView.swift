@@ -1421,7 +1421,9 @@ extension UsageMenuCardView.Model {
                 paceDetail = Self.weeklyPaceDetail(
                     window: window,
                     now: input.now,
-                    pace: input.weeklyPace,
+                    pace: input.weeklyPace
+                        ?? UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080)
+                        .flatMap { $0.expectedUsedPercent >= 3 ? $0 : nil },
                     showUsed: input.usageBarsShowUsed)
             }
 
