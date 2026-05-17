@@ -138,7 +138,7 @@ struct OpenAIAPICreditBalanceTests {
                 },
                 {
                   "object": "organization.costs.result",
-                  "amount": { "value": 2.25, "currency": "usd" },
+                  "amount": { "value": "2.25", "currency": "usd" },
                   "line_item": "Web search tool calls"
                 }
               ]

@@ -16,6 +16,20 @@ extension UsageMenuCardView.Model {
         {
             notes.append("Overages: \(overages)")
         }
+        let overagesEnabled = input.snapshot?.kiroUsage?.overagesStatus?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .hasPrefix("enabled") == true
+        if overagesEnabled,
+           let overageCreditsUsed = input.snapshot?.kiroUsage?.overageCreditsUsed
+        {
+            notes.append("Overage usage: \(UsageFormatter.kiroCreditNumber(overageCreditsUsed)) credits")
+        }
+        if overagesEnabled,
+           let estimatedOverageCostUSD = input.snapshot?.kiroUsage?.estimatedOverageCostUSD
+        {
+            notes.append("Overage cost: \(UsageFormatter.usdString(estimatedOverageCostUSD))")
+        }
         return notes
     }
 

@@ -49,7 +49,7 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("token \(self.token)", forHTTPHeaderField: "Authorization")
         self.addCommonHeaders(to: &request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -99,7 +99,11 @@ public struct CopilotUsageFetcher: Sendable {
         try await self.fetchGitHubIdentity(token: token).login
     }
 
-    public static func fetchGitHubIdentity(token: String) async throws -> GitHubUserIdentity {
+    public static func fetchGitHubIdentity(
+        token: String,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
+        async throws -> GitHubUserIdentity
+    {
         guard let url = URL(string: "https://api.github.com/user") else {
             throw URLError(.badURL)
         }
@@ -107,7 +111,7 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await transport.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }

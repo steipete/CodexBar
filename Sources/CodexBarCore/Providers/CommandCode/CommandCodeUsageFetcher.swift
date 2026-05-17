@@ -18,7 +18,7 @@ public enum CommandCodeUsageFetcher {
 
     public static func fetchUsage(
         cookieHeader: String,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> CommandCodeUsageSnapshot
     {
         async let creditsResult = self.fetchCredits(cookieHeader: cookieHeader, session: session)
@@ -66,7 +66,7 @@ public enum CommandCodeUsageFetcher {
 
     private static func fetchCredits(
         cookieHeader: String,
-        session: URLSession) async throws -> CreditsPayload
+        session: any ProviderHTTPTransport) async throws -> CreditsPayload
     {
         let url = self.apiBase.appendingPathComponent(self.creditsPath)
         let data = try await self.send(url: url, cookieHeader: cookieHeader, session: session)
@@ -75,7 +75,7 @@ public enum CommandCodeUsageFetcher {
 
     private static func fetchSubscription(
         cookieHeader: String,
-        session: URLSession) async throws -> SubscriptionPayload?
+        session: any ProviderHTTPTransport) async throws -> SubscriptionPayload?
     {
         let url = self.apiBase.appendingPathComponent(self.subscriptionsPath)
         let data = try await self.send(url: url, cookieHeader: cookieHeader, session: session)
@@ -85,7 +85,7 @@ public enum CommandCodeUsageFetcher {
     private static func send(
         url: URL,
         cookieHeader: String,
-        session: URLSession) async throws -> Data
+        session: any ProviderHTTPTransport) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"

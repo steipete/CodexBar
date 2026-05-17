@@ -13,6 +13,19 @@ struct QuotaWarningEvent: Equatable {
     let window: QuotaWarningWindow
     let threshold: Int
     let currentRemaining: Double
+    let accountDisplayName: String?
+
+    init(
+        window: QuotaWarningWindow,
+        threshold: Int,
+        currentRemaining: Double,
+        accountDisplayName: String? = nil)
+    {
+        self.window = window
+        self.threshold = threshold
+        self.currentRemaining = currentRemaining
+        self.accountDisplayName = accountDisplayName
+    }
 }
 
 enum SessionQuotaNotificationLogic {
@@ -41,13 +54,16 @@ enum QuotaWarningNotificationLogic {
         providerName: String,
         window: QuotaWarningWindow,
         threshold: Int,
-        currentRemaining: Double) -> (title: String, body: String)
+        currentRemaining: Double,
+        accountDisplayName: String? = nil) -> (title: String, body: String)
     {
         let windowLabel = window.displayName
         let remainingText = Self.percentText(currentRemaining)
+        let accountPrefix = accountDisplayName
+            .map { "Account \($0). " } ?? ""
         return (
             "\(providerName) \(windowLabel) quota low",
-            "\(remainingText) left. Reached your \(threshold)% \(windowLabel) warning threshold.")
+            "\(accountPrefix)\(remainingText) left. Reached your \(threshold)% \(windowLabel) warning threshold.")
     }
 
     static func crossedThreshold(
@@ -123,7 +139,8 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
             providerName: providerName,
             window: event.window,
             threshold: threshold,
-            currentRemaining: event.currentRemaining)
+            currentRemaining: event.currentRemaining,
+            accountDisplayName: event.accountDisplayName)
         let idPrefix = "quota-warning-\(provider.rawValue)-\(event.window.rawValue)-\(threshold)"
         self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
         if soundEnabled {

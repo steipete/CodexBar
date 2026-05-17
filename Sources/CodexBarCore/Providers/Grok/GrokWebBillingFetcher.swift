@@ -50,10 +50,11 @@ public enum GrokWebBillingError: LocalizedError, Sendable {
 public enum GrokWebBillingFetcher {
     public static let defaultEndpoint =
         URL(string: "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig")!
+    private static let requestTimeoutSeconds: TimeInterval = 15
 
     public static func fetch(
         credentials: GrokCredentials,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         endpoint: URL = Self.defaultEndpoint) async throws -> GrokWebBillingSnapshot
     {
         try await self.fetch(
@@ -65,7 +66,7 @@ public enum GrokWebBillingFetcher {
 
     public static func fetch(
         cookieHeader: String,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         endpoint: URL = Self.defaultEndpoint) async throws -> GrokWebBillingSnapshot
     {
         try await self.fetch(
@@ -78,12 +79,33 @@ public enum GrokWebBillingFetcher {
     private static func fetch(
         authorizationHeader: String?,
         cookieHeader: String?,
-        session: URLSession,
+        session: any ProviderHTTPTransport,
+        endpoint: URL) async throws -> GrokWebBillingSnapshot
+    {
+        do {
+            return try await self.fetchOnce(
+                authorizationHeader: authorizationHeader,
+                cookieHeader: cookieHeader,
+                session: session,
+                endpoint: endpoint)
+        } catch where self.shouldRetry(error) {
+            return try await self.fetchOnce(
+                authorizationHeader: authorizationHeader,
+                cookieHeader: cookieHeader,
+                session: session,
+                endpoint: endpoint)
+        }
+    }
+
+    private static func fetchOnce(
+        authorizationHeader: String?,
+        cookieHeader: String?,
+        session: any ProviderHTTPTransport,
         endpoint: URL) async throws -> GrokWebBillingSnapshot
     {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.timeoutInterval = 8
+        request.timeoutInterval = Self.requestTimeoutSeconds
         request.httpBody = Data([0x00, 0x00, 0x00, 0x00, 0x00])
         if let authorizationHeader {
             request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
@@ -111,6 +133,23 @@ public enum GrokWebBillingFetcher {
         try Self.validateGRPCWebTrailers(data)
 
         return try Self.parseGRPCWebResponse(data)
+    }
+
+    private static func shouldRetry(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            return urlError.code == .timedOut || urlError.code == .networkConnectionLost
+        }
+        if case let GrokWebBillingError.requestFailed(status, body) = error {
+            if [408, 502, 503, 504].contains(status) { return true }
+            return body.localizedCaseInsensitiveContains("timeout")
+                || body.localizedCaseInsensitiveContains("deadline")
+        }
+        guard case let GrokWebBillingError.rpcFailed(status, message) = error else { return false }
+        if status == 4 { return true }
+        guard status == 1 else { return false }
+        return message.localizedCaseInsensitiveContains("timeout")
+            || message.localizedCaseInsensitiveContains("deadline")
+            || message.localizedCaseInsensitiveContains("expired")
     }
 
     static func parseGRPCWebResponse(_ data: Data, now: Date = Date()) throws -> GrokWebBillingSnapshot {

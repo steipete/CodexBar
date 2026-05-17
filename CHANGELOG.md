@@ -1,17 +1,25 @@
 # Changelog
 
-## 0.26.2 — Unreleased
+## 0.27.0 — Unreleased
 
 ### Added
+- Providers: route app-owned provider HTTP calls through a shared transport seam for cleaner proxy and test support (#892). Thanks @serezha93!
 - Website: replace provider-letter tiles with brand logos, add light/dark landing-page themes, and collapse OpenCode/OpenCode Go into one company entry (#989). Thanks @pasangimhana!
 - Claude: add an Anthropic Admin API source and allow `sk-ant-admin...` keys in Claude token accounts for API spend/token tracking (#966).
 - Grok: add xAI Grok provider support with local identity detection and billing decoding for the Grok CLI integration (#965). Thanks @taibaran!
 - ElevenLabs: add API-key usage tracking for subscription credits, reset time, and voice-slot limits.
+- Kiro: add overage-credit and overage-cost menu bar display modes for exhausted plans (#972). Thanks @raflyazf!
 - CLI: add `codexbar config set-api-key` for safely storing provider API keys from stdin.
 - CLI: add `codexbar config providers`, `enable`, and `disable` for scripting the same provider toggles used by Settings.
 - Usage charts: reuse the OpenAI API inline dashboard for local Codex/Claude/Vertex/Bedrock cost history, OpenRouter day/week/month spend, z.ai hourly tokens, and Mistral daily spend.
+- Quota warnings: include the triggering account in notification copy when personal info is visible (#973). Thanks @raflyazf!
 
 ### Fixed
+- OpenAI: accept numeric-string Admin API cost amounts so usage does not fail when `/v1/organization/costs` returns `"amount": { "value": "12.50" }` (#999, #1000). Thanks @SergeyLavrentev!
+- Menu: keep the persistent Refresh row at a fixed height while highlighted or pressed so nearby items no longer jump (#1001).
+- Grok: retry transient web billing timeouts once and allow slower billing RPCs to finish before showing an error.
+- Claude: reset stuck CLI sessions after usage probe timeouts, give slow probes longer to render, and keep stale data visible across transient timeouts.
+- Menu: keep provider switcher buttons centered by moving quota indicators out of the button layout.
 - Menu bar: recover visible status items after the display hosting the menu bar item is unplugged (#998, fixes #997). Thanks @Llldmiao!
 - CLI: reject non-loopback `Host` headers in `codexbar serve` before serving local usage and cost metadata (#995). Thanks @rohitjavvadi!
 - Menu bar: recreate status items on startup when macOS reports them visible but never attaches a menu bar button/window (#988).

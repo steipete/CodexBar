@@ -36,7 +36,7 @@ public enum ClaudeAdminAPIUsageFetcher {
         apiKey: String,
         costURL: URL = Self.costReportURL,
         messagesURL: URL = Self.messagesUsageURL,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> ClaudeAdminAPIUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -75,7 +75,7 @@ public enum ClaudeAdminAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         range: DateRange,
-        session: URLSession) async throws -> CostReportResponse
+        session: any ProviderHTTPTransport) async throws -> CostReportResponse
     {
         let url = Self.url(
             baseURL: baseURL,
@@ -91,7 +91,7 @@ public enum ClaudeAdminAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         range: DateRange,
-        session: URLSession) async throws -> MessagesUsageResponse
+        session: any ProviderHTTPTransport) async throws -> MessagesUsageResponse
     {
         let url = Self.url(
             baseURL: baseURL,
@@ -107,7 +107,7 @@ public enum ClaudeAdminAPIUsageFetcher {
         url: URL,
         apiKey: String,
         endpoint: String,
-        session: URLSession) async throws -> Data
+        session: any ProviderHTTPTransport) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"

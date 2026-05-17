@@ -30,7 +30,7 @@ struct ClaudeResilienceTests {
     }
 
     @Test
-    func `timeout keeps prior Claude snapshot and surfaces repeated failure`() async throws {
+    func `timeout keeps prior Claude snapshot without surfacing repeated failure`() async throws {
         try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
             let tempDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -82,6 +82,87 @@ struct ClaudeResilienceTests {
                         fetchPlan: ProviderFetchPlan(
                             sourceModes: [.cli],
                             pipeline: ProviderFetchPipeline { _ in [TimeoutFetchStrategy()] }),
+                        cli: baseSpec.descriptor.cli)
+                    store.providerSpecs[.claude] = ProviderSpec(
+                        style: baseSpec.style,
+                        isEnabled: baseSpec.isEnabled,
+                        descriptor: descriptor,
+                        makeFetchContext: baseSpec.makeFetchContext)
+                    return (store, prior)
+                }
+
+                await store.refreshProvider(.claude)
+                let firstResult = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        hasError: store.error(for: .claude) != nil)
+                }
+
+                #expect(firstResult.updatedAt == prior.updatedAt)
+                #expect(!firstResult.hasError)
+
+                await store.refreshProvider(.claude)
+                let secondResult = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        hasError: store.error(for: .claude) != nil)
+                }
+
+                #expect(secondResult.updatedAt == prior.updatedAt)
+                #expect(!secondResult.hasError)
+            }
+        }
+    }
+
+    @Test
+    func `repeated non probe transient failure still surfaces`() async throws {
+        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+
+            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                let (store, prior) = try await MainActor.run {
+                    let settings = Self.makeSettingsStore(suite: "ClaudeResilienceTests-network-cache")
+                    settings.refreshFrequency = .manual
+                    settings.statusChecksEnabled = false
+                    settings.claudeUsageDataSource = .cli
+
+                    let metadata = ProviderRegistry.shared.metadata
+                    for provider in UsageProvider.allCases {
+                        try settings.setProviderEnabled(
+                            provider: provider,
+                            metadata: #require(metadata[provider]),
+                            enabled: provider == .claude)
+                    }
+
+                    let store = UsageStore(
+                        fetcher: UsageFetcher(environment: [:]),
+                        browserDetection: BrowserDetection(cacheTTL: 0),
+                        settings: settings,
+                        startupBehavior: .testing,
+                        environmentBase: [:])
+                    let prior = UsageSnapshot(
+                        primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                        secondary: nil,
+                        updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+                        identity: ProviderIdentitySnapshot(
+                            providerID: .claude,
+                            accountEmail: "claude@example.com",
+                            accountOrganization: nil,
+                            loginMethod: "Pro"))
+                    store._setSnapshotForTesting(prior, provider: .claude)
+
+                    let baseSpec = try #require(store.providerSpecs[.claude])
+                    let descriptor = ProviderDescriptor(
+                        id: .claude,
+                        metadata: baseSpec.descriptor.metadata,
+                        branding: baseSpec.descriptor.branding,
+                        tokenCost: baseSpec.descriptor.tokenCost,
+                        fetchPlan: ProviderFetchPlan(
+                            sourceModes: [.cli],
+                            pipeline: ProviderFetchPipeline { _ in [NetworkLostFetchStrategy()] }),
                         cli: baseSpec.descriptor.cli)
                     store.providerSpecs[.claude] = ProviderSpec(
                         style: baseSpec.style,
@@ -947,6 +1028,23 @@ private struct TimeoutFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         throw ClaudeStatusProbeError.timedOut
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct NetworkLostFetchStrategy: ProviderFetchStrategy {
+    let id = "test.network-lost"
+    let kind: ProviderFetchKind = .cli
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        throw URLError(.networkConnectionLost)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

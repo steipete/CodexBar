@@ -833,6 +833,7 @@ public struct ClaudeStatusProbe: Sendable {
             await ClaudeCLISession.current.reset()
             throw ClaudeStatusProbeError.timedOut
         } catch ClaudeCLISession.SessionError.timedOut {
+            await ClaudeCLISession.current.reset()
             throw ClaudeStatusProbeError.timedOut
         } catch ClaudeCLISession.SessionError.launchFailed(_) {
             throw ClaudeStatusProbeError.claudeNotInstalled

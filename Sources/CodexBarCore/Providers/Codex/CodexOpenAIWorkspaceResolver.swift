@@ -38,7 +38,7 @@ public enum CodexOpenAIWorkspaceResolver {
 
     public static func resolve(
         credentials: CodexOAuthCredentials,
-        session: URLSession = .shared) async throws -> CodexOpenAIWorkspaceIdentity?
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CodexOpenAIWorkspaceIdentity?
     {
         guard let workspaceAccountID = normalizeWorkspaceAccountID(credentials.accountId) else {
             return nil
@@ -56,7 +56,7 @@ public enum CodexOpenAIWorkspaceResolver {
 
     public static func listWorkspaces(
         credentials: CodexOAuthCredentials,
-        session: URLSession = .shared) async throws -> [CodexOpenAIWorkspaceIdentity]
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> [CodexOpenAIWorkspaceIdentity]
     {
         var request = URLRequest(url: self.accountsURL)
         request.httpMethod = "GET"

@@ -171,11 +171,25 @@ struct MenuCardSectionContainerView<Content: View>: View {
 
 @MainActor
 final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
+    static let rowHeight: CGFloat = 28
+
     private let backgroundView = NSView()
     private let imageView = NSImageView()
     private let titleField: NSTextField
     private let shortcutField: NSTextField?
     private let onClick: () -> Void
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: self.frame.width > 0 ? self.frame.width : NSView.noIntrinsicMetric, height: Self.rowHeight)
+    }
+
+    override var fittingSize: NSSize {
+        NSSize(width: self.frame.width, height: Self.rowHeight)
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(NSSize(width: newSize.width, height: Self.rowHeight))
+    }
 
     init(
         title: String,
@@ -187,7 +201,7 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
         self.titleField = NSTextField(labelWithString: title)
         self.shortcutField = shortcutText.map(NSTextField.init(labelWithString:))
         self.onClick = onClick
-        super.init(frame: NSRect(origin: .zero, size: NSSize(width: width, height: 28)))
+        super.init(frame: NSRect(origin: .zero, size: NSSize(width: width, height: Self.rowHeight)))
         self.setupView(systemImageName: systemImageName)
         self.setHighlighted(false)
     }

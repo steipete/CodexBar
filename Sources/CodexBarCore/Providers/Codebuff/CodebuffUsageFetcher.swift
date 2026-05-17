@@ -17,7 +17,7 @@ public enum CodebuffUsageFetcher {
         apiKey: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         includeSubscription: Bool = true,
-        session: URLSession = .shared) async throws -> CodebuffUsageSnapshot
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CodebuffUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -52,7 +52,7 @@ public enum CodebuffUsageFetcher {
         apiKey: String,
         baseURL: URL,
         includeSubscription: Bool,
-        session: URLSession) async throws -> (UsagePayload, SubscriptionPayload?)
+        session: any ProviderHTTPTransport) async throws -> (UsagePayload, SubscriptionPayload?)
     {
         try await withThrowingTaskGroup(of: FetchResult.self) { group in
             group.addTask {
@@ -223,7 +223,7 @@ public enum CodebuffUsageFetcher {
     private static func fetchUsagePayload(
         apiKey: String,
         baseURL: URL,
-        session: URLSession) async throws -> UsagePayload
+        session: any ProviderHTTPTransport) async throws -> UsagePayload
     {
         var request = URLRequest(url: self.usageURL(baseURL: baseURL))
         request.httpMethod = "POST"
@@ -246,7 +246,7 @@ public enum CodebuffUsageFetcher {
     private static func fetchSubscriptionPayload(
         apiKey: String,
         baseURL: URL,
-        session: URLSession) async throws -> SubscriptionPayload
+        session: any ProviderHTTPTransport) async throws -> SubscriptionPayload
     {
         var request = URLRequest(url: self.subscriptionURL(baseURL: baseURL))
         request.httpMethod = "GET"
@@ -266,7 +266,7 @@ public enum CodebuffUsageFetcher {
 
     private static func send(
         request: URLRequest,
-        session: URLSession) async throws -> (Data, HTTPURLResponse)
+        session: any ProviderHTTPTransport) async throws -> (Data, HTTPURLResponse)
     {
         do {
             let (data, response) = try await session.data(for: request)

@@ -69,6 +69,9 @@ enum KiroMenuBarDisplayMode: String, CaseIterable, Identifiable {
     case percentLeft
     case creditsAndPercent
     case usedAndTotal
+    case overageCreditsWhenExhausted
+    case overageCostWhenExhausted
+    case overageCreditsAndCostWhenExhausted
 
     var id: String {
         self.rawValue
@@ -82,6 +85,9 @@ enum KiroMenuBarDisplayMode: String, CaseIterable, Identifiable {
         case .percentLeft: "Percent left"
         case .creditsAndPercent: "Credits + percent"
         case .usedAndTotal: "Used / total"
+        case .overageCreditsWhenExhausted: "Overage credits at zero"
+        case .overageCostWhenExhausted: "Overage cost at zero"
+        case .overageCreditsAndCostWhenExhausted: "Overage credits + cost at zero"
         }
     }
 }

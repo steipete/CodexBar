@@ -4,6 +4,24 @@ import Testing
 
 @Suite(.serialized)
 struct GrokWebBillingFetcherTests {
+    private final class AttemptCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        func increment() -> Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            self.value += 1
+            return self.value
+        }
+
+        func current() -> Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.value
+        }
+    }
+
     @Test
     func `provider exposes cli and web source modes`() {
         #expect(GrokProviderDescriptor.descriptor.fetchPlan.sourceModes == [.auto, .cli, .web])
@@ -256,7 +274,7 @@ struct GrokWebBillingFetcherTests {
             #expect(request.value(forHTTPHeaderField: "Accept") == "*/*")
             #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/grpc-web+proto")
             #expect(request.value(forHTTPHeaderField: "x-grpc-web") == "1")
-            #expect(request.timeoutInterval == 8)
+            #expect(request.timeoutInterval == 15)
 
             let response = HTTPURLResponse(
                 url: url,
@@ -276,6 +294,130 @@ struct GrokWebBillingFetcherTests {
         #expect(GrokWebBillingStubURLProtocol.requestBodies == [Data([0x00, 0x00, 0x00, 0x00, 0x00])])
         #expect(snapshot.usedPercent == 55.5)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
+    }
+
+    @Test
+    func `web fetch retries transient grpc timeout once`() async throws {
+        defer {
+            GrokWebBillingStubURLProtocol.requests = []
+            GrokWebBillingStubURLProtocol.requestBodies = []
+            GrokWebBillingStubURLProtocol.handler = nil
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GrokWebBillingStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let endpoint = try #require(URL(string: "https://grok.test/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"))
+        let reset = UInt64(1_800_000_005)
+        let attempts = AttemptCounter()
+
+        GrokWebBillingStubURLProtocol.requests = []
+        GrokWebBillingStubURLProtocol.requestBodies = []
+        GrokWebBillingStubURLProtocol.handler = { request in
+            let attempt = attempts.increment()
+            let url = try #require(request.url)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/grpc-web+proto"])!
+            if attempt == 1 {
+                let body = Self.grpcFrame(
+                    Data("grpc-status: 1\r\ngrpc-message: Timeout%20expired\r\n".utf8),
+                    flags: 0x80)
+                return (response, body)
+            }
+            return (response, Self.grpcFrame(Self.protobufPayload(usedPercent: 25, resetEpoch: reset)))
+        }
+
+        let snapshot = try await GrokWebBillingFetcher.fetch(
+            credentials: Self.credentials,
+            session: session,
+            endpoint: endpoint)
+
+        #expect(attempts.current() == 2)
+        #expect(GrokWebBillingStubURLProtocol.requests.count == 2)
+        #expect(snapshot.usedPercent == 25)
+        #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
+    }
+
+    @Test
+    func `web fetch retries grpc deadline exceeded without message`() async throws {
+        defer {
+            GrokWebBillingStubURLProtocol.requests = []
+            GrokWebBillingStubURLProtocol.requestBodies = []
+            GrokWebBillingStubURLProtocol.handler = nil
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GrokWebBillingStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let endpoint = try #require(URL(string: "https://grok.test/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"))
+        let attempts = AttemptCounter()
+
+        GrokWebBillingStubURLProtocol.requests = []
+        GrokWebBillingStubURLProtocol.requestBodies = []
+        GrokWebBillingStubURLProtocol.handler = { request in
+            let attempt = attempts.increment()
+            let url = try #require(request.url)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/grpc-web+proto"])!
+            if attempt == 1 {
+                return (response, Self.grpcFrame(Data("grpc-status: 4\r\n".utf8), flags: 0x80))
+            }
+            return (response, Self.grpcFrame(Self.protobufPayload(usedPercent: 25, resetEpoch: 1_800_000_005)))
+        }
+
+        let snapshot = try await GrokWebBillingFetcher.fetch(
+            credentials: Self.credentials,
+            session: session,
+            endpoint: endpoint)
+
+        #expect(attempts.current() == 2)
+        #expect(snapshot.usedPercent == 25)
+    }
+
+    @Test
+    func `web fetch retries HTTP gateway timeout once`() async throws {
+        defer {
+            GrokWebBillingStubURLProtocol.requests = []
+            GrokWebBillingStubURLProtocol.requestBodies = []
+            GrokWebBillingStubURLProtocol.handler = nil
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GrokWebBillingStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let endpoint = try #require(URL(string: "https://grok.test/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"))
+        let attempts = AttemptCounter()
+
+        GrokWebBillingStubURLProtocol.requests = []
+        GrokWebBillingStubURLProtocol.requestBodies = []
+        GrokWebBillingStubURLProtocol.handler = { request in
+            let attempt = attempts.increment()
+            let url = try #require(request.url)
+            let statusCode = attempt == 1 ? 504 : 200
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/grpc-web+proto"])!
+            if attempt == 1 {
+                return (response, Data("gateway timeout".utf8))
+            }
+            return (response, Self.grpcFrame(Self.protobufPayload(usedPercent: 25, resetEpoch: 1_800_000_005)))
+        }
+
+        let snapshot = try await GrokWebBillingFetcher.fetch(
+            credentials: Self.credentials,
+            session: session,
+            endpoint: endpoint)
+
+        #expect(attempts.current() == 2)
+        #expect(snapshot.usedPercent == 25)
     }
 
     @Test

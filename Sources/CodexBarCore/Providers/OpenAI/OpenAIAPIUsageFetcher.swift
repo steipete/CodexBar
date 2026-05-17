@@ -44,7 +44,7 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         costsURL: URL = Self.organizationCostsURL,
         completionsURL: URL = Self.organizationCompletionsUsageURL,
-        session: URLSession = .shared,
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> OpenAIAPIUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -87,7 +87,7 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         range: DateRange,
-        session: URLSession) async throws -> CostsResponse
+        session: any ProviderHTTPTransport) async throws -> CostsResponse
     {
         let url = Self.url(
             baseURL: baseURL,
@@ -103,7 +103,7 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         range: DateRange,
-        session: URLSession) async throws -> CompletionsUsageResponse
+        session: any ProviderHTTPTransport) async throws -> CompletionsUsageResponse
     {
         let url = Self.url(
             baseURL: baseURL,
@@ -119,7 +119,7 @@ public enum OpenAIAPIUsageFetcher {
         url: URL,
         apiKey: String,
         endpoint: String,
-        session: URLSession) async throws -> Data
+        session: any ProviderHTTPTransport) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -353,6 +353,17 @@ private struct CostResult: Decodable {
     struct Amount: Decodable {
         let value: Double?
         let currency: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case value
+            case currency
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.value = try container.decodeFlexibleDoubleIfPresent(forKey: .value)
+            self.currency = try container.decodeIfPresent(String.self, forKey: .currency)
+        }
     }
 
     let amount: Amount?
@@ -361,6 +372,33 @@ private struct CostResult: Decodable {
     private enum CodingKeys: String, CodingKey {
         case amount
         case lineItem = "line_item"
+    }
+}
+
+extension KeyedDecodingContainer {
+    fileprivate func decodeFlexibleDoubleIfPresent(forKey key: Key) throws -> Double? {
+        guard self.contains(key), try !self.decodeNil(forKey: key) else {
+            return nil
+        }
+
+        if let value = try? self.decode(Double.self, forKey: key) {
+            return value
+        }
+
+        if let rawValue = try? self.decode(String.self, forKey: key) {
+            let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                return nil
+            }
+            if let value = Double(trimmed) {
+                return value
+            }
+        }
+
+        throw DecodingError.dataCorruptedError(
+            forKey: key,
+            in: self,
+            debugDescription: "Expected a number or numeric string for \(key.stringValue)")
     }
 }
 

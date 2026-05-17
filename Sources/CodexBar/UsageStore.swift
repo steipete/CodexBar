@@ -737,14 +737,24 @@ final class UsageStore {
     func handleQuotaWarningTransitions(provider: UsageProvider, snapshot: UsageSnapshot) {
         guard self.settings.quotaWarningNotificationsEnabled else { return }
 
-        self.handleQuotaWarningTransition(provider: provider, window: .session, rateWindow: snapshot.primary)
-        self.handleQuotaWarningTransition(provider: provider, window: .weekly, rateWindow: snapshot.secondary)
+        let accountDisplayName = self.quotaWarningAccountDisplayName(provider: provider, snapshot: snapshot)
+        self.handleQuotaWarningTransition(
+            provider: provider,
+            window: .session,
+            rateWindow: snapshot.primary,
+            accountDisplayName: accountDisplayName)
+        self.handleQuotaWarningTransition(
+            provider: provider,
+            window: .weekly,
+            rateWindow: snapshot.secondary,
+            accountDisplayName: accountDisplayName)
     }
 
     private func handleQuotaWarningTransition(
         provider: UsageProvider,
         window: QuotaWarningWindow,
-        rateWindow: RateWindow?)
+        rateWindow: RateWindow?,
+        accountDisplayName: String?)
     {
         let key = QuotaWarningStateKey(provider: provider, window: window)
         guard self.settings.quotaWarningEnabled(provider: provider, window: window) else {
@@ -777,13 +787,22 @@ final class UsageStore {
                 event: QuotaWarningEvent(
                     window: window,
                     threshold: threshold,
-                    currentRemaining: currentRemaining),
+                    currentRemaining: currentRemaining,
+                    accountDisplayName: accountDisplayName),
                 provider: provider,
                 soundEnabled: self.settings.quotaWarningSoundEnabled)
         }
 
         state.lastRemaining = currentRemaining
         self.quotaWarningState[key] = state
+    }
+
+    private func quotaWarningAccountDisplayName(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
+        guard !self.settings.hidePersonalInfo else { return nil }
+        let account = snapshot.accountEmail(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let account, !account.isEmpty else { return nil }
+        return account
     }
 
     private func refreshStatus(_ provider: UsageProvider) async {

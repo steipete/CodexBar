@@ -14,9 +14,9 @@ final class ProviderSwitcherView: NSView {
         let title: String
     }
 
-    private struct WeeklyIndicator {
-        let track: NSView
-        let fill: NSView
+    private struct QuotaIndicator {
+        let badge: NSView
+        let fillWidthConstraint: NSLayoutConstraint
     }
 
     private let segments: [Segment]
@@ -24,7 +24,7 @@ final class ProviderSwitcherView: NSView {
     private let showsIcons: Bool
     private let weeklyRemainingProvider: (UsageProvider) -> Double?
     private var buttons: [NSButton] = []
-    private var weeklyIndicators: [ObjectIdentifier: WeeklyIndicator] = [:]
+    private var quotaIndicators: [ObjectIdentifier: QuotaIndicator] = [:]
     private var hoverTrackingArea: NSTrackingArea?
     private var segmentWidths: [CGFloat] = []
     private let selectedBackground = NSColor.controlAccentColor.cgColor
@@ -164,7 +164,7 @@ final class ProviderSwitcherView: NSView {
             case .overview:
                 nil
             }
-            self.addWeeklyIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
+            self.addQuotaIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
             button.bezelStyle = .regularSquare
             button.isBordered = false
             button.controlSize = .small
@@ -601,7 +601,7 @@ final class ProviderSwitcherView: NSView {
             } else {
                 self.unselectedBackground
             }
-            self.updateWeeklyIndicatorVisibility(for: button)
+            self.updateQuotaIndicatorVisibility(for: button)
             (button as? StackedToggleButton)?.setContentTintColor(button.contentTintColor)
             (button as? InlineIconToggleButton)?.setContentTintColor(button.contentTintColor)
         }
@@ -615,6 +615,12 @@ final class ProviderSwitcherView: NSView {
     func _test_setHoveredButtonTag(_ tag: Int?) {
         self.hoveredButtonTag = tag
         self.updateButtonStyles()
+    }
+
+    func _test_quotaIndicatorFillWidths() -> [CGFloat] {
+        self.buttons.compactMap { button in
+            self.quotaIndicators[ObjectIdentifier(button)]?.fillWidthConstraint.constant
+        }
     }
     #endif
 
@@ -809,57 +815,72 @@ final class ProviderSwitcherView: NSView {
         return newImage
     }
 
-    private func addWeeklyIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {
+    private func addQuotaIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {
         guard let remainingPercent else { return }
+        let indicatorWidth: CGFloat = 16
+        let fillWidth = Self.quotaIndicatorFillWidth(
+            remainingPercent: remainingPercent,
+            totalWidth: indicatorWidth)
 
-        let track = NSView()
-        track.wantsLayer = true
-        track.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.22).cgColor
-        track.layer?.cornerRadius = 2
-        track.layer?.masksToBounds = true
-        track.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(track)
+        let badge = NSView()
+        badge.wantsLayer = true
+        badge.layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.18).cgColor
+        badge.layer?.cornerRadius = 1.5
+        badge.layer?.masksToBounds = true
+        badge.translatesAutoresizingMaskIntoConstraints = false
 
         let fill = NSView()
         fill.wantsLayer = true
-        fill.layer?.backgroundColor = Self.weeklyIndicatorColor(for: selection).cgColor
-        fill.layer?.cornerRadius = 2
+        fill.layer?.backgroundColor = Self.quotaIndicatorColor(
+            for: selection,
+            remainingPercent: remainingPercent).cgColor
+        fill.layer?.cornerRadius = 1.5
+        fill.layer?.masksToBounds = true
         fill.translatesAutoresizingMaskIntoConstraints = false
-        track.addSubview(fill)
+        badge.addSubview(fill)
+        view.addSubview(badge)
 
-        let ratio = CGFloat(max(0, min(1, remainingPercent / 100)))
-
+        let fillWidthConstraint = fill.widthAnchor.constraint(equalToConstant: fillWidth)
         NSLayoutConstraint.activate([
-            track.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-            track.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-            track.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -1),
-            track.heightAnchor.constraint(equalToConstant: 4),
-            fill.leadingAnchor.constraint(equalTo: track.leadingAnchor),
-            fill.topAnchor.constraint(equalTo: track.topAnchor),
-            fill.bottomAnchor.constraint(equalTo: track.bottomAnchor),
+            badge.topAnchor.constraint(equalTo: view.topAnchor, constant: 3),
+            badge.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
+            badge.widthAnchor.constraint(equalToConstant: indicatorWidth),
+            badge.heightAnchor.constraint(equalToConstant: 3),
+            fill.leadingAnchor.constraint(equalTo: badge.leadingAnchor),
+            fill.topAnchor.constraint(equalTo: badge.topAnchor),
+            fill.bottomAnchor.constraint(equalTo: badge.bottomAnchor),
+            fillWidthConstraint,
         ])
 
-        fill.widthAnchor.constraint(equalTo: track.widthAnchor, multiplier: ratio).isActive = true
-
-        self.weeklyIndicators[ObjectIdentifier(view)] = WeeklyIndicator(track: track, fill: fill)
-        self.updateWeeklyIndicatorVisibility(for: view)
+        self.quotaIndicators[ObjectIdentifier(view)] = QuotaIndicator(
+            badge: badge,
+            fillWidthConstraint: fillWidthConstraint)
+        self.updateQuotaIndicatorVisibility(for: view)
     }
 
-    private func updateWeeklyIndicatorVisibility(for view: NSView) {
-        guard let indicator = self.weeklyIndicators[ObjectIdentifier(view)] else { return }
+    private func updateQuotaIndicatorVisibility(for view: NSView) {
+        guard let indicator = self.quotaIndicators[ObjectIdentifier(view)] else { return }
         let isSelected = (view as? NSButton)?.state == .on
-        indicator.track.isHidden = isSelected
-        indicator.fill.isHidden = isSelected
+        indicator.badge.isHidden = isSelected
     }
 
-    private static func weeklyIndicatorColor(for selection: ProviderSwitcherSelection) -> NSColor {
+    private static func quotaIndicatorColor(
+        for selection: ProviderSwitcherSelection,
+        remainingPercent _: Double) -> NSColor
+    {
         switch selection {
         case let .provider(provider):
             let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-            return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+            return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 0.7)
         case .overview:
-            return NSColor.secondaryLabelColor
+            return NSColor.secondaryLabelColor.withAlphaComponent(0.7)
         }
+    }
+
+    private static func quotaIndicatorFillWidth(remainingPercent: Double, totalWidth: CGFloat) -> CGFloat {
+        let clamped = min(100, max(0, remainingPercent))
+        guard clamped > 0 else { return 0 }
+        return max(3, totalWidth * CGFloat(clamped / 100))
     }
 
     private static func overviewIcon() -> NSImage {

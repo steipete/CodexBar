@@ -71,6 +71,8 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
 public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private static let sessionWindowMinutes = 5 * 60
     private static let weeklyWindowMinutes = 7 * 24 * 60
+    private static let cliProbeTimeout: TimeInterval = 24
+    private static let cliRetryProbeTimeout: TimeInterval = 60
     private struct Configuration {
         let environment: [String: String]
         let runtime: ProviderRuntime
@@ -464,15 +466,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
-                do {
-                    var snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: 10)
-                    snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
-                    return snapshot
-                } catch {
-                    var snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: 24)
-                    snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
-                    return snapshot
-                }
+                return try await self.loadViaCLIWithRetry(model: model)
             }
         }
 
@@ -547,12 +541,32 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
-                var snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: 10)
-                snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
-                return snapshot
+                return try await self.loadViaCLIWithRetry(model: model)
             case .auto:
                 throw ClaudeUsageError.parseFailed("Planner emitted invalid auto execution step.")
             }
+        }
+
+        private func loadViaCLIWithRetry(model: String) async throws -> ClaudeUsageSnapshot {
+            do {
+                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliProbeTimeout)
+            } catch {
+                if error is CancellationError { throw error }
+                guard Self.shouldRetryCLIProbe(after: error) else { throw error }
+                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
+            }
+        }
+
+        private func loadViaCLI(model: String, timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
+            var snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: timeout)
+            snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
+            return snapshot
+        }
+
+        private static func shouldRetryCLIProbe(after error: Error) -> Bool {
+            if case ClaudeStatusProbeError.timedOut = error { return true }
+            let message = error.localizedDescription.lowercased()
+            return message.contains("timed out") || message.contains("timeout")
         }
     }
 }
@@ -669,7 +683,7 @@ extension ClaudeUsageFetcher {
 
     public func debugRawProbe(model: String = "sonnet") async -> String {
         do {
-            let snap = try await self.loadViaPTY(model: model, timeout: 10)
+            let snap = try await self.loadViaPTY(model: model, timeout: Self.cliProbeTimeout)
             let opus = snap.opus?.remainingPercent ?? -1
             let email = snap.accountEmail ?? "nil"
             let org = snap.accountOrganization ?? "nil"

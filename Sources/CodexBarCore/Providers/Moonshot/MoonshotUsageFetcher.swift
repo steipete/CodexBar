@@ -101,7 +101,7 @@ public struct MoonshotUsageFetcher: Sendable {
     public static func fetchUsage(
         apiKey: String,
         region: MoonshotRegion = .international,
-        session: URLSession = .shared) async throws -> MoonshotUsageSnapshot
+        session: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MoonshotUsageSnapshot
     {
         let cleaned = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {

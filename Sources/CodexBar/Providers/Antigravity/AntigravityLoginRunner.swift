@@ -149,7 +149,7 @@ enum AntigravityLoginRunner {
             "grant_type": "authorization_code",
         ])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AntigravityLoginError.failed("Invalid token response.")
         }
@@ -171,7 +171,7 @@ enum AntigravityLoginRunner {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 return nil
             }

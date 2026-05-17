@@ -59,6 +59,34 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `refresh menu item view keeps fixed metrics while highlighted`() {
+        let view = PersistentMenuActionItemView(
+            title: "Refresh",
+            systemImageName: "arrow.clockwise",
+            shortcutText: "⌘R",
+            width: 320,
+            onClick: {})
+
+        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
+        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
+        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
+
+        view.setFrameSize(NSSize(width: 360, height: 44))
+        #expect(view.frame.width == 360)
+        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
+
+        view.setHighlighted(true)
+        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
+        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
+        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
+
+        view.setHighlighted(false)
+        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
+        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
+        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
+    }
+
+    @Test
     func `status item menu intercepts refresh shortcut without native item selection`() throws {
         let menu = StatusItemMenu()
         let recorder = RefreshShortcutRecorder()

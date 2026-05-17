@@ -61,7 +61,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         homeDirectory: String = NSHomeDirectory(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await URLSession.shared.data(for: request)
+            try await ProviderHTTPClient.shared.data(for: request)
         },
         oauthClientResolver: @escaping @Sendable () -> AntigravityOAuthClient? = {
             AntigravityOAuthConfig.resolvedClient()

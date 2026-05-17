@@ -34,7 +34,7 @@ final class InlineIconToggleButton: NSButton {
             self.paddingConstraints.first { $0.firstAttribute == .top }?.constant = self.contentPadding.top
             self.paddingConstraints.first { $0.firstAttribute == .leading }?.constant = self.contentPadding.left
             self.paddingConstraints.first { $0.firstAttribute == .trailing }?.constant = -self.contentPadding.right
-            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant = -(self.contentPadding.bottom + 4)
+            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant = -self.contentPadding.bottom
             if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
         }
     }
@@ -145,7 +145,7 @@ final class InlineIconToggleButton: NSButton {
         centerX.priority = .defaultHigh
         let bottom = self.stack.bottomAnchor.constraint(
             lessThanOrEqualTo: self.bottomAnchor,
-            constant: -(self.contentPadding.bottom + 4))
+            constant: -self.contentPadding.bottom)
         self.paddingConstraints = [top, leading, trailing, bottom, centerX]
 
         NSLayoutConstraint.activate(self.paddingConstraints + self.iconSizeConstraints)
@@ -265,7 +265,6 @@ final class StackedToggleButton: NSButton {
 
         // Avoid subpixel centering: pin from the top so the icon sits on whole-point coordinates.
         // Force an even layout width (button width minus padding) so the icon doesn't land on 0.5pt centers.
-        // Reserve some bottom space for the "weekly remaining" indicator line.
         let top = self.stack.topAnchor.constraint(
             equalTo: self.topAnchor,
             constant: self.contentPadding.top)
@@ -277,7 +276,7 @@ final class StackedToggleButton: NSButton {
             constant: -self.contentPadding.right)
         let bottom = self.stack.bottomAnchor.constraint(
             lessThanOrEqualTo: self.bottomAnchor,
-            constant: -(self.contentPadding.bottom + 4))
+            constant: -self.contentPadding.bottom)
         self.paddingConstraints = [top, leading, trailing, bottom]
 
         NSLayoutConstraint.activate(self.paddingConstraints + self.iconSizeConstraints)

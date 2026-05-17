@@ -233,23 +233,80 @@ struct UsageStoreSessionQuotaTransitionTests {
             snapshot: UsageSnapshot(
                 primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
                 secondary: nil,
-                updatedAt: Date()))
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "person@example.com",
+                    accountOrganization: nil,
+                    loginMethod: nil)))
         store.handleQuotaWarningTransitions(
             provider: .codex,
             snapshot: UsageSnapshot(
                 primary: RateWindow(usedPercent: 55, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
                 secondary: nil,
-                updatedAt: Date()))
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "person@example.com",
+                    accountOrganization: nil,
+                    loginMethod: nil)))
         store.handleQuotaWarningTransitions(
             provider: .codex,
             snapshot: UsageSnapshot(
                 primary: RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
                 secondary: nil,
-                updatedAt: Date()))
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "person@example.com",
+                    accountOrganization: nil,
+                    loginMethod: nil)))
 
         #expect(notifier.quotaWarningPosts.count == 1)
         #expect(notifier.quotaWarningPosts.first?.event.window == .session)
         #expect(notifier.quotaWarningPosts.first?.event.threshold == 50)
+        #expect(notifier.quotaWarningPosts.first?.event.accountDisplayName == "person@example.com")
+    }
+
+    @Test
+    func `quota warning omits account when personal info is hidden`() {
+        let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-warning-account-hidden")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.hidePersonalInfo = true
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningThresholds = [50]
+        settings.setQuotaWarningWindowEnabled(.session, enabled: true)
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "person@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
+
+        store.handleQuotaWarningTransitions(
+            provider: .codex,
+            snapshot: UsageSnapshot(
+                primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: identity))
+        store.handleQuotaWarningTransitions(
+            provider: .codex,
+            snapshot: UsageSnapshot(
+                primary: RateWindow(usedPercent: 55, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: identity))
+
+        #expect(notifier.quotaWarningPosts.count == 1)
+        #expect(notifier.quotaWarningPosts.first?.event.accountDisplayName == nil)
     }
 
     @Test

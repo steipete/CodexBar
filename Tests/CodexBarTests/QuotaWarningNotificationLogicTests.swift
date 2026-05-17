@@ -27,6 +27,19 @@ struct QuotaWarningNotificationLogicTests {
     }
 
     @Test
+    func `quota warning copy includes account when provided`() {
+        let copy = QuotaWarningNotificationLogic.notificationCopy(
+            providerName: "Codex",
+            window: .session,
+            threshold: 50,
+            currentRemaining: 45,
+            accountDisplayName: "person@example.com")
+
+        #expect(copy.title == "Codex session quota low")
+        #expect(copy.body == "Account person@example.com. 45% left. Reached your 50% session warning threshold.")
+    }
+
+    @Test
     func `does nothing without crossing`() {
         let crossed = QuotaWarningNotificationLogic.crossedThreshold(
             previousRemaining: 60,

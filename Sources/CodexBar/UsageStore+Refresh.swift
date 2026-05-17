@@ -278,6 +278,13 @@ extension UsageStore {
             let shouldSurface =
                 self.failureGates[provider]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
+            if provider == .claude,
+               preservesPriorData,
+               Self.isClaudeUsageProbeTimeout(error)
+            {
+                self.errors[provider] = nil
+                return
+            }
             if preservesPriorData, !shouldSurface {
                 self.errors[provider] = nil
                 return
@@ -321,5 +328,10 @@ extension UsageStore {
             message.contains("cancelled") ||
             message.contains("network connection was lost") ||
             message.contains("not connected to the internet")
+    }
+
+    private static func isClaudeUsageProbeTimeout(_ error: Error) -> Bool {
+        if case ClaudeStatusProbeError.timedOut = error { return true }
+        return error.localizedDescription == ClaudeStatusProbeError.timedOut.localizedDescription
     }
 }
