@@ -9,6 +9,9 @@ public enum ProviderConfigEnvironment {
         if provider == .bedrock {
             return self.applyBedrockOverrides(base: base, config: config)
         }
+        if provider == .deepgram {
+                return self.applyDeepGramOverrides(base: base, config: config)
+        }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
         if let key = self.directAPIKeyEnvironmentKey(for: provider) {
@@ -106,6 +109,27 @@ public enum ProviderConfigEnvironment {
         if let region = config.sanitizedRegion {
             env[BedrockSettingsReader.regionKeys[0]] = region
         }
+        return env
+    }
+    
+    private static func applyDeepGramOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+
+        var env = base
+
+        if let apiKey = config.sanitizedAPIKey {
+            env[DeepGramSettingsReader.apiTokenEnvironmentKey] = apiKey
+        }
+
+        if let projectID = config.sanitizedWorkspaceID,
+           env[DeepGramSettingsReader.projectIDEnvironmentKey] == nil
+        {
+            env[DeepGramSettingsReader.projectIDEnvironmentKey] = projectID
+        }
+
         return env
     }
 
