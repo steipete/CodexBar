@@ -769,7 +769,7 @@ enum CostUsageScanner {
         }
 
         let maxLineBytes = 256 * 1024
-        let prefixBytes = 32 * 1024
+        let prefixBytes = maxLineBytes
 
         if startOffset == 0,
            let metadata = Self.parseCodexSessionMetadata(fileURL: fileURL)
@@ -794,7 +794,13 @@ enum CostUsageScanner {
                 prefixBytes: prefixBytes,
                 onLine: { line in
                     guard !line.bytes.isEmpty else { return }
-                    guard !line.wasTruncated else { return }
+                    if line.wasTruncated {
+                        // `turn_context` can carry very large prompts, but its model usually appears near the start.
+                        if let model = Self.extractCodexTurnContextModel(from: line.bytes) {
+                            currentModel = model
+                        }
+                        return
+                    }
 
                     guard
                         line.bytes.containsAscii(#""type":"event_msg""#)
@@ -871,7 +877,7 @@ enum CostUsageScanner {
                             ?? info?["model_name"] as? String
                             ?? payload["model"] as? String
                             ?? obj["model"] as? String
-                        let model = currentModel ?? modelFromInfo ?? "gpt-5"
+                        let model = modelFromInfo ?? currentModel ?? "gpt-5"
 
                         func toInt(_ v: Any?) -> Int {
                             if let n = v as? NSNumber { return n.intValue }
@@ -1027,6 +1033,79 @@ enum CostUsageScanner {
             return info["turn_id"] as? String ?? info["turnId"] as? String ?? info["id"] as? String
         }
         return nil
+    }
+
+    private static func extractCodexTurnContextModel(from bytes: Data) -> String? {
+        guard bytes.containsAscii(#""type":"turn_context""#) else { return nil }
+
+        guard let text = truncatedUTF8String(from: bytes) else { return nil }
+        let payloadText: Substring = if let payloadRange = text.range(of: #""payload""#) {
+            text[payloadRange.upperBound...]
+        } else {
+            text[...]
+        }
+
+        return Self.extractJSONStringField("model", from: payloadText)
+            ?? Self.extractJSONStringField("model_name", from: payloadText)
+    }
+
+    private static func truncatedUTF8String(from bytes: Data) -> String? {
+        for dropCount in 0...min(4, bytes.count) {
+            let end = bytes.count - dropCount
+            if let text = String(bytes: bytes.prefix(end), encoding: .utf8) {
+                return text
+            }
+        }
+        return nil
+    }
+
+    private static func extractJSONStringField(_ field: String, from text: Substring) -> String? {
+        let key = "\"\(field)\""
+        var searchStart = text.startIndex
+
+        while let keyRange = text[searchStart...].range(of: key) {
+            var index = keyRange.upperBound
+            Self.skipJSONWhitespace(in: text, index: &index)
+            guard index < text.endIndex, text[index] == ":" else {
+                searchStart = keyRange.upperBound
+                continue
+            }
+
+            text.formIndex(after: &index)
+            Self.skipJSONWhitespace(in: text, index: &index)
+            guard index < text.endIndex, text[index] == "\"" else {
+                searchStart = keyRange.upperBound
+                continue
+            }
+
+            text.formIndex(after: &index)
+            var value = ""
+            var isEscaped = false
+            while index < text.endIndex {
+                let character = text[index]
+                if isEscaped {
+                    value.append(character)
+                    isEscaped = false
+                } else if character == "\\" {
+                    isEscaped = true
+                } else if character == "\"" {
+                    return value.isEmpty ? nil : value
+                } else {
+                    value.append(character)
+                }
+                text.formIndex(after: &index)
+            }
+
+            return nil
+        }
+
+        return nil
+    }
+
+    private static func skipJSONWhitespace(in text: Substring, index: inout String.Index) {
+        while index < text.endIndex, text[index].isWhitespace {
+            text.formIndex(after: &index)
+        }
     }
 
     private static func scanCodexFile(
