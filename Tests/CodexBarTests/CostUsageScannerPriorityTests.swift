@@ -121,6 +121,49 @@ struct CostUsageScannerPriorityTests {
     }
 
     @Test
+    func `codex daily report keeps model from large turn context`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 15)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let largeInstructions = String(repeating: "x", count: 33 * 1024)
+        let entries: [[String: Any]] = [
+            [
+                "type": "turn_context",
+                "timestamp": iso0,
+                "payload": [
+                    "model": "gpt-5.5",
+                    "developer_instructions": largeInstructions,
+                ],
+            ],
+            ["type": "event_msg", "timestamp": iso1, "payload": ["type": "task_started", "turn_id": "subagent-turn"]],
+            self.tokenCount(timestamp: iso1, input: 100, cached: 20, output: 10),
+        ]
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "subagent-large-turn-context.jsonl",
+            contents: env.jsonl(entries))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].modelsUsed == ["gpt-5.5"])
+        #expect(report.data[0].modelBreakdowns?.map(\.modelName) == ["gpt-5.5"])
+    }
+
+    @Test
     func `codex pricing skips priority surcharge for long context rows`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

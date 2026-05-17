@@ -769,7 +769,7 @@ enum CostUsageScanner {
         }
 
         let maxLineBytes = 256 * 1024
-        let prefixBytes = 32 * 1024
+        let prefixBytes = maxLineBytes
 
         if startOffset == 0,
            let metadata = Self.parseCodexSessionMetadata(fileURL: fileURL)
