@@ -1,15 +1,11 @@
 import Foundation
 #if canImport(FoundationNetworking)
-import FoundationNetworking
+@preconcurrency import FoundationNetworking
 #endif
 
 public protocol ProviderHTTPTransport: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
-
-#if os(Linux)
-extension URLSession: @unchecked Sendable {}
-#endif
 
 extension URLSession: ProviderHTTPTransport {}
 
