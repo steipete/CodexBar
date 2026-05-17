@@ -1200,6 +1200,8 @@ struct SettingsStoreTests {
             .commandcode,
             .stepfun,
             .bedrock,
+            .grok,
+            .groq,
         ])
 
         // Move one provider; ensure it's persisted across instances.

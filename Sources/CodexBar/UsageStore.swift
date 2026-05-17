@@ -983,7 +983,7 @@ extension UsageStore {
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok:
+                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

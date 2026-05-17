@@ -87,6 +87,12 @@ public enum ProviderTokenResolver {
         self.elevenLabsResolution(environment: environment)?.token
     }
 
+    public static func groqToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.groqResolution(environment: environment)?.token
+    }
+
     public static func perplexitySessionToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -278,6 +284,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(ElevenLabsSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func groqResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(GroqSettingsReader.sessionToken(environment: environment))
     }
 
     public static func codebuffResolution(

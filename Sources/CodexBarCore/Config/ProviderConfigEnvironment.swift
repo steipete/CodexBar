@@ -70,6 +70,8 @@ public enum ProviderConfigEnvironment {
             OpenRouterSettingsReader.envKey
         case .elevenlabs:
             ElevenLabsSettingsReader.apiKeyEnvironmentKey
+        case .groq:
+            GroqSettingsReader.sessionTokenEnvironmentKey
         case .moonshot:
             MoonshotSettingsReader.apiKeyEnvironmentKeys.first
         case .venice:
