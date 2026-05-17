@@ -54,6 +54,7 @@ printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai 
 printf '%s' "$ANTHROPIC_ADMIN_KEY" | codexbar config set-api-key --provider claude --stdin
 printf '%s' "$DEEPGRAM_API_KEY" | codexbar config set-api-key --provider deepgram --stdin
 printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin
+printf '%s' "$DEEPSEEK_API_KEY" | codexbar config set-api-key --provider deepseek --stdin
 ```
 
 Only providers that consume config-backed API keys accept this command. Admin API providers may require a key with
