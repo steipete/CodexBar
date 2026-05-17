@@ -83,4 +83,67 @@ struct ConfigValidationTests {
 
         #expect(url.path.hasSuffix("/tmp/codexbar-test-config.json"))
     }
+
+    @Test
+    func `network proxy config encodes and decodes`() throws {
+        let config = CodexBarConfig(
+            providers: [],
+            networkProxy: NetworkProxyConfiguration(
+                enabled: true,
+                scheme: .http,
+                host: "proxy.example.com",
+                port: "8080",
+                username: "codex"))
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
+
+        #expect(decoded.networkProxy?.enabled == true)
+        #expect(decoded.networkProxy?.scheme == .http)
+        #expect(decoded.networkProxy?.host == "proxy.example.com")
+        #expect(decoded.networkProxy?.port == "8080")
+        #expect(decoded.networkProxy?.username == "codex")
+    }
+
+    @Test
+    func `config store round trips network proxy`() throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = CodexBarConfigStore(fileURL: tempDirectory.appendingPathComponent("config.json"))
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let config = CodexBarConfig(
+            providers: [],
+            networkProxy: NetworkProxyConfiguration(
+                enabled: true,
+                scheme: .socks5,
+                host: "127.0.0.1",
+                port: "1080",
+                username: "codex"))
+
+        try store.save(config)
+        let loaded = try store.load()
+
+        #expect(loaded?.networkProxy?.enabled == true)
+        #expect(loaded?.networkProxy?.scheme == .socks5)
+        #expect(loaded?.networkProxy?.host == "127.0.0.1")
+        #expect(loaded?.networkProxy?.port == "1080")
+        #expect(loaded?.networkProxy?.username == "codex")
+    }
+
+    @Test
+    func `network proxy validation reports missing host and invalid port`() {
+        let config = CodexBarConfig(
+            providers: [],
+            networkProxy: NetworkProxyConfiguration(
+                enabled: true,
+                scheme: .http,
+                host: "   ",
+                port: "not-a-port",
+                username: "codex"))
+
+        let issues = CodexBarConfigValidator.validate(config)
+        #expect(issues.contains(where: { $0.field == "networkProxy.host" && $0.code == "proxy_host_missing" }))
+        #expect(issues.contains(where: { $0.field == "networkProxy.port" && $0.code == "proxy_port_invalid" }))
+    }
 }

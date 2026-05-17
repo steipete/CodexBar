@@ -44,6 +44,10 @@ public enum CodexBarConfigValidator {
             self.validateProvider(entry, issues: &issues)
         }
 
+        if let proxy = config.networkProxy {
+            self.validateNetworkProxy(proxy, issues: &issues)
+        }
+
         return issues
     }
 
@@ -253,5 +257,30 @@ public enum CodexBarConfigValidator {
             field: "region",
             code: "invalid_region",
             message: "Region \(region) is not a valid \(displayName) region."))
+    }
+
+    private static func validateNetworkProxy(
+        _ proxy: NetworkProxyConfiguration,
+        issues: inout [CodexBarConfigIssue])
+    {
+        guard proxy.enabled else { return }
+
+        if proxy.trimmedHost.isEmpty {
+            issues.append(CodexBarConfigIssue(
+                severity: .error,
+                provider: nil,
+                field: "networkProxy.host",
+                code: "proxy_host_missing",
+                message: "Network proxy host is required when proxy is enabled."))
+        }
+
+        if proxy.resolvedPort == nil {
+            issues.append(CodexBarConfigIssue(
+                severity: .error,
+                provider: nil,
+                field: "networkProxy.port",
+                code: "proxy_port_invalid",
+                message: "Network proxy port must be a number between 1 and 65535."))
+        }
     }
 }
