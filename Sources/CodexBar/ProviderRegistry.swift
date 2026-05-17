@@ -114,7 +114,7 @@ struct ProviderRegistry {
             provider: provider,
             settings: settings,
             override: tokenOverride)
-        var env = ProviderConfigEnvironment.applyAPIKeyOverride(
+        var env = ProviderConfigEnvironment.applyProviderConfigOverrides(
             base: base,
             provider: provider,
             config: settings.providerConfig(for: provider))

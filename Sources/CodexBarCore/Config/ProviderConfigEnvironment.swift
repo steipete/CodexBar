@@ -84,6 +84,8 @@ public enum ProviderConfigEnvironment {
             MoonshotSettingsReader.apiKeyEnvironmentKeys.first
         case .venice:
             VeniceSettingsReader.apiKeyEnvironmentKey
+        case .deepgram:
+            DeepGramSettingsReader.apiTokenEnvironmentKey
         default:
             nil
         }
@@ -104,6 +106,27 @@ public enum ProviderConfigEnvironment {
         if let region = config.sanitizedRegion {
             env[BedrockSettingsReader.regionKeys[0]] = region
         }
+        return env
+    }
+
+    public static func applyProviderConfigOverrides(
+        base: [String: String],
+        provider: UsageProvider,
+        config: ProviderConfig?) -> [String: String]
+    {
+        var env = self.applyAPIKeyOverride(base: base, provider: provider, config: config)
+
+        switch provider {
+        case .deepgram:
+            if let projectID = config?.sanitizedWorkspaceID,
+               env[DeepGramSettingsReader.projectIDEnvironmentKey] == nil
+            {
+                env[DeepGramSettingsReader.projectIDEnvironmentKey] = projectID
+            }
+        default:
+            break
+        }
+
         return env
     }
 }

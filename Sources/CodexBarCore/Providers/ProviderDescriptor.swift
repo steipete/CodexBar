@@ -95,6 +95,7 @@ public enum ProviderDescriptorRegistry {
         .stepfun: StepFunProviderDescriptor.descriptor,
         .bedrock: BedrockProviderDescriptor.descriptor,
         .grok: GrokProviderDescriptor.descriptor,
+        .deepgram: DeepGramProviderDescriptor.descriptor
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

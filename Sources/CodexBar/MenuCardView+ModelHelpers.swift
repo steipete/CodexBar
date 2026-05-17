@@ -46,9 +46,22 @@ extension UsageMenuCardView.Model {
         if self.shouldShowRateLimitsUnavailablePlaceholder(input: input) {
             return "Limits not available"
         }
+
+        // If the provider explicitly declares that token-cost/quotas are not supported,
+        // surface the provider-specific no-data message as a friendly placeholder.
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
+        if tokenCost.supportsTokenCost == false {
+            // Only show the provider-level message when we don't already have a snapshot
+            // or token snapshot and nothing is actively refreshing.
+            if input.snapshot == nil && input.tokenSnapshot == nil && !input.isRefreshing {
+                return tokenCost.noDataMessage()
+            }
+        }
+
         if input.snapshot == nil, !input.isRefreshing, input.lastError == nil {
             return "No usage yet"
         }
+
         return nil
     }
 

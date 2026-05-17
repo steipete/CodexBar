@@ -55,6 +55,7 @@ enum ProviderImplementationRegistry {
         case .stepfun: StepFunProviderImplementation()
         case .bedrock: BedrockProviderImplementation()
         case .grok: GrokProviderImplementation()
+        case .deepgram: DeepgramProviderImplementation()
         }
     }
 

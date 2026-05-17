@@ -141,6 +141,10 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var sanitizedRegion: String? {
         Self.clean(self.region)
     }
+    
+    public var sanitizedWorkspaceID: String? {
+        Self.clean(self.workspaceID)
+    }
 
     public var sanitizedEnterpriseHost: String? {
         Self.clean(self.enterpriseHost)
