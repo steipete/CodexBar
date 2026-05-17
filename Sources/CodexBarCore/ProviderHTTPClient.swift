@@ -7,19 +7,11 @@ public protocol ProviderHTTPTransport: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
-#if !os(Linux)
-extension URLSession: ProviderHTTPTransport {}
+#if os(Linux)
+extension URLSession: @unchecked Sendable {}
 #endif
 
-extension URLSession {
-    public func response(for request: URLRequest) async throws -> ProviderHTTPResponse {
-        let (data, response) = try await self.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-        return ProviderHTTPResponse(data: data, response: httpResponse)
-    }
-}
+extension URLSession: ProviderHTTPTransport {}
 
 public struct ProviderHTTPResponse: Sendable {
     public let data: Data
