@@ -5,12 +5,15 @@ import SQLite3
 
 public enum OpenCodeGoLocalUsageError: LocalizedError, Sendable, Equatable {
     case notDetected
+    case historyUnavailable(String)
     case sqliteFailed(String)
 
     public var errorDescription: String? {
         switch self {
         case .notDetected:
             "OpenCode Go not detected. Log in with OpenCode Go or use it locally first."
+        case let .historyUnavailable(message):
+            "OpenCode Go local usage history is unavailable: \(message)"
         case let .sqliteFailed(message):
             "SQLite error reading OpenCode Go usage: \(message)"
         }
@@ -43,22 +46,17 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         let hasAuth = Self.hasAuthKey(at: self.authURL)
         guard FileManager.default.fileExists(atPath: self.databaseURL.path) else {
             if hasAuth {
-                return Self.emptySnapshot(now: now)
+                throw OpenCodeGoLocalUsageError.historyUnavailable("database not found")
             }
             throw OpenCodeGoLocalUsageError.notDetected
         }
 
-        let rows: [UsageRow]
-        do {
-            rows = try self.readRows()
-        } catch let error as OpenCodeGoLocalUsageError {
-            if hasAuth {
-                return Self.emptySnapshot(now: now)
-            }
-            throw error
-        }
+        let rows = try self.readRows()
         guard hasAuth || !rows.isEmpty else {
             throw OpenCodeGoLocalUsageError.notDetected
+        }
+        guard !rows.isEmpty else {
+            throw OpenCodeGoLocalUsageError.historyUnavailable("no local usage rows")
         }
         return Self.snapshot(rows: rows, now: now)
     }
@@ -73,16 +71,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 250)
 
-        let sql = """
-            SELECT
-              CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS createdMs,
-              CAST(json_extract(data, '$.cost') AS REAL) AS cost
-            FROM message
-            WHERE json_valid(data)
-              AND json_extract(data, '$.providerID') = 'opencode-go'
-              AND json_extract(data, '$.role') = 'assistant'
-              AND json_type(data, '$.cost') IN ('integer', 'real')
-        """
+        let sql = self.hasTable(named: "part", db: db) ? Self.messageAndPartUsageSQL : Self.messageUsageSQL
 
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -107,6 +96,69 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         }
         return rows
     }
+
+    private func hasTable(named name: String, db: OpaquePointer?) -> Bool {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(
+            db,
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+            -1,
+            &stmt,
+            nil) == SQLITE_OK
+        else {
+            return false
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        sqlite3_bind_text(stmt, 1, name, -1, transient)
+        return sqlite3_step(stmt) == SQLITE_ROW
+    }
+
+    private static let messageUsageSQL = """
+        SELECT
+          CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS createdMs,
+          CAST(json_extract(data, '$.cost') AS REAL) AS cost
+        FROM message
+        WHERE json_valid(data)
+          AND json_extract(data, '$.providerID') = 'opencode-go'
+          AND json_extract(data, '$.role') = 'assistant'
+          AND json_type(data, '$.cost') IN ('integer', 'real')
+    """
+
+    private static let messageAndPartUsageSQL = """
+        WITH message_costs AS (
+          SELECT
+            id AS messageID,
+            CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS createdMs,
+            CAST(json_extract(data, '$.cost') AS REAL) AS cost
+          FROM message
+          WHERE json_valid(data)
+            AND json_extract(data, '$.providerID') = 'opencode-go'
+            AND json_extract(data, '$.role') = 'assistant'
+            AND json_type(data, '$.cost') IN ('integer', 'real')
+        )
+        SELECT createdMs, cost
+        FROM message_costs
+        UNION ALL
+        SELECT
+          CAST(COALESCE(json_extract(p.data, '$.time.created'), p.time_created, m.time_created) AS INTEGER)
+            AS createdMs,
+          CAST(json_extract(p.data, '$.cost') AS REAL) AS cost
+        FROM part p
+        JOIN message m ON m.id = p.message_id
+        WHERE json_valid(p.data)
+          AND json_valid(m.data)
+          AND json_extract(p.data, '$.type') = 'step-finish'
+          AND json_type(p.data, '$.cost') IN ('integer', 'real')
+          AND json_extract(m.data, '$.providerID') = 'opencode-go'
+          AND json_extract(m.data, '$.role') = 'assistant'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM message_costs
+            WHERE message_costs.messageID = p.message_id
+          )
+    """
 
     private struct UsageRow {
         let createdMs: Int64
@@ -146,10 +198,6 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             weeklyResetInSec: max(0, Int((weekEndMs - nowMs) / 1000)),
             monthlyResetInSec: max(0, Int((monthBounds.endMs - nowMs) / 1000)),
             updatedAt: now)
-    }
-
-    private static func emptySnapshot(now: Date) -> OpenCodeGoUsageSnapshot {
-        self.snapshot(rows: [], now: now)
     }
 
     private static func sum(rows: [UsageRow], startMs: Int64, endMs: Int64) -> Double {
@@ -195,19 +243,32 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
 
         let anchor = Date(timeIntervalSince1970: TimeInterval(anchorMs) / 1000)
         let anchorComponents = calendar.dateComponents([.day, .hour, .minute, .second, .nanosecond], from: anchor)
-        var nowComponents = calendar.dateComponents([.year, .month], from: now)
+        let nowComponents = calendar.dateComponents([.year, .month], from: now)
 
-        var start = self.anchoredMonth(calendar: calendar, month: nowComponents, anchor: anchorComponents)
+        var startMonthComponents = nowComponents
+        var start = self.anchoredMonth(calendar: calendar, month: startMonthComponents, anchor: anchorComponents)
         if start > now {
             guard let previous = calendar.date(byAdding: .month, value: -1, to: start) else {
-                let end = calendar.date(byAdding: .month, value: 1, to: start) ?? start
+                let end = self.anchoredMonth(
+                    calendar: calendar,
+                    month: self.monthComponents(after: startMonthComponents, calendar: calendar),
+                    anchor: anchorComponents)
                 return (Int64(start.timeIntervalSince1970 * 1000), Int64(end.timeIntervalSince1970 * 1000))
             }
-            nowComponents = calendar.dateComponents([.year, .month], from: previous)
-            start = self.anchoredMonth(calendar: calendar, month: nowComponents, anchor: anchorComponents)
+            startMonthComponents = calendar.dateComponents([.year, .month], from: previous)
+            start = self.anchoredMonth(calendar: calendar, month: startMonthComponents, anchor: anchorComponents)
         }
-        let end = calendar.date(byAdding: .month, value: 1, to: start) ?? start
+        let end = self.anchoredMonth(
+            calendar: calendar,
+            month: self.monthComponents(after: startMonthComponents, calendar: calendar),
+            anchor: anchorComponents)
         return (Int64(start.timeIntervalSince1970 * 1000), Int64(end.timeIntervalSince1970 * 1000))
+    }
+
+    private static func monthComponents(after month: DateComponents, calendar: Calendar) -> DateComponents {
+        let monthStart = calendar.date(from: month) ?? Date()
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart) ?? monthStart
+        return calendar.dateComponents([.year, .month], from: nextMonth)
     }
 
     private static func anchoredMonth(
