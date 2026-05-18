@@ -162,6 +162,14 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertEqual(CodexBarCLI.mapError(UsageError.noRateLimitsFound), ExitCode(3))
     }
 
+    func test_missingCodexBinaryErrorPayloadUsesInstallGuidance() {
+        let payload = CodexBarCLI.makeErrorPayload(CodexStatusProbeError.codexNotInstalled, kind: .provider)
+
+        XCTAssertEqual(payload.code, ExitCode.binaryNotFound.rawValue)
+        XCTAssertTrue(payload.message.contains("Codex CLI missing"))
+        XCTAssertFalse(payload.message.contains("Codex not running"))
+    }
+
     func test_providerSelectionFallsBackToBothForPrimaryPair() {
         let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .claude])
         switch selection {

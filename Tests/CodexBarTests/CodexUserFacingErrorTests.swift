@@ -6,6 +6,15 @@ import Testing
 @MainActor
 struct CodexUserFacingErrorTests {
     @Test
+    func `missing codex CLI guidance is not collapsed to not running`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-missing-cli")
+        store.errors[.codex] = "Codex not running. Try running a Codex command first. "
+            + "(Codex CLI not found. Install with `npm i -g @openai/codex`.)"
+
+        #expect(store.userFacingError(for: .codex) == CodexStatusProbeError.codexNotInstalled.localizedDescription)
+    }
+
+    @Test
     func `expired codex auth is sanitized`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-expired-auth")
         store.errors[.codex] = """

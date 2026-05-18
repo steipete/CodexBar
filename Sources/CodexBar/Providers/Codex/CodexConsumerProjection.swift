@@ -8,6 +8,10 @@ struct CodexUIErrorMapper {
         guard !trimmed.isEmpty else { return nil }
 
         let lower = trimmed.lowercased()
+        if self.looksCodexCLIMissing(lower: lower) {
+            return CodexStatusProbeError.codexNotInstalled.localizedDescription
+        }
+
         if self.isAlreadyUserFacing(lower: lower) {
             return trimmed
         }
@@ -74,6 +78,15 @@ struct CodexUIErrorMapper {
                 "openai web refresh hit a network error. "
                     + "check your connection, then refresh openai cookies and try again.")
             || lower.contains("codex usage is temporarily unavailable. try refreshing.")
+    }
+
+    private static func looksCodexCLIMissing(lower: String) -> Bool {
+        lower.contains("codex cli missing")
+            || lower.contains("codex cli not found")
+            || lower.contains("missing cli codex")
+            || lower.contains("missing cli 'codex'")
+            || lower.contains("missing cli \"codex\"")
+            || (lower.contains("binary not found") && lower.contains("codex"))
     }
 
     private static func looksExpired(lower: String) -> Bool {
