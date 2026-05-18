@@ -632,7 +632,6 @@ struct ProvidersPane: View {
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             hidePersonalInfo: self.settings.hidePersonalInfo,
-            claudePeakHoursEnabled: self.settings.claudePeakHoursEnabled,
             weeklyPace: weeklyPace,
             quotaWarningThresholds: [
                 .session: self.quotaWarningMarkerThresholds(provider: provider, window: .session),

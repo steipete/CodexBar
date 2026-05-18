@@ -191,8 +191,6 @@
 "OK" = "确定";
 "Obscure email addresses in the menu bar and menu UI." = "";
 "Off" = "";
-"Off-peak" = "";
-"Off-peak · peak in \\(self.formatDuration(minutes: minutes))" = "";
 "Offline" = "";
 "On" = "";
 "Online" = "";
@@ -228,7 +226,6 @@
 "Paste sessionKey or OAuth token…" = "";
 "Paste the Cookie header from a request to admin.mistral.ai. " = "";
 "Paste token…" = "";
-"Peak · ends in \\(self.formatDuration(minutes: remaining))" = "";
 "Personal" = "";
 "Picker" = "";
 "Picker subtitle" = "";
@@ -275,11 +272,9 @@
 "Show credits + extra usage" = "";
 "Show details" = "显示详情";
 "Show most-used provider" = "";
-"Show peak hours indicator" = "";
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "";
 "Show reset time as clock" = "";
 "Show usage as used" = "";
-"Show whether Claude is in peak usage hours." = "";
 "Sign in via button below" = "";
 "Skip teardown between probes (debug-only)." = "";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "";
@@ -385,11 +380,8 @@
 "metric_secondary" = "次要（%@）";
 "metric_tertiary" = "第三（%@）";
 "multiple_workspaces_found" = "CodexBar 发现了 %1$@ 的多个工作区。请选择要添加的工作区。";
-"off_peak" = "非高峰";
-"off_peak_peak_in" = "非高峰 · %@ 后进入高峰";
 "ory_session_…=…; csrftoken=…" = "";
 "overview_choose_providers" = "选择最多 %1$@ 个提供商";
-"peak_ends_in" = "高峰 · %@ 后结束";
 "remove_account_message" = "从 CodexBar 中移除 %@？其托管的 Codex 主目录将被删除。";
 "version_format" = "版本 %@";
 "vertex_ai_login_instructions" = "要使用 Vertex AI 跟踪，您需要通过 Google Cloud 进行认证。
