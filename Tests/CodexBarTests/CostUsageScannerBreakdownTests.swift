@@ -78,6 +78,27 @@ struct CostUsageScannerBreakdownTests {
             + #""}}"#
     }
 
+    private func oversizedCodexTurnContextInfoModelLine(timestamp: String, model: String) -> String {
+        let largeInstructions = String(repeating: "x", count: 300 * 1024)
+        return #"{"type":"turn_context","timestamp":""#
+            + timestamp
+            + #"","payload":{"empty":"","info":{"model":""#
+            + model
+            + #""},"instructions":""#
+            + largeInstructions
+            + #""}}"#
+    }
+
+    private func oversizedCodexTurnContextPromptOnlyLine(timestamp: String, promptModel: String) -> String {
+        let prompt = #"example: {\"type\":\"turn_context\",\"payload\":{\"model\":\"\#(promptModel)\"}}"#
+            + String(repeating: "x", count: 300 * 1024)
+        return #"{"type":"turn_context","timestamp":""#
+            + timestamp
+            + #"","payload":{"instructions":""#
+            + prompt
+            + #""}}"#
+    }
+
     @Test
     func `codex daily report parses token counts and caches`() throws {
         let env = try CostUsageTestEnvironment()
@@ -242,6 +263,65 @@ struct CostUsageScannerBreakdownTests {
 
         #expect(parsed.days[dayKey]?["gpt-5.5"] == [120, 30, 12])
         #expect(parsed.days[dayKey]?["gpt-5"] == nil)
+    }
+
+    @Test
+    func `codex oversized turn context prefix supports nested info model`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let model = "openai/gpt-5.5"
+        let turnContextLine = self.oversizedCodexTurnContextInfoModelLine(timestamp: iso0, model: model)
+        let tokenCountLine = try env.jsonl([
+            self.codexTokenCountWithoutModel(timestamp: iso1, last: (input: 120, cached: 30, output: 12)),
+        ])
+
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "oversized-turn-context-info-model.jsonl",
+            contents: turnContextLine + "\n" + tokenCountLine)
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+
+        #expect(parsed.days[dayKey]?["gpt-5.5"] == [120, 30, 12])
+        #expect(parsed.days[dayKey]?["gpt-5"] == nil)
+    }
+
+    @Test
+    func `codex oversized turn context ignores prompt model examples`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let turnContextLine = self.oversizedCodexTurnContextPromptOnlyLine(
+            timestamp: iso1,
+            promptModel: "openai/gpt-5.5")
+        let tokenCountLine = try env.jsonl([
+            self.codexTokenCountWithoutModel(timestamp: iso2, last: (input: 120, cached: 30, output: 12)),
+        ])
+
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "oversized-turn-context-prompt-example.jsonl",
+            contents: env.jsonl([self.codexTurnContext(timestamp: iso0, model: "openai/gpt-5.4")])
+                + turnContextLine + "\n" + tokenCountLine)
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+
+        #expect(parsed.days[dayKey]?["gpt-5.4"] == [120, 30, 12])
+        #expect(parsed.days[dayKey]?["gpt-5.5"] == nil)
     }
 
     @Test

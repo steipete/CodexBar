@@ -18,6 +18,7 @@
 - Providers: route app-owned provider HTTP calls through a shared transport seam for cleaner proxy and test support (#892). Thanks @serezha93!
 
 ### Fixed
+- Codex: keep local cost history attributed to the correct model when long or oversized `turn_context` rows precede model-less token events (#1014, fixes #1013). Thanks @hhh2210!
 - Codex: improve multi-account switching with quota-aware ordering, workspace grouping, persisted per-account snapshots, health labels, and auth fingerprint matching.
 - Overview: expose provider chart and storage detail submenus from overview rows instead of requiring a provider-tab switch first.
 - Claude: reset stuck CLI sessions after usage probe timeouts, give slow probes longer to render, and keep stale data visible across transient timeouts.
