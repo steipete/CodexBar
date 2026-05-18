@@ -165,8 +165,7 @@ extension StatusItemController {
             }
         }
         if mergeIcons {
-            let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
-            self.applyIcon(phase: phase)
+            self.applyIcon(phase: nil)
         }
     }
 
@@ -399,8 +398,17 @@ extension StatusItemController {
         return false
     }
 
-    func applyIcon(for provider: UsageProvider, phase: Double?) {
-        guard let button = self.statusItems[provider]?.button else { return }
+    private func shouldSkipProviderIconRender(provider: UsageProvider, signature: String) -> Bool {
+        if self.lastAppliedProviderIconRenderSignatures[provider] == signature {
+            return true
+        }
+        self.lastAppliedProviderIconRenderSignatures[provider] = signature
+        return false
+    }
+
+    @discardableResult
+    func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool {
+        guard let button = self.statusItems[provider]?.button else { return false }
         let snapshot = self.store.snapshot(for: provider)
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
@@ -413,9 +421,19 @@ extension StatusItemController {
            let brand = ProviderBrandIcon.image(for: provider)
         {
             let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
+            let signature = [
+                "mode=brandPercent",
+                "provider=\(provider.rawValue)",
+                "style=\(String(describing: style))",
+                "text=\(displayText ?? "nil")",
+                "warningFlash=\(warningFlash ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+                return true
+            }
             self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
-            return
+            return false
         }
 
         // OpenRouter always gets a meter here — the brand-logo fallback was removed on purpose.
@@ -487,10 +505,41 @@ extension StatusItemController {
         }()
         let wiggle = self.wiggleAmount(for: provider)
         let tilt = self.tiltAmount(for: provider) * .pi / 28 // limit to ~6.4°
+        let statusIndicator = self.store.statusIndicator(for: provider)
         if let morphProgress {
+            let signature = [
+                "mode=morph",
+                "provider=\(provider.rawValue)",
+                "style=\(String(describing: style))",
+                "morph=\(Self.iconSignatureValue(morphProgress))",
+                "status=\(statusIndicator.rawValue)",
+                "warningFlash=\(warningFlash ? "1" : "0")",
+                "loading=\(isLoading ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+                return true
+            }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         } else {
+            let signature = [
+                "mode=icon",
+                "provider=\(provider.rawValue)",
+                "style=\(String(describing: style))",
+                "primary=\(Self.iconSignatureValue(primary))",
+                "weekly=\(Self.iconSignatureValue(weekly))",
+                "credits=\(Self.iconSignatureValue(credits))",
+                "stale=\(stale ? "1" : "0")",
+                "status=\(statusIndicator.rawValue)",
+                "blink=\(Self.iconSignatureValue(Double(blink)))",
+                "wiggle=\(Self.iconSignatureValue(Double(wiggle)))",
+                "tilt=\(Self.iconSignatureValue(Double(tilt)))",
+                "warningFlash=\(warningFlash ? "1" : "0")",
+                "loading=\(isLoading ? "1" : "0")",
+            ].joined(separator: "|")
+            if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+                return true
+            }
             self.setButtonTitle(nil, for: button)
             let image = IconRenderer.makeIcon(
                 primaryRemaining: primary,
@@ -501,9 +550,15 @@ extension StatusItemController {
                 blink: blink,
                 wiggle: wiggle,
                 tilt: tilt,
-                statusIndicator: self.store.statusIndicator(for: provider))
+                statusIndicator: statusIndicator)
             self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         }
+        return false
+    }
+
+    private static func iconSignatureValue(_ value: Double?) -> String {
+        guard let value else { return "nil" }
+        return String(format: "%.3f", value)
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {

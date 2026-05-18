@@ -14,9 +14,13 @@ automatic selection, but the codebase still has multiple active Claude `.auto` d
 pending. For the exact current-state parity contract, see
 [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
+When an Anthropic Admin API key is configured, Claude can also show organization-level spend/messages/tokens in the
+same inline dashboard pattern used by the OpenAI API provider.
+
 ## Data sources + selection order
 
 ### Default selection (debug menu disabled)
+- If an Admin API key is configured, the Admin API strategy is used for Claude API spend/usage.
 - App runtime main pipeline: OAuth API → CLI PTY → Web API.
 - CLI runtime main pipeline: Web API → CLI PTY.
 - Explicit picker modes (OAuth/Web/CLI) bypass automatic fallback.
@@ -25,6 +29,22 @@ pending. For the exact current-state parity contract, see
 
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
+
+Admin API key setup:
+- Preferences → Providers → Claude → Admin API key, stored in `~/.codexbar/config.json`.
+- CLI/env: `printf '%s' "$ANTHROPIC_ADMIN_KEY" | codexbar config set-api-key --provider claude --stdin`.
+- Token accounts can also hold `sk-ant-admin...` keys; they route to the Admin API instead of cookie/OAuth usage.
+- Environment fallback: `ANTHROPIC_ADMIN_KEY`.
+
+## Admin API
+- Key prefix: `sk-ant-admin...`.
+- Endpoints:
+  - `/v1/organizations/cost_report`
+  - `/v1/organizations/usage_report/messages`
+- Output:
+  - Today/7d/30d spend and message/token summaries.
+  - Inline 30-day dashboard chart when daily buckets are present.
+  - Identity login method: `Admin API`.
 
 ## Keychain prompt policy (Claude OAuth)
 - Preferences → Providers → Claude → Keychain prompt policy.

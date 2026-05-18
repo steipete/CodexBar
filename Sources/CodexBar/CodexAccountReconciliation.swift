@@ -6,6 +6,7 @@ struct CodexVisibleAccount: Equatable, Identifiable {
     let email: String
     let workspaceLabel: String?
     let workspaceAccountID: String?
+    let authFingerprint: String?
     let storedAccountID: UUID?
     let selectionSource: CodexActiveSource
     let isActive: Bool
@@ -18,6 +19,7 @@ struct CodexVisibleAccount: Equatable, Identifiable {
         email: String,
         workspaceLabel: String? = nil,
         workspaceAccountID: String? = nil,
+        authFingerprint: String? = nil,
         storedAccountID: UUID?,
         selectionSource: CodexActiveSource,
         isActive: Bool,
@@ -29,6 +31,7 @@ struct CodexVisibleAccount: Equatable, Identifiable {
         self.email = email
         self.workspaceLabel = Self.normalizeWorkspaceLabel(workspaceLabel)
         self.workspaceAccountID = workspaceAccountID
+        self.authFingerprint = CodexAuthFingerprint.normalize(authFingerprint)
         self.storedAccountID = storedAccountID
         self.selectionSource = selectionSource
         self.isActive = isActive
@@ -52,6 +55,11 @@ struct CodexVisibleAccount: Equatable, Identifiable {
             return nil
         }
         return workspaceLabel
+    }
+
+    var authenticationHealthLabel: String? {
+        guard !self.isLive, self.storedAccountID != nil, self.authFingerprint == nil else { return nil }
+        return "Missing auth"
     }
 
     private static func normalizeWorkspaceLabel(_ workspaceLabel: String?) -> String? {
@@ -90,6 +98,7 @@ extension CodexVisibleAccountProjection {
                 email: normalizedEmail,
                 workspaceLabel: Self.normalizeWorkspaceLabel(storedAccount.workspaceLabel),
                 workspaceAccountID: storedAccount.workspaceAccountID,
+                authFingerprint: storedAccount.authFingerprint,
                 storedAccountID: storedAccount.id,
                 selectionSource: .managedAccount(id: storedAccount.id),
                 isLive: false,
@@ -101,7 +110,23 @@ extension CodexVisibleAccountProjection {
         if let liveSystemAccount = snapshot.liveSystemAccount {
             let normalizedEmail = Self.normalizeVisibleEmail(liveSystemAccount.email)
             let liveIdentity = snapshot.runtimeIdentity(for: liveSystemAccount)
-            if let existingIndex = drafts.firstIndex(where: { draft in
+            if let exactStoredAccountID = snapshot.matchingStoredAccountForLiveSystemAccount?.id,
+               let exactIndex = drafts.firstIndex(where: { $0.storedAccountID == exactStoredAccountID })
+            {
+                let existingDraft = drafts[exactIndex]
+                let liveWorkspaceLabel = Self.normalizeWorkspaceLabel(liveSystemAccount.workspaceLabel)
+                drafts[exactIndex] = VisibleAccountDraft(
+                    email: existingDraft.email,
+                    workspaceLabel: liveWorkspaceLabel ?? existingDraft.workspaceLabel,
+                    workspaceAccountID: liveSystemAccount.workspaceAccountID ?? existingDraft.workspaceAccountID,
+                    authFingerprint: liveSystemAccount.authFingerprint ?? existingDraft.authFingerprint,
+                    storedAccountID: existingDraft.storedAccountID,
+                    selectionSource: .liveSystem,
+                    isLive: true,
+                    canReauthenticate: existingDraft.canReauthenticate,
+                    canRemove: existingDraft.canRemove,
+                    identity: liveIdentity)
+            } else if let existingIndex = drafts.firstIndex(where: { draft in
                 CodexIdentityMatcher.matches(
                     draft.identity,
                     lhsEmail: draft.email,
@@ -114,6 +139,7 @@ extension CodexVisibleAccountProjection {
                     email: existingDraft.email,
                     workspaceLabel: liveWorkspaceLabel ?? existingDraft.workspaceLabel,
                     workspaceAccountID: liveSystemAccount.workspaceAccountID ?? existingDraft.workspaceAccountID,
+                    authFingerprint: liveSystemAccount.authFingerprint ?? existingDraft.authFingerprint,
                     storedAccountID: existingDraft.storedAccountID,
                     selectionSource: .liveSystem,
                     isLive: true,
@@ -125,6 +151,7 @@ extension CodexVisibleAccountProjection {
                     email: normalizedEmail,
                     workspaceLabel: Self.normalizeWorkspaceLabel(liveSystemAccount.workspaceLabel),
                     workspaceAccountID: liveSystemAccount.workspaceAccountID,
+                    authFingerprint: liveSystemAccount.authFingerprint,
                     storedAccountID: nil,
                     selectionSource: .liveSystem,
                     isLive: true,
@@ -149,6 +176,7 @@ extension CodexVisibleAccountProjection {
                 email: draft.email,
                 workspaceLabel: draft.workspaceLabel,
                 workspaceAccountID: draft.workspaceAccountID,
+                authFingerprint: draft.authFingerprint,
                 storedAccountID: draft.storedAccountID,
                 selectionSource: draft.selectionSource,
                 isActive: isActive,
@@ -202,6 +230,7 @@ private struct VisibleAccountDraft {
     let email: String
     let workspaceLabel: String?
     let workspaceAccountID: String?
+    let authFingerprint: String?
     let storedAccountID: UUID?
     let selectionSource: CodexActiveSource
     let isLive: Bool

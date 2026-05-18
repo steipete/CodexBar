@@ -4,6 +4,7 @@ public struct ObservedSystemCodexAccount: Equatable, Sendable {
     public let email: String
     public let workspaceLabel: String?
     public let workspaceAccountID: String?
+    public let authFingerprint: String?
     public let codexHomePath: String
     public let observedAt: Date
     public let identity: CodexIdentity
@@ -12,6 +13,7 @@ public struct ObservedSystemCodexAccount: Equatable, Sendable {
         email: String,
         workspaceLabel: String? = nil,
         workspaceAccountID: String? = nil,
+        authFingerprint: String? = nil,
         codexHomePath: String,
         observedAt: Date,
         identity: CodexIdentity = .unresolved)
@@ -19,6 +21,7 @@ public struct ObservedSystemCodexAccount: Equatable, Sendable {
         self.email = email
         self.workspaceLabel = workspaceLabel
         self.workspaceAccountID = workspaceAccountID
+        self.authFingerprint = CodexAuthFingerprint.normalize(authFingerprint)
         self.codexHomePath = codexHomePath
         self.observedAt = observedAt
         self.identity = identity
@@ -58,6 +61,7 @@ public struct DefaultCodexSystemAccountObserver: CodexSystemAccountObserving {
             email: rawEmail.lowercased(),
             workspaceLabel: self.workspaceCache.workspaceLabel(for: providerAccountID),
             workspaceAccountID: providerAccountID,
+            authFingerprint: CodexAuthFingerprint.fingerprint(homePath: homeURL.path),
             codexHomePath: homeURL.path,
             observedAt: Date(),
             identity: account.identity)

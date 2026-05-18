@@ -72,6 +72,7 @@ struct CodexAccountPromotionServiceTests {
         #expect(imported.providerAccountID == "acct-alpha")
         #expect(imported.workspaceLabel == "Personal")
         #expect(imported.workspaceAccountID == "acct-alpha")
+        #expect(imported.authFingerprint == CodexAuthFingerprint.fingerprint(data: displacedLiveAuthData))
         #expect(try container.managedAuthData(for: imported) == displacedLiveAuthData)
         #expect(try container.liveAuthData() == container.managedAuthData(for: target))
     }
@@ -103,6 +104,7 @@ struct CodexAccountPromotionServiceTests {
         #expect(result.displacedLiveDisposition == .alreadyManaged(managedAccountID: existingManagedLive.id))
         #expect(accounts.count == 2)
         #expect(accounts.contains(where: { $0.id == existingManagedLive.id }))
+        #expect(refreshedManagedLive.authFingerprint == CodexAuthFingerprint.fingerprint(data: liveAuthData))
         #expect(try container.managedAuthData(for: refreshedManagedLive) == liveAuthData)
         #expect(try container.liveAuthData() == container.managedAuthData(for: target))
     }
@@ -129,6 +131,7 @@ struct CodexAccountPromotionServiceTests {
         #expect(result.displacedLiveDisposition == .alreadyManaged(managedAccountID: existingManagedLive.id))
         #expect(refreshedManagedLive.email == "alpha@example.com")
         #expect(refreshedManagedLive.providerAccountID == "acct-alpha")
+        #expect(refreshedManagedLive.authFingerprint == CodexAuthFingerprint.fingerprint(data: liveAuthData))
         #expect(try container.managedAuthData(for: refreshedManagedLive) == liveAuthData)
     }
 
@@ -455,6 +458,7 @@ struct CodexAccountPromotionServiceTests {
         let accounts = try container.loadAccounts().accounts
         let imported = try #require(accounts.first(where: { $0.id != target.id }))
         #expect(accounts.count == 2)
+        #expect(imported.authFingerprint == CodexAuthFingerprint.fingerprint(data: liveAuthData))
         #expect(try container.managedAuthData(for: imported) == liveAuthData)
         #expect(try container.liveAuthData() == liveAuthData)
         #expect(container.settings.codexActiveSource == .managedAccount(id: target.id))
@@ -519,6 +523,7 @@ struct CodexAccountPromotionServiceTests {
         #expect(result.displacedLiveDisposition == .alreadyManaged(managedAccountID: staleManaged.id))
         #expect(accounts.count == 2)
         #expect(repairedManaged.managedHomePath == staleHomeURL.path)
+        #expect(repairedManaged.authFingerprint == CodexAuthFingerprint.fingerprint(data: liveAuthData))
         #expect(try container.managedAuthData(for: repairedManaged) == liveAuthData)
         #expect(try container.managedHomeURLs().count == 2)
     }

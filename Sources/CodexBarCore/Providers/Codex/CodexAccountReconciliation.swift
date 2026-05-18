@@ -42,6 +42,12 @@ public enum CodexActiveSourceResolver {
         liveSystemAccount: ObservedSystemCodexAccount?) -> Bool
     {
         guard let liveSystemAccount else { return false }
+        if let storedFingerprint = storedAccount.authFingerprint,
+           let liveFingerprint = liveSystemAccount.authFingerprint,
+           storedFingerprint == liveFingerprint
+        {
+            return true
+        }
         return CodexIdentityMatcher.matches(
             snapshot.runtimeIdentity(for: storedAccount),
             lhsEmail: snapshot.runtimeEmail(for: storedAccount),
@@ -155,7 +161,14 @@ public struct DefaultCodexAccountReconciler {
                 nil
             }
             let matchingStoredAccountForLiveSystemAccount = liveSystemAccount.flatMap { liveAccount in
-                accounts.accounts.first { account in
+                if let liveFingerprint = liveAccount.authFingerprint,
+                   let exactFingerprintMatch = accounts.accounts.first(where: {
+                       $0.authFingerprint == liveFingerprint
+                   })
+                {
+                    return exactFingerprintMatch
+                }
+                return accounts.accounts.first { account in
                     guard let runtimeAccount = runtimeAccounts[account.id] else { return false }
                     return CodexIdentityMatcher.matches(
                         runtimeAccount.identity,
@@ -198,6 +211,7 @@ public struct DefaultCodexAccountReconciler {
                 email: normalizedEmail,
                 workspaceLabel: account.workspaceLabel,
                 workspaceAccountID: account.workspaceAccountID,
+                authFingerprint: account.authFingerprint,
                 codexHomePath: account.codexHomePath,
                 observedAt: account.observedAt,
                 identity: self.runtimeIdentity(for: account))
@@ -294,6 +308,7 @@ private struct AccountIdentity: Equatable {
     let createdAt: TimeInterval
     let updatedAt: TimeInterval
     let lastAuthenticatedAt: TimeInterval?
+    let authFingerprint: String?
 
     init(_ account: ManagedCodexAccount) {
         self.id = account.id
@@ -305,5 +320,6 @@ private struct AccountIdentity: Equatable {
         self.createdAt = account.createdAt
         self.updatedAt = account.updatedAt
         self.lastAuthenticatedAt = account.lastAuthenticatedAt
+        self.authFingerprint = account.authFingerprint
     }
 }

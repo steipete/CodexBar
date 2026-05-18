@@ -290,13 +290,20 @@ private struct CodexAccountsSectionRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(self.account.displayName)
-                    .font(.subheadline.weight(.semibold))
-                if self.showsSystemBadge {
-                    Text("(System)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(self.account.displayName)
+                        .font(.subheadline.weight(.semibold))
+                    if self.showsSystemBadge {
+                        Text("(System)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if let health = self.account.authenticationHealthLabel {
+                    Text(health)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
 

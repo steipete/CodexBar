@@ -150,6 +150,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Monotonic token used to ignore stale deferred provider-switcher menu rebuilds.
     var providerSwitcherUpdateToken = 0
     var lastAppliedMergedIconRenderSignature: String?
+    var lastAppliedProviderIconRenderSignatures: [UsageProvider: String] = [:]
     var lastKnownScreenCount: Int
     var pendingScreenChangePreviousCount: Int?
     var screenChangeVisibilityTask: Task<Void, Never>?
@@ -592,6 +593,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.removeProviderStatusItem(for: provider)
         }
         self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures.removeAll()
         self.updateVisibility()
         self.updateIcons()
     }
@@ -719,6 +721,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
         guard let item = self.statusItems.removeValue(forKey: provider) else { return }
         item.menu = nil
+        self.lastAppliedProviderIconRenderSignatures.removeValue(forKey: provider)
         self.statusBar.removeStatusItem(item)
     }
 
@@ -778,6 +781,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.statusBar.removeStatusItem(item)
         }
         self.statusItems.removeAll(keepingCapacity: false)
+        self.lastAppliedProviderIconRenderSignatures.removeAll(keepingCapacity: false)
     }
     #endif
 

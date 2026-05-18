@@ -31,7 +31,7 @@ struct CostUsageJsonlScannerTests {
     }
 
     @Test
-    func `jsonl scanner marks prefix limited lines as truncated`() throws {
+    func `jsonl scanner retains prefix for truncated lines`() throws {
         let root = try self.makeTemporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -53,7 +53,8 @@ struct CostUsageJsonlScannerTests {
         #expect(scanned.count == 2)
         #expect(String(data: scanned[0].bytes, encoding: .utf8) == "ok")
         #expect(scanned[0].wasTruncated == false)
-        #expect(scanned[1].bytes.isEmpty)
+        #expect(scanned[1].bytes.count == 64)
+        #expect(String(data: scanned[1].bytes, encoding: .utf8) == String(repeating: "a", count: 64))
         #expect(scanned[1].wasTruncated == true)
     }
 

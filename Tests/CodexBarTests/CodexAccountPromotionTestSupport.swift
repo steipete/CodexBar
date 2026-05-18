@@ -137,7 +137,7 @@ final class CodexAccountPromotionTestContainer {
     {
         let homeURL = self.managedHomesURL.appendingPathComponent(id.uuidString, isDirectory: true)
         let createdAt = Date().timeIntervalSince1970
-        _ = try self.writeOAuthAuthFile(
+        let authData = try self.writeOAuthAuthFile(
             homeURL: homeURL,
             email: authEmail ?? persistedEmail,
             plan: plan,
@@ -154,6 +154,7 @@ final class CodexAccountPromotionTestContainer {
             providerAccountID: persistedProviderAccountIDValue,
             workspaceLabel: workspaceLabel,
             workspaceAccountID: workspaceAccountID ?? authAccountID,
+            authFingerprint: CodexAuthFingerprint.fingerprint(data: authData),
             managedHomePath: homeURL.path,
             createdAt: createdAt,
             updatedAt: createdAt,

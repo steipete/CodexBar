@@ -1,9 +1,9 @@
 ---
 summary: "CodexBar CLI configuration commands for provider toggles, API keys, and isolated config files."
 read_when:
-  - "Using codexbar config from scripts or CI."
-  - "Enabling or disabling providers without opening Settings."
-  - "Storing provider API keys from the command line."
+  - Using codexbar config from scripts or CI
+  - Enabling or disabling providers without opening Settings
+  - Storing provider API keys from the command line
 ---
 
 # CLI configuration
@@ -47,8 +47,18 @@ printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider eleve
 printf '%s' "$OPENROUTER_API_KEY" | codexbar config set-api-key --provider openrouter --stdin --no-enable
 ```
 
-Only providers that consume config-backed API keys accept this command. Browser/OAuth providers such as Grok use their
-own provider sessions instead of an xAI API key for CodexBar's billing view, so enable them with
+Useful examples:
+
+```bash
+printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai --stdin
+printf '%s' "$ANTHROPIC_ADMIN_KEY" | codexbar config set-api-key --provider claude --stdin
+printf '%s' "$DEEPGRAM_API_KEY" | codexbar config set-api-key --provider deepgram --stdin
+printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin
+```
+
+Only providers that consume config-backed API keys accept this command. Admin API providers may require a key with
+organization/usage permissions, not a normal inference key. Browser/OAuth providers such as Grok use their own provider
+sessions instead of an xAI API key for CodexBar's billing view, so enable them with
 `codexbar config enable --provider grok`.
 
 ## Isolated config files

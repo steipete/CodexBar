@@ -63,7 +63,11 @@ struct StatusMenuCodexSwitcherTests {
                 windowMinutes: 300,
                 resetsAt: Date().addingTimeInterval(300),
                 resetDescription: nil),
-            secondary: nil,
+            secondary: RateWindow(
+                usedPercent: percent,
+                windowMinutes: 10080,
+                resetsAt: Date().addingTimeInterval(86400),
+                resetDescription: nil),
             updatedAt: Date(),
             identity: ProviderIdentitySnapshot(
                 providerID: .codex,

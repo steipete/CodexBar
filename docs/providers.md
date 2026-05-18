@@ -8,6 +8,9 @@ read_when:
 
 # Providers
 
+CodexBar currently registers 43 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+OpenCode vs OpenCode Go, because the auth source and quota shape differ.
+
 ## Fetch strategies (current)
 Legend: web (browser cookies/WebView), cli (RPC/PTy or provider CLI), oauth (provider OAuth), api token, local probe, web dashboard.
 Source labels (CLI/header): `openai-web`, `web`, `oauth`, `api`, `local`, `cli`, plus provider-specific CLI labels (e.g. `codex-cli`, `claude`).
@@ -19,7 +22,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |
-| Claude | App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
+| OpenAI | Admin API key (`api`) for organization spend/usage; legacy API-key balance fallback. |
+| Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → stored WebKit session (`web`). |
@@ -41,6 +45,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Amp | Web settings page via browser cookies (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | ElevenLabs | API key from config/env → subscription usage API (`api`). |
+| Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
 | Ollama | Web settings page via browser cookies (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
@@ -55,7 +60,10 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Crof | API key from config/env → credit balance + requests quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
+| StepFun | Username/password login or manual Oasis token (`web`). |
+| AWS Bedrock | AWS credentials → Cost Explorer usage and budget tracking (`api`). |
 | Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`) → grok.com billing gRPC-web via Chrome session cookies (`web`); local `~/.grok/sessions` signals as fallback. |
+| Deepgram | API key → project discovery and usage breakdown API (`api`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -67,7 +75,15 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: Statuspage.io (OpenAI).
 - Details: `docs/codex.md`.
 
+## OpenAI
+- API key from `~/.codexbar/config.json`, `OPENAI_ADMIN_KEY`, or `OPENAI_API_KEY`.
+- Admin API keys are preferred and fetch organization costs plus completion usage for inline Today/7d/30d dashboards.
+- Normal API keys fall back to the legacy credit-grants balance endpoint when organization usage is unavailable.
+- Details: `docs/openai.md`.
+
 ## Claude
+- Admin API: `sk-ant-admin...` key in Settings/config, token accounts, or `ANTHROPIC_ADMIN_KEY`.
+- Admin API shows organization spend/messages summaries with the same inline dashboard pattern as OpenAI API.
 - App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
 - CLI Auto: Web API (`web`) → CLI PTY (`claude`).
 - Local cost usage: scans `CLAUDE_CONFIG_DIR` when set, otherwise `~/.config/claude/projects` and `~/.claude/projects` JSONL files (last 30 days).
@@ -89,6 +105,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## MiniMax
 - Coding Plan API token or web session from configured/manual/browser sources.
 - Supports global and China mainland hosts via provider region settings and environment overrides.
+- Web-session billing history can render 30-day token charts plus top model/method breakdowns when MiniMax exposes it.
 - Status: none yet.
 - Details: `docs/minimax.md`.
 
@@ -226,6 +243,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## OpenRouter
 - API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `OPENROUTER_API_KEY` env var.
 - Reads credits and key rate-limit info from OpenRouter APIs.
+- Shows daily, weekly, and monthly API-key spend when `/api/v1/key` returns those fields.
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
@@ -314,6 +332,19 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Local fallback aggregates `~/.grok/sessions/**/signals.json` token counts when the RPC is unavailable.
 - Status: link only to `https://status.x.ai` (no auto-polling yet).
 - Details: `docs/grok.md`.
+
+## AWS Bedrock
+- AWS credentials from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN`.
+- Region from `AWS_REGION` / `AWS_DEFAULT_REGION`, defaulting to `us-east-1`.
+- Reads AWS Cost Explorer for Bedrock spend and can compare usage against `CODEXBAR_BEDROCK_BUDGET`.
+- Override Cost Explorer base URL with `CODEXBAR_BEDROCK_API_URL` for tests.
+- Details: `docs/bedrock.md`.
+
+## Deepgram
+- API key from config or `DEEPGRAM_API_KEY`.
+- Optional project ID from provider settings or `DEEPGRAM_PROJECT_ID`; otherwise aggregates all visible projects.
+- Reads Deepgram usage breakdowns for audio hours, agent hours, token totals, TTS characters, and requests.
+- Details: `docs/deepgram.md`.
 
 ## StepFun
 - Username/password login or manual Oasis-Token.

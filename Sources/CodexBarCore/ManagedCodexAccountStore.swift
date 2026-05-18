@@ -11,7 +11,7 @@ public protocol ManagedCodexAccountStoring: Sendable {
 }
 
 public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {
-    public static let currentVersion = 2
+    public static let currentVersion = 3
 
     private let fileURL: URL
     private let fileManager: FileManager
@@ -35,7 +35,7 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
         if accounts.version == Self.currentVersion {
             return ManagedCodexAccountSet(version: Self.currentVersion, accounts: accounts.accounts)
         }
-        return self.migrateVersion1Accounts(accounts)
+        return self.migrateLegacyAccounts(accounts)
     }
 
     public func storeAccounts(_ accounts: ManagedCodexAccountSet) throws {
@@ -71,15 +71,18 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
         ManagedCodexAccountSet(version: self.currentVersion, accounts: [])
     }
 
-    private func migrateVersion1Accounts(_ accounts: ManagedCodexAccountSet) -> ManagedCodexAccountSet {
+    private func migrateLegacyAccounts(_ accounts: ManagedCodexAccountSet) -> ManagedCodexAccountSet {
         let migratedAccounts = accounts.accounts.map { account in
-            let hydratedProviderAccountID = self.hydrateProviderAccountID(for: account)
+            let hydratedProviderAccountID = account.providerAccountID ?? self.hydrateProviderAccountID(for: account)
             return ManagedCodexAccount(
                 id: account.id,
                 email: account.email,
                 providerAccountID: hydratedProviderAccountID,
                 workspaceLabel: account.workspaceLabel,
                 workspaceAccountID: account.workspaceAccountID,
+                authFingerprint: account.authFingerprint ?? CodexAuthFingerprint.fingerprint(
+                    homePath: account.managedHomePath,
+                    fileManager: self.fileManager),
                 managedHomePath: account.managedHomePath,
                 createdAt: account.createdAt,
                 updatedAt: account.updatedAt,

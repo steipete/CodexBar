@@ -134,4 +134,53 @@ struct StatusItemAnimationSignatureTests {
 
         #expect(controller.lastAppliedMergedIconRenderSignature?.contains("provider=cursor") == true)
     }
+
+    @Test
+    func `split provider icon skips unchanged render signature`() throws {
+        let suite = "StatusItemAnimationSignatureTests-split-provider-signature"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.menuBarShowsBrandIconWithPercent = false
+
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .codex)
+
+        #expect(controller.applyIcon(for: .codex, phase: nil) == false)
+        #expect(controller.applyIcon(for: .codex, phase: nil) == true)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .codex)
+
+        #expect(controller.applyIcon(for: .codex, phase: nil) == false)
+    }
 }

@@ -48,6 +48,13 @@ falls back across the provider's supported web requests when needed.
 
 ## Snapshot mapping
 - Primary usage, reset timing, and plan/tier are derived from Coding Plan response fields or page text.
+- Web-session billing history, when available, is mapped into the shared inline usage dashboard:
+  - 30-day token trend.
+  - Top model and top method breakdowns.
+  - Summary rows for recent billing-history totals.
+
+If the billing-history endpoint is unavailable but normal Coding Plan quota data is present, CodexBar still shows the
+quota card and omits the chart instead of treating the whole provider as failed.
 
 ## Key files
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`

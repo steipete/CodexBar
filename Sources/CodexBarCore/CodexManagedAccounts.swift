@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 
 public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
@@ -6,6 +7,7 @@ public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
     public let providerAccountID: String?
     public let workspaceLabel: String?
     public let workspaceAccountID: String?
+    public let authFingerprint: String?
     public let managedHomePath: String
     public let createdAt: TimeInterval
     public let updatedAt: TimeInterval
@@ -17,6 +19,7 @@ public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
         providerAccountID: String? = nil,
         workspaceLabel: String? = nil,
         workspaceAccountID: String? = nil,
+        authFingerprint: String? = nil,
         managedHomePath: String,
         createdAt: TimeInterval,
         updatedAt: TimeInterval,
@@ -27,6 +30,7 @@ public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
         self.providerAccountID = Self.normalizeProviderAccountID(providerAccountID)
         self.workspaceLabel = Self.normalizeWorkspaceLabel(workspaceLabel)
         self.workspaceAccountID = Self.normalizeWorkspaceAccountID(workspaceAccountID)
+        self.authFingerprint = CodexAuthFingerprint.normalize(authFingerprint)
         self.managedHomePath = managedHomePath
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -63,10 +67,47 @@ public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
             providerAccountID: container.decodeIfPresent(String.self, forKey: .providerAccountID),
             workspaceLabel: container.decodeIfPresent(String.self, forKey: .workspaceLabel),
             workspaceAccountID: container.decodeIfPresent(String.self, forKey: .workspaceAccountID),
+            authFingerprint: container.decodeIfPresent(String.self, forKey: .authFingerprint),
             managedHomePath: container.decode(String.self, forKey: .managedHomePath),
             createdAt: container.decode(TimeInterval.self, forKey: .createdAt),
             updatedAt: container.decode(TimeInterval.self, forKey: .updatedAt),
             lastAuthenticatedAt: container.decodeIfPresent(TimeInterval.self, forKey: .lastAuthenticatedAt))
+    }
+}
+
+public enum CodexAuthFingerprint {
+    public static func authFileURL(homePath: String) -> URL {
+        URL(fileURLWithPath: homePath, isDirectory: true)
+            .appendingPathComponent("auth.json", isDirectory: false)
+    }
+
+    public static func fingerprint(homePath: String, fileManager: FileManager = .default) -> String? {
+        let url = self.authFileURL(homePath: homePath)
+        guard fileManager.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url)
+        else {
+            return nil
+        }
+        return self.fingerprint(data: data)
+    }
+
+    public static func fingerprint(env: [String: String], fileManager: FileManager = .default) -> String? {
+        self.fingerprint(
+            homePath: CodexHomeScope.ambientHomeURL(env: env, fileManager: fileManager).path,
+            fileManager: fileManager)
+    }
+
+    public static func fingerprint(data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    public static func normalize(_ fingerprint: String?) -> String? {
+        guard let trimmed = fingerprint?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !trimmed.isEmpty
+        else {
+            return nil
+        }
+        return trimmed
     }
 }
 

@@ -17,7 +17,17 @@ extension StatusItemController {
             await Task.yield()
             guard let self, let menu else { return }
             guard self.providerSwitcherUpdateToken == updateToken else { return }
+            guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+            self.closeHostedSubviewMenusForParentSwitch()
             self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
+        }
+    }
+
+    private func closeHostedSubviewMenusForParentSwitch() {
+        let hostedMenus = self.openMenus.values.filter { self.isHostedSubviewMenu($0) }
+        for hostedMenu in hostedMenus {
+            hostedMenu.cancelTrackingWithoutAnimation()
+            self.forgetClosedMenu(hostedMenu)
         }
     }
 }

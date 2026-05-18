@@ -55,6 +55,7 @@ extension UsageStore {
         let projection = self.settings.codexVisibleAccountProjection
         let accounts = self.limitedCodexVisibleAccounts(
             projection.visibleAccounts,
+            snapshots: self.codexAccountSnapshots,
             activeVisibleAccountID: projection.activeVisibleAccountID)
         guard accounts.count > 1 else {
             self.codexAccountSnapshots = []
@@ -99,6 +100,7 @@ extension UsageStore {
             snapshots.allSatisfy { $0.snapshot == nil }
         if !shouldPreservePriorState {
             self.codexAccountSnapshots = snapshots
+            self.codexAccountUsageSnapshotStore?.store(snapshots)
         }
 
         let selectionStillMatches = self.codexVisibleSelectionStillMatches(
@@ -232,8 +234,13 @@ extension UsageStore {
 
     func limitedCodexVisibleAccounts(
         _ accounts: [CodexVisibleAccount],
+        snapshots: [CodexAccountUsageSnapshot] = [],
         activeVisibleAccountID: String?) -> [CodexVisibleAccount]
     {
+        let accounts = CodexAccountPresentationOrdering.orderedAccounts(
+            accounts,
+            snapshots: snapshots,
+            activeVisibleAccountID: activeVisibleAccountID)
         let limit = Self.tokenAccountMenuSnapshotLimit
         if accounts.count <= limit { return accounts }
         var limited = Array(accounts.prefix(limit))

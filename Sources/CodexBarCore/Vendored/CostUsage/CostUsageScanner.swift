@@ -769,7 +769,7 @@ enum CostUsageScanner {
         }
 
         let maxLineBytes = 256 * 1024
-        let prefixBytes = 32 * 1024
+        let prefixBytes = maxLineBytes
 
         if startOffset == 0,
            let metadata = Self.parseCodexSessionMetadata(fileURL: fileURL)
@@ -794,7 +794,13 @@ enum CostUsageScanner {
                 prefixBytes: prefixBytes,
                 onLine: { line in
                     guard !line.bytes.isEmpty else { return }
-                    guard !line.wasTruncated else { return }
+                    if line.wasTruncated {
+                        // `turn_context` can carry very large prompts, but its model usually appears near the start.
+                        if let model = Self.extractCodexTurnContextModel(from: line.bytes) {
+                            currentModel = model
+                        }
+                        return
+                    }
 
                     guard
                         line.bytes.containsAscii(#""type":"event_msg""#)

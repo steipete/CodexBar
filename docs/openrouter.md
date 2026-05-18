@@ -1,3 +1,11 @@
+---
+summary: "OpenRouter provider: API key credits, rate limits, and daily/weekly/monthly spend."
+read_when:
+  - Debugging OpenRouter API key usage or spend parsing
+  - Updating OpenRouter credits or key-limit display
+  - Explaining OpenRouter setup and environment variables
+---
+
 # OpenRouter Provider
 
 [OpenRouter](https://openrouter.ai) is a unified API that provides access to multiple AI models from different providers (OpenAI, Anthropic, Google, Meta, and more) through a single endpoint.
@@ -18,6 +26,12 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 You can also configure the API key in CodexBar Settings → Providers → OpenRouter.
 
+### CLI config
+
+```bash
+printf '%s' "$OPENROUTER_API_KEY" | codexbar config set-api-key --provider openrouter --stdin
+```
+
 ## Data Source
 
 The OpenRouter provider fetches usage data from two API endpoints:
@@ -31,7 +45,8 @@ The OpenRouter provider fetches usage data from two API endpoints:
 The OpenRouter menu card shows:
 
 - **Primary meter**: API key limit usage when the key has a configured limit
-- **Spend notes**: Daily and weekly API key spend when OpenRouter returns those fields
+- **Spend notes**: Daily, weekly, and monthly API key spend when OpenRouter returns those fields
+- **Spend chart**: Day/week/month spend can reuse the shared inline dashboard when enough history is available
 - **Balance**: Displayed in the identity section as "Balance: $X.XX"
 
 ## CLI Usage

@@ -47,7 +47,7 @@ See `docs/configuration.md` for the schema.
 - `codexbar serve` starts a foreground localhost-only HTTP server for usage and cost JSON.
   - `--port <port>` defaults to `8080`.
   - `--refresh-interval <seconds>` defaults to `60` and controls the in-memory response cache TTL.
-  - v1 binds to `127.0.0.1` only. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
+  - v1 binds to `127.0.0.1` only and rejects non-loopback `Host` headers. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
   - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`.
 - `codexbar cache clear` clears local CodexBar caches.
   - `--cookies` removes cached browser-cookie headers from the CodexBar Keychain cache.
@@ -68,7 +68,7 @@ See `docs/configuration.md` for the schema.
     - `web` (macOS only): web-only where that provider exposes an explicit web source; no CLI/API fallback.
     - `cli`: CLI/local-helper source where the provider exposes one (for example Codex RPC/PTy, Claude PTY, Kilo CLI fallback, Kiro CLI, local probes).
     - `oauth`: OAuth-backed source where supported (Codex, Claude, Vertex AI).
-    - `api`: API-key/token flow when the provider supports it (z.ai, Gemini, Alibaba, Copilot, Kilo, Kimi K2, MiniMax, Warp, OpenRouter, Synthetic, DeepSeek, Moonshot, Codebuff).
+    - `api`: API-key/token flow when the provider supports it (OpenAI, Claude Admin API, z.ai, Gemini, Alibaba, Copilot, Kilo, Kimi K2, MiniMax, Warp, OpenRouter, ElevenLabs, Deepgram, Synthetic, DeepSeek, Moonshot, Doubao, Codebuff, Crof, Venice, AWS Bedrock).
     - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, `cli`, or provider CLI label).
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
@@ -124,6 +124,8 @@ KILO_API_KEY=... codexbar --provider kilo --source api --format json --pretty
 MOONSHOT_API_KEY=... codexbar --provider moonshot --source api --format json --pretty
 codexbar config validate --format json --pretty
 codexbar config dump --pretty
+printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai --stdin
+codexbar config enable --provider grok
 codexbar cache clear --cookies
 codexbar cache clear --cookies --provider claude
 codexbar cache clear --all --format json --pretty
@@ -212,6 +214,8 @@ Note: Using CLI fallback
 - Reset lines follow the in-app reset time display setting when available (default: countdown).
 - Text output uses ANSI colors when stdout is a rich TTY; disable with `--no-color` or `NO_COLOR`/`TERM=dumb`.
 - Copilot CLI queries require an API token via config `apiKey` or `COPILOT_API_TOKEN`.
+- OpenAI API charts require an Admin API key for organization costs/usage. Normal API keys can only use the legacy balance fallback.
+- Claude Admin API charts require an Anthropic Admin API key (`sk-ant-admin...` or `ANTHROPIC_ADMIN_KEY`).
 - Codex CLI `auto` tries the OpenAI web dashboard, then Codex CLI RPC/PTy; the app’s Codex `auto` path prefers OAuth when credentials are present, then CLI.
 - Claude CLI `auto` tries web, then CLI PTY; the app’s Claude `auto` path prefers OAuth, then CLI, then web.
 - Kilo text output splits identity into `Plan:` and `Activity:` lines; in `--source auto`, resolved CLI fetches add

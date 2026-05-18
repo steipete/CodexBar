@@ -17,10 +17,23 @@ CodexBar's OpenAI API provider targets the API Platform organization dashboard, 
    - Daily buckets use `bucket_width=1d`, costs are grouped by `line_item`, and completion usage is grouped by `model`.
 2. Fallback: legacy `GET https://api.openai.com/v1/dashboard/billing/credit_grants` for normal API keys that cannot access organization usage.
 
+## Setup
+
+Store a key in the shared app/CLI config:
+
+```bash
+printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai --stdin
+```
+
+Settings → Providers → OpenAI writes the same `~/.codexbar/config.json` field. `OPENAI_ADMIN_KEY` is preferred over
+`OPENAI_API_KEY` because it unlocks organization costs and usage; a normal API key only supports the legacy balance
+fallback.
+
 ## Menu display
 
 - Admin API data renders inline Today/7d/30d KPIs plus a compact 30-day spend chart.
 - The inline usage card opens a hosted chart submenu with daily spend, token, and request trends plus selected-day detail.
+- Top model and top spend labels come from the 30-day completion/cost buckets when the Admin API returns them.
 - Legacy balance data keeps the older available/used credit summary and does not show organization graphs.
 
 ## Notes

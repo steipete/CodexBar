@@ -1221,6 +1221,7 @@ extension StatusMenuTests {
 
         #expect(usageItem?.submenu?.items
             .contains { ($0.representedObject as? String) == StatusItemController.openAIAPIUsageChartID } == true)
+        #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardHeader" } == false)
         #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardExtraUsage" } == false)
     }
 

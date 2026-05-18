@@ -229,6 +229,7 @@ final class UsageStore {
     @ObservationIgnored var codexPlanHistoryBackfillTask: Task<Void, Never>?
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
     @ObservationIgnored let planUtilizationHistoryStore: PlanUtilizationHistoryStore
+    @ObservationIgnored let codexAccountUsageSnapshotStore: (any CodexAccountUsageSnapshotStoring)?
     @ObservationIgnored var codexHistoricalDataset: CodexHistoricalDataset?
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownResetSnapshots: [UsageProvider: UsageSnapshot] = [:]
@@ -255,6 +256,7 @@ final class UsageStore {
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
         planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
+        codexAccountUsageSnapshotStore: (any CodexAccountUsageSnapshotStoring)? = nil,
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
         startupBehavior: StartupBehavior = .automatic,
         environmentBase: [String: String] = ProcessInfo.processInfo.environment)
@@ -270,6 +272,8 @@ final class UsageStore {
         self.planUtilizationHistoryStore = planUtilizationHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
         self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
+        self.codexAccountUsageSnapshotStore = codexAccountUsageSnapshotStore ??
+            (self.startupBehavior.automaticallyStartsBackgroundWork ? FileCodexAccountUsageSnapshotStore() : nil)
         self.planUtilizationPersistenceCoordinator = PlanUtilizationHistoryPersistenceCoordinator(
             store: planUtilizationHistoryStore)
         self.providerMetadata = registry.metadata
@@ -292,6 +296,10 @@ final class UsageStore {
         })
         self.planUtilizationHistory = planUtilizationHistoryStore.load()
         self.weeklyLimitResetDetectorStates = Self.loadWeeklyLimitResetDetectorStates(from: settings.userDefaults)
+        if let codexAccountUsageSnapshotStore = self.codexAccountUsageSnapshotStore {
+            self.codexAccountSnapshots = codexAccountUsageSnapshotStore.load(
+                for: settings.codexVisibleAccountProjection.visibleAccounts)
+        }
         self.logStartupState()
         self.bindSettings()
         self.pathDebugInfo = PathDebugSnapshot(

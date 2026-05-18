@@ -97,6 +97,7 @@ codexbar config providers
 codexbar config enable --provider grok
 codexbar config disable --provider cursor
 printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider elevenlabs --stdin
+printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai --stdin
 ```
 
 See [CLI configuration](cli-configuration.md) for scripting examples and output formats.
@@ -123,7 +124,7 @@ and never paste real cookie values or readable DevTools screenshots into public 
 
 ## Provider IDs
 Current IDs (see `Sources/CodexBarCore/Providers/Providers.swift`):
-`codex`, `openai`, `claude`, `cursor`, `opencode`, `opencodego`, `alibaba`, `factory`, `gemini`, `antigravity`, `copilot`, `zai`, `minimax`, `manus`, `kimi`, `kilo`, `kiro`, `vertexai`, `augment`, `jetbrains`, `kimik2`, `moonshot`, `amp`, `ollama`, `synthetic`, `warp`, `openrouter`, `elevenlabs`, `windsurf`, `perplexity`, `mimo`, `doubao`, `abacus`, `mistral`, `deepseek`, `codebuff`, `crof`, `venice`, `commandcode`, `stepfun`, `bedrock`, `grok`.
+`codex`, `openai`, `claude`, `cursor`, `opencode`, `opencodego`, `alibaba`, `factory`, `gemini`, `antigravity`, `copilot`, `zai`, `minimax`, `manus`, `kimi`, `kilo`, `kiro`, `vertexai`, `augment`, `jetbrains`, `kimik2`, `moonshot`, `amp`, `ollama`, `synthetic`, `warp`, `openrouter`, `elevenlabs`, `windsurf`, `perplexity`, `mimo`, `doubao`, `abacus`, `mistral`, `deepseek`, `codebuff`, `crof`, `venice`, `commandcode`, `stepfun`, `bedrock`, `grok`, `deepgram`.
 
 ## Ordering
 The order of `providers` controls display/order in the app and CLI. Reorder the array to change ordering.

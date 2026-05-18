@@ -41,13 +41,23 @@ extension StatusItemController {
         let accounts = showAll
             ? self.store.limitedCodexVisibleAccounts(
                 projection.visibleAccounts,
+                snapshots: self.store.codexAccountSnapshots,
                 activeVisibleAccountID: projection.activeVisibleAccountID)
             : projection.visibleAccounts
+        let snapshots = showAll ? self.codexAccountSnapshots(matching: accounts) : []
         return CodexAccountMenuDisplay(
             accounts: accounts,
-            snapshots: showAll ? self.store.codexAccountSnapshots : [],
+            snapshots: snapshots,
             activeVisibleAccountID: projection.activeVisibleAccountID,
             layout: showAll ? .stacked : .segmented)
+    }
+
+    private func codexAccountSnapshots(matching accounts: [CodexVisibleAccount]) -> [CodexAccountUsageSnapshot] {
+        var snapshotsByID: [String: CodexAccountUsageSnapshot] = [:]
+        for snapshot in self.store.codexAccountSnapshots {
+            snapshotsByID[snapshot.id] = snapshot
+        }
+        return accounts.compactMap { snapshotsByID[$0.id] }
     }
 
     func stableCodexAccountMenuDisplay(

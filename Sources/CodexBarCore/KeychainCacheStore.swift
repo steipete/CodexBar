@@ -1,5 +1,6 @@
 import Foundation
 #if os(macOS)
+import Darwin
 import Security
 #endif
 
@@ -353,10 +354,7 @@ public enum KeychainCacheStore {
 
         var trustedApplications: [SecTrustedApplication] = []
         for path in trustedPaths {
-            var application: SecTrustedApplication?
-            let status = path.withCString { cPath in
-                SecTrustedApplicationCreateFromPath(cPath, &application)
-            }
+            let (status, application) = self.createTrustedApplication(path: path)
             if status == errSecSuccess, let application {
                 trustedApplications.append(application)
             } else {
@@ -365,13 +363,54 @@ public enum KeychainCacheStore {
         }
         guard !trustedApplications.isEmpty else { return nil }
 
-        var access: SecAccess?
-        let status = SecAccessCreate(self.cacheLabel as CFString, trustedApplications as CFArray, &access)
+        let (status, access) = self.createAccessControl(trustedApplications: trustedApplications)
         if status != errSecSuccess {
             self.log.error("Keychain cache access control creation failed: \(status)")
             return nil
         }
         return access
+    }
+
+    private typealias SecTrustedApplicationCreateFromPathFunction = @convention(c) (
+        UnsafePointer<CChar>?,
+        UnsafeMutablePointer<SecTrustedApplication?>?) -> OSStatus
+    private typealias SecAccessCreateFunction = @convention(c) (
+        CFString,
+        CFArray,
+        UnsafeMutablePointer<SecAccess?>?) -> OSStatus
+
+    private static func createTrustedApplication(path: String) -> (OSStatus, SecTrustedApplication?) {
+        guard let symbol = self.securitySymbol(named: "SecTrustedApplicationCreateFromPath") else {
+            return (errSecInternalComponent, nil)
+        }
+        let function = unsafeBitCast(symbol, to: SecTrustedApplicationCreateFromPathFunction.self)
+        var application: SecTrustedApplication?
+        let status = path.withCString { cPath in
+            function(cPath, &application)
+        }
+        return (status, application)
+    }
+
+    private static func createAccessControl(trustedApplications: [SecTrustedApplication]) -> (OSStatus, SecAccess?) {
+        guard let symbol = self.securitySymbol(named: "SecAccessCreate") else {
+            return (errSecInternalComponent, nil)
+        }
+        let function = unsafeBitCast(symbol, to: SecAccessCreateFunction.self)
+        var access: SecAccess?
+        let status = function(self.cacheLabel as CFString, trustedApplications as CFArray, &access)
+        return (status, access)
+    }
+
+    private nonisolated(unsafe) static let securityFrameworkHandle: UnsafeMutableRawPointer? = {
+        let securityPath = "/System/Library/Frameworks/Security.framework/Security"
+        return dlopen(securityPath, RTLD_NOW)
+    }()
+
+    private static func securitySymbol(named name: String) -> UnsafeMutableRawPointer? {
+        // Resolve deprecated SecKeychain ACL helpers at runtime so release builds stay warning-free
+        // while still granting the app bundle and bundled CLI prompt-free access to cache entries.
+        guard let securityFrameworkHandle else { return nil }
+        return dlsym(securityFrameworkHandle, name)
     }
     #endif
 

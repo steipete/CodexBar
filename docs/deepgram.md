@@ -1,3 +1,11 @@
+---
+summary: "Deepgram provider: API key setup, project discovery, and usage-breakdown metrics."
+read_when:
+  - Debugging Deepgram API key or project selection
+  - Updating Deepgram usage parsing or menu display
+  - Explaining Deepgram setup to users
+---
+
 # Deepgram Provider
 
 [Deepgram](https://deepgram.com) is a speech AI platform that provides APIs for speech-to-text, text-to-speech, audio intelligence, and related voice features.
@@ -27,6 +35,12 @@ If `DEEPGRAM_PROJECT_ID` is omitted, CodexBar calls Deepgram's project list endp
 ### Settings
 
 You can also configure the API key and optional project ID in CodexBar Settings → Providers → Deepgram.
+
+### CLI config
+
+```bash
+printf '%s' "$DEEPGRAM_API_KEY" | codexbar config set-api-key --provider deepgram --stdin
+```
 
 ## Data Source
 

@@ -276,6 +276,9 @@ final class ManagedCodexAccountService {
                 providerAccountID: persistedMetadata.providerAccountID,
                 workspaceLabel: persistedMetadata.workspaceLabel,
                 workspaceAccountID: persistedMetadata.workspaceAccountID,
+                authFingerprint: CodexAuthFingerprint.fingerprint(
+                    homePath: homeURL.path,
+                    fileManager: self.fileManager),
                 managedHomePath: homeURL.path,
                 createdAt: existing?.createdAt ?? now,
                 updatedAt: now,

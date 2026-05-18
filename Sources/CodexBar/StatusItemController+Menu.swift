@@ -544,23 +544,7 @@ extension StatusItemController {
 
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext) -> Bool {
         if let codexAccountDisplay = context.codexAccountDisplay, codexAccountDisplay.showAll {
-            let snapshotsByAccountID = Dictionary(uniqueKeysWithValues: codexAccountDisplay.snapshots.map {
-                ($0.account.id, $0)
-            })
-            let cards = codexAccountDisplay.accounts.compactMap { account in
-                if let accountSnapshot = snapshotsByAccountID[account.id] {
-                    return self.menuCardModel(
-                        for: .codex,
-                        snapshotOverride: accountSnapshot.snapshot,
-                        errorOverride: accountSnapshot.error,
-                        accountOverride: self.accountInfo(for: account))
-                }
-                return self.menuCardModel(
-                    for: .codex,
-                    forceOverrideCard: true,
-                    accountOverride: self.accountInfo(for: account))
-            }
-            self.addStackedMenuCards(cards, to: menu, context: context)
+            self.addStackedCodexMenuCards(codexAccountDisplay, to: menu, context: context)
             return false
         }
 
@@ -1274,16 +1258,9 @@ extension StatusItemController {
         let usageBottomPadding = bottomPadding
         let creditsBottomPadding = bottomPadding
 
-        let headerView = UsageMenuCardHeaderSectionView(
-            model: model,
-            showDivider: hasUsageBlock,
-            width: width)
-        menu.addItem(self.makeMenuCardItem(headerView, id: "menuCardHeader", width: width))
-
         if hasUsageBlock {
-            let usageView = UsageMenuCardUsageSectionView(
+            let usageView = UsageMenuCardHeaderAndUsageSectionView(
                 model: model,
-                showBottomDivider: false,
                 bottomPadding: usageBottomPadding,
                 width: width)
             let usageSubmenu = self.makeUsageSubmenu(
@@ -1296,6 +1273,12 @@ extension StatusItemController {
                 id: "menuCardUsage",
                 width: width,
                 submenu: usageSubmenu))
+        } else {
+            let headerView = UsageMenuCardHeaderSectionView(
+                model: model,
+                showDivider: false,
+                width: width)
+            menu.addItem(self.makeMenuCardItem(headerView, id: "menuCardHeader", width: width))
         }
 
         if hasStorage || hasCredits || hasExtraUsage || hasCost {
@@ -1355,7 +1338,7 @@ extension StatusItemController {
     }
 
     @discardableResult
-    private func addStorageMenuCardSection(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
+    func addStorageMenuCardSection(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
         guard let storageText = self.store.storageFootprintText(for: provider) else { return false }
         let storageView = StorageMenuCardSectionView(
             storageText: storageText,

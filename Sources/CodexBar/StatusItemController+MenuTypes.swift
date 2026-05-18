@@ -136,6 +136,14 @@ struct CodexAccountMenuDisplay: Equatable {
         self.layout == .segmented
     }
 
+    var workspaceSections: [CodexAccountWorkspaceSection] {
+        self.accounts.codexWorkspaceSections()
+    }
+
+    var showsWorkspaceGroups: Bool {
+        Set(self.workspaceSections.map(\.title)).count > 1
+    }
+
     static func == (lhs: CodexAccountMenuDisplay, rhs: CodexAccountMenuDisplay) -> Bool {
         lhs.accounts == rhs.accounts &&
             lhs.activeVisibleAccountID == rhs.activeVisibleAccountID &&
