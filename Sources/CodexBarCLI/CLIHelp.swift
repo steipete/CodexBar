@@ -77,14 +77,18 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar serve [--port <port>] [--refresh-interval <seconds>]
+          codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                          [--request-timeout <seconds>]
+                         [--dashboard-token <token>] [--dashboard-identity none|redacted|full]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
         Description:
-          Start a foreground localhost-only HTTP server that exposes existing CLI JSON payloads.
-          The server binds to 127.0.0.1 only in this initial version.
+          Start a foreground HTTP server that exposes CLI JSON payloads and a stable dashboard snapshot.
+          By default the server binds to 127.0.0.1 only. Non-loopback --host values require
+          --dashboard-token, and data routes require Authorization: Bearer YOUR_TOKEN when configured.
+          Dashboard identity exposure defaults to redacted.
+          Redacted identity keeps plan labels and email domains, but hides email local parts.
 
         Endpoints:
           GET /health
@@ -93,11 +97,15 @@ extension CodexBarCLI {
           GET /usage?provider=all
           GET /cost
           GET /cost?provider=codex
+          GET /dashboard/v1/snapshot
 
         Examples:
           codexbar serve
           codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30
+          codexbar serve --host 0.0.0.0 --port 8080 --dashboard-token "$CODEXBAR_DASHBOARD_TOKEN"
           curl http://127.0.0.1:8080/usage?provider=all
+          curl -H "Authorization: Bearer $CODEXBAR_DASHBOARD_TOKEN" \\
+            http://127.0.0.1:8080/dashboard/v1/snapshot
         """
     }
 
@@ -209,8 +217,9 @@ extension CodexBarCLI {
                        [--json-only]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
-          codexbar serve [--port <port>] [--refresh-interval <seconds>]
+          codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]
+                       [--dashboard-token <token>] [--dashboard-identity none|redacted|full]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
           codexbar config <validate|dump|providers> [--format text|json]
                                         [--json]
