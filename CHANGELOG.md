@@ -9,6 +9,7 @@
 - Permissions: notify when a provider probe detects a macOS/browser permission prompt waiting for user action (#456).
 
 ### Fixed
+- Codex: collapse near-duplicate session and weekly plan-utilization history windows so charts no longer show repeated tabs (#1027). Thanks @ngutman!
 - Multi-account menus: fetch stacked Codex/token-account usage concurrently so account switchers stay responsive with many accounts (#1011).
 
 ## 0.27.0 — 2026-05-17
