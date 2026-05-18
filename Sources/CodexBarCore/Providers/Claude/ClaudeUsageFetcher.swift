@@ -477,10 +477,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
             let executionSteps = plan.executionSteps
             for (index, step) in executionSteps.enumerated() {
+                let isFinalStep = index == executionSteps.count - 1
                 do {
-                    return try await self.execute(step: step, model: model)
+                    return try await self.execute(step: step, model: model, isFinalStep: isFinalStep)
                 } catch {
-                    if index < executionSteps.count - 1 {
+                    if !isFinalStep {
                         ClaudeUsageFetcher.log.debug(
                             "Claude planner step failed; falling back to next step",
                             metadata: [
@@ -531,7 +532,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             ClaudeUsageFetcher.log.debug("Claude auto source planner", metadata: metadata)
         }
 
-        private func execute(step: ClaudeFetchPlanStep, model: String) async throws -> ClaudeUsageSnapshot {
+        private func execute(
+            step: ClaudeFetchPlanStep,
+            model: String,
+            isFinalStep: Bool) async throws -> ClaudeUsageSnapshot
+        {
             switch step.dataSource {
             case .api:
                 throw ClaudeUsageError.parseFailed("Planner emitted invalid api execution step.")
@@ -542,9 +547,19 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
+                return try await self.loadViaAutoCLI(model: model, isFinalStep: isFinalStep)
             case .auto:
                 throw ClaudeUsageError.parseFailed("Planner emitted invalid auto execution step.")
+            }
+        }
+
+        private func loadViaAutoCLI(model: String, isFinalStep: Bool) async throws -> ClaudeUsageSnapshot {
+            do {
+                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
+            } catch {
+                if error is CancellationError { throw error }
+                guard isFinalStep, Self.shouldRetryCLIProbe(after: error) else { throw error }
+                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
             }
         }
 
