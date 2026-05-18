@@ -3,11 +3,9 @@ import Foundation
 @preconcurrency import FoundationNetworking
 #endif
 
-public protocol ProviderHTTPTransport: Sendable {
+@preconcurrency public protocol ProviderHTTPTransport: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
-
-extension URLSession: ProviderHTTPTransport {}
 
 public struct ProviderHTTPResponse: Sendable {
     public let data: Data
@@ -23,7 +21,19 @@ public struct ProviderHTTPResponse: Sendable {
     }
 }
 
-public struct ProviderHTTPTransportHandler: ProviderHTTPTransport {
+extension URLSession {
+    public func response(for request: URLRequest) async throws -> ProviderHTTPResponse {
+        let (data, response) = try await self.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        return ProviderHTTPResponse(data: data, response: httpResponse)
+    }
+}
+
+extension URLSession: ProviderHTTPTransport {}
+
+public struct ProviderHTTPTransportHandler: ProviderHTTPTransport, Sendable {
     private let handler: @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     public init(_ handler: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) {
