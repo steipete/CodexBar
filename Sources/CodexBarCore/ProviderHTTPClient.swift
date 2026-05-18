@@ -7,6 +7,27 @@ import Foundation
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
+#if canImport(FoundationNetworking)
+extension URLSession {
+    public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await withCheckedThrowingContinuation { continuation in
+            let task = self.dataTask(with: request) { data, response, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let data, let response else {
+                    continuation.resume(throwing: URLError(.badServerResponse))
+                    return
+                }
+                continuation.resume(returning: (data, response))
+            }
+            task.resume()
+        }
+    }
+}
+#endif
+
 public struct ProviderHTTPResponse: Sendable {
     public let data: Data
     public let response: HTTPURLResponse
