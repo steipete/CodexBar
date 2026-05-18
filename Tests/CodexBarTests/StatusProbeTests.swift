@@ -288,7 +288,7 @@ struct StatusProbeTests {
     }
 
     @Test
-    func `parse claude status loading panel does not report zero percent`() {
+    func `parse claude status loading panel surfaces loading stall`() {
         let sample = """
         Claude Code v2.1.29
         22:47 |  | Opus 4.5 | default | ░░░░░░░░░░ 0%  ◯ /ide for Visual Studio Code
@@ -301,7 +301,8 @@ struct StatusProbeTests {
         do {
             _ = try ClaudeStatusProbe.parse(text: sample)
             #expect(Bool(false), "Parsing should fail while /usage is still loading")
-        } catch ClaudeStatusProbeError.parseFailed {
+        } catch let ClaudeStatusProbeError.parseFailed(message) {
+            #expect(message.lowercased().contains("loading"))
             return
         } catch ClaudeStatusProbeError.timedOut {
             return

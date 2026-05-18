@@ -71,6 +71,7 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
 public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private static let sessionWindowMinutes = 5 * 60
     private static let weeklyWindowMinutes = 7 * 24 * 60
+    private static let cliAutoProbeTimeout: TimeInterval = 12
     private static let cliProbeTimeout: TimeInterval = 24
     private static let cliRetryProbeTimeout: TimeInterval = 60
     private struct Configuration {
@@ -541,7 +542,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
-                return try await self.loadViaCLIWithRetry(model: model)
+                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
             case .auto:
                 throw ClaudeUsageError.parseFailed("Planner emitted invalid auto execution step.")
             }

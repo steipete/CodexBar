@@ -158,6 +158,15 @@ public struct ClaudeStatusProbe: Sendable {
             throw ClaudeStatusProbeError.parseFailed(usageError)
         }
 
+        if self.isUsageStillLoading(text: clean) {
+            Self.dumpIfNeeded(
+                enabled: shouldDump,
+                reason: "usage still loading",
+                usage: clean,
+                status: statusText)
+            throw ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data.")
+        }
+
         // Claude CLI renders /usage as a TUI. Our PTY capture includes earlier screen fragments (including a status
         // line
         // with a "0%" context meter) before the usage panel is drawn. To keep parsing stable, trim to the last
@@ -450,6 +459,12 @@ public struct ClaudeStatusProbe: Sendable {
             return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
         }
         return nil
+    }
+
+    private static func isUsageStillLoading(text: String) -> Bool {
+        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        guard normalized.contains("loadingusage") else { return false }
+        return !self.usageCaptureHasSessionValue(normalized) && self.allPercents(text).isEmpty
     }
 
     /// Collect remaining percentages in the order they appear; used as a backup when labels move/rename.

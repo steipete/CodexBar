@@ -60,6 +60,32 @@ struct ClaudeCLITimeoutRetryTests {
     }
 
     @Test
+    func `auto cli usage uses bounded timeout without long retry`() async throws {
+        let attempts = AttemptRecorder()
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            environment: [:],
+            dataSource: .auto)
+
+        let fetchOverride: ClaudeStatusProbe.FetchOverride = { _, timeout, _ in
+            _ = await attempts.record(timeout: timeout)
+            throw ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data.")
+        }
+
+        await #expect(throws: ClaudeStatusProbeError.self) {
+            try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+                try await ClaudeStatusProbe.withFetchOverrideForTesting(fetchOverride) {
+                    try await fetcher.loadLatestUsage(model: "sonnet")
+                }
+            }
+        }
+
+        let recorded = await attempts.snapshot()
+        #expect(recorded.count == 1)
+        #expect(recorded.timeouts == [12])
+    }
+
+    @Test
     func `cli usage does not retry cancelled probe`() async throws {
         let attempts = AttemptRecorder()
         let fetcher = ClaudeUsageFetcher(
