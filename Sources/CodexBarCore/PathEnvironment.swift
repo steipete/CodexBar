@@ -83,6 +83,7 @@ public enum BinaryLocator {
         commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
         aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
             .resolveAlias,
+        launchCandidateFilter: (String, FileManager) -> Bool = CodexLaunchPreflight.isLaunchCandidateAllowed,
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
@@ -93,8 +94,23 @@ public enum BinaryLocator {
             loginPATH: loginPATH,
             commandV: commandV,
             aliasResolver: aliasResolver,
+            wellKnownPaths: self.codexWellKnownPaths(home: home),
+            launchCandidateFilter: launchCandidateFilter,
             fileManager: fileManager,
             home: home)
+    }
+
+    /// Well-known installation paths for the signed Codex desktop app CLI.
+    /// Keep these after PATH lookups, but use them as a safe fallback when a PATH shim is blocked.
+    static func codexWellKnownPaths(home: String) -> [String] {
+        #if os(macOS)
+        [
+            "\(home)/Applications/Codex.app/Contents/Resources/codex",
+            "/Applications/Codex.app/Contents/Resources/codex",
+        ]
+        #else
+        []
+        #endif
     }
 
     public static func resolveGeminiBinary(
@@ -179,6 +195,7 @@ public enum BinaryLocator {
         commandV: (String, String?, TimeInterval, FileManager) -> String?,
         aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String?,
         wellKnownPaths: [String] = [],
+        launchCandidateFilter: (String, FileManager) -> Bool = { _, _ in true },
         fileManager: FileManager,
         home: String) -> String?
     {
@@ -190,7 +207,11 @@ public enum BinaryLocator {
 
         // 2) Login-shell PATH (captured once per launch)
         if let loginPATH,
-           let pathHit = self.find(name, in: loginPATH, fileManager: fileManager)
+           let pathHit = self.find(
+               name,
+               in: loginPATH,
+               fileManager: fileManager,
+               launchCandidateFilter: launchCandidateFilter)
         {
             return pathHit
         }
@@ -200,49 +221,196 @@ public enum BinaryLocator {
            let pathHit = self.find(
                name,
                in: existingPATH.split(separator: ":").map(String.init),
-               fileManager: fileManager)
+               fileManager: fileManager,
+               launchCandidateFilter: launchCandidateFilter)
         {
             return pathHit
         }
 
         // 4) Well-known installation paths (e.g. Homebrew, cmux.app bundle, ~/.claude/bin).
         // Prefer these before shell probing to avoid running interactive shell init for common installs.
-        for candidate in wellKnownPaths where fileManager.isExecutableFile(atPath: candidate) {
+        for candidate in wellKnownPaths
+            where fileManager.isExecutableFile(atPath: candidate) && launchCandidateFilter(candidate, fileManager)
+        {
             return candidate
         }
 
         // 5) Interactive login shell lookup (captures nvm/fnm/mise paths from .zshrc/.bashrc)
         if let shellHit = commandV(name, env["SHELL"], 2.0, fileManager),
-           fileManager.isExecutableFile(atPath: shellHit)
+           fileManager.isExecutableFile(atPath: shellHit),
+           launchCandidateFilter(shellHit, fileManager)
         {
             return shellHit
         }
 
         // 5b) Alias fallback (login shell); only attempt after all standard lookups fail.
         if let aliasHit = aliasResolver(name, env["SHELL"], 2.0, fileManager, home),
-           fileManager.isExecutableFile(atPath: aliasHit)
+           fileManager.isExecutableFile(atPath: aliasHit),
+           launchCandidateFilter(aliasHit, fileManager)
         {
             return aliasHit
         }
 
         // 6) Minimal fallback
         let fallback = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
-        if let pathHit = self.find(name, in: fallback, fileManager: fileManager) {
+        if let pathHit = self.find(
+            name,
+            in: fallback,
+            fileManager: fileManager,
+            launchCandidateFilter: launchCandidateFilter)
+        {
             return pathHit
         }
 
         return nil
     }
 
-    private static func find(_ binary: String, in paths: [String], fileManager: FileManager) -> String? {
+    private static func find(
+        _ binary: String,
+        in paths: [String],
+        fileManager: FileManager,
+        launchCandidateFilter: (String, FileManager) -> Bool = { _, _ in true }) -> String?
+    {
         for path in paths where !path.isEmpty {
             let candidate = "\(path.hasSuffix("/") ? String(path.dropLast()) : path)/\(binary)"
-            if fileManager.isExecutableFile(atPath: candidate) {
+            if fileManager.isExecutableFile(atPath: candidate), launchCandidateFilter(candidate, fileManager) {
                 return candidate
             }
         }
         return nil
     }
+}
+
+public enum CodexLaunchPreflight {
+    public static func isLaunchCandidateAllowed(path: String, fileManager: FileManager = .default) -> Bool {
+        #if os(macOS)
+        let realPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        let pathsToCheck = [path, realPath] + self.nativeCodexExecutableCandidates(
+            for: realPath,
+            fileManager: fileManager)
+
+        for candidate in Set(pathsToCheck) where self.hasBlockedExtendedAttribute(path: candidate) {
+            return false
+        }
+
+        guard let native = pathsToCheck.first(where: { self.isMachOExecutable(atPath: $0) }),
+              let assessment = self.spctlAssessment(path: native)
+        else {
+            return true
+        }
+
+        return !self.isExplicitlyBlockedAssessment(assessment)
+        #else
+        _ = path
+        _ = fileManager
+        return true
+        #endif
+    }
+
+    #if os(macOS)
+    private static func nativeCodexExecutableCandidates(for path: String, fileManager: FileManager) -> [String] {
+        let url = URL(fileURLWithPath: path)
+        guard url.lastPathComponent == "codex.js" else { return [] }
+
+        let packageRoot = url.deletingLastPathComponent().deletingLastPathComponent()
+        return self.npmNativeCodexCandidates(packageRoot: packageRoot)
+            .map(\.path)
+            .filter { fileManager.isExecutableFile(atPath: $0) }
+    }
+
+    private static func npmNativeCodexCandidates(packageRoot: URL) -> [URL] {
+        guard let target = self.darwinCodexTarget else { return [] }
+        let optionalPackage = packageRoot
+            .appendingPathComponent("node_modules")
+            .appendingPathComponent("@openai")
+            .appendingPathComponent(target.packageName)
+
+        return [
+            optionalPackage,
+            packageRoot,
+        ].map {
+            $0.appendingPathComponent("vendor")
+                .appendingPathComponent(target.triple)
+                .appendingPathComponent("codex")
+                .appendingPathComponent("codex")
+        }
+    }
+
+    private static var darwinCodexTarget: (packageName: String, triple: String)? {
+        #if arch(arm64)
+        ("codex-darwin-arm64", "aarch64-apple-darwin")
+        #elseif arch(x86_64)
+        ("codex-darwin-x64", "x86_64-apple-darwin")
+        #else
+        nil
+        #endif
+    }
+
+    private static func hasBlockedExtendedAttribute(path: String) -> Bool {
+        self.hasExtendedAttribute("com.apple.malware", path: path) ||
+            self.hasExtendedAttribute("com.apple.quarantine", path: path)
+    }
+
+    private static func hasExtendedAttribute(_ name: String, path: String) -> Bool {
+        path.withCString { pathPointer in
+            name.withCString { namePointer in
+                getxattr(pathPointer, namePointer, nil, 0, 0, 0) >= 0
+            }
+        }
+    }
+
+    private static func isMachOExecutable(atPath path: String) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: URL(fileURLWithPath: path)) else { return false }
+        defer { try? handle.close() }
+
+        guard let data = try? handle.read(upToCount: 4), data.count == 4 else { return false }
+        let bytes = [UInt8](data)
+        return bytes == [0xFE, 0xED, 0xFA, 0xCE] ||
+            bytes == [0xCE, 0xFA, 0xED, 0xFE] ||
+            bytes == [0xFE, 0xED, 0xFA, 0xCF] ||
+            bytes == [0xCF, 0xFA, 0xED, 0xFE] ||
+            bytes == [0xCA, 0xFE, 0xBA, 0xBE] ||
+            bytes == [0xCA, 0xFE, 0xBA, 0xBF]
+    }
+
+    private static func spctlAssessment(path: String, timeout: TimeInterval = 2.0) -> String? {
+        let spctlPath = "/usr/sbin/spctl"
+        guard FileManager.default.isExecutableFile(atPath: spctlPath) else { return nil }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: spctlPath)
+        process.arguments = ["--assess", "--type", "execute", "--verbose=4", path]
+
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = output
+
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        if finished.wait(timeout: .now() + timeout) != .success {
+            process.terminate()
+            return nil
+        }
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func isExplicitlyBlockedAssessment(_ assessment: String) -> Bool {
+        let lower = assessment.lowercased()
+        return lower.contains("cssmerr_tp_cert_revoked") ||
+            lower.contains("revoked") ||
+            lower.contains("malware") ||
+            lower.contains("quarantine")
+    }
+    #endif
 }
 
 public enum ShellCommandLocator {

@@ -135,6 +135,50 @@ struct PathBuilderTests {
     }
 
     @Test
+    func `skips blocked codex path and falls back to signed app binary`() {
+        let blockedPath = "/usr/local/bin/codex"
+        let appPath = "/Applications/Codex.app/Contents/Resources/codex"
+        let fm = MockFileManager(executables: [blockedPath, appPath])
+        var checked: [String] = []
+
+        let resolved = BinaryLocator.resolveCodexBinary(
+            env: ["PATH": "/usr/local/bin"],
+            loginPATH: nil,
+            commandV: { _, _, _, _ in nil },
+            aliasResolver: { _, _, _, _, _ in nil },
+            launchCandidateFilter: { path, _ in
+                checked.append(path)
+                return path != blockedPath
+            },
+            fileManager: fm,
+            home: "/Users/test")
+
+        #expect(resolved == appPath)
+        #expect(checked == [blockedPath, appPath])
+    }
+
+    @Test
+    func `explicit codex override bypasses launch candidate fallback`() {
+        let overridePath = "/custom/bin/codex"
+        let appPath = "/Applications/Codex.app/Contents/Resources/codex"
+        let fm = MockFileManager(executables: [overridePath, appPath])
+        var checked: [String] = []
+
+        let resolved = BinaryLocator.resolveCodexBinary(
+            env: ["CODEX_CLI_PATH": overridePath],
+            loginPATH: nil,
+            launchCandidateFilter: { path, _ in
+                checked.append(path)
+                return false
+            },
+            fileManager: fm,
+            home: "/Users/test")
+
+        #expect(resolved == overridePath)
+        #expect(checked.isEmpty)
+    }
+
+    @Test
     func `resolves codex from interactive shell`() {
         let fm = MockFileManager(executables: ["/shell/bin/codex"])
         let commandV: (String, String?, TimeInterval, FileManager) -> String? = { tool, shell, timeout, fileManager in
