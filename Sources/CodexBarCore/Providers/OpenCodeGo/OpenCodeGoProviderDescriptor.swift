@@ -33,10 +33,40 @@ public enum OpenCodeGoProviderDescriptor {
                 noDataMessage: { "OpenCode Go cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenCodeGoUsageFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "opencodego",
                 versionDetector: nil))
+    }
+
+    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        if context.sourceMode == .web {
+            return [OpenCodeGoUsageFetchStrategy()]
+        }
+        return [
+            OpenCodeGoLocalUsageFetchStrategy(),
+            OpenCodeGoUsageFetchStrategy(),
+        ]
+    }
+}
+
+struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
+    let id: String = "opencodego.local"
+    let kind: ProviderFetchKind = .localProbe
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let snapshot = try OpenCodeGoLocalUsageReader().fetch()
+        return self.makeResult(
+            usage: snapshot.toUsageSnapshot(),
+            sourceLabel: "local")
+    }
+
+    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+        error is OpenCodeGoLocalUsageError
     }
 }
 
