@@ -556,8 +556,13 @@ final class UsageStore {
                 group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
             }
 
-            // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
-            self.scheduleTokenRefresh(force: forceTokenUsage)
+            // Token-cost usage can be slow; keep background refreshes non-blocking, but make
+            // explicit refreshes wait so the rebuilt menu does not show stale cost data.
+            if forceTokenUsage {
+                await self.refreshTokenUsageSequence(force: true)
+            } else {
+                self.scheduleTokenRefresh(force: false)
+            }
 
             // OpenAI web scrape depends on the current Codex account email (which can change after login/account
             // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
@@ -639,6 +644,14 @@ final class UsageStore {
         }
     }
 
+    private func refreshTokenUsageSequence(force: Bool) async {
+        let providers = self.enabledProvidersForBackgroundWork()
+        for provider in providers {
+            if Task.isCancelled { break }
+            await self.refreshTokenUsage(provider, force: force)
+        }
+    }
+
     private func scheduleTokenRefresh(force: Bool) {
         if force {
             self.tokenRefreshSequenceTask?.cancel()
@@ -647,7 +660,6 @@ final class UsageStore {
             return
         }
 
-        let providers = self.enabledProvidersForBackgroundWork()
         self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer {
@@ -655,10 +667,7 @@ final class UsageStore {
                     self?.tokenRefreshSequenceTask = nil
                 }
             }
-            for provider in providers {
-                if Task.isCancelled { break }
-                await self.refreshTokenUsage(provider, force: force)
-            }
+            await self.refreshTokenUsageSequence(force: force)
         }
     }
 
