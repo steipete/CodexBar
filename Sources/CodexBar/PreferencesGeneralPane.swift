@@ -5,6 +5,7 @@ import SwiftUI
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system = ""
     case english = "en"
+    case spanish = "es"
     case chineseSimplified = "zh-Hans"
     case portugueseBrazilian = "pt-BR"
 
@@ -16,6 +17,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .system: L("language_system")
         case .english: L("language_english")
+        case .spanish: L("language_spanish")
         case .chineseSimplified: L("language_chinese_simplified")
         case .portugueseBrazilian: L("language_portuguese_brazilian")
         }

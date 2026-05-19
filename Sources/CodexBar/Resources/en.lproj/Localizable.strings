@@ -404,6 +404,7 @@
 "language_subtitle" = "Change the display language. Requires app restart to take full effect.";
 "language_system" = "System";
 "language_english" = "English";
+"language_spanish" = "Español";
 "language_chinese_simplified" = "简体中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "start_at_login_title" = "Start at Login";
