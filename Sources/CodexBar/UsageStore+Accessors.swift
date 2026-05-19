@@ -56,6 +56,8 @@ extension UsageStore {
             return ZaiSettingsError.missingToken.errorDescription
         case .openrouter:
             return OpenRouterSettingsError.missingToken.errorDescription
+        case .azureopenai:
+            return AzureOpenAISettingsError.missingAPIKey.errorDescription
         case .elevenlabs:
             return ElevenLabsUsageError.missingCredentials.errorDescription
         case .deepseek:

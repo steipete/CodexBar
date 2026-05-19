@@ -259,6 +259,7 @@ private struct ProviderSwitchChip: View {
         switch self.provider {
         case .codex: "Codex"
         case .openai: "OpenAI"
+        case .azureopenai: "Azure OpenAI"
         case .claude: "Claude"
         case .gemini: "Gemini"
         case .antigravity: "Anti"
@@ -615,6 +616,8 @@ enum WidgetColors {
             Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
         case .openai:
             Color(red: 15 / 255, green: 130 / 255, blue: 110 / 255)
+        case .azureopenai:
+            Color(red: 0, green: 120 / 255, blue: 212 / 255)
         case .claude:
             Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
         case .gemini:

@@ -32,6 +32,12 @@ public enum ProviderTokenResolver {
         self.openAIAPIResolution(environment: environment)?.token
     }
 
+    public static func azureOpenAIToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.azureOpenAIResolution(environment: environment)?.token
+    }
+
     public static func claudeAdminAPIToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -194,6 +200,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(OpenAIAPISettingsReader.apiKey(environment: environment))
+    }
+
+    public static func azureOpenAIResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(AzureOpenAISettingsReader.apiKey(environment: environment))
     }
 
     public static func claudeAdminAPIResolution(

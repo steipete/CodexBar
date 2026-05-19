@@ -55,6 +55,7 @@ public enum ProviderDescriptorRegistry {
     private static let descriptorsByID: [UsageProvider: ProviderDescriptor] = [
         .codex: CodexProviderDescriptor.descriptor,
         .openai: OpenAIAPIProviderDescriptor.descriptor,
+        .azureopenai: AzureOpenAIProviderDescriptor.descriptor,
         .claude: ClaudeProviderDescriptor.descriptor,
         .cursor: CursorProviderDescriptor.descriptor,
         .opencode: OpenCodeProviderDescriptor.descriptor,

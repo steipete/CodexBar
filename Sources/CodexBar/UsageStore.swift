@@ -940,6 +940,7 @@ extension UsageStore {
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
         let processEnvironment = self.environmentBase
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
         let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
@@ -984,6 +985,8 @@ extension UsageStore {
                     return await codexFetcher.debugRawRateLimits()
                 case .openai:
                     return Self.apiKeyDebugLine(openAIDebugContext)
+                case .azureopenai:
+                    return Self.apiKeyDebugLine(azureOpenAIDebugContext)
                 case .claude:
                     guard let claudeDebugConfiguration else {
                         return "Claude debug log configuration unavailable"
@@ -1191,6 +1194,20 @@ extension UsageStore {
             resolution: ProviderTokenResolver.openAIAPIResolution(environment: environment),
             configToken: config?.sanitizedAPIKey,
             hasEnvToken: OpenAIAPISettingsReader.apiKey(environment: processEnvironment) != nil,
+            hasTokenAccount: false)
+    }
+
+    private func azureOpenAIAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
+        let config = self.settings.providerConfig(for: .azureopenai)
+        let environment = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: processEnvironment,
+            provider: .azureopenai,
+            config: config)
+        return APIKeyDebugContext(
+            label: "AZURE_OPENAI_API_KEY",
+            resolution: ProviderTokenResolver.azureOpenAIResolution(environment: environment),
+            configToken: config?.sanitizedAPIKey,
+            hasEnvToken: AzureOpenAISettingsReader.apiKey(environment: processEnvironment) != nil,
             hasTokenAccount: false)
     }
 

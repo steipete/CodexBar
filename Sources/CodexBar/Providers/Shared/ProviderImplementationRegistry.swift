@@ -15,6 +15,7 @@ enum ProviderImplementationRegistry {
         switch provider {
         case .codex: CodexProviderImplementation()
         case .openai: OpenAIAPIProviderImplementation()
+        case .azureopenai: AzureOpenAIProviderImplementation()
         case .claude: ClaudeProviderImplementation()
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()
