@@ -11,10 +11,15 @@ ensure_tools() {
   "${ROOT_DIR}/Scripts/install_lint_tools.sh"
 }
 
+check_codex_parser_hash() {
+  "${ROOT_DIR}/Scripts/regenerate-codex-parser-hash.sh" --check
+}
+
 cmd="${1:-lint}"
 
 case "$cmd" in
   lint)
+    check_codex_parser_hash
     ensure_tools
     "${BIN_DIR}/swiftformat" Sources Tests --lint
     "${BIN_DIR}/swiftlint" --strict

@@ -76,93 +76,10 @@ enum CostUsageCacheIO {
 
     static func currentProducerKey(
         provider: UsageProvider,
-        bundle: Bundle = .main,
-        executablePath: String? = CommandLine.arguments.first) -> String?
+        parserHash: String = CodexParserHash.value) -> String?
     {
         guard provider == .codex else { return nil }
-        let version = self.currentCodexBarVersion(bundle: bundle, executablePath: executablePath)
-        return "\(provider.rawValue):cost-usage:\(version)"
-    }
-
-    private static func currentCodexBarVersion(
-        bundle: Bundle = .main,
-        executablePath: String? = CommandLine.arguments.first) -> String
-    {
-        if let executablePath, !executablePath.isEmpty {
-            let executableURL = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath()
-            if let version = Self.adjacentVersionFileVersion(for: executableURL) {
-                return version
-            }
-            if let version = Self.containingAppVersion(for: executableURL) {
-                return version
-            }
-        }
-
-        let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String
-        if let version = Self.normalizedVersionComponent(version) {
-            return version
-        }
-        if let executablePath, !executablePath.isEmpty {
-            let executableURL = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath()
-            if let fingerprint = Self.executableFingerprint(for: executableURL) {
-                return "development+\(fingerprint)"
-            }
-        }
-        return "development"
-    }
-
-    private static func adjacentVersionFileVersion(for executableURL: URL) -> String? {
-        let versionURL = executableURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("VERSION")
-        guard let raw = try? String(contentsOf: versionURL, encoding: .utf8) else {
-            return nil
-        }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        if trimmed.hasPrefix("v"), trimmed.dropFirst().first?.isNumber == true {
-            return String(trimmed.dropFirst())
-        }
-        return trimmed
-    }
-
-    private static func containingAppVersion(for executableURL: URL) -> String? {
-        var currentURL = executableURL.deletingLastPathComponent()
-        let fileManager = FileManager.default
-
-        while currentURL.path != currentURL.deletingLastPathComponent().path {
-            if currentURL.pathExtension == "app" {
-                let infoURL = currentURL
-                    .appendingPathComponent("Contents")
-                    .appendingPathComponent("Info.plist")
-                guard let data = fileManager.contents(atPath: infoURL.path),
-                      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
-                else { return nil }
-                return Self.normalizedVersionComponent(plist["CFBundleShortVersionString"] as? String)
-            }
-            currentURL.deleteLastPathComponent()
-        }
-
-        return nil
-    }
-
-    private static func normalizedVersionComponent(_ raw: String?) -> String? {
-        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty,
-              trimmed != "CodexBar"
-        else { return nil }
-        return trimmed
-    }
-
-    private static func executableFingerprint(for executableURL: URL) -> String? {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: executableURL.path) else {
-            return nil
-        }
-        let size = attributes[.size] as? NSNumber
-        let modifiedAt = attributes[.modificationDate] as? Date
-        guard let size, let modifiedAt else { return nil }
-        let modifiedMs = Int64(modifiedAt.timeIntervalSince1970 * 1000)
-        return "\(size.int64Value)-\(modifiedMs)"
+        return "\(provider.rawValue):cu:p\(parserHash)"
     }
 }
 
