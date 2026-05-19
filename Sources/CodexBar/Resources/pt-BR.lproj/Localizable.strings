@@ -405,6 +405,7 @@
 "language_system" = "Sistema";
 "language_english" = "Inglês";
 "language_spanish" = "Espanhol";
+"language_catalan" = "Catalão";
 "language_chinese_simplified" = "Chinês simplificado";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "start_at_login_title" = "Iniciar ao fazer login";

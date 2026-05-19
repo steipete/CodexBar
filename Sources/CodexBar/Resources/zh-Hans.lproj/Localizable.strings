@@ -412,6 +412,7 @@
 "language_system" = "跟随系统";
 "language_english" = "English";
 "language_spanish" = "Español";
+"language_catalan" = "Català";
 "language_chinese_simplified" = "简体中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "start_at_login_title" = "开机启动";
