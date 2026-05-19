@@ -199,7 +199,6 @@ public enum AzureOpenAIUsageFetcher {
             "messages": [
                 ["role": "user", "content": "ping"],
             ],
-            "temperature": 0,
         ]
         if self.usesV1API(apiVersion) {
             payload["model"] = deploymentName
