@@ -6,41 +6,87 @@ import Foundation
 final class AppNotifications {
     static let shared = AppNotifications()
 
-    private let centerProvider: @Sendable () -> UNUserNotificationCenter
+    private let authorizationStatusProvider: @Sendable () async -> UNAuthorizationStatus?
+    private let authorizationRequester: @Sendable () async -> Bool
+    private let requestPoster: @Sendable (UNNotificationRequest) async throws -> Void
+    private let soundPlayer: @MainActor @Sendable (NotificationSoundOption, Double) -> Bool
+    private let allowsPostingWhenRunningUnderTests: Bool
     private let logger = CodexBarLog.logger(LogCategories.notifications)
     private var authorizationTask: Task<Bool, Never>?
 
-    init(centerProvider: @escaping @Sendable () -> UNUserNotificationCenter = { UNUserNotificationCenter.current() }) {
-        self.centerProvider = centerProvider
+    init(
+        authorizationStatusProvider: @escaping @Sendable () async -> UNAuthorizationStatus? = {
+            let center = UNUserNotificationCenter.current()
+            return await withCheckedContinuation { continuation in
+                center.getNotificationSettings { settings in
+                    continuation.resume(returning: settings.authorizationStatus)
+                }
+            }
+        },
+        authorizationRequester: @escaping @Sendable () async -> Bool = {
+            let center = UNUserNotificationCenter.current()
+            return await withCheckedContinuation { continuation in
+                center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                    continuation.resume(returning: granted)
+                }
+            }
+        },
+        requestPoster: @escaping @Sendable (UNNotificationRequest) async throws -> Void = { request in
+            try await UNUserNotificationCenter.current().add(request)
+        },
+        soundPlayer: @escaping @MainActor @Sendable (NotificationSoundOption, Double) -> Bool = { sound, volume in
+            NotificationSoundPlayer.play(sound, volume: volume)
+        },
+        allowsPostingWhenRunningUnderTests: Bool = false)
+    {
+        self.authorizationStatusProvider = authorizationStatusProvider
+        self.authorizationRequester = authorizationRequester
+        self.requestPoster = requestPoster
+        self.soundPlayer = soundPlayer
+        self.allowsPostingWhenRunningUnderTests = allowsPostingWhenRunningUnderTests
     }
 
-    func requestAuthorizationOnStartup() {
-        guard !Self.isRunningUnderTests else { return }
+    func requestAuthorizationOnStartup(notificationsEnabled: Bool = true) {
+        guard notificationsEnabled, self.canPostInCurrentEnvironment else { return }
         _ = self.ensureAuthorizationTask()
     }
 
+    @discardableResult
     func post(
         idPrefix: String,
         title: String,
         body: String,
         badge: NSNumber? = nil,
-        soundEnabled: Bool = true)
+        soundEnabled: Bool = true,
+        event: AppNotificationEvent? = nil,
+        provider: String? = nil,
+        notificationsEnabled: Bool = true,
+        notificationVolume: Double = 1.0,
+        settings: NotificationDeliverySettings? = nil) -> Task<Void, Never>?
     {
-        guard !Self.isRunningUnderTests else { return }
-        let center = self.centerProvider()
-        let logger = self.logger
+        guard self.canPostInCurrentEnvironment else { return nil }
 
-        Task { @MainActor in
+        return Task { @MainActor in
+            let deliverySettings = settings ?? .localDefault
+            guard notificationsEnabled, deliverySettings.enabled else {
+                self.logger.debug(
+                    "disabled; skipping notification",
+                    metadata: self.metadata(event: event, idPrefix: idPrefix, provider: provider))
+                return
+            }
+
             let granted = await self.ensureAuthorized()
             guard granted else {
-                logger.debug("not authorized; skipping post", metadata: ["prefix": idPrefix])
+                self.logger.debug(
+                    "not authorized; skipping notification",
+                    metadata: self.metadata(event: event, idPrefix: idPrefix, provider: provider))
                 return
             }
 
             let content = UNMutableNotificationContent()
             content.title = title
             content.body = body
-            content.sound = soundEnabled ? .default : nil
+            content.sound = soundEnabled && deliverySettings.sound == .systemDefault ? .default : nil
             content.badge = badge
 
             let request = UNNotificationRequest(
@@ -48,12 +94,22 @@ final class AppNotifications {
                 content: content,
                 trigger: nil)
 
-            logger.info("posting", metadata: ["prefix": idPrefix])
+            self.logger.info(
+                "posting",
+                metadata: self.metadata(event: event, idPrefix: idPrefix, provider: provider))
             do {
-                try await center.add(request)
+                try await self.requestPoster(request)
+                self.playSoundIfNeeded(
+                    event: event,
+                    idPrefix: idPrefix,
+                    provider: provider,
+                    settings: deliverySettings,
+                    soundEnabled: soundEnabled,
+                    notificationVolume: notificationVolume)
             } catch {
-                let errorText = String(describing: error)
-                logger.error("failed to post", metadata: ["prefix": idPrefix, "error": errorText])
+                var metadata = self.metadata(event: event, idPrefix: idPrefix, provider: provider)
+                metadata["error"] = "\(error)"
+                self.logger.error("failed to post", metadata: metadata)
             }
         }
     }
@@ -74,7 +130,7 @@ final class AppNotifications {
     }
 
     private func requestAuthorization() async -> Bool {
-        if let existing = await self.notificationAuthorizationStatus() {
+        if let existing = await self.authorizationStatusProvider() {
             if existing == .authorized || existing == .provisional {
                 return true
             }
@@ -83,21 +139,43 @@ final class AppNotifications {
             }
         }
 
-        let center = self.centerProvider()
-        return await withCheckedContinuation { continuation in
-            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-                continuation.resume(returning: granted)
-            }
+        return await self.authorizationRequester()
+    }
+
+    private var canPostInCurrentEnvironment: Bool {
+        self.allowsPostingWhenRunningUnderTests || !Self.isRunningUnderTests
+    }
+
+    private func playSoundIfNeeded(
+        event: AppNotificationEvent?,
+        idPrefix: String,
+        provider: String?,
+        settings: NotificationDeliverySettings,
+        soundEnabled: Bool,
+        notificationVolume: Double)
+    {
+        guard soundEnabled else { return }
+        guard settings.sound != .none, settings.sound != .systemDefault else { return }
+        var metadata = self.metadata(event: event, idPrefix: idPrefix, provider: provider)
+        metadata["sound"] = settings.sound.rawValue
+        metadata["volume"] = "\(notificationVolume)"
+
+        if self.soundPlayer(settings.sound, notificationVolume) {
+            self.logger.info("played sound", metadata: metadata)
+        } else {
+            self.logger.error("failed to play sound", metadata: metadata)
         }
     }
 
-    private func notificationAuthorizationStatus() async -> UNAuthorizationStatus? {
-        let center = self.centerProvider()
-        return await withCheckedContinuation { continuation in
-            center.getNotificationSettings { settings in
-                continuation.resume(returning: settings.authorizationStatus)
-            }
+    private func metadata(event: AppNotificationEvent?, idPrefix: String, provider: String?) -> [String: String] {
+        var metadata = [
+            "event": event?.rawValue ?? "legacy",
+            "prefix": idPrefix,
+        ]
+        if let provider = Self.normalizedProvider(provider) {
+            metadata["provider"] = provider
         }
+        return metadata
     }
 
     private static var isRunningUnderTests: Bool {
@@ -111,5 +189,11 @@ final class AppNotifications {
         if env["TESTING_LIBRARY_VERSION"] != nil { return true }
         if env["SWIFT_TESTING"] != nil { return true }
         return NSClassFromString("XCTestCase") != nil
+    }
+
+    private nonisolated static func normalizedProvider(_ provider: String?) -> String? {
+        let trimmed = provider?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 }
