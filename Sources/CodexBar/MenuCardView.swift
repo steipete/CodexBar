@@ -1186,15 +1186,15 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
-        if input.provider == .copilot,
-           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !detail.isEmpty
+        if input.provider == .copilot || input.provider == .wafer,
+           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty
         {
             primaryDetailLeft = detail
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
-           let detail = primary.resetDescription,
-           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input
+            .provider == .deepseek,
+            let detail = primary.resetDescription,
+            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
         }
@@ -1265,7 +1265,7 @@ extension UsageMenuCardView.Model {
             primaryPacePercent = regen.pace.pacePercent
             primaryPaceOnTop = regen.pace.paceOnTop
         }
-        let primaryStatusText = input.provider == .deepseek ? primaryDetailText : nil
+        let primaryStatusText = (input.provider == .deepseek) ? primaryDetailText : nil
         if input.provider == .deepseek {
             primaryDetailText = nil
         }
