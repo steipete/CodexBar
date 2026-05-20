@@ -528,7 +528,7 @@
 "show_provider_storage_usage_title" = "Show provider storage usage";
 "show_provider_storage_usage_subtitle" = "Show local disk usage in menus. Scans known provider-owned paths in the background.";
 "section_keychain_access" = "Keychain access";
-"keychain_access_caption" = "Disable all Keychain reads and writes. Browser cookie import is unavailable; paste Cookie headers manually in Providers.";
+"keychain_access_caption" = "Disable all Keychain reads and writes. Use this if macOS keeps prompting for 'Chrome/Brave/Edge Safe Storage' even after clicking Always Allow. Browser cookie import is unavailable while enabled; paste Cookie headers manually in Providers. Claude/Codex OAuth via the CLI still works.";
 "disable_keychain_access_title" = "Disable Keychain access";
 "disable_keychain_access_subtitle" = "Prevents any Keychain access while enabled.";
 
