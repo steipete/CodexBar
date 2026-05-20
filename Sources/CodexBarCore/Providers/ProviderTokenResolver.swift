@@ -113,6 +113,12 @@ public enum ProviderTokenResolver {
         self.deepseekResolution(environment: environment)?.token
     }
 
+    public static func waferToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.waferResolution(environment: environment)?.token
+    }
+
     public static func crofToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -151,6 +157,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(DeepSeekSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func waferResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(WaferSettingsReader.apiKey(environment: environment))
     }
 
     public static func crofResolution(

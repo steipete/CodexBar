@@ -147,6 +147,47 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `menu bar display text formats wafer requests remaining`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-wafer-requests",
+            provider: .wafer)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12.3,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: "123/1000 requests"),
+            secondary: nil,
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .wafer)
+        store._setErrorForTesting(nil, provider: .wafer)
+
+        let displayText = controller.menuBarDisplayText(for: .wafer, snapshot: snapshot)
+
+        #expect(displayText == "877")
+    }
+
+    @Test
+    func `menu bar display text returns nil when wafer snapshot or primary is nil`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-wafer-nil",
+            provider: .wafer)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+
+        let displayText1 = controller.menuBarDisplayText(for: .wafer, snapshot: nil)
+        #expect(displayText1 == nil)
+
+        let snapshotWithNoPrimary = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date())
+        let displayText2 = controller.menuBarDisplayText(for: .wafer, snapshot: snapshotWithNoPrimary)
+        #expect(displayText2 == nil)
+    }
+
+    @Test
     func `kiro menu bar automatic uses credits left`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-kiro-automatic",
