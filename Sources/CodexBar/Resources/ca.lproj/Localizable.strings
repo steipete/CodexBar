@@ -634,6 +634,9 @@
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
 
+/* Additional keys */
+"not_found" = "No trobat";
+
 /* Cost estimation */
 "cost_header_estimated" = "Cost (estimat)";
 "cost_estimate_hint" = "Estimat a partir de registres locals · pot diferir de la teva factura";
