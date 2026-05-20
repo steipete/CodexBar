@@ -61,6 +61,18 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `cached missing codex CLI failure preserves cached suffix`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cached-missing-cli")
+        store.lastCreditsError =
+            "Last Codex credits refresh failed: Codex CLI not found. "
+                + "Install with `npm i -g @openai/codex`. Cached values from 2m ago."
+
+        #expect(
+            store.userFacingLastCreditsError ==
+                CodexStatusProbeError.codexNotInstalled.localizedDescription + " Cached values from 2m ago.")
+    }
+
+    @Test
     func `browser mismatch remains unchanged`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-browser-mismatch")
         store.lastOpenAIDashboardError =

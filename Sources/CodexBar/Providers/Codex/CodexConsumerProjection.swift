@@ -8,16 +8,16 @@ struct CodexUIErrorMapper {
         guard !trimmed.isEmpty else { return nil }
 
         let lower = trimmed.lowercased()
-        if self.looksCodexCLIMissing(lower: lower) {
-            return CodexStatusProbeError.codexNotInstalled.localizedDescription
-        }
-
         if self.isAlreadyUserFacing(lower: lower) {
             return trimmed
         }
 
         if let cachedMessage = self.cachedMessage(raw: trimmed, lower: lower) {
             return cachedMessage
+        }
+
+        if self.looksCodexCLIMissing(lower: lower) {
+            return CodexStatusProbeError.codexNotInstalled.localizedDescription
         }
 
         if self.looksExpired(lower: lower) {
