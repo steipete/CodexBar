@@ -729,8 +729,12 @@ extension StatusItemController {
                     }
                     menu.addItem(item)
                 case let .action(title, action):
-                    if case .refresh = action {
-                        menu.addItem(self.makePersistentMenuActionItem(title: title, action: action, width: width))
+                    if self.usesPersistentMenuActionItem(for: action) {
+                        menu.addItem(self.makePersistentMenuActionItem(
+                            title: title,
+                            action: action,
+                            menu: menu,
+                            width: width))
                         continue
                     }
 
@@ -799,16 +803,17 @@ extension StatusItemController {
     private func makePersistentMenuActionItem(
         title: String,
         action: MenuDescriptor.MenuAction,
+        menu: NSMenu,
         width: CGFloat) -> NSMenuItem
     {
         let shortcut = self.shortcut(for: action)
         let row = PersistentMenuActionItemView(
             title: title,
-            systemImageName: action.systemImageName,
+            systemImageName: self.persistentMenuActionSystemImageName(for: action),
             shortcutText: shortcut.map { self.shortcutLabel(for: $0) },
             width: width,
-            onClick: { [weak self] in
-                self?.performPersistentMenuAction(action)
+            onClick: { [weak self, weak menu] in
+                self?.performPersistentMenuAction(action, in: menu)
             })
 
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: shortcut?.key ?? "")
@@ -817,15 +822,6 @@ extension StatusItemController {
         item.view = row
         item.toolTip = title
         return item
-    }
-
-    private func performPersistentMenuAction(_ action: MenuDescriptor.MenuAction) {
-        switch action {
-        case .refresh:
-            self.refreshNow()
-        default:
-            break
-        }
     }
 
     private func shortcutLabel(for shortcut: (key: String, modifiers: NSEvent.ModifierFlags)) -> String {
