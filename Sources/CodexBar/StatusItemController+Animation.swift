@@ -617,6 +617,26 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .wafer {
+            guard let snapshot, let primary = snapshot.primary else {
+                return nil
+            }
+            if primary.usedPercent >= 100.0 {
+                return "Expired"
+            }
+            if let desc = primary.resetDescription,
+               let firstPart = desc.split(separator: " ").first,
+               let slashIdx = firstPart.firstIndex(of: "/"),
+               let countStr = firstPart[..<slashIdx].trimmingCharacters(in: .whitespacesAndNewlines) as String?,
+               let limitStr = firstPart[firstPart.index(after: slashIdx)...]
+                   .trimmingCharacters(in: .whitespacesAndNewlines) as String?,
+                   let count = Int(countStr),
+                   let limit = Int(limitStr)
+            {
+                return "\(limit - count)"
+            }
+            return "Pass"
+        }
         if provider == .moonshot,
            let balance = Self.moonshotBalanceDisplayText(snapshot: snapshot)
         {

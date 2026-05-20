@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct ProviderIconResourcesTests {
     @Test
-    func `provider icon SV gs exist`() throws {
+    func `provider icon SVGs exist`() throws {
         let root = try Self.repoRoot()
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
 
@@ -30,6 +30,7 @@ struct ProviderIconResourcesTests {
             "groq",
             "llmproxy",
             "deepgram",
+            "wafer",
         ]
         for slug in slugs {
             let url = resources.appending(path: "ProviderIcon-\(slug).svg")

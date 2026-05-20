@@ -470,6 +470,7 @@
 "menu_bar_metric_subtitle_moonshot" = "Mostra el saldo de l'API de Moonshot / Kimi a la barra de menús.";
 "menu_bar_metric_subtitle_mistral" = "Mostra la despesa de l'API de Mistral del mes actual a la barra de menús.";
 "menu_bar_metric_subtitle_kimik2" = "Mostra els crèdits de la clau d'API de Kimi K2 a la barra de menús.";
+"menu_bar_metric_subtitle_wafer" = "Mostra l'estat de la subscripció a Wafer Pass a la barra de menús.";
 "automatic" = "Automàtic";
 "primary_api_key_limit" = "Principal (límit de la clau d'API)";
 
