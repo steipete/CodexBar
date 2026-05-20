@@ -1,25 +1,32 @@
 import Foundation
 #if canImport(FoundationNetworking)
-import FoundationNetworking
+@preconcurrency import FoundationNetworking
 #endif
 
-public protocol ProviderHTTPTransport: Sendable {
+@preconcurrency public protocol ProviderHTTPTransport: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
-#if !os(Linux)
-extension URLSession: ProviderHTTPTransport {}
-#endif
-
+#if canImport(FoundationNetworking)
 extension URLSession {
-    public func response(for request: URLRequest) async throws -> ProviderHTTPResponse {
-        let (data, response) = try await self.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
+    public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await withCheckedThrowingContinuation { continuation in
+            let task = self.dataTask(with: request) { data, response, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let data, let response else {
+                    continuation.resume(throwing: URLError(.badServerResponse))
+                    return
+                }
+                continuation.resume(returning: (data, response))
+            }
+            task.resume()
         }
-        return ProviderHTTPResponse(data: data, response: httpResponse)
     }
 }
+#endif
 
 public struct ProviderHTTPResponse: Sendable {
     public let data: Data
@@ -35,7 +42,19 @@ public struct ProviderHTTPResponse: Sendable {
     }
 }
 
-public struct ProviderHTTPTransportHandler: ProviderHTTPTransport {
+extension URLSession {
+    public func response(for request: URLRequest) async throws -> ProviderHTTPResponse {
+        let (data, response) = try await self.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        return ProviderHTTPResponse(data: data, response: httpResponse)
+    }
+}
+
+extension URLSession: ProviderHTTPTransport {}
+
+public struct ProviderHTTPTransportHandler: ProviderHTTPTransport, Sendable {
     private let handler: @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     public init(_ handler: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) {
