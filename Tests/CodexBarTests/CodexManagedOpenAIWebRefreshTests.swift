@@ -7,6 +7,129 @@ import Testing
 @MainActor
 struct CodexManagedOpenAIWebRefreshTests {
     @Test
+    func `regular refresh does not await OpenAI web scrape`() async {
+        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-regular-refresh-nonblocking")
+        settings.statusChecksEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        let completion = RefreshCompletionProbe()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+            try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+            await completion.markCompleted()
+        }
+
+        try? await Task.sleep(for: .milliseconds(200))
+
+        #expect(await blocker.startedCount() == 1)
+        #expect(await completion.isCompleted == true)
+
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 95,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 25,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+
+        await refreshTask.value
+    }
+
+    @Test
+    func `regular refresh does not await Codex credits fetch`() async {
+        let settings = self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-regular-refresh-nonblocking-credits")
+        settings.statusChecksEnabled = false
+        settings.openAIWebAccessEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingCreditsLoader()
+        let completion = RefreshCompletionProbe()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            try await blocker.awaitResult()
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+            await completion.markCompleted()
+        }
+
+        try? await Task.sleep(for: .milliseconds(200))
+
+        #expect(await blocker.startedCount() == 1)
+        #expect(await completion.isCompleted == true)
+
+        await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
+
+        await refreshTask.value
+    }
+
+    @Test
     func `manual cookie import bypasses same account refresh coalescing`() async {
         let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-manual-import-bypass-coalesce")
         let managedAccount = ManagedCodexAccount(
@@ -305,6 +428,44 @@ struct CodexManagedOpenAIWebRefreshTests {
         settings.codexCookieSource = .auto
         return settings
     }
+
+    private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String, accountId: String? = nil) throws {
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan, accountId: accountId),
+        ]
+        if let accountId {
+            tokens["accountId"] = accountId
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["tokens": tokens], options: [.sortedKeys])
+        try data.write(to: homeURL.appendingPathComponent("auth.json"))
+    }
+
+    private static func fakeJWT(email: String, plan: String, accountId: String? = nil) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        var authClaims: [String: Any] = [
+            "chatgpt_plan_type": plan,
+        ]
+        if let accountId {
+            authClaims["chatgpt_account_id"] = accountId
+        }
+        let payload = (try? JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": authClaims,
+        ])) ?? Data()
+
+        func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+
+        return "\(base64URL(header)).\(base64URL(payload))."
+    }
 }
 
 private enum ManagedDashboardTestError: LocalizedError {
@@ -315,6 +476,14 @@ private enum ManagedDashboardTestError: LocalizedError {
         case .networkTimeout:
             "Network timeout"
         }
+    }
+}
+
+private actor RefreshCompletionProbe {
+    private(set) var isCompleted = false
+
+    func markCompleted() {
+        self.isCompleted = true
     }
 }
 
@@ -359,6 +528,29 @@ private actor BlockingManagedOpenAIDashboardLoader {
             }
         }
         self.startWaiters = remaining
+    }
+}
+
+private actor BlockingCreditsLoader {
+    private var continuations: [CheckedContinuation<Result<CreditsSnapshot, Error>, Never>] = []
+    private var started = 0
+
+    func awaitResult() async throws -> CreditsSnapshot {
+        self.started += 1
+        let result = await withCheckedContinuation { continuation in
+            self.continuations.append(continuation)
+        }
+        return try result.get()
+    }
+
+    func startedCount() -> Int {
+        self.started
+    }
+
+    func resumeNext(with result: Result<CreditsSnapshot, Error>) {
+        guard !self.continuations.isEmpty else { return }
+        let continuation = self.continuations.removeFirst()
+        continuation.resume(returning: result)
     }
 }
 

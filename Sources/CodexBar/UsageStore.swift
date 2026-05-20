@@ -43,7 +43,6 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.statuses
         _ = self.historicalPaceRevision
@@ -555,7 +554,15 @@ final class UsageStore {
                         group.addTask { await self.refreshStatus(provider) }
                     }
                 }
-                group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                if forceTokenUsage {
+                    group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                }
+            }
+
+            if !forceTokenUsage {
+                Task { @MainActor [weak self] in
+                    await self?.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
+                }
             }
 
             if forceTokenUsage {
@@ -587,9 +594,17 @@ final class UsageStore {
                 ])
             if shouldRefreshOpenAIWeb {
                 let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
-                await self.refreshOpenAIDashboardIfNeeded(
-                    force: forceTokenUsage,
-                    expectedGuard: codexDashboardGuard)
+                if forceTokenUsage {
+                    await self.refreshOpenAIDashboardIfNeeded(
+                        force: true,
+                        expectedGuard: codexDashboardGuard)
+                } else {
+                    Task { @MainActor [weak self] in
+                        await self?.refreshOpenAIDashboardIfNeeded(
+                            force: false,
+                            expectedGuard: codexDashboardGuard)
+                    }
+                }
             }
 
             if forceTokenUsage, self.openAIDashboardRequiresLogin {

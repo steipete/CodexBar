@@ -1036,6 +1036,7 @@ final class CodexAccountSwitcherView: NSView {
     private let accounts: [CodexVisibleAccount]
     private let onSelect: (CodexVisibleAccount) -> Void
     private var selectedAccountID: String
+    private var pressedAccountID: String?
     private var buttons: [NSButton] = []
     private let preferredSize: NSSize
     private let rowSpacing: CGFloat = 4
@@ -1278,10 +1279,48 @@ final class CodexAccountSwitcherView: NSView {
         }
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let descendant = super.hitTest(point)
+        if descendant != nil, descendant !== self {
+            return self
+        }
+        return descendant
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let location = self.convert(event.locationInWindow, from: nil)
+        self.pressedAccountID = self.accountID(at: location)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer { self.pressedAccountID = nil }
+        guard let pressedAccountID = self.pressedAccountID else { return }
+        let location = self.convert(event.locationInWindow, from: nil)
+        guard let releasedAccountID = self.accountID(at: location),
+              releasedAccountID == pressedAccountID,
+              let account = self.accounts.first(where: { $0.id == pressedAccountID })
+        else {
+            return
+        }
+        self.applySelection(account)
+    }
+
+    private func accountID(at pointInSelf: NSPoint) -> String? {
+        self.buttons.first(where: { self.convert($0.bounds, from: $0).contains(pointInSelf) })?.identifier?.rawValue
+    }
+
     @objc private func handleSelect(_ sender: NSButton) {
-        guard let accountID = sender.identifier?.rawValue else { return }
-        guard let account = self.accounts.first(where: { $0.id == accountID }) else { return }
-        self.selectedAccountID = accountID
+        guard let accountID = sender.identifier?.rawValue,
+              let account = self.accounts.first(where: { $0.id == accountID }) else { return }
+        self.applySelection(account)
+    }
+
+    private func applySelection(_ account: CodexVisibleAccount) {
+        self.selectedAccountID = account.id
         self.updateButtonStyles()
         self.onSelect(account)
     }
@@ -1296,8 +1335,30 @@ final class CodexAccountSwitcherView: NSView {
     }
 
     func _test_selectAccount(id: String) {
-        guard let button = self.buttons.first(where: { $0.identifier?.rawValue == id }) else { return }
-        self.handleSelect(button)
+        guard let account = self.accounts.first(where: { $0.id == id }) else { return }
+        self.applySelection(account)
+    }
+
+    func _test_simulateRuntimeClick(id: String) -> Bool {
+        guard let button = self.buttons.first(where: { $0.identifier?.rawValue == id }) else { return false }
+        let point = self.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
+        self.pressedAccountID = self.accountID(at: point)
+        defer { self.pressedAccountID = nil }
+        guard let pressedAccountID = self.pressedAccountID,
+              let releasedAccountID = self.accountID(at: point),
+              releasedAccountID == pressedAccountID,
+              let account = self.accounts.first(where: { $0.id == pressedAccountID })
+        else {
+            return false
+        }
+        self.applySelection(account)
+        return true
+    }
+
+    func _test_hitTestSwallowsChildButton(id: String) -> Bool {
+        guard let button = self.buttons.first(where: { $0.identifier?.rawValue == id }) else { return false }
+        let point = self.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
+        return self.hitTest(point) === self
     }
     #endif
 }
