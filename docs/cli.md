@@ -44,11 +44,21 @@ See `docs/configuration.md` for the schema.
 - `codexbar cost` prints local token cost usage for Claude + Codex without web/CLI access.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
-- `codexbar serve` starts a foreground localhost-only HTTP server for usage and cost JSON.
+- `codexbar serve` starts a foreground HTTP server for usage, cost, and dashboard JSON.
+  - `--host <host>` defaults to `127.0.0.1`. The default remains localhost-only.
   - `--port <port>` defaults to `8080`.
   - `--refresh-interval <seconds>` defaults to `60` and controls the in-memory response cache TTL.
-  - v1 binds to `127.0.0.1` only and rejects non-loopback `Host` headers. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
-  - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`.
+  - `--dashboard-token <token>` enables bearer auth for serve data routes. Non-loopback hosts, such as
+    `0.0.0.0` or a LAN address, require this token.
+  - `--dashboard-identity none|redacted|full` controls identity fields in dashboard payloads. The default is
+    `redacted`, which redacts account email local parts while still showing plan labels.
+    `none` omits identity, `redacted` preserves email domains only, and `full` includes full account emails.
+  - Auth uses `Authorization: Bearer YOUR_TOKEN` for data routes (`/usage`, `/cost`, and `/dashboard/v1/snapshot`)
+    when a token is configured. `/health` remains unauthenticated.
+  - The default localhost mode rejects non-loopback `Host` headers. Non-loopback bind hosts opt into LAN `Host`
+    headers only when `--dashboard-token` is configured.
+  - No CORS, TLS, or daemon mode is provided.
+  - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`, `GET /dashboard/v1/snapshot`.
   - Codex usage responses include every visible Codex account, matching the menu bar switcher.
 - `codexbar cache clear` clears local CodexBar caches.
   - `--cookies` removes cached browser-cookie headers from the CodexBar Keychain cache.
@@ -109,6 +119,22 @@ payloads include the visible account label in `account`.
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
 - `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`
 
+### Dashboard snapshot payload
+`GET /dashboard/v1/snapshot` emits a stable display-oriented object instead of raw CLI provider models.
+- Top level: `schemaVersion`, `generatedAt`, `staleAfterSeconds`, `host`, `providers`.
+- `host`: `codexBarVersion`, `refreshIntervalSeconds`.
+- Each provider: `id`, `name`, `enabled`, `source`, `status`, `identity`, `windows`, `credits`, `cost`, `display`, `error`, `updatedAt`.
+- `windows[]`: `kind`, `label`, `usedPercent`, `remainingPercent`, `resetAt`.
+- `display`: `accentColor`, `sortKey`, `priority`.
+
+LAN serving requires an explicit host and dashboard token:
+
+```
+codexbar serve --host 0.0.0.0 --port 8080 --dashboard-token "$CODEXBAR_DASHBOARD_TOKEN"
+curl -H "Authorization: Bearer $CODEXBAR_DASHBOARD_TOKEN" \
+  http://127.0.0.1:8080/dashboard/v1/snapshot
+```
+
 ## Example usage
 ```
 codexbar                          # text, respects app toggles
@@ -120,6 +146,7 @@ codexbar cost                     # local cost usage (default 30-day window + to
 codexbar cost --days 90           # choose a 1...365 day cost window
 codexbar cost --provider claude --format json --pretty
 codexbar serve --port 8080        # localhost HTTP JSON server
+codexbar serve --host 0.0.0.0 --dashboard-token "$CODEXBAR_DASHBOARD_TOKEN"
 COPILOT_API_TOKEN=... codexbar --provider copilot --format json --pretty
 codexbar --status                 # include status page indicator/description
 codexbar --provider codex --source oauth --format json --pretty

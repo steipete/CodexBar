@@ -7,14 +7,18 @@ import Glibc
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
 
-struct CLILocalHTTPRequest {
+struct CLILocalHTTPRequest: Sendable {
     let method: String
     let target: String
     let host: String
     let path: String
     let queryItems: [String: String]
+    let headers: [String: String]
 
-    static func parse(_ data: Data) -> Result<CLILocalHTTPRequest, CLILocalHTTPRequestParseError> {
+    static func parse(
+        _ data: Data,
+        allowNonLoopbackHost: Bool = false) -> Result<CLILocalHTTPRequest, CLILocalHTTPRequestParseError>
+    {
         guard let raw = String(data: data, encoding: .utf8),
               let firstLine = raw.components(separatedBy: "\r\n").first
         else {
@@ -29,15 +33,19 @@ struct CLILocalHTTPRequest {
         guard target.hasPrefix("/") else { return .failure(.invalidRequest) }
 
         let headerResult = Self.parseHeaders(raw)
+        let headerPairs: [(String, String)]
         let host: String
         switch headerResult {
-        case let .success(headers):
-            let hosts = headers.compactMap { name, value in
+        case let .success(parsedHeaders):
+            headerPairs = parsedHeaders
+            let hosts = parsedHeaders.compactMap { name, value in
                 name.lowercased() == "host" ? value : nil
             }
             guard let candidate = hosts.first else { return .failure(.missingHost) }
             guard hosts.count == 1 else { return .failure(.duplicateHost) }
-            guard Self.isAllowedLoopbackHost(candidate) else { return .failure(.disallowedHost) }
+            guard Self.isAllowedHost(candidate, allowNonLoopbackHost: allowNonLoopbackHost) else {
+                return .failure(.disallowedHost)
+            }
             host = candidate
         case let .failure(error):
             return .failure(error)
@@ -52,12 +60,18 @@ struct CLILocalHTTPRequest {
             }
         }
 
+        var headers: [String: String] = [:]
+        for (name, value) in headerPairs {
+            headers[name.lowercased()] = value
+        }
+
         return .success(CLILocalHTTPRequest(
             method: method,
             target: target,
             host: host,
             path: path,
-            queryItems: queryItems))
+            queryItems: queryItems,
+            headers: headers))
     }
 
     private static func parseHeaders(_ raw: String) -> Result<[(String, String)], CLILocalHTTPRequestParseError> {
@@ -78,7 +92,7 @@ struct CLILocalHTTPRequest {
         return .success(headers)
     }
 
-    private static func isAllowedLoopbackHost(_ host: String) -> Bool {
+    private static func isAllowedHost(_ host: String, allowNonLoopbackHost: Bool) -> Bool {
         let trimmed = host.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains(",") else { return false }
 
@@ -105,7 +119,7 @@ struct CLILocalHTTPRequest {
         case "127.0.0.1", "localhost", "localhost.", "[::1]":
             return true
         default:
-            return false
+            return allowNonLoopbackHost
         }
     }
 
@@ -127,10 +141,11 @@ enum CLILocalHTTPRequestParseError: Error, Equatable {
     case disallowedHost
 }
 
-enum CLIHTTPStatus {
+enum CLIHTTPStatus: Sendable {
     case ok
     case badRequest
     case forbidden
+    case unauthorized
     case notFound
     case methodNotAllowed
     case internalServerError
@@ -140,6 +155,7 @@ enum CLIHTTPStatus {
         case .ok: 200
         case .badRequest: 400
         case .forbidden: 403
+        case .unauthorized: 401
         case .notFound: 404
         case .methodNotAllowed: 405
         case .internalServerError: 500
@@ -151,6 +167,7 @@ enum CLIHTTPStatus {
         case .ok: "OK"
         case .badRequest: "Bad Request"
         case .forbidden: "Forbidden"
+        case .unauthorized: "Unauthorized"
         case .notFound: "Not Found"
         case .methodNotAllowed: "Method Not Allowed"
         case .internalServerError: "Internal Server Error"
@@ -158,7 +175,7 @@ enum CLIHTTPStatus {
     }
 }
 
-struct CLILocalHTTPResponse {
+struct CLILocalHTTPResponse: Sendable {
     let status: CLIHTTPStatus
     let body: Data
     let contentType: String
@@ -187,11 +204,18 @@ final class CLILocalHTTPServer {
 
     private let host: String
     private let port: UInt16
+    private let allowNonLoopbackHostHeaders: Bool
     private let handler: Handler
 
-    init(host: String, port: UInt16, handler: @escaping Handler) {
+    init(
+        host: String,
+        port: UInt16,
+        allowNonLoopbackHostHeaders: Bool = false,
+        handler: @escaping Handler)
+    {
         self.host = host
         self.port = port
+        self.allowNonLoopbackHostHeaders = allowNonLoopbackHostHeaders
         self.handler = handler
     }
 
@@ -248,9 +272,13 @@ final class CLILocalHTTPServer {
             let clientFD = accept(serverFD, &clientAddress, &clientLength)
             guard clientFD >= 0 else { continue }
             let handler = self.handler
+            let allowNonLoopbackHostHeaders = self.allowNonLoopbackHostHeaders
             Task {
                 defer { closeSocket(clientFD) }
-                await handleClient(clientFD, handler: handler)
+                await handleClient(
+                    clientFD,
+                    allowNonLoopbackHostHeaders: allowNonLoopbackHostHeaders,
+                    handler: handler)
             }
         }
     }
@@ -258,10 +286,11 @@ final class CLILocalHTTPServer {
 
 private func handleClient(
     _ clientFD: Int32,
+    allowNonLoopbackHostHeaders: Bool,
     handler: @Sendable (CLILocalHTTPRequest) async -> CLILocalHTTPResponse) async
 {
     let request: CLILocalHTTPRequest
-    switch readRequest(clientFD) {
+    switch readRequest(clientFD, allowNonLoopbackHostHeaders: allowNonLoopbackHostHeaders) {
     case let .success(parsedRequest):
         request = parsedRequest
     case .failure(.disallowedHost):
@@ -284,7 +313,10 @@ private func handleClient(
     sendResponse(response, to: clientFD)
 }
 
-private func readRequest(_ fd: Int32) -> Result<CLILocalHTTPRequest, CLILocalHTTPRequestParseError> {
+private func readRequest(
+    _ fd: Int32,
+    allowNonLoopbackHostHeaders: Bool) -> Result<CLILocalHTTPRequest, CLILocalHTTPRequestParseError>
+{
     var data = Data()
     var buffer = [UInt8](repeating: 0, count: 4096)
     let bufferSize = buffer.count
@@ -306,7 +338,7 @@ private func readRequest(_ fd: Int32) -> Result<CLILocalHTTPRequest, CLILocalHTT
     }
 
     guard sawHeaderEnd else { return .failure(.invalidRequest) }
-    return CLILocalHTTPRequest.parse(data)
+    return CLILocalHTTPRequest.parse(data, allowNonLoopbackHost: allowNonLoopbackHostHeaders)
 }
 
 private func sendResponse(_ response: CLILocalHTTPResponse, to fd: Int32) {
