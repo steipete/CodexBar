@@ -363,7 +363,8 @@ extension UsageStore {
     func makeFetchContext(
         provider: UsageProvider,
         override: TokenAccountOverride?,
-        codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderFetchContext
+        codexActiveSourceOverride: CodexActiveSource? = nil,
+        includeCredits: Bool = false) -> ProviderFetchContext
     {
         let account = ProviderTokenAccountSelection.selectedAccount(
             provider: provider,
@@ -385,7 +386,7 @@ extension UsageStore {
         return ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
-            includeCredits: false,
+            includeCredits: includeCredits,
             includeOptionalUsage: self.settings.showOptionalCreditsAndExtraUsage,
             webTimeout: 60,
             webDebugDumpHTML: false,

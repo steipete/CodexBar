@@ -65,12 +65,13 @@ extension CodexAccountScopedRefreshTests {
         return "\(base64URL(header)).\(base64URL(payload))."
     }
 
-    func makeUsageStore(settings: SettingsStore) -> UsageStore {
+    func makeUsageStore(settings: SettingsStore, environmentBase: [String: String] = [:]) -> UsageStore {
         UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            startupBehavior: .testing)
+            startupBehavior: .testing,
+            environmentBase: environmentBase)
     }
 
     func liveAccount(email: String, identity: CodexIdentity = .unresolved) -> ObservedSystemCodexAccount {
@@ -189,6 +190,28 @@ extension CodexAccountScopedRefreshTests {
             descriptor: descriptor,
             makeFetchContext: baseSpec.makeFetchContext)
     }
+
+    static func makeCodexProviderSpec(
+        baseSpec: ProviderSpec,
+        resolveStrategies: @escaping @Sendable (ProviderFetchContext) async -> [any ProviderFetchStrategy])
+        -> ProviderSpec
+    {
+        let baseDescriptor = baseSpec.descriptor
+        let descriptor = ProviderDescriptor(
+            id: .codex,
+            metadata: baseDescriptor.metadata,
+            branding: baseDescriptor.branding,
+            tokenCost: baseDescriptor.tokenCost,
+            fetchPlan: ProviderFetchPlan(
+                sourceModes: [.auto, .cli, .oauth],
+                pipeline: ProviderFetchPipeline(resolveStrategies: resolveStrategies)),
+            cli: baseDescriptor.cli)
+        return ProviderSpec(
+            style: baseSpec.style,
+            isEnabled: baseSpec.isEnabled,
+            descriptor: descriptor,
+            makeFetchContext: baseSpec.makeFetchContext)
+    }
 }
 
 struct TestRefreshError: LocalizedError, Equatable {
@@ -201,14 +224,10 @@ struct TestRefreshError: LocalizedError, Equatable {
 
 struct TestCodexFetchStrategy: ProviderFetchStrategy {
     let loader: @Sendable () async throws -> UsageSnapshot
-
-    var id: String {
-        "test-codex"
-    }
-
-    var kind: ProviderFetchKind {
-        .cli
-    }
+    var credits: CreditsSnapshot?
+    var id = "test-codex"
+    var kind: ProviderFetchKind = .cli
+    var sourceLabel = "test-codex"
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         true
@@ -216,7 +235,10 @@ struct TestCodexFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         let snapshot = try await self.loader()
-        return self.makeResult(usage: snapshot, sourceLabel: "test-codex")
+        return self.makeResult(
+            usage: snapshot,
+            credits: self.credits,
+            sourceLabel: self.sourceLabel)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
