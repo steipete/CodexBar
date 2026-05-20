@@ -465,6 +465,83 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex split cache migration does not double count existing cost maps`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let model = "gpt-5.4"
+        let normalizedModel = CostUsagePricing.normalizeCodexModel(model)
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": iso0,
+                    "payload": ["session_id": "split-cache-session"],
+                ],
+                self.codexTurnContext(timestamp: iso0, model: model),
+                self.codexTokenCount(
+                    timestamp: iso1,
+                    model: model,
+                    total: (input: 10, cached: 0, output: 0)),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let path = try #require(cache.files.keys.first)
+        var cachedUsage = try #require(cache.files[path])
+        let originalCostNanos = try #require(cachedUsage.codexCostNanos?[dayKey]?[normalizedModel])
+        cachedUsage.codexRows = [
+            CostUsageScanner.CodexUsageRow(
+                day: dayKey,
+                model: normalizedModel,
+                turnID: nil,
+                input: 10,
+                cached: 0,
+                output: 0),
+        ]
+        cachedUsage.codexStandardCostNanos = nil
+        cachedUsage.codexPriorityCostNanos = nil
+        cachedUsage.codexStandardTokens = nil
+        cachedUsage.codexPriorityTokens = nil
+        cache.files[path] = cachedUsage
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        options.refreshMinIntervalSeconds = 60
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+
+        let expectedCost = 10.0 * 2.5e-6
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - expectedCost) < 0.000_000_001)
+        let migratedUsage = try #require(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).files[path])
+        #expect(migratedUsage.codexRows == nil)
+        #expect(migratedUsage.codexCostNanos?[dayKey]?[normalizedModel] == originalCostNanos)
+        #expect(migratedUsage.codexStandardTokens?[dayKey]?[normalizedModel] == 10)
+    }
+
+    @Test
     func `codex narrow full rescan preserves cached days outside scan window`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

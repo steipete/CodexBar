@@ -17,7 +17,14 @@ struct CostUsageDailyReportMergeTests {
                     costUSD: 1.25,
                     modelsUsed: ["gpt-5.4"],
                     modelBreakdowns: [
-                        CostUsageDailyReport.ModelBreakdown(modelName: "gpt-5.4", costUSD: 1.25, totalTokens: 130),
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 1.25,
+                            totalTokens: 130,
+                            standardCostUSD: 0.75,
+                            priorityCostUSD: 0.50,
+                            standardTokens: 80,
+                            priorityTokens: 50),
                     ]),
             ],
             summary: CostUsageDailyReport.Summary(
@@ -39,7 +46,14 @@ struct CostUsageDailyReportMergeTests {
                     costUSD: 0.75,
                     modelsUsed: ["gpt-5.4"],
                     modelBreakdowns: [
-                        CostUsageDailyReport.ModelBreakdown(modelName: "gpt-5.4", costUSD: 0.75, totalTokens: 67),
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 0.75,
+                            totalTokens: 67,
+                            standardCostUSD: 0.25,
+                            priorityCostUSD: 0.50,
+                            standardTokens: 20,
+                            priorityTokens: 47),
                     ]),
             ],
             summary: CostUsageDailyReport.Summary(
@@ -59,7 +73,14 @@ struct CostUsageDailyReportMergeTests {
         #expect(merged.data.first?.totalTokens == 197)
         #expect(abs((merged.data.first?.costUSD ?? 0) - 2.0) < 0.000001)
         #expect(merged.data.first?.modelBreakdowns == [
-            CostUsageDailyReport.ModelBreakdown(modelName: "gpt-5.4", costUSD: 2.0, totalTokens: 197),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: "gpt-5.4",
+                costUSD: 2.0,
+                totalTokens: 197,
+                standardCostUSD: 1.0,
+                priorityCostUSD: 1.0,
+                standardTokens: 100,
+                priorityTokens: 97),
         ])
         #expect(merged.summary?.totalTokens == 197)
         #expect(abs((merged.summary?.totalCostUSD ?? 0) - 2.0) < 0.000001)

@@ -228,7 +228,7 @@ struct ProviderInlineDashboardModelTests {
     }
 
     @Test
-    func `local cost history gets inline dashboard`() throws {
+    func `local cost history stays out of inline dashboard`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.claude])
         let daily = [
@@ -290,9 +290,9 @@ struct ProviderInlineDashboardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.25")
-        #expect(model.inlineUsageDashboard?.points.count == 2)
-        #expect(model.inlineUsageDashboard?.detailLines.contains { $0.contains("claude-opus-4") } == true)
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.tokenUsage?.sessionLine.contains("$0.25") == true)
+        #expect(model.tokenUsage?.monthLine.contains("$0.37") == true)
     }
 
     @Test
