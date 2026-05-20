@@ -1195,14 +1195,14 @@ extension UsageMenuCardView.Model {
             primaryResetText = openRouterQuotaDetail
         }
         if input.provider == .copilot,
-           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !detail.isEmpty
+           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty
         {
             primaryDetailLeft = detail
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
-           let detail = primary.resetDescription,
-           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input
+            .provider == .deepseek || input.provider == .wafer,
+            let detail = primary.resetDescription,
+            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
         }
@@ -1221,7 +1221,7 @@ extension UsageMenuCardView.Model {
             primaryDetailText = detail
             if input.provider == .manus { primaryResetText = nil }
         }
-        if [.warp, .kilo, .mimo, .deepseek].contains(input.provider), primary.resetsAt == nil {
+        if [.warp, .kilo, .mimo, .deepseek, .wafer].contains(input.provider), primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window
@@ -1273,8 +1273,8 @@ extension UsageMenuCardView.Model {
             primaryPacePercent = regen.pace.pacePercent
             primaryPaceOnTop = regen.pace.paceOnTop
         }
-        let primaryStatusText = input.provider == .deepseek ? primaryDetailText : nil
-        if input.provider == .deepseek {
+        let primaryStatusText = (input.provider == .deepseek || input.provider == .wafer) ? primaryDetailText : nil
+        if input.provider == .deepseek || input.provider == .wafer {
             primaryDetailText = nil
         }
         return Metric(

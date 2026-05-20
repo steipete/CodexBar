@@ -977,6 +977,7 @@ extension UsageStore {
                 .groq: "Groq debug log not yet implemented",
                 .llmproxy: "LLM Proxy debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
+                .wafer: "Wafer debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -1051,7 +1052,8 @@ extension UsageStore {
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq, .llmproxy, .deepgram:
+                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq, .llmproxy, .deepgram,
+                     .wafer:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

@@ -617,6 +617,12 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .wafer {
+            if let snapshot, let primary = snapshot.primary, primary.usedPercent == 0 {
+                return "Pass"
+            }
+            return "Expired"
+        }
         if provider == .moonshot,
            let balance = Self.moonshotBalanceDisplayText(snapshot: snapshot)
         {
