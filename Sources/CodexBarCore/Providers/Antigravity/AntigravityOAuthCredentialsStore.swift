@@ -152,12 +152,17 @@ public enum AntigravityOAuthConfig {
         return AntigravityOAuthClient(clientID: clientID, clientSecret: clientSecret)
     }
 
-    private static func discoverClientFromInstalledApp(fileManager: FileManager = .default) -> AntigravityOAuthClient? {
-        for url in self.candidateAppMainJSURLs(fileManager: fileManager)
+    static func discoverClientFromInstalledApp(
+        applicationRoots: [URL]? = nil,
+        fileManager: FileManager = .default) -> AntigravityOAuthClient?
+    {
+        for url in self.candidateOAuthClientArtifactURLs(
+            applicationRoots: applicationRoots,
+            fileManager: fileManager)
             where fileManager.fileExists(atPath: url.path)
         {
-            guard let content = try? String(contentsOf: url, encoding: .utf8),
-                  let client = Self.parseClient(fromMainJS: content)
+            guard let data = try? Data(contentsOf: url),
+                  let client = Self.parseClient(fromInstalledArtifactData: data)
             else {
                 continue
             }
@@ -166,17 +171,85 @@ public enum AntigravityOAuthConfig {
         return nil
     }
 
-    private static func candidateAppMainJSURLs(fileManager: FileManager) -> [URL] {
-        let bundleRelativePath = "Antigravity.app/Contents/Resources/app/out/main.js"
-        return [
-            URL(fileURLWithPath: "/Applications", isDirectory: true).appendingPathComponent(bundleRelativePath),
-            fileManager.homeDirectoryForCurrentUser
-                .appendingPathComponent("Applications", isDirectory: true)
-                .appendingPathComponent(bundleRelativePath),
+    static func candidateOAuthClientArtifactURLs(
+        applicationRoots: [URL]? = nil,
+        fileManager: FileManager = .default) -> [URL]
+    {
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true),
         ]
+        let applicationRoots = applicationRoots ?? roots
+        let appBundleURLs = self.candidateAntigravityAppBundleURLs(
+            applicationRoots: applicationRoots,
+            fileManager: fileManager)
+        let relativePaths = [
+            "Contents/Resources/app/out/main.js",
+            "Contents/Resources/bin/language_server",
+            "Contents/Resources/bin/language_server_macos",
+        ]
+        return appBundleURLs.flatMap { bundleURL in
+            relativePaths.map { bundleURL.appendingPathComponent($0) }
+        }
     }
 
-    private static func parseClient(fromMainJS content: String) -> AntigravityOAuthClient? {
+    private static func candidateAntigravityAppBundleURLs(
+        applicationRoots: [URL],
+        fileManager: FileManager) -> [URL]
+    {
+        var urls: [URL] = []
+
+        for root in applicationRoots {
+            urls.append(root.appendingPathComponent("Antigravity.app", isDirectory: true))
+
+            let appURLs = (try? fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles])) ?? []
+            for appURL in appURLs where appURL.pathExtension == "app" {
+                guard self.isAntigravityAppBundle(appURL) else { continue }
+                urls.append(appURL)
+            }
+        }
+
+        var seen = Set<String>()
+        return urls.filter { url in
+            let key = url.standardizedFileURL.path
+            guard !seen.contains(key) else { return false }
+            seen.insert(key)
+            return true
+        }
+    }
+
+    private static func isAntigravityAppBundle(_ url: URL) -> Bool {
+        switch Bundle(url: url)?.bundleIdentifier {
+        case "com.google.antigravity", "com.google.antigravity-ide":
+            true
+        default:
+            false
+        }
+    }
+
+    static func parseClient(fromInstalledArtifactData data: Data) -> AntigravityOAuthClient? {
+        if let content = String(data: data, encoding: .utf8),
+           let client = parseClient(fromInstalledArtifactText: content)
+        {
+            return client
+        }
+
+        let clientIDs = Self.clientIDs(in: data)
+        let clientSecrets = Self.clientSecrets(in: data)
+        guard let client = Self.preferredBinaryClient(
+            clientIDs: clientIDs,
+            clientSecrets: clientSecrets)
+        else {
+            return nil
+        }
+
+        return client
+    }
+
+    static func parseClient(fromInstalledArtifactText content: String) -> AntigravityOAuthClient? {
         let marker = "vs/platform/cloudCode/common/oauthClient.js"
         let searchStart = content.range(of: marker)?.lowerBound ?? content.startIndex
         let searchEnd = content.index(searchStart, offsetBy: 4000, limitedBy: content.endIndex) ?? content.endIndex
@@ -186,13 +259,100 @@ public enum AntigravityOAuthConfig {
             pattern: #"[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com"#,
             in: haystack),
             let clientSecret = Self.firstMatch(
-                pattern: #"GOCSPX-[A-Za-z0-9_-]+"#,
+                pattern: #"GOCSPX-[A-Za-z0-9_-]{28}"#,
                 in: haystack)
         else {
             return nil
         }
 
         return AntigravityOAuthClient(clientID: clientID, clientSecret: clientSecret)
+    }
+
+    private static func clientIDs(in data: Data) -> [String] {
+        let suffix = Data(".apps.googleusercontent.com".utf8)
+        var searchRange = data.startIndex..<data.endIndex
+        var values: [String] = []
+
+        while let range = data.range(of: suffix, options: [], in: searchRange) {
+            var start = range.lowerBound
+            while start > data.startIndex {
+                let previous = data.index(before: start)
+                guard Self.isOAuthClientIDPrefixByte(data[previous]) else { break }
+                start = previous
+            }
+
+            let candidateData = Data(data[start..<range.upperBound])
+            if let candidate = String(data: candidateData, encoding: .ascii),
+               let clientID = Self.firstMatch(
+                   pattern: #"[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com"#,
+                   in: candidate)
+            {
+                values.append(clientID)
+            }
+
+            searchRange = range.upperBound..<data.endIndex
+        }
+
+        return self.unique(values)
+    }
+
+    private static func clientSecrets(in data: Data) -> [String] {
+        let prefix = Data("GOCSPX-".utf8)
+        let secretLength = 35
+        var searchRange = data.startIndex..<data.endIndex
+        var values: [String] = []
+
+        while let range = data.range(of: prefix, options: [], in: searchRange) {
+            let end = range.lowerBound + secretLength
+            if end <= data.endIndex {
+                let candidateData = Data(data[range.lowerBound..<end])
+                if candidateData.dropFirst(prefix.count).allSatisfy(Self.isOAuthClientSecretByte),
+                   let candidate = String(data: candidateData, encoding: .ascii)
+                {
+                    values.append(candidate)
+                }
+            }
+
+            searchRange = range.upperBound..<data.endIndex
+        }
+
+        return self.unique(values)
+    }
+
+    private static func preferredBinaryClient(
+        clientIDs: [String],
+        clientSecrets: [String]) -> AntigravityOAuthClient?
+    {
+        guard !clientIDs.isEmpty,
+              !clientSecrets.isEmpty
+        else {
+            return nil
+        }
+
+        if clientSecrets.count == 1, clientIDs.count > 1 {
+            return AntigravityOAuthClient(clientID: clientIDs[clientIDs.count - 1], clientSecret: clientSecrets[0])
+        }
+
+        let clientSecret: String = if clientSecrets.count == clientIDs.count, clientSecrets.count > 1 {
+            // Antigravity 2's language_server binary stores the secret table before the client id table.
+            clientSecrets[clientSecrets.count - 1]
+        } else {
+            clientSecrets[0]
+        }
+
+        return AntigravityOAuthClient(clientID: clientIDs[0], clientSecret: clientSecret)
+    }
+
+    private static func isOAuthClientIDPrefixByte(_ byte: UInt8) -> Bool {
+        (byte >= 48 && byte <= 57)
+            || (byte >= 65 && byte <= 90)
+            || (byte >= 97 && byte <= 122)
+            || byte == 45
+            || byte == 95
+    }
+
+    private static func isOAuthClientSecretByte(_ byte: UInt8) -> Bool {
+        self.isOAuthClientIDPrefixByte(byte)
     }
 
     private static func firstMatch(pattern: String, in text: String) -> String? {
@@ -204,6 +364,15 @@ public enum AntigravityOAuthConfig {
             return nil
         }
         return String(text[swiftRange])
+    }
+
+    private static func unique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.filter { value in
+            guard !seen.contains(value) else { return false }
+            seen.insert(value)
+            return true
+        }
     }
 }
 
