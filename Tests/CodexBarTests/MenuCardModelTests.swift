@@ -964,9 +964,12 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
+        #expect(model.tokenUsage?.sessionLine.hasPrefix("Today (local Mac):") == true)
+        #expect(model.tokenUsage?.monthLine.hasPrefix("Last 30 days (local Mac):") == true)
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
         #expect(model.tokenUsage?.monthLine.contains("tokens") == true)
-        #expect(model.tokenUsage?.hintLine == "Estimated from local Codex logs for the selected account.")
+        #expect(model.tokenUsage?.hintLine ==
+            "Estimated from local Codex logs on this Mac; remote usage may be missing.")
     }
 
     @Test

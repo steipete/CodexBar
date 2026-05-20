@@ -39,6 +39,12 @@ extension UsageMenuCardView.Model {
                 }
                 return "\(label): \(sessionCost)"
             }
+            if provider == .codex {
+                if let sessionTokens {
+                    return "Today (local Mac): \(sessionCost) · \(sessionTokens) tokens"
+                }
+                return "Today (local Mac): \(sessionCost)"
+            }
             if let sessionTokens {
                 return "Today: \(sessionCost) · \(sessionTokens) tokens"
             }
@@ -50,11 +56,12 @@ extension UsageMenuCardView.Model {
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let windowLabel = Self.costHistoryWindowLabel(days: snapshot.historyDays)
+        let scopedWindowLabel = provider == .codex ? "\(windowLabel) (local Mac)" : windowLabel
         let monthLine: String = {
             if let monthTokens {
-                return "\(windowLabel): \(monthCost) · \(monthTokens) tokens"
+                return "\(scopedWindowLabel): \(monthCost) · \(monthTokens) tokens"
             }
-            return "\(windowLabel): \(monthCost)"
+            return "\(scopedWindowLabel): \(monthCost)"
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
@@ -68,7 +75,7 @@ extension UsageMenuCardView.Model {
     static func tokenUsageHint(provider: UsageProvider) -> String? {
         switch provider {
         case .codex:
-            "Estimated from local Codex logs for the selected account."
+            "Estimated from local Codex logs on this Mac; remote usage may be missing."
         case .claude:
             UsageFormatter.costEstimateHint(provider: provider)
         case .vertexai:

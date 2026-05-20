@@ -59,6 +59,63 @@ struct CodexAccountScopedRefreshTests {
     }
 
     @Test
+    func `codex token snapshot accessor hides stale managed home snapshot`() {
+        let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-token-snapshot-scope")
+        settings.refreshFrequency = .manual
+        let managedAccountID = UUID()
+        settings.codexActiveSource = .managedAccount(id: managedAccountID)
+        settings._test_activeManagedCodexRemoteHomePath = "/tmp/codex-managed-alpha"
+        defer { settings._test_activeManagedCodexRemoteHomePath = nil }
+
+        let store = self.makeUsageStore(settings: settings)
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 120,
+            sessionCostUSD: 1.2,
+            last30DaysTokens: 900,
+            last30DaysCostUSD: 9.0,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-05-20",
+                    inputTokens: 80,
+                    outputTokens: 40,
+                    totalTokens: 120,
+                    costUSD: 1.2,
+                    modelsUsed: ["gpt-5.5"],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date())
+
+        store._setTokenSnapshotForTesting(tokenSnapshot, provider: .codex)
+
+        #expect(store.tokenSnapshot(for: .codex) == tokenSnapshot)
+
+        settings._test_activeManagedCodexRemoteHomePath = "/tmp/codex-managed-beta"
+
+        #expect(store.tokenSnapshot(for: .codex) == nil)
+        #expect(store.tokenSnapshots[.codex] == tokenSnapshot)
+    }
+
+    @Test
+    func `codex token error accessor hides stale managed home error`() {
+        let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-token-error-scope")
+        settings.refreshFrequency = .manual
+        let managedAccountID = UUID()
+        settings.codexActiveSource = .managedAccount(id: managedAccountID)
+        settings._test_activeManagedCodexRemoteHomePath = "/tmp/codex-managed-alpha"
+        defer { settings._test_activeManagedCodexRemoteHomePath = nil }
+
+        let store = self.makeUsageStore(settings: settings)
+        store._setTokenErrorForTesting("No token usage data yet.", provider: .codex)
+
+        #expect(store.tokenError(for: .codex) == "No token usage data yet.")
+
+        settings._test_activeManagedCodexRemoteHomePath = "/tmp/codex-managed-beta"
+
+        #expect(store.tokenError(for: .codex) == nil)
+        #expect(store.tokenErrors[.codex] == "No token usage data yet.")
+    }
+
+    @Test
     func `first switch invalidates after codex refresh seeds the previous account guard`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-first-switch")
         settings.refreshFrequency = .manual

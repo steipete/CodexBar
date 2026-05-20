@@ -17,7 +17,9 @@ extension UsageStore {
         _ = self.codexAccountSnapshots
         _ = self.kiloScopeSnapshots
         _ = self.tokenSnapshots
+        _ = self.tokenSnapshotScopes
         _ = self.tokenErrors
+        _ = self.tokenErrorScopes
         _ = self.tokenRefreshInFlight
         _ = self.credits
         _ = self.lastCreditsError
@@ -148,7 +150,9 @@ final class UsageStore {
     var codexAccountSnapshots: [CodexAccountUsageSnapshot] = []
     var kiloScopeSnapshots: [KiloScopeSnapshot] = []
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
+    var tokenSnapshotScopes: [UsageProvider: String] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
+    var tokenErrorScopes: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
@@ -1455,7 +1459,9 @@ extension UsageStore {
         guard errorMessage == nil else { return errorMessage }
 
         self.tokenSnapshots.removeAll()
+        self.tokenSnapshotScopes.removeAll()
         self.tokenErrors.removeAll()
+        self.tokenErrorScopes.removeAll()
         self.lastTokenFetchAt.removeAll()
         self.lastTokenFetchScope.removeAll()
         self.tokenFailureGates[.codex]?.reset()
@@ -1466,7 +1472,9 @@ extension UsageStore {
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
         guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
             self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenSnapshotScopes.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
+            self.tokenErrorScopes.removeValue(forKey: provider)
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
             self.lastTokenFetchScope.removeValue(forKey: provider)
@@ -1480,7 +1488,9 @@ extension UsageStore {
 
         guard self.settings.costUsageEnabled else {
             self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenSnapshotScopes.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
+            self.tokenErrorScopes.removeValue(forKey: provider)
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
             self.lastTokenFetchScope.removeValue(forKey: provider)
@@ -1489,7 +1499,9 @@ extension UsageStore {
 
         guard self.isEnabled(provider) else {
             self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenSnapshotScopes.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
+            self.tokenErrorScopes.removeValue(forKey: provider)
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
             self.lastTokenFetchScope.removeValue(forKey: provider)
@@ -1501,7 +1513,7 @@ extension UsageStore {
         let now = Date()
         let historyDays = self.settings.costUsageHistoryDays
         let costScope = self.tokenCostScope(for: provider)
-        let costScopeSignature = "\(costScope.signature)|historyDays=\(historyDays)"
+        let costScopeSignature = self.tokenCostScopeSignature(for: provider)
         if !force,
            let last = self.lastTokenFetchAt[provider],
            self.lastTokenFetchScope[provider] == costScopeSignature,
@@ -1556,7 +1568,9 @@ extension UsageStore {
 
             guard !snapshot.daily.isEmpty else {
                 self.tokenSnapshots.removeValue(forKey: provider)
+                self.tokenSnapshotScopes.removeValue(forKey: provider)
                 self.tokenErrors[provider] = Self.tokenCostNoDataMessage(for: provider)
+                self.tokenErrorScopes[provider] = costScopeSignature
                 self.tokenFailureGates[provider]?.recordSuccess()
                 return
             }
@@ -1571,7 +1585,9 @@ extension UsageStore {
                 "historyDays=\(historyDays) windowCost=\(monthCost)"
             self.tokenCostLogger.info(message)
             self.tokenSnapshots[provider] = snapshot
+            self.tokenSnapshotScopes[provider] = costScopeSignature
             self.tokenErrors[provider] = nil
+            self.tokenErrorScopes.removeValue(forKey: provider)
             self.tokenFailureGates[provider]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
         } catch {
@@ -1586,9 +1602,12 @@ extension UsageStore {
                 .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
             if shouldSurface {
                 self.tokenErrors[provider] = error.localizedDescription
+                self.tokenErrorScopes[provider] = costScopeSignature
                 self.tokenSnapshots.removeValue(forKey: provider)
+                self.tokenSnapshotScopes.removeValue(forKey: provider)
             } else {
                 self.tokenErrors[provider] = nil
+                self.tokenErrorScopes.removeValue(forKey: provider)
             }
         }
     }

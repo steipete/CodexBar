@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 
 extension StatusItemController {
     func renderedMenuWidth(for menu: NSMenu) -> CGFloat {
@@ -14,6 +15,30 @@ extension StatusItemController {
 
     func refreshOpenMenusForStructureChange() {
         self.refreshOpenMenusAllowingParentRebuild()
+    }
+
+    func shouldRefreshOpenMenusForTokenCostHistoryArrival() -> Bool {
+        let previousPresence = self.lastObservedTokenCostHistoryPresence
+        let currentPresence = self.tokenCostHistoryPresenceByProvider()
+        self.lastObservedTokenCostHistoryPresence = currentPresence
+
+        guard Self.menuRefreshEnabled else { return false }
+        guard !self.openMenus.isEmpty else { return false }
+
+        let visibleProviders = self.openParentMenuProviders()
+        guard !visibleProviders.isEmpty else { return false }
+
+        return visibleProviders.contains { provider in
+            previousPresence[provider] != true && currentPresence[provider] == true
+        }
+    }
+
+    func tokenCostHistoryPresenceByProvider() -> [UsageProvider: Bool] {
+        Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { provider in
+            let hasHistory = self.settings.isCostUsageEffectivelyEnabled(for: provider) &&
+                (self.store.tokenSnapshot(for: provider)?.daily.isEmpty == false)
+            return (provider, hasHistory)
+        })
     }
 
     func refreshOpenMenusAllowingParentRebuild() {
@@ -63,5 +88,19 @@ extension StatusItemController {
             self.menuProviders.removeValue(forKey: key)
             self.menuVersions.removeValue(forKey: key)
         }
+    }
+
+    private func openParentMenuProviders() -> Set<UsageProvider> {
+        var providers: Set<UsageProvider> = []
+        for menu in self.openMenus.values where !self.isHostedSubviewMenu(menu) {
+            if self.shouldMergeIcons, self.lastMergedSwitcherSelection == .overview {
+                providers.formUnion(self.store.enabledProvidersForDisplay())
+            } else if let provider = self.menuProvider(for: menu) {
+                providers.insert(provider)
+            } else {
+                providers.formUnion(self.store.enabledProvidersForDisplay())
+            }
+        }
+        return providers
     }
 }

@@ -162,6 +162,13 @@ struct CostHistoryChartMenuView: View {
                     .lineLimit(1)
                     .truncationMode(.head)
             }
+            if let scopeNote = Self.scopeNote(provider: self.provider) {
+                Text(scopeNote)
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -188,6 +195,12 @@ struct CostHistoryChartMenuView: View {
 
     private static func windowLabel(days: Int) -> String {
         days == 1 ? "today" : "\(days)d"
+    }
+
+    static func scopeNote(provider: UsageProvider) -> String? {
+        provider == .codex
+            ? "Local Codex logs on this Mac; remote usage may be missing."
+            : nil
     }
 
     private static func capHeight(maxValue: Double) -> Double {

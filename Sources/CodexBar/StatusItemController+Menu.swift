@@ -1106,7 +1106,10 @@ extension StatusItemController {
         // Kick off a refresh on open (non-forced) and re-check after a delay.
         // NEVER block menu opening with network requests.
         if !self.store.isRefreshing {
-            self.refreshStore(forceTokenUsage: false, refreshOpenMenusWhenComplete: false)
+            let forceTokenUsage = self.menuIsMissingCostHistory(for: menu)
+            self.refreshStore(
+                forceTokenUsage: forceTokenUsage,
+                refreshOpenMenusWhenComplete: forceTokenUsage)
         }
         let key = ObjectIdentifier(menu)
         self.menuRefreshTasks[key]?.cancel()
@@ -1123,9 +1126,12 @@ extension StatusItemController {
             let retryProviders = self.delayedRefreshRetryProviders(for: menu)
             let retryStaleProviderCount = retryProviders.count { self.store.isStale(provider: $0) }
             let retryMissingSnapshotCount = retryProviders.count { self.store.snapshot(for: $0) == nil }
-            let willRetryRefresh = retryStaleProviderCount > 0 || retryMissingSnapshotCount > 0
+            let forceTokenUsage = self.providersMissingCostHistory(retryProviders).isEmpty == false
+            let willRetryRefresh = retryStaleProviderCount > 0 || retryMissingSnapshotCount > 0 || forceTokenUsage
             guard willRetryRefresh else { return }
-            self.refreshStore(forceTokenUsage: false, refreshOpenMenusWhenComplete: false)
+            self.refreshStore(
+                forceTokenUsage: forceTokenUsage,
+                refreshOpenMenusWhenComplete: forceTokenUsage)
         }
     }
 
@@ -1134,6 +1140,18 @@ extension StatusItemController {
         guard !providersToCheck.isEmpty else { return false }
         return providersToCheck.contains { provider in
             self.store.isStale(provider: provider) || self.store.snapshot(for: provider) == nil
+        } || self.providersMissingCostHistory(providersToCheck).isEmpty == false
+    }
+
+    func menuIsMissingCostHistory(for menu: NSMenu) -> Bool {
+        self.providersMissingCostHistory(self.delayedRefreshRetryProviders(for: menu)).isEmpty == false
+    }
+
+    private func providersMissingCostHistory(_ providers: [UsageProvider]) -> [UsageProvider] {
+        providers.filter { provider in
+            self.settings.isCostUsageEffectivelyEnabled(for: provider)
+                && self.store.tokenSnapshot(for: provider)?.daily.isEmpty != false
+                && !self.store.isTokenRefreshInFlight(for: provider)
         }
     }
 

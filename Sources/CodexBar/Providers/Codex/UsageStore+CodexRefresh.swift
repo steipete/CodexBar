@@ -8,8 +8,8 @@ extension UsageStore {
     nonisolated static let codexSnapshotPollIntervalNanoseconds: UInt64 = 100_000_000
 
     func codexCreditsFetcher() -> UsageFetcher {
-        // Credits are remote Codex account state, so they need the same managed-home routing as the
-        // primary Codex usage fetch. Local token-cost scanning intentionally stays ambient-system scoped.
+        // Credits are remote Codex account state, so they need the same managed-home routing
+        // as the primary Codex usage fetch.
         self.makeFetchContext(provider: .codex, override: nil).fetcher
     }
 

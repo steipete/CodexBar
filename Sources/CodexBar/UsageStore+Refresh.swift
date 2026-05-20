@@ -41,7 +41,9 @@ extension UsageStore {
                     self.kiloScopeSnapshots = []
                 }
                 self.tokenSnapshots.removeValue(forKey: provider)
+                self.tokenSnapshotScopes.removeValue(forKey: provider)
                 self.tokenErrors[provider] = nil
+                self.tokenErrorScopes.removeValue(forKey: provider)
                 self.failureGates[provider]?.reset()
                 self.tokenFailureGates[provider]?.reset()
                 self.statuses.removeValue(forKey: provider)
@@ -49,6 +51,7 @@ extension UsageStore {
                 self.lastKnownSessionWindowSource.removeValue(forKey: provider)
                 self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
                 self.lastTokenFetchAt.removeValue(forKey: provider)
+                self.lastTokenFetchScope.removeValue(forKey: provider)
             }
             return
         }
@@ -268,13 +271,16 @@ extension UsageStore {
         self.lastSourceLabels.removeValue(forKey: .claude)
         self.accountSnapshots.removeValue(forKey: .claude)
         self.tokenSnapshots.removeValue(forKey: .claude)
+        self.tokenSnapshotScopes.removeValue(forKey: .claude)
         self.tokenErrors[.claude] = nil
+        self.tokenErrorScopes.removeValue(forKey: .claude)
         self.failureGates[.claude]?.reset()
         self.tokenFailureGates[.claude]?.reset()
         self.lastKnownSessionRemaining.removeValue(forKey: .claude)
         self.lastKnownSessionWindowSource.removeValue(forKey: .claude)
         self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != .claude }
         self.lastTokenFetchAt.removeValue(forKey: .claude)
+        self.lastTokenFetchScope.removeValue(forKey: .claude)
     }
 
     private func handleProviderFetchFailure(provider: UsageProvider, error: Error) async {

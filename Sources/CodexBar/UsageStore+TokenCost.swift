@@ -3,11 +3,17 @@ import Foundation
 
 extension UsageStore {
     func tokenSnapshot(for provider: UsageProvider) -> CostUsageTokenSnapshot? {
-        self.tokenSnapshots[provider]
+        guard let snapshot = self.tokenSnapshots[provider] else { return nil }
+        guard provider == .codex else { return snapshot }
+        guard let snapshotScope = self.tokenSnapshotScopes[provider] else { return snapshot }
+        return snapshotScope == self.tokenCostScopeSignature(for: provider) ? snapshot : nil
     }
 
     func tokenError(for provider: UsageProvider) -> String? {
-        self.tokenErrors[provider]
+        guard let error = self.tokenErrors[provider] else { return nil }
+        guard provider == .codex else { return error }
+        guard let errorScope = self.tokenErrorScopes[provider] else { return error }
+        return errorScope == self.tokenCostScopeSignature(for: provider) ? error : nil
     }
 
     func tokenLastAttemptAt(for provider: UsageProvider) -> Date? {
@@ -28,6 +34,11 @@ extension UsageStore {
             return (nil, "codex:ambient")
         }
         return (homePath, "codex:managed:\(homePath)")
+    }
+
+    func tokenCostScopeSignature(for provider: UsageProvider) -> String {
+        let scope = self.tokenCostScope(for: provider)
+        return "\(scope.signature)|historyDays=\(self.settings.costUsageHistoryDays)"
     }
 
     nonisolated static func costUsageCacheDirectory(

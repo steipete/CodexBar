@@ -11,7 +11,9 @@ extension UsageStore {
         self.lastFetchAttempts.removeValue(forKey: provider)
         self.accountSnapshots.removeValue(forKey: provider)
         self.tokenSnapshots.removeValue(forKey: provider)
+        self.tokenSnapshotScopes.removeValue(forKey: provider)
         self.tokenErrors[provider] = nil
+        self.tokenErrorScopes.removeValue(forKey: provider)
         self.providerStorageFootprints.removeValue(forKey: provider)
         self.failureGates[provider]?.reset()
         self.tokenFailureGates[provider]?.reset()
@@ -19,6 +21,7 @@ extension UsageStore {
         self.lastKnownSessionRemaining.removeValue(forKey: provider)
         self.lastKnownSessionWindowSource.removeValue(forKey: provider)
         self.lastTokenFetchAt.removeValue(forKey: provider)
+        self.lastTokenFetchScope.removeValue(forKey: provider)
     }
 
     func clearDisabledProviderState(enabledProviders: Set<UsageProvider>) {

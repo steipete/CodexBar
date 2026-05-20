@@ -62,10 +62,20 @@ extension UsageStore {
 
     func _setTokenSnapshotForTesting(_ snapshot: CostUsageTokenSnapshot?, provider: UsageProvider) {
         self.tokenSnapshots[provider] = snapshot
+        if snapshot == nil {
+            self.tokenSnapshotScopes.removeValue(forKey: provider)
+        } else {
+            self.tokenSnapshotScopes[provider] = self.tokenCostScopeSignature(for: provider)
+        }
     }
 
     func _setTokenErrorForTesting(_ error: String?, provider: UsageProvider) {
         self.tokenErrors[provider] = error
+        if error == nil {
+            self.tokenErrorScopes.removeValue(forKey: provider)
+        } else {
+            self.tokenErrorScopes[provider] = self.tokenCostScopeSignature(for: provider)
+        }
     }
 
     func _setErrorForTesting(_ error: String?, provider: UsageProvider) {

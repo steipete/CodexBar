@@ -86,6 +86,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var lastObservedTokenCostHistoryPresence: [UsageProvider: Bool] = [:]
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
     var isReleasedForTesting = false
@@ -276,6 +277,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastKnownScreenCount = NSScreen.screens.count
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
+        self.lastObservedTokenCostHistoryPresence = self.tokenCostHistoryPresenceByProvider()
         self.wireBindings()
         self.updateVisibility()
         self.updateIcons()
@@ -345,8 +347,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForTokenCostHistoryArrival()
                 self.observeStoreChanges()
-                self.invalidateMenus()
+                self.invalidateMenus(refreshOpenMenus: shouldRefreshOpenMenus)
             }
         }
     }
