@@ -43,7 +43,6 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.statuses
         _ = self.historicalPaceRevision
