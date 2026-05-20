@@ -212,8 +212,7 @@ CLI install:
 
 ## Linux desktop integration?
 - [codexbar-waybar](https://github.com/Marouan-chak/codexbar-waybar) — Waybar custom module + GTK4 popover for Hyprland / Sway / other Wayland compositors, built on top of the bundled Linux CLI.
-## For GNOME Shell users (Linux DE):  
-- [Codexbar-gnome](https://extensions.gnome.org/extension/9841/codexbar/)- Same as the MacOS version, but integrated into the GNOME environment
+- [Codexbar GNOME](https://extensions.gnome.org/extension/9841/codexbar/) — GNOME Shell extension that brings CodexBar usage into the desktop panel.
 
 
 ## Credits
