@@ -86,7 +86,7 @@ struct T3ChatUsageFetcherTests {
         let curl = """
         curl 'https://t3.chat/api/trpc/getCustomerData?batch=1&input=ignored' \\
           -H 'User-Agent: Mozilla/5.0 Firefox/151.0' \\
-          -H 'Referer: https://t3.chat/settings/customization' \\
+          --header "Referer: https://t3.chat/settings/customization" \\
           -H 'trpc-accept: application/jsonl' \\
           -H 'x-trpc-source: web-client' \\
           -H 'x-trpc-batch: true' \\
@@ -100,6 +100,33 @@ struct T3ChatUsageFetcherTests {
             #expect(request.value(forHTTPHeaderField: "X-Deployment-Id") == "dpl_test")
             #expect(request.value(forHTTPHeaderField: "x-client-context") ==
                 "eyJjbGllbnQiOnsidmVyc2lvbiI6IjEuMTIuNCJ9fQ==")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil)!
+            return (Data(Self.sampleResponse.utf8), response)
+        }
+
+        let fetcher = T3ChatUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0))
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: curl,
+            now: Self.now,
+            transport: stub)
+    }
+
+    @Test
+    func `curl capture forwards ansi quoted and equals header forms`() async throws {
+        let curl = """
+        curl 'https://t3.chat/api/trpc/getCustomerData?batch=1&input=ignored' \\
+          --header=$'User-Agent: Browser\\'s Agent' \\
+          --header 'X-Deployment-Id: dpl_test' \\
+          -H 'Cookie: session=abc'
+        """
+        let stub = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "session=abc")
+            #expect(request.value(forHTTPHeaderField: "User-Agent") == "Browser's Agent")
+            #expect(request.value(forHTTPHeaderField: "X-Deployment-Id") == "dpl_test")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,

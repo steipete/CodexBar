@@ -105,6 +105,7 @@ public struct T3ChatUsageSnapshot: Sendable {
 
     private static func date(fromMilliseconds raw: TimeInterval?) -> Date? {
         guard let raw, raw > 0 else { return nil }
+        // T3 Chat currently returns JavaScript epoch milliseconds, while some subscription fields may be seconds.
         let seconds = raw > 10_000_000_000 ? raw / 1000 : raw
         return Date(timeIntervalSince1970: seconds)
     }

@@ -21,13 +21,12 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .t3chat, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureT3ChatCookieLoaded() {}
 }
 
 extension SettingsStore {
-    func t3ChatSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
-    .T3ChatProviderSettings {
+    func t3ChatSettingsSnapshot(
+        tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.T3ChatProviderSettings
+    {
         ProviderSettingsSnapshot.T3ChatProviderSettings(
             cookieSource: self.t3ChatSnapshotCookieSource(tokenOverride: tokenOverride),
             manualCookieHeader: self.t3ChatSnapshotCookieHeader(tokenOverride: tokenOverride))

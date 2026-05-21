@@ -26,7 +26,7 @@ public enum T3ChatProviderDescriptor {
                 subscriptionDashboardURL: "https://t3.chat/settings/subscription",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .codex,
+                iconStyle: .t3chat,
                 iconResourceName: "ProviderIcon-t3chat",
                 color: ProviderColor(red: 245 / 255, green: 102 / 255, blue: 71 / 255)),
             tokenCost: ProviderTokenCostConfig(
@@ -47,8 +47,16 @@ struct T3ChatWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        guard context.settings?.t3chat?.cookieSource != .off else { return false }
+        let cookieSource = context.settings?.t3chat?.cookieSource ?? .auto
+        guard cookieSource != .off else { return false }
+        if cookieSource == .manual {
+            return CookieHeaderNormalizer.normalize(context.settings?.t3chat?.manualCookieHeader) != nil
+        }
+        #if os(macOS)
         return true
+        #else
+        return false
+        #endif
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

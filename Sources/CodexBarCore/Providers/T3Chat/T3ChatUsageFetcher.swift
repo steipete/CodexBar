@@ -62,9 +62,11 @@ public struct T3ChatUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.t3chat)
     private static let baseURL = URL(string: "https://t3.chat")!
     private static let refererURL = URL(string: "https://t3.chat/settings/customization")!
+    /// Browser fingerprint defaults are only fallbacks; full cURL captures override these forwarded headers.
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+    /// Captured from T3 Chat's getCustomerData tRPC request shape in May 2026.
     private static let input = #"{"0":{"json":{"sessionId":null},"meta":{"values":{"sessionId":["undefined"]}}}}"#
     private static let forwardedManualHeaders = [
         "accept": "Accept",
@@ -183,7 +185,8 @@ public struct T3ChatUsageFetcher: Sendable {
             throw T3ChatUsageError.noSessionCookie
         }
 
-        var request = URLRequest(url: self.customerDataURL())
+        let url = try self.customerDataURL()
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = timeout
         self.applyDefaultHeaders(to: &request)
@@ -276,31 +279,71 @@ public struct T3ChatUsageFetcher: Sendable {
 
     private static func headerFields(from raw: String) -> [String] {
         var fields: [String] = []
-        let patterns = [
-            #"-H\s*'([^']+)'"#,
-            #"-H\s*"([^"]+)""#,
-        ]
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { continue }
-            let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
-            for match in regex.matches(in: raw, options: [], range: range) {
-                guard match.numberOfRanges >= 2,
-                      let capture = Range(match.range(at: 1), in: raw)
-                else {
-                    continue
-                }
-                fields.append(String(raw[capture]))
+        let pattern =
+            #"(?s)(?:^|\s)(?:-H|--header)(?:\s+|=|(?=['"$]))"# +
+            #"(?:\$'((?:\\.|[^'])*)'|'([^']*)'|"((?:\\.|[^"])*)"|(\S+))"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return fields }
+        let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
+        for match in regex.matches(in: raw, options: [], range: range) {
+            if let ansi = self.capture(1, in: match, raw: raw) {
+                fields.append(self.unescapeShellSegment(ansi, ansi: true))
+            } else if let single = self.capture(2, in: match, raw: raw) {
+                fields.append(single)
+            } else if let double = self.capture(3, in: match, raw: raw) {
+                fields.append(self.unescapeShellSegment(double, ansi: false))
+            } else if let bare = self.capture(4, in: match, raw: raw) {
+                fields.append(self.unescapeShellSegment(bare, ansi: false))
             }
         }
         return fields
     }
 
-    private static func customerDataURL() -> URL {
+    private static func capture(_ index: Int, in match: NSTextCheckingResult, raw: String) -> String? {
+        guard match.numberOfRanges > index,
+              let range = Range(match.range(at: index), in: raw)
+        else {
+            return nil
+        }
+        return String(raw[range])
+    }
+
+    private static func unescapeShellSegment(_ raw: String, ansi: Bool) -> String {
+        var output = ""
+        var index = raw.startIndex
+        while index < raw.endIndex {
+            guard raw[index] == "\\" else {
+                output.append(raw[index])
+                index = raw.index(after: index)
+                continue
+            }
+            let next = raw.index(after: index)
+            guard next < raw.endIndex else { return output }
+            switch raw[next] {
+            case "n" where ansi:
+                output.append("\n")
+            case "r" where ansi:
+                output.append("\r")
+            case "t" where ansi:
+                output.append("\t")
+            case "\n":
+                break
+            default:
+                output.append(raw[next])
+            }
+            index = raw.index(after: next)
+        }
+        return output
+    }
+
+    private static func customerDataURL() throws -> URL {
         var components = URLComponents(string: "https://t3.chat/api/trpc/getCustomerData")!
         components.queryItems = [
             URLQueryItem(name: "batch", value: "1"),
             URLQueryItem(name: "input", value: self.input),
         ]
-        return components.url!
+        guard let url = components.url else {
+            throw T3ChatUsageError.apiError("Failed to build customer data URL.")
+        }
+        return url
     }
 }
