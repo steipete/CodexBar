@@ -1286,8 +1286,10 @@ final class CodexAccountSwitcherView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         let descendant = super.hitTest(point)
         if descendant != nil, descendant !== self {
+            self.toolTip = (descendant as? NSButton)?.toolTip
             return self
         }
+        self.toolTip = nil
         return descendant
     }
 
@@ -1378,6 +1380,15 @@ final class CodexAccountSwitcherView: NSView {
         self.layoutSubtreeIfNeeded()
         let point = self.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
         return self.hitTest(point) === self
+    }
+
+    func _test_toolTipAfterHitTest(id: String) -> String? {
+        guard let button = self.buttons.first(where: { $0.identifier?.rawValue == id }) else { return nil }
+        self.updateConstraintsForSubtreeIfNeeded()
+        self.layoutSubtreeIfNeeded()
+        let point = self.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
+        _ = self.hitTest(point)
+        return self.toolTip
     }
     #endif
 }

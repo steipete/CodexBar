@@ -904,6 +904,7 @@ extension StatusMenuCodexSwitcherTests {
 
         #expect(view.acceptsFirstMouse(for: nil) == true)
         #expect(view._test_hitTestSwallowsChildButton(id: "managed@example.com") == true)
+        #expect(view._test_toolTipAfterHitTest(id: "managed@example.com") == "managed@example.com")
     }
 
     @Test
