@@ -57,6 +57,7 @@ extension SettingsStore {
         _ = self.kimiCookieSource
         _ = self.augmentCookieSource
         _ = self.ampCookieSource
+        _ = self.t3ChatCookieSource
         _ = self.ollamaCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
@@ -79,6 +80,7 @@ extension SettingsStore {
         _ = self.kiloAPIToken
         _ = self.augmentCookieHeader
         _ = self.ampCookieHeader
+        _ = self.t3ChatCookieHeader
         _ = self.ollamaCookieHeader
         _ = self.copilotAPIToken
         _ = self.warpAPIToken

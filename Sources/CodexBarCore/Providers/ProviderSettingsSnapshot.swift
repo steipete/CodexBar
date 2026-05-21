@@ -20,6 +20,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         augment: AugmentProviderSettings? = nil,
         moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
+        t3chat: T3ChatProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
@@ -48,6 +49,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             augment: augment,
             moonshot: moonshot,
             amp: amp,
+            t3chat: t3chat,
             ollama: ollama,
             jetbrains: jetbrains,
             windsurf: windsurf,
@@ -253,6 +255,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct T3ChatProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct CommandCodeProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -366,6 +378,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let augment: AugmentProviderSettings?
     public let moonshot: MoonshotProviderSettings?
     public let amp: AmpProviderSettings?
+    public let t3chat: T3ChatProviderSettings?
     public let commandcode: CommandCodeProviderSettings?
     public let ollama: OllamaProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
@@ -399,6 +412,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         augment: AugmentProviderSettings?,
         moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings?,
+        t3chat: T3ChatProviderSettings? = nil,
         commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil,
@@ -427,6 +441,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.augment = augment
         self.moonshot = moonshot
         self.amp = amp
+        self.t3chat = t3chat
         self.commandcode = commandcode
         self.ollama = ollama
         self.jetbrains = jetbrains
@@ -456,6 +471,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case moonshot(ProviderSettingsSnapshot.MoonshotProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
+    case t3chat(ProviderSettingsSnapshot.T3ChatProviderSettings)
     case commandcode(ProviderSettingsSnapshot.CommandCodeProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
@@ -486,6 +502,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
+    public var t3chat: ProviderSettingsSnapshot.T3ChatProviderSettings?
     public var commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
@@ -520,6 +537,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .augment(value): self.augment = value
         case let .moonshot(value): self.moonshot = value
         case let .amp(value): self.amp = value
+        case let .t3chat(value): self.t3chat = value
         case let .commandcode(value): self.commandcode = value
         case let .ollama(value): self.ollama = value
         case let .jetbrains(value): self.jetbrains = value
@@ -552,6 +570,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             augment: self.augment,
             moonshot: self.moonshot,
             amp: self.amp,
+            t3chat: self.t3chat,
             commandcode: self.commandcode,
             ollama: self.ollama,
             jetbrains: self.jetbrains,

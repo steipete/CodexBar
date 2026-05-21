@@ -77,6 +77,7 @@ public enum ProviderDescriptorRegistry {
         .kimik2: KimiK2ProviderDescriptor.descriptor,
         .moonshot: MoonshotProviderDescriptor.descriptor,
         .amp: AmpProviderDescriptor.descriptor,
+        .t3chat: T3ChatProviderDescriptor.descriptor,
         .ollama: OllamaProviderDescriptor.descriptor,
         .synthetic: SyntheticProviderDescriptor.descriptor,
         .openrouter: OpenRouterProviderDescriptor.descriptor,
