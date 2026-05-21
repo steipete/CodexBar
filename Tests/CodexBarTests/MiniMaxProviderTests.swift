@@ -171,6 +171,94 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `parses planName from concrete fields in remains response`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // 1. plan_name
+        let jsonPlanName = """
+        {
+          "base_resp": { "status_code": 0 },
+          "plan_name": "MiniMax Star",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot1 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonPlanName.utf8), now: now)
+        #expect(snapshot1.planName == "MiniMax Star")
+
+        // 2. current_plan_title
+        let jsonCurrentPlan = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_plan_title": "Coding Plan Pro",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot2 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonCurrentPlan.utf8), now: now)
+        #expect(snapshot2.planName == "Coding Plan Pro")
+
+        // 3. current_subscribe_title
+        let jsonSubscribe = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_subscribe_title": "Max",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot3 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonSubscribe.utf8), now: now)
+        #expect(snapshot3.planName == "Max")
+
+        // 4. combo_title
+        let jsonCombo = """
+        {
+          "base_resp": { "status_code": 0 },
+          "combo_title": "Combo Star",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot4 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonCombo.utf8), now: now)
+        #expect(snapshot4.planName == "Combo Star")
+
+        // 5. current_combo_card.title
+        let jsonComboCard = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_combo_card": { "title": "Card Title" },
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot5 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonComboCard.utf8), now: now)
+        #expect(snapshot5.planName == "Card Title")
+    }
+
+    @Test
+    func `toUsageSnapshot maps planName to loginMethod`() {
+        let now = Date()
+        let snapshot1 = MiniMaxUsageSnapshot(
+            planName: "MiniMax Star",
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: now)
+        let usage1 = snapshot1.toUsageSnapshot()
+        #expect(usage1.identity?.loginMethod == "MiniMax Star")
+
+        let snapshot2 = MiniMaxUsageSnapshot(
+            planName: nil,
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: now)
+        let usage2 = snapshot2.toUsageSnapshot()
+        #expect(usage2.identity?.loginMethod == nil)
+    }
+
+    @Test
     func `parses coding plan snapshot`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
