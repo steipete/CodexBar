@@ -69,8 +69,7 @@ public struct T3ChatUsageSnapshot: Sendable {
     public func toUsageSnapshot() -> UsageSnapshot {
         let baseReset = Self.date(fromMilliseconds: self.customerData.usageFourHourNextResetAt)
             ?? Self.date(fromMilliseconds: self.customerData.usageWindowNextResetAt)
-        let overageReset = Self.date(fromMilliseconds: self.customerData.billingNextResetAt)
-            ?? Self.date(fromMilliseconds: self.customerData.subscription?.currentPeriodEnd)
+        let overageReset = Self.date(fromMilliseconds: self.customerData.subscription?.currentPeriodEnd)
 
         let primary = RateWindow(
             usedPercent: Self.percent(self.customerData.usageFourHourPercentage),

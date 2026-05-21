@@ -39,6 +39,7 @@ struct T3ChatUsageFetcherTests {
         #expect(usage.primary?.resetDescription == "Base - max")
         #expect(usage.secondary?.usedPercent == 34.25)
         #expect(usage.secondary?.resetDescription == "Overage")
+        #expect(usage.secondary?.resetsAt?.timeIntervalSince1970 == 1_780_763_009)
         #expect(usage.identity?.providerID == .t3chat)
         #expect(usage.identity?.loginMethod == "Pro")
     }
@@ -53,6 +54,18 @@ struct T3ChatUsageFetcherTests {
 
         #expect(usage.primary?.usedPercent == 5)
         #expect(usage.secondary?.usedPercent == 65)
+    }
+
+    @Test
+    func `overage reset ignores billing next reset`() throws {
+        let response = """
+        {"json":[2,0,[[{"usageMonthPercentage":20,"billingNextResetAt":1779366216920}]]]}
+        """
+        let usage = try T3ChatUsageParser.parseJSONLines(response, now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(usage.secondary?.usedPercent == 20)
+        #expect(usage.secondary?.resetsAt == nil)
     }
 
     @Test
