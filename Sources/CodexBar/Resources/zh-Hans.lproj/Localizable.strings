@@ -3,7 +3,7 @@
 " providers" = " 提供商";
 "(System)" = "（System）";
 "30d" = "30 天";
-"A managed Codex login is already running. Wait for it to finish before adding " = "托管 Codex 登录已在运行。请等待其完成后再添加";
+"A managed Codex login is already running. Wait for it to finish before adding " = "托管 Codex 登录已在运行。请等待其完成后再添加 ";
 "API key" = "API 密钥";
 "API region" = "API 区域";
 "API token" = "API 词元";
