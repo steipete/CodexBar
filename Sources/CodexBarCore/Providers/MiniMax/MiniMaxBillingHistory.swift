@@ -85,6 +85,8 @@ struct MiniMaxBillingRecord: Decodable {
     let consumeTime: String?
     let method: String?
     let model: String?
+    let result: String?
+    let status: String?
 
     private enum CodingKeys: String, CodingKey {
         case consumeToken = "consume_token"
@@ -97,6 +99,8 @@ struct MiniMaxBillingRecord: Decodable {
         case consumeTime = "consume_time"
         case method
         case model
+        case result
+        case status
     }
 
     init(from decoder: Decoder) throws {
@@ -111,6 +115,18 @@ struct MiniMaxBillingRecord: Decodable {
         self.consumeTime = try container.decodeIfPresent(String.self, forKey: .consumeTime)
         self.method = try container.decodeIfPresent(String.self, forKey: .method)
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.result = try container.decodeIfPresent(String.self, forKey: .result)
+        self.status = try container.decodeIfPresent(String.self, forKey: .status)
+    }
+
+    var recordResult: String? {
+        if let result = self.result?.trimmingCharacters(in: .whitespacesAndNewlines), !result.isEmpty {
+            return result
+        }
+        if let status = self.status?.trimmingCharacters(in: .whitespacesAndNewlines), !status.isEmpty {
+            return status
+        }
+        return nil
     }
 
     var tokenCount: Int {
@@ -159,6 +175,12 @@ enum MiniMaxBillingHistoryParser {
         var modelTotals: [String: (tokens: Int, cash: Double, hasCash: Bool)] = [:]
 
         for record in records {
+            if let recordResult = record.recordResult,
+               recordResult.caseInsensitiveCompare("SUCCESS") != .orderedSame
+            {
+                continue
+            }
+
             guard let date = self.recordDate(record, calendar: calendar),
                   date >= startOf30Days,
                   date <= now

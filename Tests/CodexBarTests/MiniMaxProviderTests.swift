@@ -702,6 +702,66 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `billing history filters failed records`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "total_cnt": 4,
+          "charge_records": [
+            {
+              "consume_token": 1000,
+              "ymd": "2026-05-17",
+              "method": "chat",
+              "model": "MiniMax-M1",
+              "result": "SUCCESS"
+            },
+            {
+              "consume_token": 2000,
+              "ymd": "2026-05-17",
+              "method": "chat",
+              "model": "MiniMax-M1",
+              "result": "FAILED"
+            },
+            {
+              "consume_token": 3000,
+              "ymd": "2026-05-17",
+              "method": "chat",
+              "model": "MiniMax-M1",
+              "status": "fail"
+            },
+            {
+              "consume_token": 4000,
+              "ymd": "2026-05-17",
+              "method": "audio",
+              "model": "speech-2.8"
+            }
+          ]
+        }
+        """
+
+        let summary = try MiniMaxBillingHistoryParser.parse(
+            data: Data(json.utf8),
+            now: now,
+            calendar: calendar)
+
+        // Only SUCCESS (1000) and missing/empty result status (4000) should be included.
+        // FAILED (2000) and status "fail" (3000) should be skipped.
+        #expect(summary.todayTokens == 5000)
+        #expect(summary.last30DaysTokens == 5000)
+        #expect(summary.daily.map(\.day) == ["2026-05-17"])
+
+        // Top methods should aggregate only SUCCESS/missing records.
+        #expect(summary.topMethods.count == 2)
+        #expect(summary.topMethods[0].name == "audio")
+        #expect(summary.topMethods[0].tokens == 4000)
+        #expect(summary.topMethods[1].name == "chat")
+        #expect(summary.topMethods[1].tokens == 1000)
+    }
+
+    @Test
     func `web usage fetch attaches billing history when available`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in
