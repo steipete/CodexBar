@@ -30,18 +30,24 @@ private func hasRecognizedOllamaSessionCookie(in header: String) -> Bool {
 }
 
 public enum OllamaUsageError: LocalizedError, Sendable {
+    case missingAPIKey
     case notLoggedIn
     case invalidCredentials
+    case apiUnauthorized
     case parseFailed(String)
     case networkError(String)
     case noSessionCookie
 
     public var errorDescription: String? {
         switch self {
+        case .missingAPIKey:
+            "Missing Ollama API key. Set apiKey in ~/.codexbar/config.json or OLLAMA_API_KEY."
         case .notLoggedIn:
             "Not logged in to Ollama. Please log in via ollama.com/settings."
         case .invalidCredentials:
             "Ollama session cookie expired. Please log in again."
+        case .apiUnauthorized:
+            "Ollama API key is invalid or expired."
         case let .parseFailed(message):
             "Could not parse Ollama usage: \(message)"
         case let .networkError(message):
@@ -618,4 +624,119 @@ public struct OllamaUsageFetcher: Sendable {
         if host == "ollama.com" || host == "www.ollama.com" { return true }
         return host.hasSuffix(".ollama.com")
     }
+}
+
+public struct OllamaAPISettingsReader: Sendable {
+    public static let apiKeyEnvironmentKeys = [
+        "OLLAMA_API_KEY",
+        "OLLAMA_KEY",
+    ]
+
+    public static func apiKey(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        for key in self.apiKeyEnvironmentKeys {
+            guard let value = self.cleaned(environment[key]), !value.isEmpty else { continue }
+            return value
+        }
+        return nil
+    }
+
+    private static func cleaned(_ raw: String?) -> String? {
+        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else {
+            return nil
+        }
+        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
+            (value.hasPrefix("'") && value.hasSuffix("'"))
+        {
+            value.removeFirst()
+            value.removeLast()
+        }
+        return value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+public struct OllamaAPIUsageSnapshot: Sendable {
+    public let modelCount: Int
+    public let updatedAt: Date
+
+    public init(modelCount: Int, updatedAt: Date) {
+        self.modelCount = modelCount
+        self.updatedAt = updatedAt
+    }
+
+    public func toUsageSnapshot() -> UsageSnapshot {
+        UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: self.updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .ollama,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "API key"))
+    }
+}
+
+public enum OllamaAPIUsageFetcher {
+    public static let tagsURL = URL(string: "https://ollama.com/api/tags")!
+    private static let timeoutSeconds: TimeInterval = 20
+
+    public static func fetchUsage(
+        apiKey: String,
+        tagsURL: URL = Self.tagsURL,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        now: Date = Date()) async throws -> OllamaAPIUsageSnapshot
+    {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw OllamaUsageError.missingAPIKey
+        }
+
+        var request = URLRequest(url: tagsURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Self.timeoutSeconds
+        request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("CodexBar/1.0", forHTTPHeaderField: "User-Agent")
+
+        let response: ProviderHTTPResponse
+        do {
+            response = try await transport.response(for: request)
+        } catch {
+            throw OllamaUsageError.networkError(error.localizedDescription)
+        }
+
+        switch response.statusCode {
+        case 200:
+            return try Self.parseTags(data: response.data, now: now)
+        case 401, 403:
+            throw OllamaUsageError.apiUnauthorized
+        default:
+            throw OllamaUsageError.networkError("HTTP \(response.statusCode)")
+        }
+    }
+
+    static func _parseTagsForTesting(_ data: Data, now: Date = Date()) throws -> OllamaAPIUsageSnapshot {
+        try self.parseTags(data: data, now: now)
+    }
+
+    private static func parseTags(data: Data, now: Date) throws -> OllamaAPIUsageSnapshot {
+        do {
+            let response = try JSONDecoder().decode(TagsResponse.self, from: data)
+            return OllamaAPIUsageSnapshot(modelCount: response.models.count, updatedAt: now)
+        } catch {
+            throw OllamaUsageError.parseFailed(error.localizedDescription)
+        }
+    }
+
+    private struct TagsResponse: Decodable {
+        let models: [Model]
+    }
+
+    private struct Model: Decodable {}
 }

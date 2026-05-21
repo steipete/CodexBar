@@ -89,7 +89,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Vertex AI](docs/vertexai.md) — Google Cloud gcloud OAuth with token cost tracking from local Claude logs.
 - [Augment](docs/augment.md) — Augment CLI or browser cookies for credits tracking and usage monitoring.
 - [Amp](docs/amp.md) — Browser cookie-based authentication with Amp Free usage tracking.
-- [Ollama](docs/ollama.md) — Browser cookies for Ollama Cloud usage windows.
+- [Ollama](docs/ollama.md) — API key access plus browser cookies for Ollama Cloud usage windows.
 - [JetBrains AI](docs/jetbrains.md) — Local XML-based quota from JetBrains IDE configuration; monthly credits tracking.
 - [Warp](docs/warp.md) — API token for GraphQL request limits and monthly credits.
 - [ElevenLabs](docs/elevenlabs.md) — API key for character credits and voice slot usage.

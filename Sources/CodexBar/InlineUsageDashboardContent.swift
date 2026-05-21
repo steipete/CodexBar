@@ -52,6 +52,12 @@ extension UsageMenuCardView.Model {
             ]
         }
 
+        if input.provider == .ollama,
+           input.snapshot?.identity?.loginMethod == "API key"
+        {
+            return ["API key verified. Ollama does not expose Cloud quota limits through the API."]
+        }
+
         return nil
     }
 
