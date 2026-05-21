@@ -821,6 +821,12 @@ extension StatusItemController {
         item.isEnabled = true
         item.view = row
         item.toolTip = title
+        if action != .refresh {
+            let (selector, represented) = self.selector(for: action)
+            item.action = selector
+            item.target = self
+            item.representedObject = represented
+        }
         return item
     }
 

@@ -99,10 +99,15 @@ struct StatusMenuPersistentRefreshTests {
 
         for title in ["Update ready, restart now?", "Refresh", "Settings...", "About CodexBar", "Quit"] {
             let item = try #require(menu.items.first { $0.title == title })
-            #expect(item.action == nil)
-            #expect(item.target == nil)
             #expect(item.view is PersistentMenuActionItemView)
             #expect(item.view?.frame.height == PersistentMenuActionItemView.rowHeight)
+            if title == "Refresh" {
+                #expect(item.action == nil)
+                #expect(item.target == nil)
+            } else {
+                #expect(item.action != nil)
+                #expect(item.target === controller)
+            }
         }
     }
 
