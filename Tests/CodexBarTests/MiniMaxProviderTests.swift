@@ -709,7 +709,7 @@ struct MiniMaxUsageParserTests {
         let json = """
         {
           "base_resp": { "status_code": 0 },
-          "total_cnt": 4,
+          "total_cnt": 5,
           "charge_records": [
             {
               "consume_token": 1000,
@@ -737,6 +737,13 @@ struct MiniMaxUsageParserTests {
               "ymd": "2026-05-17",
               "method": "audio",
               "model": "speech-2.8"
+            },
+            {
+              "consume_token": 5000,
+              "ymd": "2026-05-17",
+              "method": "video",
+              "model": "video-1",
+              "status": 0
             }
           ]
         }
@@ -748,7 +755,7 @@ struct MiniMaxUsageParserTests {
             calendar: calendar)
 
         // Only SUCCESS (1000) and missing/empty result status (4000) should be included.
-        // FAILED (2000) and status "fail" (3000) should be skipped.
+        // FAILED (2000), status "fail" (3000), and numeric status 0 (5000) should be skipped.
         #expect(summary.todayTokens == 5000)
         #expect(summary.last30DaysTokens == 5000)
         #expect(summary.daily.map(\.day) == ["2026-05-17"])

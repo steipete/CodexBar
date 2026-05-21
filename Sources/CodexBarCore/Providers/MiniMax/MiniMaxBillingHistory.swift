@@ -115,8 +115,8 @@ struct MiniMaxBillingRecord: Decodable {
         self.consumeTime = try container.decodeIfPresent(String.self, forKey: .consumeTime)
         self.method = try container.decodeIfPresent(String.self, forKey: .method)
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
-        self.result = try container.decodeIfPresent(String.self, forKey: .result)
-        self.status = try container.decodeIfPresent(String.self, forKey: .status)
+        self.result = Self.decodeOptionalScalarString(container, forKey: .result)
+        self.status = Self.decodeOptionalScalarString(container, forKey: .status)
     }
 
     var recordResult: String? {
@@ -136,6 +136,25 @@ struct MiniMaxBillingRecord: Decodable {
 
     var cashValue: Double? {
         self.consumeCashAfterVoucher ?? self.consumeCash
+    }
+
+    private static func decodeOptionalScalarString<K: CodingKey>(
+        _ container: KeyedDecodingContainer<K>,
+        forKey key: K) -> String?
+    {
+        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+            return value
+        }
+        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+            return String(value)
+        }
+        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return String(value)
+        }
+        if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+            return String(value)
+        }
+        return nil
     }
 }
 
