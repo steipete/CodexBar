@@ -21,12 +21,18 @@ final class PaddedToggleButton: NSButton {
     }
 }
 
+@MainActor
+protocol ProviderSwitcherToggleButton: AnyObject {
+    func setQuotaBarReservedHeight(_ height: CGFloat)
+}
+
 final class InlineIconToggleButton: NSButton {
     private let iconView = NSImageView()
     private let titleField = NSTextField(labelWithString: "")
     private let stack = NSStackView()
     private var paddingConstraints: [NSLayoutConstraint] = []
     private var iconSizeConstraints: [NSLayoutConstraint] = []
+    private var quotaBarReservedHeight: CGFloat = 0
     private var isConfiguring = false // Batch invalidation during setup
 
     var contentPadding = NSEdgeInsets(top: 4, left: 7, bottom: 4, right: 7) {
@@ -34,7 +40,8 @@ final class InlineIconToggleButton: NSButton {
             self.paddingConstraints.first { $0.firstAttribute == .top }?.constant = self.contentPadding.top
             self.paddingConstraints.first { $0.firstAttribute == .leading }?.constant = self.contentPadding.left
             self.paddingConstraints.first { $0.firstAttribute == .trailing }?.constant = -self.contentPadding.right
-            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant = -self.contentPadding.bottom
+            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant =
+                -(self.contentPadding.bottom + self.quotaBarReservedHeight)
             if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
         }
     }
@@ -71,6 +78,14 @@ final class InlineIconToggleButton: NSButton {
         self.titleField.font = NSFont.systemFont(ofSize: size)
     }
 
+    func setQuotaBarReservedHeight(_ height: CGFloat) {
+        guard self.quotaBarReservedHeight != height else { return }
+        self.quotaBarReservedHeight = height
+        self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant =
+            -(self.contentPadding.bottom + height)
+        if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
+    }
+
     func setAllowsTwoLineTitle(_ allow: Bool) {
         let hasWhitespace = self.titleField.stringValue.rangeOfCharacter(from: .whitespacesAndNewlines) != nil
         let shouldWrap = allow && hasWhitespace
@@ -83,7 +98,7 @@ final class InlineIconToggleButton: NSButton {
         let size = self.stack.fittingSize
         return NSSize(
             width: size.width + self.contentPadding.left + self.contentPadding.right,
-            height: size.height + self.contentPadding.top + self.contentPadding.bottom)
+            height: size.height + self.contentPadding.top + self.contentPadding.bottom + self.quotaBarReservedHeight)
     }
 
     init(title: String, image: NSImage, target: AnyObject?, action: Selector?) {
@@ -152,12 +167,15 @@ final class InlineIconToggleButton: NSButton {
     }
 }
 
+extension InlineIconToggleButton: ProviderSwitcherToggleButton {}
+
 final class StackedToggleButton: NSButton {
     private let iconView = NSImageView()
     private let titleField = NSTextField(labelWithString: "")
     private let stack = NSStackView()
     private var paddingConstraints: [NSLayoutConstraint] = []
     private var iconSizeConstraints: [NSLayoutConstraint] = []
+    private var quotaBarReservedHeight: CGFloat = 0
     private var isConfiguring = false // Batch invalidation during setup
 
     var contentPadding = NSEdgeInsets(top: 2, left: 4, bottom: 2, right: 4) {
@@ -165,7 +183,8 @@ final class StackedToggleButton: NSButton {
             self.paddingConstraints.first { $0.firstAttribute == .top }?.constant = self.contentPadding.top
             self.paddingConstraints.first { $0.firstAttribute == .leading }?.constant = self.contentPadding.left
             self.paddingConstraints.first { $0.firstAttribute == .trailing }?.constant = -self.contentPadding.right
-            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant = -self.contentPadding.bottom
+            self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant =
+                -(self.contentPadding.bottom + self.quotaBarReservedHeight)
             if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
         }
     }
@@ -202,6 +221,14 @@ final class StackedToggleButton: NSButton {
         self.titleField.font = NSFont.systemFont(ofSize: size)
     }
 
+    func setQuotaBarReservedHeight(_ height: CGFloat) {
+        guard self.quotaBarReservedHeight != height else { return }
+        self.quotaBarReservedHeight = height
+        self.paddingConstraints.first { $0.firstAttribute == .bottom }?.constant =
+            -(self.contentPadding.bottom + height)
+        if !self.isConfiguring { self.invalidateIntrinsicContentSize() }
+    }
+
     func setAllowsTwoLineTitle(_ allow: Bool) {
         let hasWhitespace = self.titleField.stringValue.rangeOfCharacter(from: .whitespacesAndNewlines) != nil
         let shouldWrap = allow && hasWhitespace
@@ -214,7 +241,7 @@ final class StackedToggleButton: NSButton {
         let size = self.stack.fittingSize
         return NSSize(
             width: size.width + self.contentPadding.left + self.contentPadding.right,
-            height: size.height + self.contentPadding.top + self.contentPadding.bottom)
+            height: size.height + self.contentPadding.top + self.contentPadding.bottom + self.quotaBarReservedHeight)
     }
 
     init(title: String, image: NSImage, target: AnyObject?, action: Selector?) {
@@ -282,3 +309,5 @@ final class StackedToggleButton: NSButton {
         NSLayoutConstraint.activate(self.paddingConstraints + self.iconSizeConstraints)
     }
 }
+
+extension StackedToggleButton: ProviderSwitcherToggleButton {}

@@ -277,11 +277,49 @@ struct StatusMenuSwitcherClickTests {
             },
             onSelect: { _ in })
 
-        let fillWidths = view._test_quotaIndicatorFillWidths()
-        #expect(fillWidths.count == 2)
-        let lowRemainingWidth = try #require(fillWidths.first)
-        let highRemainingWidth = try #require(fillWidths.last)
-        #expect(lowRemainingWidth < highRemainingWidth)
+        let fillRatios = view._test_quotaIndicatorFillRatios()
+        #expect(fillRatios.count == 2)
+        let lowRemainingRatio = try #require(fillRatios.first)
+        let highRemainingRatio = try #require(fillRatios.last)
+        #expect(lowRemainingRatio < highRemainingRatio)
+    }
+
+    @Test
+    func `switcher quota indicator refresh updates fill ratios`() throws {
+        var claudeRemaining = 5.0
+        var grokRemaining = 95.0
+        let view = ProviderSwitcherView(
+            providers: [.claude, .grok],
+            selected: .provider(.claude),
+            includesOverview: false,
+            width: 180,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { provider in
+                switch provider {
+                case .claude:
+                    claudeRemaining
+                case .grok:
+                    grokRemaining
+                default:
+                    nil
+                }
+            },
+            onSelect: { _ in })
+
+        let initialRatios = view._test_quotaIndicatorFillRatios()
+        let initialLow = try #require(initialRatios.first)
+        let initialHigh = try #require(initialRatios.last)
+
+        claudeRemaining = 80
+        grokRemaining = 12
+        view.updateQuotaIndicators()
+
+        let updatedRatios = view._test_quotaIndicatorFillRatios()
+        let updatedLow = try #require(updatedRatios.first)
+        let updatedHigh = try #require(updatedRatios.last)
+        #expect(updatedLow > initialLow)
+        #expect(updatedHigh < initialHigh)
     }
 
     private static func arrowKeyEvent(keyCode: UInt16) throws -> NSEvent {
