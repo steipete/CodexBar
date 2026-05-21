@@ -97,6 +97,7 @@ struct T3ChatUsageFetcherTests {
         let stub = ProviderHTTPTransportStub { request in
             #expect(request.value(forHTTPHeaderField: "Cookie") == "session=abc")
             #expect(request.value(forHTTPHeaderField: "User-Agent") == "Mozilla/5.0 Firefox/151.0")
+            #expect(request.value(forHTTPHeaderField: "Referer") == "https://t3.chat/settings/customization")
             #expect(request.value(forHTTPHeaderField: "X-Deployment-Id") == "dpl_test")
             #expect(request.value(forHTTPHeaderField: "x-client-context") ==
                 "eyJjbGllbnQiOnsidmVyc2lvbiI6IjEuMTIuNCJ9fQ==")
