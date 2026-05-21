@@ -225,7 +225,7 @@ public struct T3ChatUsageFetcher: Sendable {
         override: String?,
         logger: ((String) -> Void)?) async throws -> RequestContext
     {
-        if let override = self.requestContext(from: override) {
+        if let override = Self.requestContext(from: override) {
             let source = override.headers.isEmpty ? "manual cookie header" : "manual cURL capture"
             logger?("[t3chat] Using \(source)")
             return override
@@ -242,7 +242,7 @@ public struct T3ChatUsageFetcher: Sendable {
         #endif
     }
 
-    private func requestContext(from raw: String?) -> RequestContext? {
+    static func requestContext(from raw: String?) -> RequestContext? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         let headerFields = Self.headerFields(from: raw)
         guard let cookieHeader = Self.cookieHeader(from: headerFields) ?? CookieHeaderNormalizer.normalize(raw) else {

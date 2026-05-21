@@ -3,6 +3,20 @@ import Testing
 @testable import CodexBarCore
 
 struct T3ChatUsageFetcherTests {
+    private struct StubClaudeFetcher: ClaudeUsageFetching {
+        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+            throw ClaudeUsageError.parseFailed("stub")
+        }
+
+        func debugRawProbe(model _: String) async -> String {
+            "stub"
+        }
+
+        func detectVersion() -> String? {
+            nil
+        }
+    }
+
     private static let now = Date(timeIntervalSince1970: 1_778_000_000)
     // 2026-05-21T12:23:36Z, the usage-window reset that must not drive overage reset display.
     private static let billingNextResetMilliseconds = 1_779_366_216_920
@@ -201,6 +215,22 @@ struct T3ChatUsageFetcherTests {
     }
 
     @Test
+    func `manual strategy accepts full curl capture`() async {
+        let curl = """
+        curl 'https://t3.chat/api/trpc/getCustomerData?batch=1&input=ignored' \\
+          --header "Referer: https://t3.chat/settings/customization" \\
+          --header "Cookie: session=abc; cf_clearance=token" \\
+          --header "X-Deployment-Id: dpl_test"
+        """
+        let settings = ProviderSettingsSnapshot.make(
+            t3chat: ProviderSettingsSnapshot.T3ChatProviderSettings(
+                cookieSource: .manual,
+                manualCookieHeader: curl))
+
+        #expect(await T3ChatWebFetchStrategy().isAvailable(Self.makeContext(settings: settings)))
+    }
+
+    @Test
     func `unauthorized response is invalid credentials`() async throws {
         let stub = ProviderHTTPTransportStub { request in
             let response = HTTPURLResponse(
@@ -246,5 +276,20 @@ struct T3ChatUsageFetcherTests {
 
     private static func customerDataResponse(_ customerDataJSON: String) -> String {
         #"{"json":[2,0,[[\#(customerDataJSON)]]]}"# + "\n"
+    }
+
+    private static func makeContext(settings: ProviderSettingsSnapshot) -> ProviderFetchContext {
+        ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: settings,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: StubClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
     }
 }

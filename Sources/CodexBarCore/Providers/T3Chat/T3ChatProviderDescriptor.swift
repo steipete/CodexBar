@@ -50,7 +50,7 @@ struct T3ChatWebFetchStrategy: ProviderFetchStrategy {
         let cookieSource = context.settings?.t3chat?.cookieSource ?? .auto
         guard cookieSource != .off else { return false }
         if cookieSource == .manual {
-            return CookieHeaderNormalizer.normalize(context.settings?.t3chat?.manualCookieHeader) != nil
+            return T3ChatUsageFetcher.requestContext(from: context.settings?.t3chat?.manualCookieHeader) != nil
         }
         #if os(macOS)
         return true
@@ -80,6 +80,6 @@ struct T3ChatWebFetchStrategy: ProviderFetchStrategy {
 
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
         guard context.settings?.t3chat?.cookieSource == .manual else { return nil }
-        return CookieHeaderNormalizer.normalize(context.settings?.t3chat?.manualCookieHeader)
+        return context.settings?.t3chat?.manualCookieHeader
     }
 }
