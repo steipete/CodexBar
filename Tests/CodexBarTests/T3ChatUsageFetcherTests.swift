@@ -144,6 +144,34 @@ struct T3ChatUsageFetcherTests {
     }
 
     @Test
+    func `full curl capture extracts cookie from long header form`() async throws {
+        let curl = """
+        curl 'https://t3.chat/api/trpc/getCustomerData?batch=1&input=ignored' \\
+          --compressed \\
+          --header "Referer: https://t3.chat/settings/customization" \\
+          --header "Cookie: session=abc; cf_clearance=token" \\
+          --header "X-Deployment-Id: dpl_test"
+        """
+        let stub = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "session=abc; cf_clearance=token")
+            #expect(request.value(forHTTPHeaderField: "Referer") == "https://t3.chat/settings/customization")
+            #expect(request.value(forHTTPHeaderField: "X-Deployment-Id") == "dpl_test")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil)!
+            return (Data(Self.sampleResponse.utf8), response)
+        }
+
+        let fetcher = T3ChatUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0))
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: curl,
+            now: Self.now,
+            transport: stub)
+    }
+
+    @Test
     func `unauthorized response is invalid credentials`() async throws {
         let stub = ProviderHTTPTransportStub { request in
             let response = HTTPURLResponse(

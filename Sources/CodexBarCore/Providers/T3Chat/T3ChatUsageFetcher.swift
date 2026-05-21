@@ -243,8 +243,12 @@ public struct T3ChatUsageFetcher: Sendable {
     }
 
     private func requestContext(from raw: String?) -> RequestContext? {
-        guard let cookieHeader = CookieHeaderNormalizer.normalize(raw) else { return nil }
-        let headers = Self.forwardedHeaders(from: raw ?? "")
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        let headerFields = Self.headerFields(from: raw)
+        guard let cookieHeader = Self.cookieHeader(from: headerFields) ?? CookieHeaderNormalizer.normalize(raw) else {
+            return nil
+        }
+        let headers = Self.forwardedHeaders(from: headerFields)
         return RequestContext(cookieHeader: cookieHeader, headers: headers)
     }
 
@@ -264,9 +268,9 @@ public struct T3ChatUsageFetcher: Sendable {
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
     }
 
-    private static func forwardedHeaders(from raw: String) -> [String: String] {
+    private static func forwardedHeaders(from fields: [String]) -> [String: String] {
         var headers: [String: String] = [:]
-        for field in self.headerFields(from: raw) {
+        for field in fields {
             guard let colon = field.firstIndex(of: ":") else { continue }
             let rawName = field[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
             let value = field[field.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -275,6 +279,19 @@ public struct T3ChatUsageFetcher: Sendable {
             headers[canonical] = value
         }
         return headers
+    }
+
+    private static func cookieHeader(from fields: [String]) -> String? {
+        for field in fields {
+            guard let colon = field.firstIndex(of: ":") else { continue }
+            let rawName = field[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard rawName.caseInsensitiveCompare("Cookie") == .orderedSame else { continue }
+            let value = field[field.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            if let normalized = CookieHeaderNormalizer.normalize(String(value)) {
+                return normalized
+            }
+        }
+        return nil
     }
 
     private static func headerFields(from raw: String) -> [String] {
