@@ -77,6 +77,62 @@ private enum TTYCommandRunnerActiveProcessRegistry {
     }
 }
 
+enum TTYProcessTreeTerminator {
+    static func descendantPIDs(
+        of rootPID: pid_t,
+        childResolver: (pid_t) -> [pid_t] = Self.currentChildPIDs(of:)) -> [pid_t]
+    {
+        guard rootPID > 0 else { return [] }
+
+        var seen: Set<pid_t> = [rootPID]
+        var pending = childResolver(rootPID)
+        var descendants: [pid_t] = []
+
+        while let pid = pending.popLast() {
+            guard pid > 0, seen.insert(pid).inserted else { continue }
+            descendants.append(pid)
+            pending.append(contentsOf: childResolver(pid))
+        }
+
+        return descendants
+    }
+
+    static func currentChildPIDs(of parentPID: pid_t) -> [pid_t] {
+        guard parentPID > 0 else { return [] }
+
+        #if canImport(Darwin)
+        var pids = [pid_t](repeating: 0, count: 128)
+        let byteCount = Int32(pids.count * MemoryLayout<pid_t>.stride)
+        let childCount = proc_listchildpids(parentPID, &pids, byteCount)
+        guard childCount > 0 else { return [] }
+        return Array(pids.prefix(min(Int(childCount), pids.count))).filter { $0 > 0 }
+        #else
+        return []
+        #endif
+    }
+
+    static func terminateProcessTree(
+        rootPID: pid_t,
+        processGroup: pid_t?,
+        signal: Int32,
+        knownDescendants: [pid_t] = [],
+        childResolver: (pid_t) -> [pid_t] = Self.currentChildPIDs(of:),
+        signalSender: (pid_t, Int32) -> Void = { kill($0, $1) })
+    {
+        guard rootPID > 0 else { return }
+
+        var seen: Set<pid_t> = [rootPID]
+        let descendants = knownDescendants + self.descendantPIDs(of: rootPID, childResolver: childResolver)
+        for pid in descendants where pid > 0 && seen.insert(pid).inserted {
+            signalSender(pid, signal)
+        }
+        if let processGroup {
+            signalSender(-processGroup, signal)
+        }
+        signalSender(rootPID, signal)
+    }
+}
+
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
 /// Keeps it minimal so we can reuse for Codex and Claude without tmux.
 public struct TTYCommandRunner {
@@ -167,17 +223,17 @@ public struct TTYCommandRunner {
             groupResolver: { getpgid($0) })
 
         for target in resolvedTargets where target.pid > 0 {
-            if let pgid = target.processGroup {
-                kill(-pgid, SIGTERM)
-            }
-            kill(target.pid, SIGTERM)
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: target.pid,
+                processGroup: target.processGroup,
+                signal: SIGTERM)
         }
 
         for target in resolvedTargets where target.pid > 0 {
-            if let pgid = target.processGroup {
-                kill(-pgid, SIGKILL)
-            }
-            kill(target.pid, SIGKILL)
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: target.pid,
+                processGroup: target.processGroup,
+                signal: SIGKILL)
         }
     }
 
@@ -472,21 +528,29 @@ public struct TTYCommandRunner {
 
             guard didLaunch else { return }
 
+            let descendants = TTYProcessTreeTerminator.descendantPIDs(of: proc.processIdentifier)
             if proc.isRunning {
                 proc.terminate()
             }
-            if let pgid = processGroup {
-                kill(-pgid, SIGTERM)
-            }
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: proc.processIdentifier,
+                processGroup: processGroup,
+                signal: SIGTERM,
+                knownDescendants: descendants)
             let waitDeadline = Date().addingTimeInterval(2.0)
             while proc.isRunning, Date() < waitDeadline {
                 usleep(100_000)
             }
             if proc.isRunning {
-                if let pgid = processGroup {
-                    kill(-pgid, SIGKILL)
+                TTYProcessTreeTerminator.terminateProcessTree(
+                    rootPID: proc.processIdentifier,
+                    processGroup: processGroup,
+                    signal: SIGKILL,
+                    knownDescendants: descendants)
+            } else {
+                for pid in descendants where pid > 0 {
+                    kill(pid, SIGKILL)
                 }
-                kill(proc.processIdentifier, SIGKILL)
             }
             if didLaunch {
                 proc.waitUntilExit()
@@ -966,7 +1030,9 @@ public struct TTYCommandRunner {
         }
         return env
     }
+}
 
+extension TTYCommandRunner {
     static func _test_resetTrackedProcesses() {
         TTYCommandRunnerActiveProcessRegistry.reset()
     }
