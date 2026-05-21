@@ -147,6 +147,31 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         return snapshot.withZenBalanceUSD(zenBalance)
     }
 
+    static func fetchOptionalZenBalance(
+        cookieHeader: String,
+        timeout: TimeInterval,
+        workspaceIDOverride: String? = nil,
+        session: URLSession? = nil) async throws -> Double?
+    {
+        let session = session ?? self.redirectGuardSession
+        guard let requestCookieHeader = OpenCodeWebCookieSupport.requestCookieHeader(from: cookieHeader) else {
+            throw OpenCodeGoUsageError.invalidCredentials
+        }
+        let workspaceID: String = if let override = self.normalizeWorkspaceID(workspaceIDOverride) {
+            override
+        } else {
+            try await self.fetchWorkspaceID(
+                cookieHeader: requestCookieHeader,
+                timeout: timeout,
+                session: session)
+        }
+        return try await self.fetchOptionalZenBalance(
+            workspaceID: workspaceID,
+            cookieHeader: requestCookieHeader,
+            timeout: min(timeout, self.optionalZenBalanceTimeout),
+            session: session)
+    }
+
     static func allowsRedirect(from sourceURL: URL?, to destinationURL: URL?) -> Bool {
         guard let sourceHost = sourceURL?.host?.lowercased(),
               let destinationHost = destinationURL?.host?.lowercased(),

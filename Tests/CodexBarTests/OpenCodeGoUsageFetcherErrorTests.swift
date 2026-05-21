@@ -272,6 +272,34 @@ struct OpenCodeGoUsageFetcherErrorTests {
     }
 
     @Test
+    func `optional zen balance helper uses normalized cookie and workspace override`() async throws {
+        defer {
+            OpenCodeGoStubURLProtocol.handler = nil
+        }
+
+        var observedCookie: String?
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            observedCookie = request.value(forHTTPHeaderField: "Cookie")
+            #expect(url.path == "/workspace/wrk_TEST123")
+            return Self.makeResponse(
+                url: url,
+                body: #"<html><body><h2>現在の残高 $98.76</h2></body></html>"#,
+                statusCode: 200,
+                contentType: "text/html")
+        }
+
+        let balance = try await OpenCodeGoUsageFetcher.fetchOptionalZenBalance(
+            cookieHeader: "provider=google; auth=test",
+            timeout: 2,
+            workspaceIDOverride: "https://opencode.ai/workspace/wrk_TEST123/go",
+            session: self.makeSession())
+
+        #expect(balance == 98.76)
+        #expect(observedCookie == "auth=test")
+    }
+
+    @Test
     func `optional zen balance failure does not fail subscription usage`() async throws {
         defer {
             OpenCodeGoStubURLProtocol.handler = nil
