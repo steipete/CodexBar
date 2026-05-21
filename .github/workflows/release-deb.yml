@@ -1,0 +1,157 @@
+name: Release Debian Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to upload assets to (e.g. v0.26.2)."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runs-on: ubuntu-24.04
+            asset-arch: x86-64
+          - name: linux-arm64
+            runs-on: ubuntu-24.04-arm
+            asset-arch: aarch64
+    runs-on: ${{ matrix.runs-on }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y dpkg python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 gir1.2-webkit2-4.1
+
+      - name: Install Swift 6.2.1 via swiftly
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v gpg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates gpg
+          fi
+
+          SWIFTLY_ARCH="$(uname -m)"
+          SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
+          SWIFTLY_BIN_DIR="$HOME/.local/bin"
+          POST_INSTALL_SCRIPT="$(mktemp)"
+
+          mkdir -p "$SWIFTLY_BIN_DIR"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_ARCH}.tar.gz" -o /tmp/swiftly.tar.gz
+          tar -xzf /tmp/swiftly.tar.gz -C /tmp
+          /tmp/swiftly init --assume-yes --skip-install
+
+          . "$SWIFTLY_HOME_DIR/env.sh"
+          echo "$SWIFTLY_BIN_DIR" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
+          echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
+
+          swiftly install 6.2.1 --use --assume-yes --post-install-file "$POST_INSTALL_SCRIPT"
+          if [[ -s "$POST_INSTALL_SCRIPT" ]]; then
+            sudo apt-get update
+            sudo bash "$POST_INSTALL_SCRIPT"
+          fi
+
+          hash -r
+          swift --version
+
+      - name: Build CodexBarCLI (release)
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build -c release --product CodexBarCLI --static-swift-stdlib
+          BIN_DIR="$(swift build -c release --product CodexBarCLI --static-swift-stdlib --show-bin-path)"
+          echo "bin_dir=$BIN_DIR" >> "$GITHUB_OUTPUT"
+
+          # Write VERSION file so --version smoke test works
+          VERSION="${RELEASE_TAG#v}"
+          printf '%s\n' "$VERSION" > "$BIN_DIR/VERSION"
+
+      - name: Smoke test
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="${{ steps.build.outputs.bin_dir }}/CodexBarCLI"
+          file "$BIN"
+          file "$BIN" | grep -q "${{ matrix.asset-arch }}"
+
+          run_with_timeout() {
+            local out="$1"; shift
+            "$@" > "$out" &
+            local pid=$!
+            for _ in {1..20}; do
+              if ! kill -0 "$pid" 2>/dev/null; then
+                wait "$pid"; return $?
+              fi
+              sleep 1
+            done
+            kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true
+            echo "$* timed out" >&2; return 124
+          }
+
+          run_with_timeout /tmp/help.txt  "$BIN" --help
+          run_with_timeout /tmp/ver.txt   "$BIN" --version
+          grep -Fx "CodexBar ${RELEASE_TAG#v}" /tmp/ver.txt
+
+      - name: Package .deb
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="$(mktemp -d)"
+          VERSION="${RELEASE_TAG#v}"
+          ./Scripts/package_deb.sh \
+            --version "$VERSION" \
+            --bin "${{ steps.build.outputs.bin_dir }}/CodexBarCLI" \
+            --out-dir "$OUT_DIR"
+
+          DEB_ARCH="$(dpkg --print-architecture)"
+          ASSET="codexbar_${VERSION}_${DEB_ARCH}.deb"
+          echo "out_dir=$OUT_DIR"    >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET"        >> "$GITHUB_OUTPUT"
+          echo "deb=$OUT_DIR/$ASSET" >> "$GITHUB_OUTPUT"
+
+      - name: Verify .deb
+        shell: bash
+        run: |
+          set -euo pipefail
+          dpkg-deb --info "${{ steps.pkg.outputs.deb }}"
+          dpkg-deb --contents "${{ steps.pkg.outputs.deb }}"
+
+      - name: Upload release assets
+        if: github.event_name == 'release' || inputs.tag != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT_DIR="${{ steps.pkg.outputs.out_dir }}"
+          ASSET="${{ steps.pkg.outputs.asset }}"
+          gh release upload "${RELEASE_TAG}" \
+            "$OUT_DIR/$ASSET" \
+            "$OUT_DIR/$ASSET.sha256" \
+            --clobber
+
+      - name: Upload workflow artifact (manual runs)
+        if: github.event_name != 'release' && inputs.tag == ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: codexbar-deb-${{ matrix.name }}
+          path: |
+            ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
+            ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256

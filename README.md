@@ -34,6 +34,20 @@ Download: <https://github.com/steipete/CodexBar/releases>
 brew install --cask steipete/tap/codexbar
 ```
 
+### Debian / Ubuntu (.deb)
+Download `codexbar_<version>_amd64.deb` (or `arm64`) from GitHub Releases and install:
+```bash
+sudo dpkg -i codexbar_<version>_amd64.deb
+sudo apt-get install -f          # pulls in Python/GTK dependencies
+```
+
+After installing:
+- **System tray icon** appears in the GNOME top bar automatically on next login (or run `codexbar-tray` now)
+- **Clicking the icon** starts `codexbar serve` and opens the usage dashboard in your browser
+- **`codexbar` CLI** is available in the terminal
+
+Web/browser-backed providers are macOS-only; API-key and OAuth providers work on Linux.
+
 ### CLI Tarballs (macOS/Linux)
 Homebrew formula (Linux today):
 ```bash
@@ -201,6 +215,14 @@ CLI install:
 ```bash
 # after installing CodexBar.app in /Applications
 ./bin/install-codexbar-cli.sh
+```
+
+Debian/Ubuntu package (Linux, requires Swift 6.2+ and `dpkg`):
+```bash
+./Scripts/package_deb.sh           # builds CLI + packages tray app as a .deb
+sudo dpkg -i codexbar_*.deb
+sudo apt-get install -f            # install Python/GTK deps
+codexbar-tray &                    # launch tray icon immediately
 ```
 
 ## Related

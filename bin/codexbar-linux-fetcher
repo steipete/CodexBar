@@ -1,0 +1,1207 @@
+#!/usr/bin/env python3
+"""
+codexbar-linux-fetcher — sidecar that fetches cookie/local-storage-based provider
+usage on Linux and returns a JSON array in the same shape as `codexbar serve /usage`.
+
+Providers handled here (macOS-only in the Swift layer):
+  codex      — chatgpt.com cookie → /backend-api/wham/usage
+  cursor     — cursor.com cookie → /api/usage-summary + /api/auth/me
+  windsurf   — Chrome LevelDB local storage → windsurf.com GetPlanStatus gRPC-Web
+  perplexity — perplexity.ai cookie → /rest/billing/credits
+  mistral    — admin.mistral.ai cookie → /api/billing/v2/usage
+  kimi       — kimi.com cookie (kimi-auth JWT) → BillingService/GetUsages
+  abacus     — abacus.ai cookie → /api/_getOrganizationComputePoints
+  minimax    — minimax.io cookie → /v1/api/openplatform/coding_plan/remains
+
+Usage: codexbar-linux-fetcher [--providers p1,p2,...] [--json]
+Output: JSON array of provider payloads, written to stdout.
+
+Dependencies (all stdlib or commonly available):
+  sqlite3, json, os, re, struct, hmac, hashlib, base64, datetime, urllib
+  Optional: secretstorage (for Chrome cookie decryption on Linux)
+"""
+
+import argparse
+import base64
+import datetime
+import fcntl
+import hashlib
+import hmac
+import json
+import os
+import pty
+import re
+import select
+import shutil
+import sqlite3
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from typing import Optional
+
+# ── Chrome cookie decryption ──────────────────────────────────────────────────
+
+def _chrome_decrypt(encrypted: bytes, key: bytes) -> str:
+    """Decrypt a Chromium v10/v11 AES-CBC-128 encrypted cookie value."""
+    if not encrypted:
+        return ""
+    if encrypted[:3] in (b"v10", b"v11"):
+        payload = encrypted[3:]
+        iv = b" " * 16
+        # Try python3-cryptography (system package, widely available)
+        try:
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+            from cryptography.hazmat.backends import default_backend
+            cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+            dec = cipher.decryptor()
+            decrypted = dec.update(payload) + dec.finalize()
+            pad = decrypted[-1]
+            return decrypted[:-pad].decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        # Fallback: python3-pycryptodome
+        try:
+            from Crypto.Cipher import AES
+            cipher = AES.new(key, AES.MODE_CBC, iv)
+            decrypted = cipher.decrypt(payload)
+            pad = decrypted[-1]
+            return decrypted[:-pad].decode("utf-8", errors="replace")
+        except Exception:
+            pass
+    # unencrypted plain text
+    try:
+        return encrypted.decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _get_chrome_key() -> Optional[bytes]:
+    """Derive the AES key for Chrome v10 cookies on Linux (PBKDF2 + 'peanuts' or secretstorage)."""
+    # On Linux without a keyring, Chrome uses a hardcoded salt/password "peanuts"
+    password = b"peanuts"
+    try:
+        import secretstorage
+        bus = secretstorage.dbus_init()
+        col = secretstorage.get_default_collection(bus)
+        for item in col.get_all_items():
+            if "Chrome" in (item.get_label() or "") or "Chromium" in (item.get_label() or ""):
+                password = item.get_secret()
+                break
+    except Exception:
+        pass
+    key = hashlib.pbkdf2_hmac("sha1", password, b"saltysalt", 1, dklen=16)
+    return key
+
+
+# ── Browser profile discovery ─────────────────────────────────────────────────
+
+_HOME = Path.home()
+
+CHROME_PROFILES = [
+    _HOME / ".config/google-chrome",
+    _HOME / ".config/chromium",
+    _HOME / ".config/microsoft-edge",
+    _HOME / ".config/BraveSoftware/Brave-Browser",
+    _HOME / ".config/vivaldi",
+]
+
+FIREFOX_PROFILES = [
+    _HOME / ".mozilla/firefox",
+]
+
+
+def _chromium_profile_dirs() -> list[Path]:
+    dirs = []
+    for base in CHROME_PROFILES:
+        if not base.exists():
+            continue
+        for entry in base.iterdir():
+            if entry.name in ("Default",) or entry.name.startswith("Profile "):
+                if (entry / "Cookies").exists():
+                    dirs.append(entry)
+    return dirs
+
+
+def _read_chrome_cookies(domains: list[str]) -> dict[str, str]:
+    """Return {name: value} scanning ALL Chrome profiles; prefer the one with the most cookies."""
+    key = _get_chrome_key()
+    best: dict[str, str] = {}
+
+    for profile in _chromium_profile_dirs():
+        cookie_db = profile / "Cookies"
+        if not cookie_db.exists():
+            continue
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            tmp_path = tmp.name
+        result: dict[str, str] = {}
+        try:
+            shutil.copy2(str(cookie_db), tmp_path)
+            con = sqlite3.connect(tmp_path)
+            con.row_factory = sqlite3.Row
+            cur = con.cursor()
+            # match "example.com", ".example.com", and subdomain variants via LIKE
+            like_clauses = " OR ".join(
+                ["host_key = ? OR host_key = ? OR host_key LIKE ?"] * len(domains)
+            )
+            params = []
+            for d in domains:
+                bare = d.lstrip(".")
+                params.extend([bare, "." + bare, "%." + bare])
+            cur.execute(
+                f"SELECT name, value, encrypted_value FROM cookies WHERE {like_clauses}",
+                params,
+            )
+            for row in cur.fetchall():
+                name = row["name"]
+                val = row["value"]
+                if not val and row["encrypted_value"] and key:
+                    val = _chrome_decrypt(bytes(row["encrypted_value"]), key)
+                if val:
+                    result[name] = val
+            con.close()
+        except Exception:
+            pass
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        # Keep the profile with the most cookies (most likely the active one)
+        if len(result) > len(best):
+            best = result
+    return best
+
+
+def _read_firefox_cookies(domains: list[str]) -> dict[str, str]:
+    """Return {name: value} from Firefox for any of `domains`."""
+    result: dict[str, str] = {}
+    for base in FIREFOX_PROFILES:
+        if not base.exists():
+            continue
+        for profile_dir in base.iterdir():
+            cookie_db = profile_dir / "cookies.sqlite"
+            if not cookie_db.exists():
+                continue
+            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+                tmp_path = tmp.name
+            try:
+                shutil.copy2(str(cookie_db), tmp_path)
+                con = sqlite3.connect(tmp_path)
+                cur = con.cursor()
+                like_clauses = " OR ".join(["host = ? OR host = ?"] * len(domains))
+                params = []
+                for d in domains:
+                    params.extend([d, "." + d.lstrip(".")])
+                cur.execute(
+                    f"SELECT name, value FROM moz_cookies WHERE {like_clauses}", params
+                )
+                for name, val in cur.fetchall():
+                    if val:
+                        result[name] = val
+                con.close()
+            except Exception:
+                pass
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            if result:
+                return result
+    return result
+
+
+def get_cookies(domains: list[str]) -> dict[str, str]:
+    """Try Chrome first, then Firefox."""
+    c = _read_chrome_cookies(domains)
+    if c:
+        return c
+    return _read_firefox_cookies(domains)
+
+
+def cookie_header(cookies: dict[str, str], names: Optional[list[str]] = None) -> str:
+    """Format a Cookie: header. If `names` given, only include those."""
+    items = cookies.items() if names is None else (
+        (n, cookies[n]) for n in names if n in cookies
+    )
+    return "; ".join(f"{n}={v}" for n, v in items)
+
+
+# ── Windsurf LevelDB local-storage reader ─────────────────────────────────────
+
+def _read_windsurf_localstorage() -> Optional[dict[str, str]]:
+    """
+    Read Windsurf devin session tokens from Chrome LevelDB local storage.
+    Returns dict with keys: devin_session_token, devin_auth1_token,
+    devin_account_id, devin_primary_org_id  — or None if not found.
+    """
+    TARGET_KEYS = {
+        "devin_session_token",
+        "devin_auth1_token",
+        "devin_account_id",
+        "devin_primary_org_id",
+    }
+
+    for profile in _chromium_profile_dirs():
+        leveldb_path = profile / "Local Storage" / "leveldb"
+        if not leveldb_path.exists():
+            continue
+        result: dict[str, str] = {}
+        try:
+            # Read .ldb and .log files — LevelDB stores entries as key=value
+            # Key format for local storage: "\x00https://windsurf.com/\x00KEY"
+            for fname in sorted(leveldb_path.iterdir()):
+                if fname.suffix not in (".ldb", ".log"):
+                    continue
+                try:
+                    data = fname.read_bytes()
+                    for key in TARGET_KEYS:
+                        if key in result:
+                            continue
+                        needle = key.encode()
+                        idx = 0
+                        while True:
+                            pos = data.find(needle, idx)
+                            if pos == -1:
+                                break
+                            rest = data[pos + len(needle):]
+                            m = re.search(rb'"([^"]{8,})"', rest[:256])
+                            if m:
+                                val = m.group(1).decode("utf-8", errors="replace")
+                                if len(val) > 8:
+                                    result[key] = val
+                                    break
+                            idx = pos + 1
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        if len(result) >= 2 and "devin_session_token" in result:
+            return result
+    return None
+
+
+# ── HTTP helpers ──────────────────────────────────────────────────────────────
+
+def _req(url: str, *, method: str = "GET", headers: dict = {}, body: Optional[bytes] = None, timeout: int = 10):
+    req = urllib.request.Request(url, data=body, method=method)
+    for k, v in headers.items():
+        req.add_header(k, v)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read())
+        except Exception:
+            return e.code, {}
+    except Exception as e:
+        return None, {"error": str(e)}
+
+
+def _now_iso() -> str:
+    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ── Payload builder ───────────────────────────────────────────────────────────
+
+def _rate_window(used_pct: float, resets_at: Optional[str], label: Optional[str] = None,
+                 window_minutes: Optional[int] = None) -> dict:
+    w = {
+        "usedPercent": round(min(100, max(0, used_pct)), 2),
+        "resetsAt": resets_at,
+    }
+    if window_minutes is not None:
+        w["windowMinutes"] = window_minutes
+    return w
+
+
+def _payload(provider: str, *, primary=None, secondary=None, tertiary=None,
+             extra_windows=None, identity=None, provider_cost=None,
+             credits=None, error_msg: Optional[str] = None) -> dict:
+    if error_msg:
+        return {
+            "provider": provider,
+            "error": {"message": error_msg},
+            "usage": None,
+        }
+    usage: dict = {"updatedAt": _now_iso()}
+    if identity:
+        usage["identity"] = identity
+    if primary:
+        usage["primary"] = primary
+    if secondary:
+        usage["secondary"] = secondary
+    if tertiary:
+        usage["tertiary"] = tertiary
+    if extra_windows:
+        usage["extraRateWindows"] = extra_windows
+    if provider_cost:
+        usage["providerCost"] = provider_cost
+    p = {"provider": provider, "usage": usage, "error": None}
+    if credits is not None:
+        p["credits"] = credits
+    return p
+
+
+def _unix_to_iso(ts: int) -> str:
+    return datetime.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ── Codex CLI PTY probe (mirrors macOS TTYCommandRunner logic) ────────────────
+
+def _codex_cli_binary() -> Optional[str]:
+    """Find the codex CLI binary, checking common npm global locations."""
+    for candidate in ["codex", "/usr/local/bin/codex", "/usr/bin/codex"]:
+        try:
+            result = subprocess.run(
+                ["which", candidate] if "/" not in candidate else ["test", "-x", candidate],
+                capture_output=True, timeout=3,
+            )
+            if result.returncode == 0:
+                if "/" not in candidate:
+                    return result.stdout.decode().strip()
+                return candidate
+        except Exception:
+            pass
+    # fallback: look in npm global bin
+    try:
+        result = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True, timeout=5)
+        npm_root = result.stdout.strip()
+        candidate = str(Path(npm_root).parent / "bin" / "codex")
+        if Path(candidate).exists():
+            return candidate
+    except Exception:
+        pass
+    return None
+
+
+def _fetch_codex_via_cli(timeout_secs: float = 30.0) -> Optional[dict]:
+    """
+    Spawn the codex CLI in a PTY, send /status, parse the output.
+    Returns a payload dict on success, None if CLI not found.
+    Raises ValueError with an error message on auth/parse failure.
+    """
+    binary = _codex_cli_binary()
+    if not binary:
+        return None
+
+    ROWS, COLS = 60, 200
+
+    master, slave = pty.openpty()
+    ws = struct.pack('HHHH', ROWS, COLS, 0, 0)
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, ws)
+
+    env = os.environ.copy()
+    env['TERM'] = 'xterm-256color'
+    env['COLORTERM'] = 'truecolor'
+    env['COLUMNS'] = str(COLS)
+    env['LINES'] = str(ROWS)
+    env.setdefault('LANG', 'en_US.UTF-8')
+
+    proc = subprocess.Popen(
+        [binary], stdin=slave, stdout=slave, stderr=slave,
+        close_fds=True, env=env, cwd=str(Path.home()),
+    )
+    os.close(slave)
+
+    STATUS_MARKERS = [b'Credits:', b'5h limit', b'5-hour limit', b'Weekly limit']
+    raw = b''
+    sent_status = False
+    saw_status = False
+    last_enter = 0.0
+    script_sent_at = 0.0
+    enter_retries = 0
+    resend_retries = 0
+    startup_delay = 10.0  # seconds to wait before sending /status
+    deadline = time.monotonic() + timeout_secs
+    start = time.monotonic()
+
+    try:
+        while time.monotonic() < deadline:
+            r, _, _ = select.select([master], [], [], 0.1)
+            if r:
+                try:
+                    raw += os.read(master, 16384)
+                except OSError:
+                    break
+
+            now = time.monotonic()
+            elapsed = now - start
+
+            if not sent_status:
+                if elapsed >= startup_delay:
+                    os.write(master, b'/status\r')
+                    sent_status = True
+                    script_sent_at = now
+                    last_enter = now
+            else:
+                if any(m in raw for m in STATUS_MARKERS):
+                    saw_status = True
+                    settle = time.monotonic() + 2.0
+                    while time.monotonic() < settle:
+                        r, _, _ = select.select([master], [], [], 0.1)
+                        if r:
+                            try:
+                                raw += os.read(master, 16384)
+                            except OSError:
+                                pass
+                    break
+
+                if now - last_enter >= 1.2 and enter_retries < 6:
+                    os.write(master, b'\r')
+                    enter_retries += 1
+                    last_enter = now
+
+                if now - script_sent_at >= 3.0 and resend_retries < 2:
+                    os.write(master, b'/status\r')
+                    resend_retries += 1
+                    script_sent_at = now
+                    last_enter = now
+    finally:
+        try:
+            os.write(master, b'/exit\r')
+        except OSError:
+            pass
+        proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        try:
+            os.close(master)
+        except OSError:
+            pass
+
+    if not saw_status:
+        raise ValueError("Codex CLI /status timed out — make sure `codex` is installed and logged in.")
+
+    text = raw.decode('utf-8', errors='replace')
+    # Strip ANSI escape sequences; treat \r as whitespace (not newline)
+    clean = re.sub(r'\x1b\[[0-9;?]*[a-zA-Z~]', ' ', text)
+    clean = re.sub(r'\x1b\][^\x07]*\x07', '', clean)
+    clean = re.sub(r'\x1b[^[]', '', clean)
+    clean = re.sub(r'\r', ' ', clean)          # carriage returns → space
+    clean = re.sub(r'[^\S\n]+', ' ', clean)   # collapse horizontal whitespace
+
+    return _parse_codex_cli_status(clean)
+
+
+def _parse_reset_date(reset_str: str) -> Optional[str]:
+    """Parse 'HH:MM on DD Mon' or 'HH:MM on Mon DD' into ISO timestamp."""
+    if not reset_str:
+        return None
+    s = reset_str.strip().strip('()')
+    now = datetime.datetime.utcnow()
+    # Try "HH:MM on DD Mon" e.g. "01:00 on 17 May"
+    m = re.match(r'(\d{1,2}:\d{2})\s+on\s+(\d{1,2}\s+\w+)', s)
+    if not m:
+        m = re.match(r'(\d{1,2}:\d{2})\s+on\s+(\w+\s+\d{1,2})', s)
+    if m:
+        try:
+            time_part, date_part = m.group(1), m.group(2)
+            for fmt in ('%H:%M %d %b', '%H:%M %b %d'):
+                try:
+                    dt = datetime.datetime.strptime(f"{time_part} {date_part}", fmt)
+                    dt = dt.replace(year=now.year)
+                    if dt < now:
+                        dt = dt.replace(year=now.year + 1)
+                    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                except ValueError:
+                    continue
+        except Exception:
+            pass
+    # Try bare "HH:MM"
+    m = re.match(r'^(\d{1,2}:\d{2})$', s)
+    if m:
+        try:
+            t = datetime.datetime.strptime(m.group(1), '%H:%M')
+            dt = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+            if dt < now:
+                dt += datetime.timedelta(days=1)
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        except Exception:
+            pass
+    return None
+
+
+def _parse_codex_cli_status(text: str) -> dict:
+    """Parse the /status output from codex CLI into a CodexBar payload."""
+    # Collapse all whitespace (including newlines) into single spaces so that
+    # the TUI's cursor-position-split lines merge back into searchable runs.
+    flat = re.sub(r'\s+', ' ', text)
+
+    credits = None
+    m = re.search(r'Credits:\s*([0-9][0-9.,]*)', flat)
+    if m:
+        try:
+            credits = float(m.group(1).replace(',', ''))
+        except ValueError:
+            pass
+
+    def parse_limit_line(pattern: str):
+        # Wrap pattern in a group so .{0,200} applies to the whole alternation
+        line_m = re.search(r'(?:' + pattern + r').{0,200}', flat, re.IGNORECASE)
+        if not line_m:
+            return None, None
+        segment = line_m.group(0)
+        pct_left_m = re.search(r'(\d+)%\s*left', segment)
+        reset_m = re.search(r'resets?\s+([\d:]+(?:\s+on\s+[\d\w ]+)?)', segment, re.IGNORECASE)
+        if not reset_m:
+            reset_m = re.search(r'\(([^)]+)\)', segment)
+        pct_left = int(pct_left_m.group(1)) if pct_left_m else None
+        pct_used = (100 - pct_left) if pct_left is not None else None
+        reset_str = reset_m.group(1) if reset_m else None
+        resets_at = _parse_reset_date(reset_str) if reset_str else None
+        return pct_used, resets_at
+
+    five_used, five_resets = parse_limit_line(r'5h limit:|5-hour limit:')
+    weekly_used, weekly_resets = parse_limit_line(r'Weekly limit:')
+
+    account_m = re.search(r'Account:\s*(\S+)', flat)
+    email = account_m.group(1).strip() if account_m else ''
+
+    primary = _rate_window(five_used or 0, five_resets, window_minutes=5*60) if five_used is not None else None
+    secondary = _rate_window(weekly_used or 0, weekly_resets, window_minutes=7*24*60) if weekly_used is not None else None
+
+    if primary is None and secondary is None and credits is None:
+        raise ValueError("Could not parse Codex CLI /status output.")
+
+    return _payload(
+        "codex",
+        primary=primary,
+        secondary=secondary,
+        identity={"displayName": "Codex", "email": email,
+                  "sessionLabel": "5h limit", "weeklyLabel": "Weekly"},
+        credits={"remaining": credits} if credits is not None else None,
+    )
+
+
+# ── Provider: Codex (OpenAI) ──────────────────────────────────────────────────
+
+def _load_config() -> dict:
+    """Load ~/.codexbar/config.json, returning {} on missing/error."""
+    config_path = Path.home() / ".codexbar" / "config.json"
+    try:
+        return json.loads(config_path.read_text())
+    except Exception:
+        return {}
+
+
+def _provider_config(provider_id: str) -> dict:
+    """Return the config block for a specific provider, or {}."""
+    cfg = _load_config()
+    for p in cfg.get("providers", []):
+        if p.get("id") == provider_id:
+            return p
+    return {}
+
+
+def _read_codex_cli_token() -> Optional[str]:
+    """Read the access_token from ~/.codex/auth.json (written by `codex login`)."""
+    auth_path = Path.home() / ".codex" / "auth.json"
+    try:
+        data = json.loads(auth_path.read_text())
+        tokens = data.get("tokens") or {}
+        return tokens.get("access_token") or tokens.get("id_token") or None
+    except Exception:
+        return None
+
+
+def _fetch_codex_with_bearer(bearer_token: str) -> dict:
+    hdrs = {
+        "Authorization": f"Bearer {bearer_token}",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Referer": "https://chatgpt.com/",
+    }
+    status, data = _req("https://chatgpt.com/backend-api/wham/usage", headers=hdrs)
+    if status == 401:
+        return _payload("codex", error_msg=(
+            "Codex token expired. Run `codex login` to refresh, or update "
+            "providers[id=codex].bearerToken in ~/.codexbar/config.json."
+        ))
+    if status != 200:
+        return _payload("codex", error_msg=f"Failed to fetch Codex usage (HTTP {status}).")
+
+    email = data.get("email", "")
+    rate_limit = data.get("rate_limit") or {}
+    primary_w = rate_limit.get("primary_window") or data.get("primary_window") or {}
+    secondary_w = rate_limit.get("secondary_window") or data.get("secondary_window") or {}
+
+    def parse_window(w: dict) -> Optional[dict]:
+        if not w:
+            return None
+        pct = w.get("used_percent", 0)
+        reset_at = w.get("reset_at")
+        resets_iso = _unix_to_iso(reset_at) if reset_at else None
+        limit_secs = w.get("limit_window_seconds", 0)
+        return _rate_window(pct, resets_iso, window_minutes=limit_secs // 60 if limit_secs else None)
+
+    credits_data = data.get("credits") or {}
+    try:
+        balance = float(credits_data.get("balance", "0"))
+    except (TypeError, ValueError):
+        balance = 0.0
+
+    return _payload(
+        "codex",
+        primary=parse_window(primary_w),
+        secondary=parse_window(secondary_w),
+        identity={"displayName": "Codex", "email": email},
+        credits={"remaining": balance} if balance else None,
+    )
+
+
+def fetch_codex() -> dict:
+    pcfg = _provider_config("codex")
+
+    # 1. Explicit bearerToken in ~/.codexbar/config.json — highest precedence.
+    bearer_token = pcfg.get("bearerToken") or pcfg.get("bearer_token")
+    if bearer_token and not bearer_token.startswith("PASTE_"):
+        return _fetch_codex_with_bearer(bearer_token)
+
+    # 2. Access token from `codex login` (~/.codex/auth.json) — automatic, no setup needed.
+    cli_token = _read_codex_cli_token()
+    if cli_token:
+        result = _fetch_codex_with_bearer(cli_token)
+        # If expired, fall through to cookie path rather than surfacing a confusing error
+        if result.get("error") is None:
+            return result
+
+    # 3. Cookie fallback (Firefox / Chrome pre-127).
+    DOMAINS = ["chatgpt.com", "openai.com"]
+    cookies = get_cookies(DOMAINS)
+    if not cookies:
+        return _payload("codex", error_msg=(
+            "No Codex auth found. Run `codex login` (npm i -g @openai/codex) "
+            "or add providers[id=codex].bearerToken to ~/.codexbar/config.json."
+        ))
+    ch = cookie_header(cookies)
+
+    hdrs = {
+        "Cookie": ch,
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Referer": "https://chatgpt.com/",
+    }
+
+    # Verify login
+    status, me = _req("https://chatgpt.com/backend-api/me", headers=hdrs)
+    if status != 200:
+        return _payload("codex", error_msg=(
+            f"Not signed in to chatgpt.com (HTTP {status}). "
+            "Add bearerToken to ~/.codexbar/config.json (providers[id=codex].bearerToken) "
+            "or sign in via Firefox."
+        ))
+
+    email = me.get("email", "")
+
+    # Fetch usage — API returns data under rate_limit.*
+    status, data = _req("https://chatgpt.com/backend-api/wham/usage", headers=hdrs)
+    if status != 200:
+        return _payload("codex", error_msg=f"Failed to fetch Codex usage (HTTP {status}).")
+
+    # Support both legacy top-level shape and current rate_limit-nested shape
+    rate_limit = data.get("rate_limit") or {}
+    primary_w = rate_limit.get("primary_window") or data.get("primary_window") or {}
+    secondary_w = rate_limit.get("secondary_window") or data.get("secondary_window") or {}
+
+    def parse_window(w: dict) -> Optional[dict]:
+        if not w:
+            return None
+        pct = w.get("used_percent", 0)
+        reset_at = w.get("reset_at")
+        resets_iso = _unix_to_iso(reset_at) if reset_at else None
+        limit_secs = w.get("limit_window_seconds", 0)
+        return _rate_window(pct, resets_iso, window_minutes=limit_secs // 60 if limit_secs else None)
+
+    # Credits from data.credits
+    credits_data = data.get("credits") or {}
+    balance_raw = credits_data.get("balance", "0")
+    try:
+        balance = float(balance_raw)
+    except (TypeError, ValueError):
+        balance = 0.0
+    credits = {"remaining": balance} if credits_data else None
+
+    return _payload(
+        "codex",
+        primary=parse_window(primary_w),
+        secondary=parse_window(secondary_w),
+        identity={"displayName": "Codex", "email": email},
+        credits=credits if balance else None,
+    )
+
+
+# ── Provider: Cursor ──────────────────────────────────────────────────────────
+
+def fetch_cursor() -> dict:
+    # Allow a manually stored WorkOS session token for Chrome app-bound encryption workaround.
+    pcfg = _provider_config("cursor")
+    manual_token = pcfg.get("sessionToken") or pcfg.get("session_token")
+    if manual_token and manual_token.startswith("PASTE_"):
+        manual_token = None
+
+    if manual_token:
+        ch = f"WorkosCursorSessionToken={manual_token}"
+    else:
+        DOMAINS = ["cursor.com", "www.cursor.com"]
+        cookies = get_cookies(DOMAINS)
+        if not cookies:
+            return _payload("cursor", error_msg=(
+                "No cursor.com cookies found. Chrome 127+ encrypts cookies with app-bound keys. "
+                "Add your WorkosCursorSessionToken to ~/.codexbar/config.json under providers[id=cursor].sessionToken, "
+                "or sign in to cursor.com in Firefox."
+            ))
+        ch = cookie_header(cookies)
+
+    base = "https://cursor.com"
+    hdrs = {
+        "Cookie": ch,
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Referer": "https://cursor.com/dashboard",
+    }
+
+    # Get user info
+    status, me = _req(f"{base}/api/auth/me", headers=hdrs)
+    if status != 200:
+        return _payload("cursor", error_msg=f"Not signed in to cursor.com (HTTP {status}).")
+
+    email = me.get("email", "")
+    user_id = me.get("id", "")
+
+    # Fetch usage summary (newer endpoint)
+    status, data = _req(f"{base}/api/usage-summary", headers=hdrs)
+    if status != 200:
+        return _payload("cursor", error_msg=f"Failed to fetch Cursor usage (HTTP {status}).")
+
+    # Parse response — mirrors CursorStatusProbe precedence logic.
+    # Current API nests usage under individualUsage.plan; top-level percent fields are
+    # present on older accounts but absent on newer ones.
+    ind = data.get("individualUsage") or {}
+    plan = ind.get("plan") or {}
+    total_pct = (
+        plan.get("totalPercentUsed")
+        or data.get("planPercentUsed")
+        or data.get("total_percent_used")
+        or 0
+    )
+    def _first_not_none(*vals):
+        for v in vals:
+            if v is not None:
+                return v
+        return None
+
+    auto_pct = _first_not_none(
+        plan.get("autoPercentUsed"),
+        data.get("autoComposerPercentUsed"),
+        data.get("auto_composer_percent"),
+    )
+    api_pct = _first_not_none(
+        plan.get("apiPercentUsed"),
+        data.get("apiPercentUsed"),
+        data.get("api_percent_used"),
+    )
+    cycle_end = data.get("billingCycleEnd") or data.get("billing_cycle_end")
+    if isinstance(cycle_end, str):
+        # Strip sub-second precision so all JS engines accept new Date(resets_at).
+        resets_at = re.sub(r"\.\d+Z$", "Z", cycle_end)
+    elif cycle_end:
+        resets_at = _unix_to_iso(int(cycle_end))
+    else:
+        resets_at = None
+
+    # On-demand cost
+    on_demand_usd = data.get("currentUsageUsd") or data.get("on_demand_usage_usd") or 0
+    hard_limit = data.get("hardLimitUsd") or data.get("hard_limit_usd") or 0
+    provider_cost = None
+    if on_demand_usd or hard_limit:
+        provider_cost = {
+            "used": float(on_demand_usd),
+            "limit": float(hard_limit),
+            "currencyCode": "USD",
+            "period": "monthly",
+            "resetsAt": resets_at,
+        }
+
+    primary = _rate_window(total_pct, resets_at)
+    secondary = _rate_window(api_pct, resets_at) if api_pct is not None else None
+    tertiary = None
+
+    return _payload(
+        "cursor",
+        primary=primary,
+        secondary=secondary,
+        tertiary=tertiary,
+        identity={"displayName": "Cursor", "email": email, "sessionLabel": "Plan", "weeklyLabel": "API"},
+        provider_cost=provider_cost,
+    )
+
+
+# ── Provider: Windsurf ────────────────────────────────────────────────────────
+
+def fetch_windsurf() -> dict:
+    storage = _read_windsurf_localstorage()
+    if not storage:
+        return _payload("windsurf", error_msg="No Windsurf session found in browser local storage. Sign in to windsurf.com in Chrome.")
+
+    session_token = storage.get("devin_session_token", "")
+    auth1_token = storage.get("devin_auth1_token", "")
+    account_id = storage.get("devin_account_id", "")
+    org_id = storage.get("devin_primary_org_id", "")
+
+    if not session_token:
+        return _payload("windsurf", error_msg="Windsurf session token not found in local storage.")
+
+    url = "https://windsurf.com/_backend/exa.seat_management_pb.SeatManagementService/GetPlanStatus"
+    body = b"\x00\x00\x00\x00\x00"  # empty protobuf message (grpc-web)
+    hdrs = {
+        "Content-Type": "application/grpc-web+proto",
+        "X-Grpc-Web": "1",
+        "X-Devin-Session-Token": session_token,
+        "X-Devin-Auth1-Token": auth1_token,
+        "X-Devin-Account-Id": account_id,
+        "X-Devin-Primary-Org-Id": org_id,
+        "Origin": "https://windsurf.com",
+        "Referer": "https://windsurf.com/",
+    }
+
+    try:
+        req = urllib.request.Request(url, data=body, method="POST")
+        for k, v in hdrs.items():
+            req.add_header(k, v)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read()
+        # Response is grpc-web framed binary; parse remaining usage from protobuf
+        # Field 1 (daily remaining), field 2 (weekly remaining) as varint
+        # Simple heuristic: scan for the two small integers in the response
+        # For now, report "connected" with unknown usage until full proto decode
+        daily_remaining = _parse_windsurf_remaining(raw, field=1)
+        weekly_remaining = _parse_windsurf_remaining(raw, field=2)
+
+        # Convert "remaining" to "used percent" — Windsurf free plan: 100 daily credits
+        DAILY_LIMIT = 100
+        WEEKLY_LIMIT = 500
+        daily_pct = max(0, 100 - (daily_remaining / DAILY_LIMIT * 100)) if daily_remaining is not None else None
+        weekly_pct = max(0, 100 - (weekly_remaining / WEEKLY_LIMIT * 100)) if weekly_remaining is not None else None
+
+        # Reset times: daily at midnight UTC, weekly next monday
+        now = datetime.datetime.utcnow()
+        next_day = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        days_to_monday = (7 - now.weekday()) % 7 or 7
+        next_monday = (now + datetime.timedelta(days=days_to_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        return _payload(
+            "windsurf",
+            primary=_rate_window(daily_pct if daily_pct is not None else 0,
+                                 next_day.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                 window_minutes=60 * 24),
+            secondary=_rate_window(weekly_pct if weekly_pct is not None else 0,
+                                   next_monday.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                   window_minutes=60 * 24 * 7),
+            identity={"displayName": "Windsurf", "sessionLabel": "Daily", "weeklyLabel": "Weekly"},
+        )
+    except Exception as e:
+        return _payload("windsurf", error_msg=f"Windsurf API error: {e}")
+
+
+def _parse_windsurf_remaining(data: bytes, field: int) -> Optional[int]:
+    """Very simple protobuf varint reader for a specific field number."""
+    try:
+        i = 0
+        # Skip grpc-web 5-byte frame header
+        if len(data) > 5 and data[0] == 0:
+            i = 5
+        while i < len(data):
+            tag_byte = data[i]; i += 1
+            field_num = tag_byte >> 3
+            wire_type = tag_byte & 0x7
+            if wire_type == 0:  # varint
+                val = 0; shift = 0
+                while i < len(data):
+                    b = data[i]; i += 1
+                    val |= (b & 0x7F) << shift
+                    if not (b & 0x80):
+                        break
+                    shift += 7
+                if field_num == field:
+                    return val
+            elif wire_type == 2:  # length-delimited
+                ln = data[i]; i += 1
+                i += ln
+            else:
+                break
+    except Exception:
+        pass
+    return None
+
+
+# ── Provider: Perplexity ──────────────────────────────────────────────────────
+
+def fetch_perplexity() -> dict:
+    DOMAINS = ["perplexity.ai", "www.perplexity.ai"]
+    cookies = get_cookies(DOMAINS)
+    if not cookies:
+        return _payload("perplexity", error_msg="No perplexity.ai cookies found. Sign in to perplexity.ai in your browser.")
+
+    ch = cookie_header(cookies)
+    hdrs = {
+        "Cookie": ch,
+        "User-Agent": "Mozilla/5.0",
+        "Origin": "https://www.perplexity.ai",
+        "Referer": "https://www.perplexity.ai/account/usage",
+    }
+
+    status, data = _req(
+        "https://www.perplexity.ai/rest/billing/credits?version=2.18&source=default",
+        headers=hdrs,
+    )
+    if status != 200:
+        return _payload("perplexity", error_msg=f"Not signed in to perplexity.ai (HTTP {status}).")
+
+    # Parse credits response
+    remaining = data.get("remaining") or data.get("credits_remaining") or 0
+    total = data.get("total") or data.get("credits_total") or 0
+    reset_at = data.get("reset_at") or data.get("resetsAt")
+    resets_iso = None
+    if isinstance(reset_at, (int, float)):
+        resets_iso = _unix_to_iso(int(reset_at))
+    elif isinstance(reset_at, str):
+        resets_iso = reset_at
+
+    used = total - remaining if total else 0
+    pct = (used / total * 100) if total > 0 else 0
+
+    return _payload(
+        "perplexity",
+        primary=_rate_window(pct, resets_iso),
+        identity={"displayName": "Perplexity"},
+        credits={"remaining": float(remaining)},
+    )
+
+
+# ── Provider: Mistral ─────────────────────────────────────────────────────────
+
+def fetch_mistral() -> dict:
+    DOMAINS = ["mistral.ai", "admin.mistral.ai", "auth.mistral.ai"]
+    cookies = get_cookies(DOMAINS)
+    if not cookies:
+        return _payload("mistral", error_msg="No mistral.ai cookies found. Sign in to mistral.ai in your browser.")
+
+    # Find ory_session_* cookie
+    ory_cookie = next((f"{n}={v}" for n, v in cookies.items() if n.startswith("ory_session_")), None)
+    csrf = cookies.get("csrftoken", "")
+    if not ory_cookie:
+        return _payload("mistral", error_msg="Mistral session cookie (ory_session_*) not found. Sign in to console.mistral.ai.")
+
+    now = datetime.datetime.utcnow()
+    url = f"https://admin.mistral.ai/api/billing/v2/usage?month={now.month}&year={now.year}"
+    hdrs = {
+        "Cookie": ory_cookie + (f"; csrftoken={csrf}" if csrf else ""),
+        "X-CSRFTOKEN": csrf,
+        "Origin": "https://admin.mistral.ai",
+        "Referer": "https://admin.mistral.ai/organization/usage",
+        "User-Agent": "Mozilla/5.0",
+    }
+
+    status, data = _req(url, headers=hdrs)
+    if status != 200:
+        return _payload("mistral", error_msg=f"Not signed in to admin.mistral.ai (HTTP {status}).")
+
+    used = data.get("total_tokens_used") or data.get("used") or 0
+    limit = data.get("token_limit") or data.get("limit") or 0
+    pct = (used / limit * 100) if limit > 0 else 0
+    cost_used = data.get("total_cost_usd") or data.get("cost_usd") or 0
+    cost_limit = data.get("cost_limit_usd") or data.get("spending_limit") or 0
+
+    next_month = (now.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
+    resets_iso = next_month.strftime("%Y-%m-%dT00:00:00Z")
+
+    provider_cost = None
+    if cost_used or cost_limit:
+        provider_cost = {"used": float(cost_used), "limit": float(cost_limit), "currencyCode": "USD", "period": "monthly", "resetsAt": resets_iso}
+
+    return _payload(
+        "mistral",
+        primary=_rate_window(pct, resets_iso),
+        identity={"displayName": "Mistral"},
+        provider_cost=provider_cost,
+    )
+
+
+# ── Provider: Kimi ────────────────────────────────────────────────────────────
+
+def fetch_kimi() -> dict:
+    DOMAINS = ["kimi.com", "www.kimi.com"]
+    cookies = get_cookies(DOMAINS)
+    if not cookies:
+        return _payload("kimi", error_msg="No kimi.com cookies found. Sign in to kimi.com in your browser.")
+
+    kimi_auth = cookies.get("kimi-auth", "")
+    if not kimi_auth:
+        return _payload("kimi", error_msg="kimi-auth cookie not found. Sign in to kimi.com/code.")
+
+    body = json.dumps({"scope": ["FEATURE_CODING"]}).encode()
+    hdrs = {
+        "Authorization": f"Bearer {kimi_auth}",
+        "Cookie": f"kimi-auth={kimi_auth}",
+        "Content-Type": "application/json",
+        "Origin": "https://www.kimi.com",
+        "Referer": "https://www.kimi.com/code/console",
+        "connect-protocol-version": "1",
+        "User-Agent": "Mozilla/5.0",
+    }
+
+    status, data = _req(
+        "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages",
+        method="POST",
+        headers=hdrs,
+        body=body,
+    )
+    if status != 200:
+        return _payload("kimi", error_msg=f"Failed to fetch Kimi usage (HTTP {status}).")
+
+    # Parse response
+    usages = data.get("usages") or []
+    primary = None
+    for u in usages:
+        scope = u.get("scope", "")
+        if "CODING" in scope or not primary:
+            used = u.get("used", 0)
+            total = u.get("total", 0)
+            pct = (used / total * 100) if total > 0 else 0
+            reset_ts = u.get("reset_at") or u.get("resetAt")
+            resets_iso = _unix_to_iso(int(reset_ts)) if reset_ts else None
+            primary = _rate_window(pct, resets_iso)
+            break
+
+    if not primary:
+        primary = _rate_window(0, None)
+
+    return _payload(
+        "kimi",
+        primary=primary,
+        identity={"displayName": "Kimi"},
+    )
+
+
+# ── Provider: Abacus ──────────────────────────────────────────────────────────
+
+def fetch_abacus() -> dict:
+    DOMAINS = ["abacus.ai", "apps.abacus.ai"]
+    cookies = get_cookies(DOMAINS)
+    if not cookies:
+        return _payload("abacus", error_msg="No abacus.ai cookies found. Sign in to apps.abacus.ai in your browser.")
+
+    ch = cookie_header(cookies)
+    hdrs = {
+        "Cookie": ch,
+        "User-Agent": "Mozilla/5.0",
+        "Origin": "https://apps.abacus.ai",
+        "Referer": "https://apps.abacus.ai/",
+    }
+
+    status, data = _req("https://apps.abacus.ai/api/_getOrganizationComputePoints", headers=hdrs)
+    if status != 200:
+        return _payload("abacus", error_msg=f"Not signed in to abacus.ai (HTTP {status}).")
+
+    used = data.get("used") or data.get("compute_points_used") or 0
+    total = data.get("total") or data.get("compute_points_total") or 0
+    pct = (used / total * 100) if total > 0 else 0
+    reset_at = data.get("reset_at") or data.get("resetsAt")
+    resets_iso = _unix_to_iso(int(reset_at)) if isinstance(reset_at, (int, float)) else reset_at
+
+    return _payload(
+        "abacus",
+        primary=_rate_window(pct, resets_iso),
+        identity={"displayName": "Abacus"},
+    )
+
+
+# ── Provider: MiniMax ─────────────────────────────────────────────────────────
+
+def fetch_minimax() -> dict:
+    DOMAINS = ["platform.minimax.io", "minimax.io", "platform.minimaxi.com", "minimaxi.com"]
+    cookies = get_cookies(DOMAINS)
+    if not cookies:
+        return _payload("minimax", error_msg="No minimax.io cookies found. Sign in to platform.minimax.io in your browser.")
+
+    ch = cookie_header(cookies)
+    hdrs = {
+        "Cookie": ch,
+        "User-Agent": "Mozilla/5.0",
+        "Origin": "https://platform.minimax.io",
+        "Referer": "https://platform.minimax.io/",
+    }
+
+    status, data = _req(
+        "https://platform.minimax.io/v1/api/openplatform/coding_plan/remains",
+        headers=hdrs,
+    )
+    if status != 200:
+        return _payload("minimax", error_msg=f"Not signed in to minimax.io (HTTP {status}).")
+
+    remaining = data.get("remaining") or data.get("tokens_remaining") or 0
+    total = data.get("total") or data.get("tokens_total") or 0
+    pct = max(0, 100 - (remaining / total * 100)) if total > 0 else 0
+    reset_at = data.get("reset_at") or data.get("resetsAt")
+    resets_iso = _unix_to_iso(int(reset_at)) if isinstance(reset_at, (int, float)) else reset_at
+
+    return _payload(
+        "minimax",
+        primary=_rate_window(pct, resets_iso),
+        identity={"displayName": "MiniMax"},
+        credits={"remaining": float(remaining)},
+    )
+
+
+# ── Dispatcher ────────────────────────────────────────────────────────────────
+
+FETCHERS = {
+    "codex": fetch_codex,
+    "cursor": fetch_cursor,
+    "windsurf": fetch_windsurf,
+    "perplexity": fetch_perplexity,
+    "mistral": fetch_mistral,
+    "kimi": fetch_kimi,
+    "abacus": fetch_abacus,
+    "minimax": fetch_minimax,
+}
+
+ALL_PROVIDERS = list(FETCHERS.keys())
+
+
+def run(providers: list[str]) -> list[dict]:
+    results = []
+    for p in providers:
+        fn = FETCHERS.get(p)
+        if fn is None:
+            continue
+        try:
+            results.append(fn())
+        except Exception as e:
+            results.append(_payload(p, error_msg=f"Unexpected error: {e}"))
+    return results
+
+
+def main():
+    ap = argparse.ArgumentParser(description="CodexBar Linux cookie fetcher")
+    ap.add_argument(
+        "--providers",
+        default=",".join(ALL_PROVIDERS),
+        help="Comma-separated list of providers to fetch",
+    )
+    args = ap.parse_args()
+    providers = [p.strip() for p in args.providers.split(",") if p.strip()]
+    results = run(providers)
+    print(json.dumps(results, indent=2))
+
+
+if __name__ == "__main__":
+    main()

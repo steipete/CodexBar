@@ -1,0 +1,995 @@
+#!/usr/bin/env python3
+"""
+CodexBar system tray daemon for Linux (GNOME/Ubuntu).
+
+Starts `codexbar serve` in the background, puts an icon in the top bar,
+and shows a rich WebKit2 popup panel when clicked.
+
+Dependencies (installed by the .deb package):
+  gir1.2-ayatanaappindicator3-0.1
+  gir1.2-webkit2-4.1  (or gir1.2-webkit2-4.0)
+  python3-gi
+  python3-gi-cairo
+"""
+
+import concurrent.futures
+import json
+import os
+import signal
+import socketserver
+import http.server
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("AyatanaAppIndicator3", "0.1")
+
+# Try WebKit2 4.1 first, fall back to 4.0
+_webkit_available = False
+for _wk_ver in ("4.1", "4.0"):
+    try:
+        gi.require_version("WebKit2", _wk_ver)
+        _webkit_available = True
+        break
+    except Exception:
+        pass
+
+from gi.repository import Gtk, Gdk, AyatanaAppIndicator3, GLib  # noqa: E402
+if _webkit_available:
+    from gi.repository import WebKit2  # noqa: E402
+
+# ── config ────────────────────────────────────────────────────────────────────
+PORT     = int(os.environ.get("CODEXBAR_PORT",    "8080"))  # codexbar serve
+UI_PORT  = int(os.environ.get("CODEXBAR_UI_PORT", "8081"))  # tray web UI
+BASE_URL = f"http://127.0.0.1:{PORT}"
+UI_URL   = f"http://127.0.0.1:{UI_PORT}/"
+POPUP_W  = 420
+POPUP_H  = 520
+REFRESH_SECONDS = 60
+ICON_NAME = "codexbar"
+CODEXBAR_BIN = os.environ.get("CODEXBAR_BIN", "codexbar")
+
+# Path to the Linux cookie fetcher sidecar (same directory as this script)
+_SCRIPT_DIR = Path(__file__).resolve().parent
+LINUX_FETCHER_BIN = os.environ.get(
+    "CODEXBAR_LINUX_FETCHER",
+    str(_SCRIPT_DIR / "codexbar-linux-fetcher"),
+)
+
+# ── state ─────────────────────────────────────────────────────────────────────
+_server_proc: "subprocess.Popen | None" = None
+_indicator: "AyatanaAppIndicator3.Indicator | None" = None
+_popup_win: "Gtk.Window | None" = None
+_webview: "WebKit2.WebView | None" = None
+
+# Cache dir for WebKit2 persistent cookie/data stores
+_WK_DATA_DIR = Path.home() / ".config" / "codexbar" / "webkit-data"
+
+
+# ── server management ─────────────────────────────────────────────────────────
+
+def start_server() -> None:
+    global _server_proc
+    if _server_proc and _server_proc.poll() is None:
+        return
+    try:
+        _server_proc = subprocess.Popen(
+            [CODEXBAR_BIN, "serve", "--port", str(PORT)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        print(f"[codexbar-tray] '{CODEXBAR_BIN}' not found in PATH", file=sys.stderr)
+
+
+def stop_server() -> None:
+    global _server_proc
+    if _server_proc and _server_proc.poll() is None:
+        _server_proc.terminate()
+        try:
+            _server_proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            _server_proc.kill()
+    _server_proc = None
+
+
+def wait_for_server(timeout: float = 10.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"{BASE_URL}/health", timeout=1) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    return False
+
+
+# ── popup window ──────────────────────────────────────────────────────────────
+
+def _make_popup() -> "Gtk.Window":
+    win = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
+    win.set_decorated(False)
+    win.set_resizable(False)
+    win.set_keep_above(True)
+    win.set_skip_taskbar_hint(True)
+    win.set_skip_pager_hint(True)
+    win.set_default_size(POPUP_W, POPUP_H)
+    win.set_size_request(POPUP_W, POPUP_H)
+
+    # rounded corners via CSS
+    css = Gtk.CssProvider()
+    css.load_from_data(b"""
+        window {
+            border-radius: 14px;
+            background: transparent;
+        }
+    """)
+    win.get_style_context().add_provider(css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    # drop-shadow effect — use an RGBA visual if compositor is running
+    screen = win.get_screen()
+    visual = screen.get_rgba_visual()
+    if visual:
+        win.set_visual(visual)
+    win.set_app_paintable(True)
+
+    if _webkit_available:
+        wv_settings = WebKit2.Settings()
+        wv_settings.set_enable_javascript(True)
+        wv_settings.set_enable_developer_extras(False)
+        wv_settings.set_hardware_acceleration_policy(
+            WebKit2.HardwareAccelerationPolicy.NEVER
+        )
+
+        wv = WebKit2.WebView.new_with_settings(wv_settings)
+        wv.set_background_color(Gdk.RGBA(0, 0, 0, 0))
+        win.add(wv)
+        win._webview = wv
+    else:
+        # fallback: plain label if WebKit2 is unavailable
+        lbl = Gtk.Label(label="Install gir1.2-webkit2-4.1\nfor the rich UI")
+        lbl.set_justify(Gtk.Justification.CENTER)
+        win.add(lbl)
+        win._webview = None
+
+    win.connect("focus-out-event", _on_popup_focus_out)
+    win.connect("key-press-event", _on_popup_key)
+    return win
+
+
+def _popup_position() -> tuple[int, int]:
+    """Position popup at the top-right of the screen, below the panel."""
+    screen = Gdk.Screen.get_default()
+    sw = screen.get_width()
+    margin = 8
+    x = sw - POPUP_W - margin
+    y = 32 + margin  # below a ~32px GNOME top bar
+    return x, y
+
+
+def _on_popup_focus_out(win: "Gtk.Window", _event) -> bool:
+    win.hide()
+    return False
+
+
+def _on_popup_key(win: "Gtk.Window", event) -> bool:
+    if event.keyval == Gdk.KEY_Escape:
+        win.hide()
+    return False
+
+
+def toggle_popup(_=None) -> None:
+    global _popup_win
+    if _popup_win is None:
+        _popup_win = _make_popup()
+
+    if _popup_win.get_visible():
+        _popup_win.hide()
+        return
+
+    # (re)load fresh page each time so data is current
+    if _webkit_available and _popup_win._webview:
+        _popup_win._webview.load_uri(UI_URL)
+
+    x, y = _popup_position()
+    _popup_win.move(x, y)
+    _popup_win.show_all()
+    _popup_win.present()
+    _popup_win.grab_focus()
+
+
+# ── tray menu (right-click) ───────────────────────────────────────────────────
+
+def _build_menu() -> "Gtk.Menu":
+    menu = Gtk.Menu()
+
+    open_item = Gtk.MenuItem(label="Open Dashboard")
+    open_item.connect("activate", lambda _: toggle_popup())
+    menu.append(open_item)
+
+    refresh_item = Gtk.MenuItem(label="Refresh Now")
+    refresh_item.connect("activate", lambda _: _do_reload())
+    menu.append(refresh_item)
+
+    menu.append(Gtk.SeparatorMenuItem())
+
+    quit_item = Gtk.MenuItem(label="Quit CodexBar")
+    quit_item.connect("activate", on_quit)
+    menu.append(quit_item)
+
+    menu.show_all()
+    return menu
+
+
+def _do_reload() -> None:
+    global _stream_cache, _stream_cache_time
+    _stream_cache = {}
+    _stream_cache_time = 0
+    if _popup_win and _popup_win.get_visible() and _webkit_available and _popup_win._webview:
+        GLib.idle_add(_popup_win._webview.reload)
+
+
+# ── actions ───────────────────────────────────────────────────────────────────
+
+def on_quit(_=None) -> None:
+    stop_server()
+    Gtk.main_quit()
+
+
+# ── embedded web UI server ────────────────────────────────────────────────────
+
+_UI_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CodexBar</title>
+<style>
+  :root{--bg:#1a1a2e;--card:rgba(255,255,255,.06);--border:rgba(255,255,255,.10);
+    --text:#f0f0f0;--dim:rgba(240,240,240,.55);--track:rgba(255,255,255,.12);
+    --div:rgba(255,255,255,.08);--tab-a:rgba(255,255,255,.13);
+    --tab-h:rgba(255,255,255,.07);--err:#ff6b6b;--green:#34c759;--red:#ff3b30;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    background:var(--bg);color:var(--text);
+    display:flex;flex-direction:column;padding:16px;
+    border-radius:14px;overflow:hidden}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0}
+  .topbar-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600}
+  .topbar-actions{display:flex;align-items:center;gap:4px}
+  .icon-btn{background:none;border:none;color:var(--dim);cursor:pointer;
+    padding:5px;border-radius:6px;display:flex;align-items:center;transition:.15s;line-height:0}
+  .icon-btn:hover{color:var(--text);background:var(--tab-h)}
+  .icon-btn.spinning svg{animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+    padding-bottom:10px;margin-bottom:4px;flex-shrink:0}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+    padding:6px 10px;border-radius:10px;cursor:pointer;border:none;
+    background:none;color:var(--dim);font-size:11px;font-weight:500;
+    white-space:nowrap;transition:.15s;min-width:52px;position:relative}
+  .tab:hover{background:var(--tab-h);color:var(--text)}
+  .tab.active{background:var(--tab-a);color:var(--text)}
+  .tab-icon{width:28px;height:28px;border-radius:8px;display:flex;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700;
+    position:relative}
+  .tab-spinner{position:absolute;inset:0;border-radius:8px;
+    border:2px solid rgba(255,255,255,.15);border-top-color:currentColor;
+    animation:spin .7s linear infinite}
+  .tab-bar{position:absolute;bottom:3px;left:10px;right:10px;height:2px;
+    border-radius:1px;opacity:0;transition:.15s}
+  .tab.active .tab-bar{opacity:1}
+  .scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;
+    scrollbar-color:rgba(255,255,255,.15) transparent}
+  .scroll-area::-webkit-scrollbar{width:4px}
+  .scroll-area::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
+  .card{background:var(--card);border:1px solid var(--border);
+    border-radius:16px;padding:16px;display:none}
+  .card.visible{display:block}
+  .card-header{margin-bottom:14px}
+  .card-header-row{display:flex;justify-content:space-between;align-items:baseline}
+  .provider-name{font-size:17px;font-weight:600}
+  .plan-badge{font-size:12px;color:var(--dim);font-weight:500}
+  .updated-text{font-size:12px;color:var(--dim);margin-top:2px}
+  .error-text{font-size:12px;color:var(--err);margin-top:4px}
+  .metric{margin-bottom:14px}
+  .metric:last-child{margin-bottom:0}
+  .metric-header{display:flex;justify-content:space-between;
+    align-items:baseline;margin-bottom:6px}
+  .metric-label{font-size:14px;font-weight:500}
+  .metric-pct{font-size:13px;color:var(--dim)}
+  .track{width:100%;height:6px;background:var(--track);
+    border-radius:3px;position:relative;overflow:hidden}
+  .fill{height:100%;border-radius:3px;transition:width .4s ease}
+  .pace-line{position:absolute;top:0;width:2px;height:100%;opacity:.85}
+  .metric-footer{display:flex;justify-content:space-between;
+    align-items:center;margin-top:5px}
+  .reset-text{font-size:12px;color:var(--dim)}
+  .pace-behind{color:var(--red);font-size:12px}
+  .pace-ahead{color:var(--green);font-size:12px}
+  .divider{height:1px;background:var(--div);margin:12px 0}
+  .section-label{font-size:13px;font-weight:600;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+  .cost-row{display:flex;justify-content:space-between;
+    font-size:13px;color:var(--dim);margin-bottom:4px}
+  .cost-row span:last-child{color:var(--text)}
+  .card-loading{display:flex;align-items:center;gap:8px;color:var(--dim);font-size:13px;padding:8px 0}
+  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.15);
+    border-top-color:var(--dim);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+  .footer{text-align:center;font-size:11px;color:var(--dim);
+    margin-top:12px;flex-shrink:0;opacity:.45}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-title">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect width="20" height="20" rx="5" fill="rgba(255,255,255,.12)"/>
+      <rect x="4" y="13" width="3" height="4" rx="1" fill="white"/>
+      <rect x="8.5" y="9" width="3" height="8" rx="1" fill="white" opacity=".7"/>
+      <rect x="13" y="5" width="3" height="12" rx="1" fill="white" opacity=".4"/>
+    </svg>CodexBar
+  </div>
+  <div class="topbar-actions">
+    <button class="icon-btn" id="refreshBtn" title="Refresh" onclick="startStream()">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+        <path d="M13.65 2.35A8 8 0 1 0 15 8h-2a6 6 0 1 1-1.06-3.39L10 6h5V1l-1.35 1.35z" fill="currentColor"/>
+      </svg>
+    </button>
+  </div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="scroll-area">
+  <div id="cards"></div>
+</div>
+<div class="footer">CodexBar &bull; <span id="lastUpdated"></span></div>
+<script>
+const API = "http://127.0.0.1:""" + str(UI_PORT) + r"""";
+
+const PROVIDERS = ['claude','codex','cursor'];
+const DISPLAY_NAMES = {claude:'Claude',codex:'Codex',cursor:'Cursor'};
+const COLORS = {
+  claude:[204,124,94],codex:[73,163,176],cursor:[0,191,165]
+};
+const INITIALS = {claude:'Cl',codex:'Cx',cursor:'Cu'};
+
+const color = id => { const rgb = COLORS[id] || [120,120,140]; return `rgb(${rgb})`; };
+const rel = d => {
+  if (!d) return '';
+  const s = (Date.now() - new Date(d)) / 1000;
+  if (s < 5) return 'just now';
+  if (s < 60) return `${~~s}s ago`;
+  if (s < 3600) return `${~~(s/60)}m ago`;
+  return `${~~(s/3600)}h ago`;
+};
+const countdown = d => {
+  if (!d) return '';
+  const s = Math.max(0, (new Date(d) - Date.now()) / 1000);
+  if (s <= 0) return 'Resetting…';
+  const D = ~~(s/86400), h = ~~(s%86400/3600), m = ~~(s%3600/60);
+  return D ? `Resets in ${D}d ${h}h` : h ? `Resets in ${h}h ${m}m` : `Resets in ${m}m`;
+};
+const metricHtml = (label, w, clr) => {
+  if (!w) return '';
+  const pct = Math.min(100, Math.max(0, w.usedPercent || 0));
+  const pc = w.pacePercent;
+  const paceLine = pc != null
+    ? `<div class="pace-line" style="left:${Math.min(100,Math.max(0,pc))}%;background:${pc>(w.usedPercent||0)?'var(--red)':'var(--green)'}"></div>`
+    : '';
+  const paceText = pc != null
+    ? `<span class="${pc < pct ? 'pace-behind' : 'pace-ahead'}">Pace: ${pc < pct ? '' : '+'}${~~(pc-pct)}%</span>`
+    : '';
+  return `<div class="metric">
+    <div class="metric-header">
+      <span class="metric-label">${label}</span>
+      <span class="metric-pct">${pct < 1 ? '0' : ~~pct}% used</span>
+    </div>
+    <div class="track">
+      <div class="fill" style="width:${pct}%;background:${clr}"></div>${paceLine}
+    </div>
+    <div class="metric-footer">
+      <span class="reset-text">${countdown(w.resetsAt)}</span>${paceText}
+    </div>
+  </div>`;
+};
+
+// State: one entry per provider
+const state = {};
+PROVIDERS.forEach(id => { state[id] = {status: 'loading', data: null}; });
+let current = 'claude';
+
+function buildTabHtml(id) {
+  const s = state[id];
+  const clr = color(id);
+  const name = DISPLAY_NAMES[id];
+  const isLoading = s.status === 'loading';
+  const hasError = s.status === 'done' && s.data?.error;
+  const iconContent = isLoading
+    ? `<div class="tab-spinner" style="border-top-color:${clr}"></div>`
+    : (hasError ? '!' : INITIALS[id]);
+  return `<button class="tab${id===current?' active':''}" id="tab-${id}" onclick="select('${id}')">
+    <div class="tab-icon" style="background:${clr}22;color:${clr}">${iconContent}</div>
+    <span>${name}</span>
+    <div class="tab-bar" style="background:${clr}"></div>
+  </button>`;
+}
+
+function buildCardHtml(id) {
+  const s = state[id];
+  const clr = color(id);
+  const name = DISPLAY_NAMES[id];
+  let body;
+  if (s.status === 'loading') {
+    body = `<div class="card-loading"><div class="spinner"></div>Loading…</div>`;
+  } else {
+    const p = s.data || {};
+    const usage = p.usage || {};
+    const identity = usage.identity || {};
+    const plan = identity.planName || '';
+    const upd = usage.updatedAt;
+    const err = p.error;
+    const header = `<div class="card-header">
+      <div class="card-header-row">
+        <span class="provider-name">${identity.displayName || name}</span>
+        ${plan ? `<span class="plan-badge">${plan}</span>` : ''}
+      </div>
+      <div class="updated-text">${upd ? 'Updated ' + rel(upd) : ''}</div>
+    </div>`;
+    if (err) {
+      body = header + `<div class="error-text">${err.message || 'Error'}</div>`;
+    } else {
+      body = header + [
+        metricHtml(identity.sessionLabel || 'Session', usage.primary, clr),
+        metricHtml(identity.weeklyLabel  || 'Weekly',  usage.secondary, clr),
+        usage.tertiary ? metricHtml(identity.opusLabel || 'Opus', usage.tertiary, clr) : '',
+        ...(usage.extraRateWindows || []).map(w => metricHtml(w.label || w.name, w.window, clr)),
+        usage.providerCost
+          ? `<div class="divider"></div><div class="section-label">Extra usage</div>
+             <div class="cost-row"><span>This month</span><span>$${(usage.providerCost.used||0).toFixed(2)} / $${(usage.providerCost.limit||0).toFixed(2)}</span></div>`
+          : '',
+        p.credits?.remaining != null
+          ? `<div class="divider"></div><div class="section-label">Credits</div>
+             <div class="cost-row"><span>Remaining</span><span>$${p.credits.remaining.toFixed(2)}</span></div>`
+          : '',
+      ].join('');
+    }
+  }
+  return `<div class="card${id===current?' visible':''}" id="card-${id}">${body}</div>`;
+}
+
+function renderAll() {
+  document.getElementById('tabs').innerHTML = PROVIDERS.map(buildTabHtml).join('');
+  document.getElementById('cards').innerHTML = PROVIDERS.map(buildCardHtml).join('');
+  document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+}
+
+function updateProvider(id) {
+  const tab = document.getElementById('tab-' + id);
+  const card = document.getElementById('card-' + id);
+  if (tab) tab.outerHTML = buildTabHtml(id);
+  if (card) card.outerHTML = buildCardHtml(id);
+}
+
+const select = id => {
+  current = id;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('visible'));
+  document.getElementById('tab-' + id)?.classList.add('active');
+  document.getElementById('card-' + id)?.classList.add('visible');
+};
+
+let _es = null;
+function startStream() {
+  if (_es) { _es.close(); _es = null; }
+  // Reset to loading
+  PROVIDERS.forEach(id => { state[id] = {status: 'loading', data: null}; });
+  renderAll();
+  document.getElementById('refreshBtn').classList.add('spinning');
+
+  _es = new EventSource(API + '/usage-stream');
+  _es.onmessage = e => {
+    try {
+      const p = JSON.parse(e.data);
+      const id = p.provider;
+      if (!id || !PROVIDERS.includes(id)) return;
+      state[id] = {status: 'done', data: p};
+      updateProvider(id);
+      // If active tab was loading and this is the first result, auto-select
+      if (current === id || state[current].status === 'loading') {
+        select(current);
+      }
+    } catch(_) {}
+  };
+  _es.addEventListener('done', () => {
+    _es.close(); _es = null;
+    document.getElementById('refreshBtn').classList.remove('spinning');
+    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+  });
+  _es.onerror = () => {
+    _es.close(); _es = null;
+    document.getElementById('refreshBtn').classList.remove('spinning');
+    // Mark any still-loading providers as errored
+    PROVIDERS.forEach(id => {
+      if (state[id].status === 'loading') {
+        state[id] = {status:'done', data:{provider:id, error:{message:'Connection error'}, usage:null}};
+        updateProvider(id);
+      }
+    });
+  };
+}
+
+startStream();
+setInterval(startStream, 60000);
+setInterval(() => { renderAll(); }, 30000);
+</script>
+</body>
+</html>"""
+
+
+# ── WebKit2-based cookie fetcher ──────────────────────────────────────────────
+#
+# Chrome 127+ uses app-bound AES encryption for cookies that cannot be
+# decrypted outside the browser process. Instead we use WebKit2's own
+# persistent cookie/data store (stored in ~/.config/codexbar/webkit-data/).
+# Each provider's hidden WebView shares that store, so once the user signs
+# in via the popup it persists for future fetches.
+#
+# fetch_via_webkit(provider, js_script) → dict (provider payload JSON)
+#   Runs `js_script` in a hidden WebView and returns the JSON result it posts
+#   to window.codexbarResult = <json string>.
+
+_wk_fetch_lock = threading.Lock()
+_wk_pending: "dict[str, dict | None]" = {}   # provider → result or None=pending
+
+
+def _wk_data_manager() -> "WebKit2.WebsiteDataManager | None":
+    if not _webkit_available:
+        return None
+    _WK_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    base = str(_WK_DATA_DIR)
+    try:
+        mgr = WebKit2.WebsiteDataManager(
+            base_data_directory=base,
+            base_cache_directory=base + "/cache",
+        )
+        return mgr
+    except Exception:
+        return None
+
+
+_wk_data_mgr = None   # initialised on first use in GTK main thread
+
+
+def _ensure_wk_data_mgr():
+    global _wk_data_mgr
+    if _wk_data_mgr is None:
+        _wk_data_mgr = _wk_data_manager()
+    return _wk_data_mgr
+
+
+def fetch_via_webkit(provider: str, url: str, js_script: str,
+                     timeout_secs: float = 15.0) -> "dict | None":
+    """
+    Load `url` in a hidden WebKit2 view, inject `js_script` after load,
+    wait for `window._codexbarResult` to be set, return parsed JSON.
+    Must be called from the GTK main thread (or via GLib.idle_add).
+    Returns None on timeout/error.
+    """
+    if not _webkit_available:
+        return None
+
+    result_holder: list = []
+    done_event = threading.Event()
+
+    def _run():
+        mgr = _ensure_wk_data_mgr()
+        ctx = WebKit2.WebContext.new_with_website_data_manager(mgr) if mgr else WebKit2.WebContext.get_default()
+        settings = WebKit2.Settings()
+        settings.set_enable_javascript(True)
+        wv = WebKit2.WebView.new_with_context(ctx)
+        wv.set_settings(settings)
+
+        # Offscreen window (never shown)
+        win = Gtk.OffscreenWindow()
+        win.set_default_size(1, 1)
+        win.add(wv)
+        win.show_all()
+
+        def _on_load_changed(wv, event):
+            if event != WebKit2.LoadEvent.FINISHED:
+                return
+            full_js = js_script + """
+            (function poll(n) {
+              if (window._codexbarResult !== undefined) {
+                document.title = '__codexbar__' + JSON.stringify(window._codexbarResult);
+              } else if (n > 0) {
+                setTimeout(function(){ poll(n-1); }, 200);
+              } else {
+                document.title = '__codexbar__null';
+              }
+            })(50);
+            """
+            wv.run_javascript(full_js, None, None, None)
+
+        def _on_title_changed(wv, _pspec):
+            title = wv.get_title() or ""
+            if title.startswith("__codexbar__"):
+                payload_str = title[len("__codexbar__"):]
+                try:
+                    result_holder.append(json.loads(payload_str))
+                except Exception:
+                    result_holder.append(None)
+                win.destroy()
+                done_event.set()
+
+        wv.connect("load-changed", _on_load_changed)
+        wv.connect("notify::title", _on_title_changed)
+        wv.load_uri(url)
+
+    GLib.idle_add(_run)
+    done_event.wait(timeout=timeout_secs)
+    return result_holder[0] if result_holder else None
+
+
+# ── WebKit2 provider scripts ──────────────────────────────────────────────────
+
+_CODEX_JS = """
+(async function() {
+  try {
+    const r = await fetch('https://chatgpt.com/backend-api/wham/usage', {credentials:'include'});
+    if (!r.ok) { window._codexbarResult = {error: 'HTTP ' + r.status}; return; }
+    window._codexbarResult = await r.json();
+  } catch(e) { window._codexbarResult = {error: String(e)}; }
+})();
+"""
+
+_CURSOR_JS = """
+(async function() {
+  try {
+    const [sum, me] = await Promise.all([
+      fetch('/api/usage-summary', {credentials:'include'}).then(r=>r.json()),
+      fetch('/api/auth/me',       {credentials:'include'}).then(r=>r.json()),
+    ]);
+    window._codexbarResult = {summary: sum, me: me};
+  } catch(e) { window._codexbarResult = {error: String(e)}; }
+})();
+"""
+
+
+def _build_wk_codex_payload(data: dict) -> dict:
+    import datetime as dt
+    def _unix(ts):
+        return dt.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%SZ") if ts else None
+    def _win(w):
+        if not w: return None
+        return {"usedPercent": min(100, max(0, w.get("used_percent", 0))),
+                "resetsAt": _unix(w.get("reset_at")),
+                "windowMinutes": (w.get("limit_window_seconds") or 0) // 60 or None}
+    now_iso = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "provider": "codex",
+        "error": None,
+        "usage": {
+            "updatedAt": now_iso,
+            "identity": {"displayName": "Codex"},
+            "primary": _win(data.get("primary_window")),
+            "secondary": _win(data.get("secondary_window")),
+        }
+    }
+
+
+def _build_wk_cursor_payload(data: dict) -> dict:
+    import datetime as dt
+    import re as _re
+    now_iso = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    s = data.get("summary", {}) or {}
+    me = data.get("me", {}) or {}
+    # Read nested structure first (current API), fall back to top-level legacy fields
+    ind = s.get("individualUsage") or {}
+    plan = ind.get("plan") or {}
+    total_pct = (
+        plan.get("totalPercentUsed")
+        or s.get("planPercentUsed")
+        or s.get("total_percent_used")
+        or 0
+    )
+    api_pct = plan.get("apiPercentUsed") or s.get("apiPercentUsed")
+    cycle_end_raw = s.get("billingCycleEnd") or s.get("billing_cycle_end")
+    # Strip sub-second precision — older WebKit2 builds reject "2025-06-01T00:00:00.000Z"
+    cycle_end = _re.sub(r"\.\d+Z$", "Z", cycle_end_raw) if isinstance(cycle_end_raw, str) else cycle_end_raw
+    on_demand = s.get("currentUsageUsd") or 0
+    hard_limit = s.get("hardLimitUsd") or 0
+    cost = {"used": float(on_demand), "limit": float(hard_limit),
+            "currencyCode": "USD", "period": "monthly"} if (on_demand or hard_limit) else None
+    return {
+        "provider": "cursor",
+        "error": None,
+        "usage": {
+            "updatedAt": now_iso,
+            "identity": {"displayName": "Cursor", "email": me.get("email", ""),
+                         "sessionLabel": "Plan", "weeklyLabel": "API"},
+            "primary": {"usedPercent": total_pct, "resetsAt": cycle_end},
+            "secondary": {"usedPercent": api_pct, "resetsAt": cycle_end} if api_pct is not None else None,
+            "providerCost": cost,
+        }
+    }
+
+
+def fetch_wk_provider(provider: str) -> "dict | None":
+    """Fetch a cookie-based provider via hidden WebKit2 view. Returns payload dict or None."""
+    if not _webkit_available:
+        return None
+    if provider == "codex":
+        data = fetch_via_webkit("codex", "https://chatgpt.com/codex", _CODEX_JS)
+        if data and not data.get("error"):
+            return _build_wk_codex_payload(data)
+        return {"provider": "codex", "error": {"message": data.get("error", "Not signed in") if data else "Fetch timeout. Open chatgpt.com/codex in the tray dashboard first."}, "usage": None}
+    if provider == "cursor":
+        data = fetch_via_webkit("cursor", "https://cursor.com/dashboard", _CURSOR_JS)
+        if data and not data.get("error"):
+            return _build_wk_cursor_payload(data)
+        return {"provider": "cursor", "error": {"message": data.get("error", "Not signed in") if data else "Fetch timeout. Open cursor.com in the tray dashboard first."}, "usage": None}
+    return None
+
+
+# ── sidecar fetcher (legacy cookie-DB path + WebKit2 fallback) ────────────────
+
+def _run_sidecar(providers: "set[str]") -> list:
+    """Run codexbar-linux-fetcher for the given providers."""
+    fetcher = LINUX_FETCHER_BIN
+    if not Path(fetcher).exists():
+        fetcher = "/usr/bin/codexbar-linux-fetcher"
+    if not Path(fetcher).exists():
+        return []
+    try:
+        result = subprocess.run(
+            [fetcher, "--providers", ",".join(providers)],
+            capture_output=True, text=True, timeout=30,
+        )
+        return json.loads(result.stdout) if result.stdout.strip() else []
+    except Exception:
+        return []
+
+
+# The three providers shown in the UI on Linux
+_SHOWN_PROVIDERS = ["claude", "codex", "cursor"]
+
+
+def _fetch_claude_provider() -> "dict | None":
+    """Fetch claude data from the Swift serve backend."""
+    try:
+        with urllib.request.urlopen(f"{BASE_URL}/usage", timeout=30) as r:
+            all_providers = json.loads(r.read())
+        for p in all_providers:
+            if p.get("provider") == "claude":
+                return p
+        return {"provider": "claude", "error": {"message": "Claude not returned by server"}, "usage": None}
+    except Exception as e:
+        return {"provider": "claude", "error": {"message": str(e)}, "usage": None}
+
+
+def _fetch_codex_provider() -> dict:
+    """Fetch codex via sidecar (cookie DB, no WebKit)."""
+    results = _run_sidecar({"codex"})
+    if results:
+        return results[0]
+    return {"provider": "codex", "error": {"message": "Codex fetch failed"}, "usage": None}
+
+
+def _fetch_cursor_provider() -> dict:
+    """Fetch cursor via sidecar (cookie DB, no WebKit)."""
+    results = _run_sidecar({"cursor"})
+    if results:
+        return results[0]
+    return {"provider": "cursor", "error": {"message": "Cursor fetch failed"}, "usage": None}
+
+
+_PROVIDER_FETCHERS = {
+    "claude": _fetch_claude_provider,
+    "codex": _fetch_codex_provider,
+    "cursor": _fetch_cursor_provider,
+}
+
+# Cache for streaming results
+_stream_cache: "dict[str, dict]" = {}
+_stream_cache_time: float = 0
+_STREAM_TTL = 55  # seconds
+
+
+def _stream_all_providers(write_event):
+    """
+    Fetch claude, codex, cursor in parallel and call write_event(data_dict)
+    for each result as it arrives.
+    """
+    global _stream_cache, _stream_cache_time
+    now = time.monotonic()
+
+    # Use cache if fresh enough (avoids hammering APIs on rapid re-opens)
+    if _stream_cache and now - _stream_cache_time < _STREAM_TTL:
+        for p in _SHOWN_PROVIDERS:
+            if p in _stream_cache:
+                write_event(_stream_cache[p])
+        return
+
+    new_cache: dict = {}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+        futs = {ex.submit(fn): pid for pid, fn in _PROVIDER_FETCHERS.items()}
+        for fut in concurrent.futures.as_completed(futs):
+            pid = futs[fut]
+            try:
+                result = fut.result()
+            except Exception as e:
+                result = {"provider": pid, "error": {"message": str(e)}, "usage": None}
+            if result:
+                new_cache[pid] = result
+                write_event(result)
+
+    _stream_cache = new_cache
+    _stream_cache_time = time.monotonic()
+
+
+class _UIHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/health":
+            try:
+                with urllib.request.urlopen(f"{BASE_URL}/health", timeout=5) as r:
+                    body = r.read()
+                self.send_response(200)
+            except Exception as e:
+                body = json.dumps({"error": str(e)}).encode()
+                self.send_response(502)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+
+        elif self.path == "/usage-stream":
+            # SSE endpoint — streams one event per provider as each completes
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            lock = threading.Lock()
+
+            def write_event(data: dict):
+                line = "data: " + json.dumps(data) + "\n\n"
+                with lock:
+                    try:
+                        self.wfile.write(line.encode())
+                        self.wfile.flush()
+                    except Exception:
+                        pass
+
+            try:
+                _stream_all_providers(write_event)
+                with lock:
+                    self.wfile.write(b"event: done\ndata: {}\n\n")
+                    self.wfile.flush()
+            except Exception:
+                pass
+
+        elif self.path.startswith("/usage"):
+            # Fetch each provider via its dedicated fetcher (bypasses Swift for codex/cursor)
+            results: dict[str, dict] = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+                futs = {ex.submit(fn): pid for pid, fn in _PROVIDER_FETCHERS.items()}
+                for fut in concurrent.futures.as_completed(futs):
+                    pid = futs[fut]
+                    try:
+                        r = fut.result()
+                    except Exception as e:
+                        r = {"provider": pid, "error": {"message": str(e)}, "usage": None}
+                    if r:
+                        results[pid] = r
+            merged = [results[p] for p in _SHOWN_PROVIDERS if p in results]
+            body = json.dumps(merged).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+
+        elif self.path.startswith("/cost"):
+            try:
+                with urllib.request.urlopen(f"{BASE_URL}{self.path}", timeout=15) as r:
+                    body = r.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+            except Exception as e:
+                body = json.dumps({"error": str(e)}).encode()
+                self.send_response(502)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+
+        else:
+            body = _UI_HTML.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    def log_message(self, *_):
+        pass
+
+
+def start_ui_server() -> None:
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    with socketserver.ThreadingTCPServer(("127.0.0.1", UI_PORT), _UIHandler) as httpd:
+        httpd.serve_forever()
+
+
+# ── indicator scroll / click handler ─────────────────────────────────────────
+# AyatanaAppIndicator3 doesn't expose a direct left-click signal, so we use a
+# secondary "activate" menu item as a workaround: we attach a transparent
+# Gtk.Menu that has a single invisible item whose activation opens the popup.
+# The user sees no menu — the popup opens instead.
+#
+# A cleaner approach that works on most GNOME setups: hijack the "scroll-event"
+# on the indicator's button via the "secondary-activate" signal.
+
+def _on_secondary_activate(_indicator) -> None:
+    GLib.idle_add(toggle_popup)
+
+
+# ── main ──────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    global _indicator
+
+    signal.signal(signal.SIGTERM, lambda *_: on_quit())
+    signal.signal(signal.SIGINT,  lambda *_: on_quit())
+
+    start_server()
+
+    _indicator = AyatanaAppIndicator3.Indicator.new(
+        "codexbar",
+        ICON_NAME,
+        AyatanaAppIndicator3.IndicatorCategory.APPLICATION_STATUS,
+    )
+    _indicator.set_status(AyatanaAppIndicator3.IndicatorStatus.ACTIVE)
+
+    # Primary (left) click menu — "Open Dashboard" as first item opens popup
+    menu = _build_menu()
+    _indicator.set_menu(menu)
+
+    # secondary-activate fires on middle-click / scroll in some environments
+    try:
+        _indicator.connect("secondary-activate", _on_secondary_activate)
+    except Exception:
+        pass
+
+    # wait for server then pre-warm (don't block main thread)
+    def _initial_load():
+        wait_for_server(timeout=15)
+
+    threading.Thread(target=_initial_load, daemon=True).start()
+
+    # embedded web UI server
+    threading.Thread(target=start_ui_server, daemon=True).start()
+
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    main()
