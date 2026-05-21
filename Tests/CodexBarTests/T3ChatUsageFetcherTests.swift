@@ -4,6 +4,11 @@ import Testing
 
 struct T3ChatUsageFetcherTests {
     private static let now = Date(timeIntervalSince1970: 1_778_000_000)
+    // 2026-05-21T12:23:36Z, the usage-window reset that must not drive overage reset display.
+    private static let billingNextResetMilliseconds = 1_779_366_216_920
+    // 2026-06-06T16:23:29Z, the subscription period end used for overage reset display.
+    private static let subscriptionPeriodEndSeconds = 1_780_763_009
+    private static let subscriptionPeriodEndMilliseconds = Self.subscriptionPeriodEndSeconds * 1000
 
     private static let sampleResponse = [
         #"{"json":{"0":[[0],[null,0,0]]}}"#,
@@ -39,7 +44,7 @@ struct T3ChatUsageFetcherTests {
         #expect(usage.primary?.resetDescription == "Base - max")
         #expect(usage.secondary?.usedPercent == 34.25)
         #expect(usage.secondary?.resetDescription == "Overage")
-        #expect(usage.secondary?.resetsAt?.timeIntervalSince1970 == 1_780_763_009)
+        #expect(usage.secondary?.resetsAt.map { Int($0.timeIntervalSince1970) } == Self.subscriptionPeriodEndSeconds)
         #expect(usage.identity?.providerID == .t3chat)
         #expect(usage.identity?.loginMethod == "Pro")
     }
@@ -58,14 +63,25 @@ struct T3ChatUsageFetcherTests {
 
     @Test
     func `overage reset ignores billing next reset`() throws {
-        let response = """
-        {"json":[2,0,[[{"usageMonthPercentage":20,"billingNextResetAt":1779366216920}]]]}
-        """
+        let response = Self.customerDataResponse(
+            #"{"usageMonthPercentage":20,"billingNextResetAt":\#(Self.billingNextResetMilliseconds)}"#)
         let usage = try T3ChatUsageParser.parseJSONLines(response, now: Self.now)
             .toUsageSnapshot()
 
         #expect(usage.secondary?.usedPercent == 20)
         #expect(usage.secondary?.resetsAt == nil)
+    }
+
+    @Test
+    func `overage reset uses subscription current period end`() throws {
+        let currentPeriodEnd = Self.subscriptionPeriodEndMilliseconds
+        let response = Self.customerDataResponse(
+            #"{"usageMonthPercentage":20,"subscription":{"currentPeriodEnd":\#(currentPeriodEnd)}}"#)
+        let usage = try T3ChatUsageParser.parseJSONLines(response, now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(usage.secondary?.usedPercent == 20)
+        #expect(usage.secondary?.resetsAt.map { Int($0.timeIntervalSince1970) } == Self.subscriptionPeriodEndSeconds)
     }
 
     @Test
@@ -226,5 +242,9 @@ struct T3ChatUsageFetcherTests {
             guard case T3ChatUsageError.vercelChallenge = error else { return false }
             return true
         }
+    }
+
+    private static func customerDataResponse(_ customerDataJSON: String) -> String {
+        #"{"json":[2,0,[[\#(customerDataJSON)]]]}"# + "\n"
     }
 }

@@ -69,6 +69,8 @@ public struct T3ChatUsageSnapshot: Sendable {
     public func toUsageSnapshot() -> UsageSnapshot {
         let baseReset = Self.date(fromMilliseconds: self.customerData.usageFourHourNextResetAt)
             ?? Self.date(fromMilliseconds: self.customerData.usageWindowNextResetAt)
+        // billingNextResetAt tracks the usage window reset, not the overage billing period.
+        // If subscription metadata is absent, leave the overage reset unknown instead of showing the base reset.
         let overageReset = Self.date(fromMilliseconds: self.customerData.subscription?.currentPeriodEnd)
 
         let primary = RateWindow(
