@@ -5,6 +5,26 @@ import Testing
 @Suite(.serialized)
 struct CodexUsageFetcherFallbackTests {
     @Test
+    func `missing CLI binary reports install guidance instead of not running`() async throws {
+        let fetcher = UsageFetcher(
+            environment: [:],
+            initializeTimeoutSeconds: 0.1,
+            requestTimeoutSeconds: 0.1,
+            codexExecutableResolver: { _, _ in nil })
+
+        do {
+            _ = try await fetcher.loadLatestCLIAccountSnapshot()
+            Issue.record("Expected missing Codex CLI to throw")
+        } catch CodexStatusProbeError.codexNotInstalled {
+            let message = CodexStatusProbeError.codexNotInstalled.localizedDescription
+            #expect(message.contains("Codex CLI missing"))
+            #expect(!message.contains("Codex not running"))
+        } catch {
+            Issue.record("Expected CodexStatusProbeError.codexNotInstalled, got \(type(of: error)): \(error)")
+        }
+    }
+
+    @Test
     func `CLI usage recovers from RPC decode mismatch body payload`() {
         let snapshot = UsageFetcher._recoverCodexRPCUsageFromErrorForTesting(
             Self.decodeMismatchBodyMessage)

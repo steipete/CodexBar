@@ -82,4 +82,39 @@ struct LLMProxyUsageFetcherTests {
                 ._quotaStatsURLForTesting(baseURL: #require(URL(string: "https://proxy.example.com/v1")))
                 .absoluteString == "https://proxy.example.com/v1/quota-stats")
     }
+
+    @Test
+    func `parses fractional second quota reset times`() throws {
+        let json = """
+        {
+          "providers": {
+            "openai": {
+              "quota_groups": [
+                {
+                  "remaining_percent": 42,
+                  "reset_time": "2026-05-18T12:00:00.123Z"
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let parsed = try LLMProxyUsageFetcher._parseSnapshotForTesting(
+            Data(json.utf8),
+            updatedAt: Date(timeIntervalSince1970: 1))
+        let components = DateComponents(
+            calendar: Calendar(identifier: .gregorian),
+            timeZone: TimeZone(secondsFromGMT: 0),
+            year: 2026,
+            month: 5,
+            day: 18,
+            hour: 12,
+            minute: 0,
+            second: 0,
+            nanosecond: 123_000_000)
+        let expected = try #require(components.date)
+
+        #expect(try abs(#require(parsed.nextResetAt).timeIntervalSince(expected)) < 0.001)
+    }
 }

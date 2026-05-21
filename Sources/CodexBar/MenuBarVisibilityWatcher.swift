@@ -45,6 +45,8 @@ enum MenuBarVisibilityWatcher {
     static let guidanceRepeatInterval: TimeInterval = 24 * 60 * 60
     static let startupFreshnessInterval: TimeInterval = 10
     static let startupCheckDelay: TimeInterval = 2
+    static let screenChangeCheckDelay: Duration = .milliseconds(750)
+    static let screenChangeFollowUpDelay: Duration = .seconds(2)
     static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.MenuBarSettings")!
 
     @MainActor
@@ -234,7 +236,7 @@ extension StatusItemController {
         self.screenChangeVisibilityTask?.cancel()
         self.screenChangeVisibilityTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(750))
+                try await Task.sleep(for: MenuBarVisibilityWatcher.screenChangeCheckDelay)
             } catch {
                 return
             }
@@ -246,10 +248,12 @@ extension StatusItemController {
 
     private func checkScreenChangeStatusItemVisibility(previousScreenCount: Int, currentScreenCount: Int) {
         self.pendingScreenChangePreviousCount = nil
+        let settledCurrentScreenCount = NSScreen.screens.count
+        self.lastKnownScreenCount = settledCurrentScreenCount
         let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
         guard MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
             previousScreenCount: previousScreenCount,
-            currentScreenCount: currentScreenCount,
+            currentScreenCount: settledCurrentScreenCount,
             snapshots: snapshots)
         else {
             return
@@ -259,9 +263,32 @@ extension StatusItemController {
             "Display configuration changed; recreating status items",
             metadata: [
                 "previousScreenCount": "\(previousScreenCount)",
-                "currentScreenCount": "\(currentScreenCount)",
+                "currentScreenCount": "\(settledCurrentScreenCount)",
+                "capturedScreenCount": "\(currentScreenCount)",
                 "snapshots": snapshots.map(\.description).joined(separator: " | "),
             ])
+        self.recreateStatusItemsForVisibilityRecovery()
+        self.schedulePostScreenChangeRecoveryVerification()
+    }
+
+    private func schedulePostScreenChangeRecoveryVerification() {
+        self.screenChangeVisibilityTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: MenuBarVisibilityWatcher.screenChangeFollowUpDelay)
+            } catch {
+                return
+            }
+            self?.verifyScreenChangeRecoveryIfNeeded()
+        }
+    }
+
+    private func verifyScreenChangeRecoveryIfNeeded() {
+        let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
+        guard MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(snapshots) else { return }
+
+        self.menuLogger.error(
+            "Status item still blocked after display-change recovery; recreating status items again",
+            metadata: ["snapshots": snapshots.map(\.description).joined(separator: " | ")])
         self.recreateStatusItemsForVisibilityRecovery()
     }
 

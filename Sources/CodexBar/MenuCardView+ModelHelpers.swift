@@ -30,6 +30,10 @@ extension UsageMenuCardView.Model {
     }
 
     static func progressColor(for provider: UsageProvider) -> Color {
+        if provider == .elevenlabs {
+            return Color(nsColor: .labelColor)
+        }
+
         let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
         return Color(red: color.red, green: color.green, blue: color.blue)
     }

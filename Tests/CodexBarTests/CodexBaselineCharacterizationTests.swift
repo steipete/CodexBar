@@ -66,6 +66,7 @@ struct CodexBaselineCharacterizationTests {
         if counter:
             with open(counter, "a") as f:
                 f.write("start\\n")
+        credits_only = os.environ.get("CODEXBAR_STUB_CREDITS_ONLY") == "1"
 
         for line in sys.stdin:
             if not line.strip():
@@ -79,26 +80,28 @@ struct CodexBaselineCharacterizationTests {
             if method == "initialize":
                 payload = {"id": identifier, "result": {}}
             elif method == "account/rateLimits/read":
+                rate_limits = {
+                    "credits": {
+                        "hasCredits": True,
+                        "unlimited": False,
+                        "balance": "7"
+                    }
+                }
+                if not credits_only:
+                    rate_limits["primary"] = {
+                        "usedPercent": 12,
+                        "windowDurationMins": 300,
+                        "resetsAt": 1766948068
+                    }
+                    rate_limits["secondary"] = {
+                        "usedPercent": 43,
+                        "windowDurationMins": 10080,
+                        "resetsAt": 1767407914
+                    }
                 payload = {
                     "id": identifier,
                     "result": {
-                        "rateLimits": {
-                            "primary": {
-                                "usedPercent": 12,
-                                "windowDurationMins": 300,
-                                "resetsAt": 1766948068
-                            },
-                            "secondary": {
-                                "usedPercent": 43,
-                                "windowDurationMins": 10080,
-                                "resetsAt": 1767407914
-                            },
-                            "credits": {
-                                "hasCredits": True,
-                                "unlimited": False,
-                                "balance": "7"
-                            }
-                        }
+                        "rateLimits": rate_limits
                     }
                 }
             elif method == "account/read":
@@ -271,6 +274,31 @@ struct CodexBaselineCharacterizationTests {
             .split(whereSeparator: \.isNewline)
             .count ?? 0
         #expect(count == 1)
+    }
+
+    @Test
+    func `Codex CLI strategy keeps credits when rate limit windows are absent`() async throws {
+        let stubCLIPath = try self.makeStubCodexCLI()
+        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+
+        let outcome = await self.fetchOutcome(
+            runtime: .app,
+            sourceMode: .cli,
+            env: [
+                "CODEX_CLI_PATH": stubCLIPath,
+                "CODEXBAR_STUB_CREDITS_ONLY": "1",
+            ],
+            includeCredits: true)
+
+        switch outcome.result {
+        case let .success(result):
+            #expect(result.sourceLabel == "codex-cli")
+            #expect(result.usage.primary == nil)
+            #expect(result.usage.secondary == nil)
+            #expect(result.credits?.remaining == 7)
+        case let .failure(error):
+            Issue.record("Unexpected failure: \(error)")
+        }
     }
 
     @Test

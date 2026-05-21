@@ -5,15 +5,37 @@ import Testing
 
 private final class RefreshShortcutRecorder: StatusItemMenuPersistentActionDelegate {
     var refreshCount = 0
+    var settingsCount = 0
+    var quitCount = 0
     var navigationDirections: [StatusItemMenuProviderNavigationDirection] = []
 
     func performPersistentRefreshAction() {
         self.refreshCount += 1
     }
 
+    func performPersistentSettingsAction() {
+        self.settingsCount += 1
+    }
+
+    func performPersistentQuitAction() {
+        self.quitCount += 1
+    }
+
     func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection) {
         self.navigationDirections.append(direction)
     }
+}
+
+@MainActor
+private final class UpdateReadyUpdater: UpdaterProviding {
+    var automaticallyChecksForUpdates = false
+    var automaticallyDownloadsUpdates = false
+    let isAvailable = true
+    let unavailableReason: String? = nil
+    let updateStatus = UpdateStatus(isUpdateReady: true)
+
+    func checkForUpdates(_: Any?) {}
+    func installUpdate() {}
 }
 
 @MainActor
@@ -31,21 +53,28 @@ struct StatusMenuPersistentRefreshTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
+    private func makeController(
+        settings: SettingsStore,
+        updater: UpdaterProviding = DisabledUpdaterController()) -> StatusItemController
+    {
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        return StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: updater,
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+    }
+
     @Test
     func `refresh menu item is view backed so mouse activation keeps the menu open`() throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
 
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
+        let controller = self.makeController(settings: settings)
 
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
@@ -59,14 +88,64 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `refresh menu item view keeps fixed metrics while highlighted`() {
-        let view = PersistentMenuActionItemView(
-            title: "Refresh",
-            systemImageName: "arrow.clockwise",
-            shortcutText: "⌘R",
-            width: 320,
-            onClick: {})
+    func `meta menu actions use the same stable row implementation`() throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
 
+        let controller = self.makeController(settings: settings, updater: UpdateReadyUpdater())
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        for title in ["Update ready, restart now?", "Refresh", "Settings...", "About CodexBar", "Quit"] {
+            let item = try #require(menu.items.first { $0.title == title })
+            #expect(item.view is PersistentMenuActionItemView)
+            #expect(item.view?.frame.height == PersistentMenuActionItemView.rowHeight)
+            if title == "Refresh" {
+                #expect(item.action == nil)
+                #expect(item.target == nil)
+            } else {
+                #expect(item.action != nil)
+                #expect(item.target === controller)
+            }
+        }
+    }
+
+    @Test
+    func `refresh menu item view keeps fixed metrics while highlighted`() {
+        let views = [
+            PersistentMenuActionItemView(
+                title: "Refresh",
+                systemImageName: "arrow.clockwise",
+                shortcutText: "⌘R",
+                width: 320,
+                onClick: {}),
+            PersistentMenuActionItemView(
+                title: "Settings...",
+                systemImageName: "gearshape",
+                shortcutText: "⌘,",
+                width: 320,
+                onClick: {}),
+            PersistentMenuActionItemView(
+                title: "About CodexBar",
+                systemImageName: "info.circle",
+                shortcutText: nil,
+                width: 320,
+                onClick: {}),
+            PersistentMenuActionItemView(
+                title: "Quit",
+                systemImageName: nil,
+                shortcutText: nil,
+                width: 320,
+                onClick: {}),
+        ]
+
+        for view in views {
+            self.assertStableMetrics(view)
+        }
+    }
+
+    private func assertStableMetrics(_ view: PersistentMenuActionItemView) {
         #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
         #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
         #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
@@ -87,23 +166,31 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `status item menu intercepts refresh shortcut without native item selection`() throws {
+    func `status item menu intercepts persistent shortcuts without native item selection`() throws {
         let menu = StatusItemMenu()
         let recorder = RefreshShortcutRecorder()
         menu.persistentActionDelegate = recorder
-        let event = try #require(NSEvent.keyEvent(
+
+        #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)) == true)
+        #expect(try menu.performKeyEquivalent(with: self.keyEvent(",", keyCode: 43)) == true)
+        #expect(try menu.performKeyEquivalent(with: self.keyEvent("q", keyCode: 12)) == true)
+
+        #expect(recorder.refreshCount == 1)
+        #expect(recorder.settingsCount == 1)
+        #expect(recorder.quitCount == 1)
+    }
+
+    private func keyEvent(_ characters: String, keyCode: UInt16) throws -> NSEvent {
+        try #require(NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
             modifierFlags: [.command],
             timestamp: 0,
             windowNumber: 0,
             context: nil,
-            characters: "r",
-            charactersIgnoringModifiers: "r",
+            characters: characters,
+            charactersIgnoringModifiers: characters,
             isARepeat: false,
-            keyCode: 15))
-
-        #expect(menu.performKeyEquivalent(with: event) == true)
-        #expect(recorder.refreshCount == 1)
+            keyCode: keyCode))
     }
 }

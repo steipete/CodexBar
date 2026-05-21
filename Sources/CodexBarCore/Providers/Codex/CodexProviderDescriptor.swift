@@ -115,7 +115,20 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let snapshot = try await context.fetcher.loadLatestCLIAccountSnapshot()
-        guard let usage = snapshot.usage else { throw UsageError.noRateLimitsFound }
+        guard let usage = snapshot.usage else {
+            guard context.includeCredits, let credits = snapshot.credits else {
+                throw UsageError.noRateLimitsFound
+            }
+            // Credits refresh can succeed even when RPC omits rate-limit windows.
+            return self.makeResult(
+                usage: UsageSnapshot(
+                    primary: nil,
+                    secondary: nil,
+                    updatedAt: credits.updatedAt,
+                    identity: nil),
+                credits: credits,
+                sourceLabel: "codex-cli")
+        }
         let credits = context.includeCredits ? snapshot.credits : nil
         return self.makeResult(
             usage: usage,

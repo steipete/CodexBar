@@ -193,8 +193,6 @@
 "OK" = "OK";
 "Obscure email addresses in the menu bar and menu UI." = "Oculta endereços de e-mail na barra de menus e na UI do menu.";
 "Off" = "Desligado";
-"Off-peak" = "Fora do pico";
-"Off-peak · peak in \\(self.formatDuration(minutes: minutes))" = "Fora do pico · pico em \\(self.formatDuration(minutes: minutes))";
 "Offline" = "Offline";
 "On" = "Ligado";
 "Online" = "Online";
@@ -231,7 +229,6 @@
 "Paste sessionKey or OAuth token…" = "Cole sessionKey ou token OAuth…";
 "Paste the Cookie header from a request to admin.mistral.ai. " = "Cole o cabeçalho Cookie de uma requisição para admin.mistral.ai. ";
 "Paste token…" = "Cole o token…";
-"Peak · ends in \\(self.formatDuration(minutes: remaining))" = "Pico · termina em \\(self.formatDuration(minutes: remaining))";
 "Personal" = "Pessoal";
 "Picker" = "Seletor";
 "Picker subtitle" = "Subtítulo do seletor";
@@ -278,11 +275,9 @@
 "Show credits + extra usage" = "Mostrar créditos + uso extra";
 "Show details" = "Mostrar detalhes";
 "Show most-used provider" = "Mostrar provedor mais usado";
-"Show peak hours indicator" = "Mostrar indicador de horário de pico";
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Mostra ícones dos provedores no alternador (caso contrário, mostra uma linha de progresso semanal).";
 "Show reset time as clock" = "Mostrar renovação como horário";
 "Show usage as used" = "Mostrar uso como consumido";
-"Show whether Claude is in peak usage hours." = "Mostra se o Claude está em horário de pico.";
 "Sign in via button below" = "Entre pelo botão abaixo";
 "Skip teardown between probes (debug-only)." = "Não encerra entre verificações (somente depuração).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Empilha contas de token no menu (caso contrário, mostra uma barra de alternância de contas).";
@@ -385,11 +380,8 @@
 "metric_secondary" = "Secundário (%@)";
 "metric_tertiary" = "Terciário (%@)";
 "multiple_workspaces_found" = "O CodexBar encontrou vários workspaces para %@. Escolha o workspace para adicionar.";
-"off_peak" = "Fora do pico";
-"off_peak_peak_in" = "Fora do pico · pico em %@";
 "ory_session_…=…; csrftoken=…" = "ory_session_…=…; csrftoken=…";
 "overview_choose_providers" = "Escolha até %@ provedores";
-"peak_ends_in" = "Pico termina em %@";
 "remove_account_message" = "Remover %@ do CodexBar? O diretório Codex gerenciado será apagado.";
 "version_format" = "Versão %@";
 "vertex_ai_login_instructions" = "Para acompanhar o uso do Vertex AI, autentique-se no Google Cloud.\n\n1. Abra o Terminal\n2. Execute: gcloud auth application-default login\n3. Siga os prompts no navegador para entrar\n4. Defina seu projeto: gcloud config set project PROJECT_ID\n\nAbrir o Terminal agora?";

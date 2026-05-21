@@ -15,6 +15,7 @@ private actor AntigravityCredentialUpdateCapture {
 }
 
 @Suite(.serialized)
+// swiftlint:disable:next type_body_length
 struct AntigravityRemoteUsageFetcherTests {
     @Test
     func `antigravity supports token accounts for quick account switching`() {
@@ -334,6 +335,180 @@ struct AntigravityRemoteUsageFetcherTests {
         #expect(usage.primary?.remainingPercent.rounded() == 50)
         #expect(usage.secondary?.remainingPercent.rounded() == 80)
         #expect(usage.tertiary?.remainingPercent.rounded() == 20)
+    }
+
+    @Test
+    func `remote fetch verifies full model quotas with quota endpoint`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeAntigravityCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "user@example.com"),
+            email: "user@example.com")
+
+        final class Counter: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = 0
+
+            func increment() {
+                self.lock.lock()
+                self.value += 1
+                self.lock.unlock()
+            }
+
+            func get() -> Int {
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                return self.value
+            }
+        }
+
+        let quotaCalls = Counter()
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+
+            switch host {
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistResponse(
+                            tierId: "standard-tier",
+                            projectId: "managed-project-123"))
+                }
+                if url.path == "/v1internal:fetchAvailableModels" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.jsonData([
+                            "models": [
+                                "claude-sonnet-4": [
+                                    "displayName": "Claude Sonnet 4",
+                                    "quotaInfo": ["remainingFraction": 1],
+                                ],
+                                "gemini-2.5-pro": [
+                                    "displayName": "Gemini 2.5 Pro",
+                                    "quotaInfo": ["remainingFraction": 1],
+                                ],
+                                "gemini-2.5-flash": [
+                                    "displayName": "Gemini 2.5 Flash",
+                                    "quotaInfo": ["remainingFraction": 1],
+                                ],
+                            ],
+                        ]))
+                }
+                if url.path == "/v1internal:retrieveUserQuota" {
+                    quotaCalls.increment()
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.jsonData([
+                            "buckets": [
+                                [
+                                    "modelId": "claude-sonnet-4",
+                                    "resetTime": "2025-01-01T00:00:00Z",
+                                ],
+                                [
+                                    "modelId": "gemini-2.5-pro",
+                                    "remainingFraction": 0.6,
+                                    "resetTime": "2025-01-01T00:00:00Z",
+                                ],
+                                [
+                                    "modelId": "gemini-2.5-flash",
+                                    "remainingFraction": 0.9,
+                                    "resetTime": "2025-01-01T00:00:00Z",
+                                ],
+                            ],
+                        ]))
+                }
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let snapshot = try await AntigravityRemoteUsageFetcher(
+            timeout: 1,
+            homeDirectory: env.homeURL.path,
+            dataLoader: dataLoader)
+            .fetch()
+        let usage = try snapshot.toUsageSnapshot()
+
+        #expect(quotaCalls.get() == 1)
+        #expect(usage.primary?.remainingPercent == 100.0)
+        #expect(usage.secondary?.remainingPercent == 60.0)
+        #expect(usage.tertiary?.remainingPercent == 90.0)
+    }
+
+    @Test
+    func `remote fetch keeps full model quotas when verification has no buckets`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeAntigravityCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "user@example.com"),
+            email: "user@example.com")
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+
+            switch host {
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistResponse(
+                            tierId: "standard-tier",
+                            projectId: "managed-project-123"))
+                }
+                if url.path == "/v1internal:fetchAvailableModels" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.jsonData([
+                            "models": [
+                                "claude-sonnet-4": [
+                                    "displayName": "Claude Sonnet 4",
+                                    "quotaInfo": ["remainingFraction": 1],
+                                ],
+                                "gemini-2.5-pro": [
+                                    "displayName": "Gemini 2.5 Pro",
+                                    "quotaInfo": ["remainingFraction": 1],
+                                ],
+                            ],
+                        ]))
+                }
+                if url.path == "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.jsonData(["buckets": []]))
+                }
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let snapshot = try await AntigravityRemoteUsageFetcher(
+            timeout: 1,
+            homeDirectory: env.homeURL.path,
+            dataLoader: dataLoader)
+            .fetch()
+        let usage = try snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.remainingPercent == 100.0)
+        #expect(usage.secondary?.remainingPercent == 100.0)
     }
 
     @Test

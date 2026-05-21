@@ -193,8 +193,6 @@
 "OK" = "D'acord";
 "Obscure email addresses in the menu bar and menu UI." = "Amaga les adreces de correu a la barra de menús i a la interfície del menú.";
 "Off" = "Desactivat";
-"Off-peak" = "Fora d'hora punta";
-"Off-peak · peak in \\(self.formatDuration(minutes: minutes))" = "Fora d'hora punta · hora punta d'aquí a \\(self.formatDuration(minutes: minutes))";
 "Offline" = "Sense connexió";
 "On" = "Activat";
 "Online" = "En línia";
@@ -231,7 +229,6 @@
 "Paste sessionKey or OAuth token…" = "Enganxa la sessionKey o el testimoni OAuth…";
 "Paste the Cookie header from a request to admin.mistral.ai. " = "Enganxa la capçalera Cookie d'una petició a admin.mistral.ai. ";
 "Paste token…" = "Enganxa el testimoni…";
-"Peak · ends in \\(self.formatDuration(minutes: remaining))" = "Hora punta · acaba d'aquí a \\(self.formatDuration(minutes: remaining))";
 "Personal" = "Personal";
 "Picker" = "Selector";
 "Picker subtitle" = "Subtítol del selector";
@@ -278,11 +275,9 @@
 "Show credits + extra usage" = "Mostra crèdits + ús addicional";
 "Show details" = "Mostra els detalls";
 "Show most-used provider" = "Mostra el proveïdor més utilitzat";
-"Show peak hours indicator" = "Mostra l'indicador d'hores punta";
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Mostra les icones de proveïdor al selector (si no, mostra una línia de progrés setmanal).";
 "Show reset time as clock" = "Mostra l'hora de reinici com a rellotge";
 "Show usage as used" = "Mostra l'ús com a consumit";
-"Show whether Claude is in peak usage hours." = "Mostra si Claude està en hores punta d'ús.";
 "Sign in via button below" = "Inicia la sessió amb el botó de sota";
 "Skip teardown between probes (debug-only)." = "Omet el tancament entre sondeigs (només depuració).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Apila els comptes amb testimoni al menú (si no, mostra una barra de canvi de compte).";
@@ -385,11 +380,8 @@
 "metric_secondary" = "Secundari (%@)";
 "metric_tertiary" = "Terciari (%@)";
 "multiple_workspaces_found" = "El CodexBar ha trobat diversos espais de treball per a %@. Tria l'espai de treball que vols afegir.";
-"off_peak" = "Fora d'hora punta";
-"off_peak_peak_in" = "Fora d'hora punta · hora punta d'aquí a %@";
 "ory_session_…=…; csrftoken=…" = "ory_session_…=…; csrftoken=…";
 "overview_choose_providers" = "Tria fins a %@ proveïdors";
-"peak_ends_in" = "L'hora punta acaba d'aquí a %@";
 "remove_account_message" = "Vols eliminar %@ del CodexBar? El seu directori Codex gestionat s'esborrarà.";
 "version_format" = "Versió %@";
 "vertex_ai_login_instructions" = "Per fer un seguiment de l'ús de Vertex AI, autentica't amb Google Cloud.\n\n1. Obre el Terminal\n2. Executa: gcloud auth application-default login\n3. Segueix les indicacions del navegador per iniciar la sessió\n4. Defineix el teu projecte: gcloud config set project PROJECT_ID\n\nVols obrir el Terminal ara?";

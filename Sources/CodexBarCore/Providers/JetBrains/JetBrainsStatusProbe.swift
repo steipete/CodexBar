@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(FoundationXML)
+#if os(macOS) && canImport(FoundationXML)
 import FoundationXML
 #endif
 

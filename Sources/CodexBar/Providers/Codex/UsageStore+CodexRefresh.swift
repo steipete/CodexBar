@@ -101,7 +101,26 @@ extension UsageStore {
         if let override = self._test_codexCreditsLoaderOverride {
             return try await override()
         }
-        return try await self.codexCreditsFetcher().loadLatestCredits()
+        let descriptor = self.providerSpecs[.codex]?.descriptor ?? ProviderDescriptorRegistry.descriptor(for: .codex)
+        let context = self.makeFetchContext(provider: .codex, override: nil, includeCredits: true)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        var lastAvailableError: Error?
+
+        for strategy in strategies {
+            guard await strategy.isAvailable(context) else { continue }
+            do {
+                let result = try await strategy.fetch(context)
+                if let credits = result.credits {
+                    return credits
+                }
+                lastAvailableError = UsageError.noRateLimitsFound
+                guard context.sourceMode == .auto else { break }
+            } catch {
+                lastAvailableError = error
+                guard strategy.shouldFallback(on: error, context: context) else { break }
+            }
+        }
+        throw lastAvailableError ?? ProviderFetchError.noAvailableStrategy(.codex)
     }
 
     func waitForCodexSnapshot(minimumUpdatedAt: Date) async -> UsageSnapshot? {
