@@ -132,8 +132,11 @@ public enum AntigravityOAuthConfig {
 
     public static let missingCredentialsMessage =
         """
-        Antigravity OAuth client is not configured. Install Antigravity.app or set \
-        ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET before logging in.
+        CodexBar could not discover Antigravity.app's OAuth client. \
+        Please install Antigravity.app or set both ANTIGRAVITY_OAUTH_CLIENT_ID and \
+        ANTIGRAVITY_OAUTH_CLIENT_SECRET before logging in. \
+        If you are using the Antigravity CLI after migrating from Gemini CLI, note \
+        that the CLI alone may not provide the OAuth client metadata CodexBar needs.
         """
 
     public static func resolvedClient() -> AntigravityOAuthClient? {

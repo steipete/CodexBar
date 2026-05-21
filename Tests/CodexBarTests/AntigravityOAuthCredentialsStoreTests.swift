@@ -84,6 +84,15 @@ struct AntigravityOAuthCredentialsStoreTests {
                 applicationRoots: [root]) == standaloneClient)
     }
 
+    @Test
+    func `missing credentials message contains key diagnostic hints`() {
+        let msg = AntigravityOAuthConfig.missingCredentialsMessage
+        #expect(msg.contains("CodexBar could not discover Antigravity.app's OAuth client"))
+        #expect(msg.contains("ANTIGRAVITY_OAUTH_CLIENT_ID"))
+        #expect(msg.contains("ANTIGRAVITY_OAUTH_CLIENT_SECRET"))
+        #expect(msg.contains("Antigravity CLI after migrating from Gemini CLI"))
+    }
+
     private func writeAntigravityApp(
         named name: String,
         under root: URL,
