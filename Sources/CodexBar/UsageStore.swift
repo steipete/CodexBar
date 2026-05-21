@@ -180,6 +180,7 @@ final class UsageStore {
     @ObservationIgnored var lastCodexAccountScopedRefreshGuard: CodexAccountScopedRefreshGuard?
     @ObservationIgnored var lastKnownLiveSystemCodexEmail: String?
     @ObservationIgnored var openAIWebAccountDidChange: Bool = false
+    @ObservationIgnored var creditsRefreshTask: Task<Void, Never>?
     @ObservationIgnored var openAIDashboardRefreshTask: Task<Void, Never>?
     @ObservationIgnored var openAIDashboardRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTaskToken: UUID?
@@ -555,7 +556,13 @@ final class UsageStore {
                         group.addTask { await self.refreshStatus(provider) }
                     }
                 }
-                group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                if forceTokenUsage {
+                    group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                }
+            }
+
+            if !forceTokenUsage {
+                self.scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
             if forceTokenUsage {
@@ -587,9 +594,17 @@ final class UsageStore {
                 ])
             if shouldRefreshOpenAIWeb {
                 let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
-                await self.refreshOpenAIDashboardIfNeeded(
-                    force: forceTokenUsage,
-                    expectedGuard: codexDashboardGuard)
+                if forceTokenUsage {
+                    await self.refreshOpenAIDashboardIfNeeded(
+                        force: true,
+                        expectedGuard: codexDashboardGuard)
+                } else {
+                    Task { @MainActor [weak self] in
+                        await self?.refreshOpenAIDashboardIfNeeded(
+                            force: false,
+                            expectedGuard: codexDashboardGuard)
+                    }
+                }
             }
 
             if forceTokenUsage, self.openAIDashboardRequiresLogin {

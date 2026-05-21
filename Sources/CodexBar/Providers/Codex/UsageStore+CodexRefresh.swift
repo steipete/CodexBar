@@ -13,6 +13,21 @@ extension UsageStore {
         self.makeFetchContext(provider: .codex, override: nil).fetcher
     }
 
+    func scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) {
+        if let existing = self.creditsRefreshTask {
+            guard existing.isCancelled else { return }
+            self.creditsRefreshTask = nil
+        }
+
+        self.creditsRefreshTask = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.creditsRefreshTask = nil
+            }
+            await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
+        }
+    }
+
     func refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) async {
         guard self.isEnabled(.codex) else { return }
         var expectedGuard = self.currentCodexAccountScopedRefreshGuard()
