@@ -99,21 +99,6 @@ extension CodexBarCLI {
             }
         }
 
-        #if !os(macOS)
-        if let parsedSourceMode {
-            let requiresWeb = providerList.contains { selectedProvider in
-                Self.sourceModeRequiresWebSupport(parsedSourceMode, provider: selectedProvider)
-            }
-            if requiresWeb {
-                Self.exit(
-                    code: .failure,
-                    message: "Error: selected source requires web support and is only supported on macOS.",
-                    output: output,
-                    kind: .runtime)
-            }
-        }
-        #endif
-
         let browserDetection = BrowserDetection()
         let fetcher = UsageFetcher()
         let claudeFetcher = ClaudeUsageFetcher(browserDetection: browserDetection)
@@ -277,7 +262,12 @@ extension CodexBarCLI {
             account: account)
 
         #if !os(macOS)
-        if Self.sourceModeRequiresWebSupport(effectiveSourceMode, provider: provider) {
+        if Self.sourceModeRequiresWebSupport(
+            effectiveSourceMode,
+            provider: provider,
+            environment: env,
+            settings: settings)
+        {
             return Self.webSourceUnsupportedOutput(
                 provider: provider,
                 account: account?.label ?? codexVisibleAccount?.menuDisplayName,
@@ -459,8 +449,20 @@ extension CodexBarCLI {
         return output
     }
 
-    static func sourceModeRequiresWebSupport(_ sourceMode: ProviderSourceMode, provider: UsageProvider) -> Bool {
+    static func sourceModeRequiresWebSupport(
+        _ sourceMode: ProviderSourceMode,
+        provider: UsageProvider,
+        environment: [String: String]? = nil,
+        settings: ProviderSettingsSnapshot? = nil) -> Bool
+    {
         guard provider != .grok else {
+            return false
+        }
+        if provider == .ollama,
+           sourceMode == .auto,
+           settings?.ollama?.cookieSource == .off
+           || environment.map({ ProviderTokenResolver.ollamaToken(environment: $0) != nil }) == true
+        {
             return false
         }
         return switch sourceMode {

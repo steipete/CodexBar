@@ -4,6 +4,26 @@ import Testing
 
 @Suite(.serialized)
 struct OllamaUsageFetcherRetryMappingTests {
+    private func makeContext(
+        sourceMode: ProviderSourceMode,
+        env: [String: String] = [:],
+        settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext
+    {
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        return ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: sourceMode,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: env,
+            settings: settings,
+            fetcher: UsageFetcher(),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+    }
+
     @Test
     func `api key reader trims configured environment key`() {
         let token = OllamaAPISettingsReader.apiKey(environment: ["OLLAMA_API_KEY": " 'ollama-test' "])
@@ -24,6 +44,44 @@ struct OllamaUsageFetcherRetryMappingTests {
         #expect(usage.identity?.providerID == .ollama)
         #expect(usage.identity?.loginMethod == "API key")
         #expect(usage.updatedAt == now)
+    }
+
+    @Test
+    func `auto mode keeps web quota strategy before api key verification`() async {
+        let descriptor = OllamaProviderDescriptor.makeDescriptor()
+        let context = self.makeContext(
+            sourceMode: .auto,
+            env: ["OLLAMA_API_KEY": "ollama-test"],
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .auto, manualCookieHeader: nil)))
+
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+
+        #expect(strategies.map(\.id) == ["ollama.web", "ollama.api"])
+    }
+
+    @Test
+    func `auto mode uses api only when ollama cookies are off`() async {
+        let descriptor = OllamaProviderDescriptor.makeDescriptor()
+        let context = self.makeContext(
+            sourceMode: .auto,
+            env: ["OLLAMA_API_KEY": "ollama-test"],
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .off, manualCookieHeader: nil)))
+
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+
+        #expect(strategies.map(\.id) == ["ollama.api"])
+    }
+
+    @Test
+    func `web strategy falls back to api key in auto mode`() {
+        let context = self.makeContext(
+            sourceMode: .auto,
+            env: ["OLLAMA_API_KEY": "ollama-test"])
+        let strategy = OllamaStatusFetchStrategy()
+
+        #expect(strategy.shouldFallback(on: OllamaUsageError.parseFailed("missing"), context: context))
     }
 
     @Test

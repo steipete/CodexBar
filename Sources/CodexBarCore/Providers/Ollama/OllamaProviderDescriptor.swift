@@ -54,7 +54,7 @@ public enum OllamaProviderDescriptor {
             return [OllamaAPIFetchStrategy()]
         }
         if ProviderTokenResolver.ollamaToken(environment: context.env) != nil {
-            return [OllamaAPIFetchStrategy(), OllamaStatusFetchStrategy()]
+            return [OllamaStatusFetchStrategy(), OllamaAPIFetchStrategy()]
         }
         return [OllamaStatusFetchStrategy()]
     }
@@ -85,8 +85,9 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "web")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
+            && ProviderTokenResolver.ollamaToken(environment: context.env) != nil
     }
 
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
