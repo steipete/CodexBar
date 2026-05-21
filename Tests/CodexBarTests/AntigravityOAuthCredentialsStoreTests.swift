@@ -66,6 +66,19 @@ struct AntigravityOAuthCredentialsStoreTests {
         let extensionClient = AntigravityOAuthClient(
             clientID: self.googleClientID("extension"),
             clientSecret: self.googleClientSecret(repeating: "d"))
+        let staleClient = AntigravityOAuthClient(
+            clientID: self.googleClientID("stale"),
+            clientSecret: self.googleClientSecret(repeating: "e"))
+        try self.writeAntigravityApp(
+            named: "Antigravity IDE.app",
+            under: root,
+            bundleIdentifier: "com.google.antigravity-ide",
+            artifactRelativePath: "Contents/Resources/app/out/main.js",
+            artifactData: Data("""
+            out-build/vs/platform/cloudCode/common/oauthClient.js
+            clientId="\(staleClient.clientID)";
+            clientSecret="\(staleClient.clientSecret)";
+            """.utf8))
         var artifactData = Data([0xFF])
         artifactData.append(Data(
             """
