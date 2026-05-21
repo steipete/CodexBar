@@ -8,6 +8,7 @@
 - Localizations: add Spanish and Catalan language packs and fill missing localization keys (#1041). Thanks @seifreed!
 
 ### Fixed
+- Menu: restore full-width provider switcher quota bars and refresh them while the menu stays open (#1094). Thanks @bcharleson!
 - Codex: accept the first click in the account switcher inside menu popovers (#1079). Thanks @ptstory!
 - Codex/Claude: terminate PTY child process trees during probe cleanup so wrapper-launched CLI descendants do not linger after sessions finish (#1085). Thanks @mickobizzle!
 - MiniMax: exclude explicitly failed billing-history records from token charts and model/method totals (#1089). Thanks @Yuxin-Qiao!

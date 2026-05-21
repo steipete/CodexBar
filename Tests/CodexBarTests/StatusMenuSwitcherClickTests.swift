@@ -322,6 +322,129 @@ struct StatusMenuSwitcherClickTests {
         #expect(updatedHigh < initialHigh)
     }
 
+    @Test
+    func `switcher quota indicator renders zero remaining empty`() {
+        var grokRemaining = 50.0
+        let view = ProviderSwitcherView(
+            providers: [.claude, .grok],
+            selected: .provider(.claude),
+            includesOverview: false,
+            width: 180,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { provider in
+                switch provider {
+                case .claude:
+                    100
+                case .grok:
+                    grokRemaining
+                default:
+                    nil
+                }
+            },
+            onSelect: { _ in })
+
+        grokRemaining = 0
+        view.updateQuotaIndicators()
+        view.updateConstraintsForSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
+
+        let fillRatios = view._test_quotaIndicatorFillRatios()
+        let fillFrames = view._test_quotaIndicatorFillFrames()
+        #expect(fillRatios.last == 0)
+        #expect(fillFrames.last?.width == 0)
+    }
+
+    @Test
+    func `switcher quota indicator disappears when remaining becomes unavailable`() throws {
+        var grokRemaining: Double? = 50
+        let noQuotaView = ProviderSwitcherView(
+            providers: [.claude, .grok],
+            selected: .provider(.claude),
+            includesOverview: false,
+            width: 180,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { _ in })
+        let view = ProviderSwitcherView(
+            providers: [.claude, .grok],
+            selected: .provider(.claude),
+            includesOverview: false,
+            width: 180,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { provider in
+                switch provider {
+                case .claude:
+                    100
+                case .grok:
+                    grokRemaining
+                default:
+                    nil
+                }
+            },
+            onSelect: { _ in })
+        #expect(view._test_quotaIndicatorFillRatios().count == 2)
+        let noQuotaHeight = try #require(noQuotaView._test_buttonFittingSizes().last?.height)
+        let quotaHeight = try #require(view._test_buttonFittingSizes().last?.height)
+        #expect(quotaHeight > noQuotaHeight)
+
+        grokRemaining = nil
+        view.updateQuotaIndicators()
+
+        #expect(view._test_quotaIndicatorFillRatios().count == 1)
+        let removedQuotaHeight = try #require(view._test_buttonFittingSizes().last?.height)
+        #expect(removedQuotaHeight == noQuotaHeight)
+    }
+
+    @Test
+    func `text only switcher quota bars reserve title space`() throws {
+        let providers: [UsageProvider] = [.claude, .grok]
+        let textOnlyWithoutQuota = ProviderSwitcherView(
+            providers: providers,
+            selected: .provider(.claude),
+            includesOverview: false,
+            width: 180,
+            showsIcons: false,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { _ in })
+        let textOnlyWithQuota = ProviderSwitcherView(
+            providers: providers,
+            selected: .provider(.claude),
+            includesOverview: false,
+            width: 180,
+            showsIcons: false,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in 50 },
+            onSelect: { _ in })
+
+        let withoutQuotaHeight = try #require(textOnlyWithoutQuota._test_buttonFittingSizes().first?.height)
+        let withQuotaHeight = try #require(textOnlyWithQuota._test_buttonFittingSizes().first?.height)
+        #expect(withQuotaHeight > withoutQuotaHeight)
+    }
+
+    @Test
+    func `multi row switcher quota bars stay inside bounds`() {
+        let view = ProviderSwitcherView(
+            providers: [.codex, .claude, .cursor, .factory, .zai, .minimax, .alibaba],
+            selected: .provider(.codex),
+            includesOverview: true,
+            width: 300,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in 50 },
+            onSelect: { _ in })
+        view.updateConstraintsForSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
+
+        for frame in view._test_buttonFrames() {
+            #expect(frame.minY >= 0)
+            #expect(frame.maxY <= view.bounds.maxY)
+        }
+    }
+
     private static func arrowKeyEvent(keyCode: UInt16) throws -> NSEvent {
         try #require(NSEvent.keyEvent(
             with: .keyDown,

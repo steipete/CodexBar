@@ -14,10 +14,11 @@ final class ProviderSwitcherView: NSView {
         let title: String
     }
 
-    private struct QuotaIndicator {
+    fileprivate struct QuotaIndicator {
         let track: NSView
         let fill: NSView
         var fillWidthConstraint: NSLayoutConstraint
+        var fillRatio: CGFloat
     }
 
     private let segments: [Segment]
@@ -101,11 +102,7 @@ final class ProviderSwitcherView: NSView {
             maxAllowedSegmentWidth: initialMaxAllowedSegmentWidth,
             stackedIcons: self.stackedIcons)
         self.rowSpacing = self.stackedIcons ? 4 : 2
-        if self.stackedIcons && self.rowCount >= 3 {
-            self.rowHeight = 40
-        } else {
-            self.rowHeight = self.stackedIcons ? 36 : 30
-        }
+        self.rowHeight = Self.switcherRowHeight(stackedIcons: self.stackedIcons, rowCount: self.rowCount)
         let height: CGFloat = self.rowHeight * CGFloat(self.rowCount)
             + self.rowSpacing * CGFloat(max(0, self.rowCount - 1))
         self.preferredWidth = width
@@ -550,6 +547,15 @@ final class ProviderSwitcherView: NSView {
         return rows
     }
 
+    private static func switcherRowHeight(stackedIcons: Bool, rowCount: Int) -> CGFloat {
+        let baseRowHeight: CGFloat = if stackedIcons, rowCount >= 3 {
+            40
+        } else {
+            stackedIcons ? 36 : 30
+        }
+        return baseRowHeight + self.quotaIndicatorReservedHeight
+    }
+
     private static func switcherOuterPadding(for width: CGFloat, count: Int, minimumGap: CGFloat) -> CGFloat {
         // Align with the card's left/right content grid when possible.
         let preferred: CGFloat = 16
@@ -613,9 +619,10 @@ final class ProviderSwitcherView: NSView {
                 } else {
                     self.addQuotaIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
                 }
-            } else if let indicator = self.quotaIndicators[key] {
-                indicator.track.isHidden = true
-                indicator.fill.isHidden = true
+            } else if let indicator = self.quotaIndicators.removeValue(forKey: key) {
+                Self.applyQuotaBarContentInset(to: button, height: 0)
+                indicator.track.removeFromSuperview()
+                continue
             }
             self.updateQuotaIndicatorVisibility(for: button)
         }
@@ -654,6 +661,10 @@ final class ProviderSwitcherView: NSView {
         self.buttons.map(\.frame)
     }
 
+    func _test_buttonFittingSizes() -> [NSSize] {
+        self.buttons.map(\.fittingSize)
+    }
+
     func _test_setHoveredButtonTag(_ tag: Int?) {
         self.hoveredButtonTag = tag
         self.updateButtonStyles()
@@ -661,7 +672,13 @@ final class ProviderSwitcherView: NSView {
 
     func _test_quotaIndicatorFillRatios() -> [CGFloat] {
         self.buttons.compactMap { button in
-            self.quotaIndicators[ObjectIdentifier(button)]?.fillWidthConstraint.multiplier
+            self.quotaIndicators[ObjectIdentifier(button)]?.fillRatio
+        }
+    }
+
+    func _test_quotaIndicatorFillFrames() -> [NSRect] {
+        self.buttons.compactMap { button in
+            self.quotaIndicators[ObjectIdentifier(button)]?.fill.frame
         }
     }
     #endif
@@ -857,6 +874,19 @@ final class ProviderSwitcherView: NSView {
         return newImage
     }
 
+    private static func overviewIcon() -> NSImage {
+        if let symbol = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil) {
+            return symbol
+        }
+        return NSImage(size: NSSize(width: 16, height: 16))
+    }
+
+    private static func switcherTitle(for provider: UsageProvider) -> String {
+        ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+    }
+}
+
+extension ProviderSwitcherView {
     private func addQuotaIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {
         guard let remainingPercent else { return }
         Self.applyQuotaBarContentInset(to: view)
@@ -880,7 +910,7 @@ final class ProviderSwitcherView: NSView {
         track.addSubview(fill)
 
         let ratio = Self.quotaIndicatorRatio(remainingPercent: remainingPercent)
-        let fillWidthConstraint = fill.widthAnchor.constraint(equalTo: track.widthAnchor, multiplier: ratio)
+        let fillWidthConstraint = Self.quotaIndicatorFillWidthConstraint(fill: fill, track: track, ratio: ratio)
 
         NSLayoutConstraint.activate([
             track.leadingAnchor.constraint(
@@ -902,43 +932,49 @@ final class ProviderSwitcherView: NSView {
         self.quotaIndicators[ObjectIdentifier(view)] = QuotaIndicator(
             track: track,
             fill: fill,
-            fillWidthConstraint: fillWidthConstraint)
+            fillWidthConstraint: fillWidthConstraint,
+            fillRatio: ratio)
         self.updateQuotaIndicatorVisibility(for: view)
     }
 
-    private static func applyQuotaBarContentInset(to view: NSView) {
-        (view as? ProviderSwitcherToggleButton)?.setQuotaBarReservedHeight(self.quotaIndicatorReservedHeight)
+    fileprivate static func applyQuotaBarContentInset(
+        to view: NSView,
+        height: CGFloat = quotaIndicatorReservedHeight)
+    {
+        (view as? ProviderSwitcherToggleButton)?.setQuotaBarReservedHeight(height)
     }
 
     private func updateQuotaIndicatorVisibility(for view: NSView) {
         guard let indicator = self.quotaIndicators[ObjectIdentifier(view)] else { return }
         let isSelected = (view as? NSButton)?.state == .on
         indicator.track.isHidden = isSelected
-        indicator.fill.isHidden = isSelected
+        indicator.fill.isHidden = isSelected || indicator.fillRatio <= 0
     }
 
-    private static func updateQuotaIndicatorFill(
+    fileprivate static func updateQuotaIndicatorFill(
         indicator: inout QuotaIndicator,
         remainingPercent: Double,
         selection: ProviderSwitcherSelection)
     {
         let ratio = Self.quotaIndicatorRatio(remainingPercent: remainingPercent)
         indicator.fillWidthConstraint.isActive = false
-        let fillWidthConstraint = indicator.fill.widthAnchor.constraint(
-            equalTo: indicator.track.widthAnchor,
-            multiplier: ratio)
+        let fillWidthConstraint = Self.quotaIndicatorFillWidthConstraint(
+            fill: indicator.fill,
+            track: indicator.track,
+            ratio: ratio)
         fillWidthConstraint.isActive = true
         indicator.fillWidthConstraint = fillWidthConstraint
+        indicator.fillRatio = ratio
         indicator.fill.layer?.backgroundColor = Self.quotaIndicatorColor(
             for: selection,
             remainingPercent: remainingPercent).cgColor
         indicator.fill.layer?.cornerRadius = Self.quotaIndicatorHeight / 2
         indicator.fill.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner]
         indicator.track.isHidden = false
-        indicator.fill.isHidden = false
+        indicator.fill.isHidden = ratio <= 0
     }
 
-    private static func quotaIndicatorColor(
+    fileprivate static func quotaIndicatorColor(
         for selection: ProviderSwitcherSelection,
         remainingPercent _: Double) -> NSColor
     {
@@ -951,19 +987,20 @@ final class ProviderSwitcherView: NSView {
         }
     }
 
-    private static func quotaIndicatorRatio(remainingPercent: Double) -> CGFloat {
+    fileprivate static func quotaIndicatorRatio(remainingPercent: Double) -> CGFloat {
         CGFloat(max(0, min(1, remainingPercent / 100)))
     }
 
-    private static func overviewIcon() -> NSImage {
-        if let symbol = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil) {
-            return symbol
+    private static func quotaIndicatorFillWidthConstraint(
+        fill: NSView,
+        track: NSView,
+        ratio: CGFloat)
+        -> NSLayoutConstraint
+    {
+        guard ratio > 0 else {
+            return fill.widthAnchor.constraint(equalToConstant: 0)
         }
-        return NSImage(size: NSSize(width: 16, height: 16))
-    }
-
-    private static func switcherTitle(for provider: UsageProvider) -> String {
-        ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        return fill.widthAnchor.constraint(equalTo: track.widthAnchor, multiplier: ratio)
     }
 }
 
