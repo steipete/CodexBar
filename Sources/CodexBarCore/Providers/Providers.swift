@@ -11,6 +11,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case opencode
     case opencodego
     case alibaba
+    case alibabatokenplan
     case factory
     case gemini
     case antigravity

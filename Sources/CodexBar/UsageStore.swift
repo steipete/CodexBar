@@ -933,6 +933,7 @@ extension UsageStore {
         await AugmentStatusProbe.latestDumps()
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func debugLog(for provider: UsageProvider) async -> String {
         if let cached = self.probeLogs[provider], !cached.isEmpty {
             return cached
@@ -957,6 +958,8 @@ extension UsageStore {
         let ampCookieHeader = self.settings.ampCookieHeader
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
+        let alibabaTokenPlanCookieSource = self.settings.alibabaTokenPlanCookieSource
+        let alibabaTokenPlanCookieHeader = self.settings.alibabaTokenPlanCookieHeader
         let processEnvironment = self.environmentBase
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
@@ -978,6 +981,7 @@ extension UsageStore {
                 .antigravity: "Antigravity debug log not yet implemented",
                 .opencode: "OpenCode debug log not yet implemented",
                 .alibaba: "Alibaba Coding Plan debug log not yet implemented",
+                .alibabatokenplan: "Alibaba Token Plan debug log not yet implemented",
                 .factory: "Droid debug log not yet implemented",
                 .copilot: "Copilot debug log not yet implemented",
                 .manus: "Manus debug log not yet implemented",
@@ -1043,6 +1047,12 @@ extension UsageStore {
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "ALIBABA_CODING_PLAN_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
+                case .alibabatokenplan:
+                    return await Self.debugAlibabaTokenPlanLog(
+                        browserDetection: browserDetection,
+                        cookieSource: alibabaTokenPlanCookieSource,
+                        cookieHeader: alibabaTokenPlanCookieHeader,
+                        environment: processEnvironment)
                 case .augment:
                     return await Self.debugAugmentLog()
                 case .amp:
@@ -1377,6 +1387,21 @@ extension UsageStore {
             return await fetcher.debugRawProbe(
                 cookieHeaderOverride: manualHeader,
                 manualCookieMode: ollamaCookieSource == .manual)
+        }
+    }
+
+    private static func debugAlibabaTokenPlanLog(
+        browserDetection: BrowserDetection,
+        cookieSource: ProviderCookieSource,
+        cookieHeader: String,
+        environment: [String: String]) async -> String
+    {
+        await runWithTimeout(seconds: 20) {
+            await AlibabaTokenPlanDebugProbe.debugLog(
+                cookieSource: cookieSource,
+                manualCookieHeader: cookieHeader,
+                environment: environment,
+                browserDetection: browserDetection)
         }
     }
 

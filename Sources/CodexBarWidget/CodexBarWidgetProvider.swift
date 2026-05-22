@@ -57,6 +57,7 @@ enum ProviderChoice: String, AppEnum {
         case .claude: self = .claude
         case .gemini: self = .gemini
         case .alibaba: self = .alibaba
+        case .alibabatokenplan: return nil // Alibaba Token Plan not yet supported in widgets
         case .antigravity: self = .antigravity
         case .cursor: return nil // Cursor not yet supported in widgets
         case .opencode: self = .opencode

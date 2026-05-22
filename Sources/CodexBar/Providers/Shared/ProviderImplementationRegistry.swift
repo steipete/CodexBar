@@ -21,6 +21,7 @@ enum ProviderImplementationRegistry {
         case .opencode: OpenCodeProviderImplementation()
         case .opencodego: OpenCodeGoProviderImplementation()
         case .alibaba: AlibabaCodingPlanProviderImplementation()
+        case .alibabatokenplan: AlibabaTokenPlanProviderImplementation()
         case .factory: FactoryProviderImplementation()
         case .gemini: GeminiProviderImplementation()
         case .antigravity: AntigravityProviderImplementation()
