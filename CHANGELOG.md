@@ -3,9 +3,12 @@
 ## 0.28.1 — Unreleased
 
 ### Added
+- Alibaba Token Plan: add Bailian token-plan quota tracking via browser or manual cookies (#1098). Thanks @YanxinXue!
 - OpenCode: show workspace renewal dates for OpenCode and OpenCode Go usage windows (#1099). Thanks @Yuxin-Qiao!
 
 ### Fixed
+- Localization: improve Simplified Chinese settings and menu translations (#1059). Thanks @narallee!
+- Build scripts: derive the local development signing team ID from the certificate OU before falling back to the CN suffix (#1095).
 - Menu bar: keep retrying display-change recovery when macOS leaves status items detached from the current screen (#1077, #1088).
 - Codex: preserve last successful per-account quota snapshots when later network or DNS refreshes fail (#1097, #1101). Thanks @Yuxin-Qiao!
 
