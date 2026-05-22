@@ -40,6 +40,7 @@ final class CodexAccountPromotionTestContainer {
 
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(true, forKey: "providerDetectionCompleted")
         self.settings = SettingsStore(
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suiteName),
@@ -51,6 +52,7 @@ final class CodexAccountPromotionTestContainer {
         self.settings._test_managedCodexAccountStoreURL = self.managedStoreURL
         self.settings._test_liveSystemCodexAccount = nil
         self.settings._test_codexReconciliationEnvironment = self.baseEnvironment
+        self.settings.providerDetectionCompleted = true
         self.settings.refreshFrequency = .manual
         self.settings.codexCookieSource = .off
 
@@ -81,6 +83,7 @@ final class CodexAccountPromotionTestContainer {
         store: (any ManagedCodexAccountStoring)? = nil,
         liveAuthSwapper: (any CodexLiveAuthSwapping)? = nil,
         activeSourceWriter: (any CodexActiveSourceWriting)? = nil,
+        snapshotLoader: (any CodexAccountReconciliationSnapshotLoading)? = nil,
         accountScopedRefresher: (any CodexAccountScopedRefreshing)? = nil)
         -> CodexAccountPromotionService
     {
@@ -89,7 +92,8 @@ final class CodexAccountPromotionTestContainer {
             homeFactory: self.homeFactory,
             identityReader: self.identityReader,
             workspaceResolver: self.workspaceResolver,
-            snapshotLoader: SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: self.settings),
+            snapshotLoader: snapshotLoader
+                ?? SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: self.settings),
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             liveAuthSwapper: liveAuthSwapper ?? DefaultCodexLiveAuthSwapper(),
             activeSourceWriter: activeSourceWriter
@@ -102,11 +106,12 @@ final class CodexAccountPromotionTestContainer {
 
     func installDynamicCodexUsageLoader(usedPercent: Double = 12) {
         let baseSpec = self.usageStore.providerSpecs[.codex]!
+        let liveHomePath = self.liveHomeURL.path
+        let identityReader = self.identityReader
         self.usageStore
-            .providerSpecs[.codex] = makeCodexProviderSpec(baseSpec: baseSpec) { [settings = self.settings] in
-                let liveEmail = await MainActor.run {
-                    settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email ?? "unknown@example.com"
-                }
+            .providerSpecs[.codex] = makeCodexProviderSpec(baseSpec: baseSpec) {
+                let liveEmail = (try? identityReader.loadAccountIdentity(homePath: liveHomePath).email)
+                    ?? "unknown@example.com"
                 return UsageSnapshot(
                     primary: RateWindow(
                         usedPercent: usedPercent,
@@ -461,5 +466,27 @@ private struct StubManagedCodexWorkspaceResolver: ManagedCodexWorkspaceResolving
         providerAccountID: String) async -> CodexOpenAIWorkspaceIdentity?
     {
         self.identities[providerAccountID]
+    }
+}
+
+@MainActor
+struct StaticCodexAccountReconciliationSnapshotLoader: CodexAccountReconciliationSnapshotLoading {
+    let snapshot: CodexAccountReconciliationSnapshot
+
+    func loadSnapshot() -> CodexAccountReconciliationSnapshot {
+        self.snapshot
+    }
+}
+
+@MainActor
+final class ClosureCodexAccountScopedRefresher: CodexAccountScopedRefreshing {
+    private let onRefresh: @MainActor (Bool) async -> Void
+
+    init(onRefresh: @escaping @MainActor (Bool) async -> Void) {
+        self.onRefresh = onRefresh
+    }
+
+    func refreshCodexAccountScopedState(allowDisabled: Bool) async {
+        await self.onRefresh(allowDisabled)
     }
 }

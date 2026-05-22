@@ -1,5 +1,5 @@
 ---
-summary: "Ollama provider notes: settings scrape, cookie auth, and Cloud Usage parsing."
+summary: "Ollama provider notes: API key auth, settings scrape, cookie auth, and Cloud Usage parsing."
 read_when:
   - Adding or modifying the Ollama provider
   - Debugging Ollama cookie import or settings parsing
@@ -8,20 +8,24 @@ read_when:
 
 # Ollama Provider
 
-The Ollama provider scrapes the **Plan & Billing** page to extract Cloud Usage limits for session and weekly windows.
+The Ollama provider can verify Ollama Cloud API-key access and scrape the **Plan & Billing** page to extract Cloud
+Usage limits for session and weekly windows.
 
 ## Features
 
 - **Plan badge**: Reads the plan tier (Free/Pro/Max) from the Cloud Usage header.
 - **Session + weekly usage**: Parses the percent-used values shown in the usage bars.
 - **Reset timestamps**: Uses the `data-time` attribute on the “Resets in …” elements.
-- **Browser cookie auth**: No API keys required.
+- **API key auth**: Verifies direct `https://ollama.com/api` access with `OLLAMA_API_KEY` or a configured key.
+- **Browser cookie auth**: Required for Cloud Usage quota windows because Ollama does not expose those limits through
+  the documented API.
 
 ## Setup
 
 1. Open **Settings → Providers**.
 2. Enable **Ollama**.
-3. Leave **Cookie source** on **Auto** (recommended, imports Chrome cookies by default).
+3. For API-key mode, paste an API key from `https://ollama.com/settings/keys` or set `OLLAMA_API_KEY`.
+4. For quota bars, leave **Cookie source** on **Auto** (recommended, imports Chrome cookies by default).
 
 ### Manual cookie import (optional)
 
@@ -31,7 +35,8 @@ The Ollama provider scrapes the **Plan & Billing** page to extract Cloud Usage l
 
 ## How it works
 
-- Fetches `https://ollama.com/settings` using browser cookies.
+- API-key mode fetches `https://ollama.com/api/tags` with `Authorization: Bearer <key>` to verify Cloud API access.
+- Cookie mode fetches `https://ollama.com/settings` using browser cookies.
 - Parses:
   - Plan badge under **Cloud Usage**.
   - **Session usage** and **Weekly usage** percentages.

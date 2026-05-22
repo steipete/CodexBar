@@ -5,6 +5,7 @@
 "30d" = "30 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "托管 Codex 登录已在运行。请等待其完成后再添加 ";
 "API key" = "API 密钥";
+"API key limit" = "API 密钥限制";
 "API region" = "API 区域";
 "API token" = "API 词元";
 "API tokens" = "API 词元";
@@ -21,6 +22,8 @@
 "Animation pattern" = "动画模式";
 "Antigravity login is managed in the app" = "Antigravity 登录由应用管理";
 "Applies only to the Security.framework OAuth keychain reader." = "仅适用于 Security.framework OAuth 钥匙串读取器。";
+"Auth" = "认证";
+"Auto" = "自动";
 "Auto falls back to the next source if the preferred one fails." = "如果首选来源失败，自动回退到下一个来源。";
 "Auto uses API first, then falls back to CLI on auth failures." = "自动优先使用 API，认证失败时回退到 CLI。";
 "Auto-detect" = "自动检测";
@@ -79,7 +82,6 @@
 "Codex login failed" = "Codex 登录失败";
 "Codex login timed out" = "Codex 登录超时";
 "CodexBar Lifecycle Keepalive" = "CodexBar 生命周期保活";
-"CodexBar can't show its menu bar icon" = "CodexBar 无法显示菜单栏图标";
 "CodexBar could not read managed account storage. " = "CodexBar 无法读取托管账户存储。";
 "Configure…" = "配置…";
 "Connected" = "已连接";
@@ -109,7 +111,7 @@
 "Designs" = "设计";
 "Disable Keychain access" = "禁用钥匙串访问";
 "Disabled" = "已禁用";
-"Dismiss" = "关闭";
+"Disabled — no recent data" = "已禁用 — 无近期数据";
 "Disconnected" = "已断开连接";
 "Display" = "显示";
 "Display mode" = "显示模式";
@@ -156,6 +158,7 @@
 "Last \\(name) fetch failed:" = "上次获取 \\(name) 失败：";
 "Last \\(self.store.metadata(for: self.provider).displayName) fetch failed:" = "上次获取 \\(self.store.metadata(for: self.provider).displayName) 失败：";
 "Last attempt" = "上次尝试";
+"Limits not available" = "限制不可用";
 "Link" = "链接";
 "Loading animations" = "加载动画";
 "Loading…" = "加载中…";
@@ -180,6 +183,8 @@
 "No Codex accounts detected yet." = "未检测到 Codex 账户。";
 "No JetBrains IDE detected" = "未检测到 JetBrains IDE";
 "No cost history data." = "暂无费用历史数据。";
+"No usage yet" = "尚无用量";
+"Not fetched yet" = "尚未获取";
 "No credits history data." = "暂无额度历史数据。";
 "No data available" = "无可用数据";
 "No data yet" = "暂无数据";
@@ -193,8 +198,6 @@
 "OK" = "确定";
 "Obscure email addresses in the menu bar and menu UI." = "在菜单栏和菜单界面中隐藏电子邮件地址。";
 "Off" = "关闭";
-"Off-peak" = "非高峰";
-"Off-peak · peak in \\(self.formatDuration(minutes: minutes))" = "非高峰 · \\(self.formatDuration(minutes: minutes)) 后进入高峰";
 "Offline" = "离线";
 "On" = "开启";
 "Online" = "在线";
@@ -208,7 +211,6 @@
 "Open Console" = "打开控制台";
 "Open Dashboard" = "打开仪表盘";
 "Open Mistral Admin" = "打开 Mistral 管理后台";
-"Open Menu Bar Settings" = "打开菜单栏设置";
 "Open Ollama Settings" = "打开 Ollama 设置";
 "Open Terminal" = "打开终端";
 "Open Usage Page" = "打开用量页面";
@@ -231,7 +233,6 @@
 "Paste sessionKey or OAuth token…" = "粘贴 sessionKey 或 OAuth 令牌…";
 "Paste the Cookie header from a request to admin.mistral.ai. " = "粘贴发往 admin.mistral.ai 请求中的 Cookie 标头。";
 "Paste token…" = "粘贴令牌…";
-"Peak · ends in \\(self.formatDuration(minutes: remaining))" = "高峰 · \\(self.formatDuration(minutes: remaining)) 后结束";
 "Personal" = "个人";
 "Picker" = "选择器";
 "Picker subtitle" = "选择器副标题";
@@ -251,6 +252,7 @@
 "Random (default)" = "随机（默认）";
 "Reads local usage logs. Shows today + last 30 days cost in the menu." = "读取本地用量日志。在菜单中显示今天及所选历史窗口的费用。";
 "Refresh" = "刷新";
+"Refreshing" = "正在刷新";
 "Refresh cadence" = "刷新频率";
 "Remote" = "远程";
 "Remove" = "移除";
@@ -268,6 +270,7 @@
 "Secondary (\\(metadata.weeklyLabel))" = "次要（\\(metadata.weeklyLabel)）";
 "Select a provider" = "选择一个提供商";
 "Select the IDE to monitor" = "选择要监控的 IDE";
+"Session" = "会话";
 "Session quota notifications" = "会话配额通知";
 "Session tokens" = "会话令牌";
 "Settings" = "设置";
@@ -278,15 +281,15 @@
 "Show credits + extra usage" = "显示额度 + 额外用量";
 "Show details" = "显示详情";
 "Show most-used provider" = "显示用量最高的提供商";
-"Show peak hours indicator" = "显示高峰时段指示器";
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "在切换器中显示提供商图标（否则显示每周进度线）。";
 "Show reset time as clock" = "将重置时间显示为时钟";
 "Show usage as used" = "显示已使用用量";
-"Show whether Claude is in peak usage hours." = "显示 Claude 是否处于高峰使用时段。";
 "Sign in via button below" = "通过下方按钮登录";
 "Skip teardown between probes (debug-only)." = "探测之间跳过清理（仅限调试）。";
+"Source" = "来源";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "在菜单中堆叠令牌账户（否则显示账户切换栏）。";
 "Start at Login" = "开机启动";
+"State" = "状态";
 "Status" = "状态";
 "Store Claude sessionKey cookies or OAuth access tokens." = "存储 Claude sessionKey Cookie 或 OAuth 访问令牌。";
 "Store multiple Abacus AI Cookie headers." = "存储多个 Abacus AI Cookie 标头。";
@@ -322,6 +325,7 @@
 "True" = "真";
 "Twitter" = "Twitter";
 "Unsupported" = "不支持";
+"Unavailable" = "不可用";
 "Update Channel" = "更新频道";
 "Updated" = "已更新";
 "Updates unavailable in this build." = "此构建中更新不可用。";
@@ -340,6 +344,7 @@
 "Wait for the current managed Codex login to finish before adding another account." = "请等待当前托管 Codex 登录完成后再添加其他账户。";
 "Waiting for Authentication..." = "等待认证…";
 "Website" = "网站";
+"Weekly" = "每周";
 "Weekly limit confetti" = "每周限制彩纸";
 "Weekly token limit" = "每周词元限制";
 "Weekly usage" = "每周用量";
@@ -347,6 +352,7 @@
 "Window: \\(window)" = "窗口：\\(window)";
 "Write logs to \\(self.fileLogPath) for debugging." = "将日志写入 \\(self.fileLogPath) 以进行调试。";
 "Yes" = "是";
+"not detected" = "未检测到";
 "\\(detail.modelCode): \\(usage)" = "\\(detail.modelCode)：\\(usage)";
 "\\(name): \\(truncated)" = "\\(name)：\\(truncated)";
 "\\(name): \\(updated) · 30d \\(cost)" = "\\(name)：\\(updated) · 30 天 \\(cost)";
@@ -358,10 +364,8 @@
 "available again." = "可用时发送通知。";
 "built_format" = "构建于 %@";
 "copilot_complete_in_browser" = "请在浏览器中完成登录。";
-"copilot_device_code" = "设备代码已复制到剪贴板：%1$@\n\n请在以下地址验证：%2$@";
 "copilot_device_code_copied" = "设备代码已复制。";
 "copilot_verify_at" = "请在 %@ 验证";
-"copilot_waiting_text" = "请在浏览器中完成登录。\n登录完成后，此窗口会自动关闭。";
 "copilot_window_closes_auto" = "登录完成后，此窗口会自动关闭。";
 "cost_status_error" = "%1$@：%2$@";
 "cost_status_fetching" = "%1$@：获取中… %2$@";
@@ -385,18 +389,12 @@
 "metric_secondary" = "次要（%@）";
 "metric_tertiary" = "第三（%@）";
 "multiple_workspaces_found" = "CodexBar 发现 %@ 有多个工作区。请选择要添加的工作区。";
-"off_peak" = "非高峰";
-"off_peak_peak_in" = "非高峰 · %@ 后进入高峰";
 "ory_session_…=…; csrftoken=…" = "ory_session_…=…; csrftoken=…";
 "overview_choose_providers" = "最多选择 %@ 个提供商";
-"peak_ends_in" = "高峰 · %@ 后结束";
 "remove_account_message" = "要从 CodexBar 中移除 %@ 吗？其托管的 Codex 主目录将被删除。";
 "version_format" = "版本 %@";
-"vertex_ai_login_instructions" = "要跟踪 Vertex AI 用量，请通过 Google Cloud 进行认证。\n\n1. 打开终端\n2. 运行：gcloud auth application-default login\n3. 按照浏览器提示登录\n4. 设置你的项目：gcloud config set project PROJECT_ID\n\n是否现在打开终端？";
 "workspaceID is set but only opencode, opencodego, and deepgram support workspaceID." = "已设置 workspaceID，但只有 opencode、opencodego 和 deepgram 支持 workspaceID。";
 "© 2026 Peter Steinberger. MIT License." = "© 2026 Peter Steinberger。MIT 许可证。";
-
-/* General Pane */
 "section_system" = "系统";
 "section_usage" = "用量";
 "section_automation" = "自动化";
@@ -442,16 +440,12 @@
 "quota_warning_lower" = "下限";
 "apply" = "应用";
 "quit_app" = "退出 CodexBar";
-
-/* Tab titles */
 "tab_general" = "通用";
 "tab_providers" = "提供商";
 "tab_display" = "显示";
 "tab_advanced" = "高级";
 "tab_about" = "关于";
 "tab_debug" = "调试";
-
-/* Providers Pane */
 "select_a_provider" = "选择一个提供商";
 "cancel" = "取消";
 "last_fetch_failed" = "上次获取失败";
@@ -472,8 +466,6 @@
 "menu_bar_metric_subtitle_kimik2" = "在菜单栏显示 Kimi K2 API 密钥额度。";
 "automatic" = "自动";
 "primary_api_key_limit" = "主要（API 密钥限制）";
-
-/* Display Pane */
 "section_menu_bar" = "菜单栏";
 "merge_icons_title" = "合并图标";
 "merge_icons_subtitle" = "使用单个菜单栏图标并带提供商切换器。";
@@ -508,8 +500,6 @@
 "overview_no_providers_hint" = "“概览”中没有可用的已启用提供商。";
 "overview_rows_follow_order" = "概览行始终遵循提供商顺序。";
 "overview_no_providers_selected" = "未选择提供商";
-
-/* Advanced Pane */
 "section_keyboard_shortcut" = "快捷键";
 "open_menu_shortcut_title" = "打开菜单";
 "open_menu_shortcut_subtitle" = "从任意位置触发菜单栏菜单。";
@@ -531,8 +521,6 @@
 "keychain_access_caption" = "禁用所有钥匙串读写。浏览器 Cookie 导入不可用；请在“提供商”中手动粘贴 Cookie 标头。";
 "disable_keychain_access_title" = "禁用钥匙串访问";
 "disable_keychain_access_subtitle" = "启用时阻止任何钥匙串访问。";
-
-/* About Pane */
 "about_tagline" = "愿你的词元永不耗尽——随时关注智能体限制。";
 "link_github" = "GitHub";
 "link_website" = "网站";
@@ -543,8 +531,6 @@
 "check_for_updates" = "检查更新…";
 "updates_unavailable" = "此构建中更新不可用。";
 "copyright" = "© 2026 Peter Steinberger。MIT 许可证。";
-
-/* Debug Pane */
 "section_logging" = "日志";
 "enable_file_logging" = "启用文件日志";
 "enable_file_logging_subtitle" = "将日志写入 %@ 以进行调试。";
@@ -600,43 +586,45 @@
 "login_shell_path" = "登录 shell PATH（启动时捕获）";
 "cleared" = "已清除。";
 "no_fetch_attempts" = "尚无获取尝试。";
-"macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe 可能会在“系统设置”→“菜单栏”→“允许显示在菜单栏”中阻止菜单栏应用。CodexBar 正在运行，但 macOS 可能隐藏了它的图标。请打开菜单栏设置并启用 CodexBar。";
-
-/* Metric preferences */
 "metric_pref_automatic" = "自动";
 "metric_pref_primary" = "主要";
 "metric_pref_secondary" = "次要";
 "metric_pref_tertiary" = "第三";
 "metric_pref_extra_usage" = "额外用量";
 "metric_pref_average" = "平均";
-
-/* Display modes */
 "display_mode_percent" = "百分比";
 "display_mode_pace" = "进度";
 "display_mode_both" = "两者";
 "display_mode_percent_desc" = "显示剩余/已使用百分比（例如 45%）";
 "display_mode_pace_desc" = "显示进度指示器（例如 +5%）";
 "display_mode_both_desc" = "同时显示百分比和进度（例如 45% · +5%）";
-
-/* Provider status */
 "status_operational" = "正常运行";
 "status_partial_outage" = "部分中断";
 "status_major_outage" = "重大中断";
 "status_critical_issue" = "严重问题";
 "status_maintenance" = "维护中";
 "status_unknown" = "状态未知";
-
-/* Refresh frequency */
 "refresh_manual" = "手动";
 "refresh_1min" = "1 分钟";
 "refresh_2min" = "2 分钟";
 "refresh_5min" = "5 分钟";
 "refresh_15min" = "15 分钟";
 "refresh_30min" = "30 分钟";
-
-/* Additional keys */
 "not_found" = "未找到";
-
-/* Cost estimation */
+"CodexBar can't show its menu bar icon" = "CodexBar 无法显示菜单栏图标";
+"Dismiss" = "关闭";
+"Open Menu Bar Settings" = "打开菜单栏设置";
+"macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe 可能会在“系统设置”→“菜单栏”→“允许显示在菜单栏”中阻止菜单栏应用。CodexBar 正在运行，但 macOS 可能隐藏了它的图标。请打开菜单栏设置并启用 CodexBar。";
 "cost_header_estimated" = "费用（估算）";
 "cost_estimate_hint" = "根据本地日志估算 · 可能与账单不同";
+"Off-peak" = "非高峰";
+"Off-peak · peak in \\(self.formatDuration(minutes: minutes))" = "非高峰 · \\(self.formatDuration(minutes: minutes)) 后进入高峰";
+"Peak · ends in \\(self.formatDuration(minutes: remaining))" = "高峰 · \\(self.formatDuration(minutes: remaining)) 后结束";
+"Show peak hours indicator" = "显示高峰时段指示器";
+"Show whether Claude is in peak usage hours." = "显示 Claude 是否处于高峰使用时段。";
+"copilot_device_code" = "设备代码已复制到剪贴板：%1$@\n\n请在以下地址验证：%2$@";
+"copilot_waiting_text" = "请在浏览器中完成登录。\n登录完成后，此窗口会自动关闭。";
+"off_peak" = "非高峰";
+"off_peak_peak_in" = "非高峰 · %@ 后进入高峰";
+"peak_ends_in" = "高峰 · %@ 后结束";
+"vertex_ai_login_instructions" = "要跟踪 Vertex AI 用量，请通过 Google Cloud 进行认证。\n\n1. 打开终端\n2. 运行：gcloud auth application-default login\n3. 按照浏览器提示登录\n4. 设置你的项目：gcloud config set project PROJECT_ID\n\n是否现在打开终端？";

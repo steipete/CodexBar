@@ -47,6 +47,7 @@ enum MenuBarVisibilityWatcher {
     static let startupCheckDelay: TimeInterval = 2
     static let screenChangeCheckDelay: Duration = .milliseconds(750)
     static let screenChangeFollowUpDelay: Duration = .seconds(2)
+    static let screenChangeRecoveryRetryLimit = 3
     static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.MenuBarSettings")!
 
     @MainActor
@@ -131,6 +132,14 @@ enum MenuBarVisibilityWatcher {
         return snapshots.contains { snapshot in
             snapshot.isVisible
         }
+    }
+
+    static func shouldRetryScreenChangeRecovery(
+        attempt: Int,
+        snapshots: [StatusItemVisibilitySnapshot])
+        -> Bool
+    {
+        attempt < self.screenChangeRecoveryRetryLimit && self.hasAnyBlockedVisibleSnapshot(snapshots)
     }
 
     static func shouldShowGuidance(defaults: UserDefaults, now: Date = Date()) -> Bool {
@@ -268,28 +277,52 @@ extension StatusItemController {
                 "snapshots": snapshots.map(\.description).joined(separator: " | "),
             ])
         self.recreateStatusItemsForVisibilityRecovery()
-        self.schedulePostScreenChangeRecoveryVerification()
+        self.schedulePostScreenChangeRecoveryVerification(attempt: 1)
     }
 
-    private func schedulePostScreenChangeRecoveryVerification() {
+    private func schedulePostScreenChangeRecoveryVerification(attempt: Int) {
         self.screenChangeVisibilityTask = Task { @MainActor [weak self] in
             do {
                 try await Task.sleep(for: MenuBarVisibilityWatcher.screenChangeFollowUpDelay)
             } catch {
                 return
             }
-            self?.verifyScreenChangeRecoveryIfNeeded()
+            self?.verifyScreenChangeRecoveryIfNeeded(attempt: attempt)
         }
     }
 
-    private func verifyScreenChangeRecoveryIfNeeded() {
+    private func verifyScreenChangeRecoveryIfNeeded(attempt: Int) {
         let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
-        guard MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(snapshots) else { return }
+        guard MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(snapshots) else {
+            self.menuLogger.info(
+                "Status item recovered after display-change recovery",
+                metadata: ["attempt": "\(attempt)", "snapshots": snapshots.map(\.description).joined(separator: " | ")])
+            return
+        }
 
+        guard MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(attempt: attempt, snapshots: snapshots) else {
+            self.menuLogger.error(
+                "Status item still blocked after display-change recovery retries",
+                metadata: [
+                    "attempt": "\(attempt)",
+                    "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                ])
+            guard #available(macOS 26.0, *),
+                  MenuBarVisibilityWatcher.shouldShowGuidance(defaults: self.settings.userDefaults)
+            else {
+                return
+            }
+            MenuBarVisibilityWatcher.presentGuidance(defaults: self.settings.userDefaults)
+            return
+        }
         self.menuLogger.error(
             "Status item still blocked after display-change recovery; recreating status items again",
-            metadata: ["snapshots": snapshots.map(\.description).joined(separator: " | ")])
+            metadata: [
+                "attempt": "\(attempt)",
+                "snapshots": snapshots.map(\.description).joined(separator: " | "),
+            ])
         self.recreateStatusItemsForVisibilityRecovery()
+        self.schedulePostScreenChangeRecoveryVerification(attempt: attempt + 1)
     }
 
     private var startupVisibilityStatusItems: [NSStatusItem] {

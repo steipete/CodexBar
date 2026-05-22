@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 46 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 47 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -44,10 +44,11 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Augment | `auggie` CLI first, then browser-cookie web fallback (`cli`, `web`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
+| T3 Chat | Web tRPC customer-data endpoint via browser cookies (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | ElevenLabs | API key from config/env → subscription usage API (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
-| Ollama | Web settings page via browser cookies (`web`). |
+| Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
@@ -237,6 +238,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Parses Amp Free usage from the settings HTML.
 - Status: none yet.
 - Details: `docs/amp.md`.
+
+## T3 Chat
+- Web tRPC endpoint (`https://t3.chat/api/trpc/getCustomerData`) via browser cookies.
+- Parses JSONL response lines and extracts customer data from the embedded tRPC payload.
+- Shows the 4-hour Base bucket and monthly Overage bucket documented in the T3 Chat FAQ.
+- Status: none yet.
 
 ## Ollama
 - Web settings page (`https://ollama.com/settings`) via browser cookies.

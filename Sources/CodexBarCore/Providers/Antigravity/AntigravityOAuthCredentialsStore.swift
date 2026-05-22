@@ -184,6 +184,9 @@ public enum AntigravityOAuthConfig {
             applicationRoots: applicationRoots,
             fileManager: fileManager)
         let relativePaths = [
+            "Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm",
+            "Contents/Resources/app/extensions/antigravity/bin/language_server_macos_x64",
+            "Contents/Resources/app/extensions/antigravity/bin/language_server_macos",
             "Contents/Resources/app/out/main.js",
             "Contents/Resources/bin/language_server",
             "Contents/Resources/bin/language_server_macos",

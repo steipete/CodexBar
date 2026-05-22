@@ -43,7 +43,6 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.statuses
         _ = self.historicalPaceRevision
@@ -933,6 +932,7 @@ extension UsageStore {
         await AugmentStatusProbe.latestDumps()
     }
 
+    // swiftlint:disable:next function_body_length
     func debugLog(for provider: UsageProvider) async -> String {
         if let cached = self.probeLogs[provider], !cached.isEmpty {
             return cached
@@ -978,6 +978,7 @@ extension UsageStore {
                 .antigravity: "Antigravity debug log not yet implemented",
                 .opencode: "OpenCode debug log not yet implemented",
                 .alibaba: "Alibaba Coding Plan debug log not yet implemented",
+                .alibabatokenplan: "Alibaba Token Plan debug log not yet implemented",
                 .factory: "Droid debug log not yet implemented",
                 .copilot: "Copilot debug log not yet implemented",
                 .manus: "Manus debug log not yet implemented",
@@ -995,6 +996,7 @@ extension UsageStore {
                 .bedrock: "Bedrock debug log not yet implemented",
                 .grok: "Grok debug log not yet implemented",
                 .groq: "Groq debug log not yet implemented",
+                .t3chat: "T3 Chat debug log not yet implemented",
                 .llmproxy: "LLM Proxy debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
             ]
@@ -1071,9 +1073,10 @@ extension UsageStore {
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
-                case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq, .llmproxy, .deepgram:
+                case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot,
+                     .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
+                     .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
+                     .grok, .groq, .t3chat, .llmproxy, .deepgram:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

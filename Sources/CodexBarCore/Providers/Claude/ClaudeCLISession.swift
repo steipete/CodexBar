@@ -369,11 +369,16 @@ actor ClaudeCLISession {
         try? self.primaryHandle?.close()
         try? self.secondaryHandle?.close()
 
+        let descendants = self.process.map { TTYProcessTreeTerminator.descendantPIDs(of: $0.processIdentifier) } ?? []
         if let proc = self.process, proc.isRunning {
             proc.terminate()
         }
-        if let pgid = self.processGroup {
-            kill(-pgid, SIGTERM)
+        if let proc = self.process {
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: proc.processIdentifier,
+                processGroup: self.processGroup,
+                signal: SIGTERM,
+                knownDescendants: descendants)
         }
         let waitDeadline = Date().addingTimeInterval(1.0)
         if let proc = self.process {
@@ -381,10 +386,15 @@ actor ClaudeCLISession {
                 usleep(100_000)
             }
             if proc.isRunning {
-                if let pgid = self.processGroup {
-                    kill(-pgid, SIGKILL)
+                TTYProcessTreeTerminator.terminateProcessTree(
+                    rootPID: proc.processIdentifier,
+                    processGroup: self.processGroup,
+                    signal: SIGKILL,
+                    knownDescendants: descendants)
+            } else {
+                for pid in descendants where pid > 0 {
+                    kill(pid, SIGKILL)
                 }
-                kill(proc.processIdentifier, SIGKILL)
             }
             TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: proc.processIdentifier)
         }

@@ -267,6 +267,7 @@ private struct ProviderSwitchChip: View {
         case .opencode: "OpenCode"
         case .opencodego: "OpenCode Go"
         case .alibaba: "Alibaba"
+        case .alibabatokenplan: "Token Plan"
         case .zai: "z.ai"
         case .factory: "Droid"
         case .copilot: "Copilot"
@@ -281,6 +282,7 @@ private struct ProviderSwitchChip: View {
         case .kimik2: "Kimi K2"
         case .moonshot: "Moonshot"
         case .amp: "Amp"
+        case .t3chat: "T3 Chat"
         case .ollama: "Ollama"
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
@@ -630,7 +632,7 @@ enum WidgetColors {
             Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
         case .opencodego:
             Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
-        case .alibaba:
+        case .alibaba, .alibabatokenplan:
             Color(red: 1.0, green: 106 / 255, blue: 0)
         case .zai:
             Color(red: 232 / 255, green: 90 / 255, blue: 106 / 255)
@@ -660,6 +662,8 @@ enum WidgetColors {
             Color(red: 32 / 255, green: 93 / 255, blue: 235 / 255)
         case .amp:
             Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) // Amp red
+        case .t3chat:
+            Color(red: 245 / 255, green: 102 / 255, blue: 71 / 255)
         case .ollama:
             Color(red: 32 / 255, green: 32 / 255, blue: 32 / 255) // Ollama charcoal
         case .synthetic:

@@ -7,12 +7,15 @@ import Testing
 @MainActor
 struct CodexManagedOpenAIWebRefreshTests {
     @Test
-    func `manual cookie import bypasses same account refresh coalescing`() async {
-        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-manual-import-bypass-coalesce")
+    func `manual cookie import bypasses same account refresh coalescing`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-manual-import-bypass-coalesce")
+        let managedHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-openai-web-refresh-\(UUID().uuidString)", isDirectory: true)
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
-            managedHomePath: "/tmp/managed-codex-home",
+            managedHomePath: managedHome.path,
             createdAt: 1,
             updatedAt: 1,
             lastAuthenticatedAt: 1)
@@ -80,8 +83,8 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
-    func `stale cookie import status does not override later unrelated refresh failure`() async {
-        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-stale-cookie-status")
+    func `stale cookie import status does not override later unrelated refresh failure`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-stale-cookie-status")
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
@@ -112,8 +115,8 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
-    func `navigation timeout imports cookies and retries dashboard refresh`() async {
-        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-timeout-import-retry")
+    func `navigation timeout imports cookies and retries dashboard refresh`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-timeout-import-retry")
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
@@ -174,8 +177,8 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
-    func `reset open A I web state blocks stale in flight dashboard completion`() async {
-        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-reset-invalidates-task")
+    func `reset open A I web state blocks stale in flight dashboard completion`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-reset-invalidates-task")
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
@@ -225,8 +228,8 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
-    func `active refresh failure ignores stale import status from older task`() async {
-        let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-concurrent-import-status")
+    func `active refresh failure ignores stale import status from older task`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-concurrent-import-status")
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
@@ -292,15 +295,19 @@ struct CodexManagedOpenAIWebRefreshTests {
         #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true) == 25)
     }
 
-    private func makeSettingsStore(suite: String) -> SettingsStore {
+    private func makeSettingsStore(suite: String) throws -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        let codexMetadata = try #require(ProviderDescriptorRegistry.metadata[.codex])
+        settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        settings.providerDetectionCompleted = true
         settings.openAIWebAccessEnabled = true
         settings.codexCookieSource = .auto
         return settings

@@ -149,6 +149,45 @@ struct CodexAccountScopedRefreshTests {
     }
 
     @Test
+    func `codex visible account refresh preserves prior snapshots when network fails`() async throws {
+        try await self.withCodexVisibleAccountFailureStore(
+            suite: "CodexAccountScopedRefreshTests-preserve-codex-snapshots",
+            errorMessage: "Network error: offline")
+        { store, snapshotStore, priorSnapshots in
+            await store.refreshCodexVisibleAccountsForMenu()
+
+            #expect(store.codexAccountSnapshots.count == priorSnapshots.count)
+            #expect(store.codexAccountSnapshots.allSatisfy { $0.snapshot?.primary?.usedPercent == 17 })
+            #expect(store.codexAccountSnapshots.allSatisfy { $0.error == "Network error: offline" })
+            #expect(store.codexAccountSnapshots.allSatisfy { $0.sourceLabel == "cached" })
+
+            let persisted = snapshotStore.storedSnapshots
+            #expect(persisted.count == priorSnapshots.count)
+            #expect(persisted.allSatisfy { $0.snapshot?.primary?.usedPercent == 17 })
+            #expect(persisted.allSatisfy { $0.error == "Network error: offline" })
+        }
+    }
+
+    @Test
+    func `codex visible account refresh drops prior snapshots when auth fails`() async throws {
+        try await self.withCodexVisibleAccountFailureStore(
+            suite: "CodexAccountScopedRefreshTests-drop-auth-failed-snapshots",
+            errorMessage: "401 Unauthorized")
+        { store, snapshotStore, priorSnapshots in
+            await store.refreshCodexVisibleAccountsForMenu()
+
+            #expect(store.codexAccountSnapshots.count == priorSnapshots.count)
+            #expect(store.codexAccountSnapshots.allSatisfy { $0.snapshot == nil })
+            #expect(store.codexAccountSnapshots.allSatisfy { $0.error == "401 Unauthorized" })
+
+            let persisted = snapshotStore.storedSnapshots
+            #expect(persisted.count == priorSnapshots.count)
+            #expect(persisted.allSatisfy { $0.snapshot == nil })
+            #expect(persisted.allSatisfy { $0.error == "401 Unauthorized" })
+        }
+    }
+
+    @Test
     func `credits fallback only reuses cache for the same codex account`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-credits")
         settings.refreshFrequency = .manual
