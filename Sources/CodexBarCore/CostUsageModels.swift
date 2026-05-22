@@ -33,12 +33,20 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let modelName: String
         public let costUSD: Double?
         public let totalTokens: Int?
+        public let standardCostUSD: Double?
+        public let priorityCostUSD: Double?
+        public let standardTokens: Int?
+        public let priorityTokens: Int?
 
         private enum CodingKeys: String, CodingKey {
             case modelName
             case costUSD
             case cost
             case totalTokens
+            case standardCostUSD
+            case priorityCostUSD
+            case standardTokens
+            case priorityTokens
         }
 
         public init(from decoder: Decoder) throws {
@@ -48,12 +56,28 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .cost)
             self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+            self.standardCostUSD = try container.decodeIfPresent(Double.self, forKey: .standardCostUSD)
+            self.priorityCostUSD = try container.decodeIfPresent(Double.self, forKey: .priorityCostUSD)
+            self.standardTokens = try container.decodeIfPresent(Int.self, forKey: .standardTokens)
+            self.priorityTokens = try container.decodeIfPresent(Int.self, forKey: .priorityTokens)
         }
 
-        public init(modelName: String, costUSD: Double?, totalTokens: Int? = nil) {
+        public init(
+            modelName: String,
+            costUSD: Double?,
+            totalTokens: Int? = nil,
+            standardCostUSD: Double? = nil,
+            priorityCostUSD: Double? = nil,
+            standardTokens: Int? = nil,
+            priorityTokens: Int? = nil)
+        {
             self.modelName = modelName
             self.costUSD = costUSD
             self.totalTokens = totalTokens
+            self.standardCostUSD = standardCostUSD
+            self.priorityCostUSD = priorityCostUSD
+            self.standardTokens = standardTokens
+            self.priorityTokens = priorityTokens
         }
     }
 
@@ -244,6 +268,14 @@ extension CostUsageDailyReport {
         var sawTotalTokens = false
         var costUSD: Double = 0
         var sawCost = false
+        var standardCostUSD: Double = 0
+        var sawStandardCost = false
+        var priorityCostUSD: Double = 0
+        var sawPriorityCost = false
+        var standardTokens: Int = 0
+        var sawStandardTokens = false
+        var priorityTokens: Int = 0
+        var sawPriorityTokens = false
 
         mutating func add(_ breakdown: ModelBreakdown) {
             if let totalTokens = breakdown.totalTokens {
@@ -254,13 +286,33 @@ extension CostUsageDailyReport {
                 self.costUSD += costUSD
                 self.sawCost = true
             }
+            if let standardCostUSD = breakdown.standardCostUSD {
+                self.standardCostUSD += standardCostUSD
+                self.sawStandardCost = true
+            }
+            if let priorityCostUSD = breakdown.priorityCostUSD {
+                self.priorityCostUSD += priorityCostUSD
+                self.sawPriorityCost = true
+            }
+            if let standardTokens = breakdown.standardTokens {
+                self.standardTokens += standardTokens
+                self.sawStandardTokens = true
+            }
+            if let priorityTokens = breakdown.priorityTokens {
+                self.priorityTokens += priorityTokens
+                self.sawPriorityTokens = true
+            }
         }
 
         func build(modelName: String) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
-                totalTokens: self.sawTotalTokens ? self.totalTokens : nil)
+                totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
+                standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
+                priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
+                standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
+                priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
         }
     }
 

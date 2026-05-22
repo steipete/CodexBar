@@ -21,7 +21,7 @@ struct CodexBaselineCharacterizationTests {
             verbose: false,
             env: env,
             settings: settings,
-            fetcher: UsageFetcher(environment: env),
+            fetcher: UsageFetcher(environment: env, initializeTimeoutSeconds: 20.0, requestTimeoutSeconds: 3.0),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection)
     }
@@ -57,7 +57,7 @@ struct CodexBaselineCharacterizationTests {
 
     private func makeStubCodexCLI() throws -> String {
         let script = """
-        #!/usr/bin/python3
+        #!/usr/bin/python3 -S
         import json
         import os
         import sys

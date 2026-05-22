@@ -40,13 +40,16 @@ extension CostUsageScanner {
             """
             select ts, feedback_log_body
             from logs
-            where ts >= ? and ts < ? and feedback_log_body like '%websocket request:%'
+            where ts >= ? and ts < ?
+              and (feedback_log_body like '%websocket request:%'
+                   or feedback_log_body like '%response.completed%')
             """
         } else {
             """
             select ts, feedback_log_body
             from logs
             where feedback_log_body like '%websocket request:%'
+               or feedback_log_body like '%response.completed%'
             """
         }
         var stmt: OpaquePointer?
@@ -62,12 +65,25 @@ extension CostUsageScanner {
         }
 
         var turns: [String: CodexPriorityTurnMetadata] = [:]
+        var completedModelsByTurnID: [String: String] = [:]
         while sqlite3_step(stmt) == SQLITE_ROW {
             let timestamp = self.timestamp(stmt: stmt, index: 0)
             guard self.timestamp(timestamp, isInRangeSince: sinceDayKey, until: untilDayKey),
-                  let body = self.text(stmt: stmt, index: 1),
-                  let parsed = self.parseCodexPriorityTraceRow(timestamp: timestamp, body: body)
+                  let body = self.text(stmt: stmt, index: 1)
             else { continue }
+            if let completed = self.parseCodexCompletedTraceRow(body: body) {
+                completedModelsByTurnID[completed.turnID] = completed.model
+                if var existing = turns[completed.turnID] {
+                    existing.model = completed.model
+                    turns[completed.turnID] = existing
+                }
+                continue
+            }
+            guard var parsed = self.parseCodexPriorityTraceRow(timestamp: timestamp, body: body)
+            else { continue }
+            if let completedModel = completedModelsByTurnID[parsed.turnID] {
+                parsed.model = completedModel
+            }
             turns[parsed.turnID] = parsed
         }
         return turns
@@ -96,6 +112,26 @@ extension CostUsageScanner {
             turnID: turnID,
             model: request["model"] as? String,
             timestamp: timestamp)
+    }
+
+    static func parseCodexCompletedTraceRow(body: String) -> (turnID: String, model: String)? {
+        let marker = "websocket event:"
+        guard let markerRange = body.range(of: marker) else { return nil }
+        let prefix = String(body[..<markerRange.lowerBound])
+        let jsonText = body[markerRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = jsonText.data(using: .utf8),
+              let event = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              event["type"] as? String == "response.completed",
+              let response = event["response"] as? [String: Any],
+              let model = response["model"] as? String,
+              !model.isEmpty
+        else { return nil }
+
+        let turnID = self.value(named: "turn.id", in: prefix)
+            ?? self.value(named: "turn_id", in: prefix)
+        guard let turnID, !turnID.isEmpty else { return nil }
+
+        return (turnID: turnID, model: model)
     }
 
     private static func value(named name: String, in text: String) -> String? {

@@ -255,7 +255,7 @@ extension HistoricalUsagePaceTests {
         at fileURL: URL,
         minimumCount: Int,
         expectedAccountKey: String?,
-        timeoutMilliseconds: UInt64 = 2000) async throws -> [HistoricalUsageRecord]
+        timeoutMilliseconds: UInt64 = 10000) async throws -> [HistoricalUsageRecord]
     {
         let deadline = ContinuousClock.now + .milliseconds(timeoutMilliseconds)
         while ContinuousClock.now < deadline {

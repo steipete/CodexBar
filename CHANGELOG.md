@@ -1,13 +1,24 @@
 # Changelog
 
-## 0.28.1 — Unreleased
+## 0.29.1 — Unreleased
 
 ### Added
+
+### Fixed
+- Menu bar: show extra-usage spend as currency text for Claude and Cursor when that metric is selected (#1107). Thanks @Yuxin-Qiao!
+- Codex: run regular credits and OpenAI dashboard refreshes in the background while coalescing overlapping refresh work (#1078). Thanks @ptstory!
+
+## 0.29.0 — 2026-05-22
+
+### Added
+- Cost history: show Codex standard and fast spend/token splits in model breakdowns (#1070). Thanks @iam-brain!
 - Alibaba Token Plan: add Bailian token-plan quota tracking via browser or manual cookies (#1098). Thanks @YanxinXue!
 - OpenCode: show workspace renewal dates for OpenCode and OpenCode Go usage windows (#1099). Thanks @Yuxin-Qiao!
 
 ### Fixed
 - Localization: improve Simplified Chinese settings and menu translations (#1059). Thanks @narallee!
+- Alibaba Token Plan: reject non-HTTPS endpoint overrides and keep the provider building on Linux (#1104). Thanks @YanxinXue!
+- Settings: avoid crashing when API key or cookie settings contain only a single quote character (#1106). Thanks @m1qaweb!
 - Build scripts: derive the local development signing team ID from the certificate OU before falling back to the CN suffix (#1095).
 - Menu bar: keep retrying display-change recovery when macOS leaves status items detached from the current screen (#1077, #1088).
 - Codex: preserve last successful per-account quota snapshots when later network or DNS refreshes fail (#1097, #1101). Thanks @Yuxin-Qiao!

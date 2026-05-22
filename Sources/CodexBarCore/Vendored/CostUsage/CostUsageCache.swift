@@ -119,6 +119,10 @@ struct CostUsageFileUsage: Codable {
     var forkedFromId: String?
     var codexCostNanos: [String: [String: Int64]]?
     var codexPrioritySurchargeNanos: [String: [String: Int64]]?
+    var codexStandardCostNanos: [String: [String: Int64]]?
+    var codexPriorityCostNanos: [String: [String: Int64]]?
+    var codexStandardTokens: [String: [String: Int]]?
+    var codexPriorityTokens: [String: [String: Int]]?
     var codexTurnIDs: [String]?
     var codexRows: [CostUsageScanner.CodexUsageRow]?
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?

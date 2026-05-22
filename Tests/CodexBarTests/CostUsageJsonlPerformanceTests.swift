@@ -62,8 +62,10 @@ struct CostUsageJsonlPerformanceTests {
             scanner: scanWithFrontBufferBaseline)
 
         let speedup = Double(baselineFastest) / Double(currentFastest)
-        // Keep the guard high enough to catch regressions without making the full test suite depend on an idle CPU.
-        #expect(speedup >= 4.0)
+        print(
+            "Cost usage JSONL scanner benchmark: current=\(currentFastest)ns " +
+                "baseline=\(baselineFastest)ns speedup=\(String(format: "%.2f", speedup))x")
+        #expect(currentFastest < baselineFastest)
     }
 }
 

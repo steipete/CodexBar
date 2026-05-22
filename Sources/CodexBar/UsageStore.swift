@@ -179,6 +179,10 @@ final class UsageStore {
     @ObservationIgnored var lastCodexAccountScopedRefreshGuard: CodexAccountScopedRefreshGuard?
     @ObservationIgnored var lastKnownLiveSystemCodexEmail: String?
     @ObservationIgnored var openAIWebAccountDidChange: Bool = false
+    @ObservationIgnored var creditsRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var creditsRefreshTaskKey: String?
+    @ObservationIgnored var openAIDashboardBackgroundRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var openAIDashboardBackgroundRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTask: Task<Void, Never>?
     @ObservationIgnored var openAIDashboardRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTaskToken: UUID?
@@ -554,7 +558,13 @@ final class UsageStore {
                         group.addTask { await self.refreshStatus(provider) }
                     }
                 }
-                group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                if forceTokenUsage {
+                    group.addTask { await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                }
+            }
+
+            if !forceTokenUsage {
+                self.scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
             if forceTokenUsage {
@@ -586,14 +596,18 @@ final class UsageStore {
                 ])
             if shouldRefreshOpenAIWeb {
                 let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
-                await self.refreshOpenAIDashboardIfNeeded(
-                    force: forceTokenUsage,
-                    expectedGuard: codexDashboardGuard)
+                if forceTokenUsage {
+                    await self.refreshOpenAIDashboardIfNeeded(
+                        force: true,
+                        expectedGuard: codexDashboardGuard)
+                } else {
+                    self.scheduleOpenAIDashboardRefreshIfNeeded(expectedGuard: codexDashboardGuard)
+                }
             }
 
             if forceTokenUsage, self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
-                await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
+                await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
             self.persistWidgetSnapshot(reason: "refresh")

@@ -38,6 +38,17 @@ struct CostUsageScannerCodexPriorityTests {
     }
 
     @Test
+    func `parses completed response model without exposing response body`() {
+        let body = "INFO thread_id=thread turn.id=turn websocket event: "
+            + #"{"type":"response.completed","response":{"model":"gpt-5.4","output":[{"content":"private"}]}}"#
+
+        let parsed = CostUsageScanner.parseCodexCompletedTraceRow(body: body)
+
+        #expect(parsed?.turnID == "turn")
+        #expect(parsed?.model == "gpt-5.4")
+    }
+
+    @Test
     func `reads priority turns from sqlite logs table`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -60,6 +71,50 @@ struct CostUsageScannerCodexPriorityTests {
         #expect(turns.keys.sorted() == ["turn-a"])
         #expect(turns["turn-a"]?.threadID == "thread-a")
         #expect(turns["turn-a"]?.model == "gpt-5.5")
+    }
+
+    @Test
+    func `sqlite scan upgrades priority request alias with completed response model`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread turn.id=turn websocket request: "
+                + #"{"type":"response.create","model":"codex-auto-review","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:01Z",
+            body: "thread_id=thread turn.id=turn websocket event: "
+                + #"{"type":"response.completed","response":{"model":"gpt-5.4","input":"private"}}"#)
+
+        let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+
+        #expect(turns["turn"]?.model == "gpt-5.4")
+    }
+
+    @Test
+    func `sqlite scan matches spaced completed response json`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread turn.id=turn websocket request: "
+                + #"{"type":"response.create","model":"codex-auto-review","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:01Z",
+            body: "thread_id=thread turn.id=turn websocket event: "
+                + #"{"type": "response.completed", "response": {"model": "gpt-5.4"}}"#)
+
+        let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+
+        #expect(turns["turn"]?.model == "gpt-5.4")
     }
 
     @Test

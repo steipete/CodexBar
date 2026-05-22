@@ -871,10 +871,12 @@ struct CodexAccountScopedRefreshTests {
         await blocker.waitUntilStarted()
         await blocker.resume(with: .success(self.codexSnapshot(email: "alpha@example.com", usedPercent: 12)))
         await refreshTask.value
+        #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "alpha@example.com")
+
+        await store.creditsRefreshTask?.value
 
         #expect(store.credits?.remaining == 55)
         #expect(store.lastCreditsSource == .api)
-        #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "alpha@example.com")
     }
 
     @Test
