@@ -185,7 +185,15 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             throw AlibabaTokenPlanUsageError.parseFailed("Empty response body")
         }
 
-        let object = try JSONSerialization.jsonObject(with: data, options: [])
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data, options: [])
+        } catch {
+            if self.isLikelyLoginHTML(data) {
+                throw AlibabaTokenPlanUsageError.loginRequired
+            }
+            throw AlibabaTokenPlanUsageError.parseFailed("Invalid JSON response")
+        }
         let expanded = self.expandedJSON(object)
         guard let dictionary = expanded as? [String: Any] else {
             throw AlibabaTokenPlanUsageError.parseFailed("Unexpected payload")
@@ -534,6 +542,12 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         let instanceKeys = instance?.keys.sorted() ?? []
         return "topKeys=\(topKeys.joined(separator: ",")) dataKeys=\(dataKeys.joined(separator: ",")) " +
             "instanceKeys=\(instanceKeys.joined(separator: ","))"
+    }
+
+    private static func isLikelyLoginHTML(_ data: Data) -> Bool {
+        guard let text = String(data: data, encoding: .utf8)?.lowercased() else { return false }
+        return text.contains("<html") &&
+            (text.contains("login") || text.contains("sign in") || text.contains("signin"))
     }
 
     private static func activeSignalScore(in source: [String: Any]) -> Int {

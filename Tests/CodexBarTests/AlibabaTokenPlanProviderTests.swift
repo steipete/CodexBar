@@ -247,6 +247,26 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 
     @Test
+    func `html login payload maps to login required`() {
+        let html = """
+        <html>
+          <body>Please login to Alibaba Cloud</body>
+        </html>
+        """
+
+        #expect(throws: AlibabaTokenPlanUsageError.loginRequired) {
+            try AlibabaTokenPlanUsageFetcher.parseUsageSnapshot(from: Data(html.utf8))
+        }
+    }
+
+    @Test
+    func `non json payload maps to parse failed`() {
+        #expect(throws: AlibabaTokenPlanUsageError.parseFailed("Invalid JSON response")) {
+            try AlibabaTokenPlanUsageFetcher.parseUsageSnapshot(from: Data("not-json".utf8))
+        }
+    }
+
+    @Test
     func `cookie only request continues without SEC token`() async throws {
         defer {
             AlibabaTokenPlanStubURLProtocol.handler = nil
