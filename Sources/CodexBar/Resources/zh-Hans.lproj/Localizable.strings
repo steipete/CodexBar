@@ -617,14 +617,6 @@
 "macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe 可能会在“系统设置”→“菜单栏”→“允许显示在菜单栏”中阻止菜单栏应用。CodexBar 正在运行，但 macOS 可能隐藏了它的图标。请打开菜单栏设置并启用 CodexBar。";
 "cost_header_estimated" = "费用（估算）";
 "cost_estimate_hint" = "根据本地日志估算 · 可能与账单不同";
-"Off-peak" = "非高峰";
-"Off-peak · peak in \\(self.formatDuration(minutes: minutes))" = "非高峰 · \\(self.formatDuration(minutes: minutes)) 后进入高峰";
-"Peak · ends in \\(self.formatDuration(minutes: remaining))" = "高峰 · \\(self.formatDuration(minutes: remaining)) 后结束";
-"Show peak hours indicator" = "显示高峰时段指示器";
-"Show whether Claude is in peak usage hours." = "显示 Claude 是否处于高峰使用时段。";
 "copilot_device_code" = "设备代码已复制到剪贴板：%1$@\n\n请在以下地址验证：%2$@";
 "copilot_waiting_text" = "请在浏览器中完成登录。\n登录完成后，此窗口会自动关闭。";
-"off_peak" = "非高峰";
-"off_peak_peak_in" = "非高峰 · %@ 后进入高峰";
-"peak_ends_in" = "高峰 · %@ 后结束";
 "vertex_ai_login_instructions" = "要跟踪 Vertex AI 用量，请通过 Google Cloud 进行认证。\n\n1. 打开终端\n2. 运行：gcloud auth application-default login\n3. 按照浏览器提示登录\n4. 设置你的项目：gcloud config set project PROJECT_ID\n\n是否现在打开终端？";
