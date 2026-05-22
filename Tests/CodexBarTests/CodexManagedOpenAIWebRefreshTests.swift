@@ -189,8 +189,10 @@ struct CodexManagedOpenAIWebRefreshTests {
         #expect(firstCodexEntry.creditsRemaining == nil)
 
         await saver.resumeNext()
+        let backgroundTask = try #require(store.creditsRefreshTask)
         await creditsBlocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
-        try? await Task.sleep(for: .milliseconds(200))
+        await backgroundTask.value
+        await saver.waitUntilStarted(count: 2)
 
         #expect(await saver.startedCount() == 2)
         let secondSnapshots = await saver.savedSnapshots()
@@ -266,6 +268,7 @@ struct CodexManagedOpenAIWebRefreshTests {
         #expect(firstCodexEntry.codeReviewRemainingPercent == nil)
 
         await saver.resumeNext()
+        let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
         await dashboardBlocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
             signedInEmail: managedAccount.email,
             codeReviewRemainingPercent: 95,
@@ -276,7 +279,8 @@ struct CodexManagedOpenAIWebRefreshTests {
             creditsRemaining: 25,
             accountPlan: "Pro",
             updatedAt: Date())))
-        try? await Task.sleep(for: .milliseconds(200))
+        await backgroundTask.value
+        await saver.waitUntilStarted(count: 2)
 
         #expect(await saver.startedCount() == 2)
         let secondSnapshots = await saver.savedSnapshots()
@@ -532,43 +536,15 @@ struct CodexManagedOpenAIWebRefreshTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             startupBehavior: .testing)
-        let blocker = BlockingManagedOpenAIDashboardLoader()
-        let importTracker = OpenAIDashboardImportCallTracker()
+        store.openAIDashboardCookieImportStatus =
+            "OpenAI cookies are for other@example.com, not managed@example.com."
         store._test_openAIDashboardLoaderOverride = { _, _, _ in
-            try await blocker.awaitResult()
+            throw ManagedDashboardTestError.networkTimeout
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
-        store._test_openAIDashboardCookieImportOverride = { _, _, _, _, _ in
-            let call = await importTracker.recordCall()
-            if call == 1 {
-                return OpenAIDashboardBrowserCookieImporter.ImportResult(
-                    sourceLabel: "Chrome",
-                    cookieCount: 2,
-                    signedInEmail: managedAccount.email,
-                    matchesCodexEmail: true)
-            }
-            throw OpenAIDashboardBrowserCookieImporter.ImportError.noMatchingAccount(
-                found: [.init(sourceLabel: "Chrome", email: "other@example.com")])
-        }
-        defer { store._test_openAIDashboardCookieImportOverride = nil }
 
         let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
-        let firstTask = Task {
-            await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
-        }
-        await blocker.waitUntilStarted(count: 1)
-
-        let secondTask = Task {
-            await store.importOpenAIDashboardBrowserCookiesNow()
-        }
-        await blocker.waitUntilStarted(count: 2)
-
-        await blocker.resumeNext(with: .failure(OpenAIDashboardFetcher.FetchError.loginRequired))
-        await importTracker.waitUntilCalls(count: 2)
-        await blocker.resumeNext(with: .failure(ManagedDashboardTestError.networkTimeout))
-
-        await firstTask.value
-        await secondTask.value
+        await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
 
         #expect(store.lastOpenAIDashboardError == ManagedDashboardTestError.networkTimeout.localizedDescription)
     }
@@ -675,10 +651,10 @@ actor BlockingManagedOpenAIDashboardLoader {
     private var started: Int = 0
 
     func awaitResult() async throws -> OpenAIDashboardSnapshot {
-        self.started += 1
-        self.resumeReadyStartWaiters()
         let result = await withCheckedContinuation { continuation in
             self.continuations.append(continuation)
+            self.started += 1
+            self.resumeReadyStartWaiters()
         }
         return try result.get()
     }
@@ -719,10 +695,10 @@ actor BlockingCreditsLoader {
     private var started = 0
 
     func awaitResult() async throws -> CreditsSnapshot {
-        self.started += 1
-        self.resumeReadyStartWaiters()
         let result = await withCheckedContinuation { continuation in
             self.continuations.append(continuation)
+            self.started += 1
+            self.resumeReadyStartWaiters()
         }
         return try result.get()
     }

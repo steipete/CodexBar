@@ -201,6 +201,41 @@ struct CodexBackgroundRefreshCoalescingTests {
         #expect(store.openAIDashboard?.creditsRemaining == 25)
     }
 
+    @Test
+    func `cancelled background dashboard import does not publish stale account status`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexBackgroundRefreshCoalescingTests-dashboard-cancelled-import")
+        settings.statusChecksEnabled = false
+        let managedAccount = try Self.installManagedAccount(
+            email: "managed@example.com",
+            settings: settings)
+        defer { try? FileManager.default.removeItem(atPath: managedAccount.managedHomePath) }
+
+        let store = self.makeStore(settings: settings)
+        let importBlocker = BlockingOpenAIDashboardCookieImport()
+        store._test_openAIDashboardCookieImportOverride = { _, _, _, _, _ in
+            try await importBlocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
+
+        let importTask = Task { @MainActor in
+            await store.importOpenAIDashboardCookiesIfNeeded(
+                targetEmail: managedAccount.email,
+                force: true)
+        }
+        await importBlocker.waitUntilStarted()
+        importTask.cancel()
+        await importBlocker.resumeNext(with: .failure(
+            OpenAIDashboardBrowserCookieImporter.ImportError.noMatchingAccount(
+                found: [.init(sourceLabel: "Chrome", email: "other@example.com")])))
+
+        let imported = await importTask.value
+        #expect(imported == nil)
+        #expect(store.openAIDashboard == nil)
+        #expect(store.openAIDashboardCookieImportStatus == nil)
+        #expect(store.openAIDashboardRequiresLogin == false)
+    }
+
     private func makeSettingsStore(suite: String) throws -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -282,5 +317,47 @@ struct CodexBackgroundRefreshCoalescingTests {
         }
 
         return "\(base64URL(header)).\(base64URL(payload))."
+    }
+}
+
+private actor BlockingOpenAIDashboardCookieImport {
+    private var continuations: [
+        CheckedContinuation<Result<OpenAIDashboardBrowserCookieImporter.ImportResult, Error>, Never>
+    ] = []
+    private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var started = 0
+
+    func awaitResult() async throws -> OpenAIDashboardBrowserCookieImporter.ImportResult {
+        let result = await withCheckedContinuation { continuation in
+            self.continuations.append(continuation)
+            self.started += 1
+            self.resumeReadyStartWaiters()
+        }
+        return try result.get()
+    }
+
+    func waitUntilStarted(count: Int = 1) async {
+        if self.started >= count { return }
+        await withCheckedContinuation { continuation in
+            self.startWaiters.append((count: count, continuation: continuation))
+        }
+    }
+
+    func resumeNext(with result: Result<OpenAIDashboardBrowserCookieImporter.ImportResult, Error>) {
+        guard !self.continuations.isEmpty else { return }
+        let continuation = self.continuations.removeFirst()
+        continuation.resume(returning: result)
+    }
+
+    private func resumeReadyStartWaiters() {
+        var remaining: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        for waiter in self.startWaiters {
+            if self.started >= waiter.count {
+                waiter.continuation.resume()
+            } else {
+                remaining.append(waiter)
+            }
+        }
+        self.startWaiters = remaining
     }
 }
