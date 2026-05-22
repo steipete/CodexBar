@@ -34,7 +34,7 @@ final class OpenAIDashboardWebViewCache {
         var lastUsedAt: Date
         var isBusy: Bool
         var preservedPageExpiresAt: Date?
-        var preservedPageExpiryTimer: Timer?
+        var preservedPageExpiryWorkItem: DispatchWorkItem?
 
         init(
             webView: WKWebView,
@@ -54,22 +54,22 @@ final class OpenAIDashboardWebViewCache {
             self.preservedPageExpiresAt = expiry
         }
 
-        func setPreservedPageExpiryTimer(_ timer: Timer?) {
-            self.preservedPageExpiryTimer?.invalidate()
-            self.preservedPageExpiryTimer = timer
+        func setPreservedPageExpiryWorkItem(_ workItem: DispatchWorkItem?) {
+            self.preservedPageExpiryWorkItem?.cancel()
+            self.preservedPageExpiryWorkItem = workItem
         }
 
         func clearPreservedPage() {
             self.preservedPageExpiresAt = nil
-            self.preservedPageExpiryTimer?.invalidate()
-            self.preservedPageExpiryTimer = nil
+            self.preservedPageExpiryWorkItem?.cancel()
+            self.preservedPageExpiryWorkItem = nil
         }
 
         func consumePreservedPageReuseIfAvailable(now: Date) -> Bool {
             guard let preservedPageExpiresAt else { return false }
             self.preservedPageExpiresAt = nil
-            self.preservedPageExpiryTimer?.invalidate()
-            self.preservedPageExpiryTimer = nil
+            self.preservedPageExpiryWorkItem?.cancel()
+            self.preservedPageExpiryWorkItem = nil
             return preservedPageExpiresAt > now
         }
 
@@ -557,13 +557,13 @@ final class OpenAIDashboardWebViewCache {
         expiresAt: Date)
     {
         let delay = max(0, expiresAt.timeIntervalSinceNow)
-        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+        let workItem = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 self?.expirePreservedPageIfNeeded(for: key, expectedExpiry: expiresAt)
             }
         }
-        entry.setPreservedPageExpiryTimer(timer)
-        RunLoop.main.add(timer, forMode: .common)
+        entry.setPreservedPageExpiryWorkItem(workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func expirePreservedPageIfNeeded(for key: ObjectIdentifier, expectedExpiry: Date) {
