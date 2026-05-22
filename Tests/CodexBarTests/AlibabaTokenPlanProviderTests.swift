@@ -12,6 +12,46 @@ struct AlibabaTokenPlanSettingsReaderTests {
     }
 
     @Test
+    func `quota URL infers HTTPS scheme`() {
+        let url = AlibabaTokenPlanSettingsReader.quotaURL(environment: [
+            AlibabaTokenPlanSettingsReader.quotaURLKey: "quota.token-plan.test/data/api.json",
+        ])
+
+        #expect(url?.scheme == "https")
+        #expect(url?.host == "quota.token-plan.test")
+    }
+
+    @Test
+    func `quota URL rejects non HTTPS schemes`() {
+        let httpURL = AlibabaTokenPlanSettingsReader.quotaURL(environment: [
+            AlibabaTokenPlanSettingsReader.quotaURLKey: "http://quota.token-plan.test/data/api.json",
+        ])
+        let ftpURL = AlibabaTokenPlanSettingsReader.quotaURL(environment: [
+            AlibabaTokenPlanSettingsReader.quotaURLKey: "ftp://quota.token-plan.test/data/api.json",
+        ])
+
+        #expect(httpURL == nil)
+        #expect(ftpURL == nil)
+    }
+
+    @Test
+    func `host override rejects non HTTPS schemes`() {
+        let httpHost = AlibabaTokenPlanSettingsReader.hostOverride(environment: [
+            AlibabaTokenPlanSettingsReader.hostKey: "http://dashboard.token-plan.test",
+        ])
+        let httpsHost = AlibabaTokenPlanSettingsReader.hostOverride(environment: [
+            AlibabaTokenPlanSettingsReader.hostKey: "https://dashboard.token-plan.test",
+        ])
+        let bareHost = AlibabaTokenPlanSettingsReader.hostOverride(environment: [
+            AlibabaTokenPlanSettingsReader.hostKey: "dashboard.token-plan.test",
+        ])
+
+        #expect(httpHost == nil)
+        #expect(httpsHost == "https://dashboard.token-plan.test")
+        #expect(bareHost == "dashboard.token-plan.test")
+    }
+
+    @Test
     func `default quota URL targets token plan API`() {
         let url = AlibabaTokenPlanUsageFetcher.defaultQuotaURL
         #expect(url.host == "bailian-cs.console.aliyun.com")
