@@ -26,6 +26,7 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
     }
 }
 
+// swiftlint:disable:next type_body_length
 public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger("alibaba-token-plan")
     private static let gatewayBaseURLString = "https://bailian-cs.console.aliyun.com"
@@ -73,16 +74,37 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         }
 
         let url = self.resolveQuotaURL(environment: environment)
-        let redirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedAPIHeader)
-        let session = overrideSession ?? URLSession(
-            configuration: .default,
-            delegate: redirectDiagnostics,
-            delegateQueue: nil)
+        let apiRedirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedAPIHeader)
+        let dashboardRedirectDiagnostics: RedirectDiagnostics?
+        let apiSession: URLSession
+        let dashboardSession: URLSession
+        if let overrideSession {
+            apiSession = overrideSession
+            dashboardSession = overrideSession
+            dashboardRedirectDiagnostics = nil
+        } else {
+            let dashboardDiagnostics = RedirectDiagnostics(cookieHeader: normalizedDashboardHeader)
+            apiSession = URLSession(
+                configuration: .default,
+                delegate: apiRedirectDiagnostics,
+                delegateQueue: nil)
+            dashboardSession = URLSession(
+                configuration: .default,
+                delegate: dashboardDiagnostics,
+                delegateQueue: nil)
+            dashboardRedirectDiagnostics = dashboardDiagnostics
+        }
+        defer {
+            if overrideSession == nil {
+                apiSession.invalidateAndCancel()
+                dashboardSession.invalidateAndCancel()
+            }
+        }
         let secToken = await self.resolveSECToken(
             dashboardCookieHeader: normalizedDashboardHeader,
             apiCookieHeader: normalizedAPIHeader,
             environment: environment,
-            session: session)
+            session: dashboardSession)
         let anonymousID = self.extractCookieValue(name: "cna", from: normalizedAPIHeader)
         Self.log.info(
             "Fetching Alibaba Token Plan usage",
@@ -116,7 +138,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await apiSession.data(for: request)
         } catch {
             Self.log.error(
                 "Alibaba Token Plan request failed",
@@ -126,12 +148,20 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 ])
             throw AlibabaTokenPlanUsageError.networkError(error.localizedDescription)
         }
-        if !redirectDiagnostics.redirects.isEmpty {
+        if let dashboardRedirectDiagnostics, !dashboardRedirectDiagnostics.redirects.isEmpty {
+            Self.log.info(
+                "Alibaba Token Plan dashboard redirects",
+                metadata: [
+                    "count": "\(dashboardRedirectDiagnostics.redirects.count)",
+                    "items": dashboardRedirectDiagnostics.redirects.joined(separator: " | "),
+                ])
+        }
+        if !apiRedirectDiagnostics.redirects.isEmpty {
             Self.log.info(
                 "Alibaba Token Plan redirects",
                 metadata: [
-                    "count": "\(redirectDiagnostics.redirects.count)",
-                    "items": redirectDiagnostics.redirects.joined(separator: " | "),
+                    "count": "\(apiRedirectDiagnostics.redirects.count)",
+                    "items": apiRedirectDiagnostics.redirects.joined(separator: " | "),
                 ])
         }
         guard let httpResponse = response as? HTTPURLResponse else {

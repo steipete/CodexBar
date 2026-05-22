@@ -398,6 +398,26 @@ struct AlibabaTokenPlanUsageParsingTests {
         #expect(insecureRedirect == nil)
     }
 
+    @Test
+    func `dashboard redirect preserves dashboard cookie header`() throws {
+        let sourceURL = try #require(URL(string: "https://bailian.console.aliyun.com/cn-beijing"))
+        let targetURL = try #require(URL(string: "https://bailian.console.aliyun.com/redirected"))
+        let response = try #require(HTTPURLResponse(
+            url: sourceURL,
+            statusCode: 302,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil))
+        var request = URLRequest(url: targetURL)
+        request.setValue("api_only=wrong", forHTTPHeaderField: "Cookie")
+
+        let redirected = try #require(AlibabaTokenPlanUsageFetcher.redirectedRequest(
+            response: response,
+            request: request,
+            cookieHeader: "dashboard_only=keep"))
+
+        #expect(redirected.value(forHTTPHeaderField: "Cookie") == "dashboard_only=keep")
+    }
+
     private static func makeResponse(url: URL, body: String, statusCode: Int) -> (HTTPURLResponse, Data) {
         let response = HTTPURLResponse(
             url: url,
