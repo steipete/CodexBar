@@ -139,7 +139,7 @@ extension CostUsageScanner {
         var seen = false
         for row in rows {
             guard let turnID = row.turnID, let priorityMetadata = priorityTurns[turnID] else { continue }
-            let pricedModel = priorityMetadata.model ?? row.model
+            let pricedModel = Self.codexPriorityPricingModel(for: row, priorityMetadata: priorityMetadata)
             guard let baseCost = CostUsagePricing.codexCostUSD(
                 model: pricedModel,
                 inputTokens: row.input,
@@ -157,6 +157,20 @@ extension CostUsageScanner {
             seen = true
         }
         return seen ? total : nil
+    }
+
+    private static func codexPriorityPricingModel(
+        for row: CodexUsageRow,
+        priorityMetadata: CodexPriorityTurnMetadata) -> String
+    {
+        guard let model = priorityMetadata.model,
+              CostUsagePricing.codexPriorityCostUSD(
+                  model: model,
+                  inputTokens: row.input,
+                  cachedInputTokens: row.cached,
+                  outputTokens: row.output) != nil
+        else { return row.model }
+        return model
     }
 
     struct CodexRowCostBreakdown {
@@ -209,7 +223,8 @@ extension CostUsageScanner {
             } else {
                 breakdown.standardTokens += tokenCount
             }
-            let pricedModel = priorityMetadata?.model ?? row.model
+            let pricedModel = priorityMetadata.map { Self.codexPriorityPricingModel(for: row, priorityMetadata: $0) }
+                ?? row.model
 
             let baseCost = CostUsagePricing.codexCostUSD(
                 model: pricedModel,
@@ -456,7 +471,8 @@ extension CostUsageScanner {
 
             let tokenCount = row.input + row.output
             let priorityMetadata = row.turnID.flatMap { priorityTurns[$0] }
-            let pricedModel = priorityMetadata?.model ?? row.model
+            let pricedModel = priorityMetadata.map { Self.codexPriorityPricingModel(for: row, priorityMetadata: $0) }
+                ?? row.model
             let isPriority = priorityMetadata != nil
 
             if isPriority {
