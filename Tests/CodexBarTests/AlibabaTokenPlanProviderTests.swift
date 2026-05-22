@@ -248,11 +248,7 @@ struct AlibabaTokenPlanUsageParsingTests {
 
     @Test
     func `cookie only request continues without SEC token`() async throws {
-        let registered = URLProtocol.registerClass(AlibabaTokenPlanStubURLProtocol.self)
         defer {
-            if registered {
-                URLProtocol.unregisterClass(AlibabaTokenPlanStubURLProtocol.self)
-            }
             AlibabaTokenPlanStubURLProtocol.handler = nil
         }
 
