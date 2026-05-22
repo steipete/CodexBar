@@ -1,33 +1,35 @@
 import Foundation
 
 public struct EnvironmentalImpact: Sendable, Equatable {
+    private enum Estimate {
+        static let joulesPerToken = 12.0
+        static let joulesPerKWh = 3_600_000.0
+        static let globalAverageCO2KgPerKWh = 0.385
+        static let smartphoneChargesPerKWh = 75.0
+        static let kettleBoilsPerKWh = 10.0
+        static let averageCarCO2KgPerKm = 0.12
+    }
+
     public let energyKWh: Double
     public let co2Kg: Double
 
     public init(tokens: Int) {
-        // Based on typical estimates: 12 Joules per token
-        // Energy in Joules = tokens * 12
-        // Energy in kWh = Joules / 3,600,000
-        let joules = Double(tokens) * 12.0
-        self.energyKWh = joules / 3_600_000.0
+        // Broad estimate only; real usage varies by model, hardware, batching, and grid mix.
+        let joules = Double(tokens) * Estimate.joulesPerToken
+        self.energyKWh = joules / Estimate.joulesPerKWh
 
-        // Based on global average grid carbon intensity: 385 g CO2e per kWh
-        self.co2Kg = self.energyKWh * 0.385
+        self.co2Kg = self.energyKWh * Estimate.globalAverageCO2KgPerKWh
     }
 
     public var smartphoneCharges: Int {
-        // 1 kWh = ~75 smartphone charges (assuming typical ~13Wh battery and charge efficiency)
-        Int(round(self.energyKWh * 75.0))
+        Int(round(self.energyKWh * Estimate.smartphoneChargesPerKWh))
     }
 
-    public var boiledKettles: Int {
-        // 1 kWh = ~10 boiled kettles of water (assuming 1 liter of water boiled using a 2000W kettle for ~3 minutes)
-        Int(round(self.energyKWh * 10.0))
+    public var kettleBoils: Int {
+        Int(round(self.energyKWh * Estimate.kettleBoilsPerKWh))
     }
 
     public var carKm: Double {
-        // ~120g CO2 per km of driving an average gasoline car = 0.12 kg CO2 per km
-        // km = co2Kg / 0.12
-        self.co2Kg / 0.12
+        self.co2Kg / Estimate.averageCarCO2KgPerKm
     }
 }

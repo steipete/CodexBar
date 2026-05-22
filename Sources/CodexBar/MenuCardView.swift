@@ -91,6 +91,7 @@ struct UsageMenuCardView: View {
             let co2SessionLine: String?
             let energyMonthLine: String?
             let co2MonthLine: String?
+            let environmentalImpactHintLine: String?
 
             init(
                 sessionLine: String,
@@ -101,7 +102,8 @@ struct UsageMenuCardView: View {
                 energySessionLine: String? = nil,
                 co2SessionLine: String? = nil,
                 energyMonthLine: String? = nil,
-                co2MonthLine: String? = nil)
+                co2MonthLine: String? = nil,
+                environmentalImpactHintLine: String? = nil)
             {
                 self.sessionLine = sessionLine
                 self.monthLine = monthLine
@@ -112,6 +114,18 @@ struct UsageMenuCardView: View {
                 self.co2SessionLine = co2SessionLine
                 self.energyMonthLine = energyMonthLine
                 self.co2MonthLine = co2MonthLine
+                self.environmentalImpactHintLine = environmentalImpactHintLine
+            }
+
+            var environmentalImpactLines: [String] {
+                [
+                    self.energySessionLine,
+                    self.co2SessionLine,
+                    self.energyMonthLine,
+                    self.co2MonthLine,
+                ]
+                    .compactMap(\.self)
+                    .filter { !$0.isEmpty }
             }
         }
 
@@ -225,36 +239,10 @@ struct UsageMenuCardView: View {
                             Text(tokenUsage.monthLine)
                                 .font(.footnote)
 
-                            if tokenUsage.energySessionLine != nil || tokenUsage.energyMonthLine != nil {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "leaf.fill")
-                                            .foregroundColor(.green)
-                                            .imageScale(.small)
-                                        Text("environmental_impact_header")
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                    }
-                                    .padding(.top, 4)
-
-                                    if let energySession = tokenUsage.energySessionLine {
-                                        Text(energySession)
-                                            .font(.footnote)
-                                    }
-                                    if let co2Session = tokenUsage.co2SessionLine {
-                                        Text(co2Session)
-                                            .font(.footnote)
-                                    }
-                                    if let energyMonth = tokenUsage.energyMonthLine {
-                                        Text(energyMonth)
-                                            .font(.footnote)
-                                    }
-                                    if let co2Month = tokenUsage.co2MonthLine {
-                                        Text(co2Month)
-                                            .font(.footnote)
-                                    }
-                                }
-                            }
+                            EnvironmentalImpactSectionView(
+                                lines: tokenUsage.environmentalImpactLines,
+                                hintLine: tokenUsage.environmentalImpactHintLine,
+                                textFont: .footnote)
 
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
@@ -681,36 +669,10 @@ struct UsageMenuCardCostSectionView: View {
                             Text(tokenUsage.monthLine)
                                 .font(.caption)
 
-                            if tokenUsage.energySessionLine != nil || tokenUsage.energyMonthLine != nil {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "leaf.fill")
-                                            .foregroundColor(.green)
-                                            .imageScale(.small)
-                                        Text("environmental_impact_header")
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                    }
-                                    .padding(.top, 4)
-
-                                    if let energySession = tokenUsage.energySessionLine {
-                                        Text(energySession)
-                                            .font(.caption)
-                                    }
-                                    if let co2Session = tokenUsage.co2SessionLine {
-                                        Text(co2Session)
-                                            .font(.caption)
-                                    }
-                                    if let energyMonth = tokenUsage.energyMonthLine {
-                                        Text(energyMonth)
-                                            .font(.caption)
-                                    }
-                                    if let co2Month = tokenUsage.co2MonthLine {
-                                        Text(co2Month)
-                                            .font(.caption)
-                                    }
-                                }
-                            }
+                            EnvironmentalImpactSectionView(
+                                lines: tokenUsage.environmentalImpactLines,
+                                hintLine: tokenUsage.environmentalImpactHintLine,
+                                textFont: .caption)
 
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)

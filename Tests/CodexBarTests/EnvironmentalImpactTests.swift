@@ -19,7 +19,7 @@ struct EnvironmentalImpactTests {
         #expect(impact.smartphoneCharges == 25)
 
         // kettles = 0.3333... * 10 = 3.33 -> round -> 3
-        #expect(impact.boiledKettles == 3)
+        #expect(impact.kettleBoils == 3)
 
         // carKm = 0.128333... / 0.12 = 1.0694...
         #expect(abs(impact.carKm - 1.0694) < 0.001)

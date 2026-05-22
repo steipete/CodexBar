@@ -634,9 +634,10 @@
 "cost_estimate_hint" = "Estimado a partir de registros locales · puede diferir de tu factura";
 
 /* Environmental Footprint */
-"environmental_impact_header" = "Huella ecológica";
-"environmental_impact_energy_today" = "Energía de hoy: %1$@ (%2$d cargas / %3$d tazas)";
-"environmental_impact_co2_today" = "CO₂e de hoy: %1$@ (%2$.1f km conduciendo)";
-"environmental_impact_energy_month" = "Energía de %1$@: %2$@ (%3$d cargas / %4$d tazas)";
-"environmental_impact_co2_month" = "CO₂e de %1$@: %2$@ (%3$.1f km conduciendo)";
+"environmental_impact_header" = "Estimación ambiental";
+"environmental_impact_energy_today" = "Hoy: %1$@ (%2$d cargas de móvil / %3$d hervidos de hervidor)";
+"environmental_impact_co2_today" = "CO₂e de hoy: %1$@ (~%2$.1f km conduciendo)";
+"environmental_impact_energy_month" = "%1$@: %2$@ (%3$d cargas de móvil / %4$d hervidos de hervidor)";
+"environmental_impact_co2_month" = "%1$@ CO₂e: %2$@ (~%3$.1f km conduciendo)";
+"environmental_impact_hint" = "Estimación aproximada a partir de tokens; el impacto real varía según el modelo, el hardware y la red eléctrica.";
 "Eco" = "Eco";

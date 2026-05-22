@@ -65,7 +65,7 @@ extension UsageMenuCardView.Model {
                 "environmental_impact_energy_today",
                 UsageFormatter.formatEnergy(impact.energyKWh),
                 impact.smartphoneCharges,
-                impact.boiledKettles)
+                impact.kettleBoils)
             co2SessionLine = L(
                 "environmental_impact_co2_today",
                 UsageFormatter.formatCO2(impact.co2Kg),
@@ -84,7 +84,7 @@ extension UsageMenuCardView.Model {
                 windowLabel,
                 UsageFormatter.formatEnergy(impact.energyKWh),
                 impact.smartphoneCharges,
-                impact.boiledKettles)
+                impact.kettleBoils)
             co2MonthLine = L(
                 "environmental_impact_co2_month",
                 windowLabel,
@@ -105,7 +105,8 @@ extension UsageMenuCardView.Model {
             energySessionLine: energySessionLine,
             co2SessionLine: co2SessionLine,
             energyMonthLine: energyMonthLine,
-            co2MonthLine: co2MonthLine)
+            co2MonthLine: co2MonthLine,
+            environmentalImpactHintLine: L("environmental_impact_hint"))
     }
 
     static func tokenUsageHint(provider: UsageProvider) -> String? {

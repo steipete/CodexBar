@@ -622,10 +622,10 @@
 "vertex_ai_login_instructions" = "要跟踪 Vertex AI 用量，请通过 Google Cloud 进行认证。\n\n1. 打开终端\n2. 运行：gcloud auth application-default login\n3. 按照浏览器提示登录\n4. 设置你的项目：gcloud config set project PROJECT_ID\n\n是否现在打开终端？";
 
 /* Environmental Footprint */
-"environmental_impact_header" = "生态足迹";
-"environmental_impact_energy_today" = "今日能耗：%1$@（可充手机 %2$d 次 / 烧水 %3$d 杯）";
-"environmental_impact_co2_today" = "今日二氧化碳排放：%1$@（相当于驾车 %2$.1f 公里）";
-"environmental_impact_energy_month" = "%1$@ 能耗：%2$@（可充手机 %3$d 次 / 烧水 %4$d 杯）";
-"environmental_impact_co2_month" = "%1$@ 二氧化碳排放：%2$@（相当于驾车 %3$.1f 公里）";
+"environmental_impact_header" = "环境估算";
+"environmental_impact_energy_today" = "今日：%1$@（约 %2$d 次手机充电 / %3$d 次烧水）";
+"environmental_impact_co2_today" = "今日 CO₂e：%1$@（约驾车 %2$.1f 公里）";
+"environmental_impact_energy_month" = "%1$@：%2$@（约 %3$d 次手机充电 / %4$d 次烧水）";
+"environmental_impact_co2_month" = "%1$@ CO₂e：%2$@（约驾车 %3$.1f 公里）";
+"environmental_impact_hint" = "基于 token 数的粗略估算；实际影响会随模型、硬件和电网结构变化。";
 "Eco" = "生态";
-

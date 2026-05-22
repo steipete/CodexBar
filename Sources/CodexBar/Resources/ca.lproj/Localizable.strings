@@ -634,9 +634,10 @@
 "cost_estimate_hint" = "Estimat a partir de registres locals · pot diferir de la teva factura";
 
 /* Environmental Footprint */
-"environmental_impact_header" = "Petjada ecològica";
-"environmental_impact_energy_today" = "Energia d'avui: %1$@ (%2$d càrregues / %3$d tasses)";
-"environmental_impact_co2_today" = "CO₂e d'avui: %1$@ (%2$.1f km conduint)";
-"environmental_impact_energy_month" = "Energia de %1$@: %2$@ (%3$d càrregues / %4$d tasses)";
-"environmental_impact_co2_month" = "CO₂e de %1$@: %2$@ (%3$.1f km conduint)";
+"environmental_impact_header" = "Estimació ambiental";
+"environmental_impact_energy_today" = "Avui: %1$@ (%2$d càrregues de mòbil / %3$d bullides de bullidor)";
+"environmental_impact_co2_today" = "CO₂e d'avui: %1$@ (~%2$.1f km conduint)";
+"environmental_impact_energy_month" = "%1$@: %2$@ (%3$d càrregues de mòbil / %4$d bullides de bullidor)";
+"environmental_impact_co2_month" = "%1$@ CO₂e: %2$@ (~%3$.1f km conduint)";
+"environmental_impact_hint" = "Estimació aproximada a partir dels tokens; l'impacte real varia segons el model, el maquinari i la xarxa elèctrica.";
 "Eco" = "Eco";
