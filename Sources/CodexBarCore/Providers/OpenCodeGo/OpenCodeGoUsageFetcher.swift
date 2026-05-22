@@ -193,7 +193,9 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         }
         return url
     }
+}
 
+extension OpenCodeGoUsageFetcher {
     private static func fetchWorkspaceID(
         cookieHeader: String,
         timeout: TimeInterval,

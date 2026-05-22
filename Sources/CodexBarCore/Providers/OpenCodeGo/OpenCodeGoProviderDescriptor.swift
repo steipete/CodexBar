@@ -44,8 +44,8 @@ public enum OpenCodeGoProviderDescriptor {
             return [OpenCodeGoUsageFetchStrategy()]
         }
         return [
-            OpenCodeGoLocalUsageFetchStrategy(),
             OpenCodeGoUsageFetchStrategy(),
+            OpenCodeGoLocalUsageFetchStrategy(),
         ]
     }
 }
@@ -154,8 +154,16 @@ struct OpenCodeGoUsageFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
+        return switch error {
+        case OpenCodeGoSettingsError.missingCookie,
+             OpenCodeGoSettingsError.invalidCookie,
+             OpenCodeGoUsageError.invalidCredentials:
+            true
+        default:
+            false
+        }
     }
 
     static func resolveCookieHeader(context: ProviderFetchContext, allowCached: Bool) throws -> String {
