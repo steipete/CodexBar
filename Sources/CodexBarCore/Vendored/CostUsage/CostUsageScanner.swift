@@ -601,13 +601,15 @@ enum CostUsageScanner {
     private static func changedPriorityTurnIDs(
         old: [String: [String]]?,
         new: [String: [String]],
+        oldKeys: [String: String]?,
+        newKeys: [String: String],
         range: CostUsageDayRange) -> Set<String>
     {
         var out = Set<String>()
         for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
             let oldIDs = Set(old?[dayKey] ?? [])
             let newIDs = Set(new[dayKey] ?? [])
-            if oldIDs != newIDs {
+            if oldIDs != newIDs || oldKeys?[dayKey] != newKeys[dayKey] {
                 out.formUnion(oldIDs)
                 out.formUnion(newIDs)
             }
@@ -1460,6 +1462,8 @@ enum CostUsageScanner {
             ? Self.changedPriorityTurnIDs(
                 old: cache.codexPriorityTurnIDsByDay,
                 new: priorityTurnIDsByDay,
+                oldKeys: cache.codexPriorityTurnKeys,
+                newKeys: priorityTurnKeys,
                 range: range)
             : []
         let shouldRefresh = options.forceRescan
