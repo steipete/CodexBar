@@ -62,6 +62,10 @@ public struct OpenCodeUsageFetcher: Sendable {
         "renewAt",
         "renew_at",
     ]
+    private static let renewAtKeys = [
+        "renewAt",
+        "renew_at",
+    ]
     private static func makeISO8601Formatter() -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -502,24 +506,33 @@ public struct OpenCodeUsageFetcher: Sendable {
 
     private static func parseUsageJSON(object: Any, now: Date) -> OpenCodeUsageSnapshot? {
         guard let dict = object as? [String: Any] else { return nil }
-        if let snapshot = self.parseUsageDictionary(dict, now: now) {
+        let renewsAt = self.dateValue(from: self.value(from: dict, keys: self.renewAtKeys))
+        if let snapshot = self.parseUsageDictionary(dict, now: now, inheritedRenewsAt: renewsAt) {
             return snapshot
         }
 
         for key in ["data", "result", "usage", "billing", "payload"] {
             if let nested = dict[key] as? [String: Any],
-               let snapshot = self.parseUsageDictionary(nested, now: now)
+               let snapshot = self.parseUsageDictionary(nested, now: now, inheritedRenewsAt: renewsAt)
             {
                 return snapshot
             }
         }
 
-        return self.parseUsageNested(dict, now: now, depth: 0)
+        if let snapshot = self.parseUsageNested(dict, now: now, depth: 0, inheritedRenewsAt: renewsAt) {
+            return snapshot
+        }
+        return self.parseUsageFromCandidates(object: object, now: now, inheritedRenewsAt: renewsAt)
     }
 
-    private static func parseUsageDictionary(_ dict: [String: Any], now: Date) -> OpenCodeUsageSnapshot? {
+    private static func parseUsageDictionary(
+        _ dict: [String: Any],
+        now: Date,
+        inheritedRenewsAt: Date?) -> OpenCodeUsageSnapshot?
+    {
+        let renewsAt = self.dateValue(from: self.value(from: dict, keys: self.renewAtKeys)) ?? inheritedRenewsAt
         if let usage = dict["usage"] as? [String: Any],
-           let snapshot = self.parseUsageDictionary(usage, now: now)
+           let snapshot = self.parseUsageDictionary(usage, now: now, inheritedRenewsAt: renewsAt)
         {
             return snapshot
         }
@@ -531,14 +544,20 @@ public struct OpenCodeUsageFetcher: Sendable {
         let weekly = weeklyKeys.compactMap { dict[$0] as? [String: Any] }.first
 
         if let rolling, let weekly {
-            return self.buildSnapshot(rolling: rolling, weekly: weekly, now: now)
+            return self.buildSnapshot(rolling: rolling, weekly: weekly, now: now, renewsAt: renewsAt)
         }
 
         return nil
     }
 
-    private static func parseUsageNested(_ dict: [String: Any], now: Date, depth: Int) -> OpenCodeUsageSnapshot? {
+    private static func parseUsageNested(
+        _ dict: [String: Any],
+        now: Date,
+        depth: Int,
+        inheritedRenewsAt: Date?) -> OpenCodeUsageSnapshot?
+    {
         if depth > 3 { return nil }
+        let renewsAt = self.dateValue(from: self.value(from: dict, keys: self.renewAtKeys)) ?? inheritedRenewsAt
         var rolling: [String: Any]?
         var weekly: [String: Any]?
 
@@ -552,15 +571,18 @@ public struct OpenCodeUsageFetcher: Sendable {
             }
         }
 
-        if let rolling, let weekly,
-           let snapshot = self.buildSnapshot(rolling: rolling, weekly: weekly, now: now)
-        {
-            return snapshot
+        if let rolling, let weekly {
+            let snapshot = self.buildSnapshot(rolling: rolling, weekly: weekly, now: now, renewsAt: renewsAt)
+            if let snapshot { return snapshot }
         }
 
         for value in dict.values {
             if let sub = value as? [String: Any],
-               let snapshot = self.parseUsageNested(sub, now: now, depth: depth + 1)
+               let snapshot = self.parseUsageNested(
+                   sub,
+                   now: now,
+                   depth: depth + 1,
+                   inheritedRenewsAt: renewsAt)
             {
                 return snapshot
             }
@@ -569,7 +591,11 @@ public struct OpenCodeUsageFetcher: Sendable {
         return nil
     }
 
-    private static func parseUsageFromCandidates(object: Any, now: Date) -> OpenCodeUsageSnapshot? {
+    private static func parseUsageFromCandidates(
+        object: Any,
+        now: Date,
+        inheritedRenewsAt: Date? = nil) -> OpenCodeUsageSnapshot?
+    {
         let candidates = self.collectWindowCandidates(object: object, now: now)
         guard !candidates.isEmpty else { return nil }
 
@@ -596,11 +622,14 @@ public struct OpenCodeUsageFetcher: Sendable {
 
         guard let rolling, let weekly else { return nil }
 
+        let renewsAt = self.dateValue(from: self.value(from: object as? [String: Any] ?? [:], keys: self.renewAtKeys))
+            ?? inheritedRenewsAt
         return OpenCodeUsageSnapshot(
             rollingUsagePercent: rolling.percent,
             weeklyUsagePercent: weekly.percent,
             rollingResetInSec: rolling.resetInSec,
             weeklyResetInSec: weekly.resetInSec,
+            renewsAt: renewsAt,
             updatedAt: now)
     }
 
@@ -679,7 +708,8 @@ public struct OpenCodeUsageFetcher: Sendable {
     private static func buildSnapshot(
         rolling: [String: Any],
         weekly: [String: Any],
-        now: Date) -> OpenCodeUsageSnapshot?
+        now: Date,
+        renewsAt: Date? = nil) -> OpenCodeUsageSnapshot?
     {
         guard let rollingWindow = self.parseWindow(rolling, now: now),
               let weeklyWindow = self.parseWindow(weekly, now: now)
@@ -692,6 +722,7 @@ public struct OpenCodeUsageFetcher: Sendable {
             weeklyUsagePercent: weeklyWindow.percent,
             rollingResetInSec: rollingWindow.resetInSec,
             weeklyResetInSec: weeklyWindow.resetInSec,
+            renewsAt: renewsAt,
             updatedAt: now)
     }
 

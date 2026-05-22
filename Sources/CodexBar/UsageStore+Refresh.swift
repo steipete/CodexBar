@@ -320,19 +320,7 @@ extension UsageStore {
     private static func shouldPreservePriorSnapshot(after error: Error, hadPriorData: Bool) -> Bool {
         guard hadPriorData else { return false }
         if error is CancellationError { return true }
-
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            switch nsError.code {
-            case NSURLErrorTimedOut,
-                 NSURLErrorCancelled,
-                 NSURLErrorNetworkConnectionLost,
-                 NSURLErrorNotConnectedToInternet:
-                return true
-            default:
-                break
-            }
-        }
+        if self.isPreservableNetworkTransportError(error) { return true }
 
         let message = error.localizedDescription.lowercased()
         return message.contains("timed out") ||
@@ -340,6 +328,23 @@ extension UsageStore {
             message.contains("cancelled") ||
             message.contains("network connection was lost") ||
             message.contains("not connected to the internet")
+    }
+
+    static func isPreservableNetworkTransportError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        switch nsError.code {
+        case NSURLErrorTimedOut,
+             NSURLErrorCancelled,
+             NSURLErrorNetworkConnectionLost,
+             NSURLErrorNotConnectedToInternet,
+             NSURLErrorCannotFindHost,
+             NSURLErrorCannotConnectToHost,
+             NSURLErrorDNSLookupFailed:
+            return true
+        default:
+            return false
+        }
     }
 
     private static func isClaudeUsageProbeTimeout(_ error: Error) -> Bool {
