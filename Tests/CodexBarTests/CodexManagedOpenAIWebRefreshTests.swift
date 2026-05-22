@@ -8,7 +8,8 @@ import Testing
 struct CodexManagedOpenAIWebRefreshTests {
     @Test
     func `regular refresh does not await OpenAI web scrape`() async throws {
-        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-regular-refresh-nonblocking")
+        let settings = try self
+            .makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-regular-refresh-nonblocking")
         settings.statusChecksEnabled = false
         if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
             settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
@@ -195,6 +196,167 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
+    func `regular credits refresh reschedules when Codex account changes`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-credits-account-switch")
+        settings.statusChecksEnabled = false
+        settings.openAIWebAccessEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let alphaHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let betaHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: alphaHomeURL,
+            email: "alpha@example.com",
+            plan: "Pro")
+        try? Self.writeCodexAuthFile(
+            homeURL: betaHomeURL,
+            email: "beta@example.com",
+            plan: "Pro")
+        defer {
+            try? FileManager.default.removeItem(at: alphaHomeURL)
+            try? FileManager.default.removeItem(at: betaHomeURL)
+        }
+        let alphaAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "alpha@example.com",
+            managedHomePath: alphaHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let betaAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "beta@example.com",
+            managedHomePath: betaHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = alphaAccount
+        settings.codexActiveSource = .managedAccount(id: alphaAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingCreditsLoader()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            try await blocker.awaitResult()
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+
+        let alphaRefreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+        }
+        await blocker.waitUntilStarted(count: 1)
+
+        settings._test_activeManagedCodexAccount = betaAccount
+        settings.codexActiveSource = .managedAccount(id: betaAccount.id)
+        let betaRefreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+        }
+        await blocker.waitUntilStarted(count: 2)
+
+        await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 10, events: [], updatedAt: Date())))
+        await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
+
+        await alphaRefreshTask.value
+        await betaRefreshTask.value
+        await store.creditsRefreshTask?.value
+
+        #expect(await blocker.startedCount() == 2)
+        #expect(store.lastCreditsSnapshotAccountKey == "beta@example.com")
+        #expect(store.credits?.remaining == 25)
+    }
+
+    @Test
+    func `rapid regular refreshes coalesce concurrent OpenAI dashboard fetches`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-dashboard-coalescing")
+        settings.statusChecksEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        let firstCompletion = RefreshCompletionProbe()
+        let secondCompletion = RefreshCompletionProbe()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+            try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+
+        let firstRefreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+            await firstCompletion.markCompleted()
+        }
+        await blocker.waitUntilStarted(count: 1)
+        #expect(await firstCompletion.isCompleted == true)
+
+        let secondRefreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+            await secondCompletion.markCompleted()
+        }
+
+        try? await Task.sleep(for: .milliseconds(200))
+
+        #expect(await blocker.startedCount() == 1)
+        #expect(await secondCompletion.isCompleted == true)
+
+        let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 95,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 25,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+
+        await firstRefreshTask.value
+        await secondRefreshTask.value
+        await backgroundTask.value
+
+        #expect(store.openAIDashboard?.creditsRemaining == 25)
+    }
+
+    @Test
     func `background credits refresh persists updated widget snapshot after refresh returns`() async throws {
         let settings = try self.makeSettingsStore(
             suite: "CodexManagedOpenAIWebRefreshTests-widget-background-credits")
@@ -298,6 +460,8 @@ struct CodexManagedOpenAIWebRefreshTests {
             startupBehavior: .testing)
         store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
         store.creditsRefreshTask = Task {}
+        store.creditsRefreshTaskKey = store.codexCreditsRefreshKey(
+            expectedGuard: store.currentCodexAccountScopedRefreshGuard())
 
         let dashboardBlocker = BlockingManagedOpenAIDashboardLoader()
         let saver = BlockingWidgetSnapshotSaver()

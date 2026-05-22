@@ -180,6 +180,9 @@ final class UsageStore {
     @ObservationIgnored var lastKnownLiveSystemCodexEmail: String?
     @ObservationIgnored var openAIWebAccountDidChange: Bool = false
     @ObservationIgnored var creditsRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var creditsRefreshTaskKey: String?
+    @ObservationIgnored var openAIDashboardBackgroundRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var openAIDashboardBackgroundRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTask: Task<Void, Never>?
     @ObservationIgnored var openAIDashboardRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTaskToken: UUID?
@@ -598,12 +601,7 @@ final class UsageStore {
                         force: true,
                         expectedGuard: codexDashboardGuard)
                 } else {
-                    Task { @MainActor [weak self] in
-                        await self?.refreshOpenAIDashboardIfNeeded(
-                            force: false,
-                            expectedGuard: codexDashboardGuard)
-                        self?.persistWidgetSnapshot(reason: "dashboard")
-                    }
+                    self.scheduleOpenAIDashboardRefreshIfNeeded(expectedGuard: codexDashboardGuard)
                 }
             }
 

@@ -14,19 +14,52 @@ extension UsageStore {
     }
 
     func scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) {
-        if let existing = self.creditsRefreshTask {
-            guard existing.isCancelled else { return }
-            self.creditsRefreshTask = nil
+        let refreshKey = self.codexCreditsRefreshKey(
+            expectedGuard: self.currentCodexAccountScopedRefreshGuard())
+        if let existing = self.creditsRefreshTask,
+           !existing.isCancelled,
+           self.creditsRefreshTaskKey == refreshKey
+        {
+            return
         }
 
+        self.creditsRefreshTask?.cancel()
+        self.creditsRefreshTaskKey = refreshKey
         self.creditsRefreshTask = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                self.creditsRefreshTask = nil
+                if self.creditsRefreshTaskKey == refreshKey {
+                    self.creditsRefreshTask = nil
+                    self.creditsRefreshTaskKey = nil
+                }
             }
             await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
             self.persistWidgetSnapshot(reason: "credits")
         }
+    }
+
+    func codexCreditsRefreshKey(expectedGuard: CodexAccountScopedRefreshGuard) -> String {
+        let sourceKey = switch expectedGuard.source {
+        case .liveSystem:
+            "live"
+        case let .managedAccount(id):
+            "managed:\(id.uuidString)"
+        }
+
+        let identityKey = switch expectedGuard.identity {
+        case let .providerAccount(id):
+            "provider:\(id)"
+        case let .emailOnly(normalizedEmail):
+            "email:\(normalizedEmail)"
+        case .unresolved:
+            "unresolved"
+        }
+
+        return [
+            sourceKey,
+            identityKey,
+            expectedGuard.accountKey ?? "account:nil",
+        ].joined(separator: "|")
     }
 
     func refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) async {

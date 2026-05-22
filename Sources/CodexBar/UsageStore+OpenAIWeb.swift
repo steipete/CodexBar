@@ -409,6 +409,37 @@ extension UsageStore {
         }
     }
 
+    func scheduleOpenAIDashboardRefreshIfNeeded(expectedGuard: CodexAccountScopedRefreshGuard? = nil) {
+        self.syncOpenAIWebState()
+        let allowCurrentSnapshotFallback = expectedGuard?.source == .liveSystem && expectedGuard?
+            .identity == .unresolved
+        let targetEmail = self.currentCodexOpenAIWebTargetEmail(
+            allowCurrentSnapshotFallback: allowCurrentSnapshotFallback,
+            allowLastKnownLiveFallback: expectedGuard?.identity != .unresolved)
+        let refreshKey = self.openAIDashboardRefreshKey(targetEmail: targetEmail, expectedGuard: expectedGuard)
+        if let task = self.openAIDashboardBackgroundRefreshTask,
+           !task.isCancelled,
+           self.openAIDashboardBackgroundRefreshTaskKey == refreshKey
+        {
+            return
+        }
+
+        self.openAIDashboardBackgroundRefreshTask?.cancel()
+        self.openAIDashboardBackgroundRefreshTaskKey = refreshKey
+        self.openAIDashboardBackgroundRefreshTask = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.openAIDashboardBackgroundRefreshTaskKey == refreshKey {
+                    self.openAIDashboardBackgroundRefreshTask = nil
+                    self.openAIDashboardBackgroundRefreshTaskKey = nil
+                }
+            }
+
+            await self.refreshOpenAIDashboardIfNeeded(force: false, expectedGuard: expectedGuard)
+            self.persistWidgetSnapshot(reason: "dashboard")
+        }
+    }
+
     private func performOpenAIDashboardRefreshIfNeeded(_ context: OpenAIDashboardRefreshContext) async {
         self.openAIDashboardCookieImportStatus = nil
         var latestCookieImportStatus: String?
