@@ -413,31 +413,21 @@ struct UsageStoreCoverageTests {
 
     @Test
     func `isPreservableNetworkTransportError classifies transport failures correctly`() {
-        // Regression test: transport-layer errors should be classified as preservable so the
-        // prior snapshot survives a failed refresh. We test the classifier directly rather
-        // than through refreshProvider to keep the test focused and independent of provider
-        // setup complexity.
-
-        // New cases for issue #1097
-        #expect(isPreservableNetworkTransportError(
+        #expect(UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost)))
-        #expect(isPreservableNetworkTransportError(
+        #expect(UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotConnectToHost)))
-        #expect(isPreservableNetworkTransportError(
+        #expect(UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSURLErrorDomain, code: NSURLErrorDNSLookupFailed)))
-
-        // Previously covered cases
-        #expect(isPreservableNetworkTransportError(
+        #expect(UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)))
-        #expect(isPreservableNetworkTransportError(
+        #expect(UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)))
-        #expect(isPreservableNetworkTransportError(
+        #expect(UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)))
-        #expect(isPreservableNetworkTransportError(
+        #expect(UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)))
-
-        // Non-URL errors are not classified as transport-preservable
-        #expect(!isPreservableNetworkTransportError(
+        #expect(!UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSCocoaErrorDomain, code: 0)))
     }
 
