@@ -11,7 +11,7 @@ read_when:
 - `Scripts/package_app.sh`: builds host arch by default; set `ARCHES="arm64 x86_64"` for universal. Verifies slices.
 - `Scripts/compile_and_run.sh`: uses host arch; pass `--release-universal` or `--release-arches="arm64 x86_64"` for release packaging.
 - `Scripts/sign-and-notarize.sh`: signs, notarizes, staples, zips (accepts `ARCHES` for universal).
-- `Scripts/make_appcast.sh`: generates Sparkle appcast and embeds HTML release notes.
+- `Scripts/make_appcast.sh`: wrapper around the shared `mac-release make-appcast` helper; app metadata comes from `.mac-release.env`.
 - `Scripts/changelog-to-html.sh`: converts the per-version changelog section to HTML for Sparkle.
 
 ## Bundle contents

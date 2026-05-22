@@ -72,6 +72,10 @@ public enum ProviderTokenResolver {
         self.moonshotResolution(environment: environment)?.token
     }
 
+    public static func ollamaToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.ollamaResolution(environment: environment)?.token
+    }
+
     public static func kiloToken(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         authFileURL: URL? = nil) -> String?
@@ -267,6 +271,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(MoonshotSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func ollamaResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(OllamaAPISettingsReader.apiKey(environment: environment))
     }
 
     public static func kiloResolution(

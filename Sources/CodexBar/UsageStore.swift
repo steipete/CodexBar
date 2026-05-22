@@ -43,7 +43,6 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.statuses
         _ = self.historicalPaceRevision
@@ -997,6 +996,7 @@ extension UsageStore {
                 .bedrock: "Bedrock debug log not yet implemented",
                 .grok: "Grok debug log not yet implemented",
                 .groq: "Groq debug log not yet implemented",
+                .t3chat: "T3 Chat debug log not yet implemented",
                 .llmproxy: "LLM Proxy debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
             ]
@@ -1076,7 +1076,7 @@ extension UsageStore {
                 case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .vertexai,
                      .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral,
                      .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq,
-                     .llmproxy, .deepgram:
+                     .t3chat, .llmproxy, .deepgram:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

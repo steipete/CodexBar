@@ -95,6 +95,8 @@ public enum ProviderConfigEnvironment {
             ElevenLabsSettingsReader.apiKeyEnvironmentKey
         case .moonshot:
             MoonshotSettingsReader.apiKeyEnvironmentKeys.first
+        case .ollama:
+            OllamaAPISettingsReader.apiKeyEnvironmentKeys.first
         case .venice:
             VeniceSettingsReader.apiKeyEnvironmentKey
         case .deepgram:

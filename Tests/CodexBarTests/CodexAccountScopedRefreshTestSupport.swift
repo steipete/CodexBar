@@ -7,6 +7,7 @@ extension CodexAccountScopedRefreshTests {
     func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
             userDefaults: defaults,
@@ -19,6 +20,7 @@ extension CodexAccountScopedRefreshTests {
         settings._test_managedCodexAccountStoreURL = nil
         settings._test_liveSystemCodexAccount = nil
         settings._test_codexReconciliationEnvironment = nil
+        settings.providerDetectionCompleted = true
         return settings
     }
 

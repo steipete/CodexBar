@@ -24,6 +24,7 @@ struct ProviderIconResourcesTests {
             "copilot",
             "crof",
             "commandcode",
+            "t3chat",
             "kimi",
             "bedrock",
             "elevenlabs",

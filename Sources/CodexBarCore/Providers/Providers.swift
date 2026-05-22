@@ -28,6 +28,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case kimik2
     case moonshot
     case amp
+    case t3chat
     case ollama
     case synthetic
     case warp
@@ -78,6 +79,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case jetbrains
     case moonshot
     case amp
+    case t3chat
     case ollama
     case synthetic
     case warp

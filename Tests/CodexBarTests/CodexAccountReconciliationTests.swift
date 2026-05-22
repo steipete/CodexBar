@@ -5,17 +5,25 @@ import Testing
 
 @Suite(.serialized)
 struct CodexAccountReconciliationTests {
-    @Test
     @MainActor
-    func `settings store exposes codex reconciliation accessors using managed and live overrides`() throws {
-        let suite = "CodexAccountReconciliationTests-settings-store"
+    private static func makeSettings(suite: String) throws -> SettingsStore {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
         let settings = SettingsStore(
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.providerDetectionCompleted = true
+        return settings
+    }
+
+    @Test
+    @MainActor
+    func `settings store exposes codex reconciliation accessors using managed and live overrides`() throws {
+        let suite = "CodexAccountReconciliationTests-settings-store"
+        let settings = try Self.makeSettings(suite: suite)
         let managed = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
@@ -60,13 +68,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `settings store managed override does not leak ambient live system account`() throws {
         let suite = "CodexAccountReconciliationTests-managed-only"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let managed = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
@@ -96,13 +98,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `settings store reconciliation environment override drives live observation with synthetic store`() throws {
         let suite = "CodexAccountReconciliationTests-environment-only"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
@@ -132,13 +128,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `settings store home path override also keeps reconciliation hermetic`() throws {
         let suite = "CodexAccountReconciliationTests-home-path-only"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         settings._test_activeManagedCodexRemoteHomePath = "/tmp/managed-route-home"
         settings._test_liveSystemCodexAccount = nil
         settings._test_codexReconciliationEnvironment = nil
@@ -164,13 +154,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `settings store home path override keeps active source hermetic without persisted source`() throws {
         let suite = "CodexAccountReconciliationTests-home-path-hermetic-source"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let ambient = ManagedCodexAccount(
             id: UUID(),
             email: "ambient-managed@example.com",
@@ -207,13 +191,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `settings store normal reconciliation path honors persisted active source`() throws {
         let suite = "CodexAccountReconciliationTests-normal-path-active-source"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let persistedSource = CodexActiveSource.managedAccount(id: UUID())
         settings.codexActiveSource = persistedSource
 
@@ -226,13 +204,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `settings store debug managed store U R L override loads on disk accounts`() throws {
         let suite = "CodexAccountReconciliationTests-debug-store-url"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let stored = ManagedCodexAccount(
             id: UUID(),
             email: "stored@example.com",
@@ -688,13 +660,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `settings store can override active source to live system`() throws {
         let suite = "CodexAccountReconciliationTests-live-source-override"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let managed = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
@@ -727,13 +693,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `selecting merged visible account persists live system source`() throws {
         let suite = "CodexAccountReconciliationTests-select-merged-visible-account"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let managed = ManagedCodexAccount(
             id: UUID(),
             email: "same@example.com",
@@ -764,13 +724,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `selecting authenticated managed account prefers live system when visible row is merged`() throws {
         let suite = "CodexAccountReconciliationTests-select-authenticated-managed-merged"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let managed = ManagedCodexAccount(
             id: UUID(),
             email: "same@example.com",
@@ -800,13 +754,7 @@ struct CodexAccountReconciliationTests {
     @MainActor
     func `selecting authenticated managed account keeps managed source for split identity rows`() throws {
         let suite = "CodexAccountReconciliationTests-select-authenticated-managed-split"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = try Self.makeSettings(suite: suite)
         let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
