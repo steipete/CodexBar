@@ -632,3 +632,11 @@
 /* Cost estimation */
 "cost_header_estimated" = "Custo (estimado)";
 "cost_estimate_hint" = "Estimado a partir de logs locais · pode diferir da sua fatura";
+
+/* Environmental Footprint */
+"environmental_impact_header" = "Pegada ecológica";
+"environmental_impact_energy_today" = "Energia de hoje: %1$@ (%2$d cargas / %3$d xícaras)";
+"environmental_impact_co2_today" = "CO₂e de hoje: %1$@ (%2$.1f km dirigindo)";
+"environmental_impact_energy_month" = "Energia de %1$@: %2$@ (%3$d cargas / %4$d xícaras)";
+"environmental_impact_co2_month" = "CO₂e de %1$@: %2$@ (%3$.1f km dirigindo)";
+"Eco" = "Eco";

@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 import CodexBarCore
 import SwiftUI
@@ -86,6 +87,32 @@ struct UsageMenuCardView: View {
             let hintLine: String?
             let errorLine: String?
             let errorCopyText: String?
+            let energySessionLine: String?
+            let co2SessionLine: String?
+            let energyMonthLine: String?
+            let co2MonthLine: String?
+
+            init(
+                sessionLine: String,
+                monthLine: String,
+                hintLine: String? = nil,
+                errorLine: String? = nil,
+                errorCopyText: String? = nil,
+                energySessionLine: String? = nil,
+                co2SessionLine: String? = nil,
+                energyMonthLine: String? = nil,
+                co2MonthLine: String? = nil)
+            {
+                self.sessionLine = sessionLine
+                self.monthLine = monthLine
+                self.hintLine = hintLine
+                self.errorLine = errorLine
+                self.errorCopyText = errorCopyText
+                self.energySessionLine = energySessionLine
+                self.co2SessionLine = co2SessionLine
+                self.energyMonthLine = energyMonthLine
+                self.co2MonthLine = co2MonthLine
+            }
         }
 
         struct ProviderCostSection {
@@ -197,6 +224,38 @@ struct UsageMenuCardView: View {
                                 .font(.footnote)
                             Text(tokenUsage.monthLine)
                                 .font(.footnote)
+
+                            if tokenUsage.energySessionLine != nil || tokenUsage.energyMonthLine != nil {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "leaf.fill")
+                                            .foregroundColor(.green)
+                                            .imageScale(.small)
+                                        Text("environmental_impact_header")
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                    }
+                                    .padding(.top, 4)
+
+                                    if let energySession = tokenUsage.energySessionLine {
+                                        Text(energySession)
+                                            .font(.footnote)
+                                    }
+                                    if let co2Session = tokenUsage.co2SessionLine {
+                                        Text(co2Session)
+                                            .font(.footnote)
+                                    }
+                                    if let energyMonth = tokenUsage.energyMonthLine {
+                                        Text(energyMonth)
+                                            .font(.footnote)
+                                    }
+                                    if let co2Month = tokenUsage.co2MonthLine {
+                                        Text(co2Month)
+                                            .font(.footnote)
+                                    }
+                                }
+                            }
+
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)
@@ -621,6 +680,38 @@ struct UsageMenuCardCostSectionView: View {
                                 .font(.caption)
                             Text(tokenUsage.monthLine)
                                 .font(.caption)
+
+                            if tokenUsage.energySessionLine != nil || tokenUsage.energyMonthLine != nil {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "leaf.fill")
+                                            .foregroundColor(.green)
+                                            .imageScale(.small)
+                                        Text("environmental_impact_header")
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                    }
+                                    .padding(.top, 4)
+
+                                    if let energySession = tokenUsage.energySessionLine {
+                                        Text(energySession)
+                                            .font(.caption)
+                                    }
+                                    if let co2Session = tokenUsage.co2SessionLine {
+                                        Text(co2Session)
+                                            .font(.caption)
+                                    }
+                                    if let energyMonth = tokenUsage.energyMonthLine {
+                                        Text(energyMonth)
+                                            .font(.caption)
+                                    }
+                                    if let co2Month = tokenUsage.co2MonthLine {
+                                        Text(co2Month)
+                                            .font(.caption)
+                                    }
+                                }
+                            }
+
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)

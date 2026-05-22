@@ -632,3 +632,11 @@
 /* Cost estimation */
 "cost_header_estimated" = "Cost (estimated)";
 "cost_estimate_hint" = "Estimated from local logs · may differ from your bill";
+
+/* Environmental Footprint */
+"environmental_impact_header" = "Eco Footprint";
+"environmental_impact_energy_today" = "Today Energy: %1$@ (%2$d charges / %3$d cups)";
+"environmental_impact_co2_today" = "Today CO₂e: %1$@ (%2$.1f km driving)";
+"environmental_impact_energy_month" = "%1$@ Energy: %2$@ (%3$d charges / %4$d cups)";
+"environmental_impact_co2_month" = "%1$@ CO₂e: %2$@ (%3$.1f km driving)";
+"Eco" = "Eco";

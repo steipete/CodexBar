@@ -56,13 +56,56 @@ extension UsageMenuCardView.Model {
             }
             return "\(windowLabel): \(monthCost)"
         }()
+
+        let energySessionLine: String?
+        let co2SessionLine: String?
+        if let sTokens = snapshot.sessionTokens {
+            let impact = EnvironmentalImpact(tokens: sTokens)
+            energySessionLine = L(
+                "environmental_impact_energy_today",
+                UsageFormatter.formatEnergy(impact.energyKWh),
+                impact.smartphoneCharges,
+                impact.boiledKettles)
+            co2SessionLine = L(
+                "environmental_impact_co2_today",
+                UsageFormatter.formatCO2(impact.co2Kg),
+                impact.carKm)
+        } else {
+            energySessionLine = nil
+            co2SessionLine = nil
+        }
+
+        let energyMonthLine: String?
+        let co2MonthLine: String?
+        if let mTokens = monthTokensValue {
+            let impact = EnvironmentalImpact(tokens: mTokens)
+            energyMonthLine = L(
+                "environmental_impact_energy_month",
+                windowLabel,
+                UsageFormatter.formatEnergy(impact.energyKWh),
+                impact.smartphoneCharges,
+                impact.boiledKettles)
+            co2MonthLine = L(
+                "environmental_impact_co2_month",
+                windowLabel,
+                UsageFormatter.formatCO2(impact.co2Kg),
+                impact.carKm)
+        } else {
+            energyMonthLine = nil
+            co2MonthLine = nil
+        }
+
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
             hintLine: Self.tokenUsageHint(provider: provider),
             errorLine: err,
-            errorCopyText: (error?.isEmpty ?? true) ? nil : error)
+            errorCopyText: (error?.isEmpty ?? true) ? nil : error,
+            energySessionLine: energySessionLine,
+            co2SessionLine: co2SessionLine,
+            energyMonthLine: energyMonthLine,
+            co2MonthLine: co2MonthLine)
     }
 
     static func tokenUsageHint(provider: UsageProvider) -> String? {

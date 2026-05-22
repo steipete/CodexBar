@@ -192,6 +192,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         }
         if self.model.tokenUsage != nil {
             metricLabels.append(L("Cost"))
+            metricLabels.append(L("Eco"))
         }
 
         let infoWidth = ProviderSettingsMetrics.labelWidth(
@@ -428,6 +429,30 @@ struct ProviderMetricsInlineView: View {
                         title: "",
                         value: tokenUsage.monthLine,
                         labelWidth: self.labelWidth)
+                    if let energySession = tokenUsage.energySessionLine {
+                        ProviderMetricInlineTextRow(
+                            title: L("Eco"),
+                            value: energySession,
+                            labelWidth: self.labelWidth)
+                    }
+                    if let co2Session = tokenUsage.co2SessionLine {
+                        ProviderMetricInlineTextRow(
+                            title: "",
+                            value: co2Session,
+                            labelWidth: self.labelWidth)
+                    }
+                    if let energyMonth = tokenUsage.energyMonthLine {
+                        ProviderMetricInlineTextRow(
+                            title: "",
+                            value: energyMonth,
+                            labelWidth: self.labelWidth)
+                    }
+                    if let co2Month = tokenUsage.co2MonthLine {
+                        ProviderMetricInlineTextRow(
+                            title: "",
+                            value: co2Month,
+                            labelWidth: self.labelWidth)
+                    }
                 }
             }
         }

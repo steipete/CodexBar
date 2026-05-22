@@ -20,14 +20,30 @@ extension StatusItemController {
     }
 
     static func costMenuTooltipLines(tokenUsage: UsageMenuCardView.Model.TokenUsageSection?) -> [String] {
-        [
-            tokenUsage?.sessionLine,
-            tokenUsage?.monthLine,
-            tokenUsage?.hintLine,
-            tokenUsage?.errorLine,
-        ]
-            .compactMap(\.self)
-            .filter { !$0.isEmpty }
+        var lines: [String] = []
+        if let tokenUsage {
+            lines.append(tokenUsage.sessionLine)
+            lines.append(tokenUsage.monthLine)
+            if let energySession = tokenUsage.energySessionLine {
+                lines.append(energySession)
+            }
+            if let co2Session = tokenUsage.co2SessionLine {
+                lines.append(co2Session)
+            }
+            if let energyMonth = tokenUsage.energyMonthLine {
+                lines.append(energyMonth)
+            }
+            if let co2Month = tokenUsage.co2MonthLine {
+                lines.append(co2Month)
+            }
+            if let hint = tokenUsage.hintLine, !hint.isEmpty {
+                lines.append(hint)
+            }
+            if let error = tokenUsage.errorLine, !error.isEmpty {
+                lines.append(error)
+            }
+        }
+        return lines.filter { !$0.isEmpty }
     }
 
     static func costMenuVisibleDetailLines(tokenUsage: UsageMenuCardView.Model.TokenUsageSection?) -> [String] {

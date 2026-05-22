@@ -288,4 +288,54 @@ public enum UsageFormatter {
         }
         return cleaned
     }
+
+    public static func formatEnergy(_ kwh: Double) -> String {
+        let wh = kwh * 1000.0
+        if wh < 1000.0 {
+            let formatted: String
+            if wh >= 10.0 {
+                formatted = String(format: "%.0f", wh.rounded())
+            } else {
+                var s = String(format: "%.1f", wh)
+                if s.hasSuffix(".0") { s.removeLast(2) }
+                formatted = s
+            }
+            return "\(formatted) Wh"
+        } else {
+            let formatted: String
+            if kwh >= 10.0 {
+                formatted = String(format: "%.0f", kwh.rounded())
+            } else {
+                var s = String(format: "%.1f", kwh)
+                if s.hasSuffix(".0") { s.removeLast(2) }
+                formatted = s
+            }
+            return "\(formatted) kWh"
+        }
+    }
+
+    public static func formatCO2(_ kg: Double) -> String {
+        let g = kg * 1000.0
+        if g < 1000.0 {
+            let formatted: String
+            if g >= 10.0 {
+                formatted = String(format: "%.0f", g.rounded())
+            } else {
+                var s = String(format: "%.1f", g)
+                if s.hasSuffix(".0") { s.removeLast(2) }
+                formatted = s
+            }
+            return "\(formatted) g"
+        } else {
+            let formatted: String
+            if kg >= 10.0 {
+                formatted = String(format: "%.0f", kg.rounded())
+            } else {
+                var s = String(format: "%.1f", kg)
+                if s.hasSuffix(".0") { s.removeLast(2) }
+                formatted = s
+            }
+            return "\(formatted) kg"
+        }
+    }
 }
