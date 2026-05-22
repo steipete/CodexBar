@@ -52,6 +52,12 @@ extension UsageMenuCardView.Model {
             ]
         }
 
+        if input.provider == .ollama,
+           input.snapshot?.identity?.loginMethod == "API key"
+        {
+            return ["API key verified. Ollama does not expose Cloud quota limits through the API."]
+        }
+
         return nil
     }
 
@@ -109,6 +115,13 @@ extension UsageMenuCardView.Model {
         {
             return Self.minimaxInlineDashboard(billing)
         }
+        if [.codex, .claude, .vertexai, .bedrock].contains(input.provider),
+           input.tokenCostUsageEnabled,
+           let tokenSnapshot = input.tokenSnapshot,
+           !tokenSnapshot.daily.isEmpty
+        {
+            return Self.costHistoryInlineDashboard(provider: input.provider, snapshot: tokenSnapshot)
+        }
         return nil
     }
 
@@ -142,6 +155,57 @@ extension UsageMenuCardView.Model {
                     value: UsageFormatter.usdString(last30.costUSD),
                     emphasis: false),
                 .init(title: "Today req", value: UsageFormatter.tokenCountString(today.requests), emphasis: false),
+            ],
+            points: points,
+            detailLines: details)
+    }
+
+    private static func costHistoryInlineDashboard(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
+    {
+        let historyDays = max(1, min(365, snapshot.historyDays))
+        let historyLabel = historyDays == 1 ? "Today" : "\(historyDays)d"
+        let periodLabel = historyDays == 1 ? "today" : "\(historyDays) day"
+        let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
+            guard let cost = entry.costUSD else { return nil }
+            return InlineUsageDashboardModel.Point(
+                id: entry.date,
+                label: Self.shortDayLabel(entry.date),
+                value: cost,
+                accessibilityValue: "\(entry.date): \(UsageFormatter.usdString(cost))")
+        }
+        let latest = snapshot.daily.max { lhs, rhs in lhs.date < rhs.date }
+        var details: [String] = []
+        if let topModel = Self.topCostModel(from: snapshot.daily) {
+            details.append("Top model: \(Self.shortModelName(topModel))")
+        }
+        if provider == .bedrock {
+            details.append("AWS Cost Explorer billing can lag.")
+        } else {
+            details.append(UsageFormatter.costEstimateHint(provider: provider))
+        }
+        let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
+        return InlineUsageDashboardModel(
+            accessibilityLabel: "\(providerName) \(periodLabel) cost trend",
+            valueStyle: .currencyUSD,
+            kpis: [
+                .init(
+                    title: provider == .bedrock ? "Latest" : "Today",
+                    value: latest?.costUSD.map(UsageFormatter.usdString) ?? "—",
+                    emphasis: true),
+                .init(
+                    title: "\(historyLabel) cost",
+                    value: snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—",
+                    emphasis: false),
+                .init(
+                    title: "\(historyLabel) tokens",
+                    value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    emphasis: false),
+                .init(
+                    title: "Latest tokens",
+                    value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    emphasis: false),
             ],
             points: points,
             detailLines: details)
@@ -397,6 +461,22 @@ extension UsageMenuCardView.Model {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count > 26 else { return trimmed }
         return String(trimmed.prefix(25)) + "…"
+    }
+
+    private static func topCostModel(from entries: [CostUsageDailyReport.Entry]) -> String? {
+        var scores: [String: (cost: Double, tokens: Int)] = [:]
+        for entry in entries {
+            for model in entry.modelBreakdowns ?? [] {
+                var score = scores[model.modelName] ?? (0, 0)
+                score.cost += model.costUSD ?? 0
+                score.tokens += model.totalTokens ?? 0
+                scores[model.modelName] = score
+            }
+        }
+        return scores.max {
+            if $0.value.cost == $1.value.cost { return $0.value.tokens < $1.value.tokens }
+            return $0.value.cost < $1.value.cost
+        }?.key
     }
 }
 

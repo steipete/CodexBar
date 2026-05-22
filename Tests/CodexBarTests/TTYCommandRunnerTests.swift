@@ -93,6 +93,43 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
+    func `descendant resolver walks process tree once`() {
+        let children: [pid_t: [pid_t]] = [
+            100: [101, 102],
+            101: [103],
+            102: [103],
+            103: [100],
+        ]
+
+        let descendants = TTYProcessTreeTerminator.descendantPIDs(of: 100) { children[$0] ?? [] }
+
+        #expect(Set(descendants) == Set([101, 102, 103]))
+        #expect(descendants.count == 3)
+    }
+
+    @Test
+    func `process tree termination signals escaped descendants`() {
+        let children: [pid_t: [pid_t]] = [
+            100: [101, 102],
+            102: [103],
+        ]
+        var signaled: [(pid: pid_t, signal: Int32)] = []
+
+        TTYProcessTreeTerminator.terminateProcessTree(
+            rootPID: 100,
+            processGroup: 200,
+            signal: 15,
+            childResolver: { children[$0] ?? [] },
+            signalSender: { pid, signal in
+                signaled.append((pid: pid, signal: signal))
+            })
+
+        #expect(Set(signaled.map(\.pid)) == Set([100, 101, 102, 103, -200]))
+        #expect(signaled.allSatisfy { $0.signal == 15 })
+        #expect(signaled.last?.pid == 100)
+    }
+
+    @Test
     func `preserves environment and sets term`() {
         let baseEnv: [String: String] = [
             "PATH": "/custom/bin",

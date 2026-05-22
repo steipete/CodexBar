@@ -72,6 +72,10 @@ public enum ProviderTokenResolver {
         self.moonshotResolution(environment: environment)?.token
     }
 
+    public static func ollamaToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.ollamaResolution(environment: environment)?.token
+    }
+
     public static func kiloToken(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         authFileURL: URL? = nil) -> String?
@@ -269,6 +273,12 @@ public enum ProviderTokenResolver {
         self.resolveEnv(MoonshotSettingsReader.apiKey(environment: environment))
     }
 
+    public static func ollamaResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(OllamaAPISettingsReader.apiKey(environment: environment))
+    }
+
     public static func kiloResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         authFileURL: URL? = nil) -> ProviderTokenResolution?
@@ -370,8 +380,7 @@ public enum ProviderTokenResolver {
         if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
             (value.hasPrefix("'") && value.hasSuffix("'"))
         {
-            value.removeFirst()
-            value.removeLast()
+            value = String(value.dropFirst().dropLast())
         }
 
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)

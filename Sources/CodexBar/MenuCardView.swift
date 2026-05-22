@@ -695,7 +695,6 @@ extension UsageMenuCardView.Model {
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
-        let claudePeakHoursEnabled: Bool
         let weeklyPace: UsagePace?
         let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
         let now: Date
@@ -721,7 +720,6 @@ extension UsageMenuCardView.Model {
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
-            claudePeakHoursEnabled: Bool = true,
             weeklyPace: UsagePace? = nil,
             quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
             now: Date)
@@ -746,7 +744,6 @@ extension UsageMenuCardView.Model {
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
-            self.claudePeakHoursEnabled = claudePeakHoursEnabled
             self.weeklyPace = weeklyPace
             self.quotaWarningThresholds = quotaWarningThresholds
             self.now = now
@@ -834,11 +831,6 @@ extension UsageMenuCardView.Model {
                 notes.append("Using CLI fallback")
             }
             return notes
-        }
-
-        if input.provider == .claude, input.claudePeakHoursEnabled {
-            let peakStatus = ClaudePeakHours.status(at: input.now)
-            return [peakStatus.label]
         }
 
         if input.provider == .mimo, input.snapshot != nil {
@@ -1072,7 +1064,7 @@ extension UsageMenuCardView.Model {
         }
         if labels.showsTertiary, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
-            if input.provider == .alibaba,
+            if input.provider == .alibaba || input.provider == .alibabatokenplan,
                let detail = opus.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
@@ -1214,9 +1206,10 @@ extension UsageMenuCardView.Model {
             let total = UsageFormatter.kiroCreditNumber(kiroUsage.creditsTotal)
             primaryDetailLeft = "\(remaining) of \(total) credits left"
         }
-        if input.provider == .alibaba || input.provider == .mistral || input.provider == .manus,
-           let detail = primary.resetDescription,
-           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if input.provider == .alibaba || input.provider == .alibabatokenplan || input.provider == .mistral || input
+            .provider == .manus,
+            let detail = primary.resetDescription,
+            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
             if input.provider == .manus { primaryResetText = nil }
@@ -1338,7 +1331,7 @@ extension UsageMenuCardView.Model {
                 pacePercent: nil,
                 paceOnTop: true)
         }
-        if input.provider == .alibaba,
+        if input.provider == .alibaba || input.provider == .alibabatokenplan,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {

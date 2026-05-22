@@ -411,6 +411,26 @@ struct UsageStoreCoverageTests {
         #expect(store.tokenAccountErrorMessage(ProviderFetchError.noAvailableStrategy(.copilot)) != nil)
     }
 
+    @Test
+    func `isPreservableNetworkTransportError classifies transport failures correctly`() {
+        #expect(UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost)))
+        #expect(UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotConnectToHost)))
+        #expect(UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorDNSLookupFailed)))
+        #expect(UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)))
+        #expect(UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)))
+        #expect(UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)))
+        #expect(UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)))
+        #expect(!UsageStore.isPreservableNetworkTransportError(
+            NSError(domain: NSCocoaErrorDomain, code: 0)))
+    }
+
     private static func makeSettingsStore(
         suite: String,
         zaiTokenStore: any ZaiTokenStoring = NoopZaiTokenStore(),

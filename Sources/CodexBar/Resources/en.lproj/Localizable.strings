@@ -193,8 +193,6 @@
 "OK" = "OK";
 "Obscure email addresses in the menu bar and menu UI." = "Obscure email addresses in the menu bar and menu UI.";
 "Off" = "Off";
-"Off-peak" = "Off-peak";
-"Off-peak · peak in \\(self.formatDuration(minutes: minutes))" = "Off-peak · peak in \\(self.formatDuration(minutes: minutes))";
 "Offline" = "Offline";
 "On" = "On";
 "Online" = "Online";
@@ -231,7 +229,6 @@
 "Paste sessionKey or OAuth token…" = "Paste sessionKey or OAuth token…";
 "Paste the Cookie header from a request to admin.mistral.ai. " = "Paste the Cookie header from a request to admin.mistral.ai. ";
 "Paste token…" = "Paste token…";
-"Peak · ends in \\(self.formatDuration(minutes: remaining))" = "Peak · ends in \\(self.formatDuration(minutes: remaining))";
 "Personal" = "Personal";
 "Picker" = "Picker";
 "Picker subtitle" = "Picker subtitle";
@@ -278,11 +275,9 @@
 "Show credits + extra usage" = "Show credits + extra usage";
 "Show details" = "Show details";
 "Show most-used provider" = "Show most-used provider";
-"Show peak hours indicator" = "Show peak hours indicator";
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Show provider icons in the switcher (otherwise show a weekly progress line).";
 "Show reset time as clock" = "Show reset time as clock";
 "Show usage as used" = "Show usage as used";
-"Show whether Claude is in peak usage hours." = "Show whether Claude is in peak usage hours.";
 "Sign in via button below" = "Sign in via button below";
 "Skip teardown between probes (debug-only)." = "Skip teardown between probes (debug-only).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Stack token accounts in the menu (otherwise show an account switcher bar).";
@@ -385,11 +380,8 @@
 "metric_secondary" = "Secondary (%@)";
 "metric_tertiary" = "Tertiary (%@)";
 "multiple_workspaces_found" = "CodexBar found multiple workspaces for %@. Please choose the workspace to add.";
-"off_peak" = "Off-peak";
-"off_peak_peak_in" = "Off-peak · peak in %@";
 "ory_session_…=…; csrftoken=…" = "ory_session_…=…; csrftoken=…";
 "overview_choose_providers" = "Choose up to %@ providers";
-"peak_ends_in" = "Peak ends in %@";
 "remove_account_message" = "Remove %@ from CodexBar? Its managed Codex home will be deleted.";
 "version_format" = "Version %@";
 "vertex_ai_login_instructions" = "To track Vertex AI usage, authenticate with Google Cloud.\n\n1. Open Terminal\n2. Run: gcloud auth application-default login\n3. Follow the browser prompts to sign in\n4. Set your project: gcloud config set project PROJECT_ID\n\nOpen Terminal now?";

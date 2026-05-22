@@ -974,6 +974,47 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex repeated total token snapshots do not recount last usage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 20)
+        let model = "openai/gpt-5.5"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "repeated-total-snapshot.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 100, cached: 20, output: 10),
+                    last: (input: 100, cached: 20, output: 10)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 100, cached: 20, output: 10),
+                    last: (input: 100, cached: 20, output: 10)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 130, cached: 20, output: 12),
+                    last: (input: 100, cached: 20, output: 10)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 130)
+        #expect(packed[safe: 1] == 20)
+        #expect(packed[safe: 2] == 12)
+        #expect(parsed.rows.count == 2)
+    }
+
+    @Test
     func `codex total only after divergent totals uses raw delta when it continues`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

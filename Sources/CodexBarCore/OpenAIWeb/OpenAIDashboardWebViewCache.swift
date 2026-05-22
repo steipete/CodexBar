@@ -34,7 +34,7 @@ final class OpenAIDashboardWebViewCache {
         var lastUsedAt: Date
         var isBusy: Bool
         var preservedPageExpiresAt: Date?
-        var preservedPageExpiryTask: Task<Void, Never>?
+        var preservedPageExpiryWorkItem: DispatchWorkItem?
 
         init(
             webView: WKWebView,
@@ -54,22 +54,22 @@ final class OpenAIDashboardWebViewCache {
             self.preservedPageExpiresAt = expiry
         }
 
-        func setPreservedPageExpiryTask(_ task: Task<Void, Never>?) {
-            self.preservedPageExpiryTask?.cancel()
-            self.preservedPageExpiryTask = task
+        func setPreservedPageExpiryWorkItem(_ workItem: DispatchWorkItem?) {
+            self.preservedPageExpiryWorkItem?.cancel()
+            self.preservedPageExpiryWorkItem = workItem
         }
 
         func clearPreservedPage() {
             self.preservedPageExpiresAt = nil
-            self.preservedPageExpiryTask?.cancel()
-            self.preservedPageExpiryTask = nil
+            self.preservedPageExpiryWorkItem?.cancel()
+            self.preservedPageExpiryWorkItem = nil
         }
 
         func consumePreservedPageReuseIfAvailable(now: Date) -> Bool {
             guard let preservedPageExpiresAt else { return false }
             self.preservedPageExpiresAt = nil
-            self.preservedPageExpiryTask?.cancel()
-            self.preservedPageExpiryTask = nil
+            self.preservedPageExpiryWorkItem?.cancel()
+            self.preservedPageExpiryWorkItem = nil
             return preservedPageExpiresAt > now
         }
 
@@ -86,6 +86,16 @@ final class OpenAIDashboardWebViewCache {
     /// Reuse the validated analytics page only for the immediate next handoff.
     private let preservedPageHandoffTimeout: TimeInterval = 5
     private let blankURL = URL(string: "about:blank")!
+    private let idlePageClearScript = """
+    (() => {
+      try {
+        document.documentElement.innerHTML = '';
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    """
     private let reusablePageResetScript = """
     (() => {
       try {
@@ -420,6 +430,7 @@ final class OpenAIDashboardWebViewCache {
         // Detach the heavyweight ChatGPT SPA as soon as a scrape completes. Keeping the WebView object around
         // still helps with immediate reuse, but letting chatgpt.com remain the active document is too expensive.
         webView.stopLoading()
+        webView.evaluateJavaScript(self.idlePageClearScript, completionHandler: nil)
         _ = webView.load(URLRequest(url: self.blankURL))
         host.hide()
     }
@@ -546,12 +557,13 @@ final class OpenAIDashboardWebViewCache {
         expiresAt: Date)
     {
         let delay = max(0, expiresAt.timeIntervalSinceNow)
-        let task = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(delay))
-            guard !Task.isCancelled else { return }
-            self?.expirePreservedPageIfNeeded(for: key, expectedExpiry: expiresAt)
+        let workItem = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.expirePreservedPageIfNeeded(for: key, expectedExpiry: expiresAt)
+            }
         }
-        entry.setPreservedPageExpiryTask(task)
+        entry.setPreservedPageExpiryWorkItem(workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func expirePreservedPageIfNeeded(for key: ObjectIdentifier, expectedExpiry: Date) {
