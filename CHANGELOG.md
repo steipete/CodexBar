@@ -5,6 +5,7 @@
 ### Added
 
 ### Fixed
+- Menu bar: show extra-usage spend as currency text for Claude and Cursor when that metric is selected (#1107). Thanks @Yuxin-Qiao!
 
 ## 0.29.0 — 2026-05-22
 
