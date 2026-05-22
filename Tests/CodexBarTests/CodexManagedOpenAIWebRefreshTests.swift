@@ -195,6 +195,161 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
+    func `background credits refresh persists updated widget snapshot after refresh returns`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-widget-background-credits")
+        settings.statusChecksEnabled = false
+        settings.openAIWebAccessEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+
+        let creditsBlocker = BlockingCreditsLoader()
+        let saver = BlockingWidgetSnapshotSaver()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            try await creditsBlocker.awaitResult()
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+        store._test_widgetSnapshotSaveOverride = { snapshot in
+            await saver.save(snapshot)
+        }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+        }
+
+        await refreshTask.value
+        await saver.waitUntilStarted(count: 1)
+
+        let firstSnapshots = await saver.savedSnapshots()
+        let firstCodexEntry = try #require(firstSnapshots.first?.entries.first { $0.provider == .codex })
+        #expect(firstCodexEntry.creditsRemaining == nil)
+
+        await saver.resumeNext()
+        await creditsBlocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
+        try? await Task.sleep(for: .milliseconds(200))
+
+        #expect(await saver.startedCount() == 2)
+        let secondSnapshots = await saver.savedSnapshots()
+        let secondCodexEntry = try #require(secondSnapshots.last?.entries.first { $0.provider == .codex })
+        #expect(secondCodexEntry.creditsRemaining == 25)
+
+        await saver.resumeNext()
+        await store.widgetSnapshotPersistTask?.value
+    }
+
+    @Test
+    func `background dashboard refresh persists updated widget snapshot after refresh returns`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-widget-background-dashboard")
+        settings.statusChecksEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+        store.creditsRefreshTask = Task {}
+
+        let dashboardBlocker = BlockingManagedOpenAIDashboardLoader()
+        let saver = BlockingWidgetSnapshotSaver()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+            try await dashboardBlocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_widgetSnapshotSaveOverride = { snapshot in
+            await saver.save(snapshot)
+        }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+        }
+
+        await refreshTask.value
+        await saver.waitUntilStarted(count: 1)
+
+        let firstSnapshots = await saver.savedSnapshots()
+        let firstCodexEntry = try #require(firstSnapshots.first?.entries.first { $0.provider == .codex })
+        #expect(firstCodexEntry.codeReviewRemainingPercent == nil)
+
+        await saver.resumeNext()
+        await dashboardBlocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 95,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 25,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+        try? await Task.sleep(for: .milliseconds(200))
+
+        #expect(await saver.startedCount() == 2)
+        let secondSnapshots = await saver.savedSnapshots()
+        let secondCodexEntry = try #require(secondSnapshots.last?.entries.first { $0.provider == .codex })
+        #expect(secondCodexEntry.codeReviewRemainingPercent == 95)
+
+        await saver.resumeNext()
+        await store.widgetSnapshotPersistTask?.value
+    }
+
+    @Test
     func `manual cookie import bypasses same account refresh coalescing`() async throws {
         let settings = try self.makeSettingsStore(
             suite: "CodexManagedOpenAIWebRefreshTests-manual-import-bypass-coalesce")
@@ -542,6 +697,18 @@ struct CodexManagedOpenAIWebRefreshTests {
         }
 
         return "\(base64URL(header)).\(base64URL(payload))."
+    }
+
+    private static func codexSnapshot(email: String, usedPercent: Double) -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(usedPercent: usedPercent, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: email,
+                accountOrganization: nil,
+                loginMethod: "Pro"))
     }
 }
 

@@ -602,6 +602,7 @@ final class UsageStore {
                         await self?.refreshOpenAIDashboardIfNeeded(
                             force: false,
                             expectedGuard: codexDashboardGuard)
+                        self?.persistWidgetSnapshot(reason: "dashboard")
                     }
                 }
             }

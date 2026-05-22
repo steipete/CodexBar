@@ -25,6 +25,7 @@ extension UsageStore {
                 self.creditsRefreshTask = nil
             }
             await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
+            self.persistWidgetSnapshot(reason: "credits")
         }
     }
 
