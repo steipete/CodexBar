@@ -162,6 +162,14 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertEqual(CodexBarCLI.mapError(UsageError.noRateLimitsFound), ExitCode(3))
     }
 
+    func test_missingCodexBinaryErrorPayloadUsesInstallGuidance() {
+        let payload = CodexBarCLI.makeErrorPayload(CodexStatusProbeError.codexNotInstalled, kind: .provider)
+
+        XCTAssertEqual(payload.code, ExitCode.binaryNotFound.rawValue)
+        XCTAssertTrue(payload.message.contains("Codex CLI missing"))
+        XCTAssertFalse(payload.message.contains("Codex not running"))
+    }
+
     func test_providerSelectionFallsBackToBothForPrimaryPair() {
         let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .claude])
         switch selection {
@@ -275,5 +283,14 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .grok))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .grok))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.api, provider: .kilo))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .ollama,
+            environment: ["OLLAMA_API_KEY": "ollama-test"]))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .ollama,
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .off, manualCookieHeader: nil))))
     }
 }

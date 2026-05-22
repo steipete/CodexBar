@@ -29,13 +29,13 @@ enum CostUsageJsonl {
         var truncated = false
         var bytesRead: Int64 = 0
 
-        func appendSegment(_ segment: Data.SubSequence) {
-            guard !segment.isEmpty else { return }
-            lineBytes += segment.count
+        func appendSegment(_ bytes: UnsafePointer<UInt8>, count: Int) {
+            guard count > 0 else { return }
+            lineBytes += count
             if current.count < prefixBytes {
-                let appendCount = min(prefixBytes - current.count, segment.count)
+                let appendCount = min(prefixBytes - current.count, count)
                 if appendCount > 0 {
-                    current.append(contentsOf: segment.prefix(appendCount))
+                    current.append(bytes, count: appendCount)
                 }
             }
             if lineBytes > maxLineBytes || lineBytes > prefixBytes {
@@ -60,14 +60,21 @@ enum CostUsageJsonl {
             }
 
             bytesRead += Int64(chunk.count)
-            var segmentStart = chunk.startIndex
-            while let nl = chunk[segmentStart...].firstIndex(of: 0x0A) {
-                appendSegment(chunk[segmentStart..<nl])
-                flushLine()
-                segmentStart = chunk.index(after: nl)
-            }
-            if segmentStart < chunk.endIndex {
-                appendSegment(chunk[segmentStart..<chunk.endIndex])
+            chunk.withUnsafeBytes { rawBuffer in
+                guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
+                var segmentStart = 0
+                var index = 0
+                while index < rawBuffer.count {
+                    if base[index] == 0x0A {
+                        appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
+                        flushLine()
+                        segmentStart = index + 1
+                    }
+                    index += 1
+                }
+                if segmentStart < rawBuffer.count {
+                    appendSegment(base.advanced(by: segmentStart), count: rawBuffer.count - segmentStart)
+                }
             }
         }
 

@@ -128,13 +128,30 @@ extension UsageStore {
     {
         guard !samples.isEmpty else { return nil }
 
-        var historiesByKey = Dictionary(uniqueKeysWithValues: existingHistories.map {
-            (PlanUtilizationSeriesKey(name: $0.name, windowMinutes: $0.windowMinutes), $0)
-        })
+        var historiesByKey: [PlanUtilizationSeriesKey: PlanUtilizationSeriesHistory] = [:]
         var didChange = false
+        for history in existingHistories {
+            let canonicalWindowMinutes = history.name.canonicalWindowMinutes(history.windowMinutes)
+            let key = PlanUtilizationSeriesKey(name: history.name, windowMinutes: canonicalWindowMinutes)
+            let canonicalHistory = PlanUtilizationSeriesHistory(
+                name: history.name,
+                windowMinutes: canonicalWindowMinutes,
+                entries: history.entries)
+            if let existingHistory = historiesByKey[key] {
+                historiesByKey[key] = PlanUtilizationSeriesHistory(
+                    name: history.name,
+                    windowMinutes: canonicalWindowMinutes,
+                    entries: self.mergedPlanUtilizationEntries(existingHistory.entries + canonicalHistory.entries))
+                didChange = true
+            } else {
+                historiesByKey[key] = canonicalHistory
+                didChange = didChange || canonicalWindowMinutes != history.windowMinutes
+            }
+        }
 
         for sample in samples {
-            let key = PlanUtilizationSeriesKey(name: sample.name, windowMinutes: sample.windowMinutes)
+            let canonicalWindowMinutes = sample.name.canonicalWindowMinutes(sample.windowMinutes)
+            let key = PlanUtilizationSeriesKey(name: sample.name, windowMinutes: canonicalWindowMinutes)
             if let existingHistory = historiesByKey[key] {
                 guard let updatedEntries = self.updatedPlanUtilizationEntries(
                     existingEntries: existingHistory.entries,
@@ -144,12 +161,12 @@ extension UsageStore {
                 }
                 historiesByKey[key] = PlanUtilizationSeriesHistory(
                     name: sample.name,
-                    windowMinutes: sample.windowMinutes,
+                    windowMinutes: canonicalWindowMinutes,
                     entries: updatedEntries)
             } else {
                 historiesByKey[key] = PlanUtilizationSeriesHistory(
                     name: sample.name,
-                    windowMinutes: sample.windowMinutes,
+                    windowMinutes: canonicalWindowMinutes,
                     entries: [sample.entry])
             }
             didChange = true
@@ -161,6 +178,15 @@ extension UsageStore {
                 return lhs.windowMinutes < rhs.windowMinutes
             }
             return lhs.name.rawValue < rhs.name.rawValue
+        }
+    }
+
+    private nonisolated static func mergedPlanUtilizationEntries(
+        _ entries: [PlanUtilizationHistoryEntry]) -> [PlanUtilizationHistoryEntry]
+    {
+        entries.reduce(into: []) { result, entry in
+            guard !result.contains(entry) else { return }
+            result.append(entry)
         }
     }
 
@@ -292,10 +318,11 @@ extension UsageStore {
                 return
             }
 
-            let key = PlanUtilizationSeriesKey(name: name, windowMinutes: windowMinutes)
+            let canonicalWindowMinutes = name.canonicalWindowMinutes(windowMinutes)
+            let key = PlanUtilizationSeriesKey(name: name, windowMinutes: canonicalWindowMinutes)
             samplesByKey[key] = PlanUtilizationSeriesSample(
                 name: name,
-                windowMinutes: windowMinutes,
+                windowMinutes: canonicalWindowMinutes,
                 entry: PlanUtilizationHistoryEntry(
                     capturedAt: capturedAt,
                     usedPercent: usedPercent,

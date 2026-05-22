@@ -22,6 +22,47 @@ private final class AntigravityAttemptRecorder: @unchecked Sendable {
 
 struct AntigravityStatusProbeTests {
     @Test
+    func `process detection accepts antigravity 2 unsuffixed language server`() {
+        let command = """
+        /Applications/Antigravity.app/Contents/Resources/bin/language_server --standalone \
+        --override_ide_name antigravity --override_ide_version 2.0.0 \
+        --csrf_token token --app_data_dir antigravity
+        """
+
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(command))
+    }
+
+    @Test
+    func `process detection accepts antigravity language server paths with spaces`() {
+        let command = """
+        /Applications/Google Antigravity.app/Contents/Resources/bin/language_server --standalone \
+        --override_ide_name antigravity --csrf_token token --app_data_dir antigravity
+        """
+
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(command))
+    }
+
+    @Test
+    func `process detection keeps ignoring non language server antigravity helpers`() {
+        let helper = """
+        /Applications/Antigravity.app/Contents/Frameworks/Antigravity Helper.app/Contents/MacOS/Antigravity Helper \
+        --type=renderer --user-data-dir=/Users/test/Library/Application Support/Antigravity
+        """
+
+        #expect(!AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(helper))
+    }
+
+    @Test
+    func `process detection still accepts legacy antigravity language server`() {
+        let command = """
+        /Applications/Antigravity.app/Contents/Resources/bin/language_server_macos \
+        --csrf_token token --app_data_dir antigravity
+        """
+
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(command))
+    }
+
+    @Test
     func `localhost trust policy only accepts local server trust challenges`() {
         #expect(
             LocalhostTrustPolicy.shouldAcceptServerTrust(

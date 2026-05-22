@@ -291,7 +291,18 @@ public struct LLMProxyUsageFetcher: Sendable {
 
     private static func parseDate(_ raw: String?) -> Date? {
         guard let raw else { return nil }
-        return ISO8601DateFormatter().date(from: raw)
+        if let date = self.iso8601DateFormatter(fractionalSeconds: true).date(from: raw) {
+            return date
+        }
+        return self.iso8601DateFormatter(fractionalSeconds: false).date(from: raw)
+    }
+
+    private static func iso8601DateFormatter(fractionalSeconds: Bool) -> ISO8601DateFormatter {
+        let formatter = ISO8601DateFormatter()
+        if fractionalSeconds {
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        }
+        return formatter
     }
 
     private static func responseSummary(_ data: Data) -> String {

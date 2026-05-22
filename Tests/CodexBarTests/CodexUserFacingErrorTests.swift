@@ -6,6 +6,15 @@ import Testing
 @MainActor
 struct CodexUserFacingErrorTests {
     @Test
+    func `missing codex CLI guidance is not collapsed to not running`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-missing-cli")
+        store.errors[.codex] = "Codex not running. Try running a Codex command first. "
+            + "(Codex CLI not found. Install with `npm i -g @openai/codex`.)"
+
+        #expect(store.userFacingError(for: .codex) == CodexStatusProbeError.codexNotInstalled.localizedDescription)
+    }
+
+    @Test
     func `expired codex auth is sanitized`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-expired-auth")
         store.errors[.codex] = """
@@ -49,6 +58,18 @@ struct CodexUserFacingErrorTests {
         #expect(
             store.userFacingLastCreditsError ==
                 "Codex usage is temporarily unavailable. Try refreshing. Cached values from 2m ago.")
+    }
+
+    @Test
+    func `cached missing codex CLI failure preserves cached suffix`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cached-missing-cli")
+        store.lastCreditsError =
+            "Last Codex credits refresh failed: Codex CLI not found. "
+                + "Install with `npm i -g @openai/codex`. Cached values from 2m ago."
+
+        #expect(
+            store.userFacingLastCreditsError ==
+                CodexStatusProbeError.codexNotInstalled.localizedDescription + " Cached values from 2m ago.")
     }
 
     @Test

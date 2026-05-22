@@ -7,7 +7,8 @@ extension StatusItemController {
     private static let blinkActiveTickInterval: Duration = .milliseconds(75)
     private static let blinkIdleFallbackInterval: Duration = .seconds(1)
     static let loadingAnimationFPS: Double = 30.0
-    static let loadingAnimationPhaseIncrement: Double = 2.7 / StatusItemController.loadingAnimationFPS
+    static let loadingAnimationPhaseIncrement: Double =
+        2.7 / StatusItemController.loadingAnimationFPS
     private static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
 
     func needsMenuBarIconAnimation() -> Bool {
@@ -41,7 +42,8 @@ extension StatusItemController {
                 self.blinkTask = Task { [weak self] in
                     while !Task.isCancelled {
                         let delay = await MainActor.run {
-                            self?.blinkTickSleepDuration(now: Date()) ?? Self.blinkIdleFallbackInterval
+                            self?.blinkTickSleepDuration(now: Date())
+                                ?? Self.blinkIdleFallbackInterval
                         }
                         try? await Task.sleep(for: delay)
                         await MainActor.run { self?.tickBlink() }
@@ -56,7 +58,8 @@ extension StatusItemController {
     private func seedBlinkStatesIfNeeded() {
         let now = Date()
         for provider in UsageProvider.allCases where self.blinkStates[provider] == nil {
-            self.blinkStates[provider] = BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
+            self.blinkStates[provider] = BlinkState(
+                nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
         }
     }
 
@@ -80,10 +83,13 @@ extension StatusItemController {
 
         for provider in UsageProvider.allCases {
             let shouldRender = mergeIcons ? self.isEnabled(provider) : self.isVisible(provider)
-            guard shouldRender, !self.shouldAnimate(provider: provider, mergeIcons: mergeIcons) else { continue }
+            guard shouldRender, !self.shouldAnimate(provider: provider, mergeIcons: mergeIcons)
+            else { continue }
 
-            let state = self
-                .blinkStates[provider] ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
+            let state =
+                self
+                    .blinkStates[provider]
+                    ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
             if state.blinkStart != nil {
                 return Self.blinkActiveTickInterval
             }
@@ -118,13 +124,16 @@ extension StatusItemController {
 
         for provider in UsageProvider.allCases {
             let shouldRender = mergeIcons ? self.isEnabled(provider) : self.isVisible(provider)
-            guard shouldRender, !self.shouldAnimate(provider: provider, mergeIcons: mergeIcons) else {
+            guard shouldRender, !self.shouldAnimate(provider: provider, mergeIcons: mergeIcons)
+            else {
                 self.clearMotion(for: provider)
                 continue
             }
 
-            var state = self
-                .blinkStates[provider] ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
+            var state =
+                self
+                    .blinkStates[provider]
+                    ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
 
             if let pendingSecond = state.pendingSecondStart, now >= pendingSecond {
                 state.blinkStart = now
@@ -152,7 +161,8 @@ extension StatusItemController {
                 state.blinkStart = now
                 state.effect = self.randomEffect(for: provider)
                 if state.effect == .blink, Double.random(in: 0...1) < doubleBlinkChance {
-                    state.pendingSecondStart = now.addingTimeInterval(Double.random(in: doubleDelayRange))
+                    state.pendingSecondStart = now.addingTimeInterval(
+                        Double.random(in: doubleDelayRange))
                 }
                 self.clearMotion(for: provider)
             } else {
@@ -223,7 +233,7 @@ extension StatusItemController {
     }
 
     @discardableResult
-    func applyIcon(phase: Double?) -> Bool {
+    func applyIcon(phase: Double?) -> Bool { // swiftlint:disable:this function_body_length
         guard let button = self.statusItem.button else { return false }
 
         let style = self.store.iconStyle
@@ -265,11 +275,12 @@ extension StatusItemController {
             surface: .menuBar,
             snapshotOverride: snapshot,
             now: snapshot?.updatedAt ?? Date())
-        var credits: Double? = codexProjection?.menuBarFallback == .creditsBalance
-            ? self.store.codexMenuBarCreditsRemaining(
-                snapshotOverride: snapshot,
-                now: snapshot?.updatedAt ?? Date())
-            : nil
+        var credits: Double? =
+            codexProjection?.menuBarFallback == .creditsBalance
+                ? self.store.codexMenuBarCreditsRemaining(
+                    snapshotOverride: snapshot,
+                    now: snapshot?.updatedAt ?? Date())
+                : nil
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
 
@@ -289,7 +300,9 @@ extension StatusItemController {
                 // Keep loading animation layout stable: IconRenderer uses `weeklyRemaining > 0` to switch layouts,
                 // so hitting an exact 0 would flip between "normal" and "weekly exhausted" rendering.
                 primary = max(pattern.value(phase: phase), Self.loadingPercentEpsilon)
-                weekly = max(pattern.value(phase: phase + pattern.secondaryOffset), Self.loadingPercentEpsilon)
+                weekly = max(
+                    pattern.value(phase: phase + pattern.secondaryOffset),
+                    Self.loadingPercentEpsilon)
                 credits = nil
                 stale = false
             }
@@ -297,7 +310,8 @@ extension StatusItemController {
 
         let blink: CGFloat = style == .combined ? 0 : self.blinkAmount(for: primaryProvider)
         let wiggle: CGFloat = style == .combined ? 0 : self.wiggleAmount(for: primaryProvider)
-        let tilt: CGFloat = style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28
+        let tilt: CGFloat =
+            style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28
 
         let statusIndicator: ProviderStatusIndicator = {
             for provider in self.store.enabledProvidersForDisplay() {
@@ -306,11 +320,6 @@ extension StatusItemController {
             }
             return .none
         }()
-        let debugDouble: (Double?) -> String = { value in
-            guard let value else { return "nil" }
-            return String(format: "%.3f", value)
-        }
-
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
@@ -319,9 +328,9 @@ extension StatusItemController {
                 "mode=brandPercent",
                 "provider=\(primaryProvider.rawValue)",
                 "style=\(String(describing: style))",
-                "primary=\(debugDouble(primary))",
-                "weekly=\(debugDouble(weekly))",
-                "credits=\(debugDouble(credits))",
+                "primary=\(Self.iconSignatureValue(primary))",
+                "weekly=\(Self.iconSignatureValue(weekly))",
+                "credits=\(Self.iconSignatureValue(credits))",
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
                 "text=\(displayText ?? "nil")",
@@ -329,10 +338,13 @@ extension StatusItemController {
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
+                self.noteIconPerfRender(skipped: true)
                 return true
             }
-            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
+            self.setButtonImage(
+                warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
+            self.noteIconPerfRender(skipped: false)
             return false
         }
 
@@ -342,33 +354,36 @@ extension StatusItemController {
                 "mode=morph",
                 "provider=\(primaryProvider.rawValue)",
                 "style=\(String(describing: style))",
-                "morph=\(debugDouble(morphProgress))",
+                "morph=\(Self.iconSignatureValue(morphProgress))",
                 "status=\(statusIndicator.rawValue)",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
+                self.noteIconPerfRender(skipped: true)
                 return true
             }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
-            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonImage(
+                warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         } else {
             let signature = [
                 "mode=icon",
                 "provider=\(primaryProvider.rawValue)",
                 "style=\(String(describing: style))",
-                "primary=\(debugDouble(primary))",
-                "weekly=\(debugDouble(weekly))",
-                "credits=\(debugDouble(credits))",
+                "primary=\(Self.iconSignatureValue(primary))",
+                "weekly=\(Self.iconSignatureValue(weekly))",
+                "credits=\(Self.iconSignatureValue(credits))",
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
-                "blink=\(debugDouble(Double(blink)))",
-                "wiggle=\(debugDouble(Double(wiggle)))",
-                "tilt=\(debugDouble(Double(tilt)))",
+                "blink=\(Self.iconSignatureValue(Double(blink)))",
+                "wiggle=\(Self.iconSignatureValue(Double(wiggle)))",
+                "tilt=\(Self.iconSignatureValue(Double(tilt)))",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
+                self.noteIconPerfRender(skipped: true)
                 return true
             }
             let image = IconRenderer.makeIcon(
@@ -381,8 +396,10 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: statusIndicator)
-            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonImage(
+                warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         }
+        self.noteIconPerfRender(skipped: false)
         return false
     }
 
@@ -429,12 +446,17 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+                self.noteIconPerfRender(skipped: true)
                 return true
             }
-            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
+            self.setButtonImage(
+                warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
+            self.noteIconPerfRender(skipped: false)
             return false
         }
+
+        self.setButtonTitle(nil, for: button)
 
         // OpenRouter always gets a meter here — the brand-logo fallback was removed on purpose.
         let resolved = snapshot.map {
@@ -467,11 +489,12 @@ extension StatusItemController {
             surface: .menuBar,
             snapshotOverride: snapshot,
             now: snapshot?.updatedAt ?? Date())
-        var credits: Double? = codexProjection?.menuBarFallback == .creditsBalance
-            ? self.store.codexMenuBarCreditsRemaining(
-                snapshotOverride: snapshot,
-                now: snapshot?.updatedAt ?? Date())
-            : nil
+        var credits: Double? =
+            codexProjection?.menuBarFallback == .creditsBalance
+                ? self.store.codexMenuBarCreditsRemaining(
+                    snapshotOverride: snapshot,
+                    now: snapshot?.updatedAt ?? Date())
+                : nil
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
 
@@ -489,7 +512,9 @@ extension StatusItemController {
             } else {
                 // Keep loading animation layout stable: IconRenderer switches layouts at `weeklyRemaining == 0`.
                 primary = max(pattern.value(phase: phase), Self.loadingPercentEpsilon)
-                weekly = max(pattern.value(phase: phase + pattern.secondaryOffset), Self.loadingPercentEpsilon)
+                weekly = max(
+                    pattern.value(phase: phase + pattern.secondaryOffset),
+                    Self.loadingPercentEpsilon)
                 credits = nil
                 stale = false
             }
@@ -517,10 +542,12 @@ extension StatusItemController {
                 "loading=\(isLoading ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+                self.noteIconPerfRender(skipped: true)
                 return true
             }
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
-            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonImage(
+                warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         } else {
             let signature = [
                 "mode=icon",
@@ -538,9 +565,9 @@ extension StatusItemController {
                 "loading=\(isLoading ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+                self.noteIconPerfRender(skipped: true)
                 return true
             }
-            self.setButtonTitle(nil, for: button)
             let image = IconRenderer.makeIcon(
                 primaryRemaining: primary,
                 weeklyRemaining: weekly,
@@ -551,8 +578,10 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: statusIndicator)
-            self.setButtonImage(warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonImage(
+                warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         }
+        self.noteIconPerfRender(skipped: false)
         return false
     }
 
@@ -638,6 +667,11 @@ extension StatusItemController {
                 mode: self.settings.kiroMenuBarDisplayMode,
                 showUsed: self.settings.usageBarsShowUsed)
         }
+        if self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .extraUsage,
+           let spend = Self.extraUsageSpendDisplayText(snapshot: snapshot)
+        {
+            return spend
+        }
 
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
         let mode = self.settings.menuBarDisplayMode
@@ -652,7 +686,8 @@ extension StatusItemController {
         case .percent:
             pace = nil
         case .pace, .both:
-            let weeklyWindow = codexProjection?.rateWindow(for: .weekly)
+            let weeklyWindow =
+                codexProjection?.rateWindow(for: .weekly)
                 ?? snapshot?.secondary
                 // Abacus has no secondary window; pace is computed on primary monthly credits
                 ?? (provider == .abacus ? snapshot?.primary : nil)
@@ -672,19 +707,21 @@ extension StatusItemController {
            let creditsRemaining = codexProjection?.credits?.remaining,
            creditsRemaining > 0
         {
-            return UsageFormatter
-                .creditsString(from: creditsRemaining)
-                .replacingOccurrences(of: " left", with: "")
+            return
+                UsageFormatter
+                    .creditsString(from: creditsRemaining)
+                    .replacingOccurrences(of: " left", with: "")
         }
 
         return displayText
     }
 
     nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
-        guard let rawValue = snapshot?.primary?.resetDescription?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !rawValue.isEmpty,
-            rawValue.hasPrefix("$") || rawValue.hasPrefix("¥")
+        guard
+            let rawValue = snapshot?.primary?.resetDescription?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !rawValue.isEmpty,
+                rawValue.hasPrefix("$") || rawValue.hasPrefix("¥")
         else {
             return nil
         }
@@ -718,6 +755,16 @@ extension StatusItemController {
             from: snapshot?.identity?.loginMethod,
             prefix: "Credits:",
             removingSuffix: " left")
+    }
+
+    nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
+        guard let cost = snapshot?.providerCost,
+              cost.limit > 0,
+              cost.used >= 0
+        else {
+            return nil
+        }
+        return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
     }
 
     nonisolated static func kiroDisplayText(
@@ -792,10 +839,11 @@ extension StatusItemController {
     {
         guard usage.creditsTotal > 0 else { return percentFallback }
         guard usage.creditsRemaining <= 0 else { return fallback }
-        guard usage.overagesStatus?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .hasPrefix("enabled") == true
+        guard
+            usage.overagesStatus?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .hasPrefix("enabled") == true
         else {
             return fallback
         }
@@ -832,12 +880,15 @@ extension StatusItemController {
         let valueStart = rawValue.index(rawValue.startIndex, offsetBy: prefix.count)
         var value = rawValue[valueStart...].trimmingCharacters(in: .whitespacesAndNewlines)
         if !suffix.isEmpty, value.hasSuffix(suffix) {
-            value = String(value.dropLast(suffix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            value = String(value.dropLast(suffix.count)).trimmingCharacters(
+                in: .whitespacesAndNewlines)
         }
         return value.isEmpty ? nil : value
     }
 
-    private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
+    private func menuBarPercentWindow(for provider: UsageProvider, snapshot: UsageSnapshot?)
+        -> RateWindow?
+    {
         self.menuBarMetricWindow(for: provider, snapshot: snapshot)
     }
 
@@ -890,10 +941,13 @@ extension StatusItemController {
         self.seedBlinkStatesIfNeeded()
 
         for provider in UsageProvider.allCases {
-            let shouldBlink = self.shouldMergeIcons ? self.isEnabled(provider) : self.isVisible(provider)
+            let shouldBlink =
+                self.shouldMergeIcons ? self.isEnabled(provider) : self.isVisible(provider)
             guard shouldBlink, !self.shouldAnimate(provider: provider) else { continue }
-            var state = self
-                .blinkStates[provider] ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
+            var state =
+                self
+                    .blinkStates[provider]
+                    ?? BlinkState(nextBlink: now.addingTimeInterval(BlinkState.randomDelay()))
             state.blinkStart = now
             state.pendingSecondStart = nil
             state.effect = self.randomEffect(for: provider)
@@ -947,7 +1001,9 @@ extension StatusItemController {
                 })
                 self.animationDriver = driver
                 driver.start(fps: Self.loadingAnimationFPS)
-            } else if let forced = self.settings.debugLoadingPattern, forced != self.animationPattern {
+            } else if let forced = self.settings.debugLoadingPattern,
+                      forced != self.animationPattern
+            {
                 self.animationPattern = forced
                 self.animationPhase = 0
             }
@@ -1005,7 +1061,9 @@ extension StatusItemController {
         return image
     }
 
-    private nonisolated static func drawBrandStatusOverlay(indicator: ProviderStatusIndicator, size: NSSize) {
+    private nonisolated static func drawBrandStatusOverlay(
+        indicator: ProviderStatusIndicator, size: NSSize)
+    {
         guard indicator.hasIssue else { return }
 
         let color = NSColor.labelColor

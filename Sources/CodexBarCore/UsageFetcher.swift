@@ -531,6 +531,13 @@ enum RPCWireError: Error, LocalizedError {
     }
 }
 
+typealias CodexExecutableResolver = @Sendable (_ environment: [String: String], _ executable: String) -> String?
+
+let defaultCodexExecutableResolver: CodexExecutableResolver = { environment, executable in
+    BinaryLocator.resolveCodexBinary(env: environment)
+        ?? TTYCommandRunner.which(executable)
+}
+
 /// RPC helper used on background tasks; safe because we confine it to the owning task.
 private final class CodexRPCClient: @unchecked Sendable {
     private static let log = CodexBarLog.logger(LogCategories.codexRPC)
@@ -576,7 +583,8 @@ private final class CodexRPCClient: @unchecked Sendable {
         arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         initializeTimeoutSeconds: TimeInterval = 8.0,
-        requestTimeoutSeconds: TimeInterval = 3.0) throws
+        requestTimeoutSeconds: TimeInterval = 3.0,
+        resolveExecutable: CodexExecutableResolver = defaultCodexExecutableResolver) throws
     {
         self.initializeTimeoutSeconds = initializeTimeoutSeconds
         self.requestTimeoutSeconds = requestTimeoutSeconds
@@ -586,13 +594,11 @@ private final class CodexRPCClient: @unchecked Sendable {
         }
         self.stdoutLineContinuation = stdoutContinuation
 
-        let resolvedExec = BinaryLocator.resolveCodexBinary(env: environment)
-            ?? TTYCommandRunner.which(executable)
+        let resolvedExec = resolveExecutable(environment, executable)
 
         guard let resolvedExec else {
             Self.log.warning("Codex RPC binary not found", metadata: ["binary": executable])
-            throw RPCWireError.startFailed(
-                "Codex CLI not found. Install with `npm i -g @openai/codex` (or bun) then relaunch CodexBar.")
+            throw CodexStatusProbeError.codexNotInstalled
         }
         var env = environment
         env["PATH"] = PathBuilder.effectivePATH(
@@ -805,22 +811,26 @@ public struct UsageFetcher: Sendable {
     private let environment: [String: String]
     private let initializeTimeoutSeconds: TimeInterval
     private let requestTimeoutSeconds: TimeInterval
+    private let codexExecutableResolver: CodexExecutableResolver
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.environment = environment
         self.initializeTimeoutSeconds = 8.0
         self.requestTimeoutSeconds = 3.0
+        self.codexExecutableResolver = defaultCodexExecutableResolver
         LoginShellPathCache.shared.captureOnce()
     }
 
     init(
         environment: [String: String],
         initializeTimeoutSeconds: TimeInterval,
-        requestTimeoutSeconds: TimeInterval)
+        requestTimeoutSeconds: TimeInterval,
+        codexExecutableResolver: @escaping CodexExecutableResolver = defaultCodexExecutableResolver)
     {
         self.environment = environment
         self.initializeTimeoutSeconds = initializeTimeoutSeconds
         self.requestTimeoutSeconds = requestTimeoutSeconds
+        self.codexExecutableResolver = codexExecutableResolver
         LoginShellPathCache.shared.captureOnce()
     }
 
@@ -836,7 +846,8 @@ public struct UsageFetcher: Sendable {
         let rpc = try CodexRPCClient(
             environment: self.environment,
             initializeTimeoutSeconds: self.initializeTimeoutSeconds,
-            requestTimeoutSeconds: self.requestTimeoutSeconds)
+            requestTimeoutSeconds: self.requestTimeoutSeconds,
+            resolveExecutable: self.codexExecutableResolver)
         defer { rpc.shutdown() }
         do {
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
@@ -894,7 +905,8 @@ public struct UsageFetcher: Sendable {
             let rpc = try CodexRPCClient(
                 environment: self.environment,
                 initializeTimeoutSeconds: self.initializeTimeoutSeconds,
-                requestTimeoutSeconds: self.requestTimeoutSeconds)
+                requestTimeoutSeconds: self.requestTimeoutSeconds,
+                resolveExecutable: self.codexExecutableResolver)
             defer { rpc.shutdown() }
             try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
             let limits = try await rpc.fetchRateLimits()

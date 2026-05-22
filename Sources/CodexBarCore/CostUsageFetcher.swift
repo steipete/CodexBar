@@ -27,7 +27,8 @@ public struct CostUsageFetcher: Sendable {
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
-        historyDays: Int = 30) async throws -> CostUsageTokenSnapshot
+        historyDays: Int = 30,
+        refreshPricingInBackground: Bool = true) async throws -> CostUsageTokenSnapshot
     {
         try await Self.loadTokenSnapshot(
             provider: provider,
@@ -36,7 +37,8 @@ public struct CostUsageFetcher: Sendable {
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             codexHomePath: codexHomePath,
-            historyDays: historyDays)
+            historyDays: historyDays,
+            refreshPricingInBackground: refreshPricingInBackground)
     }
 
     static func loadTokenSnapshot(
@@ -47,6 +49,7 @@ public struct CostUsageFetcher: Sendable {
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
         historyDays: Int = 30,
+        refreshPricingInBackground: Bool = true,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
         piScannerOptions overridePiScannerOptions: PiSessionCostScanner
             .Options? = nil) async throws -> CostUsageTokenSnapshot
@@ -77,7 +80,14 @@ public struct CostUsageFetcher: Sendable {
                 .appendingPathComponent("sessions", isDirectory: true)
         }
         if provider == .codex || provider == .claude {
-            await ModelsDevPricingPipeline.refreshIfNeeded(now: now, cacheRoot: options.cacheRoot)
+            let pricingCacheRoot = options.cacheRoot
+            if refreshPricingInBackground {
+                Task.detached(priority: .utility) {
+                    await ModelsDevPricingPipeline.refreshIfNeeded(now: now, cacheRoot: pricingCacheRoot)
+                }
+            } else {
+                await ModelsDevPricingPipeline.refreshIfNeeded(now: now, cacheRoot: pricingCacheRoot)
+            }
         }
 
         if provider == .vertexai {

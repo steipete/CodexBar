@@ -71,6 +71,7 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
 public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private static let sessionWindowMinutes = 5 * 60
     private static let weeklyWindowMinutes = 7 * 24 * 60
+    private static let cliAutoProbeTimeout: TimeInterval = 12
     private static let cliProbeTimeout: TimeInterval = 24
     private static let cliRetryProbeTimeout: TimeInterval = 60
     private struct Configuration {
@@ -541,9 +542,19 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
-                return try await self.loadViaCLIWithRetry(model: model)
+                return try await self.loadViaAutoCLI(model: model)
             case .auto:
                 throw ClaudeUsageError.parseFailed("Planner emitted invalid auto execution step.")
+            }
+        }
+
+        private func loadViaAutoCLI(model: String) async throws -> ClaudeUsageSnapshot {
+            do {
+                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
+            } catch {
+                if error is CancellationError { throw error }
+                guard Self.shouldRetryCLIProbe(after: error) else { throw error }
+                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
             }
         }
 
@@ -565,6 +576,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
         private static func shouldRetryCLIProbe(after error: Error) -> Bool {
             if case ClaudeStatusProbeError.timedOut = error { return true }
+            if case let ClaudeStatusProbeError.parseFailed(message) = error {
+                return message.lowercased().contains("still loading usage")
+            }
             let message = error.localizedDescription.lowercased()
             return message.contains("timed out") || message.contains("timeout")
         }

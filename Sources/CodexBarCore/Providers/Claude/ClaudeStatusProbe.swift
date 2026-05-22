@@ -158,11 +158,21 @@ public struct ClaudeStatusProbe: Sendable {
             throw ClaudeStatusProbeError.parseFailed(usageError)
         }
 
+        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
+        if self.isUsageStillLoading(text: latestUsagePanel ?? clean) {
+            Self.dumpIfNeeded(
+                enabled: shouldDump,
+                reason: "usage still loading",
+                usage: clean,
+                status: statusText)
+            throw ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data.")
+        }
+
         // Claude CLI renders /usage as a TUI. Our PTY capture includes earlier screen fragments (including a status
         // line
         // with a "0%" context meter) before the usage panel is drawn. To keep parsing stable, trim to the last
         // Settings/Usage panel when present.
-        let usagePanelText = self.trimToLatestUsagePanel(clean) ?? clean
+        let usagePanelText = latestUsagePanel ?? clean
         let labelContext = LabelSearchContext(text: usagePanelText)
 
         var sessionPct = self.extractPercent(labelSubstring: "Current session", context: labelContext)
@@ -450,6 +460,12 @@ public struct ClaudeStatusProbe: Sendable {
             return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
         }
         return nil
+    }
+
+    private static func isUsageStillLoading(text: String) -> Bool {
+        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        guard normalized.contains("loadingusage") else { return false }
+        return !self.usageCaptureHasSessionValue(normalized) && self.allPercents(text).isEmpty
     }
 
     /// Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
@@ -800,6 +816,44 @@ public struct ClaudeStatusProbe: Sendable {
         } catch {
             return fm.temporaryDirectory
         }
+    }
+
+    static func preparedProbeWorkingDirectoryURL() -> URL {
+        let directory = self.probeWorkingDirectoryURL()
+        do {
+            try self.prepareProbeWorkingDirectory(at: directory)
+        } catch {
+            Self.log.warning(
+                "Claude probe local settings unavailable",
+                metadata: ["error": error.localizedDescription])
+        }
+        return directory
+    }
+
+    static func prepareProbeWorkingDirectory(at directory: URL, fileManager fm: FileManager = .default) throws {
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let claudeDirectory = directory.appendingPathComponent(".claude", isDirectory: true)
+        try fm.createDirectory(at: claudeDirectory, withIntermediateDirectories: true)
+
+        let settingsURL = claudeDirectory.appendingPathComponent("settings.local.json")
+        var settings = (try? self.readSettingsObject(from: settingsURL, fileManager: fm)) ?? [:]
+        settings["disableDeepLinkRegistration"] = "disable"
+        let data = try JSONSerialization.data(
+            withJSONObject: settings,
+            options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: settingsURL, options: .atomic)
+    }
+
+    private static func readSettingsObject(from url: URL, fileManager fm: FileManager) throws -> [String: Any] {
+        guard fm.fileExists(atPath: url.path) else {
+            return [:]
+        }
+        let data = try Data(contentsOf: url)
+        guard !data.isEmpty else {
+            return [:]
+        }
+        let object = try JSONSerialization.jsonObject(with: data)
+        return object as? [String: Any] ?? [:]
     }
 
     /// Run claude CLI inside a PTY so we can respond to interactive permission prompts.

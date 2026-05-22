@@ -177,6 +177,33 @@ enum CostUsagePricing {
             displayLabel: nil),
     ]
 
+    static func codexBuiltInPricingFingerprint() -> String {
+        var parts = ["priorityInputTokenLimit=\(self.codexPriorityInputTokenLimit)"]
+        for model in self.codex.keys.sorted() {
+            guard let pricing = self.codex[model] else { continue }
+            parts.append([
+                "model=\(model)",
+                self.optionalPricingFingerprint(pricing.inputCostPerToken),
+                self.optionalPricingFingerprint(pricing.outputCostPerToken),
+                self.optionalPricingFingerprint(pricing.cacheReadInputCostPerToken),
+                pricing.displayLabel ?? "nil",
+                pricing.thresholdTokens.map(String.init) ?? "nil",
+                self.optionalPricingFingerprint(pricing.inputCostPerTokenAboveThreshold),
+                self.optionalPricingFingerprint(pricing.outputCostPerTokenAboveThreshold),
+                self.optionalPricingFingerprint(pricing.cacheReadInputCostPerTokenAboveThreshold),
+                self.optionalPricingFingerprint(pricing.priorityInputCostPerToken),
+                self.optionalPricingFingerprint(pricing.priorityOutputCostPerToken),
+                self.optionalPricingFingerprint(pricing.priorityCacheReadInputCostPerToken),
+            ].joined(separator: "|"))
+        }
+        return parts.joined(separator: "\n")
+    }
+
+    private static func optionalPricingFingerprint(_ value: Double?) -> String {
+        guard let value else { return "nil" }
+        return String(format: "%.17g", value)
+    }
+
     private static let claude: [String: ClaudePricing] = [
         "claude-haiku-4-5-20251001": ClaudePricing(
             inputCostPerToken: 1e-6,

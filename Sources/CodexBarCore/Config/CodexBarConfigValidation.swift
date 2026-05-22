@@ -138,7 +138,8 @@ public enum CodexBarConfigValidator {
                 provider: provider,
                 field: "workspaceID",
                 code: "workspace_unused",
-                message: "workspaceID is set but only opencode, opencodego, and deepgram support workspaceID."))
+                message: "workspaceID is set but only azureopenai, opencode, opencodego, and deepgram support " +
+                    "workspaceID."))
         }
 
         if let enterpriseHost = entry.enterpriseHost,
@@ -150,7 +151,7 @@ public enum CodexBarConfigValidator {
                 provider: provider,
                 field: "enterpriseHost",
                 code: "enterprise_host_unused",
-                message: "enterpriseHost is set but only copilot and llmproxy support enterpriseHost."))
+                message: "enterpriseHost is set but only azureopenai, copilot, and llmproxy support enterpriseHost."))
         }
 
         if let tokenAccounts = entry.tokenAccounts, !tokenAccounts.accounts.isEmpty,
@@ -183,7 +184,7 @@ public enum CodexBarConfigValidator {
 
     private static func providerSupportsWorkspaceID(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .opencode, .opencodego, .deepgram:
+        case .azureopenai, .opencode, .opencodego, .deepgram:
             true
         default:
             false
@@ -192,7 +193,7 @@ public enum CodexBarConfigValidator {
 
     private static func providerSupportsEnterpriseHost(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .copilot, .llmproxy:
+        case .azureopenai, .copilot, .llmproxy:
             true
         default:
             false

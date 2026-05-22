@@ -5,11 +5,13 @@ import SweetCookieKit
 public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case codex
     case openai
+    case azureopenai
     case claude
     case cursor
     case opencode
     case opencodego
     case alibaba
+    case alibabatokenplan
     case factory
     case gemini
     case antigravity
@@ -26,6 +28,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case kimik2
     case moonshot
     case amp
+    case t3chat
     case ollama
     case synthetic
     case warp
@@ -76,6 +79,7 @@ public enum IconStyle: Sendable, CaseIterable {
     case jetbrains
     case moonshot
     case amp
+    case t3chat
     case ollama
     case synthetic
     case warp

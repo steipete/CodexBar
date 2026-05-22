@@ -8,6 +8,23 @@ import WebKit
 @Suite(.serialized)
 struct OpenAIDashboardScrapeScriptTests {
     @Test
+    func `scraper returns structured account fields without full html`() async throws {
+        if Self.shouldSkipOnCI() { return }
+
+        let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        _ = webView.loadHTMLString(Self.bootstrapAccountHTML, baseURL: nil)
+        try await Self.waitForFixture(webView, elementID: "account-fixture")
+
+        let any = try await webView.evaluateJavaScript(openAIDashboardScrapeScript)
+        let dict = try #require(any as? [String: Any])
+
+        #expect(dict["bodyHTML"] == nil)
+        #expect(dict["signedInEmail"] as? String == "user@example.com")
+        #expect(dict["authStatus"] as? String == "logged_in")
+        #expect(dict["accountPlan"] as? String == "Pro 5x")
+    }
+
+    @Test
     func `usage breakdown scraper ignores neighboring client charts`() async throws {
         if Self.shouldSkipOnCI() { return }
 
@@ -73,6 +90,39 @@ struct OpenAIDashboardScrapeScriptTests {
             try await Task.sleep(for: .milliseconds(50))
         }
     }
+
+    private static let bootstrapAccountHTML = """
+    <html>
+    <body>
+      <div id="account-fixture">Usage limits</div>
+      <script type="application/json" id="__NEXT_DATA__">
+      {
+        "props": {
+          "pageProps": {
+            "user": {
+              "email": "next@example.com"
+            }
+          }
+        },
+        "planType": "pro"
+      }
+      </script>
+      <script type="application/json" id="client-bootstrap">
+      {
+        "authStatus": "logged_in",
+        "session": {
+          "user": {
+            "email": "user@example.com"
+          }
+        },
+        "subscription": {
+          "tier": "Codex Pro Lite"
+        }
+      }
+      </script>
+    </body>
+    </html>
+    """
 
     private static let multiChartHTML = """
     <html>

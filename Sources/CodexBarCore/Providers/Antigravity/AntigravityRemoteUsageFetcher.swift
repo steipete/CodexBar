@@ -208,26 +208,97 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 projectId: projectId,
                 timeout: timeout,
                 dataLoader: dataLoader)
-            return try Self.parseModelQuotas(response)
+            let modelQuotas = try Self.parseModelQuotas(response)
+            if Self.shouldVerifyFullRemoteQuotas(modelQuotas),
+               let quotaBuckets = try? await Self.fetchQuotaBucketsIfPermitted(
+                   accessToken: accessToken,
+                   projectId: projectId,
+                   timeout: timeout,
+                   dataLoader: dataLoader),
+               Self.hasConsumedQuota(quotaBuckets)
+            {
+                return Self.mergeVerifiedQuotas(modelQuotas: modelQuotas, verifiedQuotas: quotaBuckets)
+            }
+            return modelQuotas
         } catch let error as AntigravityRemoteFetchError {
             guard case .permissionDenied = error else {
                 throw error
             }
             Self.log.info("Falling back to retrieveUserQuota for Antigravity remote usage")
-            do {
-                let response = try await Self.retrieveUserQuota(
-                    accessToken: accessToken,
-                    projectId: projectId,
-                    timeout: timeout,
-                    dataLoader: dataLoader)
-                return try Self.parseQuotaBuckets(response)
-            } catch let quotaError as AntigravityRemoteFetchError {
-                guard case .permissionDenied = quotaError else {
-                    throw quotaError
-                }
-                Self.log.info("Antigravity remote quota endpoints are not permitted for this account")
-                return []
+            return try await Self.fetchQuotaBucketsIfPermitted(
+                accessToken: accessToken,
+                projectId: projectId,
+                timeout: timeout,
+                dataLoader: dataLoader) ?? []
+        }
+    }
+
+    private static func mergeVerifiedQuotas(
+        modelQuotas: [AntigravityModelQuota],
+        verifiedQuotas: [AntigravityModelQuota]) -> [AntigravityModelQuota]
+    {
+        var verifiedByModelID = Dictionary(
+            uniqueKeysWithValues: verifiedQuotas.map { (Self.quotaKey($0), $0) })
+        var merged = modelQuotas.map { modelQuota in
+            guard let verifiedQuota = verifiedByModelID.removeValue(forKey: Self.quotaKey(modelQuota)) else {
+                return modelQuota
             }
+            let resetTime = verifiedQuota.resetTime ?? modelQuota.resetTime
+            return AntigravityModelQuota(
+                label: modelQuota.label,
+                modelId: modelQuota.modelId,
+                remainingFraction: verifiedQuota.remainingFraction ?? modelQuota.remainingFraction,
+                resetTime: resetTime,
+                resetDescription: resetTime.map { UsageFormatter.resetDescription(from: $0) })
+        }
+        let unmatchedVerifiedQuotas = verifiedByModelID.values
+            .filter { $0.remainingFraction != nil }
+            .sorted { lhs, rhs in
+                lhs.modelId.localizedCaseInsensitiveCompare(rhs.modelId) == .orderedAscending
+            }
+        merged.append(contentsOf: unmatchedVerifiedQuotas)
+        return merged
+    }
+
+    private static func quotaKey(_ quota: AntigravityModelQuota) -> String {
+        quota.modelId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func shouldVerifyFullRemoteQuotas(_ quotas: [AntigravityModelQuota]) -> Bool {
+        guard !quotas.isEmpty else { return false }
+        return quotas.allSatisfy { quota in
+            guard let remaining = quota.remainingFraction else { return false }
+            return remaining >= 0.999
+        }
+    }
+
+    private static func hasConsumedQuota(_ quotas: [AntigravityModelQuota]) -> Bool {
+        quotas.contains { quota in
+            guard let remaining = quota.remainingFraction else { return false }
+            return remaining < 0.999
+        }
+    }
+
+    private static func fetchQuotaBucketsIfPermitted(
+        accessToken: String,
+        projectId: String?,
+        timeout: TimeInterval,
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        -> [AntigravityModelQuota]?
+    {
+        do {
+            let response = try await Self.retrieveUserQuota(
+                accessToken: accessToken,
+                projectId: projectId,
+                timeout: timeout,
+                dataLoader: dataLoader)
+            return try Self.parseQuotaBuckets(response)
+        } catch let quotaError as AntigravityRemoteFetchError {
+            guard case .permissionDenied = quotaError else {
+                throw quotaError
+            }
+            Self.log.info("Antigravity remote quota endpoint is not permitted for this account")
+            return nil
         }
     }
 

@@ -15,7 +15,8 @@ public enum ProviderVersionDetector {
                 options: TTYCommandRunner.Options(
                     timeout: 5.0,
                     extraArgs: ["--allowed-tools", "", "--version"],
-                    initialDelay: 0.0)).text
+                    initialDelay: 0.0,
+                    useClaudeProbeWorkingDirectory: true)).text
             let trimmed = TextParsing.stripANSICodes(out).trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         } catch {

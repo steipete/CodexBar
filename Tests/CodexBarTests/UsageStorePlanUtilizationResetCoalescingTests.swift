@@ -5,6 +5,36 @@ import Testing
 
 struct UsageStorePlanUtilizationResetCoalescingTests {
     @Test
+    func `near canonical codex windows merge into canonical history series`() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let existing = [
+            planSeries(name: .session, windowMinutes: 300, entries: [
+                planEntry(at: base, usedPercent: 20),
+            ]),
+            planSeries(name: .weekly, windowMinutes: 10080, entries: [
+                planEntry(at: base, usedPercent: 40),
+            ]),
+        ]
+        let incoming = [
+            planSeries(name: .session, windowMinutes: 299, entries: [
+                planEntry(at: base.addingTimeInterval(3600), usedPercent: 30),
+            ]),
+            planSeries(name: .weekly, windowMinutes: 10079, entries: [
+                planEntry(at: base.addingTimeInterval(3600), usedPercent: 50),
+            ]),
+        ]
+
+        let updated = try #require(
+            UsageStore._updatedPlanUtilizationHistoriesForTesting(
+                existingHistories: existing,
+                samples: incoming))
+
+        #expect(updated.map { "\($0.name.rawValue):\($0.windowMinutes)" } == ["session:300", "weekly:10080"])
+        #expect(findSeries(updated, name: .session, windowMinutes: 300)?.entries.map(\.usedPercent) == [20, 30])
+        #expect(findSeries(updated, name: .weekly, windowMinutes: 10080)?.entries.map(\.usedPercent) == [40, 50])
+    }
+
+    @Test
     func `same hour entry backfills missing reset metadata`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let hourStart = try #require(calendar.date(from: DateComponents(

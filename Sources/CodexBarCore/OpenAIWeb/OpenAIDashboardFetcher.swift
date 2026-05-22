@@ -106,8 +106,7 @@ public struct OpenAIDashboardFetcher {
         let codeReviewLimit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: bodyText)
         let parsedCreditsRemaining = OpenAIDashboardParser.parseCreditsRemaining(bodyText: bodyText)
         let creditsRemaining = apiData?.creditsRemaining ?? parsedCreditsRemaining
-        let parsedAccountPlan = scrape.bodyHTML.flatMap(OpenAIDashboardParser.parsePlanFromHTML)
-        let accountPlan = parsedAccountPlan ?? apiData?.accountPlan
+        let accountPlan = scrape.accountPlan ?? apiData?.accountPlan
         let hasParsedUsageLimits = parsedRateLimits.primary != nil || parsedRateLimits.secondary != nil
         let hasUsageLimits = rateLimits.primary != nil || rateLimits.secondary != nil
         let hasDashboardPageData = self.hasReturnableDashboardData(
@@ -227,7 +226,6 @@ public struct OpenAIDashboardFetcher {
         let log = lease.log
 
         var lastBody: String?
-        var lastHTML: String?
         var lastHref: String?
         var lastFlags: (loginRequired: Bool, workspacePicker: Bool, cloudflare: Bool)?
         var codeReviewFirstSeenAt: Date?
@@ -240,7 +238,6 @@ public struct OpenAIDashboardFetcher {
         while Date() < deadline {
             let scrape = try await self.scrape(webView: webView)
             lastBody = scrape.bodyText ?? lastBody
-            lastHTML = scrape.bodyHTML ?? lastHTML
 
             if scrape.href != lastHref
                 || lastFlags?.loginRequired != scrape.loginRequired
@@ -267,7 +264,13 @@ public struct OpenAIDashboardFetcher {
                 continue
             }
 
-            try Self.throwIfBlockingScrapeState(scrape, debugDumpHTML: debugDumpHTML, logger: log)
+            if debugDumpHTML,
+               scrape.loginRequired || scrape.cloudflareInterstitial,
+               let html = try? await self.fetchDebugHTML(webView: webView)
+            {
+                Self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: log)
+            }
+            try Self.throwIfBlockingScrapeState(scrape)
 
             let dashboardData = Self.parseDashboardScrape(
                 scrape,
@@ -368,7 +371,7 @@ public struct OpenAIDashboardFetcher {
             try? await Task.sleep(for: .milliseconds(500))
         }
 
-        if debugDumpHTML, let html = lastHTML {
+        if debugDumpHTML, let html = try? await self.fetchDebugHTML(webView: webView) {
             Self.writeDebugArtifacts(html: html, bodyText: lastBody, logger: log)
         }
         throw FetchError.noDashboardData(body: lastUsageBreakdownError ?? lastBody ?? "")
@@ -506,8 +509,9 @@ public struct OpenAIDashboardFetcher {
         let cloudflareInterstitial: Bool
         let href: String?
         let bodyText: String?
-        let bodyHTML: String?
         let signedInEmail: String?
+        let authStatus: String?
+        let accountPlan: String?
         let creditsPurchaseURL: String?
         let rows: [[String]]
         let usageBreakdown: [OpenAIDashboardDailyBreakdown]
@@ -530,8 +534,9 @@ public struct OpenAIDashboardFetcher {
                 cloudflareInterstitial: false,
                 href: nil,
                 bodyText: nil,
-                bodyHTML: nil,
                 signedInEmail: nil,
+                authStatus: nil,
+                accountPlan: nil,
                 creditsPurchaseURL: nil,
                 rows: [],
                 usageBreakdown: [],
@@ -549,7 +554,6 @@ public struct OpenAIDashboardFetcher {
         let workspacePicker = (dict["workspacePicker"] as? Bool) ?? false
         let cloudflareInterstitial = (dict["cloudflareInterstitial"] as? Bool) ?? false
         let rows = (dict["rows"] as? [[String]]) ?? []
-        let bodyHTML = dict["bodyHTML"] as? String
 
         var usageBreakdown: [OpenAIDashboardDailyBreakdown] = []
         let usageBreakdownDebug = dict["usageBreakdownDebug"] as? String
@@ -566,18 +570,14 @@ public struct OpenAIDashboardFetcher {
         }
 
         var signedInEmail = dict["signedInEmail"] as? String
-        if let bodyHTML,
-           signedInEmail == nil || signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
-        {
-            signedInEmail = OpenAIDashboardParser.parseSignedInEmailFromClientBootstrap(html: bodyHTML)
-        }
+        signedInEmail = signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let authStatus = (dict["authStatus"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let accountPlan = (dict["accountPlan"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if let bodyHTML, let authStatus = OpenAIDashboardParser.parseAuthStatusFromClientBootstrap(html: bodyHTML) {
-            if authStatus.lowercased() != "logged_in" {
-                // When logged out, the SPA can render a generic landing shell without obvious auth inputs,
-                // so treat it as login-required and let the caller retry cookie import.
-                loginRequired = true
-            }
+        if let authStatus, !authStatus.isEmpty, authStatus.lowercased() != "logged_in" {
+            // When logged out, the SPA can render a generic landing shell without obvious auth inputs,
+            // so treat it as login-required and let the caller retry cookie import.
+            loginRequired = true
         }
 
         return ScrapeResult(
@@ -586,8 +586,9 @@ public struct OpenAIDashboardFetcher {
             cloudflareInterstitial: cloudflareInterstitial,
             href: dict["href"] as? String,
             bodyText: dict["bodyText"] as? String,
-            bodyHTML: bodyHTML,
             signedInEmail: signedInEmail,
+            authStatus: authStatus,
+            accountPlan: accountPlan,
             creditsPurchaseURL: dict["creditsPurchaseURL"] as? String,
             rows: rows,
             usageBreakdown: usageBreakdown,
@@ -601,24 +602,19 @@ public struct OpenAIDashboardFetcher {
             didScrollToCredits: (dict["didScrollToCredits"] as? Bool) ?? false)
     }
 
-    private static func throwIfBlockingScrapeState(
-        _ scrape: ScrapeResult,
-        debugDumpHTML: Bool,
-        logger: (String) -> Void) throws
-    {
+    private static func throwIfBlockingScrapeState(_ scrape: ScrapeResult) throws {
         if scrape.loginRequired {
-            if debugDumpHTML, let html = scrape.bodyHTML {
-                self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: logger)
-            }
             throw FetchError.loginRequired
         }
 
         if scrape.cloudflareInterstitial {
-            if debugDumpHTML, let html = scrape.bodyHTML {
-                self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: logger)
-            }
             throw FetchError.noDashboardData(body: "Cloudflare challenge detected in WebView.")
         }
+    }
+
+    private func fetchDebugHTML(webView: WKWebView) async throws -> String? {
+        try await webView.evaluateJavaScript(
+            "document.documentElement ? String(document.documentElement.outerHTML || '') : ''") as? String
     }
 
     private func makeWebView(

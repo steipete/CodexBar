@@ -135,6 +135,141 @@ struct PathBuilderTests {
     }
 
     @Test
+    func `skips blocked codex path and falls back to signed app binary`() {
+        let blockedPath = "/usr/local/bin/codex"
+        let appPath = "/Applications/Codex.app/Contents/Resources/codex"
+        let fm = MockFileManager(executables: [blockedPath, appPath])
+        var checked: [String] = []
+
+        let resolved = BinaryLocator.resolveCodexBinary(
+            env: ["PATH": "/usr/local/bin"],
+            loginPATH: nil,
+            commandV: { _, _, _, _ in nil },
+            aliasResolver: { _, _, _, _, _ in nil },
+            launchCandidateFilter: { path, _ in
+                checked.append(path)
+                return path != blockedPath
+            },
+            fileManager: fm,
+            home: "/Users/test")
+
+        #expect(resolved == appPath)
+        #expect(checked == [blockedPath, appPath])
+    }
+
+    @Test
+    func `explicit codex override bypasses launch candidate fallback`() {
+        let overridePath = "/custom/bin/codex"
+        let appPath = "/Applications/Codex.app/Contents/Resources/codex"
+        let fm = MockFileManager(executables: [overridePath, appPath])
+        var checked: [String] = []
+
+        let resolved = BinaryLocator.resolveCodexBinary(
+            env: ["CODEX_CLI_PATH": overridePath],
+            loginPATH: nil,
+            launchCandidateFilter: { path, _ in
+                checked.append(path)
+                return false
+            },
+            fileManager: fm,
+            home: "/Users/test")
+
+        #expect(resolved == overridePath)
+        #expect(checked.isEmpty)
+    }
+
+    @Test
+    func `Codex CLI strategy availability uses filtered binary resolution`() {
+        let commandV: (String, String?, TimeInterval, FileManager) -> String? = { _, _, _, _ in nil }
+        let aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = { _, _, _, _, _ in nil }
+
+        let unavailable = CodexCLIUsageStrategy.resolvedBinary(
+            env: ["PATH": "/missing/bin", "SHELL": "/bin/sh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: MockFileManager(executables: []),
+            home: "/home/test")
+        #expect(unavailable == nil)
+
+        let available = CodexCLIUsageStrategy.resolvedBinary(
+            env: ["PATH": "/tools/bin", "SHELL": "/bin/sh"],
+            loginPATH: nil,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: MockFileManager(executables: ["/tools/bin/codex"]),
+            home: "/home/test")
+        #expect(available == "/tools/bin/codex")
+    }
+
+    #if os(macOS)
+    @Test
+    func `Codex launch preflight allows quarantined notarized native binary`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/Applications/Codex.app/Contents/Resources/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { _ in "accepted\nsource=Notarized Developer ID" },
+            isMachOExecutable: { _ in true })
+
+        #expect(allowed)
+    }
+
+    @Test
+    func `Codex launch preflight blocks malware attribute before assessment`() {
+        var assessed = false
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/Applications/Codex.app/Contents/Resources/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.malware" },
+            spctlAssessment: { _ in
+                assessed = true
+                return "accepted\nsource=Notarized Developer ID"
+            },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+        #expect(!assessed)
+    }
+
+    @Test
+    func `Codex launch preflight blocks quarantined script without native assessment`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/opt/homebrew/bin/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { _ in nil },
+            isMachOExecutable: { _ in false })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight blocks revoked assessment`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/Applications/Codex.app/Contents/Resources/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, _ in false },
+            spctlAssessment: { _ in "rejected\nCSSMERR_TP_CERT_REVOKED" },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight blocks generic Gatekeeper rejection`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/opt/homebrew/bin/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, _ in false },
+            spctlAssessment: { _ in "rejected\nsource=no usable signature" },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+    #endif
+
+    @Test
     func `resolves codex from interactive shell`() {
         let fm = MockFileManager(executables: ["/shell/bin/codex"])
         let commandV: (String, String?, TimeInterval, FileManager) -> String? = { tool, shell, timeout, fileManager in

@@ -43,7 +43,6 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
-        _ = self.isRefreshing
         _ = self.refreshingProviders
         _ = self.statuses
         _ = self.historicalPaceRevision
@@ -180,6 +179,10 @@ final class UsageStore {
     @ObservationIgnored var lastCodexAccountScopedRefreshGuard: CodexAccountScopedRefreshGuard?
     @ObservationIgnored var lastKnownLiveSystemCodexEmail: String?
     @ObservationIgnored var openAIWebAccountDidChange: Bool = false
+    @ObservationIgnored var creditsRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var creditsRefreshTaskKey: String?
+    @ObservationIgnored var openAIDashboardBackgroundRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var openAIDashboardBackgroundRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTask: Task<Void, Never>?
     @ObservationIgnored var openAIDashboardRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTaskToken: UUID?
@@ -195,6 +198,8 @@ final class UsageStore {
         TimeInterval) async throws -> OpenAIDashboardSnapshot)?
     @ObservationIgnored var _test_codexCreditsLoaderOverride: (@MainActor () async throws -> CreditsSnapshot)?
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
+    @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
+    @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
 
     @ObservationIgnored let codexFetcher: UsageFetcher
@@ -553,11 +558,21 @@ final class UsageStore {
                         group.addTask { await self.refreshStatus(provider) }
                     }
                 }
-                group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                if forceTokenUsage {
+                    group.addTask { await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                }
             }
 
-            // Token-cost usage can be slow; run it outside the refresh group so we don't block menu updates.
-            self.scheduleTokenRefresh(force: forceTokenUsage)
+            if !forceTokenUsage {
+                self.scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
+            }
+
+            if forceTokenUsage {
+                await self.refreshTokenUsageSequenceNow(force: true)
+            } else {
+                // Token-cost usage can be slow; run it outside regular/menu-open refreshes so we don't block UI.
+                self.scheduleTokenRefresh(force: false)
+            }
 
             // OpenAI web scrape depends on the current Codex account email (which can change after login/account
             // switch). Run this after Codex usage refresh so we don't accidentally scrape with stale credentials.
@@ -581,14 +596,18 @@ final class UsageStore {
                 ])
             if shouldRefreshOpenAIWeb {
                 let codexDashboardGuard = self.currentCodexOpenAIWebRefreshGuard()
-                await self.refreshOpenAIDashboardIfNeeded(
-                    force: forceTokenUsage,
-                    expectedGuard: codexDashboardGuard)
+                if forceTokenUsage {
+                    await self.refreshOpenAIDashboardIfNeeded(
+                        force: true,
+                        expectedGuard: codexDashboardGuard)
+                } else {
+                    self.scheduleOpenAIDashboardRefreshIfNeeded(expectedGuard: codexDashboardGuard)
+                }
             }
 
             if forceTokenUsage, self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
-                await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
+                await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
             self.persistWidgetSnapshot(reason: "refresh")
@@ -647,7 +666,6 @@ final class UsageStore {
             return
         }
 
-        let providers = self.enabledProvidersForBackgroundWork()
         self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer {
@@ -655,10 +673,24 @@ final class UsageStore {
                     self?.tokenRefreshSequenceTask = nil
                 }
             }
-            for provider in providers {
-                if Task.isCancelled { break }
-                await self.refreshTokenUsage(provider, force: force)
-            }
+            await self.refreshTokenUsageSequence(force: force)
+        }
+    }
+
+    private func refreshTokenUsageSequenceNow(force: Bool) async {
+        if force, let existing = self.tokenRefreshSequenceTask {
+            existing.cancel()
+            await existing.value
+            self.tokenRefreshSequenceTask = nil
+        }
+
+        await self.refreshTokenUsageSequence(force: force)
+    }
+
+    private func refreshTokenUsageSequence(force: Bool) async {
+        for provider in self.enabledProvidersForBackgroundWork() {
+            if Task.isCancelled { break }
+            await self.refreshTokenUsage(provider, force: force)
         }
     }
 
@@ -914,6 +946,7 @@ extension UsageStore {
         await AugmentStatusProbe.latestDumps()
     }
 
+    // swiftlint:disable:next function_body_length
     func debugLog(for provider: UsageProvider) async -> String {
         if let cached = self.probeLogs[provider], !cached.isEmpty {
             return cached
@@ -940,6 +973,7 @@ extension UsageStore {
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
         let processEnvironment = self.environmentBase
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
         let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
@@ -958,6 +992,7 @@ extension UsageStore {
                 .antigravity: "Antigravity debug log not yet implemented",
                 .opencode: "OpenCode debug log not yet implemented",
                 .alibaba: "Alibaba Coding Plan debug log not yet implemented",
+                .alibabatokenplan: "Alibaba Token Plan debug log not yet implemented",
                 .factory: "Droid debug log not yet implemented",
                 .copilot: "Copilot debug log not yet implemented",
                 .manus: "Manus debug log not yet implemented",
@@ -975,6 +1010,7 @@ extension UsageStore {
                 .bedrock: "Bedrock debug log not yet implemented",
                 .grok: "Grok debug log not yet implemented",
                 .groq: "Groq debug log not yet implemented",
+                .t3chat: "T3 Chat debug log not yet implemented",
                 .llmproxy: "LLM Proxy debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
             ]
@@ -984,6 +1020,8 @@ extension UsageStore {
                     return await codexFetcher.debugRawRateLimits()
                 case .openai:
                     return Self.apiKeyDebugLine(openAIDebugContext)
+                case .azureopenai:
+                    return Self.apiKeyDebugLine(azureOpenAIDebugContext)
                 case .claude:
                     guard let claudeDebugConfiguration else {
                         return "Claude debug log configuration unavailable"
@@ -1049,9 +1087,10 @@ extension UsageStore {
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
-                case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq, .llmproxy, .deepgram:
+                case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot,
+                     .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
+                     .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
+                     .grok, .groq, .t3chat, .llmproxy, .deepgram:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
@@ -1191,6 +1230,20 @@ extension UsageStore {
             resolution: ProviderTokenResolver.openAIAPIResolution(environment: environment),
             configToken: config?.sanitizedAPIKey,
             hasEnvToken: OpenAIAPISettingsReader.apiKey(environment: processEnvironment) != nil,
+            hasTokenAccount: false)
+    }
+
+    private func azureOpenAIAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
+        let config = self.settings.providerConfig(for: .azureopenai)
+        let environment = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: processEnvironment,
+            provider: .azureopenai,
+            config: config)
+        return APIKeyDebugContext(
+            label: "AZURE_OPENAI_API_KEY",
+            resolution: ProviderTokenResolver.azureOpenAIResolution(environment: environment),
+            configToken: config?.sanitizedAPIKey,
+            hasEnvToken: AzureOpenAISettingsReader.apiKey(environment: processEnvironment) != nil,
             hasTokenAccount: false)
     }
 
@@ -1434,6 +1487,11 @@ extension UsageStore {
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
             self.lastTokenFetchScope.removeValue(forKey: provider)
+            return
+        }
+
+        if let override = self._test_tokenUsageRefreshOverride {
+            await override(provider, force)
             return
         }
 

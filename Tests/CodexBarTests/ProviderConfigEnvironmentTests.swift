@@ -122,6 +122,29 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies Azure OpenAI config overrides`() {
+        let config = ProviderConfig(
+            id: .azureopenai,
+            apiKey: "config-azure-token",
+            workspaceID: "chat-prod",
+            enterpriseHost: "https://example-resource.openai.azure.com")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [
+                AzureOpenAISettingsReader.apiKeyEnvironmentKey: "env-azure-token",
+                AzureOpenAISettingsReader.endpointEnvironmentKey: "https://env-resource.openai.azure.com",
+                AzureOpenAISettingsReader.deploymentNameEnvironmentKey: "env-deployment",
+            ],
+            provider: .azureopenai,
+            config: config)
+
+        #expect(env[AzureOpenAISettingsReader.apiKeyEnvironmentKey] == "config-azure-token")
+        #expect(env[AzureOpenAISettingsReader.endpointEnvironmentKey] == "https://example-resource.openai.azure.com")
+        #expect(env[AzureOpenAISettingsReader.deploymentNameEnvironmentKey] == "chat-prod")
+        #expect(ProviderTokenResolver.azureOpenAIToken(environment: env) == "config-azure-token")
+        #expect(AzureOpenAISettingsReader.deploymentName(environment: env) == "chat-prod")
+    }
+
+    @Test
     func `bedrock config maps AWS credential fields`() {
         let config = ProviderConfig(
             id: .bedrock,

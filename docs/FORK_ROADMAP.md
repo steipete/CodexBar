@@ -118,7 +118,7 @@ This document outlines the development roadmap for the CodexBar fork maintained 
 
 **Files to Create:**
 - `Scripts/sync_upstream.sh`
-- `docs/UPSTREAM_SYNC.md`
+- `docs/UPSTREAM_STRATEGY.md`
 - `.github/workflows/upstream-sync-check.yml`
 
 ---
@@ -228,5 +228,5 @@ This document outlines the development roadmap for the CodexBar fork maintained 
 - [Augment Provider](augment.md) - Augment-specific documentation
 - [Development Guide](DEVELOPMENT.md) - Build and test instructions
 - [Provider Authoring](provider.md) - How to create new providers
-- [Upstream Sync](UPSTREAM_SYNC.md) - Syncing with original repository (TBD)
+- [Upstream Strategy](UPSTREAM_STRATEGY.md) - Syncing with original repository
 - [Quotio Analysis](QUOTIO_ANALYSIS.md) - Feature comparison (TBD)

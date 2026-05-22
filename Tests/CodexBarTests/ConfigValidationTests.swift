@@ -68,6 +68,19 @@ struct ConfigValidationTests {
     }
 
     @Test
+    func `allows Azure OpenAI endpoint and deployment fields`() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(
+            id: .azureopenai,
+            workspaceID: "chat-prod",
+            enterpriseHost: "https://example-resource.openai.azure.com"))
+        let issues = CodexBarConfigValidator.validate(config)
+
+        #expect(!issues.contains(where: { $0.provider == .azureopenai && $0.code == "workspace_unused" }))
+        #expect(!issues.contains(where: { $0.provider == .azureopenai && $0.code == "enterprise_host_unused" }))
+    }
+
+    @Test
     func `warns on unsupported workspace ID`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .gemini, workspaceID: "workspace-123"))

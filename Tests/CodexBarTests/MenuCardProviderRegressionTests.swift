@@ -1,9 +1,15 @@
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 
 struct MenuCardProviderRegressionTests {
+    @Test
+    func `elevenlabs progress color stays visible in light menus`() {
+        #expect(UsageMenuCardView.Model.progressColor(for: .elevenlabs) == Color(nsColor: .labelColor))
+    }
+
     @Test
     func `open router model shows daily and weekly key spend`() throws {
         let now = Date()

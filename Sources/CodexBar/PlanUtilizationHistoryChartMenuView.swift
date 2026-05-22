@@ -184,13 +184,28 @@ struct PlanUtilizationHistoryChartMenuView: View {
     {
         let metadata = ProviderDescriptorRegistry.metadata[provider]
         let allowedNames = self.visibleSeriesNames(provider: provider, snapshot: snapshot)
-        return histories
-            .filter { history in
-                guard !history.entries.isEmpty else { return false }
-                guard history.windowMinutes > 0 else { return false }
-                guard let allowedNames else { return true }
-                return allowedNames.contains(history.name)
+        var historiesBySelection: [SeriesSelection: PlanUtilizationSeriesHistory] = [:]
+        for history in histories {
+            guard !history.entries.isEmpty else { continue }
+            guard history.windowMinutes > 0 else { continue }
+            guard allowedNames?.contains(history.name) ?? true else { continue }
+
+            let canonicalWindowMinutes = history.name.canonicalWindowMinutes(history.windowMinutes)
+            let selection = SeriesSelection(name: history.name, windowMinutes: canonicalWindowMinutes)
+            if let existingHistory = historiesBySelection[selection] {
+                historiesBySelection[selection] = PlanUtilizationSeriesHistory(
+                    name: history.name,
+                    windowMinutes: canonicalWindowMinutes,
+                    entries: Self.mergedEntries(existingHistory.entries + history.entries))
+            } else {
+                historiesBySelection[selection] = PlanUtilizationSeriesHistory(
+                    name: history.name,
+                    windowMinutes: canonicalWindowMinutes,
+                    entries: history.entries)
             }
+        }
+
+        return historiesBySelection.values
             .sorted { lhs, rhs in
                 let lhsOrder = self.seriesSortOrder(lhs.name)
                 let rhsOrder = self.seriesSortOrder(rhs.name)
@@ -208,6 +223,15 @@ struct PlanUtilizationHistoryChartMenuView: View {
                     title: self.seriesTitle(name: history.name, metadata: metadata),
                     history: history)
             }
+    }
+
+    private nonisolated static func mergedEntries(
+        _ entries: [PlanUtilizationHistoryEntry]) -> [PlanUtilizationHistoryEntry]
+    {
+        entries.reduce(into: []) { result, entry in
+            guard !result.contains(entry) else { return }
+            result.append(entry)
+        }
     }
 
     private nonisolated static func visibleSeriesNames(

@@ -152,7 +152,7 @@ struct MenuDescriptor {
             if let primary = snap.primary {
                 let primaryWindow = if provider == .warp || provider == .kilo || provider == .mimo || provider ==
                     .abacus ||
-                    provider == .deepseek
+                    provider == .deepseek || provider == .azureopenai
                 {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
@@ -171,7 +171,7 @@ struct MenuDescriptor {
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
                 if provider == .warp || provider == .kilo || provider == .mimo || provider == .abacus || provider ==
-                    .deepseek,
+                    .deepseek || provider == .azureopenai,
                     let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                     !detail.isEmpty
                 {

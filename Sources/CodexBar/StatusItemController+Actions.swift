@@ -32,6 +32,22 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
+    nonisolated func performPersistentSettingsAction() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.closeOpenMenusFromShortcutIfNeeded()
+            self.showSettingsGeneral()
+        }
+    }
+
+    nonisolated func performPersistentQuitAction() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.closeOpenMenusFromShortcutIfNeeded()
+            self.quit()
+        }
+    }
+
     nonisolated func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection) {
         Task { @MainActor [weak self] in
             self?.navigateProviderSwitcher(direction)

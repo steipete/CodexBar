@@ -307,7 +307,9 @@ extension CodexBarCLI {
         var payload: [CostPayload] = []
         for provider in providers {
             do {
-                let snapshot = try await fetcher.loadTokenSnapshot(provider: provider, forceRefresh: false)
+                let snapshot = try await fetcher.loadTokenSnapshot(
+                    provider: provider,
+                    forceRefresh: false)
                 payload.append(Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil))
             } catch {
                 payload.append(Self.makeCostPayload(provider: provider, snapshot: nil, error: error))

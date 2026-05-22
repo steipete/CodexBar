@@ -264,6 +264,8 @@ jobs:
               -f repository=steipete/CodexBar \
               -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
               -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
+              -f cask=codexbar \
+              -f cask_artifact='CodexBar-macos-universal-{version}.zip' \
               -f request_id="${{ steps.release.outputs.request_id }}"; then
               exit 0
             fi

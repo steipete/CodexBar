@@ -44,7 +44,8 @@ extension CodexBarCLI {
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
                     forceRefresh: forceRefresh,
-                    historyDays: historyDays)
+                    historyDays: historyDays,
+                    refreshPricingInBackground: false)
                 switch format {
                 case .text:
                     sections.append(Self.renderCostText(provider: provider, snapshot: snapshot, useColor: useColor))

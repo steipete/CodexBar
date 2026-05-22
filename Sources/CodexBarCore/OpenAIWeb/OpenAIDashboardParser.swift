@@ -443,7 +443,12 @@ public enum OpenAIDashboardParser {
     }
 
     private static func weekdayMatch(in text: String) -> WeekdayMatch? {
-        let pattern = #"\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day)?\b"#
+        // The optional "(day)?" suffix requires each alternative to be long enough that
+        // adding "day" reproduces the full weekday name. "wed"+"day"="wedday" and
+        // "sat"+"day"="satday", so the longer prefixes "wednes" and "satur" are needed
+        // to cover the full "Wednesday" and "Saturday" forms — mirroring how the existing
+        // "tue|tues" and "thu|thur|thurs" alternatives layer up to "tuesday"/"thursday".
+        let pattern = #"\b(mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur|sun)(day)?\b"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         guard let match = regex.firstMatch(in: text, options: [], range: range),

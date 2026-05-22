@@ -58,7 +58,7 @@ public enum CodexProviderDescriptor {
             case .api:
                 return []
             case .auto:
-                return [web, cli]
+                return [web, oauth, cli]
             }
         case .app:
             switch context.sourceMode {
@@ -109,13 +109,26 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
     let id: String = "codex.cli"
     let kind: ProviderFetchKind = .cli
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        true
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        Self.resolvedBinary(env: context.env) != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let snapshot = try await context.fetcher.loadLatestCLIAccountSnapshot()
-        guard let usage = snapshot.usage else { throw UsageError.noRateLimitsFound }
+        guard let usage = snapshot.usage else {
+            guard context.includeCredits, let credits = snapshot.credits else {
+                throw UsageError.noRateLimitsFound
+            }
+            // Credits refresh can succeed even when RPC omits rate-limit windows.
+            return self.makeResult(
+                usage: UsageSnapshot(
+                    primary: nil,
+                    secondary: nil,
+                    updatedAt: credits.updatedAt,
+                    identity: nil),
+                credits: credits,
+                sourceLabel: "codex-cli")
+        }
         let credits = context.includeCredits ? snapshot.credits : nil
         return self.makeResult(
             usage: usage,
@@ -125,6 +138,24 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
+    }
+
+    static func resolvedBinary(
+        env: [String: String],
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        BinaryLocator.resolveCodexBinary(
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            fileManager: fileManager,
+            home: home)
     }
 }
 

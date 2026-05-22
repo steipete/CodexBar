@@ -13,6 +13,67 @@ extension UsageStore {
         self.makeFetchContext(provider: .codex, override: nil).fetcher
     }
 
+    func scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) {
+        let refreshKey = self.codexCreditsRefreshKey(
+            expectedGuard: self.currentCodexAccountScopedRefreshGuard())
+        if let existing = self.creditsRefreshTask,
+           !existing.isCancelled,
+           self.creditsRefreshTaskKey == refreshKey
+        {
+            return
+        }
+
+        self.creditsRefreshTask?.cancel()
+        self.creditsRefreshTaskKey = refreshKey
+        self.creditsRefreshTask = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.creditsRefreshTaskKey == refreshKey {
+                    self.creditsRefreshTask = nil
+                    self.creditsRefreshTaskKey = nil
+                }
+            }
+            await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
+            guard !Task.isCancelled else { return }
+            self.persistWidgetSnapshot(reason: "credits")
+        }
+    }
+
+    func cancelScheduledCreditsRefresh() {
+        self.creditsRefreshTask?.cancel()
+        self.creditsRefreshTask = nil
+        self.creditsRefreshTaskKey = nil
+    }
+
+    func refreshCreditsNow(minimumSnapshotUpdatedAt: Date? = nil) async {
+        self.cancelScheduledCreditsRefresh()
+        await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
+    }
+
+    func codexCreditsRefreshKey(expectedGuard: CodexAccountScopedRefreshGuard) -> String {
+        let sourceKey = switch expectedGuard.source {
+        case .liveSystem:
+            "live"
+        case let .managedAccount(id):
+            "managed:\(id.uuidString)"
+        }
+
+        let identityKey = switch expectedGuard.identity {
+        case let .providerAccount(id):
+            "provider:\(id)"
+        case let .emailOnly(normalizedEmail):
+            "email:\(normalizedEmail)"
+        case .unresolved:
+            "unresolved"
+        }
+
+        return [
+            sourceKey,
+            identityKey,
+            expectedGuard.accountKey ?? "account:nil",
+        ].joined(separator: "|")
+    }
+
     func refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) async {
         guard self.isEnabled(.codex) else { return }
         var expectedGuard = self.currentCodexAccountScopedRefreshGuard()
@@ -30,6 +91,7 @@ extension UsageStore {
         }
         do {
             let credits = try await self.loadLatestCodexCredits()
+            guard !Task.isCancelled else { return }
             guard self.shouldApplyCodexScopedNonUsageResult(expectedGuard: expectedGuard) else { return }
             await MainActor.run {
                 self.credits = credits
@@ -58,6 +120,7 @@ extension UsageStore {
                 snapshot: codexSnapshot,
                 now: codexSnapshot.updatedAt)
         } catch {
+            guard !Task.isCancelled else { return }
             let message = error.localizedDescription
             if message.localizedCaseInsensitiveContains("data not available yet") {
                 guard self.shouldApplyCodexScopedNonUsageResult(expectedGuard: expectedGuard) else { return }
@@ -101,7 +164,26 @@ extension UsageStore {
         if let override = self._test_codexCreditsLoaderOverride {
             return try await override()
         }
-        return try await self.codexCreditsFetcher().loadLatestCredits()
+        let descriptor = self.providerSpecs[.codex]?.descriptor ?? ProviderDescriptorRegistry.descriptor(for: .codex)
+        let context = self.makeFetchContext(provider: .codex, override: nil, includeCredits: true)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        var lastAvailableError: Error?
+
+        for strategy in strategies {
+            guard await strategy.isAvailable(context) else { continue }
+            do {
+                let result = try await strategy.fetch(context)
+                if let credits = result.credits {
+                    return credits
+                }
+                lastAvailableError = UsageError.noRateLimitsFound
+                guard context.sourceMode == .auto else { break }
+            } catch {
+                lastAvailableError = error
+                guard strategy.shouldFallback(on: error, context: context) else { break }
+            }
+        }
+        throw lastAvailableError ?? ProviderFetchError.noAvailableStrategy(.codex)
     }
 
     func waitForCodexSnapshot(minimumUpdatedAt: Date) async -> UsageSnapshot? {

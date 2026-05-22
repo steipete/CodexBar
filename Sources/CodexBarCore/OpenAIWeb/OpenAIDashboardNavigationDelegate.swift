@@ -8,8 +8,8 @@ import WebKit
 final class NavigationDelegate: NSObject, WKNavigationDelegate {
     private let completion: (Result<Void, Error>) -> Void
     private var hasCompleted: Bool = false
-    private var timeoutTask: Task<Void, Never>?
-    private var postCommitTask: Task<Void, Never>?
+    private var timeoutWorkItem: DispatchWorkItem?
+    private var postCommitWorkItem: DispatchWorkItem?
     static var associationKey: UInt8 = 0
     nonisolated static let postCommitSuccessDelay: TimeInterval = 0.75
 
@@ -18,13 +18,15 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     func armTimeout(seconds: TimeInterval) {
-        self.timeoutTask?.cancel()
-        self.timeoutTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let nanoseconds = UInt64(max(seconds, 0) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            self.completeOnce(.failure(URLError(.timedOut)))
+        self.timeoutWorkItem?.cancel()
+        let delay = max(seconds, 0)
+        let workItem = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.completeOnce(.failure(URLError(.timedOut)))
+            }
         }
+        self.timeoutWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -33,13 +35,14 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         guard !self.hasCompleted else { return }
-        self.postCommitTask?.cancel()
-        self.postCommitTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let nanoseconds = UInt64(Self.postCommitSuccessDelay * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            self.completeOnce(.success(()))
+        self.postCommitWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.completeOnce(.success(()))
+            }
         }
+        self.postCommitWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.postCommitSuccessDelay, execute: workItem)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -68,10 +71,10 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
     private func completeOnce(_ result: Result<Void, Error>) {
         guard !self.hasCompleted else { return }
         self.hasCompleted = true
-        self.timeoutTask?.cancel()
-        self.timeoutTask = nil
-        self.postCommitTask?.cancel()
-        self.postCommitTask = nil
+        self.timeoutWorkItem?.cancel()
+        self.timeoutWorkItem = nil
+        self.postCommitWorkItem?.cancel()
+        self.postCommitWorkItem = nil
         self.completion(result)
     }
 }

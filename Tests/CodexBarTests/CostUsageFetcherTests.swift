@@ -121,6 +121,371 @@ struct CostUsageFetcherTests {
     }
 
     @Test
+    func `fetcher resolves fork parent outside requested codex window`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let parentDay = try env.makeLocalNoon(year: 2026, month: 4, day: 2)
+        let childDay = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let model = "openai/gpt-5.4"
+        let parentID = "parent-session"
+        let parentTimestamp = env.isoString(for: parentDay.addingTimeInterval(1))
+        let childTimestamp = env.isoString(for: childDay.addingTimeInterval(1))
+        _ = try env.writeCodexSessionFile(
+            day: parentDay,
+            filename: "parent.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": env.isoString(for: parentDay),
+                    "payload": ["session_id": parentID],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": parentTimestamp,
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": model,
+                            "total_token_usage": [
+                                "input_tokens": 100,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 0,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+        _ = try env.writeCodexSessionFile(
+            day: childDay,
+            filename: "child.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": env.isoString(for: childDay),
+                    "payload": [
+                        "session_id": "child-session",
+                        "forked_from_id": parentID,
+                        "timestamp": parentTimestamp,
+                    ],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": childTimestamp,
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": model,
+                            "total_token_usage": [
+                                "input_tokens": 125,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 5,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+
+        let options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: childDay,
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 1,
+            scannerOptions: options)
+
+        #expect(snapshot.daily.map(\.date) == ["2026-04-08"])
+        #expect(snapshot.last30DaysTokens == 30)
+    }
+
+    @Test
+    func `force refresh only scans requested codex date window`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let oldDay = try env.makeLocalNoon(year: 2026, month: 3, day: 1)
+        let newDay = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let oldURL = try env.writeCodexSessionFile(
+            day: oldDay,
+            filename: "old.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: oldDay),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 10,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 0,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+        try FileManager.default.setAttributes([.modificationDate: oldDay], ofItemAtPath: oldURL.path)
+        _ = try env.writeCodexSessionFile(
+            day: newDay,
+            filename: "new.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: newDay),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 30,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 0,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+
+        let options = CostUsageScanner.Options(
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: newDay,
+            forceRefresh: true,
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 1,
+            scannerOptions: options)
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cacheFileExists = FileManager.default.fileExists(
+            atPath: CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: env.cacheRoot).path)
+
+        #expect(snapshot.daily.map(\.date) == ["2026-04-08"])
+        #expect(snapshot.last30DaysTokens == 30)
+        #expect(cacheFileExists)
+        #expect(cache.files.keys.sorted().map(URL.init(fileURLWithPath:)).map(\.lastPathComponent) == ["new.jsonl"])
+    }
+
+    @Test
+    func `narrow codex refresh preserves wider cache window`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let oldDay = try env.makeLocalNoon(year: 2026, month: 4, day: 2)
+        let newDay = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        _ = try env.writeCodexSessionFile(
+            day: oldDay,
+            filename: "old.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: oldDay),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 15,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 0,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+        _ = try env.writeCodexSessionFile(
+            day: newDay,
+            filename: "new.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: newDay),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 30,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 0,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: newDay,
+            until: newDay,
+            now: newDay,
+            options: options)
+        let wide = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: newDay.addingTimeInterval(1),
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 7,
+            refreshPricingInBackground: false,
+            scannerOptions: options)
+        let narrow = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: newDay.addingTimeInterval(2),
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 1,
+            refreshPricingInBackground: false,
+            scannerOptions: options)
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+
+        #expect(wide.last30DaysTokens == 45)
+        #expect(narrow.last30DaysTokens == 30)
+        #expect(cache.files.keys.map(URL.init(fileURLWithPath:)).map(\.lastPathComponent).sorted() == [
+            "new.jsonl",
+            "old.jsonl",
+        ])
+        #expect(cache.scanSinceKey == "2026-04-01")
+        #expect(cache.scanUntilKey == "2026-04-09")
+    }
+
+    @Test
+    func `force codex rescan narrows cache window to refreshed range`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let oldDay = try env.makeLocalNoon(year: 2026, month: 4, day: 2)
+        let newDay = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        _ = try env.writeCodexSessionFile(
+            day: oldDay,
+            filename: "old.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: oldDay),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 15,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 0,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+        _ = try env.writeCodexSessionFile(
+            day: newDay,
+            filename: "new.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: newDay),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 30,
+                                "cached_input_tokens": 0,
+                                "output_tokens": 0,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: newDay,
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 7,
+            refreshPricingInBackground: false,
+            scannerOptions: options)
+
+        var rescanOptions = options
+        rescanOptions.forceRescan = true
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: newDay,
+            until: newDay,
+            now: newDay.addingTimeInterval(1),
+            options: rescanOptions)
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+
+        #expect(cache.files.keys.map(URL.init(fileURLWithPath:)).map(\.lastPathComponent).sorted() == ["new.jsonl"])
+        #expect(cache.scanSinceKey == "2026-04-07")
+        #expect(cache.scanUntilKey == "2026-04-09")
+    }
+
+    @Test
+    func `codex refresh drops stale cache entry when session moves to archive`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let contents = try env.jsonl([
+            [
+                "type": "session_meta",
+                "timestamp": env.isoString(for: day),
+                "payload": ["session_id": "moved-session"],
+            ],
+            [
+                "type": "event_msg",
+                "timestamp": env.isoString(for: day.addingTimeInterval(1)),
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "model": "openai/gpt-5.4",
+                        "last_token_usage": [
+                            "input_tokens": 30,
+                            "cached_input_tokens": 0,
+                            "output_tokens": 0,
+                        ],
+                    ],
+                ],
+            ],
+        ])
+        let originalURL = try env.writeCodexSessionFile(day: day, filename: "moved.jsonl", contents: contents)
+
+        var options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        let first = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 1,
+            scannerOptions: options)
+
+        let archivedURL = env.codexArchivedSessionsRoot.appendingPathComponent("moved.jsonl", isDirectory: false)
+        try FileManager.default.moveItem(at: originalURL, to: archivedURL)
+
+        let second = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day.addingTimeInterval(1),
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 1,
+            scannerOptions: options)
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+
+        #expect(first.last30DaysTokens == 30)
+        #expect(second.last30DaysTokens == 30)
+        #expect(cache.files.count == 1)
+        #expect(cache.files.keys.first.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path } ==
+            archivedURL.resolvingSymlinksInPath().path)
+    }
+
+    @Test
     func `fetcher merges native and pi codex history with normalized model names`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

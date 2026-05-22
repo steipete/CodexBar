@@ -7,6 +7,7 @@ extension CodexAccountScopedRefreshTests {
     func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
             userDefaults: defaults,
@@ -19,6 +20,7 @@ extension CodexAccountScopedRefreshTests {
         settings._test_managedCodexAccountStoreURL = nil
         settings._test_liveSystemCodexAccount = nil
         settings._test_codexReconciliationEnvironment = nil
+        settings.providerDetectionCompleted = true
         return settings
     }
 
@@ -65,12 +67,13 @@ extension CodexAccountScopedRefreshTests {
         return "\(base64URL(header)).\(base64URL(payload))."
     }
 
-    func makeUsageStore(settings: SettingsStore) -> UsageStore {
+    func makeUsageStore(settings: SettingsStore, environmentBase: [String: String] = [:]) -> UsageStore {
         UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            startupBehavior: .testing)
+            startupBehavior: .testing,
+            environmentBase: environmentBase)
     }
 
     func liveAccount(email: String, identity: CodexIdentity = .unresolved) -> ObservedSystemCodexAccount {
@@ -123,6 +126,56 @@ extension CodexAccountScopedRefreshTests {
             version: FileManagedCodexAccountStore.currentVersion,
             accounts: accounts))
         return storeURL
+    }
+
+    @MainActor
+    func withCodexVisibleAccountFailureStore(
+        suite: String,
+        errorMessage: String,
+        body: (UsageStore, RecordingCodexAccountUsageSnapshotStore, [CodexAccountUsageSnapshot]) async throws -> Void)
+        async throws
+    {
+        let settings = self.makeSettingsStore(suite: suite)
+        settings.refreshFrequency = .manual
+        settings.multiAccountMenuLayout = .stacked
+        settings._test_liveSystemCodexAccount = self.liveAccount(email: "live@example.com")
+        settings.codexActiveSource = .liveSystem
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+        settings._test_managedCodexAccountStoreURL = storeURL
+
+        let priorSnapshots = settings.codexVisibleAccountProjection.visibleAccounts.map { account in
+            CodexAccountUsageSnapshot(
+                account: account,
+                snapshot: self.codexSnapshot(email: account.email, usedPercent: 17),
+                error: nil,
+                sourceLabel: "cached")
+        }
+        let snapshotStore = RecordingCodexAccountUsageSnapshotStore(initialSnapshots: priorSnapshots)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            codexAccountUsageSnapshotStore: snapshotStore,
+            startupBehavior: .testing)
+        self.installFailingCodexProvider(
+            on: store,
+            error: TestRefreshError(message: errorMessage))
+
+        try await body(store, snapshotStore, priorSnapshots)
     }
 
     func installBlockingCodexProvider(on store: UsageStore, blocker: BlockingCodexFetchStrategy) {
@@ -189,6 +242,28 @@ extension CodexAccountScopedRefreshTests {
             descriptor: descriptor,
             makeFetchContext: baseSpec.makeFetchContext)
     }
+
+    static func makeCodexProviderSpec(
+        baseSpec: ProviderSpec,
+        resolveStrategies: @escaping @Sendable (ProviderFetchContext) async -> [any ProviderFetchStrategy])
+        -> ProviderSpec
+    {
+        let baseDescriptor = baseSpec.descriptor
+        let descriptor = ProviderDescriptor(
+            id: .codex,
+            metadata: baseDescriptor.metadata,
+            branding: baseDescriptor.branding,
+            tokenCost: baseDescriptor.tokenCost,
+            fetchPlan: ProviderFetchPlan(
+                sourceModes: [.auto, .cli, .oauth],
+                pipeline: ProviderFetchPipeline(resolveStrategies: resolveStrategies)),
+            cli: baseDescriptor.cli)
+        return ProviderSpec(
+            style: baseSpec.style,
+            isEnabled: baseSpec.isEnabled,
+            descriptor: descriptor,
+            makeFetchContext: baseSpec.makeFetchContext)
+    }
 }
 
 struct TestRefreshError: LocalizedError, Equatable {
@@ -199,16 +274,41 @@ struct TestRefreshError: LocalizedError, Equatable {
     }
 }
 
+final class RecordingCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var loadedSnapshots: [CodexAccountUsageSnapshot]
+    private var snapshotsStored: [CodexAccountUsageSnapshot] = []
+
+    init(initialSnapshots: [CodexAccountUsageSnapshot]) {
+        self.loadedSnapshots = initialSnapshots
+    }
+
+    var storedSnapshots: [CodexAccountUsageSnapshot] {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.snapshotsStored
+    }
+
+    func load(for accounts: [CodexVisibleAccount]) -> [CodexAccountUsageSnapshot] {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        let accountIDs = Set(accounts.map(\.id))
+        return self.loadedSnapshots.filter { accountIDs.contains($0.id) }
+    }
+
+    func store(_ snapshots: [CodexAccountUsageSnapshot]) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.snapshotsStored = snapshots
+    }
+}
+
 struct TestCodexFetchStrategy: ProviderFetchStrategy {
     let loader: @Sendable () async throws -> UsageSnapshot
-
-    var id: String {
-        "test-codex"
-    }
-
-    var kind: ProviderFetchKind {
-        .cli
-    }
+    var credits: CreditsSnapshot?
+    var id = "test-codex"
+    var kind: ProviderFetchKind = .cli
+    var sourceLabel = "test-codex"
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         true
@@ -216,7 +316,10 @@ struct TestCodexFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         let snapshot = try await self.loader()
-        return self.makeResult(usage: snapshot, sourceLabel: "test-codex")
+        return self.makeResult(
+            usage: snapshot,
+            credits: self.credits,
+            sourceLabel: self.sourceLabel)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

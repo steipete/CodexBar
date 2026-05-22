@@ -52,6 +52,12 @@ extension UsageMenuCardView.Model {
             ]
         }
 
+        if input.provider == .ollama,
+           input.snapshot?.identity?.loginMethod == "API key"
+        {
+            return ["API key verified. Ollama does not expose Cloud quota limits through the API."]
+        }
+
         return nil
     }
 
@@ -154,45 +160,6 @@ extension UsageMenuCardView.Model {
             detailLines: details)
     }
 
-    fileprivate static func claudeAdminAPIInlineDashboard(_ usage: ClaudeAdminAPIUsageSnapshot)
-        -> InlineUsageDashboardModel
-    {
-        let today = usage.latestDay
-        let last7 = usage.last7Days
-        let last30 = usage.last30Days
-        let points = usage.daily.suffix(30).map {
-            InlineUsageDashboardModel.Point(
-                id: $0.day,
-                label: Self.shortDayLabel($0.day),
-                value: $0.costUSD,
-                accessibilityValue: "\($0.day): \(UsageFormatter.usdString($0.costUSD))")
-        }
-        var details = [
-            "30d: \(UsageFormatter.tokenCountString(last30.totalTokens)) tokens",
-            "Cache read: \(UsageFormatter.tokenCountString(last30.cacheReadInputTokens)) tokens",
-        ]
-        if let topModel = usage.topModels.first {
-            details.append("Top model: \(Self.shortModelName(topModel.name))")
-        }
-        return InlineUsageDashboardModel(
-            accessibilityLabel: "Claude Admin API 30 day spend trend",
-            valueStyle: .currencyUSD,
-            kpis: [
-                .init(title: "Today", value: UsageFormatter.usdString(today.costUSD), emphasis: true),
-                .init(title: "7d spend", value: UsageFormatter.usdString(last7.costUSD), emphasis: false),
-                .init(
-                    title: "30d spend",
-                    value: UsageFormatter.usdString(last30.costUSD),
-                    emphasis: false),
-                .init(
-                    title: "Today tokens",
-                    value: UsageFormatter.tokenCountString(today.totalTokens),
-                    emphasis: false),
-            ],
-            points: points,
-            detailLines: details)
-    }
-
     private static func costHistoryInlineDashboard(
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
@@ -238,6 +205,45 @@ extension UsageMenuCardView.Model {
                 .init(
                     title: "Latest tokens",
                     value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    emphasis: false),
+            ],
+            points: points,
+            detailLines: details)
+    }
+
+    fileprivate static func claudeAdminAPIInlineDashboard(_ usage: ClaudeAdminAPIUsageSnapshot)
+        -> InlineUsageDashboardModel
+    {
+        let today = usage.latestDay
+        let last7 = usage.last7Days
+        let last30 = usage.last30Days
+        let points = usage.daily.suffix(30).map {
+            InlineUsageDashboardModel.Point(
+                id: $0.day,
+                label: Self.shortDayLabel($0.day),
+                value: $0.costUSD,
+                accessibilityValue: "\($0.day): \(UsageFormatter.usdString($0.costUSD))")
+        }
+        var details = [
+            "30d: \(UsageFormatter.tokenCountString(last30.totalTokens)) tokens",
+            "Cache read: \(UsageFormatter.tokenCountString(last30.cacheReadInputTokens)) tokens",
+        ]
+        if let topModel = usage.topModels.first {
+            details.append("Top model: \(Self.shortModelName(topModel.name))")
+        }
+        return InlineUsageDashboardModel(
+            accessibilityLabel: "Claude Admin API 30 day spend trend",
+            valueStyle: .currencyUSD,
+            kpis: [
+                .init(title: "Today", value: UsageFormatter.usdString(today.costUSD), emphasis: true),
+                .init(title: "7d spend", value: UsageFormatter.usdString(last7.costUSD), emphasis: false),
+                .init(
+                    title: "30d spend",
+                    value: UsageFormatter.usdString(last30.costUSD),
+                    emphasis: false),
+                .init(
+                    title: "Today tokens",
+                    value: UsageFormatter.tokenCountString(today.totalTokens),
                     emphasis: false),
             ],
             points: points,
@@ -407,22 +413,6 @@ extension UsageMenuCardView.Model {
             detailLines: details)
     }
 
-    private static func topCostModel(from entries: [CostUsageDailyReport.Entry]) -> String? {
-        var scores: [String: (cost: Double, tokens: Int)] = [:]
-        for entry in entries {
-            for model in entry.modelBreakdowns ?? [] {
-                var score = scores[model.modelName] ?? (0, 0)
-                score.cost += model.costUSD ?? 0
-                score.tokens += model.totalTokens ?? 0
-                scores[model.modelName] = score
-            }
-        }
-        return scores.max {
-            if $0.value.cost == $1.value.cost { return $0.value.tokens < $1.value.tokens }
-            return $0.value.cost < $1.value.cost
-        }?.key
-    }
-
     private static func topMistralModel(from entries: [MistralDailyUsageBucket]) -> String? {
         var tokens: [String: Int] = [:]
         for entry in entries {
@@ -471,6 +461,22 @@ extension UsageMenuCardView.Model {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count > 26 else { return trimmed }
         return String(trimmed.prefix(25)) + "…"
+    }
+
+    private static func topCostModel(from entries: [CostUsageDailyReport.Entry]) -> String? {
+        var scores: [String: (cost: Double, tokens: Int)] = [:]
+        for entry in entries {
+            for model in entry.modelBreakdowns ?? [] {
+                var score = scores[model.modelName] ?? (0, 0)
+                score.cost += model.costUSD ?? 0
+                score.tokens += model.totalTokens ?? 0
+                scores[model.modelName] = score
+            }
+        }
+        return scores.max {
+            if $0.value.cost == $1.value.cost { return $0.value.tokens < $1.value.tokens }
+            return $0.value.cost < $1.value.cost
+        }?.key
     }
 }
 

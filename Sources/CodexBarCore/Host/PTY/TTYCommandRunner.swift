@@ -77,6 +77,62 @@ private enum TTYCommandRunnerActiveProcessRegistry {
     }
 }
 
+enum TTYProcessTreeTerminator {
+    static func descendantPIDs(
+        of rootPID: pid_t,
+        childResolver: (pid_t) -> [pid_t] = Self.currentChildPIDs(of:)) -> [pid_t]
+    {
+        guard rootPID > 0 else { return [] }
+
+        var seen: Set<pid_t> = [rootPID]
+        var pending = childResolver(rootPID)
+        var descendants: [pid_t] = []
+
+        while let pid = pending.popLast() {
+            guard pid > 0, seen.insert(pid).inserted else { continue }
+            descendants.append(pid)
+            pending.append(contentsOf: childResolver(pid))
+        }
+
+        return descendants
+    }
+
+    static func currentChildPIDs(of parentPID: pid_t) -> [pid_t] {
+        guard parentPID > 0 else { return [] }
+
+        #if canImport(Darwin)
+        var pids = [pid_t](repeating: 0, count: 128)
+        let byteCount = Int32(pids.count * MemoryLayout<pid_t>.stride)
+        let childCount = proc_listchildpids(parentPID, &pids, byteCount)
+        guard childCount > 0 else { return [] }
+        return Array(pids.prefix(min(Int(childCount), pids.count))).filter { $0 > 0 }
+        #else
+        return []
+        #endif
+    }
+
+    static func terminateProcessTree(
+        rootPID: pid_t,
+        processGroup: pid_t?,
+        signal: Int32,
+        knownDescendants: [pid_t] = [],
+        childResolver: (pid_t) -> [pid_t] = Self.currentChildPIDs(of:),
+        signalSender: (pid_t, Int32) -> Void = { kill($0, $1) })
+    {
+        guard rootPID > 0 else { return }
+
+        var seen: Set<pid_t> = [rootPID]
+        let descendants = knownDescendants + self.descendantPIDs(of: rootPID, childResolver: childResolver)
+        for pid in descendants where pid > 0 && seen.insert(pid).inserted {
+            signalSender(pid, signal)
+        }
+        if let processGroup {
+            signalSender(-processGroup, signal)
+        }
+        signalSender(rootPID, signal)
+    }
+}
+
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
 /// Keeps it minimal so we can reuse for Codex and Claude without tmux.
 public struct TTYCommandRunner {
@@ -103,6 +159,7 @@ public struct TTYCommandRunner {
         public var stopOnSubstrings: [String]
         public var settleAfterStop: TimeInterval
         public var forceCodexStatusMode: Bool
+        public var useClaudeProbeWorkingDirectory: Bool
 
         public init(
             rows: UInt16 = 50,
@@ -118,7 +175,8 @@ public struct TTYCommandRunner {
             stopOnURL: Bool = false,
             stopOnSubstrings: [String] = [],
             settleAfterStop: TimeInterval = 0.25,
-            forceCodexStatusMode: Bool = false)
+            forceCodexStatusMode: Bool = false,
+            useClaudeProbeWorkingDirectory: Bool = false)
         {
             self.rows = rows
             self.cols = cols
@@ -134,6 +192,7 @@ public struct TTYCommandRunner {
             self.stopOnSubstrings = stopOnSubstrings
             self.settleAfterStop = settleAfterStop
             self.forceCodexStatusMode = forceCodexStatusMode
+            self.useClaudeProbeWorkingDirectory = useClaudeProbeWorkingDirectory
         }
     }
 
@@ -164,17 +223,17 @@ public struct TTYCommandRunner {
             groupResolver: { getpgid($0) })
 
         for target in resolvedTargets where target.pid > 0 {
-            if let pgid = target.processGroup {
-                kill(-pgid, SIGTERM)
-            }
-            kill(target.pid, SIGTERM)
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: target.pid,
+                processGroup: target.processGroup,
+                signal: SIGTERM)
         }
 
         for target in resolvedTargets where target.pid > 0 {
-            if let pgid = target.processGroup {
-                kill(-pgid, SIGKILL)
-            }
-            kill(target.pid, SIGKILL)
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: target.pid,
+                processGroup: target.processGroup,
+                signal: SIGKILL)
         }
     }
 
@@ -421,9 +480,11 @@ public struct TTYCommandRunner {
             }
         }
 
+        let baseEnv = options.baseEnvironment ?? ProcessInfo.processInfo.environment
         let proc = Process()
         let resolvedURL = URL(fileURLWithPath: resolved)
-        if resolvedURL.lastPathComponent == "claude",
+        let isClaudeCLI = Self.isClaudeBinary(requested: binary, resolved: resolved, environment: baseEnv)
+        if isClaudeCLI,
            let watchdog = Self.locateBundledHelper("CodexBarClaudeWatchdog")
         {
             proc.executableURL = URL(fileURLWithPath: watchdog)
@@ -437,9 +498,12 @@ public struct TTYCommandRunner {
         proc.standardError = secondaryHandle
         // Use login-shell PATH when available, but keep the caller’s environment (HOME, LANG, etc.) so
         // the CLIs can find their auth/config files.
-        let baseEnv = options.baseEnvironment ?? ProcessInfo.processInfo.environment
         var env = Self.enrichedEnvironment(baseEnv: baseEnv, home: baseEnv["HOME"] ?? NSHomeDirectory())
-        if let workingDirectory = options.workingDirectory {
+        let workingDirectory = options.workingDirectory
+            ?? (options.useClaudeProbeWorkingDirectory && isClaudeCLI
+                ? ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
+                : nil)
+        if let workingDirectory {
             proc.currentDirectoryURL = workingDirectory
             env["PWD"] = workingDirectory.path
         }
@@ -464,21 +528,29 @@ public struct TTYCommandRunner {
 
             guard didLaunch else { return }
 
+            let descendants = TTYProcessTreeTerminator.descendantPIDs(of: proc.processIdentifier)
             if proc.isRunning {
                 proc.terminate()
             }
-            if let pgid = processGroup {
-                kill(-pgid, SIGTERM)
-            }
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: proc.processIdentifier,
+                processGroup: processGroup,
+                signal: SIGTERM,
+                knownDescendants: descendants)
             let waitDeadline = Date().addingTimeInterval(2.0)
             while proc.isRunning, Date() < waitDeadline {
                 usleep(100_000)
             }
             if proc.isRunning {
-                if let pgid = processGroup {
-                    kill(-pgid, SIGKILL)
+                TTYProcessTreeTerminator.terminateProcessTree(
+                    rootPID: proc.processIdentifier,
+                    processGroup: processGroup,
+                    signal: SIGKILL,
+                    knownDescendants: descendants)
+            } else {
+                for pid in descendants where pid > 0 {
+                    kill(pid, SIGKILL)
                 }
-                kill(proc.processIdentifier, SIGKILL)
             }
             if didLaunch {
                 proc.waitUntilExit()
@@ -879,6 +951,31 @@ public struct TTYCommandRunner {
         return self.runWhich(tool)
     }
 
+    private static func isClaudeBinary(requested: String, resolved: String, environment: [String: String]) -> Bool {
+        let requestedName = URL(fileURLWithPath: requested).lastPathComponent
+        let resolvedName = URL(fileURLWithPath: resolved).lastPathComponent
+        if requested == "claude" || requestedName == "claude" || resolvedName == "claude" {
+            return true
+        }
+
+        guard let override = environment["CLAUDE_CLI_PATH"], !override.isEmpty else { return false }
+        let normalizedOverride = self.normalizedExecutablePath(override)
+        return self.normalizedExecutablePath(resolved) == normalizedOverride
+            || self.normalizedExecutablePath(requested) == normalizedOverride
+    }
+
+    private static func normalizedExecutablePath(_ path: String) -> String {
+        let expanded = NSString(string: path).expandingTildeInPath
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        if realpath(expanded, &buffer) != nil {
+            return buffer.withUnsafeBufferPointer { rawBuffer in
+                guard let baseAddress = rawBuffer.baseAddress else { return expanded }
+                return String(cString: baseAddress)
+            }
+        }
+        return URL(fileURLWithPath: expanded).standardizedFileURL.path
+    }
+
     private static func runWhich(_ tool: String) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
@@ -933,7 +1030,9 @@ public struct TTYCommandRunner {
         }
         return env
     }
+}
 
+extension TTYCommandRunner {
     static func _test_resetTrackedProcesses() {
         TTYCommandRunnerActiveProcessRegistry.reset()
     }

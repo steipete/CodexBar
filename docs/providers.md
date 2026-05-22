@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 45 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 47 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -23,6 +23,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | --- | --- |
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |
 | OpenAI | Admin API key (`api`) for organization spend/usage; legacy API-key balance fallback. |
+| Azure OpenAI | API key + endpoint + deployment probe (`api`) for deployment status validation. |
 | Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
@@ -43,10 +44,11 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Augment | `auggie` CLI first, then browser-cookie web fallback (`cli`, `web`). |
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Web settings page via browser cookies (`web`). |
+| T3 Chat | Web tRPC customer-data endpoint via browser cookies (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | ElevenLabs | API key from config/env → subscription usage API (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
-| Ollama | Web settings page via browser cookies (`web`). |
+| Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
@@ -82,6 +84,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Admin API keys are preferred and fetch organization costs plus completion usage for inline Today/7d/configured-window dashboards.
 - Normal API keys fall back to the legacy credit-grants balance endpoint when organization usage is unavailable.
 - Details: `docs/openai.md`.
+
+## Azure OpenAI
+- API key, endpoint, and deployment from `~/.codexbar/config.json` or `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, and `AZURE_OPENAI_DEPLOYMENT_NAME`.
+- Validates the configured deployment with a minimal chat-completions request; it does not expose Azure spend or quota history.
+- Use `AZURE_OPENAI_API_VERSION` to override the API version. Set it to `v1` for Azure's OpenAI-compatible v1 API path.
+- Status: Azure status page link.
 
 ## Claude
 - Admin API: `sk-ant-admin...` key in Settings/config, token accounts, or `ANTHROPIC_ADMIN_KEY`.
@@ -230,6 +238,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Parses Amp Free usage from the settings HTML.
 - Status: none yet.
 - Details: `docs/amp.md`.
+
+## T3 Chat
+- Web tRPC endpoint (`https://t3.chat/api/trpc/getCustomerData`) via browser cookies.
+- Parses JSONL response lines and extracts customer data from the embedded tRPC payload.
+- Shows the 4-hour Base bucket and monthly Overage bucket documented in the T3 Chat FAQ.
+- Status: none yet.
 
 ## Ollama
 - Web settings page (`https://ollama.com/settings`) via browser cookies.
