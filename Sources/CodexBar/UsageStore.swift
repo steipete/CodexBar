@@ -559,7 +559,7 @@ final class UsageStore {
                     }
                 }
                 if forceTokenUsage {
-                    group.addTask { await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                    group.addTask { await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt) }
                 }
             }
 
@@ -607,7 +607,7 @@ final class UsageStore {
 
             if forceTokenUsage, self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
-                await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
+                await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
             self.persistWidgetSnapshot(reason: "refresh")

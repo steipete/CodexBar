@@ -34,8 +34,20 @@ extension UsageStore {
                 }
             }
             await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
+            guard !Task.isCancelled else { return }
             self.persistWidgetSnapshot(reason: "credits")
         }
+    }
+
+    func cancelScheduledCreditsRefresh() {
+        self.creditsRefreshTask?.cancel()
+        self.creditsRefreshTask = nil
+        self.creditsRefreshTaskKey = nil
+    }
+
+    func refreshCreditsNow(minimumSnapshotUpdatedAt: Date? = nil) async {
+        self.cancelScheduledCreditsRefresh()
+        await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
     }
 
     func codexCreditsRefreshKey(expectedGuard: CodexAccountScopedRefreshGuard) -> String {
@@ -79,6 +91,7 @@ extension UsageStore {
         }
         do {
             let credits = try await self.loadLatestCodexCredits()
+            guard !Task.isCancelled else { return }
             guard self.shouldApplyCodexScopedNonUsageResult(expectedGuard: expectedGuard) else { return }
             await MainActor.run {
                 self.credits = credits
@@ -107,6 +120,7 @@ extension UsageStore {
                 snapshot: codexSnapshot,
                 now: codexSnapshot.updatedAt)
         } catch {
+            guard !Task.isCancelled else { return }
             let message = error.localizedDescription
             if message.localizedCaseInsensitiveContains("data not available yet") {
                 guard self.shouldApplyCodexScopedNonUsageResult(expectedGuard: expectedGuard) else { return }

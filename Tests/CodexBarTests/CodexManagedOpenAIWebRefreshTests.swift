@@ -276,6 +276,66 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     @Test
+    func `force refresh cancels stale background Codex credits fetch`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-credits-force-cancels-background")
+        settings.statusChecksEnabled = false
+        settings.openAIWebAccessEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingCreditsLoader()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            try await blocker.awaitResult()
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+
+        let regularRefreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+        }
+        await blocker.waitUntilStarted(count: 1)
+
+        let forceRefreshTask = Task {
+            await store.refresh(forceTokenUsage: true)
+        }
+        await blocker.waitUntilStarted(count: 2)
+
+        await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 10, events: [], updatedAt: Date())))
+        await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
+
+        await regularRefreshTask.value
+        await forceRefreshTask.value
+
+        #expect(await blocker.startedCount() == 2)
+        #expect(store.credits?.remaining == 25)
+    }
+
+    @Test
     func `rapid regular refreshes coalesce concurrent OpenAI dashboard fetches`() async throws {
         let settings = try self.makeSettingsStore(
             suite: "CodexManagedOpenAIWebRefreshTests-dashboard-coalescing")
