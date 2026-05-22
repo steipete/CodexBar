@@ -3,6 +3,7 @@
 ## 0.29.1 — Unreleased
 
 ### Added
+- Display: add optional workday markers for weekly progress bars (#1102). Thanks @Yuxin-Qiao!
 
 ### Fixed
 - Menu bar: show extra-usage spend as currency text for Claude and Cursor when that metric is selected (#1107). Thanks @Yuxin-Qiao!
