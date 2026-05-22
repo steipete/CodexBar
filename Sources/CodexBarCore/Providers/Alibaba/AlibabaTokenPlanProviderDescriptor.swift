@@ -191,7 +191,10 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
                 browserDetection: context.browserDetection,
                 logger: { importLog.append($0) })
             let rawCookieNames = session.cookies.map(\.name).filter { !$0.isEmpty }.uniquedSorted()
-            guard let headers = AlibabaTokenPlanCookieHeader.headers(from: session.cookies) else {
+            guard let headers = AlibabaTokenPlanCookieHeader.headers(
+                from: session.cookies,
+                environment: context.env)
+            else {
                 Self.log.warning(
                     "Alibaba Token Plan browser cookie header was empty",
                     metadata: [

@@ -73,10 +73,16 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         }
 
         let url = self.resolveQuotaURL(environment: environment)
+        let redirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedAPIHeader)
+        let session = overrideSession ?? URLSession(
+            configuration: .default,
+            delegate: redirectDiagnostics,
+            delegateQueue: nil)
         let secToken = await self.resolveSECToken(
             dashboardCookieHeader: normalizedDashboardHeader,
             apiCookieHeader: normalizedAPIHeader,
-            environment: environment)
+            environment: environment,
+            session: session)
         let anonymousID = self.extractCookieValue(name: "cna", from: normalizedAPIHeader)
         Self.log.info(
             "Fetching Alibaba Token Plan usage",
@@ -109,11 +115,6 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
         let data: Data
         let response: URLResponse
-        let redirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedAPIHeader)
-        let session = overrideSession ?? URLSession(
-            configuration: .default,
-            delegate: redirectDiagnostics,
-            delegateQueue: nil)
         do {
             (data, response) = try await session.data(for: request)
         } catch {
@@ -266,7 +267,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private static func resolveSECToken(
         dashboardCookieHeader: String,
         apiCookieHeader: String,
-        environment: [String: String]) async -> String?
+        environment: [String: String],
+        session: URLSession) async -> String?
     {
         let cookieSECToken = self.extractCookieValue(name: "sec_token", from: dashboardCookieHeader) ??
             self.extractCookieValue(name: "sec_token", from: apiCookieHeader)
@@ -279,7 +281,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             forHTTPHeaderField: "Accept")
 
-        if let (data, response) = try? await URLSession.shared.data(for: request),
+        if let (data, response) = try? await session.data(for: request),
            let httpResponse = response as? HTTPURLResponse,
            httpResponse.statusCode == 200,
            let html = String(data: data, encoding: .utf8),
@@ -320,7 +322,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return components?.url
     }
 
-    private static func dashboardURL(environment: [String: String]) -> URL {
+    static func dashboardURL(environment: [String: String]) -> URL {
         if let host = AlibabaTokenPlanSettingsReader.hostOverride(environment: environment),
            let base = URL(string: host)?.scheme == nil ? URL(string: "https://\(host)") : URL(string: host),
            var components = URLComponents(url: base, resolvingAgainstBaseURL: false),

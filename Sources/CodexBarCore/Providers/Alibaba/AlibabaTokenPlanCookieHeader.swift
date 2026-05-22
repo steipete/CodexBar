@@ -75,9 +75,16 @@ struct AlibabaTokenPlanCookieHeaders: Sendable {
 }
 
 enum AlibabaTokenPlanCookieHeader {
-    static func headers(from cookies: [HTTPCookie]) -> AlibabaTokenPlanCookieHeaders? {
-        guard let apiHeader = self.header(from: cookies, targetURL: AlibabaTokenPlanUsageFetcher.defaultQuotaURL),
-              let dashboardHeader = self.header(from: cookies, targetURL: AlibabaTokenPlanUsageFetcher.dashboardURL)
+    static func headers(
+        from cookies: [HTTPCookie],
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> AlibabaTokenPlanCookieHeaders?
+    {
+        guard let apiHeader = self.header(
+            from: cookies,
+            targetURL: AlibabaTokenPlanUsageFetcher.resolveQuotaURL(environment: environment)),
+            let dashboardHeader = self.header(
+                from: cookies,
+                targetURL: AlibabaTokenPlanUsageFetcher.dashboardURL(environment: environment))
         else {
             return nil
         }
