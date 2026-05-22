@@ -958,8 +958,6 @@ extension UsageStore {
         let ampCookieHeader = self.settings.ampCookieHeader
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
-        let alibabaTokenPlanCookieSource = self.settings.alibabaTokenPlanCookieSource
-        let alibabaTokenPlanCookieHeader = self.settings.alibabaTokenPlanCookieHeader
         let processEnvironment = self.environmentBase
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
@@ -1047,12 +1045,6 @@ extension UsageStore {
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "ALIBABA_CODING_PLAN_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
-                case .alibabatokenplan:
-                    return await Self.debugAlibabaTokenPlanLog(
-                        browserDetection: browserDetection,
-                        cookieSource: alibabaTokenPlanCookieSource,
-                        cookieHeader: alibabaTokenPlanCookieHeader,
-                        environment: processEnvironment)
                 case .augment:
                     return await Self.debugAugmentLog()
                 case .amp:
@@ -1081,9 +1073,10 @@ extension UsageStore {
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
-                case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq, .llmproxy, .deepgram:
+                case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .vertexai,
+                     .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral,
+                     .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq,
+                     .llmproxy, .deepgram:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
@@ -1387,21 +1380,6 @@ extension UsageStore {
             return await fetcher.debugRawProbe(
                 cookieHeaderOverride: manualHeader,
                 manualCookieMode: ollamaCookieSource == .manual)
-        }
-    }
-
-    private static func debugAlibabaTokenPlanLog(
-        browserDetection: BrowserDetection,
-        cookieSource: ProviderCookieSource,
-        cookieHeader: String,
-        environment: [String: String]) async -> String
-    {
-        await runWithTimeout(seconds: 20) {
-            await AlibabaTokenPlanDebugProbe.debugLog(
-                cookieSource: cookieSource,
-                manualCookieHeader: cookieHeader,
-                environment: environment,
-                browserDetection: browserDetection)
         }
     }
 

@@ -11,6 +11,12 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `provider choice supports alibaba token plan`() {
+        #expect(ProviderChoice(provider: .alibabatokenplan) == .alibabatokenplan)
+        #expect(ProviderChoice.alibabatokenplan.provider == .alibabatokenplan)
+    }
+
+    @Test
     func `provider choice supports opencode go`() {
         #expect(ProviderChoice(provider: .opencodego) == .opencodego)
         #expect(ProviderChoice.opencodego.provider == .opencodego)
@@ -39,6 +45,24 @@ struct CodexBarWidgetProviderTests {
         let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.alibaba], generatedAt: now)
 
         #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.alibaba])
+    }
+
+    @Test
+    func `supported providers keep alibaba token plan when it is the only enabled provider`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .alibabatokenplan,
+            updatedAt: now,
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.alibabatokenplan], generatedAt: now)
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.alibabatokenplan])
     }
 
     @Test
