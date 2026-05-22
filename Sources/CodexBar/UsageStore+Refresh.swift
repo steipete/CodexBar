@@ -1,6 +1,24 @@
 import CodexBarCore
 import Foundation
 
+/// Internal for testing: classifies transport-layer errors that should preserve the prior snapshot.
+func isPreservableNetworkTransportError(_ error: Error) -> Bool {
+    let nsError = error as NSError
+    guard nsError.domain == NSURLErrorDomain else { return false }
+    switch nsError.code {
+    case NSURLErrorTimedOut,
+         NSURLErrorCancelled,
+         NSURLErrorNetworkConnectionLost,
+         NSURLErrorNotConnectedToInternet,
+         NSURLErrorCannotFindHost,
+         NSURLErrorCannotConnectToHost,
+         NSURLErrorDNSLookupFailed:
+        return true
+    default:
+        return false
+    }
+}
+
 extension UsageStore {
     func prepareRefreshState(for provider: UsageProvider? = nil) {
         guard provider == nil || provider == .codex else { return }
@@ -320,19 +338,7 @@ extension UsageStore {
     private static func shouldPreservePriorSnapshot(after error: Error, hadPriorData: Bool) -> Bool {
         guard hadPriorData else { return false }
         if error is CancellationError { return true }
-
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            switch nsError.code {
-            case NSURLErrorTimedOut,
-                 NSURLErrorCancelled,
-                 NSURLErrorNetworkConnectionLost,
-                 NSURLErrorNotConnectedToInternet:
-                return true
-            default:
-                break
-            }
-        }
+        if isPreservableNetworkTransportError(error) { return true }
 
         let message = error.localizedDescription.lowercased()
         return message.contains("timed out") ||

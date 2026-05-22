@@ -411,6 +411,36 @@ struct UsageStoreCoverageTests {
         #expect(store.tokenAccountErrorMessage(ProviderFetchError.noAvailableStrategy(.copilot)) != nil)
     }
 
+    @Test
+    func `isPreservableNetworkTransportError classifies transport failures correctly`() {
+        // Regression test: transport-layer errors should be classified as preservable so the
+        // prior snapshot survives a failed refresh. We test the classifier directly rather
+        // than through refreshProvider to keep the test focused and independent of provider
+        // setup complexity.
+
+        // New cases for issue #1097
+        #expect(isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost)))
+        #expect(isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotConnectToHost)))
+        #expect(isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorDNSLookupFailed)))
+
+        // Previously covered cases
+        #expect(isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)))
+        #expect(isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)))
+        #expect(isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)))
+        #expect(isPreservableNetworkTransportError(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)))
+
+        // Non-URL errors are not classified as transport-preservable
+        #expect(!isPreservableNetworkTransportError(
+            NSError(domain: NSCocoaErrorDomain, code: 0)))
+    }
+
     private static func makeSettingsStore(
         suite: String,
         zaiTokenStore: any ZaiTokenStoring = NoopZaiTokenStore(),
