@@ -482,6 +482,8 @@
 "show_usage_as_used_subtitle" = "Progress bars fill as you consume quota (instead of showing remaining).";
 "show_quota_warning_markers_title" = "Show quota warning markers";
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
+"weekly_progress_work_days_title" = "Weekly progress work days";
+"weekly_progress_work_days_subtitle" = "Draw day-boundary tick marks on weekly usage bars.";
 "show_reset_time_as_clock_title" = "Show reset time as clock";
 "show_reset_time_as_clock_subtitle" = "Display reset times as absolute clock values instead of countdowns.";
 "show_provider_changelog_links_title" = "Show provider changelog links";

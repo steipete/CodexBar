@@ -78,6 +78,25 @@ struct DisplayPane: View {
                         title: L("show_quota_warning_markers_title"),
                         subtitle: L("show_quota_warning_markers_subtitle"),
                         binding: self.$settings.quotaWarningMarkersVisible)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("weekly_progress_work_days_title"))
+                                .font(.body)
+                            Text(L("weekly_progress_work_days_subtitle"))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Picker(L("weekly_progress_work_days_title"), selection: self.$settings.weeklyProgressWorkDays) {
+                            Text("Off").tag(nil as Int?)
+                            Text("4 days").tag(4 as Int?)
+                            Text("5 days").tag(5 as Int?)
+                            Text("7 days").tag(7 as Int?)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 100)
+                    }
                     PreferenceToggleRow(
                         title: L("show_reset_time_as_clock_title"),
                         subtitle: L("show_reset_time_as_clock_subtitle"),

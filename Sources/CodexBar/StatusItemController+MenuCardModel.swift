@@ -107,6 +107,7 @@ extension StatusItemController {
                 .session: self.quotaWarningMarkerThresholds(provider: target, window: .session),
                 .weekly: self.quotaWarningMarkerThresholds(provider: target, window: .weekly),
             ],
+            workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             now: now)
         return UsageMenuCardView.Model.make(input)
     }
