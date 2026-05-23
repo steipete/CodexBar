@@ -282,6 +282,22 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
+    func `screen change placement refresh triggers for displaced live item when display count is unchanged`() {
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
+            previousScreenCount: 2,
+            currentScreenCount: 2,
+            snapshots: [displaced]))
+    }
+
+    @Test
     func `screen change retry ignores detached screen with live status item`() {
         let blocked = StatusItemVisibilitySnapshot(
             isVisible: true,

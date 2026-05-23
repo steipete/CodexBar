@@ -135,13 +135,12 @@ enum MenuBarVisibilityWatcher {
     }
 
     static func shouldRefreshScreenChangePlacement(
-        previousScreenCount: Int,
-        currentScreenCount: Int,
+        previousScreenCount _: Int,
+        currentScreenCount _: Int,
         snapshots: [StatusItemVisibilitySnapshot])
         -> Bool
     {
-        guard currentScreenCount < previousScreenCount else { return false }
-        return self.hasAnyDisplacedVisibleSnapshot(snapshots)
+        self.hasAnyDisplacedVisibleSnapshot(snapshots)
     }
 
     static func shouldAttemptScreenChangeRecovery(snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
