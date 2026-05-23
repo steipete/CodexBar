@@ -60,3 +60,26 @@ quota card and omits the chart instead of treating the whole provider as failed.
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxProviderDescriptor.swift`
 - `Sources/CodexBar/Providers/MiniMax/MiniMaxProviderImplementation.swift`
+
+## Safe diagnostic output
+
+MiniMax diagnostic export data is intentionally limited to structural metadata only — no raw tokens, cookies,
+authorization headers, API responses, or personal data.
+
+The diagnostic export fields are:
+
+- `schemaVersion`, `provider`, `authMode`, `region`
+- `sourceLabel` and `strategyID`
+- `fieldsPresent` (allowlisted field names that were non-nil)
+- `servicesCount` (integer count only)
+- `billingSummaryPresent` (boolean only)
+- `fetchAttemptsSummary` (strategy ID, availability, extracted error code, error category)
+- `redactionPolicyVersion`, `exportedAt`
+
+The export intentionally excludes: raw API tokens (`sk-cp-*`, `sk-api-*`), cookies, authorization headers,
+bearer tokens, raw API responses or HTML, email addresses, session IDs, account/organization IDs, and any
+per-request billing record details.
+
+Error messages are pre-redacted via `LogRedactor` before code/category extraction. Only fixed error codes
+(`401`, `403`, `timeout`, etc.) and category labels (`auth`, `network`, `parse`, `timeout`, `unknown`) appear
+in the export.
