@@ -5,7 +5,12 @@ import Foundation
 /// Phase-1 foundation for #1103. This type is:
 /// - pure: no network access, no side effects, no quota mutation
 /// - sendable: thread-safe, no mutable state
-/// - stateless: ``parse(_:)`` and ``announcements(from:sourceName:sourceURL:)`` are both deterministic
+/// - stateless: ``parse(_:)`` is a pure, deterministic function — the same input
+///   always produces the same output with no hidden state or time dependencies.
+///
+/// ``announcements(from:sourceName:sourceURL:observedAt:)`` is deterministic when
+/// ``observedAt`` is supplied; otherwise each call gets its own timestamp via the
+/// default ``Date()``, making results differ across runs.
 ///
 /// The parser recognises three confidence bands:
 ///
@@ -19,6 +24,9 @@ import Foundation
 /// word-boundary guards to prevent false positives from concatenated words
 /// (e.g. "theResetUsageLimits" would not match).  Punctuation at phrase
 /// boundaries is accepted (e.g. "limits." matches "limits").
+///
+/// If a phrase appears multiple times in the text, every occurrence is checked
+/// and the function returns ``true`` if **any** occurrence passes boundary checks.
 public struct CodexResetAnnouncementParser: Sendable {
     public init() {}
 
@@ -49,12 +57,17 @@ public struct CodexResetAnnouncementParser: Sendable {
 
     /// Converts parsed results into domain objects.
     ///
+    /// All ``CodexResetAnnouncement`` instances created in a single call share the
+    /// same ``CodexResetAnnouncement/observedAt`` value, making results reproducible
+    /// when a fixed ``observedAt`` is supplied.
+    ///
     /// ``rawText`` is intentionally omitted from the resulting ``CodexResetAnnouncement``
     /// to avoid persisting arbitrary external content that may contain personal information.
     public func announcements(
         from texts: [String],
         sourceName: String,
-        sourceURL: String? = nil
+        sourceURL: String? = nil,
+        observedAt: Date = Date()
     ) -> [CodexResetAnnouncement] {
         texts.compactMap { text in
             switch parse(text) {
@@ -62,18 +75,21 @@ public struct CodexResetAnnouncementParser: Sendable {
                 return CodexResetAnnouncement(
                     sourceName: sourceName,
                     sourceURL: sourceURL,
+                    observedAt: observedAt,
                     status: .upcoming,
                     confidence: confidence)
             case .completed(let confidence):
                 return CodexResetAnnouncement(
                     sourceName: sourceName,
                     sourceURL: sourceURL,
+                    observedAt: observedAt,
                     status: .completed,
                     confidence: confidence)
             case .ambiguous(let confidence):
                 return CodexResetAnnouncement(
                     sourceName: sourceName,
                     sourceURL: sourceURL,
+                    observedAt: observedAt,
                     status: .ambiguous,
                     confidence: confidence)
             case .none:
@@ -122,18 +138,29 @@ public struct CodexResetAnnouncementParser: Sendable {
         return patterns.contains { Self.containsWithWordBoundaries(text: text, phrase: $0) }
     }
 
-    /// True when ``phrase`` appears in ``text`` with whitespace or sentence-terminal
-    /// punctuation on both sides.  This prevents "theresetusage limits" from matching
-    /// "reset usage limits", while still accepting "reset usage limits." with a trailing period.
+    /// Scans every occurrence of ``phrase`` in ``text`` and returns ``true`` if **any**
+    /// occurrence passes word-boundary checks.  Returns ``false`` only after all occurrences
+    /// have been rejected.
+    ///
+    /// Boundary rules: the character immediately before the phrase and immediately after
+    /// must be whitespace, punctuation, or absent (start/end of string).  This prevents
+    /// "theResetUsageLimits" from matching "reset usage limits" while still accepting
+    /// "reset usage limits." with a trailing period.
     private static func containsWithWordBoundaries(text: String, phrase: String) -> Bool {
-        guard let range = text.range(of: phrase, options: .caseInsensitive) else { return false }
-        let start = range.lowerBound
-        let end = range.upperBound
+        var searchStart = text.startIndex
+        while let range = text.range(of: phrase, options: .caseInsensitive, range: searchStart..<text.endIndex) {
+            let start = range.lowerBound
+            let end = range.upperBound
 
-        let isWordChar: (Character) -> Bool = { !$0.isWhitespace && !$0.isPunctuation }
+            let isWordChar: (Character) -> Bool = { !$0.isWhitespace && !$0.isPunctuation }
+            let charBeforeOK = start == text.startIndex || !isWordChar(text[text.index(before: start)])
+            let charAfterOK = end == text.endIndex || !isWordChar(text[end])
 
-        let charBeforeOK = start == text.startIndex || !isWordChar(text[text.index(before: start)])
-        let charAfterOK = end == text.endIndex || !isWordChar(text[end])
-        return charBeforeOK && charAfterOK
+            if charBeforeOK && charAfterOK {
+                return true
+            }
+            searchStart = range.upperBound
+        }
+        return false
     }
 }

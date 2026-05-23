@@ -216,13 +216,60 @@ struct CodexResetAnnouncementParserTests {
         // arbitrary external content. The model has no rawText property.
     }
 
+    // MARK: - Timestamp determinism
+
+    @Test
+    func announcements_batchSharesSameObservedAt() {
+        // All announcements in a single batch share the same observedAt.
+        let fixedDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let texts = [
+            "I will reset usage limits",
+            "usage limits have been reset",
+            "Codex is great"
+        ]
+        let results = parser.announcements(from: texts, sourceName: "thsottiaux", sourceURL: nil, observedAt: fixedDate)
+        #expect(results.count == 2)
+        #expect(results[0].observedAt == fixedDate)
+        #expect(results[1].observedAt == fixedDate)
+    }
+
+    @Test
+    func announcements_fixedObservedAtIsStable() {
+        // With a fixed observedAt, repeated calls produce equatable results.
+        let fixedDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let texts = ["I will reset usage limits", "usage limits have been reset"]
+        let results1 = parser.announcements(from: texts, sourceName: "thsottiaux", sourceURL: nil, observedAt: fixedDate)
+        let results2 = parser.announcements(from: texts, sourceName: "thsottiaux", sourceURL: nil, observedAt: fixedDate)
+        #expect(results1 == results2)
+    }
+
+    // MARK: - Multi-occurrence scanning
+
+    @Test
+    func multiOccurrence_invalidBoundaryFollowedByValid() {
+        // "xreset usage limits" fails boundary check but "I reset usage limits" is valid.
+        let result = parser.parse("xreset usage limits but I reset usage limits")
+        #expect(result == .completed(confidence: 1.0))
+    }
+
+    @Test
+    func multiOccurrence_concatenatedPrefixThenValidUpcoming() {
+        // "theResetUsageLimits" is concatenated (no spaces) but "I will reset usage limits" is valid.
+        let result = parser.parse("theResetUsageLimits event fired, then I will reset usage limits")
+        #expect(result == .upcoming(confidence: 0.85))
+    }
+
+    @Test
+    func multiOccurrence_concatenatedStillRejected() {
+        // Pure concatenated text with no valid occurrence should not match.
+        #expect(parser.parse("theResetUsageLimits event fired") == .none)
+        #expect(parser.parse("predefined usage limit template") == .none)
+    }
+
     // MARK: - No quota mutation (pure parser guarantee)
 
     @Test
     func parser_doesNotMutateQuota() {
-        // The parser is a pure function: parse() and announcements() have no side effects
-        // and cannot modify any shared state. Calling them repeatedly with the same input
-        // always produces the same output without touching network, storage, or notifications.
         let result1 = parser.parse("I will reset usage limits")
         let result2 = parser.parse("usage limits have been reset")
         let result3 = parser.parse("limits are back to normal")
@@ -240,8 +287,6 @@ struct CodexResetAnnouncementParserTests {
 
     @Test
     func parser_doesNotRequireNetwork() {
-        // All parse results are local string operations with no URLSession, DataTask, or
-        // other network primitive involved. This is verified by the test running offline.
         let samples: [(String, CodexResetAnnouncementParser.ParseResult)] = [
             ("I will reset usage limits", .upcoming(confidence: 0.85)),
             ("usage limits have been reset", .completed(confidence: 1.0)),
@@ -284,7 +329,6 @@ struct CodexResetAnnouncementParserTests {
 
     @Test
     func edgeCase_substringIsolation() {
-        // A phrase that happens to contain a pattern as a substring should not match
         #expect(parser.parse("theResetUsageLimits event fired") == .none)
         #expect(parser.parse("predefined usage limit template") == .none)
     }
