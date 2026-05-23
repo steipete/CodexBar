@@ -6,6 +6,7 @@
 - Display: add optional workday markers for weekly progress bars (#1102). Thanks @Yuxin-Qiao!
 
 ### Fixed
+- Claude: classify Claude CLI 2.1 subscription-only `/usage` output separately and fall back to direct CLI usage when the PTY panel fails to load (#1121, fixes #1116). Thanks @Yuxin-Qiao!
 - Groq: show a distinct Groq provider icon instead of reusing the Grok glyph (#1112). Thanks @kiankyars!
 - Claude: normalize OAuth extra-usage spend limits from minor units so Enterprise spend displays as currency instead of 100x too high (#1114, fixes #1111). Thanks @Yuxin-Qiao!
 - OpenAI: retry transient Admin API usage failures once before surfacing an access error (#1117).

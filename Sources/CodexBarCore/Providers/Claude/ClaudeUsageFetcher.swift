@@ -569,9 +569,48 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         private func loadViaCLI(model: String, timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
-            var snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: timeout)
+            var snapshot: ClaudeUsageSnapshot
+            do {
+                snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: timeout)
+            } catch {
+                if error is CancellationError { throw error }
+                guard Self.shouldTryDirectCLIUsage(after: error) else { throw error }
+                let ptyError = error
+                do {
+                    snapshot = try await self.fetcher.loadViaDirectCLI(
+                        timeout: Self.directCLIUsageTimeout(for: timeout))
+                } catch let directError {
+                    if directError is CancellationError { throw directError }
+                    guard Self.directCLIErrorShouldReplacePTYError(directError) else { throw ptyError }
+                    throw directError
+                }
+            }
             snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
             return snapshot
+        }
+
+        private static func directCLIUsageTimeout(for ptyTimeout: TimeInterval) -> TimeInterval {
+            min(max(ptyTimeout / 3, 6), 8)
+        }
+
+        private static func directCLIErrorShouldReplacePTYError(_ error: Error) -> Bool {
+            if case let ClaudeStatusProbeError.parseFailed(message) = error {
+                return message.lowercased().contains("subscription")
+            }
+            if case let ClaudeUsageError.parseFailed(message) = error {
+                return message.lowercased().contains("subscription")
+            }
+            return false
+        }
+
+        private static func shouldTryDirectCLIUsage(after error: Error) -> Bool {
+            if case ClaudeStatusProbeError.timedOut = error { return true }
+            if case let ClaudeStatusProbeError.parseFailed(message) = error {
+                let lower = message.lowercased()
+                return lower.contains("still loading usage") || lower.contains("could not load usage data")
+            }
+            let message = error.localizedDescription.lowercased()
+            return message.contains("timed out") || message.contains("timeout")
         }
 
         private static func shouldRetryCLIProbe(after error: Error) -> Bool {
@@ -1114,6 +1153,31 @@ extension ClaudeUsageFetcher {
             keepCLISessionsAlive: self.keepCLISessionsAlive)
         let snap = try await probe.fetch()
 
+        return try Self.makeSnapshot(from: snap)
+    }
+
+    private func loadViaDirectCLI(timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
+        guard let claudeBinary = ClaudeCLIResolver.resolvedBinaryPath(environment: self.environment) else {
+            throw ClaudeUsageError.claudeNotInstalled
+        }
+
+        let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
+        var environment = ClaudeCLISession.launchEnvironment(baseEnv: self.environment)
+        environment["PWD"] = workingDirectory.path
+
+        let result = try await SubprocessRunner.run(
+            binary: claudeBinary,
+            arguments: ["/usage"],
+            environment: environment,
+            timeout: timeout,
+            standardInput: FileHandle.nullDevice,
+            currentDirectoryURL: workingDirectory,
+            label: "claude-direct-usage")
+        let snap = try ClaudeStatusProbe.parse(text: result.stdout)
+        return try Self.makeSnapshot(from: snap)
+    }
+
+    private static func makeSnapshot(from snap: ClaudeStatusSnapshot) throws -> ClaudeUsageSnapshot {
         guard let sessionPctLeft = snap.sessionPercentLeft else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }

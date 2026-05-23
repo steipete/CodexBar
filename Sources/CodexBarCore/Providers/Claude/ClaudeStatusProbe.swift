@@ -317,6 +317,7 @@ public struct ClaudeStatusProbe: Sendable {
             || normalized.contains("currentweek")
             || normalized.contains("loadingusage")
             || normalized.contains("failedtoloadusagedata")
+            || self.usageCaptureHasSubscriptionNotice(normalized)
     }
 
     private static func extractPercent(labelSubstrings: [String], context: LabelSearchContext) -> Int? {
@@ -892,6 +893,7 @@ public struct ClaudeStatusProbe: Sendable {
         let stopWhenNormalized: (@Sendable (String) -> Bool)? = subcommand == "/usage"
             ? { @Sendable normalizedScan in
                 Self.usageCaptureHasSessionValue(normalizedScan)
+                    || Self.usageCaptureHasSubscriptionNotice(normalizedScan)
             }
             : nil
         do {
@@ -922,5 +924,10 @@ public struct ClaudeStatusProbe: Sendable {
         guard let labelRange = normalizedText.range(of: "currentsession") else { return false }
         let tail = normalizedText[labelRange.upperBound...]
         return tail.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%"#, options: .regularExpression) != nil
+    }
+
+    private static func usageCaptureHasSubscriptionNotice(_ normalizedText: String) -> Bool {
+        normalizedText.contains("currentlyusingyoursubscription")
+            && normalizedText.contains("claudecodeusage")
     }
 }

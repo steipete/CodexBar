@@ -158,6 +158,8 @@ public enum SubprocessRunner {
         arguments: [String],
         environment: [String: String],
         timeout: TimeInterval,
+        standardInput: Any? = nil,
+        currentDirectoryURL: URL? = nil,
         label: String) async throws -> SubprocessResult
     {
         guard FileManager.default.isExecutableFile(atPath: binary) else {
@@ -174,12 +176,13 @@ public enum SubprocessRunner {
         process.executableURL = URL(fileURLWithPath: binary)
         process.arguments = arguments
         process.environment = environment
+        process.currentDirectoryURL = currentDirectoryURL
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
-        process.standardInput = nil
+        process.standardInput = standardInput
 
         let termination = ProcessTermination()
         process.terminationHandler = { process in
