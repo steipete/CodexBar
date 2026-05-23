@@ -217,12 +217,15 @@ enum CodexBarCLI {
             print("Schema: \(report.schemaVersion)")
             print("Generated: \(report.generatedAt)")
             print("Live Fetch: \(report.liveFetch)")
-            print("Auth Sources - API Token Env: \(report.authSourcesPresent.apiTokenEnv), Coding Plan Token Env: \(report.authSourcesPresent.codingPlanTokenEnv), Cookie Env: \(report.authSourcesPresent.cookieHeaderEnv)")
+            print("Auth Sources - API Token Env: \(report.authSourcesPresent.apiTokenEnv), " +
+                "Coding Plan Token Env: \(report.authSourcesPresent.codingPlanTokenEnv), " +
+                "Cookie Env: \(report.authSourcesPresent.cookieHeaderEnv)")
             print("Endpoints: \(report.endpointsAttempted.joined(separator: ", "))")
             print("Plan Fields: \(report.suspectedPlanFields.joined(separator: ", "))")
             print("Date Fields: \(report.suspectedDateFields.joined(separator: ", "))")
             print("Subscription Fields: \(report.suspectedSubscriptionFields.joined(separator: ", "))")
-            print("Redaction: cookies=\(report.redaction.cookies), tokens=\(report.redaction.tokens), ids=\(report.redaction.ids), emails=\(report.redaction.emails)")
+            print("Redaction: cookies=\(report.redaction.cookies), tokens=\(report.redaction.tokens), " +
+                "ids=\(report.redaction.ids), emails=(report.redaction.emails)")
         }
     }
 }

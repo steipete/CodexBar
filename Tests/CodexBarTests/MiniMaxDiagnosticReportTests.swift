@@ -105,7 +105,7 @@ struct MiniMaxDiagnosticReportTests {
             codingPlanTokenEnv: false,
             cookieHeaderEnv: false)
 
-        let fixedDate = Date(timeIntervalSince1970: 1700000000)
+        let fixedDate = Date(timeIntervalSince1970: 1_700_000_000)
         let report = MiniMaxDiagnosticReport(
             generatedAt: fixedDate,
             authSourcesPresent: authSources,
@@ -129,7 +129,7 @@ struct MiniMaxDiagnosticReportTests {
         let withValues = MiniMaxDiagnosticReport.detectAuthSources(from: [
             "MINIMAX_API_KEY": "sk-test",
             "MINIMAX_CODING_API_KEY": "",
-            "MINIMAX_COOKIE": "   "
+            "MINIMAX_COOKIE": "   ",
         ])
 
         #expect(withValues.apiTokenEnv == true)
@@ -141,7 +141,7 @@ struct MiniMaxDiagnosticReportTests {
     func `auth sources detection returns false for empty or quoted-empty values`() {
         let withEmpty = MiniMaxDiagnosticReport.detectAuthSources(from: [
             "MINIMAX_API_KEY": "",
-            "MINIMAX_CODING_API_KEY": "\"\""
+            "MINIMAX_CODING_API_KEY": "\"\"",
         ])
 
         #expect(withEmpty.apiTokenEnv == false)
@@ -157,7 +157,14 @@ struct MiniMaxDiagnosticReportTests {
     @Test
     func `suspected fields returns correct field names`() {
         let fields = MiniMaxDiagnosticReport.suspectedFields
-        #expect(fields.plan == ["planName", "availablePrompts", "currentPrompts", "remainingPrompts", "windowMinutes", "usedPercent"])
+        #expect(fields.plan == [
+            "planName",
+            "availablePrompts",
+            "currentPrompts",
+            "remainingPrompts",
+            "windowMinutes",
+            "usedPercent",
+        ])
         #expect(fields.date == ["resetsAt", "updatedAt"])
         #expect(fields.subscription.isEmpty)
     }

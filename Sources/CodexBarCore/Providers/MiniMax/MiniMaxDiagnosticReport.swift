@@ -31,7 +31,12 @@ public struct MiniMaxDiagnosticReport: Codable {
         public let ids: String
         public let emails: String
 
-        public init(cookies: String = "removed", tokens: String = "removed", ids: String = "redacted", emails: String = "redacted") {
+        public init(
+            cookies: String = "removed",
+            tokens: String = "removed",
+            ids: String = "redacted",
+            emails: String = "redacted")
+        {
             self.cookies = cookies
             self.tokens = tokens
             self.ids = ids
@@ -67,32 +72,32 @@ public struct MiniMaxDiagnosticReport: Codable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(self.schemaVersion, forKey: .schemaVersion)
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        try container.encode(formatter.string(from: generatedAt), forKey: .generatedAt)
-        try container.encode(provider, forKey: .provider)
-        try container.encode(liveFetch, forKey: .liveFetch)
-        try container.encode(authSourcesPresent, forKey: .authSourcesPresent)
-        try container.encode(endpointsAttempted, forKey: .endpointsAttempted)
+        try container.encode(formatter.string(from: self.generatedAt), forKey: .generatedAt)
+        try container.encode(self.provider, forKey: .provider)
+        try container.encode(self.liveFetch, forKey: .liveFetch)
+        try container.encode(self.authSourcesPresent, forKey: .authSourcesPresent)
+        try container.encode(self.endpointsAttempted, forKey: .endpointsAttempted)
         if let shape = responseShape {
             try container.encode(shape, forKey: .responseShape)
         } else {
             try container.encodeNil(forKey: .responseShape)
         }
-        try container.encode(suspectedPlanFields, forKey: .suspectedPlanFields)
-        try container.encode(suspectedDateFields, forKey: .suspectedDateFields)
-        try container.encode(suspectedSubscriptionFields, forKey: .suspectedSubscriptionFields)
-        try container.encode(redaction, forKey: .redaction)
+        try container.encode(self.suspectedPlanFields, forKey: .suspectedPlanFields)
+        try container.encode(self.suspectedDateFields, forKey: .suspectedDateFields)
+        try container.encode(self.suspectedSubscriptionFields, forKey: .suspectedSubscriptionFields)
+        try container.encode(self.redaction, forKey: .redaction)
     }
 }
 
 extension MiniMaxDiagnosticReport {
     public static func detectAuthSources(from environment: [String: String]) -> AuthSourcesPresent {
         AuthSourcesPresent(
-            apiTokenEnv: Self.envKeyPresent("MINIMAX_API_KEY", in: environment),
-            codingPlanTokenEnv: Self.envKeyPresent("MINIMAX_CODING_API_KEY", in: environment),
-            cookieHeaderEnv: Self.envKeyPresent("MINIMAX_COOKIE", in: environment))
+            apiTokenEnv: self.envKeyPresent("MINIMAX_API_KEY", in: environment),
+            codingPlanTokenEnv: self.envKeyPresent("MINIMAX_CODING_API_KEY", in: environment),
+            cookieHeaderEnv: self.envKeyPresent("MINIMAX_COOKIE", in: environment))
     }
 
     private static func envKeyPresent(_ key: String, in environment: [String: String]) -> Bool {
@@ -104,9 +109,17 @@ extension MiniMaxDiagnosticReport {
 
 extension MiniMaxDiagnosticReport {
     public static var suspectedFields: (plan: [String], date: [String], subscription: [String]) {
-        (plan: ["planName", "availablePrompts", "currentPrompts", "remainingPrompts", "windowMinutes", "usedPercent"],
-         date: ["resetsAt", "updatedAt"],
-         subscription: [] as [String])
+        (
+            plan: [
+                "planName",
+                "availablePrompts",
+                "currentPrompts",
+                "remainingPrompts",
+                "windowMinutes",
+                "usedPercent",
+            ],
+            date: ["resetsAt", "updatedAt"],
+            subscription: [] as [String])
     }
 
     public static var safeEndpoints: [String] {
