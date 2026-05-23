@@ -6,6 +6,7 @@
 - Display: add optional workday markers for weekly progress bars (#1102). Thanks @Yuxin-Qiao!
 
 ### Fixed
+- Groq: show a distinct Groq provider icon instead of reusing the Grok glyph (#1112). Thanks @kiankyars!
 - Claude: normalize OAuth extra-usage spend limits from minor units so Enterprise spend displays as currency instead of 100x too high (#1114, fixes #1111). Thanks @Yuxin-Qiao!
 - OpenAI: retry transient Admin API usage failures once before surfacing an access error.
 - OpenCode Go: read local usage history before falling back to browser-cookie dashboard fetches (#1021). Thanks @sopenlaz0!

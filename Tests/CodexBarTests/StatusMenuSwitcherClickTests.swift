@@ -458,4 +458,45 @@ struct StatusMenuSwitcherClickTests {
             isARepeat: false,
             keyCode: keyCode))
     }
+
+    @Test
+    func `multi-row switcher uses compact height and stays inside bounds`() {
+        // 14 providers + Overview forces the four-row path and includes multi-word titles.
+        let view = ProviderSwitcherView(
+            providers: [
+                .codex,
+                .claude,
+                .cursor,
+                .factory,
+                .zai,
+                .minimax,
+                .alibaba,
+                .opencodego,
+                .grok,
+                .groq,
+                .gemini,
+                .openrouter,
+                .perplexity,
+                .kiro,
+            ],
+            selected: .provider(.codex),
+            includesOverview: true,
+            width: 300,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in 50 },
+            onSelect: { _ in })
+        view.updateConstraintsForSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
+
+        // All buttons must stay within switcher bounds (no vertical overflow).
+        for frame in view._test_buttonFrames() {
+            #expect(frame.minY >= 0)
+            #expect(frame.maxY <= view.bounds.maxY)
+        }
+
+        #expect(view._test_rowCount() == 4)
+        #expect(view._test_rowHeight() == 44)
+        #expect(view.bounds.height == 188)
+    }
 }
