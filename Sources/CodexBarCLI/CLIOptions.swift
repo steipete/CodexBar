@@ -76,6 +76,20 @@ struct UsageOptions: CommanderParsable {
     var augmentDebug: Bool = false
 }
 
+struct DiagnoseOptions: CommanderParsable {
+    @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
+    var verbose: Bool = false
+
+    @Option(name: .long("provider"), help: "Provider to diagnose: minimax (default: minimax)")
+    var provider: String = "minimax"
+
+    @Flag(name: .long("redact"), help: "Redact sensitive fields in output (always on)")
+    var redact: Bool = false
+
+    @Option(name: .long("format"), help: "Output format: text | json (default: json)")
+    var format: OutputFormat?
+}
+
 enum ProviderSelection: ExpressibleFromArgument {
     case single(UsageProvider)
     case both

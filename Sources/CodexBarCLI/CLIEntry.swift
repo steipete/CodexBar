@@ -52,6 +52,8 @@ enum CodexBarCLI {
                 self.runConfigSetAPIKey(invocation.parsedValues)
             case ["cache", "clear"]:
                 self.runCacheClear(invocation.parsedValues)
+            case ["diagnose"]:
+                await self.runDiagnose(invocation.parsedValues)
             default:
                 Self.exit(
                     code: .failure,
@@ -74,6 +76,7 @@ enum CodexBarCLI {
         let configProviderToggleSignature = CommandSignature.describe(ConfigProviderToggleOptions())
         let configSetAPIKeySignature = CommandSignature.describe(ConfigSetAPIKeyOptions())
         let cacheSignature = CommandSignature.describe(CacheOptions())
+        let diagnoseSignature = CommandSignature.describe(DiagnoseOptions())
 
         return [
             CommandDescriptor(
@@ -142,6 +145,11 @@ enum CodexBarCLI {
                         signature: cacheSignature),
                 ],
                 defaultSubcommandName: "clear"),
+            CommandDescriptor(
+                name: "diagnose",
+                abstract: "Collect provider diagnostic report for GitHub issues",
+                discussion: nil,
+                signature: diagnoseSignature),
         ]
     }
 
@@ -163,5 +171,58 @@ enum CodexBarCLI {
         guard let first = argv.first else { return ["usage"] }
         if first.hasPrefix("-") { return ["usage"] + argv }
         return argv
+    }
+
+    // MARK: - Diagnose Command
+
+    static func runDiagnose(_ values: ParsedValues) async {
+        let provider = values.options["provider"]?.last ?? "minimax"
+        let formatOption = values.options["format"]?.last
+
+        let outputPreferences = CLIOutputPreferences.from(values: values)
+
+        if provider != "minimax" {
+            Self.exit(
+                code: .failure,
+                message: "Only 'minimax' provider is supported for diagnose. Got: \(provider)",
+                output: outputPreferences,
+                kind: .args)
+        }
+
+        let env = ProcessInfo.processInfo.environment
+        let authSources = MiniMaxDiagnosticReport.detectAuthSources(from: env)
+        let fields = MiniMaxDiagnosticReport.suspectedFields
+
+        let report = MiniMaxDiagnosticReport(
+            liveFetch: "notPerformed",
+            authSourcesPresent: authSources,
+            endpointsAttempted: MiniMaxDiagnosticReport.safeEndpoints,
+            responseShape: nil,
+            suspectedPlanFields: fields.plan,
+            suspectedDateFields: fields.date,
+            suspectedSubscriptionFields: fields.subscription,
+            redaction: MiniMaxDiagnosticReport.RedactionSummary())
+
+        let useJSON = formatOption?.lowercased() == "json" || formatOption == nil
+        if useJSON {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            if let data = try? encoder.encode(report),
+               let jsonString = String(data: data, encoding: .utf8)
+            {
+                print(jsonString)
+            }
+        } else {
+            print("Provider: \(report.provider)")
+            print("Schema: \(report.schemaVersion)")
+            print("Generated: \(report.generatedAt)")
+            print("Live Fetch: \(report.liveFetch)")
+            print("Auth Sources - API Token Env: \(report.authSourcesPresent.apiTokenEnv), Coding Plan Token Env: \(report.authSourcesPresent.codingPlanTokenEnv), Cookie Env: \(report.authSourcesPresent.cookieHeaderEnv)")
+            print("Endpoints: \(report.endpointsAttempted.joined(separator: ", "))")
+            print("Plan Fields: \(report.suspectedPlanFields.joined(separator: ", "))")
+            print("Date Fields: \(report.suspectedDateFields.joined(separator: ", "))")
+            print("Subscription Fields: \(report.suspectedSubscriptionFields.joined(separator: ", "))")
+            print("Redaction: cookies=\(report.redaction.cookies), tokens=\(report.redaction.tokens), ids=\(report.redaction.ids), emails=\(report.redaction.emails)")
+        }
     }
 }

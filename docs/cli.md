@@ -85,6 +85,13 @@ See `docs/configuration.md` for the schema.
   - `--format text|json`, `--pretty`, and `--json-only` are supported.
   - Warnings keep exit code 0; errors exit non-zero.
 - `codexbar config dump` prints the normalized config JSON.
+- `codexbar diagnose` collects a diagnostic report for MiniMax provider issues.
+  - `--provider minimax` (only minimax is supported).
+  - `--redact` flag (always on; included for symmetry with other commands).
+  - `--format json|text` (default: json).
+  - Output includes: schemaVersion, generatedAt, provider, liveFetch, authSourcesPresent, endpointsAttempted, responseShape, suspectedPlanFields, suspectedDateFields, suspectedSubscriptionFields, redaction summary.
+  - Sensitive values (tokens, cookies, emails, IDs) are never included.
+  - Useful for GitHub issue proof collection without exposing private data.
 
 ### Token accounts
 The CLI reads multi-account tokens from `~/.codexbar/config.json` (same file as the app).
