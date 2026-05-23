@@ -405,6 +405,7 @@
 "language_spanish" = "Español";
 "language_catalan" = "Català";
 "language_chinese_simplified" = "简体中文";
+"language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "start_at_login_title" = "开机启动";
 "start_at_login_subtitle" = "启动 Mac 时自动打开 CodexBar。";
