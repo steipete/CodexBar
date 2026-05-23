@@ -28,8 +28,8 @@ public struct CodexResetAnnouncement: Codable, Equatable, Sendable {
         observedAt: Date = Date(),
         announcedResetAt: Date? = nil,
         status: CodexResetAnnouncementStatus,
-        confidence: Double? = nil
-    ) {
+        confidence: Double? = nil)
+    {
         self.sourceName = sourceName
         self.sourceURL = sourceURL
         self.observedAt = observedAt
