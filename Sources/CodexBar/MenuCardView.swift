@@ -692,6 +692,7 @@ extension UsageMenuCardView.Model {
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
+        let hiddenExtraRateWindowIDs: Set<String>
         let sourceLabel: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
@@ -718,6 +719,7 @@ extension UsageMenuCardView.Model {
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
             showOptionalCreditsAndExtraUsage: Bool,
+            hiddenExtraRateWindowIDs: Set<String> = [],
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
@@ -743,6 +745,7 @@ extension UsageMenuCardView.Model {
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
+            self.hiddenExtraRateWindowIDs = hiddenExtraRateWindowIDs
             self.sourceLabel = sourceLabel
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
@@ -1096,7 +1099,8 @@ extension UsageMenuCardView.Model {
                     showUsed: input.usageBarsShowUsed)))
         }
         if let extraRateWindows = snapshot.extraRateWindows {
-            metrics.append(contentsOf: extraRateWindows.map { namedWindow in
+            let visibleWindows = extraRateWindows.filter { !input.hiddenExtraRateWindowIDs.contains($0.id) }
+            metrics.append(contentsOf: visibleWindows.map { namedWindow in
                 Metric(
                     id: namedWindow.id,
                     title: namedWindow.title,

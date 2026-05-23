@@ -50,4 +50,5 @@ struct SettingsDefaultsState {
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
     var appLanguageRaw: String?
+    var hiddenExtraRateWindowIDs: [String: [String]]
 }

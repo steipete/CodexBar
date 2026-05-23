@@ -58,6 +58,7 @@ struct ProvidersPane: View {
                 ProviderDetailView(
                     provider: provider,
                     store: self.store,
+                    settings: self.settings,
                     isEnabled: self.binding(for: provider),
                     subtitle: self.providerSubtitle(provider),
                     model: self.menuCardModel(for: provider),

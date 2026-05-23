@@ -5,6 +5,7 @@ import SwiftUI
 struct ProviderDetailView<SupplementaryContent: View>: View {
     let provider: UsageProvider
     @Bindable var store: UsageStore
+    @Bindable var settings: SettingsStore
     @Binding var isEnabled: Bool
     let subtitle: String
     let model: UsageMenuCardView.Model
@@ -24,6 +25,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     init(
         provider: UsageProvider,
         store: UsageStore,
+        settings: SettingsStore,
         isEnabled: Binding<Bool>,
         subtitle: String,
         model: UsageMenuCardView.Model,
@@ -42,6 +44,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     {
         self.provider = provider
         self.store = store
+        self.settings = settings
         self._isEnabled = isEnabled
         self.subtitle = subtitle
         self.model = model
@@ -99,6 +102,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
 
                 ProviderMetricsInlineView(
                     provider: self.provider,
+                    store: self.store,
+                    settings: self.settings,
                     model: self.model,
                     isEnabled: self.isEnabled,
                     labelWidth: labelWidth)
@@ -369,9 +374,15 @@ private struct ProviderDetailInfoRow: View {
 @MainActor
 struct ProviderMetricsInlineView: View {
     let provider: UsageProvider
+    @Bindable var store: UsageStore
+    @Bindable var settings: SettingsStore
     let model: UsageMenuCardView.Model
     let isEnabled: Bool
     let labelWidth: CGFloat
+
+    private var extraRateWindowIDs: Set<String> {
+        Set(self.store.snapshot(for: self.provider)?.extraRateWindows?.map(\.id) ?? [])
+    }
 
     var body: some View {
         let hasMetrics = !self.model.metrics.isEmpty
@@ -379,6 +390,7 @@ struct ProviderMetricsInlineView: View {
         let hasCredits = self.model.creditsText != nil
         let hasProviderCost = self.model.providerCost != nil
         let hasTokenUsage = self.model.tokenUsage != nil
+        let extraIDs = self.extraRateWindowIDs
         ProviderSettingsSection(
             title: L("Usage"),
             spacing: 8,
@@ -391,11 +403,7 @@ struct ProviderMetricsInlineView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(self.model.metrics, id: \.id) { metric in
-                    ProviderMetricInlineRow(
-                        metric: metric,
-                        title: ProviderDetailView<EmptyView>.metricTitle(provider: self.provider, metric: metric),
-                        progressColor: self.model.progressColor,
-                        labelWidth: self.labelWidth)
+                    self.metricRow(metric, extraIDs: extraIDs)
                 }
 
                 if hasUsageNotes {
@@ -433,6 +441,28 @@ struct ProviderMetricsInlineView: View {
         }
     }
 
+    @ViewBuilder
+    private func metricRow(_ metric: UsageMenuCardView.Model.Metric, extraIDs: Set<String>) -> some View {
+        let isExtra = extraIDs.contains(metric.id)
+        ProviderMetricInlineRow(
+            metric: metric,
+            title: ProviderDetailView<EmptyView>.metricTitle(provider: self.provider, metric: metric),
+            progressColor: self.model.progressColor,
+            labelWidth: self.labelWidth
+        ) {
+            if isExtra {
+                Toggle("", isOn: Binding(
+                    get: { !self.settings.isExtraRateWindowHidden(metric.id, provider: self.provider) },
+                    set: { self.settings.setExtraRateWindowHidden(metric.id, provider: self.provider, hidden: !$0) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .help("Show in menu bar")
+            }
+        }
+    }
+
     private var placeholderText: String {
         if !self.isEnabled {
             return L("Disabled — no recent data")
@@ -441,17 +471,18 @@ struct ProviderMetricsInlineView: View {
     }
 }
 
-private struct ProviderMetricInlineRow: View {
+private struct ProviderMetricInlineRow<TrailingContent: View>: View {
     let metric: UsageMenuCardView.Model.Metric
     let title: String
     let progressColor: Color
     let labelWidth: CGFloat
+    @ViewBuilder let trailingContent: () -> TrailingContent
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Text(self.title)
                 .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
+                .lineLimit(2)
                 .frame(width: self.labelWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -502,6 +533,8 @@ private struct ProviderMetricInlineRow: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            self.trailingContent()
         }
         .padding(.vertical, 2)
     }

@@ -394,6 +394,30 @@ extension SettingsStore {
         }
     }
 
+    var hiddenExtraRateWindowIDsRaw: [String: [String]] {
+        get { self.defaultsState.hiddenExtraRateWindowIDs }
+        set {
+            self.defaultsState.hiddenExtraRateWindowIDs = newValue
+            self.userDefaults.set(newValue, forKey: "hiddenExtraRateWindowIDs")
+        }
+    }
+
+    func hiddenExtraRateWindowIDs(for provider: UsageProvider) -> Set<String> {
+        Set(self.hiddenExtraRateWindowIDsRaw[provider.rawValue] ?? [])
+    }
+
+    func isExtraRateWindowHidden(_ id: String, provider: UsageProvider) -> Bool {
+        self.hiddenExtraRateWindowIDsRaw[provider.rawValue]?.contains(id) ?? false
+    }
+
+    func setExtraRateWindowHidden(_ id: String, provider: UsageProvider, hidden: Bool) {
+        var raw = self.hiddenExtraRateWindowIDsRaw
+        var ids = Set(raw[provider.rawValue] ?? [])
+        if hidden { ids.insert(id) } else { ids.remove(id) }
+        raw[provider.rawValue] = Array(ids)
+        self.hiddenExtraRateWindowIDsRaw = raw
+    }
+
     var openAIWebAccessEnabled: Bool {
         get { self.defaultsState.openAIWebAccessEnabled }
         set {

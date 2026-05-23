@@ -160,6 +160,7 @@ enum ProvidersPaneTestHarness {
         _ = ProviderDetailView(
             provider: .codex,
             store: store,
+            settings: store.settings,
             isEnabled: enabledBinding,
             subtitle: "Subtitle",
             model: model,

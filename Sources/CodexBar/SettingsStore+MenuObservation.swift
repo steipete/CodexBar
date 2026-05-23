@@ -89,6 +89,7 @@ extension SettingsStore {
         _ = self.debugLoadingPattern
         _ = self.selectedMenuProvider
         _ = self.configRevision
+        _ = self.hiddenExtraRateWindowIDsRaw
         return 0
     }
 }
