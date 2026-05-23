@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import Combine
 import Foundation
 
 /// Detects the active frontmost application and maps its bundle identifier to a UsageProvider.
@@ -50,7 +51,7 @@ final class ActiveApplicationProviderDetector: ObservableObject {
 
     // MARK: - Private State
 
-    private var observer: NSObjectProtocol?
+    private nonisolated(unsafe) var observer: NSObjectProtocol?
     private let observeApplicationChanges: Bool
 
     // MARK: - Initialization
@@ -101,6 +102,11 @@ final class ActiveApplicationProviderDetector: ObservableObject {
                 }
             }
         }
+    }
+
+    deinit {
+        guard let observer else { return }
+        NSWorkspace.shared.notificationCenter.removeObserver(observer)
     }
 
     private func handleApplicationActivation(_ notification: Notification) {

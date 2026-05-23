@@ -135,6 +135,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastProviderOrder: [UsageProvider]
     private var lastMergeIcons: Bool
     private var lastShowActiveProviderEnabled: Bool
+    private var lastMergedDisplayProviders: [UsageProvider]
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
@@ -284,6 +285,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastShowActiveProviderEnabled = settings.showActiveProviderEnabled
+        self.lastMergedDisplayProviders = store.enabledProvidersForDisplay()
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.statusBar = statusBar
@@ -597,6 +599,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let showActiveProvider = self.settings.showActiveProviderEnabled
         if showActiveProvider != self.lastShowActiveProviderEnabled {
             self.lastShowActiveProviderEnabled = showActiveProvider
+            self.refreshActiveApplicationDetectorLifecycle()
+        }
+        let mergedDisplayProviders = self.store.enabledProvidersForDisplay()
+        if mergedDisplayProviders != self.lastMergedDisplayProviders {
+            self.lastMergedDisplayProviders = mergedDisplayProviders
             self.refreshActiveApplicationDetectorLifecycle()
         }
         let showsIcons = self.settings.switcherShowsIcons
