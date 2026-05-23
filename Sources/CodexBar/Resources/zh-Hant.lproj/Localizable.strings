@@ -483,6 +483,8 @@
 "show_usage_as_used_subtitle" = "進度條會隨配額消耗而填充（而不是顯示剩餘量）。";
 "show_quota_warning_markers_title" = "顯示配額預警標記";
 "show_quota_warning_markers_subtitle" = "設定配額預警後，在用量條上繪製閾值刻度標記。";
+"weekly_progress_work_days_title" = "每週進度工作日";
+"weekly_progress_work_days_subtitle" = "在每週用量條上繪製日期邊界刻度標記。";
 "show_reset_time_as_clock_title" = "將重置時間顯示為時鐘";
 "show_reset_time_as_clock_subtitle" = "將重置時間顯示為絕對時鐘值，而不是倒計時。";
 "show_provider_changelog_links_title" = "顯示供應商變更日誌連結";
