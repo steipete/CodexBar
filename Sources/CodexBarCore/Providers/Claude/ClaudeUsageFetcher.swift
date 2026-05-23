@@ -954,7 +954,7 @@ extension ClaudeUsageFetcher {
         let normalized = Self.normalizeClaudeExtraUsageAmounts(
             used: used,
             limit: limit,
-            treatAsMajorUnits: isSpendLimit)
+            treatAsMajorUnits: false)
         return ProviderCostSnapshot(
             used: normalized.used,
             limit: normalized.limit,
