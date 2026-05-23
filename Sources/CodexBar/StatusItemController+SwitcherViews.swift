@@ -102,7 +102,7 @@ final class ProviderSwitcherView: NSView {
             maxAllowedSegmentWidth: initialMaxAllowedSegmentWidth,
             stackedIcons: self.stackedIcons)
         self.rowSpacing = self.stackedIcons ? 4 : 2
-        self.rowHeight = Self.switcherRowHeight(stackedIcons: self.stackedIcons, rowCount: self.rowCount)
+        self.rowHeight = Self.switcherRowHeight(stackedIcons: self.stackedIcons)
         let height: CGFloat = self.rowHeight * CGFloat(self.rowCount)
             + self.rowSpacing * CGFloat(max(0, self.rowCount - 1))
         self.preferredWidth = width
@@ -547,20 +547,8 @@ final class ProviderSwitcherView: NSView {
         return rows
     }
 
-    private static func switcherRowHeight(stackedIcons: Bool, rowCount: Int) -> CGFloat {
-        // Compact mode: reduce height for multi-row switcher to save vertical space.
-        // rowCount >= 4: reduce by 4pt (40 → 36). rowCount == 3: reduce by 4pt (40 → 36).
-        // Single and two-row layouts stay unchanged to preserve comfortable touch targets.
-        // 36pt base safely fits stacked buttons with two-line titles and quota bars.
-        let baseRowHeight: CGFloat = if stackedIcons {
-            if rowCount >= 3 {
-                36
-            } else {
-                36
-            }
-        } else {
-            30
-        }
+    private static func switcherRowHeight(stackedIcons: Bool) -> CGFloat {
+        let baseRowHeight: CGFloat = stackedIcons ? 36 : 30
         return baseRowHeight + self.quotaIndicatorReservedHeight
     }
 
@@ -671,6 +659,14 @@ final class ProviderSwitcherView: NSView {
 
     func _test_buttonFittingSizes() -> [NSSize] {
         self.buttons.map(\.fittingSize)
+    }
+
+    func _test_rowCount() -> Int {
+        self.rowCount
+    }
+
+    func _test_rowHeight() -> CGFloat {
+        self.rowHeight
     }
 
     func _test_setHoveredButtonTag(_ tag: Int?) {
