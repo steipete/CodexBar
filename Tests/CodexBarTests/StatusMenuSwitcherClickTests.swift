@@ -461,12 +461,13 @@ struct StatusMenuSwitcherClickTests {
 
     @Test
     func `multi-row switcher uses compact height and stays inside bounds`() {
-        // 7 providers → 4-row layout with stacked icons.
+        // 8 providers + Overview → 4-row layout with stacked icons, includes multi-word
+        // provider ("OpenCode Go") to exercise the two-line title path in compact mode.
         // Compact mode should keep total height lower than old 4-row × 40pt baseline.
         // Old baseline: 4 rows × 40pt + quotaReserved (8pt) ≈ 168pt
-        // Compact: 4 rows × 34pt + quotaReserved ≈ 144pt — well within 300pt width.
+        // Compact: 4 rows × 36pt + quotaReserved ≈ 152pt — clearly below baseline.
         let view = ProviderSwitcherView(
-            providers: [.codex, .claude, .cursor, .factory, .zai, .minimax, .alibaba],
+            providers: [.codex, .claude, .cursor, .factory, .zai, .minimax, .alibaba, .opencodego],
             selected: .provider(.codex),
             includesOverview: true,
             width: 300,
@@ -484,6 +485,7 @@ struct StatusMenuSwitcherClickTests {
         }
 
         // Compact height should be clearly below old 4-row baseline (~168pt).
+        // Threshold 160pt is conservative: 4 rows × 36pt + quotaReserved (8pt) ≈ 152pt.
         #expect(view.bounds.height < 160)
     }
 }
