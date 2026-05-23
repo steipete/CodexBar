@@ -548,10 +548,19 @@ final class ProviderSwitcherView: NSView {
     }
 
     private static func switcherRowHeight(stackedIcons: Bool, rowCount: Int) -> CGFloat {
-        let baseRowHeight: CGFloat = if stackedIcons, rowCount >= 3 {
-            40
+        // Compact mode: reduce height for multi-row switcher to save vertical space.
+        // rowCount >= 4: reduce by 6pt (40 → 34). rowCount == 3: reduce by 4pt (40 → 36).
+        // Single and two-row layouts stay unchanged to preserve comfortable touch targets.
+        let baseRowHeight: CGFloat = if stackedIcons {
+            if rowCount >= 4 {
+                34
+            } else if rowCount >= 3 {
+                36
+            } else {
+                36
+            }
         } else {
-            stackedIcons ? 36 : 30
+            30
         }
         return baseRowHeight + self.quotaIndicatorReservedHeight
     }

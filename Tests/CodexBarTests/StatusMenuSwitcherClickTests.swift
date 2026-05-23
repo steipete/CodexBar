@@ -458,4 +458,32 @@ struct StatusMenuSwitcherClickTests {
             isARepeat: false,
             keyCode: keyCode))
     }
+
+    @Test
+    func `multi-row switcher uses compact height and stays inside bounds`() {
+        // 7 providers → 4-row layout with stacked icons.
+        // Compact mode should keep total height lower than old 4-row × 40pt baseline.
+        // Old baseline: 4 rows × 40pt + quotaReserved (8pt) ≈ 168pt
+        // Compact: 4 rows × 34pt + quotaReserved ≈ 144pt — well within 300pt width.
+        let view = ProviderSwitcherView(
+            providers: [.codex, .claude, .cursor, .factory, .zai, .minimax, .alibaba],
+            selected: .provider(.codex),
+            includesOverview: true,
+            width: 300,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in 50 },
+            onSelect: { _ in })
+        view.updateConstraintsForSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
+
+        // All buttons must stay within switcher bounds (no vertical overflow).
+        for frame in view._test_buttonFrames() {
+            #expect(frame.minY >= 0)
+            #expect(frame.maxY <= view.bounds.maxY)
+        }
+
+        // Compact height should be clearly below old 4-row baseline (~168pt).
+        #expect(view.bounds.height < 160)
+    }
 }
