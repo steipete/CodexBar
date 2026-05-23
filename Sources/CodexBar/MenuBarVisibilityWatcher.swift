@@ -83,6 +83,24 @@ enum MenuBarVisibilityWatcher {
         return !snapshot.hasWindow || !snapshot.hasScreen || !snapshot.isOnCurrentScreen || snapshot.buttonWidth <= 0
     }
 
+    /// Only recreate status items when AppKit failed to materialize the item itself. Menu bar managers can keep
+    /// a visible item in an offscreen window; recreating those loses the external manager's item identity.
+    static func isRecreationCandidateSnapshot(snapshot: StatusItemVisibilitySnapshot) -> Bool {
+        guard snapshot.isVisible else { return false }
+        guard snapshot.hasButton else { return true }
+        guard snapshot.hasWindow else { return true }
+        guard snapshot.buttonWidth > 0 else { return true }
+        return false
+    }
+
+    static func isExternallyPositionedVisibleSnapshot(snapshot: StatusItemVisibilitySnapshot) -> Bool {
+        snapshot.isVisible
+            && snapshot.hasButton
+            && snapshot.hasWindow
+            && snapshot.buttonWidth > 0
+            && (!snapshot.hasScreen || !snapshot.isOnCurrentScreen)
+    }
+
     static func hasBlockedVisibleSnapshots(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
         let visibleItems = snapshots.filter(\.isVisible)
         guard !visibleItems.isEmpty else { return false }
@@ -94,6 +112,12 @@ enum MenuBarVisibilityWatcher {
     static func hasAnyBlockedVisibleSnapshot(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
         snapshots.contains { snapshot in
             snapshot.isVisible && self.isBlockedSnapshot(snapshot: snapshot)
+        }
+    }
+
+    static func hasAnyRecreationCandidateSnapshot(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
+        snapshots.contains { snapshot in
+            self.isRecreationCandidateSnapshot(snapshot: snapshot)
         }
     }
 
@@ -116,7 +140,7 @@ enum MenuBarVisibilityWatcher {
         -> Bool
     {
         guard now.timeIntervalSince(appLaunchedAt) <= self.startupFreshnessInterval else { return false }
-        return self.hasAnyBlockedVisibleSnapshot(snapshots)
+        return self.hasAnyRecreationCandidateSnapshot(snapshots)
     }
 
     static func shouldAttemptScreenChangeRecovery(
@@ -125,12 +149,12 @@ enum MenuBarVisibilityWatcher {
         snapshots: [StatusItemVisibilitySnapshot])
         -> Bool
     {
-        if self.hasAnyBlockedVisibleSnapshot(snapshots) {
+        if self.hasAnyRecreationCandidateSnapshot(snapshots) {
             return true
         }
         guard currentScreenCount < previousScreenCount else { return false }
         return snapshots.contains { snapshot in
-            snapshot.isVisible
+            snapshot.isVisible && !self.isExternallyPositionedVisibleSnapshot(snapshot: snapshot)
         }
     }
 
@@ -139,7 +163,7 @@ enum MenuBarVisibilityWatcher {
         snapshots: [StatusItemVisibilitySnapshot])
         -> Bool
     {
-        attempt < self.screenChangeRecoveryRetryLimit && self.hasAnyBlockedVisibleSnapshot(snapshots)
+        attempt < self.screenChangeRecoveryRetryLimit && self.hasAnyRecreationCandidateSnapshot(snapshots)
     }
 
     static func shouldShowGuidance(defaults: UserDefaults, now: Date = Date()) -> Bool {
@@ -293,7 +317,7 @@ extension StatusItemController {
 
     private func verifyScreenChangeRecoveryIfNeeded(attempt: Int) {
         let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
-        guard MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(snapshots) else {
+        guard MenuBarVisibilityWatcher.hasAnyRecreationCandidateSnapshot(snapshots) else {
             self.menuLogger.info(
                 "Status item recovered after display-change recovery",
                 metadata: ["attempt": "\(attempt)", "snapshots": snapshots.map(\.description).joined(separator: " | ")])

@@ -77,6 +77,21 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
+    func `does not recreate visible item positioned outside current screens`() {
+        let snapshot = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+        #expect(MenuBarVisibilityWatcher.isExternallyPositionedVisibleSnapshot(snapshot: snapshot))
+        #expect(!MenuBarVisibilityWatcher.isRecreationCandidateSnapshot(snapshot: snapshot))
+    }
+
+    @Test
     func `guidance shows once then repeats after a day`() throws {
         let defaults = try #require(UserDefaults(suiteName: "MenuBarVisibilityWatcherTests"))
         defaults.removePersistentDomain(forName: "MenuBarVisibilityWatcherTests")
@@ -165,6 +180,23 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
+    func `startup recovery ignores externally positioned visible snapshot`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let externallyPositioned = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [externallyPositioned]))
+    }
+
+    @Test
     func `screen change recovery triggers when a display is removed with visible status item`() {
         let healthy = StatusItemVisibilitySnapshot(
             isVisible: true,
@@ -192,6 +224,22 @@ struct MenuBarVisibilityWatcherTests {
             previousScreenCount: 2,
             currentScreenCount: 1,
             snapshots: [hidden]))
+    }
+
+    @Test
+    func `screen change recovery ignores display removal when item is externally positioned`() {
+        let externallyPositioned = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+            previousScreenCount: 2,
+            currentScreenCount: 1,
+            snapshots: [externallyPositioned]))
     }
 
     @Test
@@ -229,9 +277,8 @@ struct MenuBarVisibilityWatcherTests {
         let blocked = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
-            hasWindow: true,
+            hasWindow: false,
             hasScreen: false,
-            isOnCurrentScreen: false,
             buttonWidth: 18)
 
         #expect(MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
@@ -244,14 +291,28 @@ struct MenuBarVisibilityWatcherTests {
         let blocked = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
+            attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit,
+            snapshots: [blocked]))
+    }
+
+    @Test
+    func `screen change retry stops when item is externally positioned`() {
+        let externallyPositioned = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
             hasWindow: true,
             hasScreen: false,
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
         #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
-            attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit,
-            snapshots: [blocked]))
+            attempt: 1,
+            snapshots: [externallyPositioned]))
     }
 
     @Test
