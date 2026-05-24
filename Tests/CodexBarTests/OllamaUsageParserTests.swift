@@ -43,6 +43,8 @@ struct OllamaUsageParserTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.identity?.loginMethod == "free")
         #expect(usage.identity?.accountEmail == "user@example.com")
+        #expect(usage.primary?.windowMinutes == 5 * 60)
+        #expect(usage.secondary?.windowMinutes == 7 * 24 * 60)
     }
 
     @Test
@@ -153,6 +155,10 @@ struct OllamaUsageParserTests {
 
         #expect(snapshot.sessionUsedPercent == 2.5)
         #expect(snapshot.weeklyUsedPercent == 4.2)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.windowMinutes == nil)
+        #expect(usage.secondary?.windowMinutes == 7 * 24 * 60)
     }
 
     @Test

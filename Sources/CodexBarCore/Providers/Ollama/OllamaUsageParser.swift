@@ -44,12 +44,14 @@ enum OllamaUsageParser {
             weeklyUsedPercent: weekly?.usedPercent,
             sessionResetsAt: session?.resetsAt,
             weeklyResetsAt: weekly?.resetsAt,
+            sessionWindowMinutes: session?.windowMinutes,
             updatedAt: now))
     }
 
     private struct UsageBlock {
         let usedPercent: Double
         let resetsAt: Date?
+        let windowMinutes: Int?
     }
 
     private static func parsePlanName(_ html: String) -> String? {
@@ -76,7 +78,11 @@ enum OllamaUsageParser {
 
         guard let usedPercent = self.parsePercent(in: window) else { return nil }
         let resetsAt = self.parseISODate(in: window)
-        return UsageBlock(usedPercent: usedPercent, resetsAt: resetsAt)
+        let windowMinutes = label == "Session usage" ? 5 * 60 : nil
+        return UsageBlock(
+            usedPercent: usedPercent,
+            resetsAt: resetsAt,
+            windowMinutes: windowMinutes)
     }
 
     private static func parseUsageBlock(labels: [String], html: String) -> UsageBlock? {
