@@ -30,6 +30,12 @@ struct UsageStoreSessionQuotaTransitionTests {
         func postQuotaWarning(event: QuotaWarningEvent, provider: UsageProvider, soundEnabled: Bool) {
             self.quotaWarningPosts.append((event: event, provider: provider, soundEnabled: soundEnabled))
         }
+
+        func postProviderSubscriptionReminder(
+            provider _: UsageProvider,
+            event _: ProviderSubscriptionReminderEvent,
+            badge _: NSNumber?)
+        {}
     }
 
     @Test

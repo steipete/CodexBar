@@ -32,7 +32,8 @@ API keys, manual cookie headers, source selection, ordering, and token accounts 
       "enterpriseHost": null,
       "region": null,
       "workspaceID": null,
-      "tokenAccounts": null
+      "tokenAccounts": null,
+      "subscriptionSnapshot": null
     }
   ]
 }
@@ -56,6 +57,37 @@ All provider fields are optional unless noted.
 - `workspaceID`: provider-specific workspace/deployment/project ID (e.g. Azure OpenAI deployment, OpenAI API project,
   `opencode`).
 - `tokenAccounts`: multi-account tokens for providers in `TokenAccountSupportCatalog`.
+- `subscriptionSnapshot`: optional manual subscription metadata for renewal/expiration reminders.
+
+### manual `subscriptionSnapshot`
+`subscriptionSnapshot` is provider-neutral account metadata for reminder UX. It is manual-only in this
+first version.
+
+```json
+{
+  "provider": "minimax",
+  "planName": "Max Monthly",
+  "status": "active",
+  "subscriptionRenewsAt": "2026-06-24T00:00:00Z",
+  "subscriptionExpiresAt": null,
+  "source": "manual",
+  "confidence": "manual",
+  "updatedAt": "2026-05-24T00:00:00Z"
+}
+```
+
+Notes:
+- This is not quota reset timing and does not change usage-window math.
+- `source` and `confidence` are manual-only in this release.
+- Leave both dates empty to disable reminder display for the provider.
+- Automatic provider detection is intentionally out of scope here and should land in
+  provider-specific PRs with redacted real samples.
+
+Privacy boundary:
+- No cookie reads for this feature.
+- No billing-page scraping for this feature.
+- No live provider billing/subscription endpoint calls for this feature.
+- No raw billing/account response storage for this feature.
 
 ## Manual cookies
 Use manual cookies when automatic browser import is unavailable, disabled, or too noisy for your setup.

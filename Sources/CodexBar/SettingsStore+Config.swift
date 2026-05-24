@@ -84,6 +84,22 @@ extension SettingsStore {
         }
     }
 
+    func providerSubscriptionSnapshot(for provider: UsageProvider) -> ProviderSubscriptionSnapshot? {
+        guard let snapshot = self.configSnapshot.providerConfig(for: provider)?.subscriptionSnapshot else {
+            return nil
+        }
+        return snapshot.withProvider(provider)
+    }
+
+    func setProviderSubscriptionSnapshot(
+        provider: UsageProvider,
+        snapshot: ProviderSubscriptionSnapshot?)
+    {
+        self.updateProviderConfig(provider: provider) { entry in
+            entry.subscriptionSnapshot = snapshot?.withProvider(provider)
+        }
+    }
+
     var tokenAccountsByProvider: [UsageProvider: ProviderTokenAccountData] {
         get {
             Dictionary(uniqueKeysWithValues: self.configSnapshot.providers.compactMap { entry in

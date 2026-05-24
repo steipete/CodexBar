@@ -256,6 +256,7 @@ final class UsageStore {
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var quotaWarningState: [QuotaWarningStateKey: QuotaWarningState] = [:]
+    @ObservationIgnored var providerSubscriptionReminderState: [UsageProvider: ProviderSubscriptionReminderState] = [:]
     @ObservationIgnored var lastPermissionPromptNotificationAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
@@ -851,6 +852,23 @@ final class UsageStore {
         self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
     }
 
+    func handleProviderSubscriptionReminders(provider: UsageProvider) {
+        let keySnapshot = self.settings.providerSubscriptionSnapshot(for: provider)
+        guard let subscription = keySnapshot, subscription.hasDisplayableDate else {
+            self.providerSubscriptionReminderState.removeValue(forKey: provider)
+            return
+        }
+        let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        let previous = self.providerSubscriptionReminderState[provider]
+        let result = ProviderSubscriptionReminderLogic.evaluate(
+            providerName: providerName,
+            snapshot: subscription,
+            previous: previous)
+        self.providerSubscriptionReminderState[provider] = result.state
+        for event in result.events {
+            self.sessionQuotaNotifier.postProviderSubscriptionReminder(provider: provider, event: event, badge: nil)
+        }
+    }
     private func refreshStatus(_ provider: UsageProvider) async {
         guard self.settings.statusChecksEnabled else { return }
         guard let meta = self.providerMetadata[provider] else { return }

@@ -195,6 +195,10 @@ extension UsageStore {
 protocol SessionQuotaNotifying: AnyObject {
     func post(transition: SessionQuotaTransition, provider: UsageProvider, badge: NSNumber?)
     func postQuotaWarning(event: QuotaWarningEvent, provider: UsageProvider, soundEnabled: Bool)
+    func postProviderSubscriptionReminder(
+        provider: UsageProvider,
+        event: ProviderSubscriptionReminderEvent,
+        badge: NSNumber?)
 }
 
 @MainActor
@@ -241,6 +245,16 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
                 threshold: threshold,
                 postedAt: Date()))
         AppNotifications.shared.post(idPrefix: idPrefix, title: copy.title, body: copy.body, soundEnabled: false)
+    }
+
+    func postProviderSubscriptionReminder(
+        provider: UsageProvider,
+        event: ProviderSubscriptionReminderEvent,
+        badge: NSNumber? = nil)
+    {
+        let idPrefix = "subscription-\(provider.rawValue)-\(event.idSuffix)"
+        self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
+        AppNotifications.shared.post(idPrefix: idPrefix, title: event.title, body: event.body, badge: badge)
     }
 }
 

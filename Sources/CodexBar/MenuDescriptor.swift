@@ -390,11 +390,13 @@ struct MenuDescriptor {
     {
         let snapshot = store.snapshot(for: provider)
         let metadata = store.metadata(for: provider)
+        let subscription = settings.providerSubscriptionSnapshot(for: provider)
+        let fallbackAccount = metadata.usesAccountFallback ? account : AccountInfo()
         let entries = Self.accountEntries(
             provider: provider,
             snapshot: snapshot,
-            metadata: metadata,
-            fallback: account,
+            fallback: fallbackAccount,
+            subscription: subscription,
             hidePersonalInfo: settings.hidePersonalInfo)
         guard !entries.isEmpty else { return nil }
         return Section(entries: entries)
@@ -403,8 +405,8 @@ struct MenuDescriptor {
     private static func accountEntries(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
-        metadata: ProviderMetadata,
         fallback: AccountInfo,
+        subscription: ProviderSubscriptionSnapshot?,
         hidePersonalInfo: Bool) -> [Entry]
     {
         var entries: [Entry] = []
@@ -471,6 +473,14 @@ struct MenuDescriptor {
                         "\(L("Plan")): \(AccountFormatter.plan(fallbackPlan, provider: provider))",
                         .secondary))
             }
+        }
+
+        if let subscription,
+           let subscriptionLine = ProviderSubscriptionFormatter.menuLine(from: subscription),
+           !subscriptionLine.isEmpty
+        {
+            entries.append(.text("Subscription: \(subscriptionLine)", .secondary))
+        }
         }
 
         return entries
