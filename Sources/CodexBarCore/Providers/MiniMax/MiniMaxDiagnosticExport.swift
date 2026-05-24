@@ -93,25 +93,21 @@ public struct MiniMaxDiagnosticServiceUsage: Codable, Sendable {
 }
 
 public struct MiniMaxDiagnosticFetchAttempt: Codable, Sendable {
-    public let strategyID: String
     public let kind: String
     public let wasAvailable: Bool
     public let errorCategory: String?
 
     public init(
-        strategyID: String,
         kind: String,
         wasAvailable: Bool,
         errorCategory: String?)
     {
-        self.strategyID = strategyID
         self.kind = kind
         self.wasAvailable = wasAvailable
         self.errorCategory = errorCategory
     }
 
     public init(from attempt: ProviderFetchAttempt) {
-        self.strategyID = attempt.strategyID
         self.kind = Self.kindLabel(attempt.kind)
         self.wasAvailable = attempt.wasAvailable
         self.errorCategory = attempt.errorDescription.map { Self.errorCategoryLabel($0) }
@@ -205,12 +201,10 @@ public struct MiniMaxDiagnosticError: Codable, Sendable {
 }
 
 public struct MiniMaxSettingsSummary: Codable, Sendable {
-    public let cookieSource: String
     public let apiRegion: String
     public let authMode: String
 
-    public init(cookieSource: String, apiRegion: String, authMode: String) {
-        self.cookieSource = cookieSource
+    public init(apiRegion: String, authMode: String) {
         self.apiRegion = apiRegion
         self.authMode = authMode
     }

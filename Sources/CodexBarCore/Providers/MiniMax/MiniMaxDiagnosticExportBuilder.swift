@@ -12,7 +12,6 @@ public enum MiniMaxDiagnosticExportBuilder {
         let error = outcome.failureError.map { MiniMaxDiagnosticError(from: $0) }
 
         let settingsSummary = MiniMaxSettingsSummary(
-            cookieSource: settings?.minimax?.cookieSource.rawValue ?? "auto",
             apiRegion: settings?.minimax?.apiRegion.rawValue ?? "global",
             authMode: authMode.description)
 

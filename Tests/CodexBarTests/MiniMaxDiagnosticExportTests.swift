@@ -23,14 +23,12 @@ struct MiniMaxDiagnosticExportTests {
                 services: nil),
             fetchAttempts: [
                 MiniMaxDiagnosticFetchAttempt(
-                    strategyID: "minimax.api",
                     kind: "api",
                     wasAvailable: true,
                     errorCategory: nil),
             ],
             error: nil,
             settingsSummary: MiniMaxSettingsSummary(
-                cookieSource: "auto",
                 apiRegion: "global",
                 authMode: "apiToken"))
 
@@ -62,7 +60,6 @@ struct MiniMaxDiagnosticExportTests {
             usage: nil,
             fetchAttempts: [
                 MiniMaxDiagnosticFetchAttempt(
-                    strategyID: "minimax.api",
                     kind: "api",
                     wasAvailable: true,
                     errorCategory: "network"),
@@ -71,7 +68,6 @@ struct MiniMaxDiagnosticExportTests {
                 category: "network",
                 safeDescription: "Network error - check your connection"),
             settingsSummary: MiniMaxSettingsSummary(
-                cookieSource: "auto",
                 apiRegion: "global",
                 authMode: "apiToken"))
 
@@ -130,7 +126,6 @@ struct MiniMaxDiagnosticExportTests {
             errorDescription: "MiniMax API timeout after 30 seconds - connection refused for host platform.minimax.io")
         let diagAttempt = MiniMaxDiagnosticFetchAttempt(from: attemptWithRawError)
         #expect(diagAttempt.kind == "api")
-        #expect(diagAttempt.strategyID == "minimax.api")
         #expect(diagAttempt.wasAvailable == true)
         let errorCategoryOne = diagAttempt.errorCategory
         #expect(errorCategoryOne == "network")
