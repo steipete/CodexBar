@@ -41,7 +41,11 @@ extension CodexBarCLI {
             Self.exit(code: .failure, message: "Error: \(error.localizedDescription)", output: output, kind: .config)
         }
 
-        let env = ProcessInfo.processInfo.environment
+        let env = tokenContext.environment(
+            base: ProcessInfo.processInfo.environment,
+            provider: .minimax,
+            account: nil,
+            codexActiveSourceOverride: nil)
         let settings = tokenContext.settingsSnapshot(
             for: .minimax,
             account: nil,

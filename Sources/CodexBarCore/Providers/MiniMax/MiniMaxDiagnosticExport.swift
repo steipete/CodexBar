@@ -96,25 +96,25 @@ public struct MiniMaxDiagnosticFetchAttempt: Codable, Sendable {
     public let strategyID: String
     public let kind: String
     public let wasAvailable: Bool
-    public let errorMessage: String?
+    public let errorCategory: String?
 
     public init(
         strategyID: String,
         kind: String,
         wasAvailable: Bool,
-        errorMessage: String?)
+        errorCategory: String?)
     {
         self.strategyID = strategyID
         self.kind = kind
         self.wasAvailable = wasAvailable
-        self.errorMessage = errorMessage
+        self.errorCategory = errorCategory
     }
 
     public init(from attempt: ProviderFetchAttempt) {
         self.strategyID = attempt.strategyID
         self.kind = Self.kindLabel(attempt.kind)
         self.wasAvailable = attempt.wasAvailable
-        self.errorMessage = attempt.errorDescription
+        self.errorCategory = attempt.errorDescription.map { Self.errorCategoryLabel($0) }
     }
 
     private static func kindLabel(_ kind: ProviderFetchKind) -> String {
@@ -126,6 +126,23 @@ public struct MiniMaxDiagnosticFetchAttempt: Codable, Sendable {
         case .localProbe: "local"
         case .webDashboard: "web"
         }
+    }
+
+    private static func errorCategoryLabel(_ description: String?) -> String {
+        guard let desc = description?.lowercased() else { return "unknown" }
+        if desc.contains("network") || desc.contains("timeout") || desc.contains("connection") {
+            return "network"
+        }
+        if desc.contains("auth") || desc.contains("credential") || desc.contains("token") || desc.contains("cookie") {
+            return "auth"
+        }
+        if desc.contains("api") || desc.contains("http") || desc.contains("404") || desc.contains("403") {
+            return "api"
+        }
+        if desc.contains("parse") || desc.contains("format") || desc.contains("decode") {
+            return "parse"
+        }
+        return "unknown"
     }
 }
 

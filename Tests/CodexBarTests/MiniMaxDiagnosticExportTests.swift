@@ -26,7 +26,7 @@ struct MiniMaxDiagnosticExportTests {
                     strategyID: "minimax.api",
                     kind: "api",
                     wasAvailable: true,
-                    errorMessage: nil),
+                    errorCategory: nil),
             ],
             error: nil,
             settingsSummary: MiniMaxSettingsSummary(
@@ -46,6 +46,50 @@ struct MiniMaxDiagnosticExportTests {
         #expect(!json.contains("sk-cp-"))
         #expect(!json.contains("sk-api-"))
         #expect(!json.contains("Bearer"))
+        #expect(!json.contains("errorMessage"))
+        #expect(!json.contains("localizedDescription"))
+    }
+
+    @Test
+    func `raw error text never appears in encoded JSON`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let export = MiniMaxDiagnosticExport(
+            timestamp: now,
+            provider: "minimax",
+            source: "failed",
+            authMode: "apiToken",
+            authConfigured: true,
+            usage: nil,
+            fetchAttempts: [
+                MiniMaxDiagnosticFetchAttempt(
+                    strategyID: "minimax.api",
+                    kind: "api",
+                    wasAvailable: true,
+                    errorCategory: "network"),
+            ],
+            error: MiniMaxDiagnosticError(
+                category: "network",
+                safeDescription: "Network error - check your connection"),
+            settingsSummary: MiniMaxSettingsSummary(
+                cookieSource: "auto",
+                apiRegion: "global",
+                authMode: "apiToken"))
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(export)
+        let json = String(data: data, encoding: .utf8) ?? ""
+
+        #expect(!json.contains("connection refused"))
+        #expect(!json.contains("network probe"))
+        #expect(!json.contains("2024-01-01"))
+        #expect(!json.contains("not safe to expose"))
+        #expect(!json.contains("localizedDescription"))
+        #expect(!json.contains("raw"))
+        #expect(!json.contains("errorMessage"))
+        #expect(json.contains("errorCategory"))
+        #expect(json.contains("\"network\""))
     }
 
     @Test
@@ -78,25 +122,32 @@ struct MiniMaxDiagnosticExportTests {
     }
 
     @Test
-    func `diagnostic fetch attempt serializes kind correctly`() {
-        let webAttempt = ProviderFetchAttempt(
-            strategyID: "minimax.web",
-            kind: .web,
-            wasAvailable: true,
-            errorDescription: nil)
-        let diagAttempt = MiniMaxDiagnosticFetchAttempt(from: webAttempt)
-        #expect(diagAttempt.kind == "web")
-        #expect(diagAttempt.strategyID == "minimax.web")
-
-        let apiAttempt = ProviderFetchAttempt(
+    func `fetch attempt error maps to safe category, never raw text`() {
+        let attemptWithRawError = ProviderFetchAttempt(
             strategyID: "minimax.api",
             kind: .apiToken,
+            wasAvailable: true,
+            errorDescription: "MiniMax API timeout after 30 seconds - connection refused for host platform.minimax.io")
+        let diagAttempt = MiniMaxDiagnosticFetchAttempt(from: attemptWithRawError)
+        #expect(diagAttempt.kind == "api")
+        #expect(diagAttempt.strategyID == "minimax.api")
+        #expect(diagAttempt.wasAvailable == true)
+        let errorCategoryOne = diagAttempt.errorCategory
+        #expect(errorCategoryOne == "network")
+        #expect(!errorCategoryOne!.contains("timeout"))
+        #expect(!errorCategoryOne!.contains("connection refused"))
+        #expect(!errorCategoryOne!.contains("platform.minimax.io"))
+
+        let attemptWithAuthError = ProviderFetchAttempt(
+            strategyID: "minimax.web",
+            kind: .web,
             wasAvailable: false,
-            errorDescription: "token missing")
-        let diagApiAttempt = MiniMaxDiagnosticFetchAttempt(from: apiAttempt)
-        #expect(diagApiAttempt.kind == "api")
-        #expect(diagApiAttempt.wasAvailable == false)
-        #expect(diagApiAttempt.errorMessage == "token missing")
+            errorDescription: "invalid auth token cookie HERTZ-SESSION=abc123")
+        let diagAuthAttempt = MiniMaxDiagnosticFetchAttempt(from: attemptWithAuthError)
+        #expect(diagAuthAttempt.wasAvailable == false)
+        let errorCategoryTwo = diagAuthAttempt.errorCategory
+        #expect(errorCategoryTwo == "auth")
+        #expect(!errorCategoryTwo!.contains("HERTZ-SESSION"))
     }
 
     @Test
@@ -166,6 +217,7 @@ struct MiniMaxDiagnosticExportTests {
         #expect(diag.error != nil)
         #expect(diag.error?.category == "network")
         #expect(diag.fetchAttempts.count == 1)
+        #expect(diag.fetchAttempts[0].errorCategory == "network")
     }
 
     @Test
