@@ -4,7 +4,7 @@
 
 ### Added
 - Display: add optional workday markers for weekly progress bars (#1102). Thanks @Yuxin-Qiao!
-- Localization: add Traditional Chinese (`zh-Hant`) app strings.
+- Localization: add Traditional Chinese (`zh-Hant`) app strings. Thanks @ilyaliao!
 
 ### Fixed
 - Groq: show a distinct Groq provider icon instead of reusing the Grok glyph (#1112). Thanks @kiankyars!
