@@ -267,6 +267,77 @@ struct PathBuilderTests {
 
         #expect(!allowed)
     }
+
+    @Test
+    func `Codex launch preflight allows valid signed command line binary assessment`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/opt/homebrew/bin/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in "\(path): rejected (the code is valid but does not seem to be an app)" },
+            isMachOExecutable: { _ in true })
+
+        #expect(allowed)
+    }
+
+    @Test
+    func `Codex launch preflight blocks revoked assessment even with non app rejection text`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/opt/homebrew/bin/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { _ in
+                """
+                rejected (the code is valid but does not seem to be an app)
+                CSSMERR_TP_CERT_REVOKED
+                """
+            },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight ignores benign text in path when verdict is generic rejection`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/tmp/code is valid but does not seem to be an app/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in "\(path): rejected\nsource=no usable signature" },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight ignores benign text before verdict separator`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/tmp/x: code is valid but does not seem to be an app/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in "\(path): rejected\nsource=no usable signature" },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight ignores blocked words in accepted path and source fields`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/tmp/rejected/quarantine/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in
+                """
+                \(path): accepted
+                source=revoked quarantine marker
+                origin=malware test fixture
+                """
+            },
+            isMachOExecutable: { _ in true })
+
+        #expect(allowed)
+    }
     #endif
 
     @Test
