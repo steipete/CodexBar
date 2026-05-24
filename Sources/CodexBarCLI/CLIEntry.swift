@@ -52,6 +52,8 @@ enum CodexBarCLI {
                 self.runConfigSetAPIKey(invocation.parsedValues)
             case ["cache", "clear"]:
                 self.runCacheClear(invocation.parsedValues)
+            case ["diagnose"]:
+                await self.runDiagnose(invocation.parsedValues)
             default:
                 Self.exit(
                     code: .failure,
@@ -74,6 +76,7 @@ enum CodexBarCLI {
         let configProviderToggleSignature = CommandSignature.describe(ConfigProviderToggleOptions())
         let configSetAPIKeySignature = CommandSignature.describe(ConfigSetAPIKeyOptions())
         let cacheSignature = CommandSignature.describe(CacheOptions())
+        let diagnoseSignature = CommandSignature.describe(DiagnoseOptions())
 
         return [
             CommandDescriptor(
@@ -142,6 +145,11 @@ enum CodexBarCLI {
                         signature: cacheSignature),
                 ],
                 defaultSubcommandName: "clear"),
+            CommandDescriptor(
+                name: "diagnose",
+                abstract: "Run provider diagnostic and emit safe JSON export",
+                discussion: nil,
+                signature: diagnoseSignature),
         ]
     }
 

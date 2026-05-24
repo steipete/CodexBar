@@ -61,25 +61,31 @@ quota card and omits the chart instead of treating the whole provider as failed.
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxProviderDescriptor.swift`
 - `Sources/CodexBar/Providers/MiniMax/MiniMaxProviderImplementation.swift`
 
-## Safe diagnostic output
+## CLI diagnose command
 
-MiniMax diagnostic export data is intentionally limited to structural metadata only — no raw tokens, cookies,
-authorization headers, API responses, or personal data.
+The `diagnose` command performs a real MiniMax diagnostic invocation and emits a safe, redacted JSON export
+for issue reporting and verification.
 
-The diagnostic export fields are:
+### Usage
+```
+codexbar diagnose --provider minimax --format json --pretty
+```
 
-- `schemaVersion`, `provider`, `authMode`, `region`
-- `sourceLabel` and `strategyID`
-- `fieldsPresent` (allowlisted field names that were non-nil)
-- `servicesCount` (integer count only)
-- `billingSummaryPresent` (boolean only)
-- `fetchAttemptsSummary` (strategy ID, availability, extracted error code, error category)
-- `redactionPolicyVersion`, `exportedAt`
+### Output
+- Structural diagnostic JSON with provider, source, auth mode, usage snapshot, fetch attempts, and error categories.
+- All sensitive fields (API tokens, cookies, emails, auth headers) are redacted via `LogRedactor`.
+- Errors are mapped to safe categories (`network`, `auth`, `api`, `parse`) with user-friendly descriptions.
+- No raw API responses, raw error messages, tokens, cookies, emails, account IDs, org IDs, or billing history.
 
-The export intentionally excludes: raw API tokens (`sk-cp-*`, `sk-api-*`), cookies, authorization headers,
-bearer tokens, raw API responses or HTML, email addresses, session IDs, account/organization IDs, and any
-per-request billing record details.
+### What is excluded from output
+- Raw API tokens (`sk-cp-*`, `sk-api-*`) and authorization headers
+- Cookie header values
+- Email addresses
+- Account IDs, org IDs
+- Raw error messages (replaced with safe category-based descriptions)
+- Raw HTTP responses or request bodies
+- Billing history details
 
-Error messages are pre-redacted via `LogRedactor` before code/category extraction. Only fixed error codes
-(`401`, `403`, `timeout`, etc.) and category labels (`auth`, `network`, `parse`, `timeout`, `unknown`) appear
-in the export.
+### Exit codes
+- `0`: Diagnostic completed successfully (even if MiniMax auth is not configured)
+- `1`: Unknown error or invalid arguments
