@@ -41,14 +41,18 @@ extension CodexBarCLI {
             Self.exit(code: .failure, message: "Error: \(error.localizedDescription)", output: output, kind: .config)
         }
 
+        let activeMiniMaxAccount: ProviderTokenAccount? = {
+            let accounts = (try? tokenContext.resolvedAccounts(for: .minimax)) ?? []
+            return accounts.first
+        }()
         let env = tokenContext.environment(
             base: ProcessInfo.processInfo.environment,
             provider: .minimax,
-            account: nil,
+            account: activeMiniMaxAccount,
             codexActiveSourceOverride: nil)
         let settings = tokenContext.settingsSnapshot(
             for: .minimax,
-            account: nil,
+            account: activeMiniMaxAccount,
             codexActiveSourceOverride: nil)
         let sourceMode = tokenContext.preferredSourceMode(for: .minimax)
 
