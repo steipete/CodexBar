@@ -122,7 +122,7 @@ struct MiniMaxDiagnosticExportTests {
     }
 
     @Test
-    func `fetch attempt error maps to safe category, never raw text`() {
+    func `fetch attempt error maps to safe category, never raw text`() throws {
         let attemptWithRawError = ProviderFetchAttempt(
             strategyID: "minimax.api",
             kind: .apiToken,
@@ -134,9 +134,9 @@ struct MiniMaxDiagnosticExportTests {
         #expect(diagAttempt.wasAvailable == true)
         let errorCategoryOne = diagAttempt.errorCategory
         #expect(errorCategoryOne == "network")
-        #expect(!errorCategoryOne!.contains("timeout"))
-        #expect(!errorCategoryOne!.contains("connection refused"))
-        #expect(!errorCategoryOne!.contains("platform.minimax.io"))
+        #expect(try !(#require(errorCategoryOne?.contains("timeout"))))
+        #expect(try !(#require(errorCategoryOne?.contains("connection refused"))))
+        #expect(try !(#require(errorCategoryOne?.contains("platform.minimax.io"))))
 
         let attemptWithAuthError = ProviderFetchAttempt(
             strategyID: "minimax.web",
@@ -147,7 +147,7 @@ struct MiniMaxDiagnosticExportTests {
         #expect(diagAuthAttempt.wasAvailable == false)
         let errorCategoryTwo = diagAuthAttempt.errorCategory
         #expect(errorCategoryTwo == "auth")
-        #expect(!errorCategoryTwo!.contains("HERTZ-SESSION"))
+        #expect(try !(#require(errorCategoryTwo?.contains("HERTZ-SESSION"))))
     }
 
     @Test
