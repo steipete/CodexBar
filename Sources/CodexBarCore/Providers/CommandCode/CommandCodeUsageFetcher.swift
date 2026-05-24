@@ -8,6 +8,7 @@ import FoundationNetworking
 public enum CommandCodeUsageFetcher {
     private static let log = CodexBarLog.logger(LogCategories.commandcodeUsage)
     private static let requestTimeoutSeconds: TimeInterval = 15
+    private static let subscriptionGraceSeconds: TimeInterval = 2
     private static let apiBase = URL(string: "https://api.commandcode.ai")!
     private static let creditsPath = "/internal/billing/credits"
     private static let subscriptionsPath = "/internal/billing/subscriptions"
@@ -21,11 +22,36 @@ public enum CommandCodeUsageFetcher {
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> CommandCodeUsageSnapshot
     {
-        async let creditsResult = self.fetchCredits(cookieHeader: cookieHeader, transport: transport)
-        async let subscriptionResult = self.fetchSubscription(cookieHeader: cookieHeader, transport: transport)
+        try await self.fetchUsage(
+            cookieHeader: cookieHeader,
+            transport: transport,
+            now: now,
+            subscriptionGraceSeconds: self.subscriptionGraceSeconds)
+    }
 
-        let credits = try await creditsResult
-        let subscription = try await subscriptionResult
+    static func fetchUsageForTesting(
+        cookieHeader: String,
+        session transport: any ProviderHTTPTransport,
+        now: Date,
+        subscriptionGraceSeconds: TimeInterval) async throws -> CommandCodeUsageSnapshot
+    {
+        try await self.fetchUsage(
+            cookieHeader: cookieHeader,
+            transport: transport,
+            now: now,
+            subscriptionGraceSeconds: subscriptionGraceSeconds)
+    }
+
+    private static func fetchUsage(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport,
+        now: Date,
+        subscriptionGraceSeconds: TimeInterval) async throws -> CommandCodeUsageSnapshot
+    {
+        let (credits, subscription) = try await self.fetchPayloads(
+            cookieHeader: cookieHeader,
+            transport: transport,
+            subscriptionGraceSeconds: subscriptionGraceSeconds)
 
         let plan: CommandCodePlanCatalog.Plan? = subscription.flatMap { sub in
             CommandCodePlanCatalog.plan(forID: sub.planID)
@@ -64,6 +90,76 @@ public enum CommandCodeUsageFetcher {
         let currentPeriodEnd: Date?
     }
 
+    private enum FetchResult {
+        case credits(CreditsPayload)
+        case subscription(SubscriptionPayload?)
+        case subscriptionTimeout
+    }
+
+    private static func fetchPayloads(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport,
+        subscriptionGraceSeconds: TimeInterval) async throws -> (CreditsPayload, SubscriptionPayload?)
+    {
+        try await withThrowingTaskGroup(of: FetchResult.self) { group in
+            group.addTask {
+                try await .credits(self.fetchCredits(cookieHeader: cookieHeader, transport: transport))
+            }
+            group.addTask {
+                do {
+                    let payload = try await self.fetchSubscription(cookieHeader: cookieHeader, transport: transport)
+                    return .subscription(payload)
+                } catch {
+                    self.log.debug("CommandCode subscription enrichment skipped: \(error.localizedDescription)")
+                    return .subscription(nil)
+                }
+            }
+
+            var credits: CreditsPayload?
+            var subscription: SubscriptionPayload?
+            var subscriptionFinished = false
+            var timeoutStarted = false
+
+            while let result = try await group.next() {
+                switch result {
+                case let .credits(payload):
+                    credits = payload
+                    if subscriptionFinished {
+                        group.cancelAll()
+                        return (payload, subscription)
+                    }
+                    if !timeoutStarted {
+                        timeoutStarted = true
+                        group.addTask {
+                            let requestedGrace = subscriptionGraceSeconds.isFinite ? subscriptionGraceSeconds : 0
+                            let maxGrace = TimeInterval((UInt64.max / 1_000_000_000) - 1)
+                            let grace = min(max(0, requestedGrace), maxGrace)
+                            let nanos = UInt64(grace * 1_000_000_000)
+                            try? await Task.sleep(nanoseconds: nanos)
+                            return .subscriptionTimeout
+                        }
+                    }
+
+                case let .subscription(payload):
+                    subscription = payload
+                    subscriptionFinished = true
+                    if let credits {
+                        group.cancelAll()
+                        return (credits, payload)
+                    }
+
+                case .subscriptionTimeout:
+                    if let credits {
+                        group.cancelAll()
+                        return (credits, subscription)
+                    }
+                }
+            }
+
+            throw CommandCodeUsageError.networkError("Credits request did not complete")
+        }
+    }
+
     private static func fetchCredits(
         cookieHeader: String,
         transport: any ProviderHTTPTransport) async throws -> CreditsPayload
@@ -78,14 +174,19 @@ public enum CommandCodeUsageFetcher {
         transport: any ProviderHTTPTransport) async throws -> SubscriptionPayload?
     {
         let url = self.apiBase.appendingPathComponent(self.subscriptionsPath)
-        let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
+        let data = try await self.send(
+            url: url,
+            cookieHeader: cookieHeader,
+            transport: transport,
+            logFailures: false)
         return try self.parseSubscription(data: data)
     }
 
     private static func send(
         url: URL,
         cookieHeader: String,
-        transport: any ProviderHTTPTransport) async throws -> Data
+        transport: any ProviderHTTPTransport,
+        logFailures: Bool = true) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -108,7 +209,9 @@ public enum CommandCodeUsageFetcher {
         }
         guard (200..<300).contains(response.statusCode) else {
             let body = String(data: response.data, encoding: .utf8) ?? ""
-            Self.log.error("CommandCode \(url.path) → \(response.statusCode): \(body)")
+            if logFailures {
+                Self.log.error("CommandCode \(url.path) → \(response.statusCode): \(body)")
+            }
             throw CommandCodeUsageError.apiError(response.statusCode)
         }
         return response.data
