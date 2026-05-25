@@ -315,6 +315,7 @@ struct DebugPane: View {
                         Text("Antigravity").tag(UsageProvider.antigravity)
                         Text("Augment").tag(UsageProvider.augment)
                         Text("Amp").tag(UsageProvider.amp)
+                        Text("T3 Chat").tag(UsageProvider.t3chat)
                         Text("Ollama").tag(UsageProvider.ollama)
                     }
                     .pickerStyle(.segmented)

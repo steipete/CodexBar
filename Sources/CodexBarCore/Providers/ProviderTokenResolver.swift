@@ -392,8 +392,7 @@ public enum ProviderTokenResolver {
         if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
             (value.hasPrefix("'") && value.hasSuffix("'"))
         {
-            value.removeFirst()
-            value.removeLast()
+            value = String(value.dropFirst().dropLast())
         }
 
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)

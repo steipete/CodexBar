@@ -5,12 +5,21 @@ import Testing
 
 extension CodexManagedOpenAIWebTests {
     @Test
-    func `same account dashboard refresh requests coalesce while one is in flight`() async {
+    func `same account dashboard refresh requests coalesce while one is in flight`() async throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-refresh-coalesce")
+        let managedHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-openai-web-coalesce-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+        try Self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "managed@example.com",
+            plan: "pro",
+            accountId: "acct-managed")
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
             email: "managed@example.com",
-            managedHomePath: "/tmp/managed-codex-home",
+            providerAccountID: "acct-managed",
+            managedHomePath: managedHome.path,
             createdAt: 1,
             updatedAt: 1,
             lastAuthenticatedAt: 1)
@@ -83,6 +92,7 @@ extension CodexManagedOpenAIWebTests {
     func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
             userDefaults: defaults,
@@ -95,6 +105,10 @@ extension CodexManagedOpenAIWebTests {
         settings._test_managedCodexAccountStoreURL = nil
         settings._test_liveSystemCodexAccount = nil
         settings._test_codexReconciliationEnvironment = nil
+        settings.providerDetectionCompleted = true
+        if let codexMetadata = ProviderDescriptorRegistry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        }
         settings.openAIWebAccessEnabled = true
         settings.codexCookieSource = .auto
         return settings

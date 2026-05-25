@@ -58,6 +58,45 @@ struct AntigravityOAuthCredentialsStoreTests {
     }
 
     @Test
+    func `oauth client discovery reads antigravity extension language server`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let extensionClient = AntigravityOAuthClient(
+            clientID: self.googleClientID("extension"),
+            clientSecret: self.googleClientSecret(repeating: "d"))
+        let staleClient = AntigravityOAuthClient(
+            clientID: self.googleClientID("stale"),
+            clientSecret: self.googleClientSecret(repeating: "e"))
+        try self.writeAntigravityApp(
+            named: "Antigravity IDE.app",
+            under: root,
+            bundleIdentifier: "com.google.antigravity-ide",
+            artifactRelativePath: "Contents/Resources/app/out/main.js",
+            artifactData: Data("""
+            out-build/vs/platform/cloudCode/common/oauthClient.js
+            clientId="\(staleClient.clientID)";
+            clientSecret="\(staleClient.clientSecret)";
+            """.utf8))
+        var artifactData = Data([0xFF])
+        artifactData.append(Data(
+            """
+            \u{0}\(extensionClient.clientSecret)\u{0}oauth_data\u{0}\(extensionClient.clientID)\u{0}
+            """.utf8))
+        try self.writeAntigravityApp(
+            named: "Antigravity IDE.app",
+            under: root,
+            bundleIdentifier: "com.google.antigravity-ide",
+            artifactRelativePath: "Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm",
+            artifactData: artifactData)
+
+        #expect(
+            AntigravityOAuthConfig.discoverClientFromInstalledApp(
+                applicationRoots: [root]) == extensionClient)
+    }
+
+    @Test
     func `oauth client discovery pairs lone binary secret with trailing client id`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

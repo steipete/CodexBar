@@ -367,11 +367,12 @@ enum CostUsageScanner {
                 filtered.claudeLogProviderFilter = .vertexAIOnly
             }
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
-        case .openai, .azureopenai, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba, .factory,
+        case .openai, .azureopenai, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
+             .alibabatokenplan, .factory,
              .copilot, .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp, .ollama,
-             .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .abacus, .mistral, .deepseek,
-             .codebuff, .crof, .windsurf, .venice, .commandcode, .stepfun, .bedrock, .grok, .groq, .llmproxy,
-             .deepgram, .wafer:
+             .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .abacus, .mistral,
+             .deepseek, .codebuff, .crof, .windsurf, .venice, .commandcode, .stepfun, .bedrock, .grok, .groq,
+             .llmproxy, .deepgram, .wafer:
             return emptyReport
         }
     }
@@ -600,13 +601,15 @@ enum CostUsageScanner {
     private static func changedPriorityTurnIDs(
         old: [String: [String]]?,
         new: [String: [String]],
+        oldKeys: [String: String]?,
+        newKeys: [String: String],
         range: CostUsageDayRange) -> Set<String>
     {
         var out = Set<String>()
         for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
             let oldIDs = Set(old?[dayKey] ?? [])
             let newIDs = Set(new[dayKey] ?? [])
-            if oldIDs != newIDs {
+            if oldIDs != newIDs || oldKeys?[dayKey] != newKeys[dayKey] {
                 out.formUnion(oldIDs)
                 out.formUnion(newIDs)
             }
@@ -1459,6 +1462,8 @@ enum CostUsageScanner {
             ? Self.changedPriorityTurnIDs(
                 old: cache.codexPriorityTurnIDsByDay,
                 new: priorityTurnIDsByDay,
+                oldKeys: cache.codexPriorityTurnKeys,
+                newKeys: priorityTurnKeys,
                 range: range)
             : []
         let shouldRefresh = options.forceRescan

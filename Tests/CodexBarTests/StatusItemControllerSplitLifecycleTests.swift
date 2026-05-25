@@ -98,6 +98,63 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
+    func `status items publish stable non persistent manager identity`() throws {
+        let (_, controller) = try self.makeSplitController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let codexButton = try #require(controller.statusItems[.codex]?.button)
+        let claudeButton = try #require(controller.statusItems[.claude]?.button)
+
+        #expect(!controller.statusItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(controller.statusItems[.codex]?.autosaveName.hasPrefix("CodexBar.") == false)
+        #expect(controller.statusItems[.claude]?.autosaveName.hasPrefix("CodexBar.") == false)
+        #expect(controller.statusItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem")
+        #expect(codexButton.accessibilityIdentifier() == "CodexBar.StatusItem.codex")
+        #expect(claudeButton.accessibilityIdentifier() == "CodexBar.StatusItem.claude")
+        #expect(controller.statusItem.button?.accessibilityTitle() == "CodexBar")
+        #expect(codexButton.accessibilityTitle() == "CodexBar")
+        #expect(claudeButton.accessibilityTitle() == "CodexBar")
+    }
+
+    @Test
+    func `non destructive visibility refresh preserves split provider status items`() throws {
+        let (_, controller) = try self.makeSplitController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let oldCodexItem = try #require(controller.statusItems[.codex])
+        let oldClaudeItem = try #require(controller.statusItems[.claude])
+        let oldCodexButton = try #require(oldCodexItem.button)
+
+        controller.refreshExistingStatusItemsForVisibilityRecovery()
+
+        let newCodexItem = try #require(controller.statusItems[.codex])
+        let newClaudeItem = try #require(controller.statusItems[.claude])
+        #expect(newCodexItem === oldCodexItem)
+        #expect(newClaudeItem === oldClaudeItem)
+        #expect(newCodexItem.button === oldCodexButton)
+        #expect(!newCodexItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(newCodexItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem.codex")
+    }
+
+    @Test
+    func `non destructive visibility refresh preserves merged status item`() throws {
+        let (settings, controller) = try self.makeSplitController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        settings.mergeIcons = true
+        controller.handleProviderConfigChange(reason: "test")
+        let oldMergedItem = controller.statusItem
+        let oldMergedButton = try #require(controller.statusItem.button)
+
+        controller.refreshExistingStatusItemsForVisibilityRecovery()
+
+        #expect(controller.statusItem === oldMergedItem)
+        #expect(controller.statusItem.button === oldMergedButton)
+        #expect(!controller.statusItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(controller.statusItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem")
+    }
+
+    @Test
     func `visibility recovery recreates split provider status items`() throws {
         let (_, controller) = try self.makeSplitController()
         defer { controller.releaseStatusItemsForTesting() }
@@ -107,6 +164,8 @@ struct StatusItemControllerSplitLifecycleTests {
 
         let newCodexItem = try #require(controller.statusItems[.codex])
         #expect(newCodexItem !== oldCodexItem)
+        #expect(!newCodexItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(newCodexItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem.codex")
     }
 
     @Test
@@ -123,5 +182,7 @@ struct StatusItemControllerSplitLifecycleTests {
 
         let mergedButton = try #require(controller.statusItem.button)
         #expect(mergedButton.image != nil)
+        #expect(!controller.statusItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(mergedButton.accessibilityIdentifier() == "CodexBar.StatusItem")
     }
 }

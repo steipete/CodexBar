@@ -24,6 +24,7 @@ struct ProviderIconResourcesTests {
             "copilot",
             "crof",
             "commandcode",
+            "t3chat",
             "kimi",
             "bedrock",
             "elevenlabs",
@@ -41,6 +42,16 @@ struct ProviderIconResourcesTests {
             let image = NSImage(contentsOf: url)
             #expect(image != nil, "Could not load SVG as NSImage for \(slug)")
         }
+    }
+
+    @Test
+    func `groq and grok provider icons are distinct`() throws {
+        let root = try Self.repoRoot()
+        let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
+        let groq = try String(contentsOf: resources.appending(path: "ProviderIcon-groq.svg"), encoding: .utf8)
+        let grok = try String(contentsOf: resources.appending(path: "ProviderIcon-grok.svg"), encoding: .utf8)
+
+        #expect(groq != grok)
     }
 
     private static func repoRoot() throws -> URL {

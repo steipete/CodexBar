@@ -697,6 +697,7 @@ extension UsageMenuCardView.Model {
         let hidePersonalInfo: Bool
         let weeklyPace: UsagePace?
         let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
+        let workDaysPerWeek: Int?
         let now: Date
 
         init(
@@ -722,6 +723,7 @@ extension UsageMenuCardView.Model {
             hidePersonalInfo: Bool,
             weeklyPace: UsagePace? = nil,
             quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
+            workDaysPerWeek: Int? = nil,
             now: Date)
         {
             self.provider = provider
@@ -746,6 +748,7 @@ extension UsageMenuCardView.Model {
             self.hidePersonalInfo = hidePersonalInfo
             self.weeklyPace = weeklyPace
             self.quotaWarningThresholds = quotaWarningThresholds
+            self.workDaysPerWeek = workDaysPerWeek
             self.now = now
         }
     }
@@ -1064,7 +1067,7 @@ extension UsageMenuCardView.Model {
         }
         if labels.showsTertiary, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
-            if input.provider == .alibaba,
+            if input.provider == .alibaba || input.provider == .alibabatokenplan,
                let detail = opus.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
@@ -1206,9 +1209,10 @@ extension UsageMenuCardView.Model {
             let total = UsageFormatter.kiroCreditNumber(kiroUsage.creditsTotal)
             primaryDetailLeft = "\(remaining) of \(total) credits left"
         }
-        if input.provider == .alibaba || input.provider == .mistral || input.provider == .manus,
-           let detail = primary.resetDescription,
-           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if input.provider == .alibaba || input.provider == .alibabatokenplan || input.provider == .mistral || input
+            .provider == .manus,
+            let detail = primary.resetDescription,
+            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
             if input.provider == .manus { primaryResetText = nil }
@@ -1330,7 +1334,7 @@ extension UsageMenuCardView.Model {
                 pacePercent: nil,
                 paceOnTop: true)
         }
-        if input.provider == .alibaba,
+        if input.provider == .alibaba || input.provider == .alibabatokenplan,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1382,9 +1386,7 @@ extension UsageMenuCardView.Model {
             detailRightText: paceDetail?.rightLabel,
             pacePercent: paceDetail?.pacePercent,
             paceOnTop: paceDetail?.paceOnTop ?? true,
-            warningMarkerPercents: Self.warningMarkerPercents(
-                thresholds: input.quotaWarningThresholds[.weekly],
-                showUsed: input.usageBarsShowUsed))
+            warningMarkerPercents: Self.weeklyMarkerPercents(input: input, windowMinutes: weekly.windowMinutes))
     }
 
     private static func codexRateMetrics(
@@ -1430,9 +1432,10 @@ extension UsageMenuCardView.Model {
                 detailRightText: paceDetail?.rightLabel,
                 pacePercent: paceDetail?.pacePercent,
                 paceOnTop: paceDetail?.paceOnTop ?? true,
-                warningMarkerPercents: Self.warningMarkerPercents(
-                    thresholds: input.quotaWarningThresholds[lane.quotaWarningWindow],
-                    showUsed: input.usageBarsShowUsed))
+                warningMarkerPercents: Self.codexLaneMarkerPercents(
+                    input: input,
+                    lane: lane,
+                    windowMinutes: window.windowMinutes))
         }
     }
 

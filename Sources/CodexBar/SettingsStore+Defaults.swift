@@ -181,6 +181,18 @@ extension SettingsStore {
         }
     }
 
+    var weeklyProgressWorkDays: Int? {
+        get { self.defaultsState.weeklyProgressWorkDays }
+        set {
+            self.defaultsState.weeklyProgressWorkDays = newValue
+            if let newValue {
+                self.userDefaults.set(newValue, forKey: "weeklyProgressWorkDays")
+            } else {
+                self.userDefaults.removeObject(forKey: "weeklyProgressWorkDays")
+            }
+        }
+    }
+
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
         set {

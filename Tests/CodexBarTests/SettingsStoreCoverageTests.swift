@@ -485,6 +485,38 @@ struct SettingsStoreCoverageTests {
         #expect(settings.selectedTokenAccount(for: .antigravity)?.id == accounts.last?.id)
     }
 
+    @Test
+    func `weekly progress work days defaults to nil and persists across store reload`() throws {
+        let suite = "SettingsStoreCoverageTests-weekly-progress-work-days"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let fresh = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(fresh.weeklyProgressWorkDays == nil)
+
+        fresh.weeklyProgressWorkDays = 5
+        #expect(defaults.object(forKey: "weeklyProgressWorkDays") as? Int == 5)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.weeklyProgressWorkDays == 5)
+
+        fresh.weeklyProgressWorkDays = 4
+        #expect(reloaded.weeklyProgressWorkDays == 5)
+
+        let reloaded2 = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded2.weeklyProgressWorkDays == 4)
+
+        reloaded2.weeklyProgressWorkDays = 7
+        let reloaded3 = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded3.weeklyProgressWorkDays == 7)
+
+        reloaded3.weeklyProgressWorkDays = nil
+        #expect(defaults.object(forKey: "weeklyProgressWorkDays") == nil)
+        let reloaded4 = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded4.weeklyProgressWorkDays == nil)
+    }
+
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)

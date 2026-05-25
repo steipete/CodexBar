@@ -227,46 +227,49 @@ struct ClaudeOAuthCredentialsStoreTests {
 
     @Test
     func `load with auto refresh expired claude CLI owner throws delegated refresh`() async throws {
-        KeychainCacheStore.setTestStoreForTesting(true)
-        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
-        ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
-        defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+            defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
 
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        let fileURL = tempDir.appendingPathComponent("credentials.json")
-        await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
-            await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
-                ClaudeOAuthCredentialsStore.invalidateCache()
-                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
-                defer { KeychainCacheStore.clear(key: cacheKey) }
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("credentials.json")
+            await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                    let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                    defer { KeychainCacheStore.clear(key: cacheKey) }
 
-                let expiredData = self.makeCredentialsData(
-                    accessToken: "expired-claude-cli-owner",
-                    expiresAt: Date(timeIntervalSinceNow: -3600),
-                    refreshToken: "refresh-token")
-                KeychainCacheStore.store(
-                    key: cacheKey,
-                    entry: ClaudeOAuthCredentialsStore.CacheEntry(
-                        data: expiredData,
-                        storedAt: Date(),
-                        owner: .claudeCLI))
+                    let expiredData = self.makeCredentialsData(
+                        accessToken: "expired-claude-cli-owner",
+                        expiresAt: Date(timeIntervalSinceNow: -3600),
+                        refreshToken: "refresh-token")
+                    KeychainCacheStore.store(
+                        key: cacheKey,
+                        entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                            data: expiredData,
+                            storedAt: Date(),
+                            owner: .claudeCLI))
 
-                do {
-                    _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
-                        environment: [:],
-                        allowKeychainPrompt: false,
-                        respectKeychainPromptCooldown: true)
-                    Issue.record("Expected delegated refresh error for Claude CLI-owned credentials")
-                } catch let error as ClaudeOAuthCredentialsError {
-                    guard case .refreshDelegatedToClaudeCLI = error else {
-                        Issue.record("Expected .refreshDelegatedToClaudeCLI, got \(error)")
-                        return
+                    do {
+                        _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                            environment: [:],
+                            allowKeychainPrompt: false,
+                            respectKeychainPromptCooldown: true)
+                        Issue.record("Expected delegated refresh error for Claude CLI-owned credentials")
+                    } catch let error as ClaudeOAuthCredentialsError {
+                        guard case .refreshDelegatedToClaudeCLI = error else {
+                            Issue.record("Expected .refreshDelegatedToClaudeCLI, got \(error)")
+                            return
+                        }
+                    } catch {
+                        Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
                     }
-                } catch {
-                    Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
                 }
             }
         }

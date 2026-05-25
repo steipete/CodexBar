@@ -5,13 +5,16 @@ import Testing
 
 extension CodexAccountScopedRefreshTests {
     @Test
-    func `dashboard refresh accepted via unresolved routing fallback during account scoped refresh`() async {
+    func `dashboard refresh accepted via unresolved routing fallback during account scoped refresh`() async throws {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountScopedRefreshTests-dashboard-unresolved-routing-fallback")
         let isolatedHome = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-dashboard-unresolved-routing-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: isolatedHome, withIntermediateDirectories: true)
+        let codexMetadata = try #require(ProviderDescriptorRegistry.metadata[.codex])
         settings.refreshFrequency = .manual
+        settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        settings.openAIWebAccessEnabled = true
         settings.codexCookieSource = .auto
         settings.codexActiveSource = .liveSystem
         settings._test_liveSystemCodexAccount = nil

@@ -81,6 +81,99 @@ struct ProviderHTTPClientTests {
             _ = try await transport.response(for: request)
         }
     }
+
+    @Test
+    func `response helper retries transient HTTP status once`() async throws {
+        let script = ScriptedHTTPTransport(statusCodes: [503, 200])
+        let request = try URLRequest(url: #require(URL(string: "https://example.com/retry")))
+
+        let response = try await script.response(for: request, retryPolicy: .testOneRetry)
+
+        #expect(response.statusCode == 200)
+        #expect(await script.requestCount() == 2)
+    }
+
+    @Test
+    func `response helper retries transient URL error once`() async throws {
+        let script = ScriptedHTTPTransport(results: [
+            .failure(URLError(.timedOut)),
+            .success(200),
+        ])
+        let request = try URLRequest(url: #require(URL(string: "https://example.com/retry-error")))
+
+        let response = try await script.response(for: request, retryPolicy: .testOneRetry)
+
+        #expect(response.statusCode == 200)
+        #expect(await script.requestCount() == 2)
+    }
+
+    @Test
+    func `response helper does not retry non idempotent methods`() async throws {
+        let script = ScriptedHTTPTransport(statusCodes: [503, 200])
+        var request = try URLRequest(url: #require(URL(string: "https://example.com/post")))
+        request.httpMethod = "POST"
+
+        let response = try await script.response(for: request, retryPolicy: .testOneRetry)
+
+        #expect(response.statusCode == 503)
+        #expect(await script.requestCount() == 1)
+    }
+
+    @Test
+    func `response helper does not retry auth failures`() async throws {
+        let script = ScriptedHTTPTransport(statusCodes: [403, 200])
+        let request = try URLRequest(url: #require(URL(string: "https://example.com/forbidden")))
+
+        let response = try await script.response(for: request, retryPolicy: .testOneRetry)
+
+        #expect(response.statusCode == 403)
+        #expect(await script.requestCount() == 1)
+    }
+}
+
+extension ProviderHTTPRetryPolicy {
+    fileprivate static let testOneRetry = ProviderHTTPRetryPolicy(
+        maxRetries: 1,
+        baseDelaySeconds: 0,
+        maxDelaySeconds: 0)
+}
+
+private actor ScriptedHTTPTransport: ProviderHTTPTransport {
+    enum Result {
+        case success(Int)
+        case failure(URLError)
+    }
+
+    private var results: [Result]
+    private var requests: [URLRequest] = []
+
+    init(statusCodes: [Int]) {
+        self.results = statusCodes.map(Result.success)
+    }
+
+    init(results: [Result]) {
+        self.results = results
+    }
+
+    func requestCount() -> Int {
+        self.requests.count
+    }
+
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        self.requests.append(request)
+        let next = self.results.isEmpty ? .success(200) : self.results.removeFirst()
+        switch next {
+        case let .success(statusCode):
+            let response = HTTPURLResponse(
+                url: request.url ?? URL(string: "https://example.com")!,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (Data(#"{"ok":true}"#.utf8), response)
+        case let .failure(error):
+            throw error
+        }
+    }
 }
 
 final class StubURLProtocol: URLProtocol {

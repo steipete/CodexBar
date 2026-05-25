@@ -90,6 +90,14 @@ export_team_id_from_identity() {
   if [[ -n "${APP_TEAM_ID:-}" || -z "${identity}" ]]; then
     return
   fi
+  local subject
+  subject="$(security find-certificate -c "${identity}" -p 2>/dev/null \
+    | openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null || true)"
+  if [[ "${subject}" =~ (^|,)OU=([A-Z0-9]{10})(,|$) ]]; then
+    APP_TEAM_ID="${BASH_REMATCH[2]}"
+    export APP_TEAM_ID
+    return
+  fi
   if [[ "${identity}" =~ \(([A-Z0-9]{10})\)$ ]]; then
     APP_TEAM_ID="${BASH_REMATCH[1]}"
     export APP_TEAM_ID

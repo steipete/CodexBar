@@ -5,6 +5,7 @@ public struct OpenCodeUsageSnapshot: Sendable {
     public let weeklyUsagePercent: Double
     public let rollingResetInSec: Int
     public let weeklyResetInSec: Int
+    public let renewsAt: Date?
     public let updatedAt: Date
 
     public init(
@@ -12,12 +13,14 @@ public struct OpenCodeUsageSnapshot: Sendable {
         weeklyUsagePercent: Double,
         rollingResetInSec: Int,
         weeklyResetInSec: Int,
+        renewsAt: Date? = nil,
         updatedAt: Date)
     {
         self.rollingUsagePercent = rollingUsagePercent
         self.weeklyUsagePercent = weeklyUsagePercent
         self.rollingResetInSec = rollingResetInSec
         self.weeklyResetInSec = weeklyResetInSec
+        self.renewsAt = renewsAt
         self.updatedAt = updatedAt
     }
 
@@ -36,9 +39,20 @@ public struct OpenCodeUsageSnapshot: Sendable {
             resetsAt: weeklyReset,
             resetDescription: nil)
 
+        var extraWindows: [NamedRateWindow]?
+        if let renewsAt = self.renewsAt {
+            let renewalWindow = RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: renewsAt,
+                resetDescription: nil)
+            extraWindows = [NamedRateWindow(id: "renewal", title: "Renews", window: renewalWindow)]
+        }
+
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
+            extraRateWindows: extraWindows,
             updatedAt: self.updatedAt,
             identity: nil)
     }

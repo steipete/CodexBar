@@ -171,6 +171,94 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `parses planName from concrete fields in remains response`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // 1. plan_name
+        let jsonPlanName = """
+        {
+          "base_resp": { "status_code": 0 },
+          "plan_name": "MiniMax Star",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot1 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonPlanName.utf8), now: now)
+        #expect(snapshot1.planName == "MiniMax Star")
+
+        // 2. current_plan_title
+        let jsonCurrentPlan = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_plan_title": "Coding Plan Pro",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot2 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonCurrentPlan.utf8), now: now)
+        #expect(snapshot2.planName == "Coding Plan Pro")
+
+        // 3. current_subscribe_title
+        let jsonSubscribe = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_subscribe_title": "Max",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot3 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonSubscribe.utf8), now: now)
+        #expect(snapshot3.planName == "Max")
+
+        // 4. combo_title
+        let jsonCombo = """
+        {
+          "base_resp": { "status_code": 0 },
+          "combo_title": "Combo Star",
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot4 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonCombo.utf8), now: now)
+        #expect(snapshot4.planName == "Combo Star")
+
+        // 5. current_combo_card.title
+        let jsonComboCard = """
+        {
+          "base_resp": { "status_code": 0 },
+          "current_combo_card": { "title": "Card Title" },
+          "model_remains": [{"model_name": "abab6.5"}]
+        }
+        """
+        let snapshot5 = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(jsonComboCard.utf8), now: now)
+        #expect(snapshot5.planName == "Card Title")
+    }
+
+    @Test
+    func `toUsageSnapshot maps planName to loginMethod`() {
+        let now = Date()
+        let snapshot1 = MiniMaxUsageSnapshot(
+            planName: "MiniMax Star",
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: now)
+        let usage1 = snapshot1.toUsageSnapshot()
+        #expect(usage1.identity?.loginMethod == "MiniMax Star")
+
+        let snapshot2 = MiniMaxUsageSnapshot(
+            planName: nil,
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: now)
+        let usage2 = snapshot2.toUsageSnapshot()
+        #expect(usage2.identity?.loginMethod == nil)
+    }
+
+    @Test
     func `parses coding plan snapshot`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
@@ -611,6 +699,73 @@ struct MiniMaxUsageParserTests {
 
         #expect(summary.todayTokens == 1234)
         #expect(summary.daily.map(\.day) == ["2026-05-17"])
+    }
+
+    @Test
+    func `billing history filters failed records`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "total_cnt": 5,
+          "charge_records": [
+            {
+              "consume_token": 1000,
+              "ymd": "2026-05-17",
+              "method": "chat",
+              "model": "MiniMax-M1",
+              "result": "SUCCESS"
+            },
+            {
+              "consume_token": 2000,
+              "ymd": "2026-05-17",
+              "method": "chat",
+              "model": "MiniMax-M1",
+              "result": "FAILED"
+            },
+            {
+              "consume_token": 3000,
+              "ymd": "2026-05-17",
+              "method": "chat",
+              "model": "MiniMax-M1",
+              "status": "fail"
+            },
+            {
+              "consume_token": 4000,
+              "ymd": "2026-05-17",
+              "method": "audio",
+              "model": "speech-2.8"
+            },
+            {
+              "consume_token": 5000,
+              "ymd": "2026-05-17",
+              "method": "video",
+              "model": "video-1",
+              "status": 0
+            }
+          ]
+        }
+        """
+
+        let summary = try MiniMaxBillingHistoryParser.parse(
+            data: Data(json.utf8),
+            now: now,
+            calendar: calendar)
+
+        // Only SUCCESS (1000) and missing/empty result status (4000) should be included.
+        // FAILED (2000), status "fail" (3000), and numeric status 0 (5000) should be skipped.
+        #expect(summary.todayTokens == 5000)
+        #expect(summary.last30DaysTokens == 5000)
+        #expect(summary.daily.map(\.day) == ["2026-05-17"])
+
+        // Top methods should aggregate only SUCCESS/missing records.
+        #expect(summary.topMethods.count == 2)
+        #expect(summary.topMethods[0].name == "audio")
+        #expect(summary.topMethods[0].tokens == 4000)
+        #expect(summary.topMethods[1].name == "chat")
+        #expect(summary.topMethods[1].tokens == 1000)
     }
 
     @Test

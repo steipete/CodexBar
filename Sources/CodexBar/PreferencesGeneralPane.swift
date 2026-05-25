@@ -8,6 +8,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case spanish = "es"
     case catalan = "ca"
     case chineseSimplified = "zh-Hans"
+    case chineseTraditional = "zh-Hant"
     case portugueseBrazilian = "pt-BR"
 
     var id: String {
@@ -21,6 +22,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .spanish: L("language_spanish")
         case .catalan: L("language_catalan")
         case .chineseSimplified: L("language_chinese_simplified")
+        case .chineseTraditional: L("language_chinese_traditional")
         case .portugueseBrazilian: L("language_portuguese_brazilian")
         }
     }

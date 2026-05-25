@@ -49,7 +49,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.creditsOnlyDecodeMismatchBodyMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
         let credits = try await fetcher.loadLatestCredits()
 
         #expect(credits.remaining == 14.5)
@@ -71,7 +71,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.decodeMismatchBodyMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
         let snapshot = try await fetcher.loadLatestUsage()
 
         #expect(snapshot.primary?.usedPercent == 4)
@@ -85,7 +85,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.decodeMismatchBodyMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
         let credits = try await fetcher.loadLatestCredits()
 
         #expect(credits.remaining == 0)
@@ -96,7 +96,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeCreditsOnlyStubCodexCLI()
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
         let credits = try await fetcher.loadLatestCredits()
 
         #expect(credits.remaining == 21)
@@ -110,7 +110,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI()
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
         let snapshot = try await fetcher.loadLatestUsage()
 
         #expect(snapshot.primary == nil)
@@ -125,7 +125,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI(includeCredits: true)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
         let snapshot = try await fetcher.loadLatestCLIAccountSnapshot()
 
         #expect(snapshot.usage?.primary == nil)
@@ -139,7 +139,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.partialDecodeBodyMessage)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = UsageFetcher(environment: ["CODEX_CLI_PATH": stubCLIPath])
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
 
         do {
             _ = try await fetcher.loadLatestUsage()
@@ -287,12 +287,19 @@ struct CodexUsageFetcherFallbackTests {
     }
     """
 
+    private func makeStubUsageFetcher(_ stubCLIPath: String) -> UsageFetcher {
+        UsageFetcher(
+            environment: ["CODEX_CLI_PATH": stubCLIPath],
+            initializeTimeoutSeconds: 20.0,
+            requestTimeoutSeconds: 3.0)
+    }
+
     private func makeDecodeMismatchStubCodexCLI(
         message: String = Self.decodeMismatchBodyMessage)
         throws -> String
     {
         let script = """
-        #!/usr/bin/python3
+        #!/usr/bin/python3 -S
         import json
         import sys
 
@@ -355,7 +362,7 @@ struct CodexUsageFetcherFallbackTests {
             ].joined(separator: "\n")
             : ""
         let script = """
-        #!/usr/bin/python3
+        #!/usr/bin/python3 -S
         import json
         import sys
 
@@ -411,7 +418,7 @@ struct CodexUsageFetcherFallbackTests {
 
     private func makeCreditsOnlyStubCodexCLI() throws -> String {
         let script = """
-        #!/usr/bin/python3
+        #!/usr/bin/python3 -S
         import json
         import sys
 

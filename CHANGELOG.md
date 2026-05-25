@@ -1,13 +1,53 @@
 # Changelog
 
-## 0.28.0 — Unreleased
+## 0.29.1 — Unreleased
+
+### Added
+- Display: add optional workday markers for weekly progress bars (#1102). Thanks @Yuxin-Qiao!
+- Localization: add Traditional Chinese (`zh-Hant`) app strings. Thanks @ilyaliao!
+
+### Fixed
+- Claude: classify Claude CLI 2.1 subscription-only `/usage` output separately and fall back to direct CLI usage when the PTY panel fails to load (#1121, fixes #1116). Thanks @Yuxin-Qiao!
+- Groq: show a distinct Groq provider icon instead of reusing the Grok glyph (#1112). Thanks @kiankyars!
+- Claude: normalize OAuth extra-usage spend limits from minor units so Enterprise spend displays as currency instead of 100x too high (#1114, fixes #1111). Thanks @Yuxin-Qiao!
+- Menu bar: preserve status item identity during display-change recovery so menu bar managers do not treat CodexBar as a new hidden item (#1122, fixes #1109). Thanks @lederniermagicien!
+- OpenAI: retry transient Admin API usage failures once before surfacing an access error (#1117).
+- OpenCode Go: read local usage history before falling back to browser-cookie dashboard fetches (#1021). Thanks @sopenlaz0!
+- Menu bar: show extra-usage spend as currency text for Claude and Cursor when that metric is selected (#1107). Thanks @Yuxin-Qiao!
+- Codex: run regular credits and OpenAI dashboard refreshes in the background while coalescing overlapping refresh work (#1078). Thanks @ptstory!
+
+## 0.29.0 — 2026-05-22
+
+### Added
+- Cost history: show Codex standard and fast spend/token splits in model breakdowns (#1070). Thanks @iam-brain!
+- Alibaba Token Plan: add Bailian token-plan quota tracking via browser or manual cookies (#1098). Thanks @YanxinXue!
+- OpenCode: show workspace renewal dates for OpenCode and OpenCode Go usage windows (#1099). Thanks @Yuxin-Qiao!
+
+### Fixed
+- Localization: improve Simplified Chinese settings and menu translations (#1059). Thanks @narallee!
+- Alibaba Token Plan: reject non-HTTPS endpoint overrides and keep the provider building on Linux (#1104). Thanks @YanxinXue!
+- Settings: avoid crashing when API key or cookie settings contain only a single quote character (#1106). Thanks @m1qaweb!
+- Build scripts: derive the local development signing team ID from the certificate OU before falling back to the CN suffix (#1095).
+- Menu bar: keep retrying display-change recovery when macOS leaves status items detached from the current screen (#1077, #1088).
+- Codex: preserve last successful per-account quota snapshots when later network or DNS refreshes fail (#1097, #1101). Thanks @Yuxin-Qiao!
+
+## 0.28.0 — 2026-05-22
 
 ### Added
 - Ollama: add API key authentication as an alternative to browser cookies for validating Cloud access (#1044). Thanks @nandorocker!
 - Azure OpenAI: add deployment-status validation via API key, endpoint, and deployment settings (#1045). Thanks @ZenoRewn!
 - Localizations: add Spanish and Catalan language packs and fill missing localization keys (#1041). Thanks @seifreed!
+- Providers: T3 Chat - add web-session usage tracking, can paste a full browser cURL when cookie-only refreshes hit a 429 challenge (#1091). Thanks @Quicksaver!
 
 ### Fixed
+- Menu: restore full-width provider switcher quota bars and refresh them while the menu stays open (#1094). Thanks @bcharleson!
+- Codex: accept the first click in the account switcher inside menu popovers (#1079). Thanks @ptstory!
+- Codex/Claude: terminate PTY child process trees during probe cleanup so wrapper-launched CLI descendants do not linger after sessions finish (#1085). Thanks @mickobizzle!
+- MiniMax: exclude explicitly failed billing-history records from token charts and model/method totals (#1089). Thanks @Yuxin-Qiao!
+- OpenAI: parse Wednesday and Saturday dashboard reset lines so rate-limit reset times are not dropped on those days (#1080). Thanks @m1qaweb!
+- Localization: translate provider-detail labels and empty states when Simplified Chinese is selected (#1051). Thanks @wang93wei!
+- Antigravity: discover OAuth credentials from the bundled extension language server in newer IDE builds so Add Account works again (#1076). Thanks @xARSENICx!
+- Menu bar: suppress redundant icon observer work during refresh cycles, reducing icon update passes without changing rendered state (#1081). Thanks @ptstory!
 - Menu bar: wait for display changes to settle before recovering status items and retry if macOS still leaves the icon detached (#1074). Thanks @yipjunkai!
 - Menu: keep lower action rows stable when Refresh is highlighted or pressed (#1071). Thanks @MadanChaollaPark!
 - Linux CLI: avoid linking JetBrains provider parsing against `libxml2.so.2`, improving compatibility with newer distros that ship libxml2 2.15+ (#1046). Thanks @semsemyonoff!

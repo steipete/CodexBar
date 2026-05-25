@@ -324,7 +324,7 @@ public enum CodexLaunchPreflight {
             return !hasQuarantine
         }
 
-        return !self.isExplicitlyBlockedAssessment(assessment)
+        return !self.isExplicitlyBlockedAssessment(assessment, path: native)
     }
 
     private static func nativeCodexExecutableCandidates(for path: String, fileManager: FileManager) -> [String] {
@@ -417,14 +417,39 @@ public enum CodexLaunchPreflight {
         return String(data: data, encoding: .utf8)
     }
 
-    private static func isExplicitlyBlockedAssessment(_ assessment: String) -> Bool {
-        let lower = assessment.lowercased()
-        return lower.contains("rejected") ||
-            lower.contains("denied") ||
+    private static func isExplicitlyBlockedAssessment(_ assessment: String, path: String) -> Bool {
+        let lower = self.assessmentDiagnosticText(assessment, path: path).lowercased()
+        if lower.contains("denied") ||
             lower.contains("cssmerr_tp_cert_revoked") ||
             lower.contains("revoked") ||
             lower.contains("malware") ||
             lower.contains("quarantine")
+        {
+            return true
+        }
+        if lower.contains("rejected") {
+            return !lower.contains("code is valid but does not seem to be an app")
+        }
+        return false
+    }
+
+    private static func assessmentDiagnosticText(_ assessment: String, path: String) -> String {
+        assessment
+            .split(whereSeparator: \.isNewline)
+            .enumerated()
+            .compactMap { offset, line -> String? in
+                var text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if offset == 0, text.hasPrefix("\(path):") {
+                    text = String(text.dropFirst(path.count + 1))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                let lower = text.lowercased()
+                guard !lower.hasPrefix("source="), !lower.hasPrefix("origin=") else {
+                    return nil
+                }
+                return text
+            }
+            .joined(separator: "\n")
     }
     #endif
 }

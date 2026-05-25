@@ -651,8 +651,7 @@ public struct OllamaAPISettingsReader: Sendable {
         if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
             (value.hasPrefix("'") && value.hasSuffix("'"))
         {
-            value.removeFirst()
-            value.removeLast()
+            value = String(value.dropFirst().dropLast())
         }
         return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }

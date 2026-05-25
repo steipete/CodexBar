@@ -346,7 +346,10 @@ extension StatusItemController {
     {
         self.performMenuMutationWithoutAnimation {
             let contentStartIndex = menu.items.first?.view is ProviderSwitcherView ? 2 : 0
-            (menu.items.first?.view as? ProviderSwitcherView)?.updateSelection(context.switcherSelection)
+            if let switcherView = menu.items.first?.view as? ProviderSwitcherView {
+                switcherView.updateSelection(context.switcherSelection)
+                switcherView.updateQuotaIndicators()
+            }
             while menu.items.count > contentStartIndex {
                 menu.removeItem(at: contentStartIndex)
             }

@@ -647,9 +647,17 @@ struct CodexAccountPromotionServiceTests {
             authAccountID: "acct-beta")
         try container.persistAccounts([target])
         let liveAuthData = try container.writeLiveAPIKeyAuthFile()
+        let snapshotLoader =
+            StaticCodexAccountReconciliationSnapshotLoader(snapshot: CodexAccountReconciliationSnapshot(
+                storedAccounts: [target],
+                activeStoredAccount: nil,
+                liveSystemAccount: nil,
+                matchingStoredAccountForLiveSystemAccount: nil,
+                activeSource: .liveSystem,
+                hasUnreadableAddedAccountStore: false))
 
         await #expect(throws: CodexAccountPromotionError.liveAccountAPIKeyOnlyUnsupported) {
-            try await container.makeService().promoteManagedAccount(id: target.id)
+            try await container.makeService(snapshotLoader: snapshotLoader).promoteManagedAccount(id: target.id)
         }
 
         #expect(try container.liveAuthData() == liveAuthData)
@@ -667,12 +675,44 @@ struct CodexAccountPromotionServiceTests {
             persistedEmail: "beta@example.com",
             authAccountID: "acct-beta")
         try container.persistAccounts([target])
+        let snapshotLoader =
+            StaticCodexAccountReconciliationSnapshotLoader(snapshot: CodexAccountReconciliationSnapshot(
+                storedAccounts: [target],
+                activeStoredAccount: nil,
+                liveSystemAccount: nil,
+                matchingStoredAccountForLiveSystemAccount: nil,
+                activeSource: .liveSystem,
+                hasUnreadableAddedAccountStore: false))
         _ = try container.writeLiveOAuthAuthFile(email: "alpha@example.com", accountID: "acct-alpha")
         container.seedScopedRefreshState(
             email: "alpha@example.com",
             identity: .providerAccount(id: "acct-alpha"))
+        let refresher = ClosureCodexAccountScopedRefresher { _ in
+            let snapshot = UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "beta@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "Pro"))
+            let credits = CreditsSnapshot(remaining: 17, events: [], updatedAt: Date())
+            container.usageStore._setSnapshotForTesting(snapshot, provider: .codex)
+            container.usageStore.credits = credits
+            container.usageStore.lastCreditsSnapshot = credits
+            container.usageStore.lastCreditsSnapshotAccountKey = "beta@example.com"
+            container.usageStore.lastCreditsSource = .api
+            container.usageStore.lastCodexAccountScopedRefreshGuard = CodexAccountScopedRefreshGuard(
+                source: .liveSystem,
+                identity: .providerAccount(id: "acct-beta"),
+                accountKey: "beta@example.com")
+        }
 
-        let result = try await container.makeService().promoteManagedAccount(id: target.id)
+        let result = try await container.makeService(
+            snapshotLoader: snapshotLoader,
+            accountScopedRefresher: refresher)
+            .promoteManagedAccount(id: target.id)
 
         #expect(result.outcome == .promoted)
         #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")

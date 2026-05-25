@@ -9,6 +9,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
     public let weeklyResetInSec: Int
     public let monthlyResetInSec: Int
     public let zenBalanceUSD: Double?
+    public let renewsAt: Date?
     public let updatedAt: Date
 
     public init(
@@ -20,6 +21,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         weeklyResetInSec: Int,
         monthlyResetInSec: Int,
         zenBalanceUSD: Double? = nil,
+        renewsAt: Date? = nil,
         updatedAt: Date)
     {
         self.hasMonthlyUsage = hasMonthlyUsage
@@ -30,6 +32,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         self.weeklyResetInSec = weeklyResetInSec
         self.monthlyResetInSec = monthlyResetInSec
         self.zenBalanceUSD = zenBalanceUSD
+        self.renewsAt = renewsAt
         self.updatedAt = updatedAt
     }
 
@@ -59,10 +62,21 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
             tertiary = nil
         }
 
+        var extraWindows: [NamedRateWindow]?
+        if let renewsAt = self.renewsAt {
+            let renewalWindow = RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: renewsAt,
+                resetDescription: nil)
+            extraWindows = [NamedRateWindow(id: "renewal", title: "Renews", window: renewalWindow)]
+        }
+
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
+            extraRateWindows: extraWindows,
             providerCost: self.zenBalanceUSD.map {
                 ProviderCostSnapshot(
                     used: $0,
@@ -85,6 +99,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
             weeklyResetInSec: self.weeklyResetInSec,
             monthlyResetInSec: self.monthlyResetInSec,
             zenBalanceUSD: balance,
+            renewsAt: self.renewsAt,
             updatedAt: self.updatedAt)
     }
 }

@@ -8,6 +8,7 @@ enum ProviderChoice: String, AppEnum {
     case claude
     case gemini
     case alibaba
+    case alibabatokenplan
     case antigravity
     case zai
     case copilot
@@ -23,6 +24,7 @@ enum ProviderChoice: String, AppEnum {
         .claude: DisplayRepresentation(title: "Claude"),
         .gemini: DisplayRepresentation(title: "Gemini"),
         .alibaba: DisplayRepresentation(title: "Alibaba"),
+        .alibabatokenplan: DisplayRepresentation(title: "Alibaba Token Plan"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
         .zai: DisplayRepresentation(title: "z.ai"),
         .copilot: DisplayRepresentation(title: "Copilot"),
@@ -38,6 +40,7 @@ enum ProviderChoice: String, AppEnum {
         case .claude: .claude
         case .gemini: .gemini
         case .alibaba: .alibaba
+        case .alibabatokenplan: .alibabatokenplan
         case .antigravity: .antigravity
         case .zai: .zai
         case .copilot: .copilot
@@ -57,6 +60,7 @@ enum ProviderChoice: String, AppEnum {
         case .claude: self = .claude
         case .gemini: self = .gemini
         case .alibaba: self = .alibaba
+        case .alibabatokenplan: self = .alibabatokenplan
         case .antigravity: self = .antigravity
         case .cursor: return nil // Cursor not yet supported in widgets
         case .opencode: self = .opencode
@@ -75,6 +79,7 @@ enum ProviderChoice: String, AppEnum {
         case .kimik2: return nil // Kimi K2 not yet supported in widgets
         case .moonshot: return nil // Moonshot not yet supported in widgets
         case .amp: return nil // Amp not yet supported in widgets
+        case .t3chat: return nil // T3 Chat not yet supported in widgets
         case .ollama: return nil // Ollama not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets

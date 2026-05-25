@@ -1069,6 +1069,33 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `menu observation token updates on weekly progress work days changes`() async throws {
+        let suite = "SettingsStoreTests-observation-weekly-progress-work-days"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        let didChange = ObservationFlag()
+
+        withObservationTracking {
+            _ = store.menuObservationToken
+        } onChange: {
+            didChange.set()
+        }
+
+        store.weeklyProgressWorkDays = 5
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(didChange.get() == true)
+    }
+
+    @Test
     func `config backed settings trigger observation`() async throws {
         let suite = "SettingsStoreTests-observation-config"
         let defaults = try #require(UserDefaults(suiteName: suite))
