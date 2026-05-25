@@ -1553,6 +1553,66 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex forked child skips cumulative totals when parent session is missing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let parentDay = try env.makeLocalNoon(year: 2026, month: 2, day: 27)
+        let childDay = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let model = "openai/gpt-5.2-codex"
+        let missingParentSessionId = "sess-parent-deleted"
+        let childSessionId = "sess-child-deleted-parent"
+        let forkTs = env.isoString(for: parentDay.addingTimeInterval(2.5))
+
+        _ = try env.writeCodexSessionFile(
+            day: childDay,
+            filename: "rollout-2026-03-11T11-30-27-\(childSessionId).jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": [
+                        "id": childSessionId,
+                        "forked_from_id": missingParentSessionId,
+                        "timestamp": forkTs,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: env.isoString(for: childDay), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: childDay.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 1_000_000, cached: 100_000, output: 10000)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: childDay.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 1_000_120, cached: 100_010, output: 10020)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: childDay.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 1_000_140, cached: 100_012, output: 10023),
+                    last: (input: 20, cached: 2, output: 3)),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        options.forceRescan = true
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: childDay,
+            until: childDay,
+            now: childDay,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 20)
+        #expect(report.data[0].outputTokens == 3)
+        #expect(report.data[0].totalTokens == 23)
+    }
+
+    @Test
     func `codex forked child inherits counted parent totals when totals diverge`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
