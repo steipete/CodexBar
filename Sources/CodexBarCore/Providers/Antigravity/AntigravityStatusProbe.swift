@@ -79,6 +79,15 @@ public struct AntigravityStatusSnapshot: Sendable {
         let secondary = secondaryQuota.map(Self.rateWindow(for:))
         let tertiary = tertiaryQuota.map(Self.rateWindow(for:))
 
+        // primary/secondary/tertiary keep the 3-family representative summary for
+        // back-compat. extraRateWindows carries EVERY model quota loss-free —
+        // including families with no dedicated slot (e.g. GPT-OSS) and the
+        // per-effort variants the representative selection collapses — so a
+        // consumer can render the complete per-model breakdown the IDE shows.
+        let extraWindows = self.modelQuotas.map { quota in
+            NamedRateWindow(id: quota.modelId, title: quota.label, window: Self.rateWindow(for: quota))
+        }
+
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
             accountEmail: self.accountEmail,
@@ -88,6 +97,7 @@ public struct AntigravityStatusSnapshot: Sendable {
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
+            extraRateWindows: extraWindows.isEmpty ? nil : extraWindows,
             updatedAt: Date(),
             identity: identity)
     }
