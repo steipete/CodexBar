@@ -814,9 +814,18 @@ extension PlanUtilizationHistoryChartMenuView {
 
     private nonisolated static func detailDateLabel(for date: Date, windowMinutes: Int) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale.current
+        formatter.locale = codexBarLocalizedLocale()
         formatter.timeZone = TimeZone.current
         formatter.setLocalizedDateFormatFromTemplate("MMM d, h:mm a")
-        return formatter.string(from: date)
+        var rendered = formatter.string(from: date).replacingOccurrences(of: "\u{202F}", with: " ")
+        let amSymbol = formatter.amSymbol ?? ""
+        let pmSymbol = formatter.pmSymbol ?? ""
+        if !amSymbol.isEmpty {
+            rendered = rendered.replacingOccurrences(of: amSymbol, with: amSymbol.lowercased())
+        }
+        if !pmSymbol.isEmpty {
+            rendered = rendered.replacingOccurrences(of: pmSymbol, with: pmSymbol.lowercased())
+        }
+        return rendered
     }
 }

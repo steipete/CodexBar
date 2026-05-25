@@ -677,8 +677,15 @@
 "Last %d days" = "Last %d days";
 "Latest billing day" = "Latest billing day";
 "Latest billing day (%@)" = "Latest billing day (%@)";
+"%@ left" = "%@ left";
+"Resets %@" = "Resets %@";
 "Resets in %@" = "Resets in %@";
+"Resets now" = "Resets now";
 "Lasts until reset" = "Lasts until reset";
+"Updated %@" = "Updated %@";
+"Updated %@h ago" = "Updated %@h ago";
+"Updated %@m ago" = "Updated %@m ago";
+"Updated just now" = "Updated just now";
 "Projected empty in %@" = "Projected empty in %@";
 "Runs out in %@" = "Runs out in %@";
 "%d%% in deficit" = "%d%% in deficit";

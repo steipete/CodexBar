@@ -10,6 +10,7 @@ public enum UsageFormatter {
 
     private static let localizationLock = NSLock()
     private nonisolated(unsafe) static var localizationProvider: (@Sendable (String) -> String)?
+    private nonisolated(unsafe) static var localeProvider: (@Sendable () -> Locale)?
 
     public static func setLocalizationProvider(_ provider: @escaping @Sendable (String) -> String) {
         self.localizationLock.lock()
@@ -21,6 +22,25 @@ public enum UsageFormatter {
         self.localizationLock.lock()
         self.localizationProvider = nil
         self.localizationLock.unlock()
+    }
+
+    public static func setLocaleProvider(_ provider: @escaping @Sendable () -> Locale) {
+        self.localizationLock.lock()
+        self.localeProvider = provider
+        self.localizationLock.unlock()
+    }
+
+    public static func clearLocaleProvider() {
+        self.localizationLock.lock()
+        self.localeProvider = nil
+        self.localizationLock.unlock()
+    }
+
+    private static func currentLocale() -> Locale {
+        self.localizationLock.lock()
+        let provider = self.localeProvider
+        self.localizationLock.unlock()
+        return provider?() ?? .autoupdatingCurrent
     }
 
     private static func localized(_ key: String) -> String {
@@ -46,7 +66,7 @@ public enum UsageFormatter {
 
     private static func localized(_ key: String, _ args: CVarArg...) -> String {
         let format = self.localized(key)
-        return String(format: format, locale: Locale.current, arguments: args)
+        return String(format: format, locale: self.currentLocale(), arguments: args)
     }
 
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
@@ -82,14 +102,14 @@ public enum UsageFormatter {
         // Human-friendly phrasing: today / tomorrow / date+time.
         let calendar = Calendar.current
         if calendar.isDate(date, inSameDayAs: now) {
-            return date.formatted(date: .omitted, time: .shortened)
+            return date.formatted(.dateTime.hour().minute().locale(self.currentLocale()))
         }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(date, inSameDayAs: tomorrow)
         {
-            return "tomorrow, \(date.formatted(date: .omitted, time: .shortened))"
+            return "tomorrow, \(date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))"
         }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(self.currentLocale()))
     }
 
     public static func resetLine(
@@ -134,7 +154,7 @@ public enum UsageFormatter {
         if let hours = Calendar.current.dateComponents([.hour], from: date, to: now).hour, hours < 24 {
             #if os(macOS)
             let rel = RelativeDateTimeFormatter()
-            rel.locale = Locale.current
+            rel.locale = self.currentLocale()
             rel.unitsStyle = .abbreviated
             return self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
             #else
@@ -147,7 +167,9 @@ public enum UsageFormatter {
             return self.localized("Updated %@h ago", String(wholeHours))
             #endif
         } else {
-            return self.localized("Updated %@", date.formatted(date: .omitted, time: .shortened))
+            return self.localized(
+                "Updated %@",
+                date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))
         }
     }
 

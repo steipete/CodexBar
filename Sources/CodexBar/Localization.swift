@@ -117,4 +117,7 @@ func configureUsageFormatterLocalizationProvider() {
         let resourceBundle = codexBarLocalizationResourceBundle()
         return codexBarLocalizedString(key, bundle: localizedBundle(), resourceBundle: resourceBundle)
     }
+    UsageFormatter.setLocaleProvider {
+        codexBarLocalizedLocale()
+    }
 }

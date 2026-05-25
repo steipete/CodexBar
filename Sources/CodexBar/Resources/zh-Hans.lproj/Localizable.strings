@@ -662,8 +662,15 @@
 "Last %d days" = "近 %d 天";
 "Latest billing day" = "最近结算日";
 "Latest billing day (%@)" = "最近结算日（%@）";
+"%@ left" = "%@ 剩余";
+"Resets %@" = "重置于 %@";
 "Resets in %@" = "%@后重置";
+"Resets now" = "立即重置";
 "Lasts until reset" = "可用至重置";
+"Updated %@" = "更新于 %@";
+"Updated %@h ago" = "%@ 小时前更新";
+"Updated %@m ago" = "%@ 分钟前更新";
+"Updated just now" = "刚刚更新";
 "Projected empty in %@" = "预计 %@ 后用尽";
 "Runs out in %@" = "预计 %@ 后用尽";
 "%d%% in deficit" = "超额 %d%%";

@@ -4,14 +4,31 @@ import Testing
 @testable import CodexBar
 
 struct UsageFormatterTests {
+    private static let usageFormatterLocalizationKeys: [String] = [
+        "%@ left",
+        "Resets %@",
+        "Resets in %@",
+        "Resets now",
+        "Updated %@",
+        "Updated %@h ago",
+        "Updated %@m ago",
+        "Updated just now",
+        "usage_percent_suffix_left",
+        "usage_percent_suffix_used",
+    ]
+
     @Test
     func `formats usage line`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
         let line = UsageFormatter.usageLine(remaining: 25, used: 75, showUsed: false)
         #expect(line == "25% left")
     }
 
     @Test
     func `formats usage line show used`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
         let line = UsageFormatter.usageLine(remaining: 25, used: 75, showUsed: true)
         #expect(line == "75% used")
     }
@@ -246,5 +263,47 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.byteCountString(10 * 1024) == "10 KB")
         #expect(UsageFormatter.byteCountString(5 * 1024 * 1024) == "5 MB")
         #expect(UsageFormatter.byteCountString(Int64(1536 * 1024 * 1024)) == "1.5 GB")
+    }
+
+    @Test
+    func `usage formatter localization keys exist in en and zh Hans with matching placeholders`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let enURL = root.appendingPathComponent("Sources/CodexBar/Resources/en.lproj/Localizable.strings")
+        let zhURL = root.appendingPathComponent("Sources/CodexBar/Resources/zh-Hans.lproj/Localizable.strings")
+
+        let en = try Self.readStringsTable(at: enURL)
+        let zh = try Self.readStringsTable(at: zhURL)
+
+        for key in Self.usageFormatterLocalizationKeys {
+            let enValue = try #require(en[key], "Missing en key: \(key)")
+            let zhValue = try #require(zh[key], "Missing zh-Hans key: \(key)")
+            #expect(
+                Self.placeholderTokens(in: enValue) == Self.placeholderTokens(in: zhValue),
+                "Placeholder mismatch for key '\(key)': en='\(enValue)' zh='\(zhValue)'")
+        }
+    }
+
+    private static func readStringsTable(at url: URL) throws -> [String: String] {
+        guard let dict = NSDictionary(contentsOf: url) as? [String: String] else {
+            throw NSError(
+                domain: "UsageFormatterTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to parse strings file at \(url.path)"])
+        }
+        return dict
+    }
+
+    private static func placeholderTokens(in value: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "%(?:\\d+\\$)?[@dDuUxXfFeEgGcCsSpaA]") else {
+            return []
+        }
+        let nsRange = NSRange(value.startIndex..<value.endIndex, in: value)
+        return regex
+            .matches(in: value, options: [], range: nsRange)
+            .compactMap { Range($0.range, in: value).map { String(value[$0]) } }
     }
 }
