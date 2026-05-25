@@ -162,6 +162,31 @@ struct OllamaUsageParserTests {
     }
 
     @Test
+    func `weekly usage parser finds reset timestamp in long usage block`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let filler = String(repeating: "<span class=\"grid-cell\"></span>", count: 40)
+        let html = """
+        <div>
+          <span>Session usage</span>
+          <span>0.1% used</span>
+          <span>Weekly usage</span>
+          <span>0.7% used</span>
+          \(filler)
+          <div class=\"local-time\" data-time=\"2026-02-02T00:00:00Z\">Resets in 2 days</div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let expectedWeekly = formatter.date(from: "2026-02-02T00:00:00Z")
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.secondary?.resetsAt == expectedWeekly)
+    }
+
+    @Test
     func `parses usage when used is capitalized`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """

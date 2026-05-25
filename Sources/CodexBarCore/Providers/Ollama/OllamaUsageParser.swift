@@ -2,6 +2,7 @@ import Foundation
 
 enum OllamaUsageParser {
     private static let primaryUsageLabels = ["Session usage", "Hourly usage"]
+    private static let usageLabels = primaryUsageLabels + ["Weekly usage"]
 
     enum ParseFailure: Equatable {
         case notLoggedIn
@@ -74,7 +75,7 @@ enum OllamaUsageParser {
     private static func parseUsageBlock(label: String, html: String) -> UsageBlock? {
         guard let labelRange = html.range(of: label) else { return nil }
         let tail = String(html[labelRange.upperBound...])
-        let window = String(tail.prefix(800))
+        let window = self.usageBlockWindow(after: label, in: tail)
 
         guard let usedPercent = self.parsePercent(in: window) else { return nil }
         let resetsAt = self.parseISODate(in: window)
@@ -92,6 +93,16 @@ enum OllamaUsageParser {
             }
         }
         return nil
+    }
+
+    private static func usageBlockWindow(after label: String, in tail: String) -> String {
+        let maxLength = 4000
+        let boundary = self.usageLabels
+            .filter { $0 != label }
+            .compactMap { tail.range(of: $0)?.lowerBound }
+            .min()
+        let bounded = boundary.map { String(tail[..<$0]) } ?? String(tail.prefix(maxLength))
+        return String(bounded.prefix(maxLength))
     }
 
     private static func parsePercent(in text: String) -> Double? {
