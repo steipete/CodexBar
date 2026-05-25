@@ -172,7 +172,8 @@ struct CostHistoryChartMenuView: View {
 
             if let total = self.totalCostUSD {
                 Text(String(
-                    format: L("Est. total (30d): %@"),
+                    format: L("Est. total (%@): %@"),
+                    Self.windowLabel(days: self.historyDays),
                     UsageFormatter.usdString(total)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -208,7 +209,7 @@ struct CostHistoryChartMenuView: View {
     private static let detailSpacing: CGFloat = 6
 
     private static func windowLabel(days: Int) -> String {
-        days == 1 ? L("today") : String(format: L("%dd"), days)
+        String(format: L("%dd"), days)
     }
 
     private static func detailRowHeight(for row: DetailRow) -> CGFloat {

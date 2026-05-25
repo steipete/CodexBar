@@ -706,6 +706,17 @@
 "No %@ utilization data yet." = "No %@ utilization data yet.";
 "%@: %@%% used" = "%@: %@%% used";
 "%dd" = "%dd";
+"today" = "today";
+"just now" = "just now";
+"On pace" = "On pace";
+"Runs out now" = "Runs out now";
+"Projected empty now" = "Projected empty now";
+"Switch Account..." = "Switch Account...";
+"Update ready, restart now?" = "Update ready, restart now?";
+"Daily" = "Daily";
+"Hourly Tokens" = "Hourly Tokens";
+"No data" = "No data";
+"No usage breakdown data available." = "No usage breakdown data available.";
 
 "Today: %@ · %@ tokens" = "Today: %@ · %@ tokens";
 "Today: %@" = "Today: %@";
