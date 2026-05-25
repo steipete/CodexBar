@@ -25,8 +25,8 @@ public struct GrokUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary window: monthly credit usage from the CLI RPC, falling back to
-        // the web billing RPC used by grok.com when the agent surface lacks billing.
+        // Primary window: credit usage (against included limit) from the CLI RPC,
+        // falling back to the web billing RPC used by grok.com when the agent surface lacks billing.
         var primary: RateWindow?
         if let billing,
            let percent = billing.monthlyUsedPercent

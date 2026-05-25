@@ -10,7 +10,7 @@ public enum GrokProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .grok,
                 displayName: "Grok",
-                sessionLabel: "Monthly",
+                sessionLabel: "Credits",
                 weeklyLabel: "On-demand",
                 opusLabel: nil,
                 supportsOpus: false,
@@ -52,6 +52,20 @@ public enum GrokProviderDescriptor {
         case .api, .oauth:
             []
         }
+    }
+
+    /// Returns a contextual label for Grok's primary usage bar ("Weekly" or "Monthly")
+    /// derived from the live `resetsAt` on the current RateWindow. Returns nil when the
+    /// period does not match a common cycle or is unknown; callers should fall back to
+    /// the static `sessionLabel` ("Credits").
+    public static func primaryLabel(resetsAt: Date?, now: Date = .now) -> String? {
+        guard let resetsAt else { return nil }
+        let seconds = resetsAt.timeIntervalSince(now)
+        guard seconds > 3600 else { return nil }
+        let days = Int((seconds / 86400).rounded(.toNearestOrAwayFromZero))
+        if (4...12).contains(days) { return "Weekly" }
+        if (20...45).contains(days) { return "Monthly" }
+        return nil
     }
 }
 

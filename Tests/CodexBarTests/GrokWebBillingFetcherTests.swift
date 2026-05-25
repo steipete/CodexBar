@@ -28,6 +28,27 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
+    func `descriptor uses Credits label for primary usage window`() {
+        let metadata = GrokProviderDescriptor.descriptor.metadata
+        #expect(metadata.sessionLabel == "Credits")
+        #expect(metadata.weeklyLabel == "On-demand")
+        #expect(!metadata.supportsOpus)
+    }
+
+    @Test
+    func `primaryLabel derives Weekly or Monthly from resetsAt`() {
+        let now = Date()
+        let in6Days = now.addingTimeInterval(6 * 86400)
+        let in30Days = now.addingTimeInterval(30 * 86400)
+        let in90Days = now.addingTimeInterval(90 * 86400)
+
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Days) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days) == "Monthly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in90Days) == nil)
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: nil) == nil)
+    }
+
+    @Test
     func `cli runtime does not import browser cookies unless explicitly enabled`() {
         #expect(GrokWebFetchStrategy.canImportBrowserCookies(runtime: .app, env: [:]))
         #expect(!GrokWebFetchStrategy.canImportBrowserCookies(runtime: .cli, env: [:]))
