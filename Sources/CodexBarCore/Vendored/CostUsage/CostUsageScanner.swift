@@ -865,6 +865,18 @@ enum CostUsageScanner {
         let forkTimestamp: String?
     }
 
+    private static func codexForkParentId(from payload: [String: Any]?) -> String? {
+        guard let payload else { return nil }
+        for key in ["forked_from_id", "forkedFromId", "parent_session_id", "parentSessionId"] {
+            guard let value = payload[key] as? String else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
     private static func parseCodexSessionIdentifier(fileURL: URL) -> String? {
         self.parseCodexSessionMetadata(fileURL: fileURL)?.sessionId
     }
@@ -898,10 +910,7 @@ enum CostUsageScanner {
                         ?? obj["session_id"] as? String
                         ?? obj["sessionId"] as? String
                         ?? obj["id"] as? String,
-                    forkedFromId: payload?["forked_from_id"] as? String
-                        ?? payload?["forkedFromId"] as? String
-                        ?? payload?["parent_session_id"] as? String
-                        ?? payload?["parentSessionId"] as? String,
+                    forkedFromId: Self.codexForkParentId(from: payload),
                     forkTimestamp: payload?["timestamp"] as? String
                         ?? obj["timestamp"] as? String)
             }
@@ -1183,10 +1192,7 @@ enum CostUsageScanner {
                                     ?? obj["id"] as? String
                             }
                             if forkedFromId == nil {
-                                forkedFromId = payload?["forked_from_id"] as? String
-                                    ?? payload?["forkedFromId"] as? String
-                                    ?? payload?["parent_session_id"] as? String
-                                    ?? payload?["parentSessionId"] as? String
+                                forkedFromId = Self.codexForkParentId(from: payload)
                             }
                             if let forkedFromId {
                                 let forkedAt = payload?["timestamp"] as? String

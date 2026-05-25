@@ -1613,6 +1613,58 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex empty fork parent id still counts cumulative totals`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let model = "openai/gpt-5.2-codex"
+        let sessionId = "sess-empty-fork-parent"
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-2026-03-11T11-30-27-\(sessionId).jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": [
+                        "id": sessionId,
+                        "forked_from_id": "",
+                        "timestamp": env.isoString(for: day),
+                    ],
+                ],
+                self.codexTurnContext(timestamp: env.isoString(for: day.addingTimeInterval(1)), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 100, cached: 10, output: 5)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 125, cached: 12, output: 8)),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        options.forceRescan = true
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 125)
+        #expect(report.data[0].outputTokens == 8)
+        #expect(report.data[0].totalTokens == 133)
+    }
+
+    @Test
     func `codex forked child inherits counted parent totals when totals diverge`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
