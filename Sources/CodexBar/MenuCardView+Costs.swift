@@ -31,28 +31,24 @@ extension UsageMenuCardView.Model {
 
         let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
+        let sessionLabel = provider == .bedrock ? Self.bedrockLatestBillingDayLabel(from: snapshot) : L("Today")
         let sessionLine: String = {
-            if provider == .bedrock {
-                if let sessionTokens {
-                    return String(format: L("Today: %@ · %@ tokens"), sessionCost, sessionTokens)
-                }
-                return String(format: L("Today: %@"), sessionCost)
-            }
             if let sessionTokens {
-                return String(format: L("Today: %@ · %@ tokens"), sessionCost, sessionTokens)
+                return String(format: L("%@: %@ · %@ tokens"), sessionLabel, sessionCost, sessionTokens)
             }
-            return String(format: L("Today: %@"), sessionCost)
+            return "\(sessionLabel): \(sessionCost)"
         }()
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
+        let windowLabel = Self.costHistoryWindowLabel(days: snapshot.historyDays)
         let monthLine: String = {
             if let monthTokens {
-                return String(format: L("Last 30 days: %@ · %@ tokens"), monthCost, monthTokens)
+                return String(format: L("%@: %@ · %@ tokens"), windowLabel, monthCost, monthTokens)
             }
-            return String(format: L("Last 30 days: %@"), monthCost)
+            return "\(windowLabel): \(monthCost)"
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
@@ -79,14 +75,14 @@ extension UsageMenuCardView.Model {
     }
 
     static func costHistoryWindowLabel(days: Int) -> String {
-        days == 1 ? L("Today") : String(format: L("Last %d days"), days)
+        days == 1 ? String(format: L("Last %d day"), days) : String(format: L("Last %d days"), days)
     }
 
     private static func bedrockLatestBillingDayLabel(from snapshot: CostUsageTokenSnapshot) -> String {
         guard let entry = bedrockLatestBillingDay(from: snapshot.daily),
               let displayDate = bedrockDisplayDate(from: entry.date)
-        else { return "Latest billing day" }
-        return "Latest billing day (\(displayDate))"
+        else { return L("Latest billing day") }
+        return String(format: L("Latest billing day (%@)"), displayDate)
     }
 
     private static func bedrockLatestBillingDay(from entries: [CostUsageDailyReport.Entry])

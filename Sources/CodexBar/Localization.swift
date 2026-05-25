@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 
 private func appLanguageDefaults() -> UserDefaults {
@@ -109,4 +110,11 @@ func codexBarLocalizedString(_ key: String, bundle: Bundle, resourceBundle: Bund
 
     let fallback = englishBundle.localizedString(forKey: key, value: nil, table: nil)
     return fallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? key : fallback
+}
+
+func configureUsageFormatterLocalizationProvider() {
+    UsageFormatter.setLocalizationProvider { key in
+        let resourceBundle = codexBarLocalizationResourceBundle()
+        return codexBarLocalizedString(key, bundle: localizedBundle(), resourceBundle: resourceBundle)
+    }
 }

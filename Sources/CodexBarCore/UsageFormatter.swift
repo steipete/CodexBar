@@ -6,8 +6,42 @@ public enum ResetTimeDisplayStyle: String, Codable, Sendable {
 }
 
 public enum UsageFormatter {
+    private final class BundleToken {}
+
+    private static let localizationLock = NSLock()
+    private nonisolated(unsafe) static var localizationProvider: (@Sendable (String) -> String)?
+
+    public static func setLocalizationProvider(_ provider: @escaping @Sendable (String) -> String) {
+        self.localizationLock.lock()
+        self.localizationProvider = provider
+        self.localizationLock.unlock()
+    }
+
+    public static func clearLocalizationProvider() {
+        self.localizationLock.lock()
+        self.localizationProvider = nil
+        self.localizationLock.unlock()
+    }
+
     private static func localized(_ key: String) -> String {
-        NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
+        self.localizationLock.lock()
+        let provider = self.localizationProvider
+        self.localizationLock.unlock()
+        if let provider {
+            return provider(key)
+        }
+        let coreBundle = Bundle(for: BundleToken.self)
+        let coreValue = NSLocalizedString(key, tableName: "Localizable", bundle: coreBundle, value: key, comment: "")
+        if coreValue != key { return coreValue }
+
+        let mainValue = NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
+        if mainValue != key { return mainValue }
+
+        switch key {
+        case "usage_percent_suffix_left": return "left"
+        case "usage_percent_suffix_used": return "used"
+        default: return key
+        }
     }
 
     private static func localized(_ key: String, _ args: CVarArg...) -> String {
@@ -18,7 +52,9 @@ public enum UsageFormatter {
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
         let clamped = min(100, max(0, percent))
-        let suffix = showUsed ? "used" : "left"
+        let suffix = showUsed
+            ? self.localized("usage_percent_suffix_used")
+            : self.localized("usage_percent_suffix_left")
         return String(format: "%.0f%% %@", clamped, suffix)
     }
 

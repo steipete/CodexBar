@@ -658,7 +658,10 @@
 "Settings..." = "设置…";
 "About CodexBar" = "关于 CodexBar";
 "Quit" = "退出";
+"Last %d day" = "近 %d 天";
 "Last %d days" = "近 %d 天";
+"Latest billing day" = "最近结算日";
+"Latest billing day (%@)" = "最近结算日（%@）";
 "Resets in %@" = "%@后重置";
 "Lasts until reset" = "可用至重置";
 "Projected empty in %@" = "预计 %@ 后用尽";

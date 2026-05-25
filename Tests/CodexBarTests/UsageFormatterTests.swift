@@ -17,15 +17,28 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `usage line respects injected localization provider`() {
+        UsageFormatter.setLocalizationProvider { key in
+            switch key {
+            case "usage_percent_suffix_left": "剩余"
+            case "usage_percent_suffix_used": "已使用"
+            default: key
+            }
+        }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        #expect(UsageFormatter.usageLine(remaining: 22, used: 78, showUsed: false) == "22% 剩余")
+        #expect(UsageFormatter.usageLine(remaining: 22, used: 78, showUsed: true) == "78% 已使用")
+    }
+
+    @Test
     func `relative updated recent`() {
         let now = Date()
         let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
         let text = UsageFormatter.updatedString(from: fiveHoursAgo, now: now)
-        #expect(text.hasPrefix("Updated "))
-        // Output must stay in English regardless of the host system locale,
-        // matching the surrounding hardcoded English UI labels.
+        #expect(text.hasPrefix("Updated ") || text.hasPrefix("更新"))
         #expect(text.contains("5"))
-        #expect(text.lowercased().contains("ago"))
+        #expect(text.lowercased().contains("ago") || text.contains("前"))
     }
 
     @Test

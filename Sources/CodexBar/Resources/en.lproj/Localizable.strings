@@ -673,7 +673,10 @@
 "Settings..." = "Settings...";
 "About CodexBar" = "About CodexBar";
 "Quit" = "Quit";
+"Last %d day" = "Last %d day";
 "Last %d days" = "Last %d days";
+"Latest billing day" = "Latest billing day";
+"Latest billing day (%@)" = "Latest billing day (%@)";
 "Resets in %@" = "Resets in %@";
 "Lasts until reset" = "Lasts until reset";
 "Projected empty in %@" = "Projected empty in %@";

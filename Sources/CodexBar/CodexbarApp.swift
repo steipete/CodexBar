@@ -44,6 +44,7 @@ struct CodexBarApp: App {
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
         Self.applyLanguagePreference(from: settings)
+        configureUsageFormatterLocalizationProvider()
         let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
         managedCodexAccountCoordinator.onManagedAccountsDidChange = {
             _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
