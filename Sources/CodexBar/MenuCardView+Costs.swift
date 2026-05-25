@@ -14,7 +14,7 @@ extension UsageMenuCardView.Model {
         if let error, !error.isEmpty {
             return error.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return metadata.creditsHint
+        return L(metadata.creditsHint)
     }
 
     static func tokenUsageSection(
@@ -33,28 +33,26 @@ extension UsageMenuCardView.Model {
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLine: String = {
             if provider == .bedrock {
-                let label = Self.bedrockLatestBillingDayLabel(from: snapshot)
                 if let sessionTokens {
-                    return "\(label): \(sessionCost) · \(sessionTokens) tokens"
+                    return String(format: L("Today: %@ · %@ tokens"), sessionCost, sessionTokens)
                 }
-                return "\(label): \(sessionCost)"
+                return String(format: L("Today: %@"), sessionCost)
             }
             if let sessionTokens {
-                return "Today: \(sessionCost) · \(sessionTokens) tokens"
+                return String(format: L("Today: %@ · %@ tokens"), sessionCost, sessionTokens)
             }
-            return "Today: \(sessionCost)"
+            return String(format: L("Today: %@"), sessionCost)
         }()
 
         let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
-        let windowLabel = Self.costHistoryWindowLabel(days: snapshot.historyDays)
         let monthLine: String = {
             if let monthTokens {
-                return "\(windowLabel): \(monthCost) · \(monthTokens) tokens"
+                return String(format: L("Last 30 days: %@ · %@ tokens"), monthCost, monthTokens)
             }
-            return "\(windowLabel): \(monthCost)"
+            return String(format: L("Last 30 days: %@"), monthCost)
         }()
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
@@ -68,20 +66,20 @@ extension UsageMenuCardView.Model {
     static func tokenUsageHint(provider: UsageProvider) -> String? {
         switch provider {
         case .codex:
-            "Estimated from local Codex logs for the selected account."
+            L("Estimated from local Codex logs for the selected account.")
         case .claude:
-            UsageFormatter.costEstimateHint(provider: provider)
+            L("cost_estimate_hint")
         case .vertexai:
-            UsageFormatter.costEstimateHint
+            L("cost_estimate_hint")
         case .bedrock:
-            "Reported by AWS Cost Explorer; daily billing data can lag."
+            L("AWS Cost Explorer billing can lag.")
         default:
             nil
         }
     }
 
     static func costHistoryWindowLabel(days: Int) -> String {
-        days == 1 ? "Today" : "Last \(days) days"
+        days == 1 ? L("Today") : String(format: L("Last %d days"), days)
     }
 
     private static func bedrockLatestBillingDayLabel(from snapshot: CostUsageTokenSnapshot) -> String {
@@ -155,7 +153,7 @@ extension UsageMenuCardView.Model {
 
         if provider == .openai || provider == .claude, cost.limit <= 0 {
             let spend = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-            let periodLabel = cost.period ?? "Last 30 days"
+            let periodLabel = Self.localizedPeriodLabel(cost.period ?? "Last 30 days")
             return ProviderCostSection(
                 title: "API spend",
                 percentUsed: nil,
@@ -180,13 +178,27 @@ extension UsageMenuCardView.Model {
         }
 
         let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
-        let periodLabel = cost.period ?? "This month"
+        let periodLabel = Self.localizedPeriodLabel(cost.period ?? "This month")
 
         return ProviderCostSection(
             title: title,
             percentUsed: percentUsed,
             spendLine: "\(periodLabel): \(used) / \(limit)",
             percentLine: String(format: "%.0f%% used", min(100, max(0, percentUsed))))
+    }
+
+    private static func localizedPeriodLabel(_ label: String) -> String {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch trimmed.lowercased() {
+        case "last 30 days":
+            return L("Last 30 days")
+        case "this month":
+            return L("This month")
+        case "today":
+            return L("Today")
+        default:
+            return L(trimmed)
+        }
     }
 
     static func clamped(_ value: Double) -> Double {

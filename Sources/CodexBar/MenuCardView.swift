@@ -11,8 +11,8 @@ struct UsageMenuCardView: View {
 
             var labelSuffix: String {
                 switch self {
-                case .left: "left"
-                case .used: "used"
+                case .left: L("usage_percent_suffix_left")
+                case .used: L("usage_percent_suffix_used")
                 }
             }
 
@@ -190,7 +190,7 @@ struct UsageMenuCardView: View {
                     }
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("cost_header_estimated")
+                            Text(L("cost_header_estimated"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -614,7 +614,7 @@ struct UsageMenuCardCostSectionView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("cost_header_estimated")
+                            Text(L("cost_header_estimated"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
@@ -858,9 +858,9 @@ extension UsageMenuCardView.Model {
         case .available:
             break
         case .noLimitConfigured:
-            notes.append("No limit set for the API key")
+            notes.append(L("No limit set for the API key"))
         case .unavailable:
-            notes.append("API key limit unavailable right now")
+            notes.append(L("API key limit unavailable right now"))
         }
         return notes
     }
@@ -868,10 +868,10 @@ extension UsageMenuCardView.Model {
     private static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {
         var parts: [String] = []
         if let daily = usage.keyUsageDaily {
-            parts.append("Today: \(Self.openRouterCurrencyString(daily))")
+            parts.append("\(L("Today")): \(Self.openRouterCurrencyString(daily))")
         }
         if let weekly = usage.keyUsageWeekly {
-            parts.append("This week: \(Self.openRouterCurrencyString(weekly))")
+            parts.append("\(L("This week")): \(Self.openRouterCurrencyString(weekly))")
         }
         guard !parts.isEmpty else { return [] }
         return [parts.joined(separator: " · ")]
@@ -975,7 +975,7 @@ extension UsageMenuCardView.Model {
         }
 
         if isRefreshing, snapshot == nil {
-            return ("Refreshing...", .loading)
+            return ("\(L("Refreshing"))…", .loading)
         }
 
         if let updated = snapshot?.updatedAt {
@@ -1157,11 +1157,11 @@ extension UsageMenuCardView.Model {
         snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
     {
         if input.provider == .factory, snapshot.tertiary != nil {
-            return ("5-hour", "Weekly", "Monthly", true)
+            return ("5-hour", L("Weekly"), "Monthly", true)
         }
         return (
-            input.metadata.sessionLabel,
-            input.metadata.weeklyLabel,
+            L(input.metadata.sessionLabel),
+            L(input.metadata.weeklyLabel),
             input.metadata.opusLabel ?? "Sonnet",
             input.metadata.supportsOpus)
     }
@@ -1275,7 +1275,7 @@ extension UsageMenuCardView.Model {
         }
         return Metric(
             id: "primary",
-            title: title ?? input.metadata.sessionLabel,
+            title: title ?? L(input.metadata.sessionLabel),
             percent: Self.clamped(
                 input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
             percentStyle: percentStyle,
@@ -1377,7 +1377,7 @@ extension UsageMenuCardView.Model {
         }
         return Metric(
             id: "secondary",
-            title: title ?? input.metadata.weeklyLabel,
+            title: title ?? L(input.metadata.weeklyLabel),
             percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
             percentStyle: percentStyle,
             resetText: weeklyResetText,
@@ -1402,7 +1402,7 @@ extension UsageMenuCardView.Model {
             let paceDetail: PaceDetail?
             switch lane {
             case .session:
-                title = input.metadata.sessionLabel
+                title = L(input.metadata.sessionLabel)
                 id = "primary"
                 paceDetail = Self.sessionPaceDetail(
                     provider: input.provider,
@@ -1410,7 +1410,7 @@ extension UsageMenuCardView.Model {
                     now: input.now,
                     showUsed: input.usageBarsShowUsed)
             case .weekly:
-                title = input.metadata.weeklyLabel
+                title = L(input.metadata.weeklyLabel)
                 id = "secondary"
                 paceDetail = Self.weeklyPaceDetail(
                     window: window,
@@ -1444,13 +1444,13 @@ extension UsageMenuCardView.Model {
         return [
             Self.antigravityMetric(
                 id: "primary",
-                title: input.metadata.sessionLabel,
+                title: L(input.metadata.sessionLabel),
                 window: snapshot.primary,
                 input: input,
                 percentStyle: percentStyle),
             Self.antigravityMetric(
                 id: "secondary",
-                title: input.metadata.weeklyLabel,
+                title: L(input.metadata.weeklyLabel),
                 window: snapshot.secondary,
                 input: input,
                 percentStyle: percentStyle),

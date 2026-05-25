@@ -79,6 +79,21 @@ func L(_ key: String, _ arguments: CVarArg...) -> String {
     String(format: L(key), arguments: arguments)
 }
 
+func codexBarLocalizedLocale() -> Locale {
+    let language = appLanguageDefaults().string(forKey: "appLanguage") ?? ""
+    guard !language.isEmpty else { return .current }
+    switch language.lowercased() {
+    case "zh-hans":
+        return Locale(identifier: "zh-Hans")
+    case "zh-hant":
+        return Locale(identifier: "zh-Hant")
+    case "pt-br":
+        return Locale(identifier: "pt-BR")
+    default:
+        return Locale(identifier: language)
+    }
+}
+
 func codexBarLocalizedString(_ key: String, bundle: Bundle, resourceBundle: Bundle) -> String {
     let value = bundle.localizedString(forKey: key, value: nil, table: nil)
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)

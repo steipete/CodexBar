@@ -9,12 +9,18 @@ extension UsageMenuCardView.Model {
         return services.enumerated().map { index, service in
             let used = service.usage
             let displayPercent = min(100, max(0, service.percent))
-            let usageLabel = "Usage: \(used.formatted()) / \(service.limit.formatted())"
-            let usedLabel = "Used \(String(format: "%.0f%%", displayPercent))"
-            let title = if service.displayName == "Text Generation", textGenerationCount > 1 {
-                "Text Generation · \(Self.displayWindowBadge(for: service.windowType))"
+            let usageLabel = String(
+                format: L("minimax_usage_amount_format"),
+                used.formatted(),
+                service.limit.formatted())
+            let usedLabel = String(
+                format: L("minimax_used_percent_format"),
+                String(format: "%.0f%%", displayPercent))
+            let localizedName = Self.localizedMiniMaxServiceName(service.displayName)
+            let title = if localizedName == L("minimax_service_text_generation"), textGenerationCount > 1 {
+                "\(L("minimax_service_text_generation")) · \(Self.displayWindowBadge(for: service.windowType))"
             } else {
-                service.displayName
+                localizedName
             }
 
             return Metric(
@@ -22,7 +28,7 @@ extension UsageMenuCardView.Model {
                 title: title,
                 percent: displayPercent,
                 percentStyle: percentStyle,
-                resetText: service.resetDescription,
+                resetText: Self.localizedMiniMaxResetDescription(service.resetDescription),
                 detailText: service.timeRange,
                 detailLeftText: usageLabel,
                 detailRightText: usedLabel,
@@ -37,17 +43,45 @@ extension UsageMenuCardView.Model {
         let normalized = trimmed.lowercased()
 
         if normalized == "weekly" {
-            return "Weekly"
+            return L("Weekly")
         }
         if normalized == "5 hours" || normalized == "5 hour" || normalized == "5h" {
             return "5h"
         }
         if normalized == "today" {
-            return "Today"
+            return L("Today")
         }
         if normalized == "daily" {
-            return "Daily"
+            return L("Daily")
         }
         return trimmed.isEmpty ? windowType : trimmed
+    }
+
+    private static func localizedMiniMaxResetDescription(_ text: String) -> String {
+        let prefix = "Resets in "
+        guard text.hasPrefix(prefix) else { return text }
+        let rest = String(text.dropFirst(prefix.count))
+        return L("Resets in %@", rest)
+    }
+
+    private static func localizedMiniMaxServiceName(_ raw: String) -> String {
+        switch raw {
+        case "Text Generation", "text_generation":
+            L("minimax_service_text_generation")
+        case "Text to Speech", "text_to_speech":
+            L("minimax_service_text_to_speech")
+        case "Music Generation", "music_generation":
+            L("minimax_service_music_generation")
+        case "Image Generation", "image_generation":
+            L("minimax_service_image_generation")
+        case "lyrics_generation":
+            L("minimax_service_lyrics_generation")
+        case "coding-plan-vlm":
+            L("minimax_service_coding_plan_vlm")
+        case "coding-plan-search":
+            L("minimax_service_coding_plan_search")
+        default:
+            raw
+        }
     }
 }

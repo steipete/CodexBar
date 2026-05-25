@@ -6,6 +6,15 @@ public enum ResetTimeDisplayStyle: String, Codable, Sendable {
 }
 
 public enum UsageFormatter {
+    private static func localized(_ key: String) -> String {
+        NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
+    }
+
+    private static func localized(_ key: String, _ args: CVarArg...) -> String {
+        let format = self.localized(key)
+        return String(format: format, locale: Locale.current, arguments: args)
+    }
+
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
         let clamped = min(100, max(0, percent))
@@ -53,17 +62,30 @@ public enum UsageFormatter {
         now: Date = .init()) -> String?
     {
         if let date = window.resetsAt {
-            let text = style == .countdown
-                ? self.resetCountdownDescription(from: date, now: now)
-                : self.resetDescription(from: date, now: now)
-            return "Resets \(text)"
+            if style == .countdown {
+                let countdown = self.resetCountdownDescription(from: date, now: now)
+                if countdown == "now" {
+                    return self.localized("Resets now")
+                }
+                if countdown.hasPrefix("in ") {
+                    return self.localized("Resets in %@", String(countdown.dropFirst(3)))
+                }
+                return self.localized("Resets %@", countdown)
+            }
+            let text = self.resetDescription(from: date, now: now)
+            return self.localized("Resets %@", text)
         }
 
         if let desc = window.resetDescription {
             let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
-            if trimmed.lowercased().hasPrefix("resets") { return trimmed }
-            return "Resets \(trimmed)"
+            if trimmed.lowercased().hasPrefix("resets in ") {
+                return self.localized("Resets in %@", String(trimmed.dropFirst("Resets in ".count)))
+            }
+            if trimmed.lowercased().hasPrefix("resets ") {
+                return self.localized("Resets %@", String(trimmed.dropFirst("Resets ".count)))
+            }
+            return self.localized("Resets %@", trimmed)
         }
         return nil
     }
@@ -71,25 +93,25 @@ public enum UsageFormatter {
     public static func updatedString(from date: Date, now: Date = .init()) -> String {
         let delta = now.timeIntervalSince(date)
         if abs(delta) < 60 {
-            return "Updated just now"
+            return self.localized("Updated just now")
         }
         if let hours = Calendar.current.dateComponents([.hour], from: date, to: now).hour, hours < 24 {
             #if os(macOS)
             let rel = RelativeDateTimeFormatter()
-            rel.locale = Locale(identifier: "en_US")
+            rel.locale = Locale.current
             rel.unitsStyle = .abbreviated
-            return "Updated \(rel.localizedString(for: date, relativeTo: now))"
+            return self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
             #else
             let seconds = max(0, Int(now.timeIntervalSince(date)))
             if seconds < 3600 {
                 let minutes = max(1, seconds / 60)
-                return "Updated \(minutes)m ago"
+                return self.localized("Updated %@m ago", String(minutes))
             }
             let wholeHours = max(1, seconds / 3600)
-            return "Updated \(wholeHours)h ago"
+            return self.localized("Updated %@h ago", String(wholeHours))
             #endif
         } else {
-            return "Updated \(date.formatted(date: .omitted, time: .shortened))"
+            return self.localized("Updated %@", date.formatted(date: .omitted, time: .shortened))
         }
     }
 
@@ -100,7 +122,7 @@ public enum UsageFormatter {
         // Use explicit locale for consistent formatting on all systems
         number.locale = Locale(identifier: "en_US_POSIX")
         let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
-        return "\(formatted) left"
+        return self.localized("%@ left", formatted)
     }
 
     public static func kiroCreditNumber(_ value: Double) -> String {
