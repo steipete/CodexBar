@@ -378,10 +378,12 @@ struct MiMoProviderTests {
     @Test
     @MainActor
     func `provider detail plan row formats mimo as balance`() {
-        let row = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Balance: $25.51")
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let row = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Balance: $25.51")
 
-        #expect(row?.label == "Balance")
-        #expect(row?.value == "$25.51")
+            #expect(row?.label == "Balance")
+            #expect(row?.value == "$25.51")
+        }
     }
 
     @Test(arguments: [UsageProvider.openrouter, .mimo])

@@ -63,7 +63,14 @@ struct CodexManagedOpenAIWebRefreshTests {
             await completion.markCompleted()
         }
 
-        let completed = await completion.waitUntilCompleted(timeout: .seconds(30))
+        let didStart = await blocker.waitUntilStartedWithin(count: 1, timeout: .seconds(60))
+        #expect(didStart == true)
+        if !didStart {
+            refreshTask.cancel()
+            return
+        }
+
+        let completed = await completion.waitUntilCompleted(timeout: .seconds(2))
         #expect(completed == true)
         if !completed {
             refreshTask.cancel()
@@ -73,12 +80,6 @@ struct CodexManagedOpenAIWebRefreshTests {
         await refreshTask.value
 
         let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
-        let didStart = await blocker.waitUntilStartedWithin(count: 1, timeout: .seconds(30))
-        #expect(didStart == true)
-        if !didStart {
-            backgroundTask.cancel()
-            return
-        }
         #expect(await blocker.startedCount() == 1)
 
         await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
