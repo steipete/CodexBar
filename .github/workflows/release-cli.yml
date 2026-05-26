@@ -70,6 +70,7 @@ jobs:
           swift --version
 
       - name: Validate release tag
+        if: github.event_name == 'release' || inputs.tag != ''
         shell: bash
         run: |
           set -euo pipefail
