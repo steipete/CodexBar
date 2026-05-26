@@ -36,7 +36,9 @@ struct CostHistoryChartMenuView: View {
     private let provider: UsageProvider
     private let daily: [DailyEntry]
     private let totalCostUSD: Double?
+    private let currencyCode: String
     private let historyDays: Int
+    private let windowLabel: String?
     private let width: CGFloat
     @State private var selectedDateKey: String?
 
@@ -44,13 +46,17 @@ struct CostHistoryChartMenuView: View {
         provider: UsageProvider,
         daily: [DailyEntry],
         totalCostUSD: Double?,
+        currencyCode: String = "USD",
         historyDays: Int = 30,
+        windowLabel: String? = nil,
         width: CGFloat)
     {
         self.provider = provider
         self.daily = daily
         self.totalCostUSD = totalCostUSD
+        self.currencyCode = currencyCode
         self.historyDays = max(1, min(365, historyDays))
+        self.windowLabel = windowLabel
         self.width = width
     }
 
@@ -173,8 +179,8 @@ struct CostHistoryChartMenuView: View {
             if let total = self.totalCostUSD {
                 Text(String(
                     format: L("Est. total (%@): %@"),
-                    Self.windowLabel(days: self.historyDays),
-                    UsageFormatter.usdString(total)))
+                    self.windowLabel ?? Self.windowLabel(days: self.historyDays),
+                    self.costString(total)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -426,7 +432,7 @@ struct CostHistoryChartMenuView: View {
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
-        let cost = UsageFormatter.usdString(point.costUSD)
+        let cost = self.costString(point.costUSD)
         let primary = if let tokens = point.totalTokens {
             String(format: L("%@: %@ · %@ tokens"), dayLabel, cost, UsageFormatter.tokenCountString(tokens))
         } else {
@@ -472,20 +478,21 @@ struct CostHistoryChartMenuView: View {
         UsageFormatter.modelCostDetail(
             item.modelName,
             costUSD: item.costUSD,
-            totalTokens: item.totalTokens)
+            totalTokens: item.totalTokens,
+            currencyCode: self.currencyCode)
     }
 
     private func modelBreakdownModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
         var parts: [String] = []
         if let standardCost = item.standardCostUSD {
-            var standardPart = "Std \(UsageFormatter.usdString(standardCost))"
+            var standardPart = "Std \(self.costString(standardCost))"
             if let standardTokens = item.standardTokens {
                 standardPart += " · \(UsageFormatter.tokenCountString(standardTokens))"
             }
             parts.append(standardPart)
         }
         if let priorityCost = item.priorityCostUSD {
-            var priorityPart = "Fast \(UsageFormatter.usdString(priorityCost))"
+            var priorityPart = "Fast \(self.costString(priorityCost))"
             if let priorityTokens = item.priorityTokens {
                 priorityPart += " · \(UsageFormatter.tokenCountString(priorityTokens))"
             }
@@ -493,6 +500,10 @@ struct CostHistoryChartMenuView: View {
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " / ")
+    }
+
+    private func costString(_ value: Double) -> String {
+        UsageFormatter.currencyString(value, currencyCode: self.currencyCode)
     }
 
     private static func breakdownAccentOpacity(for index: Int) -> Double {

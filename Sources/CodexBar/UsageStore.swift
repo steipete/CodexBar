@@ -1531,6 +1531,21 @@ extension UsageStore {
         self.tokenRefreshInFlight.insert(provider)
         defer { self.tokenRefreshInFlight.remove(provider) }
 
+        if let snapshot = self.tokenSnapshot(fromProviderSnapshot: self.snapshots[provider], provider: provider) {
+            self.tokenSnapshots[provider] = snapshot
+            self.tokenErrors[provider] = nil
+            self.tokenFailureGates[provider]?.recordSuccess()
+            self.persistWidgetSnapshot(reason: "token-usage")
+            return
+        }
+
+        if Self.tokenCostRequiresProviderSnapshot(provider) {
+            self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenErrors[provider] = Self.tokenCostNoDataMessage(for: provider)
+            self.tokenFailureGates[provider]?.recordSuccess()
+            return
+        }
+
         let startedAt = Date()
         let providerText = provider.rawValue
         self.tokenCostLogger
@@ -1578,8 +1593,10 @@ extension UsageStore {
                 return
             }
             let duration = Date().timeIntervalSince(startedAt)
-            let sessionCost = snapshot.sessionCostUSD.map(UsageFormatter.usdString) ?? "—"
-            let monthCost = snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—"
+            let sessionCost = snapshot.sessionCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+            let monthCost = snapshot.last30DaysCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
             let durationText = String(format: "%.2f", duration)
             let message =
                 "cost usage success provider=\(providerText) " +

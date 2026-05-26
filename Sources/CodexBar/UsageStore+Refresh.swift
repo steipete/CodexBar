@@ -133,6 +133,11 @@ extension UsageStore {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
+                if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: backfilled, provider: provider) {
+                    self.tokenSnapshots[provider] = tokenSnapshot
+                    self.tokenErrors[provider] = nil
+                    self.tokenFailureGates[provider]?.recordSuccess()
+                }
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()

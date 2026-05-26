@@ -165,50 +165,54 @@ extension UsageMenuCardView.Model {
         snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
     {
         let historyDays = max(1, min(365, snapshot.historyDays))
-        let periodLabel = historyDays == 1 ? "today" : "\(historyDays) day"
+        let historyTitle = snapshot.historyLabel
+            ?? (historyDays == 1
+                ? L("Today")
+                : historyDays == 30
+                ? L("30d cost")
+                : "\(String(format: L("Last %d days"), historyDays)) \(L("Cost"))")
+        let tokenHistoryTitle = snapshot.historyLabel
+            ?? (historyDays == 1
+                ? L("Today tokens")
+                : historyDays == 30
+                ? L("30d tokens")
+                : String(format: L("%@ tokens"), String(format: L("Last %d days"), historyDays)))
+        let periodLabel = snapshot.historyLabel?.lowercased()
+            ?? (historyDays == 1 ? "today" : "\(historyDays) day")
         let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
             guard let cost = entry.costUSD else { return nil }
             return InlineUsageDashboardModel.Point(
                 id: entry.date,
                 label: Self.shortDayLabel(entry.date),
                 value: cost,
-                accessibilityValue: "\(entry.date): \(UsageFormatter.usdString(cost))")
+                accessibilityValue: "\(entry.date): \(Self.costString(cost, currencyCode: snapshot.currencyCode))")
         }
         let latest = snapshot.daily.max { lhs, rhs in lhs.date < rhs.date }
         var details: [String] = []
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
-        if provider == .bedrock {
-            details.append("AWS Cost Explorer billing can lag.")
-        } else if provider == .claude {
-            details.append(UsageFormatter.costEstimateHint(provider: provider))
+        if let hint = Self.tokenUsageHint(provider: provider) {
+            details.append(hint)
         } else {
             details.append(L("cost_estimate_hint"))
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
         return InlineUsageDashboardModel(
             accessibilityLabel: "\(providerName) \(periodLabel) cost trend",
-            valueStyle: .currencyUSD,
+            valueStyle: Self.costValueStyle(currencyCode: snapshot.currencyCode),
             kpis: [
                 .init(
-                    title: provider == .bedrock ? L("Latest") : L("Today"),
-                    value: latest?.costUSD.map(UsageFormatter.usdString) ?? "—",
+                    title: provider == .bedrock || provider == .mistral ? L("Latest") : L("Today"),
+                    value: latest?.costUSD.map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
                     emphasis: true),
                 .init(
-                    title: historyDays == 1
-                        ? L("Today")
-                        : historyDays == 30
-                        ? L("30d cost")
-                        : "\(String(format: L("Last %d days"), historyDays)) \(L("Cost"))",
-                    value: snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—",
+                    title: historyTitle,
+                    value: snapshot.last30DaysCostUSD
+                        .map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
                     emphasis: false),
                 .init(
-                    title: historyDays == 1
-                        ? L("Today tokens")
-                        : historyDays == 30
-                        ? L("30d tokens")
-                        : String(format: L("%@ tokens"), String(format: L("Last %d days"), historyDays)),
+                    title: tokenHistoryTitle,
                     value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
                 .init(
@@ -458,6 +462,20 @@ extension UsageMenuCardView.Model {
 
     private static func minimaxCashString(_ value: Double) -> String {
         String(format: "%.2f", max(0, value))
+    }
+
+    private static func costString(_ value: Double, currencyCode: String) -> String {
+        UsageFormatter.currencyString(value, currencyCode: currencyCode)
+    }
+
+    private static func costValueStyle(currencyCode: String) -> InlineUsageDashboardModel.ValueStyle {
+        if currencyCode == "USD" { return .currencyUSD }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currencyCode
+        formatter.locale = Locale(identifier: "en_US")
+        let symbol = formatter.currencySymbol ?? currencyCode
+        return .currency(symbol: symbol)
     }
 
     private static func shortDayLabel(_ day: String) -> String {

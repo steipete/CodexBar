@@ -402,6 +402,64 @@ struct ProviderInlineDashboardModelTests {
     }
 
     @Test
+    func `mistral billing usage can show cost card summary`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.mistral])
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 1.5,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 100,
+            totalOutputTokens: 50,
+            totalCachedTokens: 25,
+            modelCount: 1,
+            daily: [
+                MistralDailyUsageBucket(
+                    day: "2023-11-14",
+                    cost: 1.5,
+                    inputTokens: 100,
+                    cachedTokens: 25,
+                    outputTokens: 50,
+                    models: [
+                        MistralDailyUsageBucket.ModelBreakdown(
+                            name: "mistral-large",
+                            cost: 1.5,
+                            inputTokens: 100,
+                            cachedTokens: 25,
+                            outputTokens: 50),
+                    ]),
+            ],
+            startDate: nil,
+            endDate: nil,
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .mistral,
+            metadata: metadata,
+            snapshot: snapshot.toUsageSnapshot(),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: snapshot.toCostUsageTokenSnapshot(historyDays: 30),
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(ProviderDescriptorRegistry.descriptor(for: .mistral).tokenCost.supportsTokenCost)
+        #expect(model.tokenUsage?.sessionLine == "Latest billing day (Nov 14): €1.50 · 175 tokens")
+        #expect(model.tokenUsage?.monthLine == "This month: €1.50 · 175 tokens")
+        #expect(model.tokenUsage?.hintLine == "Reported by Mistral billing usage.")
+    }
+
+    @Test
     func `zai hourly usage gets inline dashboard`() throws {
         let now = try #require(Self.zaiDate("2023-11-15 12:00"))
         let metadata = try #require(ProviderDefaults.metadata[.zai])

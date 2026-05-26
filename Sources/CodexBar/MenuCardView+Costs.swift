@@ -29,9 +29,15 @@ extension UsageMenuCardView.Model {
         guard enabled else { return nil }
         guard let snapshot else { return nil }
 
-        let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        let sessionCost = snapshot.sessionCostUSD.map {
+            UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode)
+        } ?? "—"
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
-        let sessionLabel = provider == .bedrock ? Self.bedrockLatestBillingDayLabel(from: snapshot) : L("Today")
+        let sessionLabel = if provider == .bedrock || provider == .mistral {
+            Self.latestBillingDayLabel(from: snapshot)
+        } else {
+            L("Today")
+        }
         let sessionLine: String = {
             if let sessionTokens {
                 return String(format: L("%@: %@ · %@ tokens"), sessionLabel, sessionCost, sessionTokens)
@@ -39,11 +45,13 @@ extension UsageMenuCardView.Model {
             return "\(sessionLabel): \(sessionCost)"
         }()
 
-        let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        let monthCost = snapshot.last30DaysCostUSD.map {
+            UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode)
+        } ?? "—"
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
-        let windowLabel = Self.costHistoryWindowLabel(days: snapshot.historyDays)
+        let windowLabel = snapshot.historyLabel ?? Self.costHistoryWindowLabel(days: snapshot.historyDays)
         let monthLine: String = {
             if let monthTokens {
                 return String(format: L("%@: %@ · %@ tokens"), windowLabel, monthCost, monthTokens)
@@ -71,6 +79,8 @@ extension UsageMenuCardView.Model {
             L("AWS Cost Explorer billing can lag.")
         case .openai:
             L("Reported by OpenAI Admin API organization usage.")
+        case .mistral:
+            L("Reported by Mistral billing usage.")
         default:
             nil
         }
@@ -80,7 +90,7 @@ extension UsageMenuCardView.Model {
         days == 1 ? L("Today") : String(format: L("Last %d days"), days)
     }
 
-    private static func bedrockLatestBillingDayLabel(from snapshot: CostUsageTokenSnapshot) -> String {
+    private static func latestBillingDayLabel(from snapshot: CostUsageTokenSnapshot) -> String {
         guard let entry = bedrockLatestBillingDay(from: snapshot.daily),
               let displayDate = bedrockDisplayDate(from: entry.date)
         else { return L("Latest billing day") }
