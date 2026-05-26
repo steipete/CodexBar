@@ -1495,6 +1495,20 @@ extension UsageStore {
             return
         }
 
+        if Self.tokenCostRequiresProviderSnapshot(provider) {
+            if let snapshot = self.tokenSnapshot(fromProviderSnapshot: self.snapshots[provider], provider: provider) {
+                self.tokenSnapshots[provider] = snapshot
+                self.tokenErrors[provider] = nil
+                self.tokenFailureGates[provider]?.recordSuccess()
+                self.persistWidgetSnapshot(reason: "token-usage")
+            } else {
+                self.tokenSnapshots.removeValue(forKey: provider)
+                self.tokenErrors[provider] = nil
+                self.tokenFailureGates[provider]?.reset()
+            }
+            return
+        }
+
         guard self.settings.costUsageEnabled else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
@@ -1530,21 +1544,6 @@ extension UsageStore {
         self.lastTokenFetchScope[provider] = costScopeSignature
         self.tokenRefreshInFlight.insert(provider)
         defer { self.tokenRefreshInFlight.remove(provider) }
-
-        if let snapshot = self.tokenSnapshot(fromProviderSnapshot: self.snapshots[provider], provider: provider) {
-            self.tokenSnapshots[provider] = snapshot
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.recordSuccess()
-            self.persistWidgetSnapshot(reason: "token-usage")
-            return
-        }
-
-        if Self.tokenCostRequiresProviderSnapshot(provider) {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = Self.tokenCostNoDataMessage(for: provider)
-            self.tokenFailureGates[provider]?.recordSuccess()
-            return
-        }
 
         let startedAt = Date()
         let providerText = provider.rawValue
