@@ -127,9 +127,6 @@ extension StatusItemController {
 
     func menuDidClose(_ menu: NSMenu) {
         let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
-        if ObjectIdentifier(menu) == self.providerSwitcherShortcutMenuID {
-            self.removeProviderSwitcherShortcutMonitor()
-        }
         self.forgetClosedMenu(menu)
         if wasHostedSubviewMenu {
             self.refreshOpenMenusIfNeeded()
@@ -138,6 +135,10 @@ extension StatusItemController {
 
     func forgetClosedMenu(_ menu: NSMenu) {
         let key = ObjectIdentifier(menu)
+
+        if key == self.providerSwitcherShortcutMenuID {
+            self.removeProviderSwitcherShortcutMonitor()
+        }
 
         self.openMenus.removeValue(forKey: key)
         self.menuRefreshTasks.removeValue(forKey: key)?.cancel()

@@ -24,6 +24,48 @@ struct StatusMenuSwitcherClickTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
+    private func makeInstalledSwitcherShortcutMonitor() -> (controller: StatusItemController, menu: StatusItemMenu) {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            let shouldEnable = provider == .codex || provider == .claude
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = StatusItemMenu()
+        let switcher = ProviderSwitcherView(
+            providers: [.codex, .claude],
+            selected: .provider(.codex),
+            includesOverview: true,
+            width: 320,
+            showsIcons: false,
+            iconProvider: { _ in NSImage() },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { _ in })
+        let switcherItem = NSMenuItem()
+        switcherItem.view = switcher
+        menu.addItem(switcherItem)
+        menu.addItem(.separator())
+
+        controller.installProviderSwitcherShortcutMonitorIfNeeded(for: menu)
+        return (controller, menu)
+    }
+
     @Test
     func `merged switcher routes runtime clicks after overview round-trip`() throws {
         // Regression test for #867: after Provider → Overview, subsequent runtime clicks on a
@@ -297,50 +339,34 @@ struct StatusMenuSwitcherClickTests {
             StatusItemController.setMenuRefreshEnabledForTesting(previousMenuRefresh)
         }
 
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = true
-
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
-        }
-
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
+        let (controller, menu) = self.makeInstalledSwitcherShortcutMonitor()
         defer { controller.releaseStatusItemsForTesting() }
 
-        let menu = StatusItemMenu()
-        let switcher = ProviderSwitcherView(
-            providers: [.codex, .claude],
-            selected: .provider(.codex),
-            includesOverview: true,
-            width: 320,
-            showsIcons: false,
-            iconProvider: { _ in NSImage() },
-            weeklyRemainingProvider: { _ in nil },
-            onSelect: { _ in })
-        let switcherItem = NSMenuItem()
-        switcherItem.view = switcher
-        menu.addItem(switcherItem)
-        menu.addItem(.separator())
-
-        controller.installProviderSwitcherShortcutMonitorIfNeeded(for: menu)
         #expect(controller.providerSwitcherShortcutEventMonitor != nil)
         #expect(controller.providerSwitcherShortcutMenuID == ObjectIdentifier(menu))
 
         menu.removeAllItems()
         controller.menuDidClose(menu)
+
+        #expect(controller.providerSwitcherShortcutEventMonitor == nil)
+        #expect(controller.providerSwitcherShortcutMenuID == nil)
+    }
+
+    @Test
+    func `switcher shortcut monitor is removed from direct close cleanup`() {
+        let previousMenuRefresh = StatusItemController.menuRefreshEnabled
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer {
+            StatusItemController.setMenuRefreshEnabledForTesting(previousMenuRefresh)
+        }
+
+        let (controller, menu) = self.makeInstalledSwitcherShortcutMonitor()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(controller.providerSwitcherShortcutEventMonitor != nil)
+        #expect(controller.providerSwitcherShortcutMenuID == ObjectIdentifier(menu))
+
+        controller.forgetClosedMenu(menu)
 
         #expect(controller.providerSwitcherShortcutEventMonitor == nil)
         #expect(controller.providerSwitcherShortcutMenuID == nil)
