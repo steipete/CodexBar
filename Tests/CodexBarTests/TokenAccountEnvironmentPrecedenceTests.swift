@@ -108,6 +108,51 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `stepfun CLI snapshot reads manual token from region field`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .stepfun,
+                    region: "Oasis-Token=manual-token; Oasis-Webid=web"),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .stepfun, account: nil))
+        let stepfunSettings = try #require(snapshot.stepfun)
+
+        #expect(stepfunSettings.cookieSource == .manual)
+        #expect(stepfunSettings.manualToken == "Oasis-Token=manual-token; Oasis-Webid=web")
+    }
+
+    @Test
+    func `stepfun CLI token account overrides region manual token`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "StepFun",
+            token: "account-token",
+            addedAt: Date().timeIntervalSince1970,
+            lastUsed: nil)
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .stepfun,
+                    region: "manual-token",
+                    tokenAccounts: ProviderTokenAccountData(
+                        version: 1,
+                        accounts: [account],
+                        activeIndex: 0)),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let resolvedAccount = try #require(tokenContext.resolvedAccounts(for: .stepfun).first)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .stepfun, account: resolvedAccount))
+        let stepfunSettings = try #require(snapshot.stepfun)
+
+        #expect(stepfunSettings.cookieSource == .manual)
+        #expect(stepfunSettings.manualToken == "account-token")
+    }
+
+    @Test
     func `claude OAuth token account overrides environment in app environment builder`() {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-claude-app")
         settings.addTokenAccount(provider: .claude, label: "OAuth", token: "Bearer sk-ant-oat-account-token")

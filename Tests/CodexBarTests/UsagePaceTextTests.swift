@@ -137,6 +137,35 @@ struct UsagePaceTextTests {
     }
 
     @Test
+    func `session pace detail supports Ollama five hour window`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 80,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(2 * 3600),
+            resetDescription: nil)
+
+        let detail = UsagePaceText.sessionDetail(provider: .ollama, window: window, now: now)
+
+        #expect(detail?.leftLabel == "20% in deficit")
+        #expect(detail?.rightLabel == "Projected empty in 45m")
+    }
+
+    @Test
+    func `session pace detail hides Ollama window without explicit duration`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 80,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval(2 * 3600),
+            resetDescription: nil)
+
+        let detail = UsagePaceText.sessionDetail(provider: .ollama, window: window, now: now)
+
+        #expect(detail == nil)
+    }
+
+    @Test
     func `session pace detail hides for unsupported provider`() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(

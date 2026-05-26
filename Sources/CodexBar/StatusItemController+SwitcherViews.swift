@@ -311,6 +311,12 @@ final class ProviderSwitcherView: NSView {
         self.applySelection(at: pressedTag)
     }
 
+    func handleKeyboardSelection(at index: Int) -> Bool {
+        guard self.segments.indices.contains(index) else { return false }
+        self.applySelection(at: index)
+        return true
+    }
+
     private func applySelection(at index: Int) {
         let selection = self.segments[index].selection
         self.updateSelection(selection)

@@ -52,11 +52,11 @@ struct AlibabaTokenPlanSettingsReaderTests {
     }
 
     @Test
-    func `default quota URL targets token plan API`() {
+    func `default quota URL targets subscription summary API`() {
         let url = AlibabaTokenPlanUsageFetcher.defaultQuotaURL
-        #expect(url.host == "bailian-cs.console.aliyun.com")
-        #expect(url.absoluteString.contains("queryTokenPlanInstanceInfo"))
-        #expect(url.absoluteString.contains("BroadScopeAspnGateway"))
+        #expect(url.host == "bailian.console.aliyun.com")
+        #expect(url.absoluteString.contains("GetSubscriptionSummary"))
+        #expect(url.absoluteString.contains("BssOpenAPI-V3"))
     }
 }
 
@@ -68,17 +68,17 @@ struct AlibabaTokenPlanCookieHeaderTests {
             self.cookie(name: "login_current_pk", value: "account", domain: ".aliyun.com"),
             self.cookie(name: "sec_token", value: "shared", domain: ".console.aliyun.com"),
             self.cookie(name: "sec_token", value: "dashboard", domain: "bailian.console.aliyun.com"),
-            self.cookie(name: "sec_token", value: "api", domain: "bailian-cs.console.aliyun.com"),
+            self.cookie(name: "modelstudio_only", value: "modelstudio", domain: "modelstudio.console.alibabacloud.com"),
         ]
 
         let headers = try #require(AlibabaTokenPlanCookieHeader.headers(from: cookies))
 
         #expect(headers.apiCookieHeader.contains("login_aliyunid_ticket=ticket"))
         #expect(headers.apiCookieHeader.contains("login_current_pk=account"))
-        #expect(headers.apiCookieHeader.contains("sec_token=api"))
-        #expect(!headers.apiCookieHeader.contains("sec_token=dashboard"))
+        #expect(headers.apiCookieHeader.contains("sec_token=dashboard"))
+        #expect(!headers.apiCookieHeader.contains("modelstudio_only=modelstudio"))
         #expect(headers.dashboardCookieHeader.contains("sec_token=dashboard"))
-        #expect(!headers.dashboardCookieHeader.contains("sec_token=api"))
+        #expect(!headers.dashboardCookieHeader.contains("modelstudio_only=modelstudio"))
     }
 
     @Test
@@ -101,7 +101,7 @@ struct AlibabaTokenPlanCookieHeaderTests {
             self.cookie(name: "login_aliyunid_ticket", value: "ticket", domain: ".token-plan.test"),
             self.cookie(name: "api_only", value: "api", domain: "quota.token-plan.test"),
             self.cookie(name: "dashboard_only", value: "dashboard", domain: "dashboard.token-plan.test"),
-            self.cookie(name: "prod_api_only", value: "prod-api", domain: "bailian-cs.console.aliyun.com"),
+            self.cookie(name: "prod_api_only", value: "prod-api", domain: "bailian.console.aliyun.com"),
             self.cookie(name: "prod_dashboard_only", value: "prod-dashboard", domain: "bailian.console.aliyun.com"),
         ]
 
@@ -178,23 +178,18 @@ struct AlibabaTokenPlanUsageSnapshotTests {
 @Suite(.serialized)
 struct AlibabaTokenPlanUsageParsingTests {
     @Test
-    func `parses token plan payload`() throws {
+    func `parses subscription summary payload`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let json = """
         {
-          "data": {
-            "tokenPlanInstanceInfo": {
-              "planName": "TOKEN PLAN",
-              "status": "VALID",
-              "quotaInfo": {
-                "usedQuota": 125,
-                "totalQuota": 1000,
-                "remainingQuota": 875
-              },
-              "periodEndTime": 1701000000000
-            }
+          "Success": true,
+          "Data": {
+            "TotalCount": 1,
+            "TotalValue": 1000,
+            "TotalSurplusValue": 875,
+            "NearestExpireDate": 1701000000000
           },
-          "status_code": 0
+          "Code": "200"
         }
         """
 
@@ -209,19 +204,15 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 
     @Test
-    func `parses remaining and total quota`() throws {
+    func `parses nested subscription summary body`() throws {
         let body = """
         {
+          "success": true,
           "data": {
-            "tokenPlanInstanceInfo": {
-              "packageName": "TOKEN PLAN",
-              "quotaInfo": {
-                "remainingCredits": 750,
-                "totalCredits": 1000
-              }
-            }
-          },
-          "statusCode": 200
+            "totalCount": 1,
+            "totalSurplusValue": 750,
+            "totalValue": 1000
+          }
         }
         """
         let payload = ["successResponse": ["body": body]]
@@ -230,29 +221,26 @@ struct AlibabaTokenPlanUsageParsingTests {
         let snapshot = try AlibabaTokenPlanUsageFetcher.parseUsageSnapshot(from: data)
 
         #expect(snapshot.planName == "TOKEN PLAN")
-        #expect(snapshot.usedQuota == nil)
+        #expect(snapshot.usedQuota == 250)
         #expect(snapshot.remainingQuota == 750)
         #expect(snapshot.totalQuota == 1000)
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 25)
     }
 
     @Test
-    func `plan only payload stays visible without quota window`() throws {
+    func `empty subscription summary stays visible without quota window`() throws {
         let json = """
         {
-          "data": {
-            "tokenPlanInstanceInfo": {
-              "planName": "TOKEN PLAN",
-              "status": "VALID"
-            }
-          },
-          "status_code": 0
+          "Success": true,
+          "Data": {
+            "TotalCount": 0
+          }
         }
         """
 
         let snapshot = try AlibabaTokenPlanUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
 
-        #expect(snapshot.planName == "TOKEN PLAN")
+        #expect(snapshot.planName == nil)
         #expect(snapshot.totalQuota == nil)
         #expect(snapshot.toUsageSnapshot().primary == nil)
     }
@@ -269,6 +257,22 @@ struct AlibabaTokenPlanUsageParsingTests {
 
         #expect(throws: AlibabaTokenPlanUsageError.loginRequired) {
             try AlibabaTokenPlanUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+        }
+    }
+
+    @Test
+    func `nested unsuccessful subscription summary maps to API error`() throws {
+        let body = """
+        {
+          "success": false,
+          "message": "Subscription lookup failed"
+        }
+        """
+        let payload = ["successResponse": ["body": body]]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+
+        #expect(throws: AlibabaTokenPlanUsageError.apiError("Subscription lookup failed")) {
+            try AlibabaTokenPlanUsageFetcher.parseUsageSnapshot(from: data)
         }
     }
 
@@ -326,17 +330,18 @@ struct AlibabaTokenPlanUsageParsingTests {
                     .absoluteString)
                 let body = Self.requestBodyString(from: request)
                 #expect(!body.contains("sec_token="))
-                #expect(body.contains("commodityCode"))
+                #expect(body.contains("GetSubscriptionSummary"))
+                #expect(body.contains("BssOpenAPI-V3"))
+                #expect(body.contains("ProductCode"))
                 #expect(body.contains("sfm_tokenplanteams_dp_cn"))
-                #expect(body.contains("onlyLatestOne"))
                 let json = """
                 {
-                  "data": {
-                    "tokenPlanInstanceInfo": {
-                      "planName": "TOKEN PLAN"
-                    }
-                  },
-                  "status_code": 0
+                  "Success": true,
+                  "Data": {
+                    "TotalCount": 1,
+                    "TotalValue": 1000,
+                    "TotalSurplusValue": 900
+                  }
                 }
                 """
                 return Self.makeResponse(url: url, body: json, statusCode: 200)
@@ -374,12 +379,12 @@ struct AlibabaTokenPlanUsageParsingTests {
                 #expect(body.contains("sec_token=session-html-token"))
                 let json = """
                 {
-                  "data": {
-                    "tokenPlanInstanceInfo": {
-                      "planName": "TOKEN PLAN"
-                    }
-                  },
-                  "status_code": 0
+                  "Success": true,
+                  "Data": {
+                    "TotalCount": 1,
+                    "TotalValue": 1000,
+                    "TotalSurplusValue": 900
+                  }
                 }
                 """
                 return Self.makeResponse(url: url, body: json, statusCode: 200)
@@ -405,10 +410,10 @@ struct AlibabaTokenPlanUsageParsingTests {
 
     @Test
     func `redirect preserves cookie only for same host HTTPS requests`() throws {
-        let sourceURL = try #require(URL(string: "https://bailian-cs.console.aliyun.com/data/api.json"))
-        let sameHostURL = try #require(URL(string: "https://bailian-cs.console.aliyun.com/redirected"))
+        let sourceURL = try #require(URL(string: "https://bailian.console.aliyun.com/data/api.json"))
+        let sameHostURL = try #require(URL(string: "https://bailian.console.aliyun.com/redirected"))
         let crossHostURL = try #require(URL(string: "https://signin.aliyun.com/login"))
-        let insecureURL = try #require(URL(string: "http://bailian-cs.console.aliyun.com/redirected"))
+        let insecureURL = try #require(URL(string: "http://bailian.console.aliyun.com/redirected"))
         let response = try #require(HTTPURLResponse(
             url: sourceURL,
             statusCode: 302,
@@ -553,7 +558,7 @@ struct AlibabaTokenPlanWebStrategyTests {
     }
 
     @Test
-    func `auto web strategy imports URL scoped token plan cookies`() throws {
+    func `auto web strategy imports subscription scoped token plan cookies`() throws {
         let strategy = AlibabaTokenPlanWebFetchStrategy()
         let settings = ProviderSettingsSnapshot.make(
             alibabaTokenPlan: ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings(
@@ -579,7 +584,10 @@ struct AlibabaTokenPlanWebStrategyTests {
                     self.cookie(name: "login_aliyunid_ticket", value: "ticket", domain: ".aliyun.com"),
                     self.cookie(name: "login_current_pk", value: "account", domain: ".aliyun.com"),
                     self.cookie(name: "dashboard_only", value: "dashboard", domain: "bailian.console.aliyun.com"),
-                    self.cookie(name: "api_only", value: "api", domain: "bailian-cs.console.aliyun.com"),
+                    self.cookie(
+                        name: "modelstudio_only",
+                        value: "modelstudio",
+                        domain: "modelstudio.console.alibabacloud.com"),
                     self.cookie(name: "alibabacloud_only", value: "cloud", domain: ".alibabacloud.com"),
                 ],
                 sourceLabel: "Chrome Default")
@@ -591,12 +599,12 @@ struct AlibabaTokenPlanWebStrategyTests {
 
         let headers = try AlibabaTokenPlanWebFetchStrategy.resolveCookieHeaders(context: context, allowCached: false)
 
-        #expect(headers.apiCookieHeader != headers.dashboardCookieHeader)
-        #expect(!headers.apiCookieHeader.contains("dashboard_only=dashboard"))
-        #expect(headers.apiCookieHeader.contains("api_only=api"))
+        #expect(headers.apiCookieHeader == headers.dashboardCookieHeader)
+        #expect(headers.apiCookieHeader.contains("dashboard_only=dashboard"))
+        #expect(!headers.apiCookieHeader.contains("modelstudio_only=modelstudio"))
         #expect(!headers.apiCookieHeader.contains("alibabacloud_only=cloud"))
         #expect(headers.dashboardCookieHeader.contains("dashboard_only=dashboard"))
-        #expect(!headers.dashboardCookieHeader.contains("api_only=api"))
+        #expect(!headers.dashboardCookieHeader.contains("modelstudio_only=modelstudio"))
         #expect(!headers.dashboardCookieHeader.contains("alibabacloud_only=cloud"))
 
         AlibabaCodingPlanCookieImporter.importSessionOverrideForTesting = { _, _ in
@@ -640,7 +648,7 @@ struct AlibabaTokenPlanWebStrategyTests {
                     self.cookie(name: "login_aliyunid_ticket", value: "ticket", domain: ".token-plan.test"),
                     self.cookie(name: "api_only", value: "api", domain: "quota.token-plan.test"),
                     self.cookie(name: "dashboard_only", value: "dashboard", domain: "dashboard.token-plan.test"),
-                    self.cookie(name: "prod_api_only", value: "prod-api", domain: "bailian-cs.console.aliyun.com"),
+                    self.cookie(name: "prod_api_only", value: "prod-api", domain: "bailian.console.aliyun.com"),
                     self.cookie(
                         name: "prod_dashboard_only",
                         value: "prod-dashboard",
@@ -685,7 +693,6 @@ final class AlibabaTokenPlanStubURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool {
         guard let host = request.url?.host else { return false }
         return host == "bailian.console.aliyun.com" ||
-            host == "bailian-cs.console.aliyun.com" ||
             host == "alibaba-token-plan.test" ||
             host == "session-token.test"
     }

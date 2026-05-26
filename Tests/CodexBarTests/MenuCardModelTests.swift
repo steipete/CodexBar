@@ -59,70 +59,6 @@ struct OverviewMenuCardVisibilityTests {
     }
 }
 
-struct OpenAIAPIMenuCardModelTests {
-    @Test
-    func `admin usage model shows summaries and spend without fake quota bars`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
-        let metadata = try #require(ProviderDefaults.metadata[.openai])
-        let apiUsage = OpenAIAPIUsageSnapshot(
-            daily: [
-                OpenAIAPIUsageSnapshot.DailyBucket(
-                    day: "2023-11-14",
-                    startTime: now,
-                    endTime: now.addingTimeInterval(86400),
-                    costUSD: 12.5,
-                    requests: 40,
-                    inputTokens: 1000,
-                    cachedInputTokens: 250,
-                    outputTokens: 500,
-                    totalTokens: 1500,
-                    lineItems: [
-                        OpenAIAPIUsageSnapshot.LineItemBreakdown(name: "Text tokens", costUSD: 12.5),
-                    ],
-                    models: [
-                        OpenAIAPIUsageSnapshot.ModelBreakdown(
-                            name: "gpt-5.2",
-                            requests: 40,
-                            inputTokens: 1000,
-                            cachedInputTokens: 250,
-                            outputTokens: 500,
-                            totalTokens: 1500),
-                    ]),
-            ],
-            updatedAt: now)
-
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .openai,
-            metadata: metadata,
-            snapshot: apiUsage.toUsageSnapshot(),
-            credits: nil,
-            creditsError: nil,
-            dashboard: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: nil, plan: nil),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: false,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            now: now))
-
-        #expect(model.metrics.isEmpty)
-        #expect(model.openAIAPIUsage != nil)
-        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$12.50")
-        #expect(model.inlineUsageDashboard?.points.count == 1)
-        #expect(model.providerCost == nil)
-        #expect(model.usageNotes.contains { $0.contains("Today: $12.50") })
-        #expect(model.usageNotes.contains("Top model: gpt-5.2"))
-        #expect(model.creditsText == nil)
-        #expect(model.planText == "Admin API")
-    }
-}
-
 struct ProviderInlineDashboardModelTests {
     @Test
     func `claude admin api usage gets inline dashboard`() throws {
@@ -349,9 +285,67 @@ struct ProviderInlineDashboardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.inlineUsageDashboard?.kpis.first?.value == "€1.5000")
-        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-14: €1.5000")
+        #expect(model.inlineUsageDashboard?.kpis.first?.value == "€1.50")
+        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-14: €1.50")
         #expect(model.inlineUsageDashboard?.detailLines.contains("Top model: mistral-large") == true)
+    }
+
+    @Test
+    func `mistral billing usage can show cost card summary`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.mistral])
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 1.5,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 100,
+            totalOutputTokens: 50,
+            totalCachedTokens: 25,
+            modelCount: 1,
+            daily: [
+                MistralDailyUsageBucket(
+                    day: "2023-11-14",
+                    cost: 1.5,
+                    inputTokens: 100,
+                    cachedTokens: 25,
+                    outputTokens: 50,
+                    models: [
+                        MistralDailyUsageBucket.ModelBreakdown(
+                            name: "mistral-large",
+                            cost: 1.5,
+                            inputTokens: 100,
+                            cachedTokens: 25,
+                            outputTokens: 50),
+                    ]),
+            ],
+            startDate: nil,
+            endDate: nil,
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .mistral,
+            metadata: metadata,
+            snapshot: snapshot.toUsageSnapshot(),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: snapshot.toCostUsageTokenSnapshot(historyDays: 30),
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(ProviderDescriptorRegistry.descriptor(for: .mistral).tokenCost.supportsTokenCost)
+        #expect(model.tokenUsage?.sessionLine == "Latest billing day (Nov 14): €1.50 · 175 tokens")
+        #expect(model.tokenUsage?.monthLine == "This month: €1.50 · 175 tokens")
+        #expect(model.tokenUsage?.hintLine == "Reported by Mistral billing usage.")
     }
 
     @Test

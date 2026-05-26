@@ -184,13 +184,19 @@ private struct CompactMetricView: View {
             let value = self.entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
             return (value, "Credits left", nil)
         case .todayCost:
-            let value = self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd) ?? "—"
+            let value = self.entry.tokenUsage.map { token in
+                token.sessionCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
+            } ?? "—"
             let detail = self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
-            return (value, "Today cost", detail)
+            let label = self.entry.tokenUsage.map { "\($0.sessionLabel) cost" } ?? "Today cost"
+            return (value, label, detail)
         case .last30DaysCost:
-            let value = self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd) ?? "—"
+            let value = self.entry.tokenUsage.map { token in
+                token.last30DaysCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
+            } ?? "—"
             let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            return (value, "30d cost", detail)
+            let label = self.entry.tokenUsage.map { "\($0.last30DaysLabel) cost" } ?? "30d cost"
+            return (value, label, detail)
         }
     }
 }
@@ -346,8 +352,11 @@ private struct SwitcherMediumUsageView: View {
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
-                    value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
+                    title: token.sessionLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
             }
         }
     }
@@ -376,13 +385,17 @@ private struct SwitcherLargeUsageView: View {
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: "Today",
-                        value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
+                        title: token.sessionLabel,
+                        value: WidgetFormat.costAndTokens(
+                            cost: token.sessionCostUSD,
+                            tokens: token.sessionTokens,
+                            currencyCode: token.currencyCode))
                     ValueLine(
-                        title: "30d",
+                        title: token.last30DaysLabel,
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
-                            tokens: token.last30DaysTokens))
+                            tokens: token.last30DaysTokens,
+                            currencyCode: token.currencyCode))
                 }
             }
             UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
@@ -431,8 +444,11 @@ private struct MediumUsageView: View {
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
-                    value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
+                    title: token.sessionLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
             }
         }
         .padding(12)
@@ -463,13 +479,17 @@ private struct LargeUsageView: View {
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: "Today",
-                        value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
+                        title: token.sessionLabel,
+                        value: WidgetFormat.costAndTokens(
+                            cost: token.sessionCostUSD,
+                            tokens: token.sessionTokens,
+                            currencyCode: token.currencyCode))
                     ValueLine(
-                        title: "30d",
+                        title: token.last30DaysLabel,
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
-                            tokens: token.last30DaysTokens))
+                            tokens: token.last30DaysTokens,
+                            currencyCode: token.currencyCode))
                 }
             }
             UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
@@ -516,11 +536,17 @@ private struct HistoryView: View {
                 .frame(height: self.isLarge ? 90 : 60)
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
-                    value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
+                    title: token.sessionLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
                 ValueLine(
-                    title: "30d",
-                    value: WidgetFormat.costAndTokens(cost: token.last30DaysCostUSD, tokens: token.last30DaysTokens))
+                    title: token.last30DaysLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.last30DaysCostUSD,
+                        tokens: token.last30DaysTokens,
+                        currencyCode: token.currencyCode))
             }
         }
         .padding(12)
@@ -726,21 +752,21 @@ enum WidgetFormat {
         return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
     }
 
-    static func costAndTokens(cost: Double?, tokens: Int?) -> String {
-        let costText = cost.map(self.usd) ?? "—"
+    static func costAndTokens(cost: Double?, tokens: Int?, currencyCode: String = "USD") -> String {
+        let costText = cost.map { self.currency($0, code: currencyCode) } ?? "—"
         if let tokens {
             return "\(costText) · \(self.tokenCount(tokens))"
         }
         return costText
     }
 
-    static func usd(_ value: Double) -> String {
+    static func currency(_ value: Double, code: String) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
+        formatter.currencyCode = code
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+        return formatter.string(from: NSNumber(value: value)) ?? "\(code) \(String(format: "%.2f", value))"
     }
 
     static func tokenCount(_ value: Int) -> String {

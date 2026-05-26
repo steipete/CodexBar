@@ -26,14 +26,14 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
     }
 }
 
-// swiftlint:disable:next type_body_length
 public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger("alibaba-token-plan")
-    private static let gatewayBaseURLString = "https://bailian-cs.console.aliyun.com"
+    private static let gatewayBaseURLString = "https://bailian.console.aliyun.com"
     private static let dashboardOriginURLString = "https://bailian.console.aliyun.com"
     private static let currentRegionID = "cn-beijing"
-    private static let apiName = "zeldaEasy.bailian-commerce.tokenPlan.queryTokenPlanInstanceInfo"
-    private static let tokenPlanCommodityCode = "sfm_tokenplanteams_dp_cn"
+    private static let bssServiceCode = "BssOpenAPI-V3"
+    private static let subscriptionSummaryAction = "GetSubscriptionSummary"
+    private static let tokenPlanProductCode = "sfm_tokenplanteams_dp_cn"
     private static let browserLikeUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -105,14 +105,12 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             apiCookieHeader: normalizedAPIHeader,
             environment: environment,
             session: dashboardSession)
-        let anonymousID = self.extractCookieValue(name: "cna", from: normalizedAPIHeader)
         Self.log.info(
             "Fetching Alibaba Token Plan usage",
             metadata: [
                 "apiHost": url.host ?? "unknown",
                 "apiCookieNames": self.cookieNamesDescription(from: normalizedAPIHeader),
                 "dashboardCookieNames": self.cookieNamesDescription(from: normalizedDashboardHeader),
-                "hasAnonymousID": anonymousID == nil ? "0" : "1",
                 "hasCSRF": self.hasCSRF(in: normalizedAPIHeader) ? "1" : "0",
                 "secTokenSource": secToken == nil ? "missing" : "resolved",
             ])
@@ -120,7 +118,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 20
-        request.httpBody = self.queryTokenPlanRequestBody(secToken: secToken, anonymousID: anonymousID)
+        request.httpBody = self.subscriptionSummaryRequestBody(secToken: secToken)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         request.setValue(normalizedAPIHeader, forHTTPHeaderField: "Cookie")
@@ -202,10 +200,9 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         var components = URLComponents(string: Self.gatewayBaseURLString)!
         components.path = "/data/api.json"
         components.queryItems = [
-            URLQueryItem(name: "action", value: "BroadScopeAspnGateway"),
-            URLQueryItem(name: "product", value: "sfm_bailian"),
-            URLQueryItem(name: "api", value: Self.apiName),
-            URLQueryItem(name: "_v", value: "undefined"),
+            URLQueryItem(name: "action", value: Self.subscriptionSummaryAction),
+            URLQueryItem(name: "product", value: Self.bssServiceCode),
+            URLQueryItem(name: "_tag", value: ""),
         ]
         return components.url!
     }
@@ -231,15 +228,16 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
         try self.throwIfErrorPayload(dictionary)
 
-        let instance = self.findTokenPlanInstance(in: dictionary)
-        let planName = self.findPlanName(in: instance ?? [:]) ?? self.findPlanName(in: dictionary)
-        let quotaSource = self.findQuotaInfo(in: instance ?? [:]) ?? self.findQuotaInfo(in: dictionary)
-        let used = quotaSource.flatMap { self.anyDouble(for: Self.usedQuotaKeys, in: $0) }
-        let total = quotaSource.flatMap { self.anyDouble(for: Self.totalQuotaKeys, in: $0) }
-        let remaining = quotaSource.flatMap { self.anyDouble(for: Self.remainingQuotaKeys, in: $0) }
-        let resetsAt = self.findResetDate(in: instance ?? [:]) ?? self.findResetDate(in: dictionary)
+        let summary = self.findSubscriptionSummary(in: dictionary) ?? dictionary
+        let total = self.anyDouble(for: Self.totalQuotaKeys, in: summary)
+        let remaining = self.anyDouble(for: Self.remainingQuotaKeys, in: summary)
+        let used = self.anyDouble(for: Self.usedQuotaKeys, in: summary) ??
+            total.flatMap { total in remaining.map { max(0, total - $0) } }
+        let resetsAt = self.findResetDate(in: summary) ?? self.findResetDate(in: dictionary)
+        let totalCount = self.anyDouble(for: Self.subscriptionCountKeys, in: summary)
+        let planName = self.findPlanName(in: summary) ?? ((totalCount ?? 0) > 0 || total != nil ? "TOKEN PLAN" : nil)
 
-        if planName == nil, total == nil, used == nil, remaining == nil {
+        if planName == nil, total == nil, used == nil, remaining == nil, totalCount == nil {
             let diagnostics = self.payloadDiagnostics(payload: dictionary)
             Self.log.error("Alibaba Token Plan payload missing expected fields: \(diagnostics)")
             throw AlibabaTokenPlanUsageError.parseFailed("Missing token plan data (\(diagnostics))")
@@ -254,36 +252,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             updatedAt: now)
     }
 
-    private static func queryTokenPlanRequestBody(secToken: String?, anonymousID: String?) -> Data {
-        let traceID = UUID().uuidString.lowercased()
-        var cornerstoneParam: [String: Any] = [
-            "feTraceId": traceID,
-            "feURL": Self.dashboardURL.absoluteString,
-            "protocol": "V2",
-            "console": "ONE_CONSOLE",
-            "productCode": "p_efm",
-            "domain": "bailian.console.aliyun.com",
-            "consoleSite": "BAILIAN_ALIYUN",
-            "userNickName": "",
-            "userPrincipalName": "",
-            "xsp_lang": "zh-CN",
-        ]
-        if let anonymousID, !anonymousID.isEmpty {
-            cornerstoneParam["X-Anonymous-Id"] = anonymousID
-        }
-
-        let paramsObject: [String: Any] = [
-            "Api": Self.apiName,
-            "V": "1.0",
-            "Data": [
-                "queryTokenPlanInstanceInfoRequest": [
-                    "commodityCode": Self.tokenPlanCommodityCode,
-                    "onlyLatestOne": true,
-                ],
-                "cornerstoneParam": cornerstoneParam,
-            ],
-        ]
-
+    private static func subscriptionSummaryRequestBody(secToken: String?) -> Data {
+        let paramsObject = ["ProductCode": Self.tokenPlanProductCode]
         guard let paramsData = try? JSONSerialization.data(withJSONObject: paramsObject, options: []),
               let paramsString = String(data: paramsData, encoding: .utf8)
         else {
@@ -292,6 +262,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
         var components = URLComponents()
         var queryItems = [
+            URLQueryItem(name: "product", value: Self.bssServiceCode),
+            URLQueryItem(name: "action", value: Self.subscriptionSummaryAction),
             URLQueryItem(name: "params", value: paramsString),
             URLQueryItem(name: "region", value: Self.currentRegionID),
         ]
@@ -436,6 +408,16 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func throwIfErrorPayload(_ dictionary: [String: Any]) throws {
+        if self.findBoolValues(forKeys: ["Success", "success"], in: dictionary).contains(false) {
+            let message = self.findFirstString(forKeys: ["Message", "message", "msg", "Code", "code"], in: dictionary)
+                ?? "request was not successful"
+            let lowered = message.lowercased()
+            if lowered.contains("needlogin") || lowered.contains("login") {
+                throw AlibabaTokenPlanUsageError.loginRequired
+            }
+            throw AlibabaTokenPlanUsageError.apiError(message)
+        }
+
         if let statusCode = self.findFirstInt(forKeys: ["statusCode", "status_code", "code"], in: dictionary),
            statusCode != 0,
            statusCode != 200
@@ -473,6 +455,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "instance_name",
         "displayName",
         "display_name",
+        "ProductName",
+        "productName",
         "name",
         "title",
         "planType",
@@ -488,6 +472,10 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "used",
         "usedAmount",
         "consumeAmount",
+        "usedValue",
+        "UsedValue",
+        "consumedValue",
+        "ConsumedValue",
     ]
     private static let totalQuotaKeys = [
         "totalQuota",
@@ -499,6 +487,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "creditsTotal",
         "monthlyTotalQuota",
         "amount",
+        "totalValue",
+        "TotalValue",
     ]
     private static let remainingQuotaKeys = [
         "remainingQuota",
@@ -510,6 +500,16 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "remaining",
         "availableAmount",
         "remainAmount",
+        "totalSurplusValue",
+        "TotalSurplusValue",
+        "surplusValue",
+        "SurplusValue",
+    ]
+    private static let subscriptionCountKeys = [
+        "totalCount",
+        "TotalCount",
+        "subscriptionTotalNumber",
+        "SubscriptionTotalNumber",
     ]
     private static let resetDateKeys = [
         "nextRefreshTime",
@@ -522,41 +522,32 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "endTime",
         "validEndTime",
         "instanceEndTime",
+        "nearestExpireDate",
+        "NearestExpireDate",
     ]
 
-    private static func findTokenPlanInstance(in payload: [String: Any]) -> [String: Any]? {
-        if let direct = self.findFirstDictionary(
-            forKeys: ["tokenPlanInstanceInfo", "token_plan_instance_info", "instanceInfo", "instance_info"],
-            in: payload)
+    private static func findSubscriptionSummary(in payload: [String: Any]) -> [String: Any]? {
+        if let data = self.findFirstDictionary(
+            forKeys: ["Data", "data", "successResponse", "success_response"],
+            in: payload),
+            self.containsSubscriptionSummaryFields(data)
         {
-            return direct
+            return data
         }
-        if let infos = self.findFirstArray(
-            forKeys: ["tokenPlanInstanceInfos", "token_plan_instance_infos", "instanceInfos", "instances"],
+        return self.findFirstDictionary(
+            matchingAnyKey: Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys +
+                Self.subscriptionCountKeys,
             in: payload)
-        {
-            return infos.compactMap { $0 as? [String: Any] }.max {
-                self.activeSignalScore(in: $0) < self.activeSignalScore(in: $1)
-            }
-        }
-        return nil
+    }
+
+    private static func containsSubscriptionSummaryFields(_ payload: [String: Any]) -> Bool {
+        let keys = self.usedQuotaKeys + self.totalQuotaKeys + self.remainingQuotaKeys + self.subscriptionCountKeys
+        return keys.contains { payload[$0] != nil }
     }
 
     private static func findPlanName(in payload: [String: Any]) -> String? {
         self.anyString(for: self.planNameKeys, in: payload) ??
             self.findFirstString(forKeys: self.planNameKeys, in: payload)
-    }
-
-    private static func findQuotaInfo(in payload: [String: Any]) -> [String: Any]? {
-        if let direct = self.findFirstDictionary(
-            forKeys: ["quotaInfo", "quota_info", "tokenPlanQuotaInfo", "token_plan_quota_info"],
-            in: payload)
-        {
-            return direct
-        }
-        return self.findFirstDictionary(
-            matchingAnyKey: Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys,
-            in: payload)
     }
 
     private static func findResetDate(in payload: [String: Any]) -> Date? {
@@ -566,33 +557,17 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
     private static func payloadDiagnostics(payload: [String: Any]) -> String {
         let topKeys = payload.keys.sorted()
-        let dataDict = self.findFirstDictionary(forKeys: ["data", "successResponse", "success_response"], in: payload)
+        let dataDict = self.findFirstDictionary(
+            forKeys: ["Data", "data", "successResponse", "success_response"],
+            in: payload)
         let dataKeys = dataDict?.keys.sorted() ?? []
-        let instance = self.findTokenPlanInstance(in: payload)
-        let instanceKeys = instance?.keys.sorted() ?? []
-        return "topKeys=\(topKeys.joined(separator: ",")) dataKeys=\(dataKeys.joined(separator: ",")) " +
-            "instanceKeys=\(instanceKeys.joined(separator: ","))"
+        return "topKeys=\(topKeys.joined(separator: ",")) dataKeys=\(dataKeys.joined(separator: ","))"
     }
 
     private static func isLikelyLoginHTML(_ data: Data) -> Bool {
         guard let text = String(data: data, encoding: .utf8)?.lowercased() else { return false }
         return text.contains("<html") &&
             (text.contains("login") || text.contains("sign in") || text.contains("signin"))
-    }
-
-    private static func activeSignalScore(in source: [String: Any]) -> Int {
-        if let status = self.anyString(for: ["status", "instanceStatus", "state"], in: source)?.uppercased() {
-            if ["VALID", "ACTIVE", "NORMAL"].contains(status) {
-                return 3
-            }
-            if ["EXPIRED", "INVALID", "INACTIVE", "DISABLED", "TERMINATED", "STOPPED"].contains(status) {
-                return -1
-            }
-        }
-        if let isActive = self.anyBool(for: ["isActive", "active"], in: source) {
-            return isActive ? 3 : -1
-        }
-        return 0
     }
 
     private static func findFirstDictionary(forKeys keys: [String], in value: Any) -> [String: Any]? {
@@ -641,30 +616,6 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return nil
     }
 
-    private static func findFirstArray(forKeys keys: [String], in value: Any) -> [Any]? {
-        if let dict = value as? [String: Any] {
-            for key in keys {
-                if let array = dict[key] as? [Any] {
-                    return array
-                }
-            }
-            for nestedValue in dict.values {
-                if let found = self.findFirstArray(forKeys: keys, in: nestedValue) {
-                    return found
-                }
-            }
-            return nil
-        }
-        if let array = value as? [Any] {
-            for item in array {
-                if let found = self.findFirstArray(forKeys: keys, in: item) {
-                    return found
-                }
-            }
-        }
-        return nil
-    }
-
     private static func findFirstString(forKeys keys: [String], in value: Any) -> String? {
         if let dict = value as? [String: Any] {
             for key in keys {
@@ -687,6 +638,18 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             }
         }
         return nil
+    }
+
+    private static func findBoolValues(forKeys keys: [String], in value: Any) -> [Bool] {
+        if let dict = value as? [String: Any] {
+            let directValues = keys.compactMap { self.parseBool(dict[$0]) }
+            let nestedValues = dict.values.flatMap { self.findBoolValues(forKeys: keys, in: $0) }
+            return directValues + nestedValues
+        }
+        if let array = value as? [Any] {
+            return array.flatMap { self.findBoolValues(forKeys: keys, in: $0) }
+        }
+        return []
     }
 
     private static func findFirstInt(forKeys keys: [String], in value: Any) -> Int? {
@@ -838,7 +801,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             }
             let dateFormatter = DateFormatter()
             dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-            for format in ["yyyy-MM-dd HH:mm", "yyyy-MM-dd HH:mm:ss"] {
+            for format in ["yyyy-MM-dd", "yyyy-MM-dd HH:mm", "yyyy-MM-dd HH:mm:ss"] {
                 dateFormatter.dateFormat = format
                 if let date = dateFormatter.date(from: string) {
                     return date

@@ -33,7 +33,6 @@ extension StatusItemController {
     static let usageBreakdownChartID = "usageBreakdownChart"
     static let creditsHistoryChartID = "creditsHistoryChart"
     static let costHistoryChartID = "costHistoryChart"
-    static let openAIAPIUsageChartID = "openAIAPIUsageChart"
     static let usageHistoryChartID = "usageHistoryChart"
     static let storageBreakdownID = "storageBreakdown"
 
@@ -118,9 +117,8 @@ extension StatusItemController {
             // Intentionally skip open-menu tracking when refresh is disabled (tests).
             // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
             self.openMenus[ObjectIdentifier(menu)] = menu
-        }
-        // Only schedule refresh after menu is registered as open - refreshNow is called async
-        if Self.menuRefreshEnabled {
+            self.installProviderSwitcherShortcutMonitorIfNeeded(for: menu)
+            // Only schedule refresh after menu is registered as open - refreshNow is called async
             self.scheduleOpenMenuRefresh(for: menu)
         }
     }
@@ -135,6 +133,10 @@ extension StatusItemController {
 
     func forgetClosedMenu(_ menu: NSMenu) {
         let key = ObjectIdentifier(menu)
+
+        if key == self.providerSwitcherShortcutMenuID {
+            self.removeProviderSwitcherShortcutMonitor()
+        }
 
         self.openMenus.removeValue(forKey: key)
         self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
@@ -309,10 +311,9 @@ extension StatusItemController {
         guard !menu.items.isEmpty else { return [] }
 
         var reusableRows: [NSMenuItem] = []
-        var index = 0
-        if menu.items.first?.view is ProviderSwitcherView {
+        var index = self.providerSwitcherContentStartIndex(in: menu)
+        if index > 0 {
             reusableRows.append(menu.items[0])
-            index = 2
         }
         if menu.items.count > index,
            menu.items[index].view is CodexAccountSwitcherView
@@ -345,7 +346,7 @@ extension StatusItemController {
         context: MenuUpdateContext)
     {
         self.performMenuMutationWithoutAnimation {
-            let contentStartIndex = menu.items.first?.view is ProviderSwitcherView ? 2 : 0
+            let contentStartIndex = self.providerSwitcherContentStartIndex(in: menu)
             if let switcherView = menu.items.first?.view as? ProviderSwitcherView {
                 switcherView.updateSelection(context.switcherSelection)
                 switcherView.updateQuotaIndicators()
@@ -1547,8 +1548,8 @@ extension StatusItemController {
     }
 
     func makeCostHistorySubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
-        guard [.codex, .claude, .vertexai, .bedrock].contains(provider) else { return nil }
-        guard self.store.tokenSnapshot(for: provider)?.daily.isEmpty == false else { return nil }
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else { return nil }
+        guard self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false else { return nil }
         if let width {
             return self.makeHostedSubviewPlaceholderMenu(
                 chartID: Self.costHistoryChartID,
@@ -1558,19 +1559,23 @@ extension StatusItemController {
         return self.makeHostedSubviewPlaceholderMenu(chartID: Self.costHistoryChartID, provider: provider)
     }
 
+    func tokenSnapshotForCostHistorySubmenu(provider: UsageProvider) -> CostUsageTokenSnapshot? {
+        let projected = self.store.tokenSnapshot(
+            fromProviderSnapshot: self.store.snapshot(for: provider),
+            provider: provider)
+        if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+            return projected
+        }
+        return projected ?? self.store.tokenSnapshot(for: provider)
+    }
+
     func makeOpenAIAPIUsageSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
         guard self.hasOpenAIAPIUsageSubmenu(provider: provider) else { return nil }
-        if let width {
-            return self.makeHostedSubviewPlaceholderMenu(
-                chartID: Self.openAIAPIUsageChartID,
-                provider: provider,
-                width: width)
-        }
-        return self.makeHostedSubviewPlaceholderMenu(chartID: Self.openAIAPIUsageChartID, provider: provider)
+        return self.makeCostHistorySubmenu(provider: provider, width: width)
     }
 
     private func hasOpenAIAPIUsageSubmenu(provider: UsageProvider) -> Bool {
-        provider == .openai && self.store.snapshot(for: provider)?.openAIAPIUsage?.daily.isEmpty == false
+        provider == .openai && self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
     }
 
     func makeStorageBreakdownSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {

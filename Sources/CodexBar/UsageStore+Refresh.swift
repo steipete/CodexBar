@@ -26,30 +26,7 @@ extension UsageStore {
         let codexExpectedGuard = provider == .codex ? self.currentCodexAccountScopedRefreshGuard() : nil
 
         if !spec.isEnabled(), !allowDisabled {
-            self.refreshingProviders.remove(provider)
-            await MainActor.run {
-                self.snapshots.removeValue(forKey: provider)
-                self.lastKnownResetSnapshots.removeValue(forKey: provider)
-                self.errors[provider] = nil
-                self.lastSourceLabels.removeValue(forKey: provider)
-                self.lastFetchAttempts.removeValue(forKey: provider)
-                self.accountSnapshots.removeValue(forKey: provider)
-                if provider == .codex {
-                    self.codexAccountSnapshots = []
-                }
-                if provider == .kilo {
-                    self.kiloScopeSnapshots = []
-                }
-                self.tokenSnapshots.removeValue(forKey: provider)
-                self.tokenErrors[provider] = nil
-                self.failureGates[provider]?.reset()
-                self.tokenFailureGates[provider]?.reset()
-                self.statuses.removeValue(forKey: provider)
-                self.lastKnownSessionRemaining.removeValue(forKey: provider)
-                self.lastKnownSessionWindowSource.removeValue(forKey: provider)
-                self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
-                self.lastTokenFetchAt.removeValue(forKey: provider)
-            }
+            await self.clearDisabledProviderRefreshState(provider)
             return
         }
 
@@ -133,6 +110,14 @@ extension UsageStore {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
+                if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: backfilled, provider: provider) {
+                    self.tokenSnapshots[provider] = tokenSnapshot
+                    self.tokenErrors[provider] = nil
+                    self.tokenFailureGates[provider]?.recordSuccess()
+                } else if Self.tokenCostRequiresProviderSnapshot(provider) {
+                    self.tokenSnapshots.removeValue(forKey: provider)
+                    self.tokenErrors[provider] = nil
+                }
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
@@ -170,6 +155,33 @@ extension UsageStore {
                 _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
             }
             await self.handleProviderFetchFailure(provider: provider, error: error)
+        }
+    }
+
+    private func clearDisabledProviderRefreshState(_ provider: UsageProvider) async {
+        self.refreshingProviders.remove(provider)
+        await MainActor.run {
+            self.snapshots.removeValue(forKey: provider)
+            self.lastKnownResetSnapshots.removeValue(forKey: provider)
+            self.errors[provider] = nil
+            self.lastSourceLabels.removeValue(forKey: provider)
+            self.lastFetchAttempts.removeValue(forKey: provider)
+            self.accountSnapshots.removeValue(forKey: provider)
+            if provider == .codex {
+                self.codexAccountSnapshots = []
+            }
+            if provider == .kilo {
+                self.kiloScopeSnapshots = []
+            }
+            self.tokenSnapshots.removeValue(forKey: provider)
+            self.tokenErrors[provider] = nil
+            self.failureGates[provider]?.reset()
+            self.tokenFailureGates[provider]?.reset()
+            self.statuses.removeValue(forKey: provider)
+            self.lastKnownSessionRemaining.removeValue(forKey: provider)
+            self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+            self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
+            self.lastTokenFetchAt.removeValue(forKey: provider)
         }
     }
 
