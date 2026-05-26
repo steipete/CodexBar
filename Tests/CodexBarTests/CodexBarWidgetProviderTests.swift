@@ -130,6 +130,27 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `legacy widget usage rows include tertiary slot when supported`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .antigravity,
+            updatedAt: now,
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+
+        let rows = WidgetUsageRow.rows(for: entry)
+
+        #expect(rows.map(\.id) == ["primary", "secondary", "tertiary"])
+        #expect(rows.map(\.title) == ["Claude", "Gemini Pro", "Gemini Flash"])
+        #expect(rows.compactMap(\.percentLeft) == [90, 80, 70])
+    }
+
+    @Test
     func `widget configuration intents default to codex and credits`() {
         let providerIntent = ProviderSelectionIntent()
         let compactIntent = CompactMetricSelectionIntent()

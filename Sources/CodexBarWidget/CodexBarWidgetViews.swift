@@ -492,7 +492,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
         }
 
         let metadata = ProviderDefaults.metadata[entry.provider]
-        return [
+        var rows = [
             WidgetUsageRow(
                 id: "primary",
                 title: metadata?.sessionLabel ?? "Session",
@@ -501,7 +501,14 @@ struct WidgetUsageRow: Identifiable, Equatable {
                 id: "secondary",
                 title: metadata?.weeklyLabel ?? "Weekly",
                 percentLeft: entry.secondary?.remainingPercent),
-        ].filter { $0.percentLeft != nil }
+        ]
+        if metadata?.supportsOpus == true {
+            rows.append(WidgetUsageRow(
+                id: "tertiary",
+                title: metadata?.opusLabel ?? "Opus",
+                percentLeft: entry.tertiary?.remainingPercent))
+        }
+        return rows.filter { $0.percentLeft != nil }
     }
 }
 
