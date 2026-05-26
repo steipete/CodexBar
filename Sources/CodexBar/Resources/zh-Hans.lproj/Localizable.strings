@@ -105,7 +105,7 @@
 "Cursor login failed" = "Cursor 登录失败";
 "Custom" = "自定义";
 "Custom Path" = "自定义路径";
-"Daily Routines" = "日常例程";
+"Daily Routines" = "日常任务";
 "Debug" = "调试";
 "Default" = "默认";
 "Designs" = "设计";
@@ -171,7 +171,7 @@
 "Managed Codex accounts unavailable" = "托管 Codex 账户不可用";
 "Managed account storage is unreadable. Live account access is still available, " = "托管账户存储不可读。实时账户访问仍可用，";
 "Manual" = "手动";
-"May your tokens never run out—keep agent limits in view." = "愿你的 token 永不耗尽——随时关注智能体限制。";
+"May your tokens never run out—keep agent limits in view." = "愿你的 token 永不耗尽——随时关注智能体额度。";
 "Menu bar" = "菜单栏";
 "Menu bar auto-shows the provider closest to its rate limit." = "菜单栏会自动显示最接近速率限制的提供商。";
 "Menu bar metric" = "菜单栏指标";
@@ -522,7 +522,7 @@
 "keychain_access_caption" = "禁用所有钥匙串读写。浏览器 Cookie 导入不可用；请在“提供商”中手动粘贴 Cookie 标头。";
 "disable_keychain_access_title" = "禁用钥匙串访问";
 "disable_keychain_access_subtitle" = "启用时阻止任何钥匙串访问。";
-"about_tagline" = "愿你的 token 永不耗尽——随时关注智能体限制。";
+"about_tagline" = "愿你的 token 永不耗尽——随时关注智能体额度。";
 "link_github" = "GitHub";
 "link_website" = "网站";
 "link_twitter" = "Twitter";
@@ -652,7 +652,7 @@
 "30d tokens" = "近 30 天 token 用量";
 "Latest tokens" = "最近 token 用量";
 "Top model" = "最常用模型";
-"Storage" = "存储空间";
+"Storage" = "存储";
 "Add Account..." = "添加账户…";
 "Usage Dashboard" = "用量仪表盘";
 "Status Page" = "状态页";
@@ -668,17 +668,17 @@
 "Resets %@" = "重置于 %@";
 "Resets in %@" = "%@后重置";
 "Resets now" = "立即重置";
-"Lasts until reset" = "可用至重置";
+"Lasts until reset" = "持续到重置";
 "Updated %@" = "更新于 %@";
 "Updated %@h ago" = "%@ 小时前更新";
 "Updated %@m ago" = "%@ 分钟前更新";
 "Updated just now" = "刚刚更新";
-"Projected empty in %@" = "预计 %@ 后用尽";
-"Runs out in %@" = "预计 %@ 后用尽";
+"Projected empty in %@" = "预计 %@ 后耗尽";
+"Runs out in %@" = "预计 %@ 后耗尽";
 "Pace: %@" = "节奏：%@";
 "Pace: %@ · %@" = "节奏：%@ · %@";
 "%@ · %@" = "%@ · %@";
-"≈ %d%% run-out risk" = "≈ %d%% 用尽风险";
+"≈ %d%% run-out risk" = "≈ %d%% 耗尽风险";
 "%d%% in deficit" = "超额 %d%%";
 "%d%% in reserve" = "余量 %d%%";
 "usage_percent_suffix_left" = "剩余";
@@ -707,8 +707,8 @@
 "today" = "今天";
 "just now" = "刚刚";
 "On pace" = "节奏正常";
-"Runs out now" = "立即用尽";
-"Projected empty now" = "预计立即用尽";
+"Runs out now" = "即将耗尽";
+"Projected empty now" = "即将耗尽";
 "Switch Account..." = "切换账户…";
 "Update ready, restart now?" = "更新已就绪，是否立即重启？";
 "Daily" = "每日";
@@ -776,3 +776,14 @@
 "minimax_service_lyrics_generation" = "歌词生成";
 "minimax_service_coding_plan_vlm" = "视觉编码计划";
 "minimax_service_coding_plan_search" = "搜索编码计划";
+
+/* Notification strings (added in Fan customization) */
+"login_success_notification_title" = "%@ 登录成功";
+"login_success_notification_body" = "可以返回应用了，认证已完成。";
+"session_depleted_notification_title" = "%@ 会话额度已用尽";
+"session_depleted_notification_body" = "剩余 0%。可用时会通知你。";
+"session_restored_notification_title" = "%@ 会话已恢复";
+"session_restored_notification_body" = "会话额度已重新可用。";
+"quota_warning_notification_title" = "%1$@ 的 %2$@ 额度偏低";
+"quota_warning_notification_body" = "剩余 %1$@。已达到 %2$d%% 的 %3$@ 预警阈值。";
+"quota_warning_notification_body_with_account" = "账户 %1$@。剩余 %2$@。已达到 %3$d%% 的 %4$@ 预警阈值。";
