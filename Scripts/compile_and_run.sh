@@ -8,6 +8,7 @@ APP_BUNDLE="${ROOT_DIR}/CodexBar.app"
 APP_PROCESS_PATTERN="CodexBar.app/Contents/MacOS/CodexBar"
 DEBUG_PROCESS_PATTERN="${ROOT_DIR}/.build/debug/CodexBar"
 RELEASE_PROCESS_PATTERN="${ROOT_DIR}/.build/release/CodexBar"
+EXPECTED_APP_PROCESS_PATTERN="${APP_BUNDLE}/Contents/MacOS/CodexBar"
 LOCK_KEY="$(printf '%s' "${ROOT_DIR}" | shasum -a 256 | cut -c1-8)"
 LOCK_DIR="${TMPDIR:-/tmp}/codexbar-compile-and-run-${LOCK_KEY}"
 LOCK_PID_FILE="${LOCK_DIR}/pid"
@@ -234,6 +235,14 @@ kill_all_codexbar() {
   fail "Failed to kill all CodexBar instances."
 }
 
+running_codexbar_process_count() {
+  pgrep -f "${APP_PROCESS_PATTERN}" 2>/dev/null | wc -l | tr -d ' '
+}
+
+running_expected_codexbar_count() {
+  pgrep -f "${EXPECTED_APP_PROCESS_PATTERN}" 2>/dev/null | wc -l | tr -d ' '
+}
+
 # 1) Ensure a single runner instance.
 for arg in "$@"; do
   case "${arg}" in
@@ -309,7 +318,8 @@ fi
 
 # 4) Launch the packaged app.
 log "==> launch app"
-if ! open "${APP_BUNDLE}"; then
+kill_all_codexbar
+if ! open -n "${APP_BUNDLE}"; then
   log "WARN: launch app returned non-zero; falling back to direct binary launch."
   "${APP_BUNDLE}/Contents/MacOS/CodexBar" >/dev/null 2>&1 &
   disown
@@ -317,7 +327,10 @@ fi
 
 # 5) Verify the app stays up for at least a moment (launch can be >1s on some systems).
 for _ in {1..10}; do
-  if pgrep -f "${APP_PROCESS_PATTERN}" >/dev/null 2>&1; then
+  if [[ "$(running_expected_codexbar_count)" == "1" ]]; then
+    if [[ "$(running_codexbar_process_count)" != "1" ]]; then
+      fail "CodexBar launched more than once."
+    fi
     log "OK: CodexBar is running."
     exit 0
   fi
