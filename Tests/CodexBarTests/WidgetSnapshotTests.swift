@@ -22,7 +22,9 @@ struct WidgetSnapshotTests {
                 sessionTokens: 1200,
                 last30DaysCostUSD: 456.7,
                 last30DaysTokens: 9800,
-                currencyCode: "eur"),
+                currencyCode: "eur",
+                sessionLabel: "Latest billing day",
+                last30DaysLabel: "This month"),
             dailyUsage: [
                 WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-20", totalTokens: 1200, costUSD: 12.3),
             ])
@@ -44,6 +46,8 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.first?.provider == .codex)
         #expect(decoded.entries.first?.tokenUsage?.sessionTokens == 1200)
         #expect(decoded.entries.first?.tokenUsage?.currencyCode == "EUR")
+        #expect(decoded.entries.first?.tokenUsage?.sessionLabel == "Latest billing day")
+        #expect(decoded.entries.first?.tokenUsage?.last30DaysLabel == "This month")
         #expect(decoded.entries.first?.usageRows?.map(\.id) == ["session", "weekly"])
         #expect(decoded.enabledProviders == [.codex, .claude])
     }
@@ -195,6 +199,8 @@ struct WidgetSnapshotTests {
         let decoded = try decoder.decode(WidgetSnapshot.self, from: Data(json.utf8))
 
         #expect(decoded.entries.first?.tokenUsage?.currencyCode == "USD")
+        #expect(decoded.entries.first?.tokenUsage?.sessionLabel == "Today")
+        #expect(decoded.entries.first?.tokenUsage?.last30DaysLabel == "30d")
         #expect(decoded.enabledProviders == [.codex])
     }
 }

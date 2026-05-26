@@ -56,13 +56,17 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let last30DaysCostUSD: Double?
         public let last30DaysTokens: Int?
         public let currencyCode: String
+        public let sessionLabel: String
+        public let last30DaysLabel: String
 
         public init(
             sessionCostUSD: Double?,
             sessionTokens: Int?,
             last30DaysCostUSD: Double?,
             last30DaysTokens: Int?,
-            currencyCode: String = "USD")
+            currencyCode: String = "USD",
+            sessionLabel: String = "Today",
+            last30DaysLabel: String = "30d")
         {
             self.sessionCostUSD = sessionCostUSD
             self.sessionTokens = sessionTokens
@@ -71,6 +75,12 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.currencyCode = currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? "USD"
                 : currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            self.sessionLabel = sessionLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Today"
+                : sessionLabel
+            self.last30DaysLabel = last30DaysLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "30d"
+                : last30DaysLabel
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -79,6 +89,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             case last30DaysCostUSD
             case last30DaysTokens
             case currencyCode
+            case sessionLabel
+            case last30DaysLabel
         }
 
         public init(from decoder: Decoder) throws {
@@ -88,7 +100,9 @@ public struct WidgetSnapshot: Codable, Sendable {
                 sessionTokens: container.decodeIfPresent(Int.self, forKey: .sessionTokens),
                 last30DaysCostUSD: container.decodeIfPresent(Double.self, forKey: .last30DaysCostUSD),
                 last30DaysTokens: container.decodeIfPresent(Int.self, forKey: .last30DaysTokens),
-                currencyCode: container.decodeIfPresent(String.self, forKey: .currencyCode) ?? "USD")
+                currencyCode: container.decodeIfPresent(String.self, forKey: .currencyCode) ?? "USD",
+                sessionLabel: container.decodeIfPresent(String.self, forKey: .sessionLabel) ?? "Today",
+                last30DaysLabel: container.decodeIfPresent(String.self, forKey: .last30DaysLabel) ?? "30d")
         }
     }
 

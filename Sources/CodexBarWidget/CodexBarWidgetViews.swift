@@ -188,13 +188,15 @@ private struct CompactMetricView: View {
                 token.sessionCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
             let detail = self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
-            return (value, "Today cost", detail)
+            let label = self.entry.tokenUsage.map { "\($0.sessionLabel) cost" } ?? "Today cost"
+            return (value, label, detail)
         case .last30DaysCost:
             let value = self.entry.tokenUsage.map { token in
                 token.last30DaysCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
             let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            return (value, "30d cost", detail)
+            let label = self.entry.tokenUsage.map { "\($0.last30DaysLabel) cost" } ?? "30d cost"
+            return (value, label, detail)
         }
     }
 }
@@ -350,7 +352,7 @@ private struct SwitcherMediumUsageView: View {
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
+                    title: token.sessionLabel,
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
@@ -383,13 +385,13 @@ private struct SwitcherLargeUsageView: View {
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: "Today",
+                        title: token.sessionLabel,
                         value: WidgetFormat.costAndTokens(
                             cost: token.sessionCostUSD,
                             tokens: token.sessionTokens,
                             currencyCode: token.currencyCode))
                     ValueLine(
-                        title: "30d",
+                        title: token.last30DaysLabel,
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens,
@@ -442,7 +444,7 @@ private struct MediumUsageView: View {
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
+                    title: token.sessionLabel,
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
@@ -477,13 +479,13 @@ private struct LargeUsageView: View {
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: "Today",
+                        title: token.sessionLabel,
                         value: WidgetFormat.costAndTokens(
                             cost: token.sessionCostUSD,
                             tokens: token.sessionTokens,
                             currencyCode: token.currencyCode))
                     ValueLine(
-                        title: "30d",
+                        title: token.last30DaysLabel,
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens,
@@ -534,13 +536,13 @@ private struct HistoryView: View {
                 .frame(height: self.isLarge ? 90 : 60)
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
+                    title: token.sessionLabel,
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
                 ValueLine(
-                    title: "30d",
+                    title: token.last30DaysLabel,
                     value: WidgetFormat.costAndTokens(
                         cost: token.last30DaysCostUSD,
                         tokens: token.last30DaysTokens,

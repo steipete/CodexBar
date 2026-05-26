@@ -826,12 +826,7 @@ struct CodexAccountScopedRefreshTests {
         settings.refreshFrequency = .manual
 
         let store = self.makeUsageStore(settings: settings)
-        store._setSnapshotForTesting(
-            UsageSnapshot(
-                primary: nil,
-                secondary: nil,
-                updatedAt: Date()),
-            provider: .mistral)
+        store._setSnapshotForTesting(UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date()), provider: .mistral)
         store._setTokenSnapshotForTesting(
             CostUsageTokenSnapshot(
                 sessionTokens: 10,
@@ -839,6 +834,7 @@ struct CodexAccountScopedRefreshTests {
                 last30DaysTokens: 100,
                 last30DaysCostUSD: 9.0,
                 currencyCode: "eur",
+                historyLabel: "This month",
                 daily: [],
                 updatedAt: Date()),
             provider: .mistral)
@@ -852,6 +848,8 @@ struct CodexAccountScopedRefreshTests {
 
         let mistralEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .mistral })
         #expect(mistralEntry.tokenUsage?.currencyCode == "EUR")
+        #expect(mistralEntry.tokenUsage?.sessionLabel == "Latest billing day")
+        #expect(mistralEntry.tokenUsage?.last30DaysLabel == "This month")
     }
 
     @Test

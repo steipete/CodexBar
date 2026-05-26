@@ -44,7 +44,7 @@ extension UsageStore {
                 costUSD: entry.costUSD)
         } ?? []
 
-        let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot)
+        let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
         let usageRows = self.widgetUsageRows(provider: provider, snapshot: snapshot)
 
         let creditsRemaining: Double?
@@ -76,17 +76,22 @@ extension UsageStore {
     }
 
     private nonisolated static func widgetTokenUsageSummary(
-        from snapshot: CostUsageTokenSnapshot?) -> WidgetSnapshot.TokenUsageSummary?
+        from snapshot: CostUsageTokenSnapshot?,
+        provider: UsageProvider) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
+        let sessionLabel = provider == .bedrock || provider == .mistral ? "Latest billing day" : "Today"
+        let monthLabel = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "Today" : "\(snapshot.historyDays)d")
         return WidgetSnapshot.TokenUsageSummary(
             sessionCostUSD: snapshot.sessionCostUSD,
             sessionTokens: snapshot.sessionTokens,
             last30DaysCostUSD: snapshot.last30DaysCostUSD,
             last30DaysTokens: monthTokensValue,
-            currencyCode: snapshot.currencyCode)
+            currencyCode: snapshot.currencyCode,
+            sessionLabel: sessionLabel,
+            last30DaysLabel: monthLabel)
     }
 
     private func widgetUsageRows(
