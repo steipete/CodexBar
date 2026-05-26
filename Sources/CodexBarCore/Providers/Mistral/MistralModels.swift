@@ -215,7 +215,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             let modelBreakdowns = bucket.models.map {
                 CostUsageDailyReport.ModelBreakdown(
                     modelName: $0.name,
-                    costUSD: $0.cost,
+                    costUSD: max($0.cost, 0),
                     totalTokens: $0.totalTokens)
             }
             let modelsUsed = bucket.models.map(\.name)
@@ -226,12 +226,12 @@ public struct MistralUsageSnapshot: Codable, Sendable {
                 cacheReadTokens: bucket.cachedTokens,
                 cacheCreationTokens: nil,
                 totalTokens: bucket.totalTokens,
-                costUSD: bucket.cost,
+                costUSD: max(bucket.cost, 0),
                 modelsUsed: modelsUsed.isEmpty ? nil : modelsUsed,
                 modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
         }
         let latest = selected.last
-        let totalCost = selected.isEmpty ? max(self.totalCost, 0) : selected.reduce(0) { $0 + $1.cost }
+        let totalCost = selected.isEmpty ? max(self.totalCost, 0) : selected.reduce(0) { $0 + max($1.cost, 0) }
         let totalTokens = selected.isEmpty
             ? self.totalInputTokens + self.totalCachedTokens + self.totalOutputTokens
             : selected.reduce(0) { $0 + $1.totalTokens }
@@ -239,7 +239,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         let tokens = totalTokens > 0 ? totalTokens : nil
         return CostUsageTokenSnapshot(
             sessionTokens: latest?.totalTokens,
-            sessionCostUSD: latest?.cost,
+            sessionCostUSD: latest.map { max($0.cost, 0) },
             last30DaysTokens: tokens,
             last30DaysCostUSD: cost,
             currencyCode: self.currency,

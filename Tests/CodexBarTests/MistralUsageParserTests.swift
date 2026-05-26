@@ -223,6 +223,44 @@ struct MistralUsageSnapshotConversionTests {
         #expect(cost.daily.count == 2)
         #expect(cost.daily.last?.modelsUsed == ["mistral-small"])
     }
+
+    @Test
+    func `clamps negative billing adjustments in cost token snapshot`() {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let snapshot = MistralUsageSnapshot(
+            totalCost: -2,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 100,
+            totalOutputTokens: 25,
+            totalCachedTokens: 0,
+            modelCount: 1,
+            daily: [
+                MistralDailyUsageBucket(
+                    day: "2023-11-14",
+                    cost: -1.5,
+                    inputTokens: 100,
+                    cachedTokens: 0,
+                    outputTokens: 25,
+                    models: [
+                        MistralDailyUsageBucket.ModelBreakdown(
+                            name: "mistral-large",
+                            cost: -1.5,
+                            inputTokens: 100,
+                            cachedTokens: 0,
+                            outputTokens: 25),
+                    ]),
+            ],
+            startDate: nil,
+            endDate: nil,
+            updatedAt: now)
+
+        let cost = snapshot.toCostUsageTokenSnapshot()
+        #expect(cost.sessionCostUSD == 0)
+        #expect(cost.last30DaysCostUSD == nil)
+        #expect(cost.daily.first?.costUSD == 0)
+        #expect(cost.daily.first?.modelBreakdowns?.first?.costUSD == 0)
+    }
 }
 
 struct MistralStrategyTests {
