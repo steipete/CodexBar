@@ -28,6 +28,33 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
+    func `descriptor uses Credits label for primary usage window`() {
+        let metadata = GrokProviderDescriptor.descriptor.metadata
+        #expect(metadata.sessionLabel == "Credits")
+        #expect(metadata.weeklyLabel == "On-demand")
+        #expect(!metadata.supportsOpus)
+    }
+
+    @Test
+    func `primaryLabel derives Weekly or Monthly from resetsAt`() {
+        let now = Date()
+        let in6Days = now.addingTimeInterval(6 * 86400)
+        let in30Days = now.addingTimeInterval(30 * 86400)
+        let in90Days = now.addingTimeInterval(90 * 86400)
+        let lateWeeklyWindow = RateWindow(
+            usedPercent: 25,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(86400),
+            resetDescription: nil)
+
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Days, now: now) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days, now: now) == "Monthly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in90Days, now: now) == nil)
+        #expect(GrokProviderDescriptor.primaryLabel(window: lateWeeklyWindow, now: now) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: nil) == nil)
+    }
+
+    @Test
     func `cli runtime does not import browser cookies unless explicitly enabled`() {
         #expect(GrokWebFetchStrategy.canImportBrowserCookies(runtime: .app, env: [:]))
         #expect(!GrokWebFetchStrategy.canImportBrowserCookies(runtime: .cli, env: [:]))
@@ -506,6 +533,7 @@ struct GrokWebBillingFetcherTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 67.25)
+        #expect(usage.primary?.windowMinutes == nil)
         #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_800_000_003))
         #expect(usage.accountEmail(for: .grok) == "grok@example.com")
         #expect(usage.loginMethod(for: .grok) == "SuperGrok")

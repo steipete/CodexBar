@@ -5,7 +5,7 @@ import Crypto
 #endif
 import Foundation
 
-// swiftlint:disable type_body_length
+// swiftlint:disable type_body_length file_length
 enum CostUsageScanner {
     static let log = CodexBarLog.logger(LogCategories.tokenCost)
     static let codexActiveSessionLookbackDays = 30
@@ -76,6 +76,11 @@ enum CostUsageScanner {
         let timestamp: String
         let date: Date?
         let totals: CostUsageCodexTotals
+    }
+
+    enum CodexForkBaseline {
+        case resolved(CostUsageCodexTotals?)
+        case unresolved
     }
 
     private static func codexTotalsEqual(_ lhs: CostUsageCodexTotals?, _ rhs: CostUsageCodexTotals?) -> Bool {
@@ -265,15 +270,20 @@ enum CostUsageScanner {
             self.fileIndex = fileIndex
         }
 
-        func inheritedTotals(for sessionId: String, atOrBefore cutoffTimestamp: String) -> CostUsageCodexTotals? {
-            guard !cutoffTimestamp.isEmpty else { return nil }
+        func inheritedTotals(for sessionId: String, atOrBefore cutoffTimestamp: String) -> CodexForkBaseline {
+            guard !cutoffTimestamp.isEmpty else {
+                CostUsageScanner.log.warning(
+                    "Codex cost usage fork timestamp missing; treating parent baseline as unresolved",
+                    metadata: ["sessionId": sessionId])
+                return .unresolved
+            }
             let cutoffDate = CostUsageScanner.dateFromTimestamp(cutoffTimestamp)
             if cutoffDate == nil {
                 CostUsageScanner.log.warning(
                     "Codex cost usage could not parse fork timestamp; falling back to lexical comparison",
                     metadata: ["sessionId": sessionId, "timestamp": cutoffTimestamp])
             }
-            let snapshots = self.snapshots(for: sessionId)
+            guard let snapshots = self.snapshots(for: sessionId) else { return .unresolved }
             var inherited: CostUsageCodexTotals?
             for snapshot in snapshots {
                 let isAtOrBefore: Bool = if let snapshotDate = snapshot.date, let cutoffDate {
@@ -285,10 +295,10 @@ enum CostUsageScanner {
                     inherited = snapshot.totals
                 }
             }
-            return inherited
+            return .resolved(inherited)
         }
 
-        private func snapshots(for sessionId: String) -> [CodexTimestampedTotals] {
+        private func snapshots(for sessionId: String) -> [CodexTimestampedTotals]? {
             if let cached = self.snapshotsBySessionId[sessionId] {
                 return cached
             }
@@ -296,14 +306,14 @@ enum CostUsageScanner {
                 CostUsageScanner.log.warning(
                     "Codex cost usage parent session file not found",
                     metadata: ["sessionId": sessionId])
-                return []
+                return nil
             }
             let parsed = CostUsageScanner.parseCodexTokenSnapshots(fileURL: fileURL)
             guard let parsedSessionId = parsed.sessionId else {
                 CostUsageScanner.log.warning(
                     "Codex cost usage parent session missing session metadata",
                     metadata: ["sessionId": sessionId, "path": fileURL.path])
-                return []
+                return nil
             }
             if parsedSessionId != sessionId {
                 CostUsageScanner.log.warning(
@@ -313,9 +323,10 @@ enum CostUsageScanner {
                         "resolvedSessionId": parsedSessionId,
                         "path": fileURL.path,
                     ])
+                return nil
             }
-            self.snapshotsBySessionId[parsedSessionId] = parsed.snapshots
-            return self.snapshotsBySessionId[sessionId] ?? []
+            self.snapshotsBySessionId[sessionId] = parsed.snapshots
+            return parsed.snapshots
         }
     }
 
@@ -854,6 +865,18 @@ enum CostUsageScanner {
         let forkTimestamp: String?
     }
 
+    private static func codexForkParentId(from payload: [String: Any]?) -> String? {
+        guard let payload else { return nil }
+        for key in ["forked_from_id", "forkedFromId", "parent_session_id", "parentSessionId"] {
+            guard let value = payload[key] as? String else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
     private static func parseCodexSessionIdentifier(fileURL: URL) -> String? {
         self.parseCodexSessionMetadata(fileURL: fileURL)?.sessionId
     }
@@ -887,10 +910,7 @@ enum CostUsageScanner {
                         ?? obj["session_id"] as? String
                         ?? obj["sessionId"] as? String
                         ?? obj["id"] as? String,
-                    forkedFromId: payload?["forked_from_id"] as? String
-                        ?? payload?["forkedFromId"] as? String
-                        ?? payload?["parent_session_id"] as? String
-                        ?? payload?["parentSessionId"] as? String,
+                    forkedFromId: Self.codexForkParentId(from: payload),
                     forkTimestamp: payload?["timestamp"] as? String
                         ?? obj["timestamp"] as? String)
             }
@@ -1064,7 +1084,7 @@ enum CostUsageScanner {
         initialRawTotalsBaseline: CostUsageCodexTotals? = nil,
         initialHasDivergentTotals: Bool = false,
         initialCodexTurnID: String? = nil,
-        inheritedTotalsResolver: ((String, String) -> CostUsageCodexTotals?)? = nil) -> CodexParseResult
+        inheritedTotalsResolver: ((String, String) -> CodexForkBaseline)? = nil) -> CodexParseResult
     {
         var currentModel = initialModel
         var previousTotals = initialTotals
@@ -1072,6 +1092,8 @@ enum CostUsageScanner {
         var forkedFromId: String?
         var inheritedTotals: CostUsageCodexTotals?
         var remainingInheritedTotals: CostUsageCodexTotals?
+        var forkBaselineResolved = false
+        var hasUnresolvedForkBaseline = false
         var currentTurnID = initialCodexTurnID
         var rawTotalsBaseline = initialRawTotalsBaseline ?? initialTotals
         var sawDivergentTotals = initialHasDivergentTotals
@@ -1093,6 +1115,20 @@ enum CostUsageScanner {
             days[dayKey] = dayModels
         }
 
+        func resolveForkBaseline(parentSessionId: String, forkedAt: String) {
+            guard !forkBaselineResolved else { return }
+            guard let inheritedTotalsResolver else { return }
+            forkBaselineResolved = true
+            switch inheritedTotalsResolver(parentSessionId, forkedAt) {
+            case let .resolved(totals):
+                inheritedTotals = totals
+                remainingInheritedTotals = totals
+                hasUnresolvedForkBaseline = false
+            case .unresolved:
+                hasUnresolvedForkBaseline = true
+            }
+        }
+
         let maxLineBytes = 256 * 1024
         let prefixBytes = maxLineBytes
 
@@ -1105,8 +1141,7 @@ enum CostUsageScanner {
                inheritedTotals == nil
             {
                 let forkedAt = metadata.forkTimestamp ?? ""
-                inheritedTotals = inheritedTotalsResolver?(forkedFromId, forkedAt)
-                remainingInheritedTotals = inheritedTotals
+                resolveForkBaseline(parentSessionId: forkedFromId, forkedAt: forkedAt)
             }
         }
 
@@ -1157,17 +1192,13 @@ enum CostUsageScanner {
                                     ?? obj["id"] as? String
                             }
                             if forkedFromId == nil {
-                                forkedFromId = payload?["forked_from_id"] as? String
-                                    ?? payload?["forkedFromId"] as? String
-                                    ?? payload?["parent_session_id"] as? String
-                                    ?? payload?["parentSessionId"] as? String
+                                forkedFromId = Self.codexForkParentId(from: payload)
                             }
-                            if inheritedTotals == nil, let forkedFromId {
+                            if let forkedFromId {
                                 let forkedAt = payload?["timestamp"] as? String
                                     ?? obj["timestamp"] as? String
                                     ?? ""
-                                inheritedTotals = inheritedTotalsResolver?(forkedFromId, forkedAt)
-                                remainingInheritedTotals = inheritedTotals
+                                resolveForkBaseline(parentSessionId: forkedFromId, forkedAt: forkedAt)
                             }
                             return
                         }
@@ -1250,7 +1281,7 @@ enum CostUsageScanner {
                             deltaOutput = adjustedDelta.output
                             let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
 
-                            if let total {
+                            if let total, !hasUnresolvedForkBaseline {
                                 let rawTotals = CostUsageCodexTotals(
                                     input: toInt(total["input_tokens"]),
                                     cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
@@ -1290,6 +1321,7 @@ enum CostUsageScanner {
                                 rawTotalsBaseline = countedTotals
                             }
                         } else if let total {
+                            guard !hasUnresolvedForkBaseline else { return }
                             let rawTotals = CostUsageCodexTotals(
                                 input: toInt(total["input_tokens"]),
                                 cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),

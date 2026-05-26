@@ -1159,8 +1159,11 @@ extension UsageMenuCardView.Model {
         if input.provider == .factory, snapshot.tertiary != nil {
             return ("5-hour", L("Weekly"), "Monthly", true)
         }
+        let primaryLabel = input.provider == .grok
+            ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
+            : input.metadata.sessionLabel
         return (
-            L(input.metadata.sessionLabel),
+            L(primaryLabel),
             L(input.metadata.weeklyLabel),
             input.metadata.opusLabel ?? "Sonnet",
             input.metadata.supportsOpus)

@@ -49,16 +49,37 @@ struct CodexManagedOpenAIWebRefreshTests {
             try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
 
         let refreshTask = Task {
             await store.refresh(forceTokenUsage: false)
             await completion.markCompleted()
         }
 
-        try? await Task.sleep(for: .milliseconds(200))
+        let completed = await completion.waitUntilCompleted(timeout: .seconds(30))
+        #expect(completed == true)
+        if !completed {
+            refreshTask.cancel()
+            await blocker.resumeNext(with: .failure(ManagedDashboardTestError.networkTimeout))
+            return
+        }
+        await refreshTask.value
 
+        let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
+        let didStart = await blocker.waitUntilStartedWithin(count: 1, timeout: .seconds(30))
+        #expect(didStart == true)
+        if !didStart {
+            backgroundTask.cancel()
+            return
+        }
         #expect(await blocker.startedCount() == 1)
-        #expect(await completion.isCompleted == true)
 
         await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
             signedInEmail: managedAccount.email,
@@ -71,7 +92,7 @@ struct CodexManagedOpenAIWebRefreshTests {
             accountPlan: "Pro",
             updatedAt: Date())))
 
-        await refreshTask.value
+        await backgroundTask.value
     }
 
     @Test
@@ -643,6 +664,17 @@ actor RefreshCompletionProbe {
     func markCompleted() {
         self.isCompleted = true
     }
+
+    func waitUntilCompleted(timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while !self.isCompleted {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
 }
 
 actor BlockingManagedOpenAIDashboardLoader {
@@ -664,6 +696,17 @@ actor BlockingManagedOpenAIDashboardLoader {
         await withCheckedContinuation { continuation in
             self.startWaiters.append((count: count, continuation: continuation))
         }
+    }
+
+    func waitUntilStartedWithin(count: Int = 1, timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while self.started < count {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
     }
 
     func startedCount() -> Int {

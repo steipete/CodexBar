@@ -14,29 +14,30 @@ Use for releasing signed/notarized macOS apps, especially repos with Sparkle app
 3. Confirm `CHANGELOG.md` is complete, user-facing, deduped, and dated for the release.
 4. Prefer the repo release script; patch small script/test blockers instead of bypassing the release path.
 5. Never print key material. Keep 1Password references and local key paths as references only.
+6. Load `$release-private` if it exists before resolving Peter-owned credential locators.
 
 ## Key Material
 
 Use `$one-password` for secret handling. `op` only in tmux/persistent shell; no broad `env`, `set`, `export -p`, or secret scans.
 
-Known App Store Connect item:
+Known App Store Connect shape:
 
-- 1Password item: `API Key - App Store Connect - Personal`
 - fields: `private_key_p8`, `key_id`, `issuer_id`
 - keep all three fields from the same 1Password item; do not mix with stale values from `~/.profile`
+- resolve Peter-owned item refs from `$release-private`
 
 Known Sparkle key:
 
-- private key file: `~/Library/CloudStorage/Dropbox/Backup/Sparkle/sparkle-private-key-KEEP-SECURE.txt`
+- resolve the private key file from `$release-private`
 - pass as `SPARKLE_PRIVATE_KEY_FILE`
 
 Safe env file pattern:
 
 ```text
-APP_STORE_CONNECT_API_KEY_P8=op://Private/API Key - App Store Connect - Personal/private_key_p8
-APP_STORE_CONNECT_KEY_ID=op://Private/API Key - App Store Connect - Personal/key_id
-APP_STORE_CONNECT_ISSUER_ID=op://Private/API Key - App Store Connect - Personal/issuer_id
-SPARKLE_PRIVATE_KEY_FILE=/Users/steipete/Library/CloudStorage/Dropbox/Backup/Sparkle/sparkle-private-key-KEEP-SECURE.txt
+APP_STORE_CONNECT_API_KEY_P8=<1Password ref from release-private>
+APP_STORE_CONNECT_KEY_ID=<1Password ref from release-private>
+APP_STORE_CONNECT_ISSUER_ID=<1Password ref from release-private>
+SPARKLE_PRIVATE_KEY_FILE=<path from release-private>
 ```
 
 Run with `op run --account my.1password.com --env-file <file> -- <script>`, then delete the temp env file.
@@ -61,7 +62,7 @@ Paths:
 Normal release:
 
 ```bash
-tmux new-session -d -s codexbar-release 'cd /Users/steipete/Projects/codexbar && op run --account my.1password.com --env-file /tmp/codexbar-release-op.env -- Scripts/release.sh'
+tmux new-session -d -s codexbar-release 'op run --account my.1password.com --env-file /tmp/codexbar-release-op.env -- Scripts/release.sh'
 tmux attach -t codexbar-release
 ```
 
@@ -133,8 +134,8 @@ CodexBar restart:
 
 ```bash
 pkill -x CodexBar || pkill -f CodexBar.app || true
-cd /Users/steipete/Projects/codexbar
-open -n /Users/steipete/Projects/codexbar/CodexBar.app
+cd "$(git rev-parse --show-toplevel)"
+open -n CodexBar.app
 /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' CodexBar.app/Contents/Info.plist
 /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' CodexBar.app/Contents/Info.plist
 ```

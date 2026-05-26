@@ -75,7 +75,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func costHistoryWindowLabel(days: Int) -> String {
-        days == 1 ? String(format: L("Last %d day"), days) : String(format: L("Last %d days"), days)
+        days == 1 ? L("Today") : String(format: L("Last %d days"), days)
     }
 
     private static func bedrockLatestBillingDayLabel(from snapshot: CostUsageTokenSnapshot) -> String {

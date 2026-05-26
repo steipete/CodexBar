@@ -204,7 +204,7 @@ extension UsageMenuCardView.Model {
                 .init(
                     title: historyDays == 30
                         ? L("30d tokens")
-                        : "\(String(format: L("Last %d days"), historyDays)) token",
+                        : "\(String(format: L("Last %d days"), historyDays)) tokens",
                     value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
                 .init(
