@@ -388,7 +388,9 @@ struct UsageStoreCoverageTests {
     func `status indicators and failure gate`() {
         #expect(!ProviderStatusIndicator.none.hasIssue)
         #expect(ProviderStatusIndicator.maintenance.hasIssue)
-        #expect(ProviderStatusIndicator.unknown.label == "Status unknown")
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(ProviderStatusIndicator.unknown.label == "Status unknown")
+        }
 
         var gate = ConsecutiveFailureGate()
         let first = gate.shouldSurfaceError(onFailureWithPriorData: true)

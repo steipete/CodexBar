@@ -58,10 +58,10 @@ struct CostHistoryChartMenuView: View {
         let model = Self.makeModel(provider: self.provider, daily: self.daily)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No cost history data.")
+                Text(L("No cost history data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("No cost history data available.")
+                    .accessibilityLabel(L("No cost history data."))
             } else {
                 Chart {
                     ForEach(model.points) { point in
@@ -171,7 +171,10 @@ struct CostHistoryChartMenuView: View {
             }
 
             if let total = self.totalCostUSD {
-                Text("Est. total (\(Self.windowLabel(days: self.historyDays))): \(UsageFormatter.usdString(total))")
+                Text(String(
+                    format: L("Est. total (%@): %@"),
+                    Self.windowLabel(days: self.historyDays),
+                    UsageFormatter.usdString(total)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -205,8 +208,11 @@ struct CostHistoryChartMenuView: View {
     private static let expandedDetailRowHeight: CGFloat = 44
     private static let detailSpacing: CGFloat = 6
 
-    private static func windowLabel(days: Int) -> String {
-        days == 1 ? "today" : "\(days)d"
+    static func windowLabel(days: Int) -> String {
+        if days == 1 {
+            return L("Today")
+        }
+        return String(format: L("Last %d days"), days)
     }
 
     private static func detailRowHeight(for row: DetailRow) -> CGFloat {
@@ -416,13 +422,13 @@ struct CostHistoryChartMenuView: View {
               let point = model.pointsByDateKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return DetailContent(primary: "Hover a bar for details", rows: [])
+            return DetailContent(primary: L("Hover a bar for details"), rows: [])
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         let cost = UsageFormatter.usdString(point.costUSD)
         let primary = if let tokens = point.totalTokens {
-            "\(dayLabel): \(cost) · \(UsageFormatter.tokenCountString(tokens)) tokens"
+            String(format: L("%@: %@ · %@ tokens"), dayLabel, cost, UsageFormatter.tokenCountString(tokens))
         } else {
             "\(dayLabel): \(cost)"
         }

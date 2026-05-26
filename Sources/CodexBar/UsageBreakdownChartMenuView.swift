@@ -31,10 +31,10 @@ struct UsageBreakdownChartMenuView: View {
         let model = Self.makeModel(from: self.breakdown)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No usage breakdown data.")
+                Text(L("No usage breakdown data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("No usage breakdown data available.")
+                    .accessibilityLabel(L("No usage breakdown data available."))
             } else {
                 Chart {
                     ForEach(model.points) { point in
@@ -368,7 +368,7 @@ struct UsageBreakdownChartMenuView: View {
               let day = model.breakdownByDayKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return (L("Hover a bar for details"), nil)
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())

@@ -4,6 +4,21 @@ import Testing
 @testable import CodexBar
 
 struct UsagePaceTextTests {
+    private static let localizedKeys: [String] = [
+        "Pace: %@",
+        "Pace: %@ · %@",
+        "On pace",
+        "%d%% in deficit",
+        "%d%% in reserve",
+        "Lasts until reset",
+        "Projected empty now",
+        "Projected empty in %@",
+        "Runs out now",
+        "Runs out in %@",
+        "≈ %d%% run-out risk",
+        "%@ · %@",
+    ]
+
     @Test
     func `weekly pace detail provides left right labels`() throws {
         let now = Date(timeIntervalSince1970: 0)
@@ -147,5 +162,47 @@ struct UsagePaceTextTests {
         let detail = UsagePaceText.sessionDetail(provider: .claude, window: window, now: now)
 
         #expect(detail == nil)
+    }
+
+    @Test
+    func `usage pace text localization keys exist in en and zh Hans with matching placeholders`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let enURL = root.appendingPathComponent("Sources/CodexBar/Resources/en.lproj/Localizable.strings")
+        let zhURL = root.appendingPathComponent("Sources/CodexBar/Resources/zh-Hans.lproj/Localizable.strings")
+
+        let en = try Self.readStringsTable(at: enURL)
+        let zh = try Self.readStringsTable(at: zhURL)
+
+        for key in Self.localizedKeys {
+            let enValue = try #require(en[key], "Missing en key: \(key)")
+            let zhValue = try #require(zh[key], "Missing zh-Hans key: \(key)")
+            #expect(
+                Self.placeholderTokens(in: enValue) == Self.placeholderTokens(in: zhValue),
+                "Placeholder mismatch for key '\(key)': en='\(enValue)' zh='\(zhValue)'")
+        }
+    }
+
+    private static func readStringsTable(at url: URL) throws -> [String: String] {
+        guard let dict = NSDictionary(contentsOf: url) as? [String: String] else {
+            throw NSError(
+                domain: "UsagePaceTextTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to parse strings file at \(url.path)"])
+        }
+        return dict
+    }
+
+    private static func placeholderTokens(in value: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "%(?:\\d+\\$)?[@dDuUxXfFeEgGcCsSpaA]") else {
+            return []
+        }
+        let nsRange = NSRange(value.startIndex..<value.endIndex, in: value)
+        return regex
+            .matches(in: value, options: [], range: nsRange)
+            .compactMap { Range($0.range, in: value).map { String(value[$0]) } }
     }
 }

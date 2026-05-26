@@ -240,7 +240,7 @@ struct MenuDescriptor {
 
             Self.appendProviderUsageSummaries(entries: &entries, snapshot: snap)
         } else {
-            entries.append(.text("No usage yet", .secondary))
+            entries.append(.text(L("No usage yet"), .secondary))
         }
 
         let usageContext = ProviderMenuUsageContext(
@@ -290,7 +290,7 @@ struct MenuDescriptor {
         let historyLabel = usage.historyWindowLabel
 
         entries.append(.text(
-            "Today: \(UsageFormatter.usdString(today.costUSD)) · " +
+            "\(L("Today")): \(UsageFormatter.usdString(today.costUSD)) · " +
                 "\(UsageFormatter.tokenCountString(today.totalTokens)) tokens",
             .secondary))
         entries.append(.text(
@@ -302,7 +302,7 @@ struct MenuDescriptor {
                 "\(UsageFormatter.tokenCountString(last30.requests)) requests",
             .secondary))
         if let topModel = usage.topModels.first?.name {
-            entries.append(.text("Top model: \(topModel)", .secondary))
+            entries.append(.text("\(L("Top model")): \(topModel)", .secondary))
         }
     }
 
@@ -315,7 +315,7 @@ struct MenuDescriptor {
         let last30 = usage.last30Days
 
         entries.append(.text(
-            "Today: \(UsageFormatter.usdString(today.costUSD)) · " +
+            "\(L("Today")): \(UsageFormatter.usdString(today.costUSD)) · " +
                 "\(UsageFormatter.tokenCountString(today.totalTokens)) tokens",
             .secondary))
         entries.append(.text(
@@ -327,7 +327,7 @@ struct MenuDescriptor {
                 "\(UsageFormatter.tokenCountString(last30.totalTokens)) tokens",
             .secondary))
         if let topModel = usage.topModels.first?.name {
-            entries.append(.text("Top model: \(topModel)", .secondary))
+            entries.append(.text("\(L("Top model")): \(topModel)", .secondary))
         }
     }
 
@@ -336,7 +336,7 @@ struct MenuDescriptor {
         usage: OpenRouterUsageSnapshot)
     {
         if let daily = usage.keyUsageDaily {
-            entries.append(.text("Today: \(UsageFormatter.usdString(daily))", .secondary))
+            entries.append(.text("\(L("Today")): \(UsageFormatter.usdString(daily))", .secondary))
         }
         if let weekly = usage.keyUsageWeekly {
             entries.append(.text("Week: \(UsageFormatter.usdString(weekly))", .secondary))
@@ -363,7 +363,7 @@ struct MenuDescriptor {
                 "\(UsageFormatter.tokenCountString(totalTokens)) tokens",
             .secondary))
         if let top = Self.topMistralModel(from: usage.daily) {
-            entries.append(.text("Top model: \(top)", .secondary))
+            entries.append(.text("\(L("Top model")): \(top)", .secondary))
         }
     }
 
@@ -534,7 +534,7 @@ struct MenuDescriptor {
             } else {
                 let loginAction = self.switchAccountTarget(for: provider, store: store)
                 let hasAccount = self.hasAccount(for: provider, store: store, account: fallbackAccount)
-                let accountLabel = hasAccount ? "Switch Account..." : "Add Account..."
+                let accountLabel = hasAccount ? L("Switch Account...") : L("Add Account...")
                 entries.append(.action(accountLabel, loginAction))
             }
         }
@@ -552,10 +552,10 @@ struct MenuDescriptor {
         }
 
         if metadata?.dashboardURL != nil {
-            entries.append(.action("Usage Dashboard", .dashboard))
+            entries.append(.action(L("Usage Dashboard"), .dashboard))
         }
         if metadata?.statusPageURL != nil || metadata?.statusLinkURL != nil {
-            entries.append(.action("Status Page", .statusPage))
+            entries.append(.action(L("Status Page"), .statusPage))
         }
         if store.settings.providerChangelogLinksEnabled, metadata?.changelogURL != nil {
             entries.append(.action("Changelog", .changelog))
@@ -571,13 +571,13 @@ struct MenuDescriptor {
     private static func metaSection(updateReady: Bool) -> Section {
         var entries: [Entry] = []
         if updateReady {
-            entries.append(.action("Update ready, restart now?", .installUpdate))
+            entries.append(.action(L("Update ready, restart now?"), .installUpdate))
         }
         entries.append(contentsOf: [
-            .action("Refresh", .refresh),
-            .action("Settings...", .settings),
-            .action("About CodexBar", .about),
-            .action("Quit", .quit),
+            .action(L("Refresh"), .refresh),
+            .action(L("Settings..."), .settings),
+            .action(L("About CodexBar"), .about),
+            .action(L("Quit"), .quit),
         ])
         return Section(entries: entries)
     }
@@ -626,14 +626,14 @@ struct MenuDescriptor {
         snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
     {
         if provider == .factory, snapshot.tertiary != nil {
-            return ("5-hour", "Weekly", "Monthly", true)
+            return ("5-hour", L("Weekly"), "Monthly", true)
         }
         let primaryLabel = provider == .grok
             ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
             : metadata.sessionLabel
         return (
-            primaryLabel,
-            metadata.weeklyLabel,
+            L(primaryLabel),
+            L(metadata.weeklyLabel),
             metadata.opusLabel ?? "Sonnet",
             metadata.supportsOpus)
     }
