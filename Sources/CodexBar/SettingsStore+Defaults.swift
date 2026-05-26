@@ -1,6 +1,5 @@
 import CodexBarCore
 import Foundation
-import ServiceManagement
 
 extension SettingsStore {
     private static let mergedOverviewSelectionEditedActiveProvidersKey = "mergedOverviewSelectionEditedActiveProviders"

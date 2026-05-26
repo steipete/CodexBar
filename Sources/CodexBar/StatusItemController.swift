@@ -102,6 +102,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var menuProviders: [ObjectIdentifier: UsageProvider] = [:]
     var menuContentVersion: Int = 0
     var menuVersions: [ObjectIdentifier: Int] = [:]
+    var lastMenuAdjunctReadinessSignature = ""
     var mergedMenu: NSMenu?
     var providerMenus: [UsageProvider: NSMenu] = [:]
     var fallbackMenu: NSMenu?
@@ -115,8 +116,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
     var hasPreparedForAppShutdown = false
+    var openMenuInvalidationRetryTask: Task<Void, Never>?
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
+    var onOpenMenuInvalidationRetryForTesting: (() -> Void)?
     var isReleasedForTesting = false
     var _test_openMenuRefreshYieldOverride: (@MainActor () async -> Void)?
     var _test_openMenuRebuildObserver: (@MainActor (NSMenu) -> Void)?
@@ -327,6 +330,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 "Repaired hidden macOS status-item visibility defaults",
                 metadata: ["keys": repairedStatusItemVisibilityKeys.joined(separator: ",")])
         }
+        self.lastMenuAdjunctReadinessSignature = self.menuAdjunctReadinessSignature()
         self.wireBindings()
         self.updateVisibility()
         self.updateIcons()
@@ -398,7 +402,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeStoreChanges()
-                self.invalidateMenus()
+                self.invalidateMenus(refreshOpenMenus: self.didMenuAdjunctReadinessChange())
             }
         }
     }
@@ -572,21 +576,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if !self.openMenus.isEmpty {
             guard refreshOpenMenus else { return }
             self.refreshOpenMenusAllowingParentRebuild()
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                // AppKit can ignore menu mutations while tracking; retry on the next run loop.
-                await Task.yield()
-                self.refreshOpenMenusAllowingParentRebuild()
-            }
+            self.scheduleOpenMenuInvalidationRetry()
             return
-        }
-        self.refreshOpenMenusIfNeeded()
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            // AppKit can ignore menu mutations while tracking; retry on the next run loop.
-            await Task.yield()
-            guard self.openMenus.isEmpty else { return }
-            self.refreshOpenMenusIfNeeded()
         }
     }
 

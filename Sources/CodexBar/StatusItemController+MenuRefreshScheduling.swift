@@ -3,6 +3,41 @@ import CodexBarCore
 import QuartzCore
 
 extension StatusItemController {
+    func didMenuAdjunctReadinessChange() -> Bool {
+        let signature = self.menuAdjunctReadinessSignature()
+        defer { self.lastMenuAdjunctReadinessSignature = signature }
+        return signature != self.lastMenuAdjunctReadinessSignature
+    }
+
+    func menuAdjunctReadinessSignature() -> String {
+        let dashboard = self.store.openAIDashboard
+        let dashboardUsageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: dashboard?.usageBreakdown ?? [])
+        var parts = [
+            "costEnabled=\(self.settings.costUsageEnabled ? "1" : "0")",
+            "openAIAttached=\(self.store.openAIDashboardAttachmentAuthorized ? "1" : "0")",
+            "openAILogin=\(self.store.openAIDashboardRequiresLogin ? "1" : "0")",
+            "openAIDaily=\(dashboard?.dailyBreakdown.count ?? 0)",
+            "openAIUsage=\(dashboardUsageBreakdown.count)",
+            "credits=\(self.store.credits == nil ? "0" : "1")",
+            "planHistoryRevision=\(self.store.planUtilizationHistoryRevision)",
+        ]
+
+        for provider in self.store.enabledProvidersForDisplay() {
+            let tokenDailyCount = self.store.tokenSnapshot(for: provider)?.daily.count ?? 0
+            let usageHistoryVisible = self.store.supportsPlanUtilizationHistory(for: provider) &&
+                !self.store.shouldHidePlanUtilizationMenuItem(for: provider)
+            parts.append(
+                [
+                    provider.rawValue,
+                    "tokenDaily=\(tokenDailyCount)",
+                    "usageHistory=\(usageHistoryVisible ? "1" : "0")",
+                ].joined(separator: ":"))
+        }
+
+        return parts.joined(separator: "|")
+    }
+
     func performMenuMutationWithoutAnimation(_ updates: () -> Void) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)

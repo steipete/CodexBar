@@ -123,19 +123,44 @@ extension UsageMenuCardView.Model {
 
     private static func bedrockDisplayDate(from text: String) -> String? {
         guard let date = bedrockBillingDate(from: text) else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
+        return self.bedrockDisplayDateFormatter().string(from: date)
     }
 
     private static func bedrockBillingDate(from text: String) -> Date? {
+        self.bedrockBillingDateFormatter().date(from: text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private static func bedrockDisplayDateFormatter() -> DateFormatter {
+        self.cachedDateFormatter(
+            key: "CodexBar.MenuCardView.Model.bedrockDisplayDateFormatter",
+            timeZone: TimeZone(secondsFromGMT: 0) ?? .current,
+            dateFormat: "MMM d")
+    }
+
+    private static func bedrockBillingDateFormatter() -> DateFormatter {
+        self.cachedDateFormatter(
+            key: "CodexBar.MenuCardView.Model.bedrockBillingDateFormatter",
+            timeZone: TimeZone(secondsFromGMT: 0) ?? .current,
+            dateFormat: "yyyy-MM-dd")
+    }
+
+    private static func cachedDateFormatter(
+        key: String,
+        timeZone: TimeZone,
+        dateFormat: String) -> DateFormatter
+    {
+        let dictionary = Thread.current.threadDictionary
+        if let formatter = dictionary[key] as? DateFormatter {
+            formatter.timeZone = timeZone
+            return formatter
+        }
+        // macos-smell:disable MACOS014
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: text.trimmingCharacters(in: .whitespacesAndNewlines))
+        formatter.timeZone = timeZone
+        formatter.dateFormat = dateFormat
+        dictionary[key] = formatter
+        return formatter
     }
 
     static func providerCostSection(

@@ -91,11 +91,82 @@ extension StatusItemController {
         }
 
         guard !didHydrate else { return }
+        self.appendHostedSubviewUnavailableItem(to: menu, chartID: chartID, providerRawValue: placeholder.toolTip)
+    }
 
+    func refreshHostedSubviewMenu(_ menu: NSMenu) {
+        let width = self.renderedMenuWidth(for: menu)
+        guard let identity = self.hostedSubviewIdentity(for: menu) else {
+            self.refreshHostedSubviewHeights(in: menu)
+            return
+        }
+
+        menu.removeAllItems()
+        let didHydrate: Bool = switch identity.chartID {
+        case Self.usageBreakdownChartID:
+            self.appendUsageBreakdownChartItem(to: menu, width: width)
+        case Self.creditsHistoryChartID:
+            self.appendCreditsHistoryChartItem(to: menu, width: width)
+        case Self.costHistoryChartID:
+            if let provider = identity.provider {
+                self.appendCostHistoryChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
+        case Self.usageHistoryChartID:
+            if let provider = identity.provider {
+                self.appendUsageHistoryChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
+        case Self.storageBreakdownID:
+            if let provider = identity.provider {
+                self.appendStorageBreakdownItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
+        case Self.zaiHourlyUsageChartID:
+            if let provider = identity.provider {
+                self.appendZaiHourlyUsageChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
+        default:
+            false
+        }
+
+        if didHydrate {
+            self.refreshHostedSubviewHeights(in: menu)
+        } else {
+            self.appendHostedSubviewUnavailableItem(
+                to: menu,
+                chartID: identity.chartID,
+                providerRawValue: identity.provider?.rawValue ?? identity.providerRawValue)
+        }
+    }
+
+    private func hostedSubviewIdentity(for menu: NSMenu)
+    -> (chartID: String, provider: UsageProvider?, providerRawValue: String?)? {
+        for item in menu.items {
+            guard let chartID = item.representedObject as? String else { continue }
+            let providerRawValue = item.toolTip
+            return (
+                chartID: chartID,
+                provider: providerRawValue.flatMap(UsageProvider.init(rawValue:)),
+                providerRawValue: providerRawValue)
+        }
+        return nil
+    }
+
+    private func appendHostedSubviewUnavailableItem(
+        to menu: NSMenu,
+        chartID: String,
+        providerRawValue: String?)
+    {
         let unavailableItem = NSMenuItem(title: L("No data available"), action: nil, keyEquivalent: "")
         unavailableItem.isEnabled = false
         unavailableItem.representedObject = chartID
-        unavailableItem.toolTip = placeholder.toolTip
+        unavailableItem.toolTip = providerRawValue
         menu.addItem(unavailableItem)
     }
 

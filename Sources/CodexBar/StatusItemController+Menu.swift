@@ -107,6 +107,10 @@ extension StatusItemController {
             }
         }
 
+        if Self.menuRefreshEnabled, (provider ?? self.lastMenuProvider) == .codex {
+            self.store.requestOpenAIDashboardRefreshIfStale(reason: "parent menu open")
+        }
+
         let didRefresh = self.menuNeedsRefresh(menu)
         if didRefresh {
             self.populateMenu(menu, provider: provider)
@@ -127,7 +131,7 @@ extension StatusItemController {
         let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
         self.forgetClosedMenu(menu)
         if wasHostedSubviewMenu {
-            self.refreshOpenMenusIfNeeded()
+            self.refreshOpenMenusAllowingParentRebuild()
         }
     }
 
@@ -892,6 +896,7 @@ extension StatusItemController {
         textField.translatesAutoresizingMaskIntoConstraints = false
 
         container.addSubview(textField)
+        // macos-smell:disable MACOS005
         NSLayoutConstraint.activate([
             textField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 18),
             textField.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),

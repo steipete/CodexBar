@@ -47,6 +47,7 @@ extension StatusItemController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(stack)
 
+        // macos-smell:disable MACOS005
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 18),
             stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
@@ -272,6 +273,7 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
         stack.addArrangedSubview(self.shortcutField)
         self.addSubview(stack)
 
+        // macos-smell:disable MACOS005
         NSLayoutConstraint.activate([
             self.backgroundView.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 6),
             self.backgroundView.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -6),

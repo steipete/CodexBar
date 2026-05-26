@@ -62,13 +62,24 @@ extension UsageStore {
         else { return }
         let now = Date()
         let refreshInterval = self.openAIWebRefreshIntervalSeconds()
-        let lastUpdatedAt = self.openAIDashboard?.updatedAt ?? self.lastOpenAIDashboardSnapshot?.updatedAt
-        if let lastUpdatedAt, now.timeIntervalSince(lastUpdatedAt) < refreshInterval { return }
+        let dashboard = self.openAIDashboard ?? self.lastOpenAIDashboardSnapshot
+        let lastUpdatedAt = dashboard?.updatedAt
+        let needsMenuHistoryRefresh = dashboard?.dailyBreakdown.isEmpty == true &&
+            dashboard?.usageBreakdown.isEmpty == true
+        if let lastUpdatedAt, now.timeIntervalSince(lastUpdatedAt) < refreshInterval, !needsMenuHistoryRefresh {
+            return
+        }
+        if needsMenuHistoryRefresh,
+           let lastAttemptAt = self.lastOpenAIDashboardAttemptAt,
+           now.timeIntervalSince(lastAttemptAt) < refreshInterval
+        {
+            return
+        }
         let stamp = now.formatted(date: .abbreviated, time: .shortened)
         self.logOpenAIWeb("[\(stamp)] OpenAI web refresh request: \(reason)")
         let forceRefresh = Self.forceOpenAIWebRefreshForStaleRequest(
-            batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled)
-        self.openAIWebLogger.debug(
+            batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled) || needsMenuHistoryRefresh
+        self.openAIWebLogger.info(
             "OpenAI web stale refresh gate",
             metadata: [
                 "reason": reason,

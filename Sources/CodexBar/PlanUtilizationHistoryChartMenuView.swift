@@ -1,5 +1,6 @@
 import Charts
 import CodexBarCore
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -680,11 +681,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
             visibleSeries: visibleSeries.map(\.id),
             usedPercents: model.points.map(\.usedPercent),
             pointDates: model.points.map { point in
-                let formatter = DateFormatter()
-                formatter.locale = Locale(identifier: "en_US_POSIX")
-                formatter.timeZone = TimeZone.current
-                formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                return formatter.string(from: point.date)
+                self.testingPointDateLabel(for: point.date)
             })
     }
 
@@ -816,10 +813,7 @@ extension PlanUtilizationHistoryChartMenuView {
     }
 
     private nonisolated static func detailDateLabel(for date: Date, windowMinutes: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = codexBarLocalizedLocale()
-        formatter.timeZone = TimeZone.current
-        formatter.setLocalizedDateFormatFromTemplate("MMM d, h:mm a")
+        let formatter = self.detailDateFormatter()
         var rendered = formatter.string(from: date).replacingOccurrences(of: "\u{202F}", with: " ")
         let amSymbol = formatter.amSymbol ?? ""
         let pmSymbol = formatter.pmSymbol ?? ""
@@ -830,5 +824,48 @@ extension PlanUtilizationHistoryChartMenuView {
             rendered = rendered.replacingOccurrences(of: pmSymbol, with: pmSymbol.lowercased())
         }
         return rendered
+    }
+
+    private nonisolated static func testingPointDateLabel(for date: Date) -> String {
+        self.testingPointDateFormatter().string(from: date)
+    }
+
+    private nonisolated static func detailDateFormatter() -> DateFormatter {
+        let locale = codexBarLocalizedLocale()
+        self.cachedDateFormatter(
+            key: "CodexBar.PlanUtilizationHistoryChartMenuView.detailDateFormatter.\(locale.identifier)",
+            timeZone: .current,
+            configure: { formatter in
+                formatter.locale = locale
+                formatter.setLocalizedDateFormatFromTemplate("MMM d, h:mm a")
+            })
+    }
+
+    private nonisolated static func testingPointDateFormatter() -> DateFormatter {
+        self.cachedDateFormatter(
+            key: "CodexBar.PlanUtilizationHistoryChartMenuView.testingPointDateFormatter",
+            timeZone: .current,
+            configure: { formatter in
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.dateFormat = "yyyy-MM-dd HH:mm"
+            })
+    }
+
+    private nonisolated static func cachedDateFormatter(
+        key: String,
+        timeZone: TimeZone,
+        configure: (DateFormatter) -> Void) -> DateFormatter
+    {
+        let dictionary = Thread.current.threadDictionary
+        if let formatter = dictionary[key] as? DateFormatter {
+            formatter.timeZone = timeZone
+            return formatter
+        }
+        // macos-smell:disable MACOS014
+        let formatter = DateFormatter()
+        formatter.timeZone = timeZone
+        configure(formatter)
+        dictionary[key] = formatter
+        return formatter
     }
 }

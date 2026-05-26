@@ -22,6 +22,20 @@ extension StatusItemController {
         self.refreshOpenMenusIfNeeded(allowsParentRebuild: true)
     }
 
+    func scheduleOpenMenuInvalidationRetry() {
+        self.openMenuInvalidationRetryTask?.cancel()
+        self.openMenuInvalidationRetryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            #if DEBUG
+            self.onOpenMenuInvalidationRetryForTesting?()
+            #endif
+            self.refreshOpenMenusAllowingParentRebuild()
+            self.openMenuInvalidationRetryTask = nil
+        }
+    }
+
     private func refreshOpenMenusIfNeeded(allowsParentRebuild: Bool) {
         var orphanedKeys: [ObjectIdentifier] = []
         let hasOpenHostedSubviewMenu = self.hasOpenHostedSubviewMenu()
@@ -44,7 +58,7 @@ extension StatusItemController {
         hasOpenHostedSubviewMenu: Bool)
     {
         if self.isHostedSubviewMenu(menu) {
-            self.refreshHostedSubviewHeights(in: menu)
+            self.refreshHostedSubviewMenu(menu)
             return
         }
         guard allowsParentRebuild else { return }
