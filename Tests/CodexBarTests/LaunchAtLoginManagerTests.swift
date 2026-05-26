@@ -50,7 +50,22 @@ struct LaunchAtLoginManagerTests {
     }
 
     @Test
-    func `set disabled skips unregister when service is not enabled`() {
+    func `set disabled unregisters when service requires approval`() {
+        var registerCalls = 0
+        var unregisterCalls = 0
+
+        LaunchAtLoginManager.setEnabled(
+            false,
+            status: { .requiresApproval },
+            register: { registerCalls += 1 },
+            unregister: { unregisterCalls += 1 })
+
+        #expect(registerCalls == 0)
+        #expect(unregisterCalls == 1)
+    }
+
+    @Test
+    func `set disabled skips unregister when service is not registered`() {
         var registerCalls = 0
         var unregisterCalls = 0
 

@@ -34,7 +34,7 @@ enum LaunchAtLoginManager {
                 guard status() != .enabled else { return }
                 try register()
             } else {
-                guard status() == .enabled else { return }
+                guard status() != .notRegistered else { return }
                 try unregister()
             }
         } catch {
