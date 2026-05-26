@@ -421,6 +421,13 @@
 "quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "weekly";
 "quota_warning_weekly_capitalized" = "Weekly";
+"quota_warning_notification_title" = "%1$@ %2$@ quota low";
+"quota_warning_notification_body" = "%1$@ left. Reached your %2$d%% %3$@ warning threshold.";
+"quota_warning_notification_body_with_account" = "Account %1$@. %2$@ left. Reached your %3$d%% %4$@ warning threshold.";
+"session_depleted_notification_title" = "%@ session depleted";
+"session_depleted_notification_body" = "0% left. Will notify when it's available again.";
+"session_restored_notification_title" = "%@ session restored";
+"session_restored_notification_body" = "Session quota is available again.";
 "quota_warning_warn_at" = "Warn at";
 "quota_warning_global_threshold_subtitle" = "Remaining percentages for session and weekly windows unless a provider overrides them.";
 "quota_warning_sound" = "Play notification sound";
@@ -455,6 +462,8 @@
 "managed_login_already_running" = "A managed Codex login is already running. Wait for it to finish before adding or re-authenticating another account.";
 "managed_login_failed" = "Managed Codex login did not complete. Verify that `codex --version` works in Terminal. If macOS blocked or moved `codex` to Trash, remove stale duplicate installs, run `npm install -g --include=optional @openai/codex@latest`, then try again.";
 "managed_login_missing_email" = "Codex login completed, but no account email was available. Try again after confirming the account is fully signed in.";
+"login_success_notification_title" = "%@ login successful";
+"login_success_notification_body" = "You can return to the app; authentication finished.";
 "workspace_selection_cancelled" = "CodexBar found multiple workspaces, but no workspace was selected.";
 "unsafe_managed_home" = "CodexBar refused to modify an unexpected managed home path: %@";
 "menu_bar_metric_title" = "Menu bar metric";

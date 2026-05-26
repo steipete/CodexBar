@@ -47,6 +47,24 @@ enum SessionQuotaNotificationLogic {
         if wasDepleted, !isDepleted { return .restored }
         return .none
     }
+
+    static func notificationCopy(
+        transition: SessionQuotaTransition,
+        providerName: String) -> (title: String, body: String)
+    {
+        switch transition {
+        case .none:
+            ("", "")
+        case .depleted:
+            (
+                L("session_depleted_notification_title", providerName),
+                L("session_depleted_notification_body"))
+        case .restored:
+            (
+                L("session_restored_notification_title", providerName),
+                L("session_restored_notification_body"))
+        }
+    }
 }
 
 enum QuotaWarningNotificationLogic {
@@ -57,13 +75,24 @@ enum QuotaWarningNotificationLogic {
         currentRemaining: Double,
         accountDisplayName: String? = nil) -> (title: String, body: String)
     {
-        let windowLabel = window.displayName
+        let windowLabel = window.localizedNotificationDisplayName
         let remainingText = Self.percentText(currentRemaining)
-        let accountPrefix = accountDisplayName
-            .map { "Account \($0). " } ?? ""
-        return (
-            "\(providerName) \(windowLabel) quota low",
-            "\(accountPrefix)\(remainingText) left. Reached your \(threshold)% \(windowLabel) warning threshold.")
+        let title = L("quota_warning_notification_title", providerName, windowLabel)
+        let body = if let accountDisplayName {
+            L(
+                "quota_warning_notification_body_with_account",
+                accountDisplayName,
+                remainingText,
+                threshold,
+                windowLabel)
+        } else {
+            L(
+                "quota_warning_notification_body",
+                remainingText,
+                threshold,
+                windowLabel)
+        }
+        return (title, body)
     }
 
     static func crossedThreshold(
@@ -116,14 +145,9 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
 
         let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
-        let (title, body) = switch transition {
-        case .none:
-            ("", "")
-        case .depleted:
-            ("\(providerName) session depleted", "0% left. Will notify when it's available again.")
-        case .restored:
-            ("\(providerName) session restored", "Session quota is available again.")
-        }
+        let (title, body) = SessionQuotaNotificationLogic.notificationCopy(
+            transition: transition,
+            providerName: providerName)
 
         let providerText = provider.rawValue
         let transitionText = String(describing: transition)
@@ -154,5 +178,14 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
                 threshold: threshold,
                 postedAt: Date()))
         AppNotifications.shared.post(idPrefix: idPrefix, title: copy.title, body: copy.body, soundEnabled: false)
+    }
+}
+
+extension QuotaWarningWindow {
+    fileprivate var localizedNotificationDisplayName: String {
+        switch self {
+        case .session: L("quota_warning_session")
+        case .weekly: L("quota_warning_weekly")
+        }
     }
 }

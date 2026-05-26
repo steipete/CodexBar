@@ -427,6 +427,13 @@
 "quota_warning_session_capitalized" = "工作階段";
 "quota_warning_weekly" = "每週";
 "quota_warning_weekly_capitalized" = "每週";
+"quota_warning_notification_title" = "%1$@ %2$@配額偏低";
+"quota_warning_notification_body" = "剩餘 %1$@。已達到 %2$d%% %3$@提醒門檻。";
+"quota_warning_notification_body_with_account" = "帳號 %1$@。剩餘 %2$@。已達到 %3$d%% %4$@提醒門檻。";
+"session_depleted_notification_title" = "%@ 工作階段已用完";
+"session_depleted_notification_body" = "剩餘 0%。恢復可用時會再通知。";
+"session_restored_notification_title" = "%@ 工作階段已恢復";
+"session_restored_notification_body" = "工作階段配額已恢復可用。";
 "quota_warning_warn_at" = "提醒門檻";
 "quota_warning_global_threshold_subtitle" = "工作階段和每週時段的剩餘百分比，除非提供者另有設定。";
 "quota_warning_sound" = "播放通知音效";
@@ -457,6 +464,8 @@
 "managed_login_already_running" = "託管 Codex 登入已在執行。請等待完成後再新增或重新認證其他帳號。";
 "managed_login_failed" = "託管 Codex 登入未完成。請先在終端確認 `codex --version` 可以執行。如果 macOS 封鎖了 `codex` 或將它移到垃圾桶，請移除舊的重複安裝，執行 `npm install -g --include=optional @openai/codex@latest`，然後重試。";
 "managed_login_missing_email" = "Codex 登入已完成，但無法取得帳號電子郵件。請在確認帳號已完全登入後重試。";
+"login_success_notification_title" = "%@ 登入成功";
+"login_success_notification_body" = "你可以回到 App；認證已完成。";
 "workspace_selection_cancelled" = "CodexBar 發現多個工作區，但未選擇任何工作區。";
 "unsafe_managed_home" = "CodexBar 拒絕修改意外的託管主目錄路徑：%@";
 "menu_bar_metric_title" = "選單列指標";
