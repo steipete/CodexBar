@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to upload assets to (for example, v0.24)."
+        description: "Release tag/version to package for manual artifact builds; manual runs do not publish."
         required: false
         type: string
 
@@ -68,6 +68,20 @@ jobs:
           uname -a
           uname -m
           swift --version
+
+      - name: Validate release tag
+        if: github.event_name == 'release' || inputs.tag != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo "Missing release tag." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
 
       - name: Install Swift 6.2.1 via swiftly
         if: matrix.platform == 'linux'
@@ -211,7 +225,7 @@ jobs:
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
       - name: Upload release assets
-        if: github.event_name == 'release' || inputs.tag != ''
+        if: github.event_name == 'release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -223,7 +237,7 @@ jobs:
           gh release upload "$TAG" "$OUT_DIR/$ASSET" "$OUT_DIR/$ASSET.sha256" --clobber
 
       - name: Upload workflow artifact (manual runs)
-        if: github.event_name != 'release' && inputs.tag == ''
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v6
         with:
           name: codexbar-cli-${{ matrix.name }}
@@ -234,16 +248,22 @@ jobs:
   update-homebrew-tap:
     runs-on: ubuntu-latest
     needs: build-cli
-    if: github.event_name == 'release' || inputs.tag != ''
+    if: github.event_name == 'release'
     steps:
       - name: Resolve release tag
         id: release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="${{ inputs.tag || github.ref_name }}"
+          tag="${RELEASE_TAG}"
           if [[ -z "$tag" ]]; then
             echo "Missing release tag." >&2
+            exit 1
+          fi
+          if [[ ! "$tag" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Invalid release tag: $tag" >&2
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -252,6 +272,8 @@ jobs:
       - name: Dispatch tap update
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          REQUEST_ID: ${{ steps.release.outputs.request_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -260,13 +282,13 @@ jobs:
             if gh workflow run update-formula.yml \
               --repo steipete/homebrew-tap \
               -f formula=codexbar \
-              -f tag="${{ steps.release.outputs.tag }}" \
+              -f tag="$RELEASE_TAG" \
               -f repository=steipete/CodexBar \
               -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
               -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
               -f cask=codexbar \
               -f cask_artifact='CodexBar-macos-universal-{version}.zip' \
-              -f request_id="${{ steps.release.outputs.request_id }}"; then
+              -f request_id="$REQUEST_ID"; then
               exit 0
             fi
             if [[ "$attempt" -eq 6 ]]; then
@@ -279,6 +301,7 @@ jobs:
       - name: Wait for tap update
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          REQUEST_ID: ${{ steps.release.outputs.request_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -288,7 +311,7 @@ jobs:
                 --repo steipete/homebrew-tap \
                 --workflow update-formula.yml \
                 --json databaseId,displayTitle \
-                --jq '.[] | select(.displayTitle | contains("${{ steps.release.outputs.request_id }}")) | .databaseId' 2>/tmp/codexbar-tap-run-list.err \
+                --jq '.[] | select(.displayTitle | contains(env.REQUEST_ID)) | .databaseId' 2>/tmp/codexbar-tap-run-list.err \
                 | head -n1 || true
             )"
             if [[ -n "$run_id" ]]; then

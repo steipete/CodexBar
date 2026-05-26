@@ -204,6 +204,42 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
                 loginMethod: "Admin API"))
     }
 
+    public func toCostUsageTokenSnapshot() -> CostUsageTokenSnapshot {
+        let daily = self.daily.map { bucket in
+            let modelBreakdowns = bucket.models.map {
+                CostUsageDailyReport.ModelBreakdown(
+                    modelName: $0.name,
+                    costUSD: nil,
+                    totalTokens: $0.totalTokens,
+                    requestCount: $0.requests)
+            }
+            let modelsUsed = bucket.models.map(\.name)
+            return CostUsageDailyReport.Entry(
+                date: bucket.day,
+                inputTokens: bucket.inputTokens,
+                outputTokens: bucket.outputTokens,
+                cacheReadTokens: bucket.cachedInputTokens,
+                cacheCreationTokens: nil,
+                totalTokens: bucket.totalTokens,
+                requestCount: bucket.requests,
+                costUSD: bucket.costUSD,
+                modelsUsed: modelsUsed.isEmpty ? nil : modelsUsed,
+                modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
+        }
+        let latest = self.latestDay
+        let total = self.last30Days
+        return CostUsageTokenSnapshot(
+            sessionTokens: latest.totalTokens,
+            sessionCostUSD: latest.costUSD,
+            sessionRequests: latest.requests,
+            last30DaysTokens: total.totalTokens,
+            last30DaysCostUSD: total.costUSD,
+            last30DaysRequests: total.requests,
+            historyDays: self.historyDays,
+            daily: daily,
+            updatedAt: self.updatedAt)
+    }
+
     private struct ModelAccumulator {
         var requests = 0
         var inputTokens = 0

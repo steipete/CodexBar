@@ -379,6 +379,64 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders Ollama weekly pace line when weekly window has reset`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(4 * 3600),
+                resetDescription: nil),
+            secondary: .init(
+                usedPercent: 23,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .ollama,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Ollama (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("Weekly: 77% left"))
+        #expect(output.contains("Pace: 6% in reserve | Expected 29% used | Lasts until reset"))
+    }
+
+    @Test
+    func `hides Ollama weekly pace when weekly duration is missing`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(
+                usedPercent: 23,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .ollama,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Ollama (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("Weekly: 77% left"))
+        #expect(!output.contains("Pace:"))
+    }
+
+    @Test
     func `renders JSON payload`() throws {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),

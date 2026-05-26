@@ -30,6 +30,30 @@ extension UsageStore {
         return (homePath, "codex:managed:\(homePath)")
     }
 
+    func tokenSnapshot(
+        fromProviderSnapshot snapshot: UsageSnapshot?,
+        provider: UsageProvider)
+        -> CostUsageTokenSnapshot?
+    {
+        switch provider {
+        case .openai:
+            snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
+        case .mistral:
+            snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+        default:
+            nil
+        }
+    }
+
+    nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
+        switch provider {
+        case .mistral, .openai:
+            true
+        default:
+            false
+        }
+    }
+
     nonisolated static func costUsageCacheDirectory(
         fileManager: FileManager = .default) -> URL
     {

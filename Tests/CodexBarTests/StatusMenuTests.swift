@@ -1220,7 +1220,7 @@ extension StatusMenuTests {
         let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
 
         #expect(usageItem?.submenu?.items
-            .contains { ($0.representedObject as? String) == StatusItemController.openAIAPIUsageChartID } == true)
+            .contains { ($0.representedObject as? String) == StatusItemController.costHistoryChartID } == true)
         #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardHeader" } == false)
         #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardExtraUsage" } == false)
     }

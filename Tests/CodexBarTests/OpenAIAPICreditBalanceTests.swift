@@ -338,6 +338,71 @@ struct OpenAIAPICreditBalanceTests {
     }
 
     @Test
+    func `maps admin usage to cost token snapshot`() {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let apiUsage = OpenAIAPIUsageSnapshot(
+            daily: [
+                OpenAIAPIUsageSnapshot.DailyBucket(
+                    day: "2023-11-13",
+                    startTime: now.addingTimeInterval(-86400),
+                    endTime: now,
+                    costUSD: 2.25,
+                    requests: 3,
+                    inputTokens: 300,
+                    cachedInputTokens: 100,
+                    outputTokens: 200,
+                    totalTokens: 500,
+                    lineItems: [],
+                    models: [
+                        OpenAIAPIUsageSnapshot.ModelBreakdown(
+                            name: "gpt-5.2",
+                            requests: 3,
+                            inputTokens: 300,
+                            cachedInputTokens: 100,
+                            outputTokens: 200,
+                            totalTokens: 500),
+                    ]),
+                OpenAIAPIUsageSnapshot.DailyBucket(
+                    day: "2023-11-14",
+                    startTime: now,
+                    endTime: now.addingTimeInterval(86400),
+                    costUSD: 8.5,
+                    requests: 42,
+                    inputTokens: 1000,
+                    cachedInputTokens: 400,
+                    outputTokens: 250,
+                    totalTokens: 1250,
+                    lineItems: [],
+                    models: [
+                        OpenAIAPIUsageSnapshot.ModelBreakdown(
+                            name: "gpt-5.2-codex",
+                            requests: 42,
+                            inputTokens: 1000,
+                            cachedInputTokens: 400,
+                            outputTokens: 250,
+                            totalTokens: 1250),
+                    ]),
+            ],
+            updatedAt: now,
+            historyDays: 7)
+
+        let snapshot = apiUsage.toCostUsageTokenSnapshot()
+
+        #expect(snapshot.historyDays == 7)
+        #expect(snapshot.sessionCostUSD == 8.5)
+        #expect(snapshot.sessionTokens == 1250)
+        #expect(snapshot.sessionRequests == 42)
+        #expect(snapshot.last30DaysCostUSD == 10.75)
+        #expect(snapshot.last30DaysTokens == 1750)
+        #expect(snapshot.last30DaysRequests == 45)
+        #expect(snapshot.daily.count == 2)
+        #expect(snapshot.daily[1].cacheReadTokens == 400)
+        #expect(snapshot.daily[1].requestCount == 42)
+        #expect(snapshot.daily[1].modelBreakdowns?.first?.requestCount == 42)
+        #expect(snapshot.daily[1].modelBreakdowns?.first?.modelName == "gpt-5.2-codex")
+    }
+
+    @Test
     func `falls back to credit balance when admin usage endpoint is unavailable`() async throws {
         let strategy = OpenAIAPIBalanceFetchStrategy(
             usageFetcher: { apiKey, historyDays in

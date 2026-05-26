@@ -204,8 +204,9 @@ struct GeneralPane: View {
         }
         if let snapshot = self.store.tokenSnapshot(for: provider) {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
-            let cost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-            let window = snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d"
+            let cost = snapshot.last30DaysCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+            let window = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d")
             return Text(String(format: L("cost_status_snapshot"), name, updated, window, cost))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)

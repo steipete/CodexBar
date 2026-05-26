@@ -61,7 +61,7 @@ final class StatusItemMenu: NSMenu {
         }
     }
 
-    private nonisolated static func providerNavigationDirection(
+    nonisolated static func providerNavigationDirection(
         for event: NSEvent) -> StatusItemMenuProviderNavigationDirection?
     {
         guard event.type == .keyDown else { return nil }
@@ -75,5 +75,19 @@ final class StatusItemMenu: NSMenu {
         default:
             return nil
         }
+    }
+
+    nonisolated static func providerSelectionIndex(for event: NSEvent) -> Int? {
+        guard event.type == .keyDown else { return nil }
+        let relevantModifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        guard relevantModifiers == .command,
+              let characters = event.charactersIgnoringModifiers,
+              characters.count == 1,
+              let number = Int(characters),
+              (1...9).contains(number)
+        else {
+            return nil
+        }
+        return number - 1
     }
 }
