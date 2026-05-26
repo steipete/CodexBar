@@ -10,8 +10,8 @@ if [[ -n "${MAC_RELEASE_TOOL:-}" ]]; then
 fi
 
 for candidate in \
-  "$ROOT/../agent-scripts/skills/mac-app-release/scripts/mac-release" \
-  "$HOME/Projects/agent-scripts/skills/mac-app-release/scripts/mac-release"; do
+  "$ROOT/../agent-scripts/skills/release-mac-app/scripts/mac-release" \
+  "$HOME/Projects/agent-scripts/skills/release-mac-app/scripts/mac-release"; do
   if [[ -x "$candidate" ]]; then
     exec "$candidate" "$@"
   fi

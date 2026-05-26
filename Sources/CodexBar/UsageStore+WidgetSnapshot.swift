@@ -113,10 +113,19 @@ extension UsageStore {
             }
         }
 
+        let primaryTitle: String = {
+            if provider == .grok,
+               let dyn = GrokProviderDescriptor.primaryLabel(window: snapshot.primary)
+            {
+                return dyn
+            }
+            return metadata?.sessionLabel ?? "Session"
+        }()
+
         let rows: [WidgetSnapshot.WidgetUsageRowSnapshot] = [
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: "primary",
-                title: metadata?.sessionLabel ?? "Session",
+                title: primaryTitle,
                 percentLeft: snapshot.primary?.remainingPercent),
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: "secondary",
