@@ -3,6 +3,37 @@ import Testing
 @testable import CodexBarCore
 
 struct DeepSeekUsageFetcherTests {
+    private static let sampleBalanceJSON = """
+    {
+      "is_available": true,
+      "balance_infos": [
+        {
+          "currency": "USD",
+          "total_balance": "50.00",
+          "granted_balance": "10.00",
+          "topped_up_balance": "40.00"
+        }
+      ]
+    }
+    """
+
+    private static func sampleSummary(updatedAt: Date = Date()) -> DeepSeekUsageSummary {
+        DeepSeekUsageSummary(
+            todayTokens: 123,
+            currentMonthTokens: 456,
+            todayCost: 1.23,
+            currentMonthCost: 4.56,
+            requestCount: 7,
+            currentMonthRequestCount: 8,
+            topModel: "deepseek-v4-flash",
+            categoryBreakdown: [
+                DeepSeekCategoryBreakdown(category: .promptCacheHitToken, tokens: 123, cost: 1.23),
+            ],
+            daily: [],
+            currency: "USD",
+            updatedAt: updatedAt)
+    }
+
     @Test
     func `parses USD balance response`() throws {
         let json = """
@@ -236,5 +267,81 @@ struct DeepSeekUsageFetcherTests {
         let usage = snapshot.toUsageSnapshot()
         let detail = usage.primary?.resetDescription ?? ""
         #expect(detail.contains("¥"))
+    }
+
+    @Test
+    func `balance snapshot has nil usage summary`() throws {
+        let json = """
+        {
+          "is_available": true,
+          "balance_infos": [
+            {
+              "currency": "USD",
+              "total_balance": "50.00",
+              "granted_balance": "10.00",
+              "topped_up_balance": "40.00"
+            }
+          ]
+        }
+        """
+        let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.deepseekUsage == nil)
+    }
+
+    @Test
+    func `balance returns promptly when optional usage summary is slow`() async throws {
+        let startedAt = Date()
+        let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
+            apiKey: "test-key",
+            includeOptionalUsage: true,
+            optionalSummaryJoinGrace: .seconds(2),
+            fetchBalanceData: { _ in
+                Data(Self.sampleBalanceJSON.utf8)
+            },
+            fetchSummary: { _ in
+                try await Task.sleep(for: .seconds(3))
+                return Self.sampleSummary()
+            })
+
+        let elapsed = Date().timeIntervalSince(startedAt)
+        #expect(elapsed < 2.5)
+        #expect(snapshot.totalBalance == 50.0)
+        #expect(snapshot.usageSummary == nil)
+    }
+
+    @Test
+    func `balance returns when optional usage summary fails closed`() async throws {
+        let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
+            apiKey: "test-key",
+            includeOptionalUsage: true,
+            optionalSummaryJoinGrace: .seconds(2),
+            fetchBalanceData: { _ in
+                Data(Self.sampleBalanceJSON.utf8)
+            },
+            fetchSummary: { _ in
+                throw DeepSeekUsageError.networkError("simulated failure")
+            })
+
+        #expect(snapshot.totalBalance == 50.0)
+        #expect(snapshot.usageSummary == nil)
+    }
+
+    @Test
+    func `production path can populate usage summary when optional fetch succeeds`() async throws {
+        let expected = Self.sampleSummary()
+        let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
+            apiKey: "test-key",
+            includeOptionalUsage: true,
+            optionalSummaryJoinGrace: .seconds(2),
+            fetchBalanceData: { _ in
+                Data(Self.sampleBalanceJSON.utf8)
+            },
+            fetchSummary: { _ in
+                expected
+            })
+
+        #expect(snapshot.totalBalance == 50.0)
+        #expect(snapshot.usageSummary == expected)
     }
 }
