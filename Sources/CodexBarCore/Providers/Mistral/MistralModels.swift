@@ -231,7 +231,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
                 modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
         }
         let latest = selected.last
-        let totalCost = selected.isEmpty ? max(self.totalCost, 0) : selected.reduce(0) { $0 + max($1.cost, 0) }
+        let totalCost = max(self.totalCost, 0)
         let totalTokens = selected.isEmpty
             ? self.totalInputTokens + self.totalCachedTokens + self.totalOutputTokens
             : selected.reduce(0) { $0 + $1.totalTokens }

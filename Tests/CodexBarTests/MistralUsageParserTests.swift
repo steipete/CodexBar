@@ -261,6 +261,43 @@ struct MistralUsageSnapshotConversionTests {
         #expect(cost.daily.first?.costUSD == 0)
         #expect(cost.daily.first?.modelBreakdowns?.first?.costUSD == 0)
     }
+
+    @Test
+    func `preserves net monthly cost when billing includes credits`() {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 8,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 100,
+            totalOutputTokens: 25,
+            totalCachedTokens: 0,
+            modelCount: 1,
+            daily: [
+                MistralDailyUsageBucket(
+                    day: "2023-11-14",
+                    cost: 10,
+                    inputTokens: 100,
+                    cachedTokens: 0,
+                    outputTokens: 25,
+                    models: []),
+                MistralDailyUsageBucket(
+                    day: "2023-11-15",
+                    cost: -2,
+                    inputTokens: 0,
+                    cachedTokens: 0,
+                    outputTokens: 0,
+                    models: []),
+            ],
+            startDate: nil,
+            endDate: nil,
+            updatedAt: now)
+
+        let cost = snapshot.toCostUsageTokenSnapshot()
+        #expect(cost.last30DaysCostUSD == 8)
+        #expect(cost.sessionCostUSD == 0)
+        #expect(cost.daily.map(\.costUSD) == [10, 0])
+    }
 }
 
 struct MistralStrategyTests {
