@@ -690,6 +690,7 @@
 "Runs out in %@" = "Runs out in %@";
 "Pace: %@" = "Pace: %@";
 "Pace: %@ · %@" = "Pace: %@ · %@";
+"%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% run-out risk";
 "%d%% in deficit" = "%d%% in deficit";
 "%d%% in reserve" = "%d%% in reserve";

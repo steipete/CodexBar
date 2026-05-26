@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@Suite(.serialized)
 struct UsageFormatterTests {
     private static let usageFormatterLocalizationKeys: [String] = [
         "%@ left",

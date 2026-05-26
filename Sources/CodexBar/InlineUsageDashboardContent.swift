@@ -165,7 +165,6 @@ extension UsageMenuCardView.Model {
         snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
     {
         let historyDays = max(1, min(365, snapshot.historyDays))
-        let historyLabel = historyDays == 1 ? "Today" : "\(historyDays)d"
         let periodLabel = historyDays == 1 ? "today" : "\(historyDays) day"
         let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
             guard let cost = entry.costUSD else { return nil }
@@ -178,12 +177,14 @@ extension UsageMenuCardView.Model {
         let latest = snapshot.daily.max { lhs, rhs in lhs.date < rhs.date }
         var details: [String] = []
         if let topModel = Self.topCostModel(from: snapshot.daily) {
-            details.append("Top model: \(Self.shortModelName(topModel))")
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
         if provider == .bedrock {
             details.append("AWS Cost Explorer billing can lag.")
-        } else {
+        } else if provider == .claude {
             details.append(UsageFormatter.costEstimateHint(provider: provider))
+        } else {
+            details.append(L("cost_estimate_hint"))
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
         return InlineUsageDashboardModel(
@@ -191,19 +192,23 @@ extension UsageMenuCardView.Model {
             valueStyle: .currencyUSD,
             kpis: [
                 .init(
-                    title: provider == .bedrock ? "Latest" : "Today",
+                    title: provider == .bedrock ? L("Latest") : L("Today"),
                     value: latest?.costUSD.map(UsageFormatter.usdString) ?? "—",
                     emphasis: true),
                 .init(
-                    title: "\(historyLabel) cost",
+                    title: historyDays == 30
+                        ? L("30d cost")
+                        : "\(String(format: L("Last %d days"), historyDays)) \(L("Cost"))",
                     value: snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—",
                     emphasis: false),
                 .init(
-                    title: "\(historyLabel) tokens",
+                    title: historyDays == 30
+                        ? L("30d tokens")
+                        : "\(String(format: L("Last %d days"), historyDays)) token",
                     value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
                 .init(
-                    title: "Latest tokens",
+                    title: L("Latest tokens"),
                     value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
             ],

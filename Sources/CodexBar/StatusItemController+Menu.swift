@@ -734,9 +734,10 @@ extension StatusItemController {
                     }
                     menu.addItem(item)
                 case let .action(title, action):
+                    let localizedTitle = L(title)
                     if self.usesPersistentMenuActionItem(for: action) {
                         menu.addItem(self.makePersistentMenuActionItem(
-                            title: title,
+                            title: localizedTitle,
                             action: action,
                             menu: menu,
                             width: width))
@@ -744,7 +745,7 @@ extension StatusItemController {
                     }
 
                     let (selector, represented) = self.selector(for: action)
-                    let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
+                    let item = NSMenuItem(title: localizedTitle, action: selector, keyEquivalent: "")
                     item.target = self
                     item.representedObject = represented
                     if let shortcut = self.shortcut(for: action) {
@@ -762,12 +763,12 @@ extension StatusItemController {
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
                     {
                         item.isEnabled = false
-                        self.applySubtitle(subtitle, to: item, title: title)
+                        self.applySubtitle(subtitle, to: item, title: localizedTitle)
                     } else if case .addCodexAccount = action,
                               let subtitle = self.codexAddAccountSubtitle()
                     {
                         item.isEnabled = false
-                        self.applySubtitle(subtitle, to: item, title: title)
+                        self.applySubtitle(subtitle, to: item, title: localizedTitle)
                     }
                     menu.addItem(item)
                 case let .submenu(title, systemImageName, submenuItems):
