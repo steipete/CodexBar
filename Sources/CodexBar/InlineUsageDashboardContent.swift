@@ -196,15 +196,19 @@ extension UsageMenuCardView.Model {
                     value: latest?.costUSD.map(UsageFormatter.usdString) ?? "—",
                     emphasis: true),
                 .init(
-                    title: historyDays == 30
+                    title: historyDays == 1
+                        ? L("Today")
+                        : historyDays == 30
                         ? L("30d cost")
                         : "\(String(format: L("Last %d days"), historyDays)) \(L("Cost"))",
                     value: snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—",
                     emphasis: false),
                 .init(
-                    title: historyDays == 30
+                    title: historyDays == 1
+                        ? L("Today tokens")
+                        : historyDays == 30
                         ? L("30d tokens")
-                        : "\(String(format: L("Last %d days"), historyDays)) tokens",
+                        : String(format: L("%@ tokens"), String(format: L("Last %d days"), historyDays)),
                     value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
                 .init(

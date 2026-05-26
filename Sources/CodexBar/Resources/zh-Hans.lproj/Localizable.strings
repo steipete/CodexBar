@@ -647,6 +647,7 @@
 "No OpenCode session cookies found in browsers." = "在浏览器中未找到 OpenCode 会话 Cookie。";
 "No available fetch strategy for %@." = "%@ 暂无可用的获取策略。";
 "Today" = "今日";
+"Today tokens" = "今日 token 用量";
 "30d cost" = "近 30 天费用";
 "30d tokens" = "近 30 天 token 用量";
 "Latest tokens" = "最近 token 用量";
@@ -660,6 +661,7 @@
 "Quit" = "退出";
 "Last %d day" = "近 %d 天";
 "Last %d days" = "近 %d 天";
+"%@ tokens" = "%@ token 用量";
 "Latest billing day" = "最近结算日";
 "Latest billing day (%@)" = "最近结算日（%@）";
 "%@ left" = "%@ 剩余";

@@ -208,8 +208,11 @@ struct CostHistoryChartMenuView: View {
     private static let expandedDetailRowHeight: CGFloat = 44
     private static let detailSpacing: CGFloat = 6
 
-    private static func windowLabel(days: Int) -> String {
-        String(format: L("%dd"), days)
+    static func windowLabel(days: Int) -> String {
+        if days == 1 {
+            return L("Today")
+        }
+        return String(format: L("Last %d days"), days)
     }
 
     private static func detailRowHeight(for row: DetailRow) -> CGFloat {

@@ -662,6 +662,7 @@
 "No OpenCode session cookies found in browsers." = "No OpenCode session cookies found in browsers.";
 "No available fetch strategy for %@." = "No available fetch strategy for %@.";
 "Today" = "Today";
+"Today tokens" = "Today tokens";
 "30d cost" = "30d cost";
 "30d tokens" = "30d tokens";
 "Latest tokens" = "Latest tokens";
@@ -675,6 +676,7 @@
 "Quit" = "Quit";
 "Last %d day" = "Last %d day";
 "Last %d days" = "Last %d days";
+"%@ tokens" = "%@ tokens";
 "Latest billing day" = "Latest billing day";
 "Latest billing day (%@)" = "Latest billing day (%@)";
 "%@ left" = "%@ left";
