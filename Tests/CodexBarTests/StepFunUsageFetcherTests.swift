@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 struct StepFunSettingsReaderTests {
     @Test
@@ -230,4 +230,245 @@ struct StepFunTokenNormalizerTests {
     func `trims whitespace`() {
         #expect(StepFunTokenNormalizer.normalize("  token123  ") == "token123")
     }
+}
+
+@Suite(.serialized)
+struct StepFunTokenRefreshTests {
+    private struct StubClaudeFetcher: ClaudeUsageFetching {
+        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+            throw ClaudeUsageError.parseFailed("stub")
+        }
+
+        func debugRawProbe(model _: String) async -> String {
+            "stub"
+        }
+
+        func detectVersion() -> String? {
+            nil
+        }
+    }
+
+    @Test
+    func `refresh token returns combined token pair`() async throws {
+        try await self.withStubProtocol { recorder in
+            StepFunStubURLProtocol.handler = { request in
+                #expect(request.url?.path.contains("RefreshToken") == true)
+                #expect(request.value(forHTTPHeaderField: "Oasis-Token") == "old-access...old-refresh")
+                #expect(request.value(forHTTPHeaderField: "Cookie")?.contains("old-access...old-refresh") == true)
+                recorder.recordRefreshCall()
+                return Self.jsonResponse(
+                    for: request,
+                    body: """
+                    {
+                        "accessToken": {"raw": "new-access"},
+                        "refreshToken": {"raw": "new-refresh"}
+                    }
+                    """)
+            }
+
+            let token = try await StepFunUsageFetcher.refreshToken(token: "old-access...old-refresh")
+            #expect(token == "new-access...new-refresh")
+            #expect(recorder.refreshCallCount == 1)
+        }
+    }
+
+    @Test
+    func `manual token auth failure refreshes token account and retries usage`() async throws {
+        let accountID = UUID()
+        let updateRecorder = StepFunTokenUpdateRecorder()
+
+        try await self.withStubProtocol { recorder in
+            StepFunStubURLProtocol.handler = { request in
+                let path = request.url?.path ?? ""
+                if path.contains("QueryStepPlanRateLimit") {
+                    let call = recorder.recordUsageCall()
+                    if call == 1 {
+                        #expect(request.value(forHTTPHeaderField: "Cookie")?
+                            .contains("old-access...old-refresh") == true)
+                        return Self.jsonResponse(for: request, statusCode: 401, body: #"{"error":"unauthorized"}"#)
+                    }
+
+                    #expect(request.value(forHTTPHeaderField: "Cookie")?.contains("new-access...new-refresh") == true)
+                    return Self.usageResponse(for: request)
+                }
+
+                if path.contains("RefreshToken") {
+                    recorder.recordRefreshCall()
+                    #expect(request.value(forHTTPHeaderField: "Oasis-Token") == "old-access...old-refresh")
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                        {
+                            "accessToken": {"raw": "new-access"},
+                            "refreshToken": {"raw": "new-refresh"}
+                        }
+                        """)
+                }
+
+                if path.contains("GetStepPlanStatus") {
+                    return Self.jsonResponse(
+                        for: request,
+                        body: #"{"status":1,"subscription":{"name":"Plus","plan_type":1,"status":1}}"#)
+                }
+
+                return Self.jsonResponse(for: request, statusCode: 404, body: #"{"error":"unexpected"}"#)
+            }
+
+            let settings = ProviderSettingsSnapshot.make(
+                stepfun: ProviderSettingsSnapshot.StepFunProviderSettings(
+                    cookieSource: .manual,
+                    manualToken: "old-access...old-refresh"))
+            let context = self.makeContext(
+                settings: settings,
+                selectedTokenAccountID: accountID,
+                tokenUpdater: { provider, updatedAccountID, token in
+                    #expect(provider == .stepfun)
+                    #expect(updatedAccountID == accountID)
+                    await updateRecorder.record(token)
+                })
+
+            let result = try await StepFunWebFetchStrategy().fetch(context)
+
+            #expect(result.usage.identity?.loginMethod == "Plus")
+            #expect(recorder.usageCallCount == 2)
+            #expect(recorder.refreshCallCount == 1)
+            let updatedToken = await updateRecorder.recordedToken()
+            #expect(updatedToken == "new-access...new-refresh")
+        }
+    }
+
+    private func makeContext(
+        settings: ProviderSettingsSnapshot?,
+        selectedTokenAccountID: UUID? = nil,
+        tokenUpdater: ProviderFetchContext.TokenAccountTokenUpdater? = nil) -> ProviderFetchContext
+    {
+        ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: settings,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: StubClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            selectedTokenAccountID: selectedTokenAccountID,
+            tokenAccountTokenUpdater: tokenUpdater)
+    }
+
+    private func withStubProtocol(
+        _ body: (StepFunRequestRecorder) async throws -> Void) async throws
+    {
+        let recorder = StepFunRequestRecorder()
+        let registered = URLProtocol.registerClass(StepFunStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(StepFunStubURLProtocol.self)
+            }
+            StepFunStubURLProtocol.handler = nil
+        }
+        try await body(recorder)
+    }
+
+    private static func usageResponse(for request: URLRequest) -> (HTTPURLResponse, Data) {
+        self.jsonResponse(
+            for: request,
+            body: """
+            {
+                "status": 1,
+                "five_hour_usage_left_rate": 0.8,
+                "weekly_usage_left_rate": 0.6,
+                "five_hour_usage_reset_time": "1777528800",
+                "weekly_usage_reset_time": "1777899600"
+            }
+            """)
+    }
+
+    private static func jsonResponse(
+        for request: URLRequest,
+        statusCode: Int = 200,
+        body: String) -> (HTTPURLResponse, Data)
+    {
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"])!
+        return (response, Data(body.utf8))
+    }
+}
+
+private actor StepFunTokenUpdateRecorder {
+    private var token: String?
+
+    func record(_ token: String) {
+        self.token = token
+    }
+
+    func recordedToken() -> String? {
+        self.token
+    }
+}
+
+private final class StepFunRequestRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var usageCalls = 0
+    private var refreshCalls = 0
+
+    var usageCallCount: Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.usageCalls
+    }
+
+    var refreshCallCount: Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.refreshCalls
+    }
+
+    func recordUsageCall() -> Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.usageCalls += 1
+        return self.usageCalls
+    }
+
+    func recordRefreshCall() {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.refreshCalls += 1
+    }
+}
+
+private final class StepFunStubURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "platform.stepfun.com"
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (response, data) = try handler(self.request)
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            self.client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }

@@ -51,22 +51,14 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let cookieSource = context.settings?.stepfun?.cookieSource ?? .auto
-
         do {
-            let token = try await Self.resolveToken(context: context, allowCached: true)
-            let usage = try await StepFunUsageFetcher.fetchUsage(token: token)
+            let resolved = try await Self.resolveToken(context: context, allowCached: true)
+            let usage = try await StepFunUsageFetcher.fetchUsage(token: resolved.token)
             return self.makeResult(
                 usage: usage.toUsageSnapshot(),
                 sourceLabel: "web")
-        } catch StepFunUsageError.apiError where cookieSource != .manual {
-            // Token may be stale — clear cache and retry with fresh login
-            CookieHeaderCache.clear(provider: .stepfun)
-            let token = try await Self.resolveToken(context: context, allowCached: false)
-            let usage = try await StepFunUsageFetcher.fetchUsage(token: token)
-            return self.makeResult(
-                usage: usage.toUsageSnapshot(),
-                sourceLabel: "web")
+        } catch let error where Self.isAuthenticationFailure(error) {
+            return try await self.recoverFromAuthenticationFailure(context: context, originalError: error)
         }
     }
 
@@ -76,9 +68,22 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
 
     // MARK: - Token Resolution
 
+    private struct ResolvedToken {
+        let token: String
+        let source: TokenSource
+    }
+
+    private enum TokenSource {
+        case manual
+        case cached
+        case settingsLogin
+        case environmentToken
+        case environmentLogin
+    }
+
     private static func resolveToken(
         context: ProviderFetchContext,
-        allowCached: Bool) async throws -> String
+        allowCached: Bool) async throws -> ResolvedToken
     {
         let settings = context.settings?.stepfun
 
@@ -88,12 +93,16 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
             guard !manualToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw StepFunUsageError.missingToken
             }
-            return StepFunTokenNormalizer.normalize(manualToken)
+            return ResolvedToken(
+                token: StepFunTokenNormalizer.normalize(manualToken),
+                source: .manual)
         }
 
         // 2. Cached token from previous login
         if allowCached, let cached = CookieHeaderCache.load(provider: .stepfun) {
-            return StepFunTokenNormalizer.normalize(cached.cookieHeader)
+            return ResolvedToken(
+                token: StepFunTokenNormalizer.normalize(cached.cookieHeader),
+                source: .cached)
         }
 
         // 3. Username + password from Settings UI → perform full login flow
@@ -103,12 +112,12 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
                 username: settings.username,
                 password: settings.password)
             CookieHeaderCache.store(provider: .stepfun, cookieHeader: token, sourceLabel: "login")
-            return token
+            return ResolvedToken(token: token, source: .settingsLogin)
         }
 
         // 4. Direct token from env var
         if let token = StepFunSettingsReader.token(environment: context.env) {
-            return token
+            return ResolvedToken(token: token, source: .environmentToken)
         }
 
         // 5. Username + password from env vars → perform full login flow
@@ -117,10 +126,109 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
         {
             let token = try await StepFunUsageFetcher.login(username: username, password: password)
             CookieHeaderCache.store(provider: .stepfun, cookieHeader: token, sourceLabel: "login")
-            return token
+            return ResolvedToken(token: token, source: .environmentLogin)
         }
 
         throw StepFunUsageError.missingCredentials
+    }
+
+    private func recoverFromAuthenticationFailure(
+        context: ProviderFetchContext,
+        originalError: Error) async throws -> ProviderFetchResult
+    {
+        let resolved = try await Self.resolveToken(context: context, allowCached: true)
+        do {
+            let refreshed = try await StepFunUsageFetcher.refreshToken(token: resolved.token)
+            await Self.persistRecoveredToken(refreshed, source: resolved.source, context: context)
+            let usage = try await StepFunUsageFetcher.fetchUsage(token: refreshed)
+            return self.makeResult(
+                usage: usage.toUsageSnapshot(),
+                sourceLabel: "web")
+        } catch {
+            if let loginToken = try await Self.loginTokenIfAvailable(context: context) {
+                let usage = try await StepFunUsageFetcher.fetchUsage(token: loginToken)
+                return self.makeResult(
+                    usage: usage.toUsageSnapshot(),
+                    sourceLabel: "web")
+            }
+            throw Self.actionableAuthenticationError(for: resolved.source, originalError: originalError)
+        }
+    }
+
+    private static func loginTokenIfAvailable(context: ProviderFetchContext) async throws -> String? {
+        let settings = context.settings?.stepfun
+        if settings?.cookieSource != .manual,
+           let settings,
+           !settings.username.isEmpty,
+           !settings.password.isEmpty
+        {
+            CookieHeaderCache.clear(provider: .stepfun)
+            let token = try await StepFunUsageFetcher.login(
+                username: settings.username,
+                password: settings.password)
+            CookieHeaderCache.store(provider: .stepfun, cookieHeader: token, sourceLabel: "login")
+            return token
+        }
+
+        if let username = StepFunSettingsReader.username(environment: context.env),
+           let password = StepFunSettingsReader.password(environment: context.env)
+        {
+            CookieHeaderCache.clear(provider: .stepfun)
+            let token = try await StepFunUsageFetcher.login(username: username, password: password)
+            CookieHeaderCache.store(provider: .stepfun, cookieHeader: token, sourceLabel: "login")
+            return token
+        }
+
+        return nil
+    }
+
+    private static func persistRecoveredToken(
+        _ token: String,
+        source: TokenSource,
+        context: ProviderFetchContext) async
+    {
+        switch source {
+        case .cached, .settingsLogin, .environmentLogin:
+            CookieHeaderCache.store(provider: .stepfun, cookieHeader: token, sourceLabel: "refresh")
+        case .manual, .environmentToken:
+            guard let accountID = context.selectedTokenAccountID,
+                  let updater = context.tokenAccountTokenUpdater
+            else { return }
+            await updater(.stepfun, accountID, token)
+        }
+    }
+
+    private static func isAuthenticationFailure(_ error: Error) -> Bool {
+        guard case let StepFunUsageError.apiError(message) = error else {
+            return false
+        }
+        let lower = message.lowercased()
+        return lower.contains("401") ||
+            lower.contains("unauthorized") ||
+            lower.contains("token") ||
+            lower.contains("auth")
+    }
+
+    private static func actionableAuthenticationError(
+        for source: TokenSource,
+        originalError: Error) -> StepFunUsageError
+    {
+        let suffix = switch source {
+        case .manual:
+            "Refresh the Oasis-Token, or switch StepFun to auto auth with username/password."
+        case .environmentToken:
+            "Refresh STEPFUN_TOKEN, or configure STEPFUN_USERNAME and STEPFUN_PASSWORD."
+        case .cached, .settingsLogin, .environmentLogin:
+            "Refresh the StepFun credentials and try again."
+        }
+        return .apiError("\(Self.authenticationFailureMessage(originalError)). \(suffix)")
+    }
+
+    private static func authenticationFailureMessage(_ error: Error) -> String {
+        if case let StepFunUsageError.apiError(message) = error {
+            return message
+        }
+        return error.localizedDescription
     }
 }
 

@@ -346,6 +346,49 @@ struct TokenAccountCLIContext {
         return env
     }
 
+    func tokenUpdater(for account: ProviderTokenAccount?) -> ProviderFetchContext.TokenAccountTokenUpdater? {
+        guard let account else { return nil }
+        return { provider, accountID, token in
+            guard accountID == account.id else { return }
+            try? Self.updateStoredTokenAccount(provider: provider, accountID: accountID, token: token)
+        }
+    }
+
+    private static func updateStoredTokenAccount(
+        provider: UsageProvider,
+        accountID: UUID,
+        token: String) throws
+    {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let store = CodexBarConfigStore()
+        guard var config = try store.load() else { return }
+        guard var providerConfig = config.providerConfig(for: provider),
+              let data = providerConfig.tokenAccounts,
+              let index = data.accounts.firstIndex(where: { $0.id == accountID })
+        else {
+            return
+        }
+
+        let existing = data.accounts[index]
+        var accounts = data.accounts
+        accounts[index] = ProviderTokenAccount(
+            id: existing.id,
+            label: existing.label,
+            token: trimmed,
+            addedAt: existing.addedAt,
+            lastUsed: existing.lastUsed,
+            externalIdentifier: existing.externalIdentifier,
+            organizationID: existing.organizationID)
+        providerConfig.tokenAccounts = ProviderTokenAccountData(
+            version: data.version,
+            accounts: accounts,
+            activeIndex: data.clampedActiveIndex())
+        config.setProviderConfig(providerConfig)
+        try store.save(config)
+    }
+
     func fetcher(base: UsageFetcher, provider: UsageProvider, env: [String: String]) -> UsageFetcher {
         guard provider == .codex else { return base }
         return UsageFetcher(environment: env)
