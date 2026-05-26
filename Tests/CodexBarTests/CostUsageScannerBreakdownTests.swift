@@ -195,6 +195,76 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex incremental append falls back to rescan when fork metadata appears late`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let iso3 = env.isoString(for: day.addingTimeInterval(3))
+        let model = "gpt-5.4"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": iso0,
+            "payload": ["id": "late-fork-child"],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let firstTokenCount = self.codexTokenCount(
+            timestamp: iso1,
+            model: model,
+            total: (input: 10, cached: 0, output: 0),
+            last: (input: 10, cached: 0, output: 0))
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "late-fork-child.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, firstTokenCount]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        let first = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(first.data.first?.totalTokens == 10)
+
+        let lateForkMeta: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": iso2,
+            "payload": [
+                "id": "late-fork-child",
+                "forked_from_id": "missing-parent",
+                "timestamp": iso2,
+            ],
+        ]
+        let replayedForkUsage = self.codexTokenCount(
+            timestamp: iso3,
+            model: model,
+            total: (input: 1_000, cached: 900, output: 100),
+            last: (input: 1_000, cached: 900, output: 100))
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(("\n" + env.jsonl([lateForkMeta, replayedForkUsage])).utf8))
+        try handle.close()
+
+        let second = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(second.data.first?.totalTokens == 10)
+    }
+
+    @Test
     func `codex daily report reprices cached sessions when models dev pricing changes`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
