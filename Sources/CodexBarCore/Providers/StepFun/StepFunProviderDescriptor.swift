@@ -137,15 +137,41 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
         originalError: Error) async throws -> ProviderFetchResult
     {
         let resolved = try await Self.resolveToken(context: context, allowCached: true)
+        let refreshed: String
         do {
-            let refreshed = try await StepFunUsageFetcher.refreshToken(token: resolved.token)
-            await Self.persistRecoveredToken(refreshed, source: resolved.source, context: context)
+            refreshed = try await StepFunUsageFetcher.refreshToken(token: resolved.token)
+        } catch {
+            if let fallback = try await Self.resolvedTokenWithoutStaleCache(context: context, source: resolved.source) {
+                do {
+                    let usage = try await StepFunUsageFetcher.fetchUsage(token: fallback.token)
+                    await Self.persistRecoveredToken(fallback.token, source: fallback.source, context: context)
+                    return self.makeResult(
+                        usage: usage.toUsageSnapshot(),
+                        sourceLabel: "web")
+                } catch {
+                    if !Self.isAuthenticationFailure(error) {
+                        throw error
+                    }
+                }
+            }
+            if let loginToken = try await Self.loginTokenIfAvailable(context: context, source: resolved.source) {
+                let usage = try await StepFunUsageFetcher.fetchUsage(token: loginToken)
+                return self.makeResult(
+                    usage: usage.toUsageSnapshot(),
+                    sourceLabel: "web")
+            }
+            throw Self.actionableAuthenticationError(for: resolved.source, originalError: originalError)
+        }
+
+        await Self.persistRecoveredToken(refreshed, source: resolved.source, context: context)
+
+        do {
             let usage = try await StepFunUsageFetcher.fetchUsage(token: refreshed)
             return self.makeResult(
                 usage: usage.toUsageSnapshot(),
                 sourceLabel: "web")
-        } catch {
-            if let loginToken = try await Self.loginTokenIfAvailable(context: context) {
+        } catch let retryError where Self.isAuthenticationFailure(retryError) {
+            if let loginToken = try await Self.loginTokenIfAvailable(context: context, source: resolved.source) {
                 let usage = try await StepFunUsageFetcher.fetchUsage(token: loginToken)
                 return self.makeResult(
                     usage: usage.toUsageSnapshot(),
@@ -155,7 +181,29 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    private static func loginTokenIfAvailable(context: ProviderFetchContext) async throws -> String? {
+    private static func resolvedTokenWithoutStaleCache(
+        context: ProviderFetchContext,
+        source: TokenSource) async throws -> ResolvedToken?
+    {
+        guard case .cached = source else { return nil }
+        CookieHeaderCache.clear(provider: .stepfun)
+        do {
+            return try await self.resolveToken(context: context, allowCached: false)
+        } catch StepFunUsageError.missingCredentials {
+            return nil
+        } catch StepFunUsageError.missingToken {
+            return nil
+        }
+    }
+
+    private static func loginTokenIfAvailable(
+        context: ProviderFetchContext,
+        source: TokenSource) async throws -> String?
+    {
+        if case .manual = source {
+            return nil
+        }
+
         let settings = context.settings?.stepfun
         if settings?.cookieSource != .manual,
            let settings,
@@ -190,7 +238,15 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
         switch source {
         case .cached, .settingsLogin, .environmentLogin:
             CookieHeaderCache.store(provider: .stepfun, cookieHeader: token, sourceLabel: "refresh")
-        case .manual, .environmentToken:
+        case .manual:
+            guard let accountID = context.selectedTokenAccountID,
+                  let updater = context.tokenAccountTokenUpdater
+            else {
+                await context.providerManualTokenUpdater?(.stepfun, token)
+                return
+            }
+            await updater(.stepfun, accountID, token)
+        case .environmentToken:
             guard let accountID = context.selectedTokenAccountID,
                   let updater = context.tokenAccountTokenUpdater
             else { return }
@@ -202,11 +258,15 @@ struct StepFunWebFetchStrategy: ProviderFetchStrategy {
         guard case let StepFunUsageError.apiError(message) = error else {
             return false
         }
-        let lower = message.lowercased()
+        let lower = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return lower.contains("401") ||
+            lower.contains("403") ||
             lower.contains("unauthorized") ||
-            lower.contains("token") ||
-            lower.contains("auth")
+            lower.contains("unauthenticated") ||
+            lower.contains("invalid credentials") ||
+            lower.contains("invalid token") ||
+            lower.contains("token expired") ||
+            lower.contains("expired token")
     }
 
     private static func actionableAuthenticationError(

@@ -239,7 +239,7 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 stepfun: ProviderSettingsSnapshot.StepFunProviderSettings(
                     cookieSource: cookieSource,
-                    manualToken: cookieHeader ?? "",
+                    manualToken: self.stepfunManualToken(account: account, config: config),
                     username: config?.sanitizedAPIKey ?? "",
                     password: ""))
         default:
@@ -352,6 +352,25 @@ struct TokenAccountCLIContext {
             guard accountID == account.id else { return }
             try? Self.updateStoredTokenAccount(provider: provider, accountID: accountID, token: token)
         }
+    }
+
+    func manualTokenUpdater() -> ProviderFetchContext.ProviderManualTokenUpdater {
+        { provider, token in
+            try? Self.updateStoredManualToken(provider: provider, token: token)
+        }
+    }
+
+    private static func updateStoredManualToken(provider: UsageProvider, token: String) throws {
+        guard provider == .stepfun else { return }
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let store = CodexBarConfigStore()
+        var config = try store.load() ?? .makeDefault()
+        var providerConfig = config.providerConfig(for: provider) ?? ProviderConfig(id: provider)
+        providerConfig.region = trimmed
+        config.setProviderConfig(providerConfig)
+        try store.save(config)
     }
 
     private static func updateStoredTokenAccount(
@@ -530,10 +549,22 @@ struct TokenAccountCLIContext {
             return .manual
         }
         if let override = config?.cookieSource { return override }
+        if provider == .stepfun, config?.sanitizedRegion != nil {
+            return .manual
+        }
         if config?.sanitizedCookieHeader != nil {
             return .manual
         }
         return .auto
+    }
+
+    private func stepfunManualToken(account: ProviderTokenAccount?, config: ProviderConfig?) -> String {
+        if let account,
+           let support = TokenAccountSupportCatalog.support(for: .stepfun)
+        {
+            return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
+        }
+        return config?.sanitizedRegion ?? config?.sanitizedCookieHeader ?? ""
     }
 
     private func resolveZaiRegion(_ config: ProviderConfig?) -> ZaiAPIRegion {

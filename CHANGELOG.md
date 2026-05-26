@@ -3,6 +3,7 @@
 ## 0.29.2 — Unreleased
 
 ### Fixed
+- StepFun: refresh expired Oasis tokens and persist recovered manual sessions. Thanks @LeoLin990405!
 - Localization: improve Traditional Chinese wording and localize notification copy (#1158). Thanks @jack24254029!
 - Localization: improve Simplified Chinese visible menu, dashboard, and usage labels (#1145). Thanks @Yuxin-Qiao!
 

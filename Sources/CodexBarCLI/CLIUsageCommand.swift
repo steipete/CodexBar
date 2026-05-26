@@ -290,7 +290,8 @@ extension CodexBarCLI {
             claudeFetcher: command.claudeFetcher,
             browserDetection: command.browserDetection,
             selectedTokenAccountID: account?.id,
-            tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account))
+            tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
+            providerManualTokenUpdater: tokenContext.manualTokenUpdater())
         let outcome = await Self.fetchProviderUsage(
             provider: provider,
             context: fetchContext)
