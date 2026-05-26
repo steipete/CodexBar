@@ -131,6 +131,59 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(submenu.items.first?.title != "No data available")
     }
 
+    @Test
+    func `open hydrated provider submenu preserves identity across refresh`() throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        let previousMenuRefresh = StatusItemController.menuRefreshEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.setMenuRefreshEnabledForTesting(previousMenuRefresh)
+        }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.costUsageEnabled = true
+        Self.enableOnlyClaude(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        Self.seedClaudeSnapshots(in: store)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .claude,
+            width: StatusItemController.menuCardBaseWidth)
+        controller.menuWillOpen(submenu)
+
+        let hydratedItem = try #require(submenu.items.first)
+        #expect(hydratedItem.representedObject as? String == StatusItemController.costHistoryChartID)
+        #expect(hydratedItem.toolTip == UsageProvider.claude.rawValue)
+        #expect(hydratedItem.view != nil)
+        #expect(hydratedItem.title != "No data available")
+
+        controller.refreshHostedSubviewMenu(submenu)
+
+        let refreshedItem = try #require(submenu.items.first)
+        #expect(refreshedItem.representedObject as? String == StatusItemController.costHistoryChartID)
+        #expect(refreshedItem.toolTip == UsageProvider.claude.rawValue)
+        #expect(refreshedItem.view != nil)
+        #expect(refreshedItem.title != "No data available")
+    }
+
     private static func makeSettings() -> SettingsStore {
         let suite = "StatusMenuHostedSubmenuRefreshTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

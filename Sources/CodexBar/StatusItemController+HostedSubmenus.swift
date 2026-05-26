@@ -238,6 +238,7 @@ extension StatusItemController {
             let chartItem = NSMenuItem()
             chartItem.isEnabled = true
             chartItem.representedObject = Self.costHistoryChartID
+            chartItem.toolTip = provider.rawValue
             submenu.addItem(chartItem)
             return true
         }
@@ -259,6 +260,7 @@ extension StatusItemController {
         chartItem.view = hosting
         chartItem.isEnabled = true
         chartItem.representedObject = Self.costHistoryChartID
+        chartItem.toolTip = provider.rawValue
         submenu.addItem(chartItem)
         return true
     }
