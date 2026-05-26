@@ -3,11 +3,11 @@ import CodexBarCore
 
 final class ProviderSwitcherShortcutEventMonitor {
     private let events: NSEvent.EventTypeMask
-    private let callback: @MainActor (NSEvent) -> NSEvent?
+    private let callback: @MainActor (NSEvent) -> Bool
     private let observer: CFRunLoopObserver
     private var isActive = false
 
-    init(events: NSEvent.EventTypeMask, callback: @escaping @MainActor (NSEvent) -> NSEvent?) {
+    init(events: NSEvent.EventTypeMask, callback: @escaping @MainActor (NSEvent) -> Bool) {
         self.events = events
         self.callback = callback
 
@@ -18,20 +18,18 @@ final class ProviderSwitcherShortcutEventMonitor {
             0)
         { [events, callback] _, _ in
             MainActor.assumeIsolated {
-                var queuedEvents: [NSEvent] = []
-                while let event = NSApp.nextEvent(matching: .any, until: nil, inMode: .default, dequeue: true) {
-                    queuedEvents.append(event)
-                }
-
-                for event in queuedEvents {
-                    let eventMask = NSEvent.EventTypeMask(rawValue: 1 << event.type.rawValue)
-                    let eventToPost = if events.contains(eventMask) {
-                        callback(event)
-                    } else {
-                        event
-                    }
-                    guard let eventToPost else { continue }
-                    NSApp.postEvent(eventToPost, atStart: false)
+                while let event = NSApp.nextEvent(
+                    matching: events,
+                    until: .distantPast,
+                    inMode: .default,
+                    dequeue: false)
+                {
+                    guard callback(event) else { break }
+                    _ = NSApp.nextEvent(
+                        matching: events,
+                        until: .distantPast,
+                        inMode: .default,
+                        dequeue: true)
                 }
             }
         }
@@ -76,10 +74,10 @@ extension StatusItemController {
                   self.openMenus[ObjectIdentifier(menu)] != nil,
                   menu.items.first?.view is ProviderSwitcherView
             else {
-                return event
+                return false
             }
 
-            return self.handleProviderSwitcherShortcut(event, menu: menu) ? nil : event
+            return self.handleProviderSwitcherShortcut(event, menu: menu)
         }
         monitor.start()
         self.providerSwitcherShortcutEventMonitor = monitor
