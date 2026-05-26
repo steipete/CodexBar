@@ -80,7 +80,16 @@ enum MenuBarVisibilityWatcher {
     static func isBlockedSnapshot(snapshot: StatusItemVisibilitySnapshot) -> Bool {
         guard snapshot.isVisible else { return false }
         guard snapshot.hasButton else { return true }
-        return !snapshot.hasWindow || !snapshot.hasScreen || !snapshot.isOnCurrentScreen || snapshot.buttonWidth <= 0
+        // Menu bar managers can park status-item windows off the current screen while preserving the
+        // underlying NSStatusItem. Recreating in that state makes those managers see a new item.
+        return !snapshot.hasWindow || snapshot.buttonWidth <= 0
+    }
+
+    static func isDisplacedSnapshot(snapshot: StatusItemVisibilitySnapshot) -> Bool {
+        guard snapshot.isVisible, snapshot.hasButton, snapshot.hasWindow, snapshot.buttonWidth > 0 else {
+            return false
+        }
+        return !snapshot.hasScreen || !snapshot.isOnCurrentScreen
     }
 
     static func hasBlockedVisibleSnapshots(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
@@ -94,6 +103,12 @@ enum MenuBarVisibilityWatcher {
     static func hasAnyBlockedVisibleSnapshot(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
         snapshots.contains { snapshot in
             snapshot.isVisible && self.isBlockedSnapshot(snapshot: snapshot)
+        }
+    }
+
+    static func hasAnyDisplacedVisibleSnapshot(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
+        snapshots.contains { snapshot in
+            self.isDisplacedSnapshot(snapshot: snapshot)
         }
     }
 
@@ -119,19 +134,17 @@ enum MenuBarVisibilityWatcher {
         return self.hasAnyBlockedVisibleSnapshot(snapshots)
     }
 
-    static func shouldAttemptScreenChangeRecovery(
-        previousScreenCount: Int,
-        currentScreenCount: Int,
+    static func shouldRefreshScreenChangePlacement(
+        previousScreenCount _: Int,
+        currentScreenCount _: Int,
         snapshots: [StatusItemVisibilitySnapshot])
         -> Bool
     {
-        if self.hasAnyBlockedVisibleSnapshot(snapshots) {
-            return true
-        }
-        guard currentScreenCount < previousScreenCount else { return false }
-        return snapshots.contains { snapshot in
-            snapshot.isVisible
-        }
+        self.hasAnyDisplacedVisibleSnapshot(snapshots)
+    }
+
+    static func shouldAttemptScreenChangeRecovery(snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
+        self.hasAnyBlockedVisibleSnapshot(snapshots)
     }
 
     static func shouldRetryScreenChangeRecovery(
@@ -260,7 +273,21 @@ extension StatusItemController {
         let settledCurrentScreenCount = NSScreen.screens.count
         self.lastKnownScreenCount = settledCurrentScreenCount
         let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
-        guard MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+        if MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(snapshots: snapshots) {
+            self.menuLogger.error(
+                "Display configuration changed; recreating status items",
+                metadata: [
+                    "previousScreenCount": "\(previousScreenCount)",
+                    "currentScreenCount": "\(settledCurrentScreenCount)",
+                    "capturedScreenCount": "\(currentScreenCount)",
+                    "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                ])
+            self.recreateStatusItemsForVisibilityRecovery()
+            self.schedulePostScreenChangeRecoveryVerification(attempt: 1)
+            return
+        }
+
+        guard MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
             previousScreenCount: previousScreenCount,
             currentScreenCount: settledCurrentScreenCount,
             snapshots: snapshots)
@@ -268,16 +295,15 @@ extension StatusItemController {
             return
         }
 
-        self.menuLogger.error(
-            "Display configuration changed; recreating status items",
+        self.menuLogger.info(
+            "Display configuration changed; refreshing existing status items",
             metadata: [
                 "previousScreenCount": "\(previousScreenCount)",
                 "currentScreenCount": "\(settledCurrentScreenCount)",
                 "capturedScreenCount": "\(currentScreenCount)",
                 "snapshots": snapshots.map(\.description).joined(separator: " | "),
             ])
-        self.recreateStatusItemsForVisibilityRecovery()
-        self.schedulePostScreenChangeRecoveryVerification(attempt: 1)
+        self.refreshExistingStatusItemsForVisibilityRecovery()
     }
 
     private func schedulePostScreenChangeRecoveryVerification(attempt: Int) {

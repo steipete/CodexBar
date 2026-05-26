@@ -265,6 +265,49 @@ struct OpenAIAPICreditBalanceTests {
     }
 
     @Test
+    func `admin usage retries transient completions failure once`() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let emptyPage = Data(#"{"object":"page","data":[],"has_more":false,"next_page":null}"#.utf8)
+        let completions = Data("""
+        {
+          "object": "page",
+          "data": [
+            {
+              "object": "bucket",
+              "start_time": 1700000000,
+              "end_time": 1700086400,
+              "results": [
+                {
+                  "object": "organization.usage.completions.result",
+                  "input_tokens": 10,
+                  "output_tokens": 5,
+                  "num_model_requests": 1,
+                  "model": "gpt-5.2"
+                }
+              ]
+            }
+          ],
+          "has_more": false,
+          "next_page": null
+        }
+        """.utf8)
+        let transport = OpenAIAdminUsageRetryScript(costs: emptyPage, completions: completions)
+
+        let snapshot = try await OpenAIAPIUsageFetcher.fetchUsage(
+            apiKey: "sk-test",
+            costsURL: #require(URL(string: "https://api.openai.test/v1/organization/costs")),
+            completionsURL: #require(URL(string: "https://api.openai.test/v1/organization/usage/completions")),
+            session: transport,
+            now: now,
+            historyDays: 1,
+            retryPolicy: ProviderHTTPRetryPolicy(maxRetries: 1, baseDelaySeconds: 0, maxDelaySeconds: 0))
+
+        #expect(snapshot.latestDay.totalTokens == 15)
+        #expect(snapshot.latestDay.requests == 1)
+        #expect(await transport.completionsRequestCount() == 2)
+    }
+
+    @Test
     func `maps admin usage to openai usage snapshot`() {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let apiUsage = OpenAIAPIUsageSnapshot(
@@ -317,5 +360,45 @@ struct OpenAIAPICreditBalanceTests {
         #expect(result.sourceLabel == "billing-api")
         #expect(result.usage.providerCost?.used == 25)
         #expect(result.usage.providerCost?.limit == 100)
+    }
+}
+
+private actor OpenAIAdminUsageRetryScript: ProviderHTTPTransport {
+    private let costs: Data
+    private let completions: Data
+    private var completionsRequests = 0
+
+    init(costs: Data, completions: Data) {
+        self.costs = costs
+        self.completions = completions
+    }
+
+    func completionsRequestCount() -> Int {
+        self.completionsRequests
+    }
+
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        let url = request.url ?? URL(string: "https://api.openai.test")!
+        if url.path.contains("/usage/completions") {
+            self.completionsRequests += 1
+            if self.completionsRequests == 1 {
+                return (Data(), HTTPURLResponse(
+                    url: url,
+                    statusCode: 503,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: nil)!)
+            }
+            return (self.completions, HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!)
+        }
+
+        return (self.costs, HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil)!)
     }
 }

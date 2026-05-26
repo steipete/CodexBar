@@ -64,7 +64,7 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
-    func `flags visible item attached to a detached screen`() {
+    func `allows visible item attached to a detached screen`() {
         let snapshot = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
@@ -73,7 +73,35 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+        #expect(!MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+    }
+
+    @Test
+    func `classifies detached live item as displaced but not blocked`() {
+        let snapshot = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+        #expect(MenuBarVisibilityWatcher.isDisplacedSnapshot(snapshot: snapshot))
+    }
+
+    @Test
+    func `classifies stale screen live item as displaced but not blocked`() {
+        let snapshot = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+        #expect(MenuBarVisibilityWatcher.isDisplacedSnapshot(snapshot: snapshot))
     }
 
     @Test
@@ -165,7 +193,7 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
-    func `screen change recovery triggers when a display is removed with visible status item`() {
+    func `screen change placement refresh ignores display removal with healthy status item`() {
         let healthy = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
@@ -173,14 +201,14 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: true,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+        #expect(!MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
             previousScreenCount: 2,
             currentScreenCount: 1,
             snapshots: [healthy]))
     }
 
     @Test
-    func `screen change recovery ignores display removal when no status item is visible`() {
+    func `screen change placement refresh ignores display removal when no status item is visible`() {
         let hidden = StatusItemVisibilitySnapshot(
             isVisible: false,
             hasButton: true,
@@ -188,7 +216,7 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: true,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+        #expect(!MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
             previousScreenCount: 2,
             currentScreenCount: 1,
             snapshots: [hidden]))
@@ -203,14 +231,43 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: false,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
-            previousScreenCount: 1,
-            currentScreenCount: 1,
-            snapshots: [blocked]))
+        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(snapshots: [blocked]))
     }
 
     @Test
-    func `screen change recovery ignores healthy item when display count does not shrink`() {
+    func `screen change placement refresh triggers for detached live item after display removal`() {
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
+            previousScreenCount: 2,
+            currentScreenCount: 1,
+            snapshots: [displaced]))
+    }
+
+    @Test
+    func `screen change placement refresh triggers for stale screen live item after display removal`() {
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
+            previousScreenCount: 2,
+            currentScreenCount: 1,
+            snapshots: [displaced]))
+    }
+
+    @Test
+    func `screen change placement refresh ignores healthy item when display count does not shrink`() {
         let healthy = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
@@ -218,18 +275,49 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: true,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+        #expect(!MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
             previousScreenCount: 1,
             currentScreenCount: 2,
             snapshots: [healthy]))
     }
 
     @Test
-    func `screen change retry continues while blocked before retry limit`() {
+    func `screen change placement refresh triggers for displaced live item when display count is unchanged`() {
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
+            previousScreenCount: 2,
+            currentScreenCount: 2,
+            snapshots: [displaced]))
+    }
+
+    @Test
+    func `screen change retry ignores detached screen with live status item`() {
         let blocked = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
             hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
+            attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit - 1,
+            snapshots: [blocked]))
+    }
+
+    @Test
+    func `screen change retry continues for missing window before retry limit`() {
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
             hasScreen: false,
             isOnCurrentScreen: false,
             buttonWidth: 18)
@@ -240,11 +328,11 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
-    func `screen change retry stops at retry limit`() {
+    func `screen change retry stops at retry limit for missing window`() {
         let blocked = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
-            hasWindow: true,
+            hasWindow: false,
             hasScreen: false,
             isOnCurrentScreen: false,
             buttonWidth: 18)

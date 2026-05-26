@@ -46,7 +46,8 @@ public enum OpenAIAPIUsageFetcher {
         completionsURL: URL = Self.organizationCompletionsUsageURL,
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date(),
-        historyDays: Int = 30) async throws -> OpenAIAPIUsageSnapshot
+        historyDays: Int = 30,
+        retryPolicy: ProviderHTTPRetryPolicy = .transientIdempotent) async throws -> OpenAIAPIUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -60,12 +61,14 @@ public enum OpenAIAPIUsageFetcher {
             apiKey: trimmed,
             baseURL: costsURL,
             ranges: ranges,
-            transport: transport)
+            transport: transport,
+            retryPolicy: retryPolicy)
         let completions = try await Self.fetchCompletions(
             apiKey: trimmed,
             baseURL: completionsURL,
             ranges: ranges,
-            transport: transport)
+            transport: transport,
+            retryPolicy: retryPolicy)
 
         return Self.makeSnapshot(
             costs: costs,
@@ -96,7 +99,8 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         ranges: [DateRange],
-        transport: any ProviderHTTPTransport) async throws -> CostsResponse
+        transport: any ProviderHTTPTransport,
+        retryPolicy: ProviderHTTPRetryPolicy) async throws -> CostsResponse
     {
         var buckets: [CostBucket] = []
         for range in ranges {
@@ -106,7 +110,12 @@ public enum OpenAIAPIUsageFetcher {
                 queryItems: [
                     URLQueryItem(name: "group_by", value: "line_item"),
                 ])
-            let data = try await Self.fetchData(url: url, apiKey: apiKey, endpoint: "costs", transport: transport)
+            let data = try await Self.fetchData(
+                url: url,
+                apiKey: apiKey,
+                endpoint: "costs",
+                transport: transport,
+                retryPolicy: retryPolicy)
             try buckets.append(contentsOf: Self.decodeCosts(data).data)
         }
         return CostsResponse(data: buckets)
@@ -116,7 +125,8 @@ public enum OpenAIAPIUsageFetcher {
         apiKey: String,
         baseURL: URL,
         ranges: [DateRange],
-        transport: any ProviderHTTPTransport) async throws -> CompletionsUsageResponse
+        transport: any ProviderHTTPTransport,
+        retryPolicy: ProviderHTTPRetryPolicy) async throws -> CompletionsUsageResponse
     {
         var buckets: [CompletionsUsageBucket] = []
         for range in ranges {
@@ -126,7 +136,12 @@ public enum OpenAIAPIUsageFetcher {
                 queryItems: [
                     URLQueryItem(name: "group_by", value: "model"),
                 ])
-            let data = try await Self.fetchData(url: url, apiKey: apiKey, endpoint: "completions", transport: transport)
+            let data = try await Self.fetchData(
+                url: url,
+                apiKey: apiKey,
+                endpoint: "completions",
+                transport: transport,
+                retryPolicy: retryPolicy)
             try buckets.append(contentsOf: Self.decodeCompletions(data).data)
         }
         return CompletionsUsageResponse(data: buckets)
@@ -136,7 +151,8 @@ public enum OpenAIAPIUsageFetcher {
         url: URL,
         apiKey: String,
         endpoint: String,
-        transport: any ProviderHTTPTransport) async throws -> Data
+        transport: any ProviderHTTPTransport,
+        retryPolicy: ProviderHTTPRetryPolicy) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -146,7 +162,7 @@ public enum OpenAIAPIUsageFetcher {
 
         let response: ProviderHTTPResponse
         do {
-            response = try await transport.response(for: request)
+            response = try await transport.response(for: request, retryPolicy: retryPolicy)
         } catch {
             throw OpenAIAPIUsageError.networkError(error.localizedDescription)
         }

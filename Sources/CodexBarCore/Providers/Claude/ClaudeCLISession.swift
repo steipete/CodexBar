@@ -300,8 +300,7 @@ actor ClaudeCLISession {
 
         let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
         proc.currentDirectoryURL = workingDirectory
-        var env = TTYCommandRunner.enrichedEnvironment()
-        env = Self.scrubbedClaudeEnvironment(from: env)
+        var env = Self.launchEnvironment()
         env["PWD"] = workingDirectory.path
         proc.environment = env
 
@@ -342,6 +341,10 @@ actor ClaudeCLISession {
         self.processGroup = processGroup
         self.binaryPath = binary
         self.startedAt = Date()
+    }
+
+    static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        self.scrubbedClaudeEnvironment(from: TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv))
     }
 
     private static func scrubbedClaudeEnvironment(from base: [String: String]) -> [String: String] {
