@@ -424,6 +424,16 @@ struct UsageStorePlanUtilizationTests {
     @MainActor
     @Test
     func `detail line uses lowercase am pm for session hover`() {
+        let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
+        UserDefaults.standard.set("en", forKey: "appLanguage")
+        defer {
+            if let previousLanguage {
+                UserDefaults.standard.set(previousLanguage, forKey: "appLanguage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "appLanguage")
+            }
+        }
+
         let boundary = Date(timeIntervalSince1970: 1_710_048_000) // Mar 11, 2024 1:20 pm UTC
         let histories = [
             planSeries(name: .session, windowMinutes: 300, entries: [
@@ -445,6 +455,16 @@ struct UsageStorePlanUtilizationTests {
     @MainActor
     @Test
     func `detail line uses lowercase am pm for weekly hover`() {
+        let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
+        UserDefaults.standard.set("en", forKey: "appLanguage")
+        defer {
+            if let previousLanguage {
+                UserDefaults.standard.set(previousLanguage, forKey: "appLanguage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "appLanguage")
+            }
+        }
+
         let boundary = Date(timeIntervalSince1970: 1_710_048_000) // Mar 11, 2024 1:20 pm UTC
         let histories = [
             planSeries(name: .weekly, windowMinutes: 10080, entries: [

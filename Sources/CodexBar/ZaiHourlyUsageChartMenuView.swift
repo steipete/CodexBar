@@ -61,7 +61,7 @@ struct ZaiHourlyUsageChartMenuView: View {
                     })
                     .buttonStyle(.plain)
 
-                Text("Hourly Tokens")
+                Text(L("Hourly Tokens"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.primary)
 
@@ -75,7 +75,7 @@ struct ZaiHourlyUsageChartMenuView: View {
             if self.isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
                     if self.bars.isEmpty {
-                        Text("No data")
+                        Text(L("No data"))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -131,7 +131,7 @@ struct ZaiHourlyUsageChartMenuView: View {
             get: { self.selectedRange.rawValue },
             set: { self.selectedRange = RangeOption(rawValue: $0) ?? .today }))
         {
-            Text("Today").tag(RangeOption.today.rawValue)
+            Text(L("Today")).tag(RangeOption.today.rawValue)
             Text("24h").tag(RangeOption.last24h.rawValue)
         }
         .pickerStyle(.segmented)

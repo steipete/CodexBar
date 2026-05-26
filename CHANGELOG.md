@@ -4,6 +4,7 @@
 
 ### Fixed
 - Localization: improve Traditional Chinese wording and localize notification copy (#1158). Thanks @jack24254029!
+- Localization: improve Simplified Chinese visible menu, dashboard, and usage labels (#1145). Thanks @Yuxin-Qiao!
 
 ## 0.29.1 — 2026-05-26
 

@@ -538,7 +538,9 @@ extension StatusItemController {
         let resolvedProviders = self.settings.resolvedMergedOverviewProviders(
             activeProviders: enabledProviders,
             maxVisibleProviders: Self.maxOverviewProviders)
-        let message = resolvedProviders.isEmpty ? "No providers selected for Overview." : "No overview data available."
+        let message = resolvedProviders.isEmpty
+            ? L("No providers selected for Overview.")
+            : L("No overview data available.")
         let item = NSMenuItem(title: message, action: nil, keyEquivalent: "")
         item.isEnabled = false
         item.representedObject = "overviewEmptyState"
@@ -732,9 +734,10 @@ extension StatusItemController {
                     }
                     menu.addItem(item)
                 case let .action(title, action):
+                    let localizedTitle = L(title)
                     if self.usesPersistentMenuActionItem(for: action) {
                         menu.addItem(self.makePersistentMenuActionItem(
-                            title: title,
+                            title: localizedTitle,
                             action: action,
                             menu: menu,
                             width: width))
@@ -742,7 +745,7 @@ extension StatusItemController {
                     }
 
                     let (selector, represented) = self.selector(for: action)
-                    let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
+                    let item = NSMenuItem(title: localizedTitle, action: selector, keyEquivalent: "")
                     item.target = self
                     item.representedObject = represented
                     if let shortcut = self.shortcut(for: action) {
@@ -760,12 +763,12 @@ extension StatusItemController {
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
                     {
                         item.isEnabled = false
-                        self.applySubtitle(subtitle, to: item, title: title)
+                        self.applySubtitle(subtitle, to: item, title: localizedTitle)
                     } else if case .addCodexAccount = action,
                               let subtitle = self.codexAddAccountSubtitle()
                     {
                         item.isEnabled = false
-                        self.applySubtitle(subtitle, to: item, title: title)
+                        self.applySubtitle(subtitle, to: item, title: localizedTitle)
                     }
                     menu.addItem(item)
                 case let .submenu(title, systemImageName, submenuItems):
@@ -1420,7 +1423,10 @@ extension StatusItemController {
     }
 
     private func makeBuyCreditsItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Buy Credits...", action: #selector(self.openCreditsPurchase), keyEquivalent: "")
+        let item = NSMenuItem(
+            title: L("Buy Credits..."),
+            action: #selector(self.openCreditsPurchase),
+            keyEquivalent: "")
         item.target = self
         if let image = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: nil) {
             image.isTemplate = true
@@ -1434,7 +1440,7 @@ extension StatusItemController {
     private func addCreditsHistorySubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeCreditsHistorySubmenu(width: self.renderedMenuWidth(for: menu))
         else { return false }
-        let item = NSMenuItem(title: "Credits history", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L("Credits history"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu
         menu.addItem(item)
@@ -1445,7 +1451,7 @@ extension StatusItemController {
     private func addUsageBreakdownSubmenu(to menu: NSMenu) -> Bool {
         guard let submenu = self.makeUsageBreakdownSubmenu(width: self.renderedMenuWidth(for: menu))
         else { return false }
-        let item = NSMenuItem(title: "Usage breakdown", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L("Usage breakdown"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu
         menu.addItem(item)
@@ -1489,7 +1495,7 @@ extension StatusItemController {
 
         let submenu = NSMenu()
         submenu.delegate = self
-        let titleItem = NSMenuItem(title: "MCP details", action: nil, keyEquivalent: "")
+        let titleItem = NSMenuItem(title: L("MCP details"), action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         submenu.addItem(titleItem)
 
