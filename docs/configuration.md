@@ -53,7 +53,8 @@ All provider fields are optional unless noted.
   - `auto` (browser import), `manual` (use `cookieHeader`), `off` (disable cookies)
 - `cookieHeader`: raw cookie header value (e.g. `key=value; other=...`).
 - `region`: provider-specific region (e.g. `zai`, `minimax`).
-- `workspaceID`: provider-specific workspace/deployment ID (e.g. Azure OpenAI deployment, `opencode`).
+- `workspaceID`: provider-specific workspace/deployment/project ID (e.g. Azure OpenAI deployment, OpenAI API project,
+  `opencode`).
 - `tokenAccounts`: multi-account tokens for providers in `TokenAccountSupportCatalog`.
 
 ## Manual cookies
@@ -102,6 +103,18 @@ printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider eleve
 printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai --stdin
 printf '%s' "$GROQ_API_KEY" | codexbar config set-api-key --provider groq --stdin
 printf '%s' "$LLM_PROXY_API_KEY" | codexbar config set-api-key --provider llmproxy --stdin
+```
+
+OpenAI API project scoping uses `workspaceID` in config. This maps to `OPENAI_PROJECT_ID` for Admin API usage and is
+only applied to the configured OpenAI key, not to selected OpenAI token accounts:
+
+```json
+{
+  "id": "openai",
+  "enabled": true,
+  "apiKey": "<OPENAI_ADMIN_KEY>",
+  "workspaceID": "proj_..."
+}
 ```
 
 LLM Proxy also needs a base URL. Set `enterpriseHost` in config or `LLM_PROXY_BASE_URL` in the process environment:

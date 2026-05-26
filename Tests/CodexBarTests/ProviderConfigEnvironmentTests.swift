@@ -122,6 +122,21 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `openai config override applies project ID without replacing environment key`() {
+        let config = ProviderConfig(id: .openai, workspaceID: "proj_config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey: "env-admin-token",
+            ],
+            provider: .openai,
+            config: config)
+
+        #expect(env[OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey] == "env-admin-token")
+        #expect(env[OpenAIAPISettingsReader.projectIDEnvironmentKey] == "proj_config")
+        #expect(OpenAIAPISettingsReader.projectID(environment: env) == "proj_config")
+    }
+
+    @Test
     func `applies Azure OpenAI config overrides`() {
         let config = ProviderConfig(
             id: .azureopenai,

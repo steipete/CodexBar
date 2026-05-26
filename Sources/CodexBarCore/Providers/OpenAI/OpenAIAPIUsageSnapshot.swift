@@ -116,11 +116,13 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
     public let daily: [DailyBucket]
     public let updatedAt: Date
     public let historyDays: Int
+    public let projectID: String?
 
-    public init(daily: [DailyBucket], updatedAt: Date, historyDays: Int = 30) {
+    public init(daily: [DailyBucket], updatedAt: Date, historyDays: Int = 30, projectID: String? = nil) {
         self.daily = daily.sorted { $0.startTime < $1.startTime }
         self.updatedAt = updatedAt
         self.historyDays = max(1, min(365, historyDays))
+        self.projectID = OpenAIAPISettingsReader.cleaned(projectID)
     }
 
     public var last30Days: Summary {
@@ -200,8 +202,18 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
             identity: ProviderIdentitySnapshot(
                 providerID: .openai,
                 accountEmail: nil,
-                accountOrganization: nil,
-                loginMethod: "Admin API"))
+                accountOrganization: self.identityAccountOrganization,
+                loginMethod: self.identityLoginMethod))
+    }
+
+    private var identityLoginMethod: String {
+        guard let projectID else { return "Admin API" }
+        return "Admin API: \(projectID)"
+    }
+
+    private var identityAccountOrganization: String? {
+        guard let projectID else { return nil }
+        return "Project: \(projectID)"
     }
 
     public func toCostUsageTokenSnapshot() -> CostUsageTokenSnapshot {

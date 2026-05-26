@@ -15,6 +15,7 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.openAIAPIKey
+        _ = settings.openAIAPIProjectID
     }
 
     @MainActor
@@ -46,6 +47,28 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
                             if let url = URL(
                                 string: "https://platform.openai.com/settings/organization/billing/overview")
                             {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }),
+                ],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "openai-project-id",
+                title: "Project ID",
+                subtitle: "Optional. Applies to the configured Admin API key; selected token accounts do not " +
+                    "inherit OPENAI_PROJECT_ID.",
+                kind: .plain,
+                placeholder: "proj_...",
+                binding: context.stringBinding(\.openAIAPIProjectID),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "openai-open-projects",
+                        title: "Open projects",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            if let url = URL(string: "https://platform.openai.com/settings/organization/projects") {
                                 NSWorkspace.shared.open(url)
                             }
                         }),

@@ -28,6 +28,14 @@ public struct CodexBarConfigIssue: Codable, Sendable, Equatable {
 }
 
 public enum CodexBarConfigValidator {
+    private static let workspaceIDProviders: [UsageProvider] = [
+        .azureopenai,
+        .openai,
+        .opencode,
+        .opencodego,
+        .deepgram,
+    ]
+
     public static func validate(_ config: CodexBarConfig) -> [CodexBarConfigIssue] {
         var issues: [CodexBarConfigIssue] = []
 
@@ -138,8 +146,7 @@ public enum CodexBarConfigValidator {
                 provider: provider,
                 field: "workspaceID",
                 code: "workspace_unused",
-                message: "workspaceID is set but only azureopenai, opencode, opencodego, and deepgram support " +
-                    "workspaceID."))
+                message: "workspaceID is set but only \(self.workspaceIDProviderList) support workspaceID."))
         }
 
         if let enterpriseHost = entry.enterpriseHost,
@@ -183,12 +190,18 @@ public enum CodexBarConfigValidator {
     }
 
     private static func providerSupportsWorkspaceID(_ provider: UsageProvider) -> Bool {
-        switch provider {
-        case .azureopenai, .opencode, .opencodego, .deepgram:
-            true
-        default:
-            false
-        }
+        self.workspaceIDProviders.contains(provider)
+    }
+
+    private static var workspaceIDProviderList: String {
+        self.formattedProviderList(self.workspaceIDProviders)
+    }
+
+    private static func formattedProviderList(_ providers: [UsageProvider]) -> String {
+        let names = providers.map(\.rawValue)
+        guard let last = names.last else { return "" }
+        guard names.count > 1 else { return last }
+        return "\(names.dropLast().joined(separator: ", ")), and \(last)"
     }
 
     private static func providerSupportsEnterpriseHost(_ provider: UsageProvider) -> Bool {

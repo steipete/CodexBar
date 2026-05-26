@@ -43,13 +43,12 @@ public enum OpenAIAPIProviderDescriptor {
 struct OpenAIAPIBalanceFetchStrategy: ProviderFetchStrategy {
     let id: String = "openai.api.balance"
     let kind: ProviderFetchKind = .apiToken
-    let usageFetcher: @Sendable (String, Int) async throws -> OpenAIAPIUsageSnapshot
+    let usageFetcher: @Sendable (OpenAIAPIUsageCredential, Int) async throws -> OpenAIAPIUsageSnapshot
     let balanceFetcher: @Sendable (String) async throws -> OpenAIAPICreditBalanceSnapshot
 
     init(
-        usageFetcher: @escaping @Sendable (String, Int) async throws -> OpenAIAPIUsageSnapshot = { apiKey, days in
-            try await OpenAIAPIUsageFetcher.fetchUsage(apiKey: apiKey, historyDays: days)
-        },
+        usageFetcher: @escaping @Sendable (OpenAIAPIUsageCredential, Int) async throws -> OpenAIAPIUsageSnapshot =
+            OpenAIAPIBalanceFetchStrategy.fetchUsage(credential:days:),
         balanceFetcher: @escaping @Sendable (String) async throws -> OpenAIAPICreditBalanceSnapshot = { apiKey in
             try await OpenAIAPICreditBalanceFetcher.fetchBalance(apiKey: apiKey)
         })
@@ -59,24 +58,27 @@ struct OpenAIAPIBalanceFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
+        OpenAIAPIUsageCredential(environment: context.env) != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
+        guard let credential = OpenAIAPIUsageCredential(environment: context.env) else {
             throw OpenAIAPISettingsError.missingToken
         }
 
         do {
-            let usage = try await self.usageFetcher(apiKey, context.costUsageHistoryDays)
+            let usage = try await self.usageFetcher(credential, context.costUsageHistoryDays)
             return self.makeResult(
                 usage: usage.toUsageSnapshot(),
-                sourceLabel: "admin-api")
+                sourceLabel: credential.sourceLabel)
         } catch {
             let usageError = error
-            // Preserve the older balance-only path for project/user keys and admin API outages.
+            if !credential.allowsLegacyBalanceFallback {
+                throw usageError
+            }
+            // Preserve the older balance-only path for unscoped keys and Admin API outages.
             do {
-                let balance = try await self.balanceFetcher(apiKey)
+                let balance = try await self.balanceFetcher(credential.apiKey)
                 return self.makeResult(
                     usage: balance.toUsageSnapshot(),
                     sourceLabel: "billing-api")
@@ -93,7 +95,32 @@ struct OpenAIAPIBalanceFetchStrategy: ProviderFetchStrategy {
         false
     }
 
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.openAIAPIToken(environment: environment)
+    private static func fetchUsage(
+        credential: OpenAIAPIUsageCredential,
+        days: Int) async throws -> OpenAIAPIUsageSnapshot
+    {
+        try await OpenAIAPIUsageFetcher.fetchUsage(
+            apiKey: credential.apiKey,
+            projectID: credential.projectID,
+            historyDays: days)
+    }
+}
+
+struct OpenAIAPIUsageCredential: Equatable, Sendable {
+    let apiKey: String
+    let projectID: String?
+
+    init?(environment: [String: String]) {
+        guard let apiKey = ProviderTokenResolver.openAIAPIToken(environment: environment) else { return nil }
+        self.apiKey = apiKey
+        self.projectID = OpenAIAPISettingsReader.projectID(environment: environment)
+    }
+
+    var sourceLabel: String {
+        self.projectID == nil ? "admin-api" : "admin-api:project"
+    }
+
+    var allowsLegacyBalanceFallback: Bool {
+        self.projectID == nil
     }
 }

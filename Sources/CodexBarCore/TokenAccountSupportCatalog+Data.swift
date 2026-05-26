@@ -8,7 +8,8 @@ extension TokenAccountSupportCatalog {
             placeholder: "sk-admin-...",
             injection: .environment(key: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey),
             requiresManualCookieSource: false,
-            cookieName: nil),
+            cookieName: nil,
+            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]),
         .claude: TokenAccountSupport(
             title: "Claude credentials",
             subtitle: "Store Claude sessionKey cookies, OAuth tokens, or Anthropic Admin API keys.",
