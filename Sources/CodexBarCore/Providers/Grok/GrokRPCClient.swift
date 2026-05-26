@@ -353,6 +353,14 @@ extension GrokBillingResponse {
         return GrokBillingResponse.parseISO8601(raw)
     }
 
+    public var billingPeriodMinutes: Int? {
+        guard let start = self.billingPeriodStartDate,
+              let end = self.billingPeriodEndDate,
+              end > start
+        else { return nil }
+        return Int(end.timeIntervalSince(start) / 60)
+    }
+
     private static func parseISO8601(_ raw: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

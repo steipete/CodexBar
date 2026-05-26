@@ -41,10 +41,16 @@ struct GrokWebBillingFetcherTests {
         let in6Days = now.addingTimeInterval(6 * 86400)
         let in30Days = now.addingTimeInterval(30 * 86400)
         let in90Days = now.addingTimeInterval(90 * 86400)
+        let lateWeeklyWindow = RateWindow(
+            usedPercent: 25,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(86400),
+            resetDescription: nil)
 
-        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Days) == "Weekly")
-        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days) == "Monthly")
-        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in90Days) == nil)
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Days, now: now) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days, now: now) == "Monthly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in90Days, now: now) == nil)
+        #expect(GrokProviderDescriptor.primaryLabel(window: lateWeeklyWindow, now: now) == "Weekly")
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: nil) == nil)
     }
 
@@ -527,6 +533,7 @@ struct GrokWebBillingFetcherTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 67.25)
+        #expect(usage.primary?.windowMinutes == nil)
         #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_800_000_003))
         #expect(usage.accountEmail(for: .grok) == "grok@example.com")
         #expect(usage.loginMethod(for: .grok) == "SuperGrok")

@@ -166,18 +166,11 @@ enum CLIRenderer {
                 showsTertiary: true)
         }
 
-        if provider == .grok {
-            let primary = GrokProviderDescriptor.primaryLabel(resetsAt: snapshot.primary?.resetsAt) ?? metadata
-                .sessionLabel
-            return RateWindowLabels(
-                primary: primary,
-                secondary: metadata.weeklyLabel,
-                tertiary: metadata.opusLabel ?? "Sonnet",
-                showsTertiary: metadata.supportsOpus)
-        }
-
+        let primaryLabel = provider == .grok
+            ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+            : metadata.sessionLabel
         return RateWindowLabels(
-            primary: metadata.sessionLabel,
+            primary: primaryLabel,
             secondary: metadata.weeklyLabel,
             tertiary: metadata.opusLabel ?? "Sonnet",
             showsTertiary: metadata.supportsOpus)

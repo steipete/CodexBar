@@ -115,7 +115,7 @@ extension UsageStore {
 
         let primaryTitle: String = {
             if provider == .grok,
-               let dyn = GrokProviderDescriptor.primaryLabel(resetsAt: snapshot.primary?.resetsAt)
+               let dyn = GrokProviderDescriptor.primaryLabel(window: snapshot.primary)
             {
                 return dyn
             }

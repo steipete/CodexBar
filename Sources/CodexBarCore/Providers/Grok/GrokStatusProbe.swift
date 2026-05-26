@@ -33,7 +33,7 @@ public struct GrokUsageSnapshot: Sendable {
         {
             primary = RateWindow(
                 usedPercent: percent,
-                windowMinutes: nil,
+                windowMinutes: billing.billingPeriodMinutes,
                 resetsAt: billing.billingPeriodEndDate,
                 resetDescription: nil)
         } else if let webBilling,
