@@ -118,6 +118,7 @@ extension StatusItemController {
             // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
             self.openMenus[ObjectIdentifier(menu)] = menu
         }
+        self.installProviderSwitcherShortcutMonitorIfNeeded(for: menu)
         // Only schedule refresh after menu is registered as open - refreshNow is called async
         if Self.menuRefreshEnabled {
             self.scheduleOpenMenuRefresh(for: menu)
@@ -126,6 +127,9 @@ extension StatusItemController {
 
     func menuDidClose(_ menu: NSMenu) {
         let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
+        if ObjectIdentifier(menu) == self.providerSwitcherShortcutMenuID {
+            self.removeProviderSwitcherShortcutMonitor()
+        }
         self.forgetClosedMenu(menu)
         if wasHostedSubviewMenu {
             self.refreshOpenMenusIfNeeded()
@@ -308,10 +312,9 @@ extension StatusItemController {
         guard !menu.items.isEmpty else { return [] }
 
         var reusableRows: [NSMenuItem] = []
-        var index = 0
-        if menu.items.first?.view is ProviderSwitcherView {
+        var index = self.providerSwitcherContentStartIndex(in: menu)
+        if index > 0 {
             reusableRows.append(menu.items[0])
-            index = 2
         }
         if menu.items.count > index,
            menu.items[index].view is CodexAccountSwitcherView
@@ -344,7 +347,7 @@ extension StatusItemController {
         context: MenuUpdateContext)
     {
         self.performMenuMutationWithoutAnimation {
-            let contentStartIndex = menu.items.first?.view is ProviderSwitcherView ? 2 : 0
+            let contentStartIndex = self.providerSwitcherContentStartIndex(in: menu)
             if let switcherView = menu.items.first?.view as? ProviderSwitcherView {
                 switcherView.updateSelection(context.switcherSelection)
                 switcherView.updateQuotaIndicators()

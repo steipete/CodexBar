@@ -104,6 +104,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
+    var providerSwitcherShortcutMenuID: ObjectIdentifier?
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
     var isReleasedForTesting = false
@@ -849,6 +851,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         for task in self.menuRefreshTasks.values {
             task.cancel()
         }
+        self.removeProviderSwitcherShortcutMonitor()
         self.menuRefreshTasks.removeAll(keepingCapacity: false)
         self.openMenus.removeAll(keepingCapacity: false)
         self.menuProviders.removeAll(keepingCapacity: false)
