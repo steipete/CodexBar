@@ -49,6 +49,62 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `default locale fallback matches stable en US POSIX behavior`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
+
+        let now = Date(timeIntervalSince1970: 1_710_048_000)
+        let old = now.addingTimeInterval(-(26 * 3600))
+
+        let defaultOutput = UsageFormatter.updatedString(from: old, now: now)
+        UsageFormatter.setLocaleProvider { Locale(identifier: "en_US_POSIX") }
+        let injectedStableOutput = UsageFormatter.updatedString(from: old, now: now)
+        UsageFormatter.clearLocaleProvider()
+
+        #expect(defaultOutput == injectedStableOutput)
+    }
+
+    @Test
+    func `injected zh Hans locale applies app language formatting`() {
+        UsageFormatter.setLocalizationProvider { key in
+            switch key {
+            case "Updated %@":
+                "更新于 %@"
+            default:
+                key
+            }
+        }
+        UsageFormatter.setLocaleProvider { Locale(identifier: "zh-Hans") }
+        defer {
+            UsageFormatter.clearLocalizationProvider()
+            UsageFormatter.clearLocaleProvider()
+        }
+
+        let now = Date(timeIntervalSince1970: 1_710_048_000)
+        let old = now.addingTimeInterval(-(26 * 3600))
+        let output = UsageFormatter.updatedString(from: old, now: now)
+
+        #expect(output.hasPrefix("更新于 "))
+    }
+
+    @Test
+    func `clearing locale provider returns to stable default behavior`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
+
+        let now = Date(timeIntervalSince1970: 1_710_048_000)
+        let old = now.addingTimeInterval(-(26 * 3600))
+        let baseline = UsageFormatter.updatedString(from: old, now: now)
+
+        UsageFormatter.setLocaleProvider { Locale(identifier: "fr_FR") }
+        _ = UsageFormatter.updatedString(from: old, now: now)
+        UsageFormatter.clearLocaleProvider()
+
+        let restored = UsageFormatter.updatedString(from: old, now: now)
+        #expect(restored == baseline)
+    }
+
+    @Test
     func `relative updated recent`() {
         let now = Date()
         let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)

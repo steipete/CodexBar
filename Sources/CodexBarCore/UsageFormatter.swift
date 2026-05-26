@@ -40,7 +40,7 @@ public enum UsageFormatter {
         self.localizationLock.lock()
         let provider = self.localeProvider
         self.localizationLock.unlock()
-        return provider?() ?? .autoupdatingCurrent
+        return provider?() ?? Locale(identifier: "en_US_POSIX")
     }
 
     private static func localized(_ key: String) -> String {

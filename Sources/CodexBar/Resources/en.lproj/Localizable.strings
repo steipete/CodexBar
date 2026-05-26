@@ -688,6 +688,9 @@
 "Updated just now" = "Updated just now";
 "Projected empty in %@" = "Projected empty in %@";
 "Runs out in %@" = "Runs out in %@";
+"Pace: %@" = "Pace: %@";
+"Pace: %@ · %@" = "Pace: %@ · %@";
+"≈ %d%% run-out risk" = "≈ %d%% run-out risk";
 "%d%% in deficit" = "%d%% in deficit";
 "%d%% in reserve" = "%d%% in reserve";
 "usage_percent_suffix_left" = "left";
