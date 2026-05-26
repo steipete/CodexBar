@@ -2,6 +2,9 @@
 
 ## 0.29.2 — Unreleased
 
+### Fixed
+- Localization: improve Simplified Chinese visible menu, dashboard, and usage labels (#1145). Thanks @Yuxin-Qiao!
+
 ## 0.29.1 — 2026-05-26
 
 ### Added
