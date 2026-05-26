@@ -21,7 +21,8 @@ struct WidgetSnapshotTests {
                 sessionCostUSD: 12.3,
                 sessionTokens: 1200,
                 last30DaysCostUSD: 456.7,
-                last30DaysTokens: 9800),
+                last30DaysTokens: 9800,
+                currencyCode: "eur"),
             dailyUsage: [
                 WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-20", totalTokens: 1200, costUSD: 12.3),
             ])
@@ -42,6 +43,7 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.count == 1)
         #expect(decoded.entries.first?.provider == .codex)
         #expect(decoded.entries.first?.tokenUsage?.sessionTokens == 1200)
+        #expect(decoded.entries.first?.tokenUsage?.currencyCode == "EUR")
         #expect(decoded.entries.first?.usageRows?.map(\.id) == ["session", "weekly"])
         #expect(decoded.enabledProviders == [.codex, .claude])
     }
@@ -160,5 +162,39 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.count == 1)
         #expect(decoded.entries.first?.usageRows == nil)
         #expect(decoded.entries.first?.secondary?.usedPercent == 25)
+    }
+
+    @Test
+    func `widget snapshot decodes legacy token usage as usd`() throws {
+        let json = """
+        {
+          "entries": [
+            {
+              "provider": "codex",
+              "updatedAt": "2026-04-04T06:30:00Z",
+              "primary": null,
+              "secondary": null,
+              "tertiary": null,
+              "creditsRemaining": null,
+              "codeReviewRemainingPercent": null,
+              "tokenUsage": {
+                "sessionCostUSD": 1.25,
+                "sessionTokens": 1200,
+                "last30DaysCostUSD": 9.50,
+                "last30DaysTokens": 4200
+              },
+              "dailyUsage": []
+            }
+          ],
+          "generatedAt": "2026-04-04T06:30:00Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(WidgetSnapshot.self, from: Data(json.utf8))
+
+        #expect(decoded.entries.first?.tokenUsage?.currencyCode == "USD")
+        #expect(decoded.enabledProviders == [.codex])
     }
 }

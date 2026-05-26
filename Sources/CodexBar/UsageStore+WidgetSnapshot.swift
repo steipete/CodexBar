@@ -85,7 +85,8 @@ extension UsageStore {
             sessionCostUSD: snapshot.sessionCostUSD,
             sessionTokens: snapshot.sessionTokens,
             last30DaysCostUSD: snapshot.last30DaysCostUSD,
-            last30DaysTokens: monthTokensValue)
+            last30DaysTokens: monthTokensValue,
+            currencyCode: snapshot.currencyCode)
     }
 
     private func widgetUsageRows(

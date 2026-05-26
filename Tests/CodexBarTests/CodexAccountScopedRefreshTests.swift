@@ -821,6 +821,40 @@ struct CodexAccountScopedRefreshTests {
     }
 
     @Test
+    func `widget snapshot preserves token usage currency`() async throws {
+        let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-widget-token-currency")
+        settings.refreshFrequency = .manual
+
+        let store = self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .mistral)
+        store._setTokenSnapshotForTesting(
+            CostUsageTokenSnapshot(
+                sessionTokens: 10,
+                sessionCostUSD: 1.2,
+                last30DaysTokens: 100,
+                last30DaysCostUSD: 9.0,
+                currencyCode: "eur",
+                daily: [],
+                updatedAt: Date()),
+            provider: .mistral)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "token-currency")
+        await store.widgetSnapshotPersistTask?.value
+
+        let mistralEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .mistral })
+        #expect(mistralEntry.tokenUsage?.currencyCode == "EUR")
+    }
+
+    @Test
     func `codex account refresh reports usage and credits phases before completion`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-phases")
         settings.refreshFrequency = .manual
