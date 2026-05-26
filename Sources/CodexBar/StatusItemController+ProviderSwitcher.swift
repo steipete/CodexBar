@@ -21,14 +21,14 @@ final class ProviderSwitcherShortcutEventMonitor {
                 while let event = NSApp.nextEvent(
                     matching: events,
                     until: .distantPast,
-                    inMode: .default,
+                    inMode: .eventTracking,
                     dequeue: false)
                 {
                     guard callback(event) else { break }
                     _ = NSApp.nextEvent(
                         matching: events,
                         until: .distantPast,
-                        inMode: .default,
+                        inMode: .eventTracking,
                         dequeue: true)
                 }
             }
