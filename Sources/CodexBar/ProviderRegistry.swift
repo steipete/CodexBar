@@ -74,6 +74,13 @@ struct ProviderRegistry {
                                     token: token)
                             }
                         },
+                        providerManualTokenUpdater: { provider, token in
+                            await MainActor.run {
+                                if provider == .stepfun {
+                                    settings.stepfunToken = token
+                                }
+                            }
+                        },
                         costUsageHistoryDays: settings.costUsageHistoryDays)
                 })
             specs[provider] = spec

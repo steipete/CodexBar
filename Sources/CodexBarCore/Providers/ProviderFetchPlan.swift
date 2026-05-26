@@ -19,6 +19,7 @@ public enum ProviderSourceMode: String, CaseIterable, Sendable, Codable {
 
 public struct ProviderFetchContext: Sendable {
     public typealias TokenAccountTokenUpdater = @Sendable (UsageProvider, UUID, String) async -> Void
+    public typealias ProviderManualTokenUpdater = @Sendable (UsageProvider, String) async -> Void
 
     public let runtime: ProviderRuntime
     public let sourceMode: ProviderSourceMode
@@ -34,6 +35,7 @@ public struct ProviderFetchContext: Sendable {
     public let browserDetection: BrowserDetection
     public let selectedTokenAccountID: UUID?
     public let tokenAccountTokenUpdater: TokenAccountTokenUpdater?
+    public let providerManualTokenUpdater: ProviderManualTokenUpdater?
     public let costUsageHistoryDays: Int
 
     public init(
@@ -51,6 +53,7 @@ public struct ProviderFetchContext: Sendable {
         browserDetection: BrowserDetection,
         selectedTokenAccountID: UUID? = nil,
         tokenAccountTokenUpdater: TokenAccountTokenUpdater? = nil,
+        providerManualTokenUpdater: ProviderManualTokenUpdater? = nil,
         costUsageHistoryDays: Int = 30)
     {
         self.runtime = runtime
@@ -67,6 +70,7 @@ public struct ProviderFetchContext: Sendable {
         self.browserDetection = browserDetection
         self.selectedTokenAccountID = selectedTokenAccountID
         self.tokenAccountTokenUpdater = tokenAccountTokenUpdater
+        self.providerManualTokenUpdater = providerManualTokenUpdater
         self.costUsageHistoryDays = max(1, min(365, costUsageHistoryDays))
     }
 }

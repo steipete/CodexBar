@@ -117,6 +117,16 @@ enum CostUsageScanner {
             output: lhs.output + rhs.output)
     }
 
+    private static func codexMinTotals(
+        _ lhs: CostUsageCodexTotals,
+        _ rhs: CostUsageCodexTotals) -> CostUsageCodexTotals
+    {
+        CostUsageCodexTotals(
+            input: min(lhs.input, rhs.input),
+            cached: min(lhs.cached, rhs.cached),
+            output: min(lhs.output, rhs.output))
+    }
+
     private static func codexTotalDelta(
         from baseline: CostUsageCodexTotals?,
         to current: CostUsageCodexTotals) -> CostUsageCodexTotals
@@ -1094,6 +1104,7 @@ enum CostUsageScanner {
         var remainingInheritedTotals: CostUsageCodexTotals?
         var forkBaselineResolved = false
         var hasUnresolvedForkBaseline = false
+        var unresolvedForkTotalWatermark: CostUsageCodexTotals?
         var currentTurnID = initialCodexTurnID
         var rawTotalsBaseline = initialRawTotalsBaseline ?? initialTotals
         var sawDivergentTotals = initialHasDivergentTotals
@@ -1240,6 +1251,13 @@ enum CostUsageScanner {
                             return 0
                         }
 
+                        func tokenTotals(_ usage: [String: Any]) -> CostUsageCodexTotals {
+                            CostUsageCodexTotals(
+                                input: max(0, toInt(usage["input_tokens"])),
+                                cached: max(0, toInt(usage["cached_input_tokens"] ?? usage["cache_read_input_tokens"])),
+                                output: max(0, toInt(usage["output_tokens"])))
+                        }
+
                         let total = (info?["total_token_usage"] as? [String: Any])
                         let last = (info?["last_token_usage"] as? [String: Any])
 
@@ -1269,7 +1287,60 @@ enum CostUsageScanner {
                             return adjusted
                         }
 
-                        if let last {
+                        let handledUnresolvedForkTotal = hasUnresolvedForkBaseline && total != nil
+                        if hasUnresolvedForkBaseline, let total {
+                            let currentRawTotals = tokenTotals(total)
+                            defer {
+                                unresolvedForkTotalWatermark = currentRawTotals
+                            }
+                            guard let last,
+                                  let watermark = unresolvedForkTotalWatermark
+                            else {
+                                return
+                            }
+
+                            let rawLastDelta = tokenTotals(last)
+                            let rawTotalDelta = Self.codexTotalDelta(from: watermark, to: currentRawTotals)
+                            let adjustedDelta = Self.codexMinTotals(rawLastDelta, rawTotalDelta)
+                            deltaInput = adjustedDelta.input
+                            deltaCached = adjustedDelta.cached
+                            deltaOutput = adjustedDelta.output
+                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            previousTotals = Self.codexAddTotals(prev, adjustedDelta)
+                            rawTotalsBaseline = previousTotals
+                        }
+
+                        if !handledUnresolvedForkTotal,
+                           let total,
+                           forkedFromId != nil,
+                           !hasUnresolvedForkBaseline
+                        {
+                            let rawTotals = tokenTotals(total)
+                            let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
+                                CostUsageCodexTotals(
+                                    input: max(0, rawTotals.input - inheritedTotals.input),
+                                    cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                                    output: max(0, rawTotals.output - inheritedTotals.output))
+                            } else {
+                                rawTotals
+                            }
+                            let delta = sawDivergentTotals
+                                ? Self.codexDivergentTotalDelta(
+                                    rawBaseline: rawTotalsBaseline,
+                                    countedBaseline: previousTotals,
+                                    current: currentTotals)
+                                : Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
+                            deltaInput = delta.input
+                            deltaCached = delta.cached
+                            deltaOutput = delta.output
+                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            previousTotals = Self.codexAddTotals(prev, delta)
+                            rawTotalsBaseline = currentTotals
+                            if !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals) {
+                                sawDivergentTotals = true
+                            }
+                            remainingInheritedTotals = nil
+                        } else if !handledUnresolvedForkTotal, let last {
                             let rawDelta = CostUsageCodexTotals(
                                 input: max(0, toInt(last["input_tokens"])),
                                 cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
@@ -1282,10 +1353,7 @@ enum CostUsageScanner {
                             let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
 
                             if let total, !hasUnresolvedForkBaseline {
-                                let rawTotals = CostUsageCodexTotals(
-                                    input: toInt(total["input_tokens"]),
-                                    cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                                    output: toInt(total["output_tokens"]))
+                                let rawTotals = tokenTotals(total)
                                 let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
                                     CostUsageCodexTotals(
                                         input: max(0, rawTotals.input - inheritedTotals.input),
@@ -1320,12 +1388,8 @@ enum CostUsageScanner {
                                 previousTotals = countedTotals
                                 rawTotalsBaseline = countedTotals
                             }
-                        } else if let total {
-                            guard !hasUnresolvedForkBaseline else { return }
-                            let rawTotals = CostUsageCodexTotals(
-                                input: toInt(total["input_tokens"]),
-                                cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                                output: toInt(total["output_tokens"]))
+                        } else if !handledUnresolvedForkTotal, let total {
+                            let rawTotals = tokenTotals(total)
 
                             let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
                                 CostUsageCodexTotals(
@@ -1352,7 +1416,7 @@ enum CostUsageScanner {
                                 sawDivergentTotals = true
                             }
                             remainingInheritedTotals = nil
-                        } else {
+                        } else if !handledUnresolvedForkTotal {
                             return
                         }
 

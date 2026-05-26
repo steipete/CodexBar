@@ -102,6 +102,7 @@ struct OpenAIAPIProjectScopeTests {
             usageFetcher: { credential, historyDays in
                 #expect(credential.apiKey == "sk-admin-legacy")
                 #expect(credential.projectID == "proj_legacy")
+                #expect(credential.usesAdminKey == false)
                 #expect(historyDays == 30)
                 return OpenAIAPIUsageSnapshot(
                     daily: [],
@@ -130,12 +131,44 @@ struct OpenAIAPIProjectScopeTests {
     }
 
     @Test
+    func `ambient project with legacy API key preserves billing fallback`() async throws {
+        let strategy = OpenAIAPIBalanceFetchStrategy(
+            usageFetcher: { credential, historyDays in
+                #expect(credential.apiKey == "sk-ambient")
+                #expect(credential.projectID == "proj_ambient")
+                #expect(credential.usesAdminKey == false)
+                #expect(historyDays == 30)
+                throw OpenAIAPIUsageError.apiError(endpoint: "costs", statusCode: 403)
+            },
+            balanceFetcher: { apiKey in
+                #expect(apiKey == "sk-ambient")
+                return OpenAIAPICreditBalanceSnapshot(
+                    totalGranted: 100,
+                    totalUsed: 25,
+                    totalAvailable: 75,
+                    nextGrantExpiry: nil,
+                    updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+            })
+
+        let result = try await strategy.fetch(Self.makeContext(
+            env: [
+                OpenAIAPISettingsReader.apiKeyEnvironmentKey: "sk-ambient",
+                OpenAIAPISettingsReader.projectIDEnvironmentKey: "proj_ambient",
+            ]))
+
+        #expect(result.sourceLabel == "billing-api")
+        #expect(result.usage.identity?.loginMethod == "API balance: $75.00")
+        #expect(result.usage.identity?.accountOrganization == nil)
+    }
+
+    @Test
     func `project filtered admin usage does not fall back on service failure`() async {
         let usageFailure = OpenAIAPIUsageError.apiError(endpoint: "costs", statusCode: 500)
         let strategy = OpenAIAPIBalanceFetchStrategy(
             usageFetcher: { credential, historyDays in
                 #expect(credential.apiKey == "sk-test")
                 #expect(credential.projectID == "proj_abc")
+                #expect(credential.usesAdminKey == true)
                 #expect(historyDays == 30)
                 throw usageFailure
             },

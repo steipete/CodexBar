@@ -109,10 +109,18 @@ struct OpenAIAPIBalanceFetchStrategy: ProviderFetchStrategy {
 struct OpenAIAPIUsageCredential: Equatable, Sendable {
     let apiKey: String
     let projectID: String?
+    let usesAdminKey: Bool
 
     init?(environment: [String: String]) {
-        guard let apiKey = ProviderTokenResolver.openAIAPIToken(environment: environment) else { return nil }
-        self.apiKey = apiKey
+        if let adminKey = OpenAIAPISettingsReader.adminAPIKey(environment: environment) {
+            self.apiKey = adminKey
+            self.usesAdminKey = true
+        } else if let apiKey = OpenAIAPISettingsReader.apiKey(environment: environment) {
+            self.apiKey = apiKey
+            self.usesAdminKey = false
+        } else {
+            return nil
+        }
         self.projectID = OpenAIAPISettingsReader.projectID(environment: environment)
     }
 
@@ -121,6 +129,6 @@ struct OpenAIAPIUsageCredential: Equatable, Sendable {
     }
 
     var allowsLegacyBalanceFallback: Bool {
-        self.projectID == nil
+        self.projectID == nil || !self.usesAdminKey
     }
 }

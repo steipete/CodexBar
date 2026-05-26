@@ -719,6 +719,9 @@ extension CostUsageScanner {
             initialRawTotalsBaseline: initialRawTotalsBaseline,
             initialHasDivergentTotals: cached.hasDivergentTotals ?? (cached.lastTotals == nil),
             initialCodexTurnID: cached.lastCodexTurnID)
+        if delta.forkedFromId != nil {
+            return false
+        }
         let sessionId = delta.sessionId ?? cached.sessionId
         if let sessionId, state.seenSessionIds.contains(sessionId) {
             Self.dropCachedCodexFile(path: input.metadata.path, cached: cached, cache: &cache)
