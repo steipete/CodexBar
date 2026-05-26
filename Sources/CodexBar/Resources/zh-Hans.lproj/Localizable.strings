@@ -777,7 +777,7 @@
 "minimax_service_coding_plan_vlm" = "视觉编码计划";
 "minimax_service_coding_plan_search" = "搜索编码计划";
 
-/* Notification strings (added in Fan customization) */
+/* Notification strings */
 "login_success_notification_title" = "%@ 登录成功";
 "login_success_notification_body" = "可以返回应用了，认证已完成。";
 "session_depleted_notification_title" = "%@ 会话额度已用尽";
