@@ -171,7 +171,7 @@
 "Managed Codex accounts unavailable" = "托管 Codex 账户不可用";
 "Managed account storage is unreadable. Live account access is still available, " = "托管账户存储不可读。实时账户访问仍可用，";
 "Manual" = "手动";
-"May your tokens never run out—keep agent limits in view." = "愿你的词元永不耗尽——随时关注智能体限制。";
+"May your tokens never run out—keep agent limits in view." = "愿你的 Token 永不耗尽——随时关注智能体限制。";
 "Menu bar" = "菜单栏";
 "Menu bar auto-shows the provider closest to its rate limit." = "菜单栏会自动显示最接近速率限制的提供商。";
 "Menu bar metric" = "菜单栏指标";
@@ -522,7 +522,7 @@
 "keychain_access_caption" = "禁用所有钥匙串读写。浏览器 Cookie 导入不可用；请在“提供商”中手动粘贴 Cookie 标头。";
 "disable_keychain_access_title" = "禁用钥匙串访问";
 "disable_keychain_access_subtitle" = "启用时阻止任何钥匙串访问。";
-"about_tagline" = "愿你的词元永不耗尽——随时关注智能体限制。";
+"about_tagline" = "愿你的 Token 永不耗尽——随时关注智能体限制。";
 "link_github" = "GitHub";
 "link_website" = "网站";
 "link_twitter" = "Twitter";
