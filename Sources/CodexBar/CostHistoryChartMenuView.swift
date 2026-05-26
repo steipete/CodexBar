@@ -11,11 +11,13 @@ struct CostHistoryChartMenuView: View {
         let date: Date
         let costUSD: Double
         let totalTokens: Int?
+        let requestCount: Int?
 
-        init(date: Date, costUSD: Double, totalTokens: Int?) {
+        init(date: Date, costUSD: Double, totalTokens: Int?, requestCount: Int?) {
             self.date = date
             self.costUSD = costUSD
             self.totalTokens = totalTokens
+            self.requestCount = requestCount
             self.id = "\(Int(date.timeIntervalSince1970))-\(costUSD)"
         }
     }
@@ -258,7 +260,11 @@ struct CostHistoryChartMenuView: View {
         for entry in sorted {
             guard let costUSD = entry.costUSD, costUSD >= 0 else { continue }
             guard let date = self.dateFromDayKey(entry.date) else { continue }
-            let point = Point(date: date, costUSD: costUSD, totalTokens: entry.totalTokens)
+            let point = Point(
+                date: date,
+                costUSD: costUSD,
+                totalTokens: entry.totalTokens,
+                requestCount: entry.requestCount)
             points.append(point)
             pointsByKey[entry.date] = point
             entriesByKey[entry.date] = entry
@@ -433,11 +439,14 @@ struct CostHistoryChartMenuView: View {
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         let cost = self.costString(point.costUSD)
-        let primary = if let tokens = point.totalTokens {
-            String(format: L("%@: %@ · %@ tokens"), dayLabel, cost, UsageFormatter.tokenCountString(tokens))
-        } else {
-            "\(dayLabel): \(cost)"
+        var parts = [cost]
+        if let tokens = point.totalTokens {
+            parts.append("\(UsageFormatter.tokenCountString(tokens)) tokens")
         }
+        if let requests = point.requestCount {
+            parts.append("\(UsageFormatter.tokenCountString(requests)) requests")
+        }
+        let primary = "\(dayLabel): \(parts.joined(separator: " · "))"
         return DetailContent(primary: primary, rows: self.breakdownRows(key: key, model: model))
     }
 

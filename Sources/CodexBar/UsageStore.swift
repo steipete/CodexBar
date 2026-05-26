@@ -1554,7 +1554,7 @@ extension UsageStore {
         do {
             let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
-            let environment = provider == .bedrock || provider == .openai
+            let environment = provider == .bedrock
                 ? ProviderRegistry.makeEnvironment(
                     base: self.environmentBase,
                     provider: provider,

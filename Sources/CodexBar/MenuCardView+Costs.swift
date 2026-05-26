@@ -2,6 +2,13 @@ import CodexBarCore
 import Foundation
 
 extension UsageMenuCardView.Model {
+    static func tokenUsageSnapshot(input: Input) -> CostUsageTokenSnapshot? {
+        if usesProviderCostHistoryAsPrimaryDashboard(input.provider), input.snapshot != nil {
+            return primaryCostHistorySnapshot(input: input)
+        }
+        return input.tokenSnapshot
+    }
+
     static func creditsLine(
         metadata: ProviderMetadata,
         credits: CreditsSnapshot?,

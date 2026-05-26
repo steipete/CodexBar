@@ -84,8 +84,11 @@ extension UsageMenuCardView.Model {
     }
 
     static func inlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
-        if let usage = input.snapshot?.openAIAPIUsage {
-            return self.openAIAPIInlineDashboard(usage)
+        if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider),
+           let tokenSnapshot = primaryCostHistorySnapshot(input: input),
+           !tokenSnapshot.daily.isEmpty
+        {
+            return self.costHistoryInlineDashboard(provider: input.provider, snapshot: tokenSnapshot)
         }
         if input.provider == .claude,
            let usage = input.snapshot?.claudeAdminAPIUsage
@@ -96,12 +99,6 @@ extension UsageMenuCardView.Model {
            let usage = input.snapshot?.openRouterUsage
         {
             return Self.openRouterInlineDashboard(usage)
-        }
-        if input.provider == .mistral,
-           let usage = input.snapshot?.mistralUsage,
-           !usage.daily.isEmpty
-        {
-            return Self.mistralInlineDashboard(usage)
         }
         if input.provider == .zai,
            let modelUsage = input.snapshot?.zaiUsage?.modelUsage
@@ -125,39 +122,25 @@ extension UsageMenuCardView.Model {
         return nil
     }
 
-    fileprivate static func openAIAPIInlineDashboard(_ usage: OpenAIAPIUsageSnapshot) -> InlineUsageDashboardModel {
-        let today = usage.latestDay
-        let last7 = usage.last7Days
-        let last30 = usage.last30Days
-        let historyLabel = usage.historyWindowLabel
-        let points = usage.daily.suffix(usage.historyDays).map {
-            InlineUsageDashboardModel.Point(
-                id: $0.day,
-                label: Self.shortDayLabel($0.day),
-                value: $0.costUSD,
-                accessibilityValue: "\($0.day): \(UsageFormatter.usdString($0.costUSD))")
+    static func usesProviderCostHistoryAsPrimaryDashboard(_ provider: UsageProvider) -> Bool {
+        provider == .openai || provider == .mistral
+    }
+
+    static func primaryCostHistorySnapshot(input: Input) -> CostUsageTokenSnapshot? {
+        switch input.provider {
+        case .openai:
+            if let projected = input.snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot() {
+                return projected
+            }
+            return input.snapshot == nil ? input.tokenSnapshot : nil
+        case .mistral:
+            if let projected = input.snapshot?.mistralUsage?.toCostUsageTokenSnapshot() {
+                return projected
+            }
+            return input.snapshot == nil ? input.tokenSnapshot : nil
+        default:
+            return input.tokenSnapshot
         }
-        var details = [
-            "\(historyLabel): \(UsageFormatter.tokenCountString(last30.totalTokens)) tokens · " +
-                "\(UsageFormatter.tokenCountString(last30.requests)) requests",
-        ]
-        if let topModel = usage.topModels.first {
-            details.append("Top model: \(Self.shortModelName(topModel.name))")
-        }
-        return InlineUsageDashboardModel(
-            accessibilityLabel: "OpenAI API \(usage.historyDays) day spend trend",
-            valueStyle: .currencyUSD,
-            kpis: [
-                .init(title: "Today", value: UsageFormatter.usdString(today.costUSD), emphasis: true),
-                .init(title: "7d spend", value: UsageFormatter.usdString(last7.costUSD), emphasis: false),
-                .init(
-                    title: "\(historyLabel) spend",
-                    value: UsageFormatter.usdString(last30.costUSD),
-                    emphasis: false),
-                .init(title: "Today req", value: UsageFormatter.tokenCountString(today.requests), emphasis: false),
-            ],
-            points: points,
-            detailLines: details)
     }
 
     private static func costHistoryInlineDashboard(
@@ -177,6 +160,12 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? L("30d tokens")
                 : String(format: L("%@ tokens"), String(format: L("Last %d days"), historyDays)))
+        let requestHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("requests"))" }
+            ?? (historyDays == 1
+                ? L("Today requests")
+                : historyDays == 30
+                ? L("30d requests")
+                : String(format: L("%@ requests"), String(format: L("Last %d days"), historyDays)))
         let periodLabel = snapshot.historyLabel?.lowercased()
             ?? (historyDays == 1 ? "today" : "\(historyDays) day")
         let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
@@ -191,6 +180,9 @@ extension UsageMenuCardView.Model {
         var details: [String] = []
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+        }
+        if let requestCount = snapshot.last30DaysRequests {
+            details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) requests")
         }
         if let hint = Self.tokenUsageHint(provider: provider) {
             details.append(hint)
@@ -215,13 +207,30 @@ extension UsageMenuCardView.Model {
                     title: tokenHistoryTitle,
                     value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
-                .init(
-                    title: L("Latest tokens"),
-                    value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
-                    emphasis: false),
-            ],
+            ] + Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest),
             points: points,
             detailLines: details)
+    }
+
+    private static func costHistoryTrailingKPIs(
+        snapshot: CostUsageTokenSnapshot,
+        latest: CostUsageDailyReport.Entry?)
+        -> [InlineUsageDashboardModel.KPI]
+    {
+        if let requests = snapshot.last30DaysRequests {
+            return [
+                .init(
+                    title: L("Requests"),
+                    value: UsageFormatter.tokenCountString(requests),
+                    emphasis: false),
+            ]
+        }
+        return [
+            .init(
+                title: L("Latest tokens"),
+                value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                emphasis: false),
+        ]
     }
 
     fileprivate static func claudeAdminAPIInlineDashboard(_ usage: ClaudeAdminAPIUsageSnapshot)
@@ -314,42 +323,6 @@ extension UsageMenuCardView.Model {
             detailLines: details)
     }
 
-    private static func mistralInlineDashboard(_ usage: MistralUsageSnapshot) -> InlineUsageDashboardModel {
-        let points = usage.daily.suffix(30).map {
-            InlineUsageDashboardModel.Point(
-                id: $0.day,
-                label: Self.shortDayLabel($0.day),
-                value: $0.cost,
-                accessibilityValue: "\($0.day): \(Self.mistralCurrencyString($0.cost, symbol: usage.currencySymbol))")
-        }
-        let latest = usage.daily.last
-        let totalTokens = usage.totalInputTokens + usage.totalCachedTokens + usage.totalOutputTokens
-        var details = ["This month: \(UsageFormatter.tokenCountString(totalTokens)) tokens"]
-        if let topModel = Self.topMistralModel(from: usage.daily) {
-            details.append("Top model: \(Self.shortModelName(topModel))")
-        }
-        return InlineUsageDashboardModel(
-            accessibilityLabel: "Mistral API spend trend",
-            valueStyle: .currency(symbol: usage.currencySymbol),
-            kpis: [
-                .init(
-                    title: "Latest",
-                    value: latest.map { Self.mistralCurrencyString($0.cost, symbol: usage.currencySymbol) } ?? "—",
-                    emphasis: true),
-                .init(
-                    title: "Month",
-                    value: Self.mistralCurrencyString(usage.totalCost, symbol: usage.currencySymbol),
-                    emphasis: false),
-                .init(title: "Models", value: "\(usage.modelCount)", emphasis: false),
-                .init(
-                    title: "Latest tokens",
-                    value: latest.map { UsageFormatter.tokenCountString($0.totalTokens) } ?? "—",
-                    emphasis: false),
-            ],
-            points: points,
-            detailLines: details)
-    }
-
     private static func zaiInlineDashboard(modelUsage: ZaiModelUsageData, now: Date) -> InlineUsageDashboardModel? {
         let bars = ZaiHourlyBars.from(modelData: modelUsage, range: .last24h, now: now)
         guard !bars.isEmpty else { return nil }
@@ -426,19 +399,6 @@ extension UsageMenuCardView.Model {
             detailLines: details)
     }
 
-    private static func topMistralModel(from entries: [MistralDailyUsageBucket]) -> String? {
-        var tokens: [String: Int] = [:]
-        for entry in entries {
-            for model in entry.models {
-                tokens[model.name, default: 0] += model.totalTokens
-            }
-        }
-        return tokens.max {
-            if $0.value == $1.value { return $0.key > $1.key }
-            return $0.value < $1.value
-        }?.key
-    }
-
     private static func topZaiModel(from bars: [ZaiHourlyBar]) -> String? {
         var tokens: [String: Int] = [:]
         for bar in bars {
@@ -450,10 +410,6 @@ extension UsageMenuCardView.Model {
             if $0.value == $1.value { return $0.key > $1.key }
             return $0.value < $1.value
         }?.key
-    }
-
-    private static func mistralCurrencyString(_ value: Double, symbol: String) -> String {
-        "\(symbol)\(String(format: "%.4f", max(0, value)))"
     }
 
     private static func openRouterCurrencyString(_ value: Double) -> String {
@@ -510,10 +466,6 @@ extension UsageMenuCardView.Model {
 struct InlineUsageDashboardContent: View {
     private let model: InlineUsageDashboardModel
     @Environment(\.menuItemHighlighted) private var isHighlighted
-
-    init(snapshot: OpenAIAPIUsageSnapshot) {
-        self.model = UsageMenuCardView.Model.openAIAPIInlineDashboard(snapshot)
-    }
 
     init(model: InlineUsageDashboardModel) {
         self.model = model

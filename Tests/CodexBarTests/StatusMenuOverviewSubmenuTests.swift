@@ -58,7 +58,7 @@ extension StatusMenuTests {
             ($0.representedObject as? String) == "overviewRow-openai"
         })
         #expect(openAIRow.submenu?.items.contains {
-            ($0.representedObject as? String) == StatusItemController.openAIAPIUsageChartID
+            ($0.representedObject as? String) == StatusItemController.costHistoryChartID
         } == true)
     }
 }

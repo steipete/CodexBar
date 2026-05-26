@@ -33,7 +33,6 @@ extension StatusItemController {
     static let usageBreakdownChartID = "usageBreakdownChart"
     static let creditsHistoryChartID = "creditsHistoryChart"
     static let costHistoryChartID = "costHistoryChart"
-    static let openAIAPIUsageChartID = "openAIAPIUsageChart"
     static let usageHistoryChartID = "usageHistoryChart"
     static let storageBreakdownID = "storageBreakdown"
 
@@ -1548,7 +1547,7 @@ extension StatusItemController {
 
     func makeCostHistorySubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else { return nil }
-        guard self.store.tokenSnapshot(for: provider)?.daily.isEmpty == false else { return nil }
+        guard self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false else { return nil }
         if let width {
             return self.makeHostedSubviewPlaceholderMenu(
                 chartID: Self.costHistoryChartID,
@@ -1558,19 +1557,23 @@ extension StatusItemController {
         return self.makeHostedSubviewPlaceholderMenu(chartID: Self.costHistoryChartID, provider: provider)
     }
 
+    func tokenSnapshotForCostHistorySubmenu(provider: UsageProvider) -> CostUsageTokenSnapshot? {
+        let projected = self.store.tokenSnapshot(
+            fromProviderSnapshot: self.store.snapshot(for: provider),
+            provider: provider)
+        if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+            return projected
+        }
+        return projected ?? self.store.tokenSnapshot(for: provider)
+    }
+
     func makeOpenAIAPIUsageSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
         guard self.hasOpenAIAPIUsageSubmenu(provider: provider) else { return nil }
-        if let width {
-            return self.makeHostedSubviewPlaceholderMenu(
-                chartID: Self.openAIAPIUsageChartID,
-                provider: provider,
-                width: width)
-        }
-        return self.makeHostedSubviewPlaceholderMenu(chartID: Self.openAIAPIUsageChartID, provider: provider)
+        return self.makeCostHistorySubmenu(provider: provider, width: width)
     }
 
     private func hasOpenAIAPIUsageSubmenu(provider: UsageProvider) -> Bool {
-        provider == .openai && self.store.snapshot(for: provider)?.openAIAPIUsage?.daily.isEmpty == false
+        provider == .openai && self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
     }
 
     func makeStorageBreakdownSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {

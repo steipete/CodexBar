@@ -391,10 +391,14 @@ struct OpenAIAPICreditBalanceTests {
         #expect(snapshot.historyDays == 7)
         #expect(snapshot.sessionCostUSD == 8.5)
         #expect(snapshot.sessionTokens == 1250)
+        #expect(snapshot.sessionRequests == 42)
         #expect(snapshot.last30DaysCostUSD == 10.75)
         #expect(snapshot.last30DaysTokens == 1750)
+        #expect(snapshot.last30DaysRequests == 45)
         #expect(snapshot.daily.count == 2)
         #expect(snapshot.daily[1].cacheReadTokens == 400)
+        #expect(snapshot.daily[1].requestCount == 42)
+        #expect(snapshot.daily[1].modelBreakdowns?.first?.requestCount == 42)
         #expect(snapshot.daily[1].modelBreakdowns?.first?.modelName == "gpt-5.2-codex")
     }
 

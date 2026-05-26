@@ -30,7 +30,11 @@ extension UsageStore {
         return (homePath, "codex:managed:\(homePath)")
     }
 
-    func tokenSnapshot(fromProviderSnapshot snapshot: UsageSnapshot?, provider: UsageProvider) -> CostUsageTokenSnapshot? {
+    func tokenSnapshot(
+        fromProviderSnapshot snapshot: UsageSnapshot?,
+        provider: UsageProvider)
+        -> CostUsageTokenSnapshot?
+    {
         switch provider {
         case .openai:
             snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
@@ -43,7 +47,7 @@ extension UsageStore {
 
     nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .mistral:
+        case .mistral, .openai:
             true
         default:
             false

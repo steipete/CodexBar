@@ -210,7 +210,8 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
                 CostUsageDailyReport.ModelBreakdown(
                     modelName: $0.name,
                     costUSD: nil,
-                    totalTokens: $0.totalTokens)
+                    totalTokens: $0.totalTokens,
+                    requestCount: $0.requests)
             }
             let modelsUsed = bucket.models.map(\.name)
             return CostUsageDailyReport.Entry(
@@ -220,6 +221,7 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
                 cacheReadTokens: bucket.cachedInputTokens,
                 cacheCreationTokens: nil,
                 totalTokens: bucket.totalTokens,
+                requestCount: bucket.requests,
                 costUSD: bucket.costUSD,
                 modelsUsed: modelsUsed.isEmpty ? nil : modelsUsed,
                 modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
@@ -229,8 +231,10 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
         return CostUsageTokenSnapshot(
             sessionTokens: latest.totalTokens,
             sessionCostUSD: latest.costUSD,
+            sessionRequests: latest.requests,
             last30DaysTokens: total.totalTokens,
             last30DaysCostUSD: total.costUSD,
+            last30DaysRequests: total.requests,
             historyDays: self.historyDays,
             daily: daily,
             updatedAt: self.updatedAt)
