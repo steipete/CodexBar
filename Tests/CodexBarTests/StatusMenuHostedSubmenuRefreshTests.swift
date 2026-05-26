@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuHostedSubmenuRefreshTests {
     @Test
-    func `open parent menu defers data rebuild until next open`() throws {
+    func `open parent menu defers data rebuild until hosted submenu closes`() throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         let previousMenuRefresh = StatusItemController.menuRefreshEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -68,10 +68,67 @@ struct StatusMenuHostedSubmenuRefreshTests {
         controller.menuDidClose(submenu)
         #expect(controller.openMenus[submenuKey] == nil)
 
-        #expect(controller.menuVersions[parentKey] == oldParentVersion)
-        controller.menuDidClose(menu)
-        controller.menuWillOpen(menu)
         #expect(controller.menuVersions[parentKey] == controller.menuContentVersion)
+    }
+
+    @Test
+    func `open hosted submenu rebuilds from unavailable placeholder when data arrives`() async {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        let previousMenuRefresh = StatusItemController.menuRefreshEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.setMenuRefreshEnabledForTesting(previousMenuRefresh)
+        }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.costUsageEnabled = true
+        Self.enableOnlyClaude(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .claude,
+            width: StatusItemController.menuCardBaseWidth)
+        controller.menuWillOpen(submenu)
+        let submenuKey = ObjectIdentifier(submenu)
+        #expect(controller.openMenus[submenuKey] === submenu)
+        #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
+        #expect(submenu.items.first?.view == nil)
+        #expect(submenu.items.first?.title == "No data available")
+
+        let openedVersion = controller.menuContentVersion
+        store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(), provider: .claude)
+        controller.invalidateMenus(refreshOpenMenus: true)
+
+        for _ in 0..<40 {
+            if controller.menuContentVersion != openedVersion,
+               submenu.items.first?.view != nil
+            {
+                break
+            }
+            await Task.yield()
+        }
+
+        #expect(controller.menuContentVersion != openedVersion)
+        #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
+        #expect(submenu.items.first?.view != nil)
+        #expect(submenu.items.first?.title != "No data available")
     }
 
     private static func makeSettings() -> SettingsStore {
@@ -107,7 +164,11 @@ struct StatusMenuHostedSubmenuRefreshTests {
                 accountOrganization: nil,
                 loginMethod: "Team"))
         store._setSnapshotForTesting(snapshot, provider: .claude)
-        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+        store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(), provider: .claude)
+    }
+
+    private static func makeTokenSnapshot() -> CostUsageTokenSnapshot {
+        CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 0.12,
             last30DaysTokens: 123,
@@ -122,6 +183,6 @@ struct StatusMenuHostedSubmenuRefreshTests {
                     modelsUsed: nil,
                     modelBreakdowns: nil),
             ],
-            updatedAt: Date()), provider: .claude)
+            updatedAt: Date())
     }
 }
