@@ -72,4 +72,53 @@ struct InlineCostHistoryDashboardLabelTests {
         #expect(thirtyDays.inlineUsageDashboard?.kpis[1].title == "30d cost")
         #expect(thirtyDays.inlineUsageDashboard?.kpis[2].title == "30d tokens")
     }
+
+    @Test
+    func `custom cost history KPI title keeps token label distinct`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 275,
+            sessionCostUSD: 0.25,
+            last30DaysTokens: 425,
+            last30DaysCostUSD: 0.37,
+            historyLabel: "This month",
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2023-11-15",
+                    inputTokens: 200,
+                    outputTokens: 75,
+                    totalTokens: 275,
+                    costUSD: 0.25,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard?.kpis[1].title == "This month")
+        #expect(model.inlineUsageDashboard?.kpis[2].title == "This month tokens")
+    }
 }

@@ -154,7 +154,7 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? L("30d cost")
                 : "\(String(format: L("Last %d days"), historyDays)) \(L("Cost"))")
-        let tokenHistoryTitle = snapshot.historyLabel
+        let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
                 ? L("Today tokens")
                 : historyDays == 30

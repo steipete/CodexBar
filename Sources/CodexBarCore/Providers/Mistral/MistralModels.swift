@@ -235,13 +235,12 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         let totalTokens = selected.isEmpty
             ? self.totalInputTokens + self.totalCachedTokens + self.totalOutputTokens
             : selected.reduce(0) { $0 + $1.totalTokens }
-        let cost = totalCost > 0 ? totalCost : nil
         let tokens = totalTokens > 0 ? totalTokens : nil
         return CostUsageTokenSnapshot(
             sessionTokens: latest?.totalTokens,
             sessionCostUSD: latest.map { max($0.cost, 0) },
             last30DaysTokens: tokens,
-            last30DaysCostUSD: cost,
+            last30DaysCostUSD: totalCost,
             currencyCode: self.currency,
             historyDays: selected.isEmpty ? clampedHistoryDays : max(1, min(365, selected.count)),
             historyLabel: "This month",

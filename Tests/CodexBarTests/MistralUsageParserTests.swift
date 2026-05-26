@@ -257,7 +257,7 @@ struct MistralUsageSnapshotConversionTests {
 
         let cost = snapshot.toCostUsageTokenSnapshot()
         #expect(cost.sessionCostUSD == 0)
-        #expect(cost.last30DaysCostUSD == nil)
+        #expect(cost.last30DaysCostUSD == 0)
         #expect(cost.daily.first?.costUSD == 0)
         #expect(cost.daily.first?.modelBreakdowns?.first?.costUSD == 0)
     }
