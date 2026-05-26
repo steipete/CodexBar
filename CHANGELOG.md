@@ -3,6 +3,7 @@
 ## 0.29.2 — Unreleased
 
 ### Fixed
+- Menu bar: refresh live status items at startup when macOS places them outside the current menu bar screen frame (#1169). Thanks @kieranmcshane!
 - Release: prevent manual CLI artifact builds from publishing or clobbering release assets (#1154). Thanks @jskoiz!
 - Cost history: route OpenAI and Mistral API spend through the shared cost-history cards, including OpenAI request counts (#1163). Thanks @LeoLin990405!
 - Alibaba Token Plan: update usage refreshes to the Bailian subscription-summary endpoint (#1142). Thanks @YanxinXue!

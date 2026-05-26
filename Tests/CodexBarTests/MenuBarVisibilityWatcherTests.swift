@@ -105,6 +105,21 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
+    func `classifies offscreen live item as displaced but not blocked`() {
+        let snapshot = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: true,
+            isWithinCurrentScreenFrame: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+        #expect(MenuBarVisibilityWatcher.isDisplacedSnapshot(snapshot: snapshot))
+    }
+
+    @Test
     func `guidance shows once then repeats after a day`() throws {
         let defaults = try #require(UserDefaults(suiteName: "MenuBarVisibilityWatcherTests"))
         defaults.removePersistentDomain(forName: "MenuBarVisibilityWatcherTests")
@@ -190,6 +205,75 @@ struct MenuBarVisibilityWatcherTests {
             appLaunchedAt: launchedAt,
             now: launchedAt.addingTimeInterval(2),
             snapshots: [healthy]))
+    }
+
+    @Test
+    func `startup recovery ignores displaced live item`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [displaced]))
+    }
+
+    @Test
+    func `startup placement refresh triggers for displaced live item`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshStartupPlacement(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [displaced]))
+    }
+
+    @Test
+    func `startup placement refresh triggers for offscreen live item`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: true,
+            isWithinCurrentScreenFrame: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshStartupPlacement(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [displaced]))
+    }
+
+    @Test
+    func `startup placement refresh ignores stale checks`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldRefreshStartupPlacement(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(MenuBarVisibilityWatcher.startupFreshnessInterval + 1),
+            snapshots: [displaced]))
     }
 
     @Test
@@ -289,6 +373,23 @@ struct MenuBarVisibilityWatcherTests {
             hasWindow: true,
             hasScreen: true,
             isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
+            previousScreenCount: 2,
+            currentScreenCount: 2,
+            snapshots: [displaced]))
+    }
+
+    @Test
+    func `screen change placement refresh triggers for offscreen live item`() {
+        let displaced = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: true,
+            isWithinCurrentScreenFrame: false,
             buttonWidth: 18)
 
         #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(

@@ -7,6 +7,7 @@ struct StatusItemVisibilitySnapshot: Equatable {
     let hasWindow: Bool
     let hasScreen: Bool
     let isOnCurrentScreen: Bool
+    let isWithinCurrentScreenFrame: Bool
     let buttonWidth: CGFloat
 
     init(
@@ -15,6 +16,7 @@ struct StatusItemVisibilitySnapshot: Equatable {
         hasWindow: Bool,
         hasScreen: Bool,
         isOnCurrentScreen: Bool = true,
+        isWithinCurrentScreenFrame: Bool = true,
         buttonWidth: CGFloat)
     {
         self.isVisible = isVisible
@@ -22,6 +24,7 @@ struct StatusItemVisibilitySnapshot: Equatable {
         self.hasWindow = hasWindow
         self.hasScreen = hasScreen
         self.isOnCurrentScreen = isOnCurrentScreen
+        self.isWithinCurrentScreenFrame = isWithinCurrentScreenFrame
         self.buttonWidth = buttonWidth
     }
 }
@@ -30,6 +33,7 @@ extension StatusItemVisibilitySnapshot: CustomStringConvertible {
     var description: String {
         "visible=\(self.isVisible),button=\(self.hasButton),window=\(self.hasWindow),"
             + "screen=\(self.hasScreen),currentScreen=\(self.isOnCurrentScreen),"
+            + "withinScreenFrame=\(self.isWithinCurrentScreenFrame),"
             + "width=\(String(format: "%.1f", Double(self.buttonWidth)))"
     }
 }
@@ -52,14 +56,33 @@ enum MenuBarVisibilityWatcher {
 
     @MainActor
     static func visibilitySnapshot(_ item: NSStatusItem) -> StatusItemVisibilitySnapshot {
-        let screen = item.button?.window?.screen
+        let button = item.button
+        let window = button?.window
+        let screen = window?.screen
+        let buttonFrame = self.buttonFrameInScreen(button)
         return StatusItemVisibilitySnapshot(
             isVisible: item.isVisible,
-            hasButton: item.button != nil,
-            hasWindow: item.button?.window != nil,
+            hasButton: button != nil,
+            hasWindow: window != nil,
             hasScreen: screen != nil,
             isOnCurrentScreen: screen.map(self.isCurrentScreen) ?? false,
-            buttonWidth: item.button?.frame.size.width ?? 0)
+            isWithinCurrentScreenFrame: buttonFrame.map(self.isWithinCurrentScreenFrame) ?? false,
+            buttonWidth: button?.frame.size.width ?? 0)
+    }
+
+    @MainActor
+    private static func buttonFrameInScreen(_ button: NSStatusBarButton?) -> CGRect? {
+        guard let button, let window = button.window else { return nil }
+        let frameInWindow = button.convert(button.bounds, to: nil)
+        guard !frameInWindow.isEmpty else { return nil }
+        return window.convertToScreen(frameInWindow)
+    }
+
+    @MainActor
+    private static func isWithinCurrentScreenFrame(_ rect: CGRect) -> Bool {
+        NSScreen.screens.contains { screen in
+            screen.frame.contains(rect)
+        }
     }
 
     @MainActor
@@ -89,7 +112,7 @@ enum MenuBarVisibilityWatcher {
         guard snapshot.isVisible, snapshot.hasButton, snapshot.hasWindow, snapshot.buttonWidth > 0 else {
             return false
         }
-        return !snapshot.hasScreen || !snapshot.isOnCurrentScreen
+        return !snapshot.hasScreen || !snapshot.isOnCurrentScreen || !snapshot.isWithinCurrentScreenFrame
     }
 
     static func hasBlockedVisibleSnapshots(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
@@ -132,6 +155,16 @@ enum MenuBarVisibilityWatcher {
     {
         guard now.timeIntervalSince(appLaunchedAt) <= self.startupFreshnessInterval else { return false }
         return self.hasAnyBlockedVisibleSnapshot(snapshots)
+    }
+
+    static func shouldRefreshStartupPlacement(
+        appLaunchedAt: Date,
+        now: Date = Date(),
+        snapshots: [StatusItemVisibilitySnapshot])
+        -> Bool
+    {
+        guard now.timeIntervalSince(appLaunchedAt) <= self.startupFreshnessInterval else { return false }
+        return self.hasAnyDisplacedVisibleSnapshot(snapshots)
     }
 
     static func shouldRefreshScreenChangePlacement(
@@ -207,6 +240,10 @@ extension StatusItemController {
             now: now,
             snapshots: snapshots)
         else {
+            self.refreshDisplacedStartupStatusItemsIfNeeded(
+                appLaunchedAt: appLaunchedAt,
+                now: now,
+                snapshots: snapshots)
             return
         }
 
@@ -236,6 +273,41 @@ extension StatusItemController {
             return
         }
         MenuBarVisibilityWatcher.presentGuidance(defaults: self.settings.userDefaults, now: now)
+    }
+
+    private func refreshDisplacedStartupStatusItemsIfNeeded(
+        appLaunchedAt: Date,
+        now: Date,
+        snapshots: [StatusItemVisibilitySnapshot])
+    {
+        guard MenuBarVisibilityWatcher.shouldRefreshStartupPlacement(
+            appLaunchedAt: appLaunchedAt,
+            now: now,
+            snapshots: snapshots)
+        else {
+            return
+        }
+
+        self.menuLogger.info(
+            "Status item launched outside the current menu bar; refreshing existing status items",
+            metadata: ["snapshots": snapshots.map(\.description).joined(separator: " | ")])
+        self.refreshExistingStatusItemsForVisibilityRecovery()
+
+        let recoveredSnapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
+        guard MenuBarVisibilityWatcher.shouldRefreshStartupPlacement(
+            appLaunchedAt: appLaunchedAt,
+            now: now,
+            snapshots: recoveredSnapshots)
+        else {
+            self.menuLogger.info(
+                "Status item placement recovered after startup refresh",
+                metadata: ["snapshots": recoveredSnapshots.map(\.description).joined(separator: " | ")])
+            return
+        }
+
+        self.menuLogger.error(
+            "Status item still outside the current menu bar after startup refresh",
+            metadata: ["snapshots": recoveredSnapshots.map(\.description).joined(separator: " | ")])
     }
 
     @objc func handleScreenParametersDidChange(_: Notification) {
