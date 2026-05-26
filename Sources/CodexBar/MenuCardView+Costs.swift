@@ -23,7 +23,7 @@ extension UsageMenuCardView.Model {
         snapshot: CostUsageTokenSnapshot?,
         error: String?) -> TokenUsageSection?
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             return nil
         }
         guard enabled else { return nil }
@@ -69,6 +69,8 @@ extension UsageMenuCardView.Model {
             L("cost_estimate_hint")
         case .bedrock:
             L("AWS Cost Explorer billing can lag.")
+        case .openai:
+            L("Reported by OpenAI Admin API organization usage.")
         default:
             nil
         }

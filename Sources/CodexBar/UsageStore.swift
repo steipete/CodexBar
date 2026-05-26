@@ -1481,7 +1481,7 @@ extension UsageStore {
     }
 
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
@@ -1539,16 +1539,16 @@ extension UsageStore {
         do {
             let fetcher = self.costUsageFetcher
             let timeoutSeconds = self.tokenFetchTimeout
-            let environment = provider == .bedrock
+            let environment = provider == .bedrock || provider == .openai
                 ? ProviderRegistry.makeEnvironment(
                     base: self.environmentBase,
                     provider: provider,
                     settings: self.settings,
                     tokenOverride: nil)
                 : self.environmentBase
-            // CostUsageFetcher scans local Codex session logs from this machine. That data is
+            // Codex cost usage scans local session logs from this machine. That data is
             // intentionally presented as provider-level local telemetry rather than managed-account
-            // remote state, so managed Codex account selection does not retarget this fetch.
+            // remote state, so managed Codex account selection does not retarget that fetch.
             // If the UI later needs account-scoped token history, it should label and source that
             // separately instead of silently changing the meaning of this section.
             let snapshot = try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in

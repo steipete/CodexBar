@@ -28,7 +28,7 @@ public enum OpenAIAPIProviderDescriptor {
                 iconResourceName: "ProviderIcon-codex",
                 color: ProviderColor(red: 0.06, green: 0.51, blue: 0.43)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
+                supportsTokenCost: true,
                 noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],

@@ -50,7 +50,9 @@ extension StatusItemController {
                 tokenSnapshot = nil
                 tokenError = nil
             }
-        } else if target == .claude || target == .vertexai || target == .bedrock, snapshotOverride == nil {
+        } else if ProviderDescriptorRegistry.descriptor(for: target).tokenCost.supportsTokenCost,
+                  snapshotOverride == nil
+        {
             credits = nil
             creditsError = nil
             dashboard = nil

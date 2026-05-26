@@ -54,7 +54,9 @@ public struct CostUsageFetcher: Sendable {
         piScannerOptions overridePiScannerOptions: PiSessionCostScanner
             .Options? = nil) async throws -> CostUsageTokenSnapshot
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock ||
+            provider == .openai
+        else {
             throw CostUsageError.unsupportedProvider(provider)
         }
 
@@ -69,6 +71,17 @@ public struct CostUsageFetcher: Sendable {
                 since: since,
                 until: until)
             return Self.tokenSnapshot(from: daily, now: now, historyDays: clampedHistoryDays)
+        }
+
+        if provider == .openai {
+            guard let apiKey = ProviderTokenResolver.openAIAPIToken(environment: environment) else {
+                throw OpenAIAPISettingsError.missingToken
+            }
+            let usage = try await OpenAIAPIUsageFetcher.fetchUsage(
+                apiKey: apiKey,
+                now: now,
+                historyDays: clampedHistoryDays)
+            return usage.toCostUsageTokenSnapshot()
         }
 
         var options = overrideScannerOptions ?? CostUsageScanner.Options()

@@ -1547,7 +1547,7 @@ extension StatusItemController {
     }
 
     func makeCostHistorySubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
-        guard [.codex, .claude, .vertexai, .bedrock].contains(provider) else { return nil }
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else { return nil }
         guard self.store.tokenSnapshot(for: provider)?.daily.isEmpty == false else { return nil }
         if let width {
             return self.makeHostedSubviewPlaceholderMenu(
