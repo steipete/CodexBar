@@ -3,6 +3,7 @@
 ## 0.29.2 — Unreleased
 
 ### Added
+- MiniMax: add a redacted diagnostic CLI export for safe issue reports (#1128). Thanks @Yuxin-Qiao!
 - Antigravity: show the complete per-model quota breakdown alongside the existing summary lanes (#1139). Thanks @guhyun9454!
 - Widget: show tertiary usage rows for providers that expose a third quota lane (#1160). Thanks @LeoLin990405!
 - DeepSeek: show optional web-session usage and cost summaries alongside the balance card (#1166). Thanks @Yuxin-Qiao!
