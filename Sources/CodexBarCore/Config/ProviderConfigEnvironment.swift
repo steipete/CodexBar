@@ -134,15 +134,28 @@ public enum ProviderConfigEnvironment {
     {
         guard let config else { return base }
         var env = base
-        if let accessKeyID = config.sanitizedAPIKey {
-            env[BedrockSettingsReader.accessKeyIDKey] = accessKeyID
+
+        let mode = BedrockAuthMode(rawValue: config.sanitizedAWSAuthMode ?? "") ?? .keys
+        env[BedrockSettingsReader.authModeKey] = mode.rawValue
+
+        switch mode {
+        case .profile:
+            if let profile = config.sanitizedAWSProfile {
+                env[BedrockSettingsReader.profileKey] = profile
+            }
+        case .keys:
+            if let accessKeyID = config.sanitizedAPIKey {
+                env[BedrockSettingsReader.accessKeyIDKey] = accessKeyID
+            }
+            if let secretAccessKey = config.sanitizedSecretKey {
+                env[BedrockSettingsReader.secretAccessKeyKey] = secretAccessKey
+            }
         }
-        if let secretAccessKey = config.sanitizedSecretKey {
-            env[BedrockSettingsReader.secretAccessKeyKey] = secretAccessKey
-        }
+
         if let region = config.sanitizedRegion {
             env[BedrockSettingsReader.regionKeys[0]] = region
         }
+
         return env
     }
 

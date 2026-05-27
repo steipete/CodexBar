@@ -197,6 +197,44 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `bedrock profile mode projects AWS_PROFILE and omits static keys`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIATEST",
+            secretKey: "secret",
+            region: "eu-west-1",
+            awsProfile: "work",
+            awsAuthMode: "profile")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.authModeKey] == "profile")
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+        #expect(env[BedrockSettingsReader.regionKeys[0]] == "eu-west-1")
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == nil)
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == nil)
+    }
+
+    @Test
+    func `bedrock keys mode still projects static credentials`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIATEST",
+            secretKey: "secret",
+            region: "us-west-2",
+            awsAuthMode: "keys")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.authModeKey] == "keys")
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "AKIATEST")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "secret")
+        #expect(env[BedrockSettingsReader.profileKey] == nil)
+    }
+
+    @Test
     func `ignores legacy API key override for deepseek`() {
         let config = ProviderConfig(id: .deepseek, apiKey: "ds-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

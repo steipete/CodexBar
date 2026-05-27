@@ -30,7 +30,9 @@ public enum BedrockProviderDescriptor {
                 color: ProviderColor(red: 1, green: 0.6, blue: 0)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "No AWS Bedrock cost data available. Check your AWS credentials." }),
+                noDataMessage: { "No AWS Bedrock cost data available. Check your AWS access keys "
+                    + "or profile, and that the AWS CLI is installed for profile auth."
+                }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [BedrockAPIFetchStrategy()] })),
@@ -46,23 +48,53 @@ struct BedrockAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiToken
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        BedrockSettingsReader.hasCredentials(environment: context.env)
+        switch BedrockSettingsReader.authMode(environment: context.env) {
+        case .keys:
+            BedrockSettingsReader.hasCredentials(environment: context.env)
+        case .profile:
+            BedrockSettingsReader.profile(environment: context.env) != nil
+                && BinaryLocator.resolveAWSBinary(env: context.env) != nil
+        }
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let accessKeyID = BedrockSettingsReader.accessKeyID(environment: context.env),
-              let secretAccessKey = BedrockSettingsReader.secretAccessKey(environment: context.env)
-        else {
-            throw BedrockUsageError.missingCredentials
+        let credentials: BedrockAWSSigner.Credentials
+        let region: String
+
+        switch BedrockSettingsReader.authMode(environment: context.env) {
+        case .keys:
+            guard let accessKeyID = BedrockSettingsReader.accessKeyID(environment: context.env),
+                  let secretAccessKey = BedrockSettingsReader.secretAccessKey(environment: context.env)
+            else {
+                throw BedrockUsageError.missingCredentials
+            }
+            credentials = BedrockAWSSigner.Credentials(
+                accessKeyID: accessKeyID,
+                secretAccessKey: secretAccessKey,
+                sessionToken: BedrockSettingsReader.sessionToken(environment: context.env))
+            region = BedrockSettingsReader.region(environment: context.env)
+
+        case .profile:
+            guard let profile = BedrockSettingsReader.profile(environment: context.env) else {
+                throw BedrockUsageError.missingCredentials
+            }
+            guard let awsBinary = BinaryLocator.resolveAWSBinary(env: context.env) else {
+                throw BedrockUsageError.awsCLINotFound
+            }
+            let resolver = BedrockProfileCredentialProvider.live(awsBinaryPath: awsBinary)
+            credentials = try await resolver.exportCredentials(profile: profile, environment: context.env)
+            if let explicit = BedrockSettingsReader.cleaned(context.env[BedrockSettingsReader.regionKeys[0]])
+                ?? BedrockSettingsReader.cleaned(context.env[BedrockSettingsReader.regionKeys[1]])
+            {
+                region = explicit
+            } else if let derived = try await resolver.resolveRegion(profile: profile, environment: context.env) {
+                region = derived
+            } else {
+                region = BedrockSettingsReader.defaultRegion
+            }
         }
 
-        let credentials = BedrockAWSSigner.Credentials(
-            accessKeyID: accessKeyID,
-            secretAccessKey: secretAccessKey,
-            sessionToken: BedrockSettingsReader.sessionToken(environment: context.env))
-        let region = BedrockSettingsReader.region(environment: context.env)
         let budget = BedrockSettingsReader.budget(environment: context.env)
-
         let usage = try await BedrockUsageFetcher.fetchUsage(
             credentials: credentials,
             region: region,
