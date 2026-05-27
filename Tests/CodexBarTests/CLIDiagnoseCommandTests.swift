@@ -3,6 +3,15 @@ import Testing
 @testable import CodexBarCLI
 
 struct CLIDiagnoseCommandTests {
+    @Test
+    func `diagnose help describes minimax JSON export`() {
+        let help = CodexBarCLI.diagnoseHelp(version: "0.0.0")
+
+        #expect(help.contains("codexbar diagnose --provider minimax --format json"))
+        #expect(help.contains("safe JSON export"))
+        #expect(help.contains("raw API tokens"))
+    }
+
     private func makeSettingsWithMiniMaxCookie(_ manualCookieHeader: String) -> ProviderSettingsSnapshot {
         ProviderSettingsSnapshot(
             debugMenuEnabled: false,
