@@ -6,6 +6,9 @@ struct DiagnoseOptions: CommanderParsable {
     @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
     var verbose: Bool = false
 
+    @Flag(name: .long("json-output"), help: "Emit machine-readable logs")
+    var jsonOutput: Bool = false
+
     @Option(name: .long("log-level"), help: "Set log level (trace|verbose|debug|info|warning|error|critical)")
     var logLevel: String?
 

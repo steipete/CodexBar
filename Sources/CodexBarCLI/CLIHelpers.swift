@@ -366,6 +366,10 @@ extension CodexBarCLI {
         CommandSignature.describe(CacheOptions())
     }
 
+    static func _diagnoseSignatureForTesting() -> CommandSignature {
+        CommandSignature.describe(DiagnoseOptions())
+    }
+
     static func _configSetAPIKeySignatureForTesting() -> CommandSignature {
         CommandSignature.describe(ConfigSetAPIKeyOptions())
     }
