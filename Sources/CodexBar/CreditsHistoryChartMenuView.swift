@@ -37,16 +37,16 @@ struct CreditsHistoryChartMenuView: View {
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
-                            x: .value("Day", point.date, unit: .day),
-                            y: .value("Credits used", point.creditsUsed))
+                            x: .value(L("Day"), point.date, unit: .day),
+                            y: .value(L("Credits used"), point.creditsUsed))
                             .foregroundStyle(Self.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
                         let capStart = max(peak.creditsUsed - Self.capHeight(maxValue: model.maxCreditsUsed), 0)
                         BarMark(
-                            x: .value("Day", peak.date, unit: .day),
-                            yStart: .value("Cap start", capStart),
-                            yEnd: .value("Cap end", peak.creditsUsed))
+                            x: .value(L("Day"), peak.date, unit: .day),
+                            yStart: .value(L("Cap start"), capStart),
+                            yEnd: .value(L("Cap end"), peak.creditsUsed))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
@@ -104,7 +104,9 @@ struct CreditsHistoryChartMenuView: View {
                 }
 
                 if let total = model.totalCreditsUsed {
-                    Text("Total (30d): \(total.formatted(.number.precision(.fractionLength(0...2)))) credits")
+                    Text(String(
+                        format: L("Total (30d): %@ credits"),
+                        total.formatted(.number.precision(.fractionLength(0...2)))))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -311,11 +313,11 @@ struct CreditsHistoryChartMenuView: View {
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         let total = day.totalCreditsUsed.formatted(.number.precision(.fractionLength(0...2)))
         if day.services.isEmpty {
-            return ("\(dayLabel): \(total) credits", nil)
+            return (String(format: L("%@: %@ credits"), dayLabel, total), nil)
         }
         if day.services.count <= 1, let first = day.services.first {
             let used = first.creditsUsed.formatted(.number.precision(.fractionLength(0...2)))
-            return ("\(dayLabel): \(used) credits", first.service)
+            return (String(format: L("%@: %@ credits"), dayLabel, used), first.service)
         }
 
         let services = day.services
@@ -327,6 +329,6 @@ struct CreditsHistoryChartMenuView: View {
             .map { "\($0.service) \($0.creditsUsed.formatted(.number.precision(.fractionLength(0...2))))" }
             .joined(separator: " · ")
 
-        return ("\(dayLabel): \(total) credits", services)
+        return (String(format: L("%@: %@ credits"), dayLabel, total), services)
     }
 }

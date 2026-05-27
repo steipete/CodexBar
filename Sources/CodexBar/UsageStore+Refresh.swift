@@ -382,7 +382,7 @@ extension UsageStore {
         let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         AppNotifications.shared.post(
             idPrefix: "permission-prompt-\(provider.rawValue)",
-            title: "\(providerName) is waiting for permission",
+            title: L("%@ is waiting for permission", providerName),
             body: error.localizedDescription,
             soundEnabled: false)
     }

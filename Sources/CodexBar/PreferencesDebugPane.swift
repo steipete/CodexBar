@@ -47,7 +47,7 @@ struct DebugPane: View {
                                 .foregroundStyle(.tertiary)
                         }
                         Spacer()
-                        Picker("Verbosity", selection: self.$settings.debugLogLevel) {
+                        Picker(L("Verbosity"), selection: self.$settings.debugLogLevel) {
                             ForEach(CodexBarLog.Level.allCases) { level in
                                 Text(level.displayName).tag(level)
                             }
@@ -76,7 +76,7 @@ struct DebugPane: View {
                     title: L("section_loading_animations"),
                     caption: L("loading_animations_caption"))
                 {
-                    Picker("Animation pattern", selection: self.animationPatternBinding) {
+                    Picker(L("Animation pattern"), selection: self.animationPatternBinding) {
                         Text(L("animation_random_default")).tag(nil as LoadingPattern?)
                         ForEach(LoadingPattern.allCases) { pattern in
                             Text(pattern.displayName).tag(Optional(pattern))
@@ -101,7 +101,7 @@ struct DebugPane: View {
                     title: L("section_probe_logs"),
                     caption: L("probe_logs_caption"))
                 {
-                    Picker("Provider", selection: self.$currentLogProvider) {
+                    Picker(L("Provider"), selection: self.$currentLogProvider) {
                         Text("Codex").tag(UsageProvider.codex)
                         Text("Claude").tag(UsageProvider.claude)
                         Text("Cursor").tag(UsageProvider.cursor)
@@ -169,7 +169,7 @@ struct DebugPane: View {
                     title: L("section_fetch_strategy"),
                     caption: L("fetch_strategy_caption"))
                 {
-                    Picker("Provider", selection: self.$currentFetchProvider) {
+                    Picker(L("Provider"), selection: self.$currentFetchProvider) {
                         ForEach(UsageProvider.allCases, id: \.self) { provider in
                             Text(provider.rawValue.capitalized).tag(provider)
                         }
@@ -260,7 +260,7 @@ struct DebugPane: View {
                     title: L("section_notifications"),
                     caption: L("notifications_caption"))
                 {
-                    Picker("Provider", selection: self.$currentLogProvider) {
+                    Picker(L("Provider"), selection: self.$currentLogProvider) {
                         Text("Codex").tag(UsageProvider.codex)
                         Text("Claude").tag(UsageProvider.claude)
                     }
@@ -308,7 +308,7 @@ struct DebugPane: View {
                     title: L("section_error_simulation"),
                     caption: L("error_simulation_caption"))
                 {
-                    Picker("Provider", selection: self.$currentErrorProvider) {
+                    Picker(L("Provider"), selection: self.$currentErrorProvider) {
                         Text("Codex").tag(UsageProvider.codex)
                         Text("Claude").tag(UsageProvider.claude)
                         Text("Gemini").tag(UsageProvider.gemini)
@@ -321,7 +321,7 @@ struct DebugPane: View {
                     .pickerStyle(.segmented)
                     .frame(width: 360)
 
-                    TextField("Simulated error text", text: self.$simulatedErrorText, axis: .vertical)
+                    TextField(L("Simulated error text"), text: self.$simulatedErrorText, axis: .vertical)
                         .lineLimit(4)
 
                     HStack(spacing: 12) {

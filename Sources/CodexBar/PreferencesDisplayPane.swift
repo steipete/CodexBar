@@ -50,7 +50,7 @@ struct DisplayPane: View {
                                 .foregroundStyle(.tertiary)
                         }
                         Spacer()
-                        Picker("Display mode", selection: self.$settings.menuBarDisplayMode) {
+                        Picker(L("Display mode"), selection: self.$settings.menuBarDisplayMode) {
                             ForEach(MenuBarDisplayMode.allCases) { mode in
                                 Text(mode.label).tag(mode)
                             }
@@ -88,10 +88,10 @@ struct DisplayPane: View {
                         }
                         Spacer()
                         Picker(L("weekly_progress_work_days_title"), selection: self.$settings.weeklyProgressWorkDays) {
-                            Text("Off").tag(nil as Int?)
-                            Text("4 days").tag(4 as Int?)
-                            Text("5 days").tag(5 as Int?)
-                            Text("7 days").tag(7 as Int?)
+                            Text(L("Off")).tag(nil as Int?)
+                            Text(L("4 days")).tag(4 as Int?)
+                            Text(L("5 days")).tag(5 as Int?)
+                            Text(L("7 days")).tag(7 as Int?)
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)

@@ -237,7 +237,7 @@ private struct ProviderDetailHeaderView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .help("Refresh")
+                .help(L("Refresh"))
 
                 Toggle("", isOn: self.$isEnabled)
                     .labelsHidden()
@@ -575,7 +575,7 @@ private struct ProviderMetricInlineCostRow: View {
                     UsageProgressBar(
                         percent: percentUsed,
                         tint: self.progressColor,
-                        accessibilityLabel: "Usage used")
+                        accessibilityLabel: L("Usage used"))
                         .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
                 }
 

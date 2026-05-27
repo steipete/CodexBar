@@ -66,7 +66,7 @@ final class CursorLoginRunner {
         await self.resetSessionCache()
 
         guard self.openURL(Self.authURL) else {
-            let message = "Could not open Cursor login in your browser."
+            let message = L("Could not open Cursor login in your browser.")
             onPhaseChange(.failed(message))
             self.logger.error("Cursor login browser launch failed")
             return Result(outcome: .failed(message), email: nil)
@@ -103,10 +103,13 @@ final class CursorLoginRunner {
     }
 
     private static func timeoutMessage(lastError: Error?) -> String {
-        let hint = "Sign in to cursor.com in your browser, then refresh Cursor in CodexBar."
+        let hint = L("Sign in to cursor.com in your browser, then refresh Cursor in CodexBar.")
         guard let lastError else {
-            return "Timed out waiting for Cursor login. \(hint)"
+            return String(format: L("Timed out waiting for Cursor login. %@"), hint)
         }
-        return "Timed out waiting for Cursor login. \(hint) Last error: \(lastError.localizedDescription)"
+        return String(
+            format: L("Timed out waiting for Cursor login. %@ Last error: %@"),
+            hint,
+            lastError.localizedDescription)
     }
 }

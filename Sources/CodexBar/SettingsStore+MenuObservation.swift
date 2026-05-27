@@ -32,6 +32,7 @@ extension SettingsStore {
         _ = self.menuBarMetricPreferencesRaw
         _ = self.costUsageEnabled
         _ = self.costUsageHistoryDays
+        _ = self.appLanguage
         _ = self.hidePersonalInfo
         _ = self.randomBlinkEnabled
         _ = self.confettiOnWeeklyLimitResetsEnabled

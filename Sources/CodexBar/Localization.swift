@@ -37,6 +37,10 @@ private func resolvedAppLanguage() -> String {
     return appLanguageDefaults().string(forKey: "appLanguage") ?? ""
 }
 
+func codexBarLocalizationSignature() -> String {
+    resolvedAppLanguage()
+}
+
 func codexBarLocalizationResourceBundle(
     mainBundle: Bundle = .main,
     bundleName: String = "CodexBar_CodexBar") -> Bundle

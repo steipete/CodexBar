@@ -124,7 +124,7 @@ struct CodexLoginRunner {
         }
         let trimmed = merged.trimmingCharacters(in: .whitespacesAndNewlines)
         let limited = trimmed.prefix(4000)
-        return limited.isEmpty ? "No output captured." : String(limited)
+        return limited.isEmpty ? L("No output captured.") : String(limited)
     }
 
     private static func readToEnd(_ pipe: Pipe, timeout: TimeInterval = 3.0) async -> String {

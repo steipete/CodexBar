@@ -160,6 +160,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Tracks whether the merged-menu switcher was built with the Overview tab visible.
     /// Used to force switcher rebuilds when Overview availability toggles.
     var lastSwitcherIncludesOverview: Bool = false
+    /// Tracks localization-sensitive labels used by the merged menu.
+    /// Used to force menu rebuilds when app language changes.
+    var lastMenuLocalizationSignature: String = ""
     /// Tracks which providers the merged menu's switcher was built with, to detect when it needs full rebuild.
     var lastSwitcherProviders: [UsageProvider] = []
     /// Tracks which switcher tab state was used for the current merged-menu switcher instance.
@@ -603,6 +606,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let usageBarsShowUsed = self.settings.usageBarsShowUsed
         if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
             self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
+            shouldRefresh = true
+        }
+        if self.menuLocalizationSignature() != self.lastMenuLocalizationSignature {
             shouldRefresh = true
         }
         return shouldRefresh

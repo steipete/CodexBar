@@ -72,7 +72,7 @@ private struct ProviderSidebarRowView: View {
                 .contentShape(Rectangle())
                 .padding(.vertical, 4)
                 .padding(.horizontal, 2)
-                .help("Drag to reorder")
+                .help(L("Drag to reorder"))
                 .onDrag {
                     self.draggingProvider = self.provider
                     return NSItemProvider(object: self.provider.rawValue as NSString)
@@ -119,9 +119,9 @@ private struct ProviderSidebarRowView: View {
         if lines.count >= 2 {
             let first = lines[0]
             let rest = lines.dropFirst().joined(separator: "\n")
-            return "Disabled — \(first)\n\(rest)"
+            return "\(L("Disabled")) — \(first)\n\(rest)"
         }
-        return "Disabled — \(self.subtitle)"
+        return "\(L("Disabled")) — \(self.subtitle)"
     }
 }
 
@@ -145,7 +145,7 @@ private struct ProviderSidebarReorderHandle: View {
             width: ProviderSettingsMetrics.reorderHandleSize,
             height: ProviderSettingsMetrics.reorderHandleSize)
         .foregroundStyle(.tertiary)
-        .accessibilityLabel("Reorder")
+        .accessibilityLabel(L("Reorder"))
     }
 }
 

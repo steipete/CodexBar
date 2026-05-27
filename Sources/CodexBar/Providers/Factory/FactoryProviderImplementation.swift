@@ -98,6 +98,6 @@ struct FactoryProviderImplementation: ProviderImplementation {
         else { return }
 
         let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-        entries.append(.text("Extra usage balance: \(balance)", .primary))
+        entries.append(.text(L("Extra usage balance: %@", balance), .primary))
     }
 }
