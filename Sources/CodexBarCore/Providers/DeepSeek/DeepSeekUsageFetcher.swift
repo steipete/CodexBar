@@ -258,10 +258,10 @@ public struct DeepSeekUsageFetcher: Sendable {
                     }
 
                     let result = try await group.next().flatMap(\.self)
-                    group.cancelAll()
                     if result == nil {
                         task.cancel()
                     }
+                    group.cancelAll()
                     return result
                 }
             } catch {
