@@ -57,46 +57,11 @@ struct BedrockAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let credentials: BedrockAWSSigner.Credentials
-        let region: String
-
-        switch BedrockSettingsReader.authMode(environment: context.env) {
-        case .keys:
-            guard let accessKeyID = BedrockSettingsReader.accessKeyID(environment: context.env),
-                  let secretAccessKey = BedrockSettingsReader.secretAccessKey(environment: context.env)
-            else {
-                throw BedrockUsageError.missingCredentials
-            }
-            credentials = BedrockAWSSigner.Credentials(
-                accessKeyID: accessKeyID,
-                secretAccessKey: secretAccessKey,
-                sessionToken: BedrockSettingsReader.sessionToken(environment: context.env))
-            region = BedrockSettingsReader.region(environment: context.env)
-
-        case .profile:
-            guard let profile = BedrockSettingsReader.profile(environment: context.env) else {
-                throw BedrockUsageError.missingCredentials
-            }
-            guard let awsBinary = BinaryLocator.resolveAWSBinary(env: context.env) else {
-                throw BedrockUsageError.awsCLINotFound
-            }
-            let resolver = BedrockProfileCredentialProvider.live(awsBinaryPath: awsBinary)
-            credentials = try await resolver.exportCredentials(profile: profile, environment: context.env)
-            if let explicit = BedrockSettingsReader.cleaned(context.env[BedrockSettingsReader.regionKeys[0]])
-                ?? BedrockSettingsReader.cleaned(context.env[BedrockSettingsReader.regionKeys[1]])
-            {
-                region = explicit
-            } else if let derived = try await resolver.resolveRegion(profile: profile, environment: context.env) {
-                region = derived
-            } else {
-                region = BedrockSettingsReader.defaultRegion
-            }
-        }
-
+        let resolved = try await BedrockCredentialResolver.resolve(environment: context.env)
         let budget = BedrockSettingsReader.budget(environment: context.env)
         let usage = try await BedrockUsageFetcher.fetchUsage(
-            credentials: credentials,
-            region: region,
+            credentials: resolved.credentials,
+            region: resolved.region,
             budget: budget,
             environment: context.env)
         return self.makeResult(
