@@ -112,6 +112,79 @@ struct MenuCardAntigravityTests {
     }
 
     @Test
+    func `antigravity metrics include complete per model quota windows`() throws {
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let resetTime = now.addingTimeInterval(3600)
+        let antigravitySnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "GPT-OSS 120B (Medium)",
+                    modelId: "MODEL_PLACEHOLDER_M55",
+                    remainingFraction: 0.25,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (Low)",
+                    modelId: "MODEL_PLACEHOLDER_M53",
+                    remainingFraction: 0.5,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Claude Opus 4.6 (Thinking)",
+                    modelId: "MODEL_PLACEHOLDER_M50",
+                    remainingFraction: 0.75,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (High)",
+                    modelId: "MODEL_PLACEHOLDER_M52",
+                    remainingFraction: 1,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: "Pro")
+        let snapshot = try antigravitySnapshot.toUsageSnapshot()
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.map(\.title) == [
+            "Claude",
+            "Gemini Pro",
+            "Gemini Flash",
+            "Claude Opus 4.6 (Thinking)",
+            "Gemini 3 Pro (High)",
+            "Gemini 3 Pro (Low)",
+            "GPT-OSS 120B (Medium)",
+        ])
+        #expect(model.metrics.suffix(4).map(\.percentLabel) == [
+            "75% left",
+            "100% left",
+            "50% left",
+            "25% left",
+        ])
+    }
+
+    @Test
     func `antigravity missing families show full usage in used mode`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
