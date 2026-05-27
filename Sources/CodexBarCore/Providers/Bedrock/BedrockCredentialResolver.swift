@@ -40,14 +40,23 @@ enum BedrockCredentialResolver {
             guard let awsBinary = resolveAWSBinary(environment) else {
                 throw BedrockUsageError.awsCLINotFound
             }
+            let cliEnvironment = Self.sanitizedProfileEnvironment(environment)
             let provider = makeProvider(awsBinary)
-            let credentials = try await provider.exportCredentials(profile: profile, environment: environment)
+            let credentials = try await provider.exportCredentials(profile: profile, environment: cliEnvironment)
             let region = try await Self.resolveRegion(
                 provider: provider,
                 profile: profile,
-                environment: environment)
+                environment: cliEnvironment)
             return Resolved(credentials: credentials, region: region)
         }
+    }
+
+    private static func sanitizedProfileEnvironment(_ environment: [String: String]) -> [String: String] {
+        var sanitized = environment
+        sanitized[BedrockSettingsReader.accessKeyIDKey] = nil
+        sanitized[BedrockSettingsReader.secretAccessKeyKey] = nil
+        sanitized[BedrockSettingsReader.sessionTokenKey] = nil
+        return sanitized
     }
 
     private static func resolveRegion(

@@ -2,6 +2,18 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private final class CapturedEnvironment: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [String: String] = [:]
+    func record(_ environment: [String: String]) {
+        self.lock.withLock { self.stored = environment }
+    }
+
+    var value: [String: String] {
+        self.lock.withLock { self.stored }
+    }
+}
+
 @Suite(.serialized)
 struct BedrockCredentialResolverTests {
     private static let credentialsJSON = #"""
@@ -80,6 +92,35 @@ struct BedrockCredentialResolverTests {
                 resolveAWSBinary: { _ in "/usr/bin/aws" },
                 makeProvider: { _ in self.profileProvider() })
         }
+    }
+
+    @Test
+    func `profile mode strips inherited static credentials from the AWS CLI environment`() async throws {
+        let captured = CapturedEnvironment()
+        let env = [
+            BedrockSettingsReader.authModeKey: "profile",
+            BedrockSettingsReader.profileKey: "work",
+            BedrockSettingsReader.accessKeyIDKey: "AKIAINHERITED",
+            BedrockSettingsReader.secretAccessKeyKey: "inherited-secret",
+            BedrockSettingsReader.sessionTokenKey: "inherited-token",
+        ]
+        _ = try await BedrockCredentialResolver.resolve(
+            environment: env,
+            resolveAWSBinary: { _ in "/usr/bin/aws" },
+            makeProvider: { _ in
+                BedrockProfileCredentialProvider(awsBinaryPath: "/usr/bin/aws") { arguments, environment in
+                    captured.record(environment)
+                    if arguments.contains("export-credentials") {
+                        return SubprocessResult(stdout: Self.credentialsJSON, stderr: "")
+                    }
+                    return SubprocessResult(stdout: "us-east-1\n", stderr: "")
+                }
+            })
+        let seen = captured.value
+        #expect(seen[BedrockSettingsReader.accessKeyIDKey] == nil)
+        #expect(seen[BedrockSettingsReader.secretAccessKeyKey] == nil)
+        #expect(seen[BedrockSettingsReader.sessionTokenKey] == nil)
+        #expect(seen[BedrockSettingsReader.profileKey] == "work")
     }
 
     @Test
