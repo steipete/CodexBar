@@ -326,21 +326,6 @@ extension StatusItemController {
             return
         }
 
-        guard MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(attempt: attempt, snapshots: snapshots) else {
-            self.menuLogger.error(
-                "Status item still blocked after display-change recovery retries",
-                metadata: [
-                    "attempt": "\(attempt)",
-                    "snapshots": snapshots.map(\.description).joined(separator: " | "),
-                ])
-            guard #available(macOS 26.0, *),
-                  MenuBarVisibilityWatcher.shouldShowGuidance(defaults: self.settings.userDefaults)
-            else {
-                return
-            }
-            MenuBarVisibilityWatcher.presentGuidance(defaults: self.settings.userDefaults)
-            return
-        }
         self.menuLogger.error(
             "Status item still blocked after display-change recovery; recreating status items again",
             metadata: [
@@ -348,7 +333,8 @@ extension StatusItemController {
                 "snapshots": snapshots.map(\.description).joined(separator: " | "),
             ])
         self.recreateStatusItemsForVisibilityRecovery()
-        self.schedulePostScreenChangeRecoveryVerification(attempt: attempt + 1)
+        // No further retries: a menu bar manager may park the newly recreated item in a state that
+        // still looks blocked, causing repeated NSStatusItem destruction that corrupts Control Center.
     }
 
     private var startupVisibilityStatusItems: [NSStatusItem] {
