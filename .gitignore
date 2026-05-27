@@ -2,7 +2,6 @@
 xcuserdata/
 .swiftpm/xcode/xcshareddata/
 .codexbar/config.json
-.codexbar-local/
 *.env
 *.local
 
