@@ -53,7 +53,6 @@ struct BedrockAPIFetchStrategy: ProviderFetchStrategy {
             BedrockSettingsReader.hasCredentials(environment: context.env)
         case .profile:
             BedrockSettingsReader.profile(environment: context.env) != nil
-                && BinaryLocator.resolveAWSBinary(env: context.env) != nil
         }
     }
 
