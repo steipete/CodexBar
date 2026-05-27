@@ -6,6 +6,9 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
+        if provider == .openai {
+            return self.applyOpenAIOverrides(base: base, config: config)
+        }
         if provider == .bedrock {
             return self.applyBedrockOverrides(base: base, config: config)
         }
@@ -108,6 +111,21 @@ public enum ProviderConfigEnvironment {
         default:
             nil
         }
+    }
+
+    private static func applyOpenAIOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let apiKey = config.sanitizedAPIKey {
+            env[OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey] = apiKey
+        }
+        if let projectID = config.sanitizedWorkspaceID {
+            env[OpenAIAPISettingsReader.projectIDEnvironmentKey] = projectID
+        }
+        return env
     }
 
     private static func applyBedrockOverrides(

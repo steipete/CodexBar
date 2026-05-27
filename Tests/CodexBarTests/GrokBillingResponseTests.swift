@@ -29,6 +29,7 @@ struct GrokBillingResponseTests {
         #expect(response.usage?.totalUsed?.val == 49950)
         #expect(response.monthlyUsedPercent == 50.0)
         #expect(response.billingPeriodEndDate != nil)
+        #expect(response.billingPeriodMinutes == 31 * 24 * 60)
     }
 
     @Test

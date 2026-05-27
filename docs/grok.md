@@ -40,7 +40,7 @@ browser session when the CLI surface does not expose billing.
    - `~/.grok/auth.json` is still used for identity and as a last best-effort
      bearer probe, but the production grok.com billing endpoint currently
      authenticates browser sessions.
-   - Parses the returned protobuf enough to recover monthly used percent and
+   - Parses the returned protobuf enough to recover used percent and
      reset timestamp. This keeps billing visible when `grok agent stdio` returns
      `Method not found`.
 4) **Local session signals** (informational fallback)
@@ -97,11 +97,15 @@ browser session when the CLI surface does not expose billing.
 
 ## Mapping to `UsageSnapshot`
 
-- **Primary window** = monthly credit usage:
+- **Primary window** = credit usage (against the subscription/included limit):
   - CLI RPC: `usedPercent` = `usage.totalUsed.val / monthlyLimit.val * 100`;
     `resetsAt` = `billingCycle.billingPeriodEnd`.
   - grok.com fallback: `usedPercent` and `resetsAt` parsed from the gRPC-web
     billing protobuf.
+  - The UI label for the live usage bar is dynamic: "Weekly" or "Monthly"
+    when `resetsAt` matches a common cycle, falling back to the registered
+    "Credits" label otherwise. Settings and history views continue to use
+    "Credits" as the stable metric name.
 - **Identity**:
   - `accountEmail` from credential `email`.
   - `accountOrganization` from credential `team_id`.

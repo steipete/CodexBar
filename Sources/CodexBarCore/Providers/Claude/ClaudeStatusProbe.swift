@@ -317,6 +317,7 @@ public struct ClaudeStatusProbe: Sendable {
             || normalized.contains("currentweek")
             || normalized.contains("loadingusage")
             || normalized.contains("failedtoloadusagedata")
+            || self.usageCaptureHasSubscriptionNotice(normalized)
     }
 
     private static func extractPercent(labelSubstrings: [String], context: LabelSearchContext) -> Int? {
@@ -453,6 +454,9 @@ public struct ClaudeStatusProbe: Sendable {
         {
             return "Claude CLI usage endpoint is rate limited right now. Please try again later."
         }
+        if self.isSubscriptionNoticeOnly(text: text) {
+            return "Claude CLI /usage returned a subscription notice without session quota data."
+        }
         if lower.contains("failed to load usage data") {
             return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
         }
@@ -466,6 +470,24 @@ public struct ClaudeStatusProbe: Sendable {
         let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
         guard normalized.contains("loadingusage") else { return false }
         return !self.usageCaptureHasSessionValue(normalized) && self.allPercents(text).isEmpty
+    }
+
+    /// Returns true when the text contains only a subscription notice with no session/weekly quota data.
+    /// CLI 2.1+ can return "You are currently using your subscription to power your Claude Code usage"
+    /// which lacks the "Current session" / "Current week" labels and percentage values needed for quota display.
+    /// A PTY capture may contain both an intermediate "Loading usage data…" panel and the final subscription
+    /// notice; `loadingusage` is not treated as quota data in this check so mixed captures surface correctly.
+    private static func isSubscriptionNoticeOnly(text: String) -> Bool {
+        let normalized = text.lowercased().filter { !$0.isWhitespace }
+        guard normalized.contains("currentlyusingyoursubscription") else { return false }
+        guard normalized.contains("claudecodeusage") else { return false }
+        // Only real session/week labels and actual percentage values count as quota data.
+        // `loadingusage` is not quota data — a mixed loading+subscription PTY capture should
+        // surface the subscription error, not a still-loading stall.
+        let hasQuotaData = normalized.contains("currentsession") || normalized.contains("currentweek")
+            || normalized.contains("%used") || normalized.contains("%left") || normalized.contains("%remaining")
+            || normalized.contains("%available")
+        return !hasQuotaData
     }
 
     /// Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
@@ -871,6 +893,7 @@ public struct ClaudeStatusProbe: Sendable {
         let stopWhenNormalized: (@Sendable (String) -> Bool)? = subcommand == "/usage"
             ? { @Sendable normalizedScan in
                 Self.usageCaptureHasSessionValue(normalizedScan)
+                    || Self.usageCaptureHasSubscriptionNotice(normalizedScan)
             }
             : nil
         do {
@@ -901,5 +924,10 @@ public struct ClaudeStatusProbe: Sendable {
         guard let labelRange = normalizedText.range(of: "currentsession") else { return false }
         let tail = normalizedText[labelRange.upperBound...]
         return tail.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%"#, options: .regularExpression) != nil
+    }
+
+    private static func usageCaptureHasSubscriptionNotice(_ normalizedText: String) -> Bool {
+        normalizedText.contains("currentlyusingyoursubscription")
+            && normalizedText.contains("claudecodeusage")
     }
 }

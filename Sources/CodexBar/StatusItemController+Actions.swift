@@ -1,6 +1,14 @@
 import AppKit
 import CodexBarCore
 
+enum LoginNotificationLogic {
+    static func notificationCopy(providerName: String) -> (title: String, body: String) {
+        (
+            L("login_success_notification_title", providerName),
+            L("login_success_notification_body"))
+    }
+}
+
 extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     // MARK: - Actions reachable from menus
 
@@ -528,8 +536,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func postLoginNotification(for provider: UsageProvider) {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        let title = "\(name) login successful"
-        let body = "You can return to the app; authentication finished."
+        let (title, body) = LoginNotificationLogic.notificationCopy(providerName: name)
         AppNotifications.shared.post(idPrefix: "login-\(provider.rawValue)", title: title, body: body)
     }
 

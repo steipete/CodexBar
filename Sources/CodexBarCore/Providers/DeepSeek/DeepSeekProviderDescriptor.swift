@@ -54,7 +54,10 @@ struct DeepSeekAPIFetchStrategy: ProviderFetchStrategy {
         guard let apiKey = Self.resolveToken(environment: context.env) else {
             throw DeepSeekUsageError.missingCredentials
         }
-        let usage = try await DeepSeekUsageFetcher.fetchUsage(apiKey: apiKey)
+        let usage = try await DeepSeekUsageFetcher.fetchUsage(
+            apiKey: apiKey,
+            includeOptionalUsage: context.includeOptionalUsage)
+
         return self.makeResult(
             usage: usage.toUsageSnapshot(),
             sourceLabel: "api")

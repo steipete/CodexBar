@@ -17,9 +17,9 @@ enum UsagePaceText {
     static func weeklySummary(pace: UsagePace, now: Date = .init()) -> String {
         let detail = self.weeklyDetail(pace: pace, now: now)
         if let rightLabel = detail.rightLabel {
-            return "Pace: \(detail.leftLabel) · \(rightLabel)"
+            return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
         }
-        return "Pace: \(detail.leftLabel)"
+        return L("Pace: %@", detail.leftLabel)
     }
 
     static func weeklyDetail(pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
@@ -34,31 +34,34 @@ enum UsagePaceText {
         let deltaValue = Int(abs(pace.deltaPercent).rounded())
         switch pace.stage {
         case .onTrack:
-            return "On pace"
+            return L("On pace")
         case .slightlyAhead, .ahead, .farAhead:
-            return "\(deltaValue)% in deficit"
+            return L("%d%% in deficit", deltaValue)
         case .slightlyBehind, .behind, .farBehind:
-            return "\(deltaValue)% in reserve"
+            return L("%d%% in reserve", deltaValue)
         }
     }
 
     private static func detailRightLabel(for pace: UsagePace, context: DetailContext, now: Date) -> String? {
         let etaLabel: String?
         if pace.willLastToReset {
-            etaLabel = "Lasts until reset"
+            etaLabel = L("Lasts until reset")
         } else if let etaSeconds = pace.etaSeconds {
             let etaText = Self.durationText(seconds: etaSeconds, now: now)
-            let prefix = context == .session ? "Projected empty" : "Runs out"
-            etaLabel = etaText == "now" ? "\(prefix) now" : "\(prefix) in \(etaText)"
+            if context == .session {
+                etaLabel = etaText == "now" ? L("Projected empty now") : L("Projected empty in %@", etaText)
+            } else {
+                etaLabel = etaText == "now" ? L("Runs out now") : L("Runs out in %@", etaText)
+            }
         } else {
             etaLabel = nil
         }
 
         guard let runOutProbability = pace.runOutProbability else { return etaLabel }
         let roundedRisk = self.roundedRiskPercent(runOutProbability)
-        let riskLabel = "≈ \(roundedRisk)% run-out risk"
+        let riskLabel = L("≈ %d%% run-out risk", roundedRisk)
         if let etaLabel {
-            return "\(etaLabel) · \(riskLabel)"
+            return L("%@ · %@", etaLabel, riskLabel)
         }
         return riskLabel
     }
@@ -78,7 +81,8 @@ enum UsagePaceText {
     }
 
     static func sessionPace(provider: UsageProvider, window: RateWindow, now: Date) -> UsagePace? {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || provider == .ollama else { return nil }
+        if provider == .ollama, window.windowMinutes == nil { return nil }
         guard window.remainingPercent > 0 else { return nil }
         guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 300) else { return nil }
         guard pace.expectedUsedPercent >= 3 else { return nil }
@@ -97,8 +101,8 @@ enum UsagePaceText {
     static func sessionSummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
         guard let detail = sessionDetail(provider: provider, window: window, now: now) else { return nil }
         if let rightLabel = detail.rightLabel {
-            return "Pace: \(detail.leftLabel) · \(rightLabel)"
+            return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
         }
-        return "Pace: \(detail.leftLabel)"
+        return L("Pace: %@", detail.leftLabel)
     }
 }

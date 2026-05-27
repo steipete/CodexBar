@@ -5,6 +5,19 @@ import Testing
 
 struct MenuCardQuotaWarningMarkerTests {
     @Test
+    func `quota warning marker geometry is inset and hairline`() {
+        let rect = UsageProgressBar.warningMarkerRect(
+            x: 50,
+            size: CGSize(width: 100, height: 6),
+            scale: 2)
+
+        #expect(rect.width == 1)
+        #expect(rect.height < 6)
+        #expect(rect.minY > 0)
+        #expect(abs(rect.midX - 50) <= 0.5)
+    }
+
+    @Test
     func `omits quota warning markers for disabled windows`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.codex])

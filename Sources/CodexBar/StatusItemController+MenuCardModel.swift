@@ -25,6 +25,10 @@ extension StatusItemController {
         } else {
             snapshotOverride ?? self.store.snapshot(for: target)
         }
+        let projectedTokenSnapshot = self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
+        let storedTokenSnapshot = UsageStore.tokenCostRequiresProviderSnapshot(target)
+            ? nil
+            : self.store.tokenSnapshot(for: target)
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: target,
@@ -44,25 +48,27 @@ extension StatusItemController {
             dashboard = nil
             dashboardError = codexProjection.userFacingErrors.dashboard
             if surface == .liveCard {
-                tokenSnapshot = self.store.tokenSnapshot(for: target)
+                tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
                 tokenError = self.store.tokenError(for: target)
             } else {
-                tokenSnapshot = nil
+                tokenSnapshot = projectedTokenSnapshot
                 tokenError = nil
             }
-        } else if target == .claude || target == .vertexai || target == .bedrock, snapshotOverride == nil {
+        } else if ProviderDescriptorRegistry.descriptor(for: target).tokenCost.supportsTokenCost,
+                  snapshotOverride == nil
+        {
             credits = nil
             creditsError = nil
             dashboard = nil
             dashboardError = nil
-            tokenSnapshot = self.store.tokenSnapshot(for: target)
+            tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
             tokenError = self.store.tokenError(for: target)
         } else {
             credits = nil
             creditsError = nil
             dashboard = nil
             dashboardError = nil
-            tokenSnapshot = nil
+            tokenSnapshot = projectedTokenSnapshot
             tokenError = nil
         }
 

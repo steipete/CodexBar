@@ -34,7 +34,7 @@ struct OverviewMenuCardRowView: View {
             }
             if let storageText {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("Storage:")
+                    Text("\(L("Storage")):")
                         .font(.footnote)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                     Text(storageText)

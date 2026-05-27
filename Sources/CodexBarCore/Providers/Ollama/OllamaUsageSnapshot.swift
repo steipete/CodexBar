@@ -7,6 +7,7 @@ public struct OllamaUsageSnapshot: Sendable {
     public let weeklyUsedPercent: Double?
     public let sessionResetsAt: Date?
     public let weeklyResetsAt: Date?
+    public let sessionWindowMinutes: Int?
     public let updatedAt: Date
 
     public init(
@@ -16,6 +17,7 @@ public struct OllamaUsageSnapshot: Sendable {
         weeklyUsedPercent: Double?,
         sessionResetsAt: Date?,
         weeklyResetsAt: Date?,
+        sessionWindowMinutes: Int? = nil,
         updatedAt: Date)
     {
         self.planName = planName
@@ -24,16 +26,17 @@ public struct OllamaUsageSnapshot: Sendable {
         self.weeklyUsedPercent = weeklyUsedPercent
         self.sessionResetsAt = sessionResetsAt
         self.weeklyResetsAt = weeklyResetsAt
+        self.sessionWindowMinutes = sessionWindowMinutes
         self.updatedAt = updatedAt
     }
 }
 
 extension OllamaUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
-        let sessionWindow = self.makeWindow(
+        let sessionWindow = self.makeSessionWindow(
             usedPercent: self.sessionUsedPercent,
             resetsAt: self.sessionResetsAt)
-        let weeklyWindow = self.makeWindow(
+        let weeklyWindow = self.makeWeeklyWindow(
             usedPercent: self.weeklyUsedPercent,
             resetsAt: self.weeklyResetsAt)
 
@@ -54,12 +57,22 @@ extension OllamaUsageSnapshot {
             identity: identity)
     }
 
-    private func makeWindow(usedPercent: Double?, resetsAt: Date?) -> RateWindow? {
+    private func makeSessionWindow(usedPercent: Double?, resetsAt: Date?) -> RateWindow? {
         guard let usedPercent else { return nil }
         let clamped = min(100, max(0, usedPercent))
         return RateWindow(
             usedPercent: clamped,
-            windowMinutes: nil,
+            windowMinutes: self.sessionWindowMinutes,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+    }
+
+    private func makeWeeklyWindow(usedPercent: Double?, resetsAt: Date?) -> RateWindow? {
+        guard let usedPercent else { return nil }
+        let clamped = min(100, max(0, usedPercent))
+        return RateWindow(
+            usedPercent: clamped,
+            windowMinutes: 7 * 24 * 60,
             resetsAt: resetsAt,
             resetDescription: nil)
     }

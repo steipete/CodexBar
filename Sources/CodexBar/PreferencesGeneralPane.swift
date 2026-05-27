@@ -8,6 +8,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case spanish = "es"
     case catalan = "ca"
     case chineseSimplified = "zh-Hans"
+    case chineseTraditional = "zh-Hant"
     case portugueseBrazilian = "pt-BR"
 
     var id: String {
@@ -21,6 +22,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .spanish: L("language_spanish")
         case .catalan: L("language_catalan")
         case .chineseSimplified: L("language_chinese_simplified")
+        case .chineseTraditional: L("language_chinese_traditional")
         case .portugueseBrazilian: L("language_portuguese_brazilian")
         }
     }
@@ -202,8 +204,9 @@ struct GeneralPane: View {
         }
         if let snapshot = self.store.tokenSnapshot(for: provider) {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
-            let cost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-            let window = snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d"
+            let cost = snapshot.last30DaysCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+            let window = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d")
             return Text(String(format: L("cost_status_snapshot"), name, updated, window, cost))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)

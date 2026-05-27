@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 47 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 48 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -31,6 +31,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | OpenCode | Web dashboard via cookies (`web`). |
 | OpenCode Go | Web dashboard via cookies (`web`); optional workspace ID. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
+| Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
 | Manus | Browser `session_id` cookie (auto/manual/env) → credits API (`web`). |
@@ -178,6 +179,14 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Host overrides: `ALIBABA_CODING_PLAN_HOST` or `ALIBABA_CODING_PLAN_QUOTA_URL`.
 - Status: `https://status.aliyun.com` (link only, no auto-polling).
 - Details: `docs/alibaba-coding-plan.md`.
+
+## Alibaba Token Plan
+- Web mode posts to the Bailian `GetSubscriptionSummary` endpoint with form-encoded params and optional `sec_token`.
+- Cookie sources: browser import (`auto`), manual Cookie header, or `ALIBABA_TOKEN_PLAN_COOKIE`.
+- Default quota URL: `https://bailian.console.aliyun.com/data/api.json?action=GetSubscriptionSummary&product=BssOpenAPI-V3`.
+- Host overrides: `ALIBABA_TOKEN_PLAN_HOST` or `ALIBABA_TOKEN_PLAN_QUOTA_URL`.
+- Status: `https://status.aliyun.com` (link only, no auto-polling).
+- Details: `docs/alibaba-token-plan.md`.
 
 ## Droid (Factory)
 - Web API via Factory cookies, bearer tokens, and WorkOS refresh tokens.

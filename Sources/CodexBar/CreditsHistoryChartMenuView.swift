@@ -302,7 +302,7 @@ struct CreditsHistoryChartMenuView: View {
               let day = model.breakdownByDayKey[key],
               let date = Self.dateFromDayKey(key)
         else {
-            return ("Hover a bar for details", nil)
+            return (L("Hover a bar for details"), nil)
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())

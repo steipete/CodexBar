@@ -36,7 +36,8 @@ extension UsageStore {
     private func makeWidgetEntry(for provider: UsageProvider) -> WidgetSnapshot.ProviderEntry? {
         guard let snapshot = self.snapshots[provider] else { return nil }
 
-        let tokenSnapshot = self.tokenSnapshots[provider]
+        let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) ?? self
+            .tokenSnapshots[provider]
         let dailyUsage = tokenSnapshot?.daily.map { entry in
             WidgetSnapshot.DailyUsagePoint(
                 dayKey: entry.date,
@@ -44,7 +45,7 @@ extension UsageStore {
                 costUSD: entry.costUSD)
         } ?? []
 
-        let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot)
+        let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
         let usageRows = self.widgetUsageRows(provider: provider, snapshot: snapshot)
 
         let creditsRemaining: Double?
@@ -76,16 +77,22 @@ extension UsageStore {
     }
 
     private nonisolated static func widgetTokenUsageSummary(
-        from snapshot: CostUsageTokenSnapshot?) -> WidgetSnapshot.TokenUsageSummary?
+        from snapshot: CostUsageTokenSnapshot?,
+        provider: UsageProvider) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
+        let sessionLabel = provider == .bedrock || provider == .mistral ? "Latest billing day" : "Today"
+        let monthLabel = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "Today" : "\(snapshot.historyDays)d")
         return WidgetSnapshot.TokenUsageSummary(
             sessionCostUSD: snapshot.sessionCostUSD,
             sessionTokens: snapshot.sessionTokens,
             last30DaysCostUSD: snapshot.last30DaysCostUSD,
-            last30DaysTokens: monthTokensValue)
+            last30DaysTokens: monthTokensValue,
+            currencyCode: snapshot.currencyCode,
+            sessionLabel: sessionLabel,
+            last30DaysLabel: monthLabel)
     }
 
     private func widgetUsageRows(
@@ -113,16 +120,31 @@ extension UsageStore {
             }
         }
 
-        let rows: [WidgetSnapshot.WidgetUsageRowSnapshot] = [
+        let primaryTitle: String = {
+            if provider == .grok,
+               let dyn = GrokProviderDescriptor.primaryLabel(window: snapshot.primary)
+            {
+                return dyn
+            }
+            return metadata?.sessionLabel ?? "Session"
+        }()
+
+        var rows: [WidgetSnapshot.WidgetUsageRowSnapshot] = [
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: "primary",
-                title: metadata?.sessionLabel ?? "Session",
+                title: primaryTitle,
                 percentLeft: snapshot.primary?.remainingPercent),
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: "secondary",
                 title: metadata?.weeklyLabel ?? "Weekly",
                 percentLeft: snapshot.secondary?.remainingPercent),
         ]
+        if metadata?.supportsOpus == true {
+            rows.append(WidgetSnapshot.WidgetUsageRowSnapshot(
+                id: "tertiary",
+                title: metadata?.opusLabel ?? "Opus",
+                percentLeft: snapshot.tertiary?.remainingPercent))
+        }
         return rows.filter { $0.percentLeft != nil }
     }
 }

@@ -81,11 +81,25 @@ struct ConfigValidationTests {
     }
 
     @Test
+    func `allows OpenAI API project workspace ID`() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .openai, workspaceID: "proj_abc"))
+        let issues = CodexBarConfigValidator.validate(config)
+
+        #expect(!issues.contains(where: { $0.provider == .openai && $0.code == "workspace_unused" }))
+    }
+
+    @Test
     func `warns on unsupported workspace ID`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .gemini, workspaceID: "workspace-123"))
         let issues = CodexBarConfigValidator.validate(config)
         #expect(issues.contains(where: { $0.provider == .gemini && $0.code == "workspace_unused" }))
+        #expect(issues.contains(where: { issue in
+            issue.provider == .gemini &&
+                issue.code == "workspace_unused" &&
+                issue.message.contains("openai")
+        }))
     }
 
     @Test

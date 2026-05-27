@@ -79,7 +79,7 @@ final class ProviderSwitcherView: NSView {
                 Segment(
                     selection: .overview,
                     image: overviewIcon,
-                    title: "Overview"),
+                    title: L("Overview")),
                 at: 0)
         }
         self.segments = segments
@@ -309,6 +309,12 @@ final class ProviderSwitcherView: NSView {
             return
         }
         self.applySelection(at: pressedTag)
+    }
+
+    func handleKeyboardSelection(at index: Int) -> Bool {
+        guard self.segments.indices.contains(index) else { return false }
+        self.applySelection(at: index)
+        return true
     }
 
     private func applySelection(at index: Int) {

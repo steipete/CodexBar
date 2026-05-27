@@ -353,6 +353,44 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `widget snapshot projects provider derived token usage`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-widget-provider-cost")
+        let store = Self.makeUsageStore(settings: settings)
+        let day = MistralDailyUsageBucket(
+            day: "2026-05-26",
+            cost: 1.2,
+            inputTokens: 10,
+            cachedTokens: 0,
+            outputTokens: 5,
+            models: [])
+        store._setSnapshotForTesting(MistralUsageSnapshot(
+            totalCost: 9,
+            currency: "eur",
+            currencySymbol: "€",
+            totalInputTokens: 10,
+            totalOutputTokens: 5,
+            totalCachedTokens: 0,
+            modelCount: 1,
+            daily: [day],
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date()).toUsageSnapshot(), provider: .mistral)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "provider-cost")
+        await store.widgetSnapshotPersistTask?.value
+
+        let mistralEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .mistral })
+        #expect(mistralEntry.tokenUsage?.currencyCode == "EUR")
+        #expect(mistralEntry.tokenUsage?.sessionLabel == "Latest billing day")
+        #expect(mistralEntry.tokenUsage?.last30DaysLabel == "This month")
+        #expect(mistralEntry.tokenUsage?.last30DaysCostUSD == 9)
+    }
+
+    @Test
     func `unavailable provider with only cached status gets single cleanup pass`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-background-status-cleanup")
         settings.refreshFrequency = .manual
@@ -388,7 +426,9 @@ struct UsageStoreCoverageTests {
     func `status indicators and failure gate`() {
         #expect(!ProviderStatusIndicator.none.hasIssue)
         #expect(ProviderStatusIndicator.maintenance.hasIssue)
-        #expect(ProviderStatusIndicator.unknown.label == "Status unknown")
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(ProviderStatusIndicator.unknown.label == "Status unknown")
+        }
 
         var gate = ConsecutiveFailureGate()
         let first = gate.shouldSurfaceError(onFailureWithPriorData: true)
