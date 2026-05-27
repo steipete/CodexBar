@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.29.2 — Unreleased
+## 0.30.0 — 2026-05-27
 
 ### Added
 - MiniMax: add a redacted diagnostic CLI export for safe issue reports (#1128). Thanks @Yuxin-Qiao!
