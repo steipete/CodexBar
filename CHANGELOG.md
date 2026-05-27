@@ -8,6 +8,7 @@
 
 ### Fixed
 - Codex: show sign-in guidance when the Codex CLI is logged out instead of reporting a temporary usage outage (#1171, fixes #1170). Thanks @jskoiz!
+- Menu bar: stop repeated display-change status-item recreation from corrupting Control Center or confusing menu bar managers (#1176, fixes #1175). Thanks @diazdesandi!
 - Menu bar: clear stale hidden macOS status-item visibility defaults once before creating CodexBar items (#1169).
 - StepFun: refresh expired Oasis tokens and persist recovered manual sessions. Thanks @LeoLin990405!
 - Release: prevent manual CLI artifact builds from publishing or clobbering release assets (#1154). Thanks @jskoiz!

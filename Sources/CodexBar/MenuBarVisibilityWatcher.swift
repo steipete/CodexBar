@@ -47,7 +47,6 @@ enum MenuBarVisibilityWatcher {
     static let startupCheckDelay: TimeInterval = 2
     static let screenChangeCheckDelay: Duration = .milliseconds(750)
     static let screenChangeFollowUpDelay: Duration = .seconds(2)
-    static let screenChangeRecoveryRetryLimit = 3
     static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.MenuBarSettings")!
 
     @MainActor
@@ -145,14 +144,6 @@ enum MenuBarVisibilityWatcher {
 
     static func shouldAttemptScreenChangeRecovery(snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
         self.hasAnyBlockedVisibleSnapshot(snapshots)
-    }
-
-    static func shouldRetryScreenChangeRecovery(
-        attempt: Int,
-        snapshots: [StatusItemVisibilitySnapshot])
-        -> Bool
-    {
-        attempt < self.screenChangeRecoveryRetryLimit && self.hasAnyBlockedVisibleSnapshot(snapshots)
     }
 
     static func shouldShowGuidance(defaults: UserDefaults, now: Date = Date()) -> Bool {
