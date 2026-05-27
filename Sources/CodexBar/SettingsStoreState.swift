@@ -48,6 +48,8 @@ struct SettingsDefaultsState {
     var mergedMenuLastSelectedWasOverview: Bool
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
+    var onboardingCompleted: Bool
+    var notificationPermissionPromptHandled: Bool
     var providerDetectionCompleted: Bool
     var appLanguageRaw: String?
 }

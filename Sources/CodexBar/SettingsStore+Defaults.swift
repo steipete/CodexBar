@@ -486,6 +486,22 @@ extension SettingsStore {
         }
     }
 
+    var onboardingCompleted: Bool {
+        get { self.defaultsState.onboardingCompleted }
+        set {
+            self.defaultsState.onboardingCompleted = newValue
+            self.userDefaults.set(newValue, forKey: "onboardingCompleted")
+        }
+    }
+
+    var notificationPermissionPromptHandled: Bool {
+        get { self.defaultsState.notificationPermissionPromptHandled }
+        set {
+            self.defaultsState.notificationPermissionPromptHandled = newValue
+            self.userDefaults.set(newValue, forKey: "notificationPermissionPromptHandled")
+        }
+    }
+
     var mergedOverviewSelectedProviders: [UsageProvider] {
         get {
             Self.decodeProviders(

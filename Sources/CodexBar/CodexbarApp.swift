@@ -357,6 +357,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var preferencesSelection: PreferencesSelection?
     private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
     private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
+    private var onboardingWindowController: OnboardingWindowController?
     private var hasInstalledWeeklyLimitResetObserver = false
     var terminateActiveProcessesForAppShutdown: () -> Void = {
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
@@ -376,8 +377,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        AppNotifications.shared.requestAuthorizationOnStartup()
         self.ensureStatusController()
+        self.showOnboardingIfNeeded()
+        self.requestStartupNotificationsIfNeeded()
         KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
             Task { @MainActor [weak self] in
                 self?.statusController?.openMenuFromShortcut()
@@ -497,7 +499,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fallbackCodexAccountPromotionCoordinator)
     }
 
+    private func showOnboardingIfNeeded() {
+        guard let settings, let store, !settings.onboardingCompleted else { return }
+        if self.onboardingWindowController == nil {
+            self.onboardingWindowController = OnboardingWindowController(
+                settings: settings,
+                store: store,
+                requestNotifications: {
+                    await AppNotifications.shared.requestAuthorizationFromOnboarding()
+                },
+                onFinish: { [weak self] in
+                    Task { @MainActor [weak self] in
+                        self?.onboardingWindowController = nil
+                        self?.statusController?.refreshNow()
+                        try? await Task.sleep(nanoseconds: 180_000_000)
+                        self?.statusController?.openMenuFromShortcut()
+                    }
+                },
+                onCancel: { [weak self] in
+                    self?.completeOnboardingWithAutomaticProviderSelection()
+                })
+        }
+        self.onboardingWindowController?.show()
+    }
+
+    private func completeOnboardingWithAutomaticProviderSelection() {
+        guard let settings else { return }
+        settings.notificationPermissionPromptHandled = true
+        Task { @MainActor [weak self] in
+            let result = await self?.detectProviderAccessesForSkippedOnboarding(settings: settings) ??
+                Self.codexFallbackProviderAccessDetectionResult()
+            settings.completeOnboarding(
+                detectionResult: result,
+                selectedProviders: Set(result.suggestedProviders))
+            self?.store?.startBackgroundWorkAfterOnboarding()
+            self?.onboardingWindowController = nil
+            self?.statusController?.refreshNow()
+        }
+    }
+
+    private func requestStartupNotificationsIfNeeded() {
+        guard let settings, settings.onboardingCompleted else { return }
+        guard !settings.notificationPermissionPromptHandled else { return }
+        settings.notificationPermissionPromptHandled = true
+        AppNotifications.shared.requestAuthorizationOnStartup()
+    }
+
+    private func detectProviderAccessesForSkippedOnboarding(settings: SettingsStore) async
+    -> ProviderAccessDetectionResult {
+        await withCheckedContinuation { continuation in
+            let gate = OnboardingDetectionContinuationGate()
+
+            Task { @MainActor in
+                let result = await settings.detectProviderAccesses()
+                gate.resumeIfNeeded(continuation, with: result)
+            }
+
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                gate.resumeIfNeeded(continuation, with: Self.codexFallbackProviderAccessDetectionResult())
+            }
+        }
+    }
+
+    private static func codexFallbackProviderAccessDetectionResult() -> ProviderAccessDetectionResult {
+        ProviderAccessDetectionResult(accesses: [
+            ProviderAccessDetection(
+                provider: .codex,
+                state: .fallback,
+                detail: L("onboarding_provider_codex_starter_detail")),
+        ])
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+private final class OnboardingDetectionContinuationGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+
+    func resumeIfNeeded(
+        _ continuation: CheckedContinuation<ProviderAccessDetectionResult, Never>,
+        with result: ProviderAccessDetectionResult)
+    {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        guard !self.didResume else { return }
+        self.didResume = true
+        continuation.resume(returning: result)
     }
 }

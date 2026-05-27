@@ -65,6 +65,7 @@ extension SettingsStore {
         _ = self.switcherShowsIcons
         _ = self.mergedMenuLastSelectedWasOverview
         _ = self.mergedOverviewSelectedProviders
+        _ = self.onboardingCompleted
         _ = self.zaiAPIToken
         _ = self.syntheticAPIToken
         _ = self.codexCookieHeader

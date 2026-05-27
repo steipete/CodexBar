@@ -9,11 +9,14 @@ import QuartzCore
 protocol StatusItemControlling: AnyObject {
     func openMenuFromShortcut()
     func runLoginFlowFromSettings(provider: UsageProvider) async
+    func refreshNow()
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
     func prepareForAppShutdown()
 }
 
 extension StatusItemControlling {
+    func refreshNow() {}
+
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
         nil
     }

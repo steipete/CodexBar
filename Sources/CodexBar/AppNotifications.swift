@@ -19,6 +19,12 @@ final class AppNotifications {
         _ = self.ensureAuthorizationTask()
     }
 
+    func requestAuthorizationFromOnboarding() async -> Bool {
+        guard !Self.isRunningUnderTests else { return true }
+        self.authorizationTask = nil
+        return await self.requestAuthorization()
+    }
+
     func post(
         idPrefix: String,
         title: String,

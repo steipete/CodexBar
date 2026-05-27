@@ -200,6 +200,16 @@ final class SettingsStore {
         }
         let hasStoredOpenAIWebAccessPreference = userDefaults.object(forKey: "openAIWebAccessEnabled") != nil
         let hadExistingConfig = (try? configStore.load()) != nil
+        if userDefaults.object(forKey: "onboardingCompleted") == nil,
+           hadExistingConfig || userDefaults.object(forKey: "providerDetectionCompleted") != nil
+        {
+            userDefaults.set(true, forKey: "onboardingCompleted")
+        }
+        if userDefaults.object(forKey: "notificationPermissionPromptHandled") == nil,
+           hadExistingConfig || userDefaults.object(forKey: "providerDetectionCompleted") != nil
+        {
+            userDefaults.set(false, forKey: "notificationPermissionPromptHandled")
+        }
         let legacyStores = CodexBarConfigMigrator.LegacyStores(
             zaiTokenStore: zaiTokenStore,
             syntheticTokenStore: syntheticTokenStore,
@@ -378,9 +388,7 @@ extension SettingsStore {
             forKey: "mergedMenuLastSelectedWasOverview") as? Bool ?? false
         let mergedOverviewSelectedProvidersRaw = userDefaults.array(
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
-        let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
-        let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
-        let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
+        let startupDefaults = Self.loadStartupDefaults(userDefaults: userDefaults)
 
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -429,9 +437,11 @@ extension SettingsStore {
             switcherShowsIcons: switcherShowsIcons,
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
-            selectedMenuProviderRaw: selectedMenuProviderRaw,
-            providerDetectionCompleted: providerDetectionCompleted,
-            appLanguageRaw: appLanguageRaw)
+            selectedMenuProviderRaw: startupDefaults.selectedMenuProviderRaw,
+            onboardingCompleted: startupDefaults.onboardingCompleted,
+            notificationPermissionPromptHandled: startupDefaults.notificationPermissionPromptHandled,
+            providerDetectionCompleted: startupDefaults.providerDetectionCompleted,
+            appLanguageRaw: startupDefaults.appLanguageRaw)
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {
@@ -443,6 +453,24 @@ extension SettingsStore {
               let legacyPreference = MenuBarMetricPreference(rawValue: menuBarMetricRaw)
         else { return [:] }
         return Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0.rawValue, legacyPreference.rawValue) })
+    }
+
+    private struct LoadedStartupDefaults {
+        var selectedMenuProviderRaw: String?
+        var onboardingCompleted: Bool
+        var notificationPermissionPromptHandled: Bool
+        var providerDetectionCompleted: Bool
+        var appLanguageRaw: String?
+    }
+
+    private static func loadStartupDefaults(userDefaults: UserDefaults) -> LoadedStartupDefaults {
+        LoadedStartupDefaults(
+            selectedMenuProviderRaw: userDefaults.string(forKey: "selectedMenuProvider"),
+            onboardingCompleted: userDefaults.object(forKey: "onboardingCompleted") as? Bool ?? false,
+            notificationPermissionPromptHandled: userDefaults.object(
+                forKey: "notificationPermissionPromptHandled") as? Bool ?? false,
+            providerDetectionCompleted: userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false,
+            appLanguageRaw: userDefaults.string(forKey: "appLanguage"))
     }
 
     private struct LoadedQuotaWarningDefaults {

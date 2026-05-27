@@ -75,17 +75,14 @@ extension UsageStore {
             _ = self.settings.debugKeepCLISessionsAlive
             _ = self.settings.historicalTrackingEnabled
             _ = self.settings.providerStorageFootprintsEnabled
+            _ = self.settings.onboardingCompleted
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
                 self.invalidateProviderAvailabilityCache()
                 self.probeLogs = [:]
-                guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
-                self.startTimer()
-                self.updateProviderRuntimes()
-                await self.refreshHistoricalDatasetIfNeeded()
-                await self.refresh()
+                self.startBackgroundWorkIfNeeded()
             }
         }
     }
@@ -248,6 +245,7 @@ final class UsageStore {
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored var weeklyLimitResetDetectorStates: [String: WeeklyLimitResetDetectorState] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
+    @ObservationIgnored private var hasStartedBackgroundWork: Bool = false
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
@@ -315,26 +313,10 @@ final class UsageStore {
             geminiBinary: nil,
             effectivePATH: PathBuilder.effectivePATH(purposes: [.rpc, .tty, .nodeTooling]),
             loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
-        guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
-        self.detectVersions()
-        self.updateProviderRuntimes()
-        Task { @MainActor [weak self] in
-            self?.schedulePathDebugInfoRefresh()
-        }
-        LoginShellPathCache.shared.captureOnce { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.schedulePathDebugInfoRefresh()
-            }
-        }
-        Task { @MainActor [weak self] in
-            await self?.refreshHistoricalDatasetIfNeeded()
-        }
-        Task { await self.refresh() }
-        self.startTimer()
-        self.startTokenTimer()
+        self.startBackgroundWorkIfNeeded()
     }
 
-    private static func isRunningTestsProcess() -> Bool {
+    static func isRunningTestsProcess() -> Bool {
         let environment = ProcessInfo.processInfo.environment
         if environment["XCTestConfigurationFilePath"] != nil { return true }
         if environment["XCTestSessionIdentifier"] != nil { return true }
@@ -629,6 +611,34 @@ final class UsageStore {
     }
 
     // MARK: - Private
+
+    func startBackgroundWorkAfterOnboarding() {
+        self.startBackgroundWorkIfNeeded()
+    }
+
+    private func startBackgroundWorkIfNeeded() {
+        guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+        guard self.settings.onboardingCompleted else { return }
+        if !self.hasStartedBackgroundWork {
+            self.hasStartedBackgroundWork = true
+            self.detectVersions()
+            Task { @MainActor [weak self] in
+                self?.schedulePathDebugInfoRefresh()
+            }
+            LoginShellPathCache.shared.captureOnce { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.schedulePathDebugInfoRefresh()
+                }
+            }
+            self.startTokenTimer()
+        }
+        self.startTimer()
+        self.updateProviderRuntimes()
+        Task { @MainActor [weak self] in
+            await self?.refreshHistoricalDatasetIfNeeded()
+        }
+        Task { await self.refresh() }
+    }
 
     private func bindSettings() {
         self.observeSettingsChanges()

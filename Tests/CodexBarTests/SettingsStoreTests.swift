@@ -25,6 +25,13 @@ struct SettingsStoreTests {
         }
     }
 
+    private static let noLocalProviderAccess = ProviderAccessLocalSnapshot(
+        codexInstalled: false,
+        claudeInstalled: false,
+        geminiInstalled: false,
+        antigravityRunning: false,
+        antigravityLoggedIn: false)
+
     @Test
     func `default refresh frequency is five minutes`() throws {
         let suite = "SettingsStoreTests-default"
@@ -185,6 +192,207 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         #expect(storeB.selectedMenuProvider == .claude)
+    }
+
+    @Test
+    func `onboarding provider suggestions prefer detected access over starter fallback`() {
+        let result = ProviderAccessDetectionResult(accesses: [
+            ProviderAccessDetection(
+                provider: .codex,
+                state: .fallback,
+                detail: "No supported CLI access found."),
+            ProviderAccessDetection(
+                provider: .claude,
+                state: .detected,
+                detail: "Claude CLI found."),
+            ProviderAccessDetection(
+                provider: .gemini,
+                state: .notFound,
+                detail: "Gemini CLI was not found."),
+        ])
+
+        #expect(result.selectableProviders == [.codex, .claude])
+        #expect(result.suggestedProviders == [.claude])
+    }
+
+    @Test
+    func `onboarding provider suggestions keep codex starter when nothing is detected`() {
+        let result = ProviderAccessDetectionResult(accesses: [
+            ProviderAccessDetection(
+                provider: .codex,
+                state: .fallback,
+                detail: "No supported CLI access found."),
+            ProviderAccessDetection(
+                provider: .claude,
+                state: .notFound,
+                detail: "Claude CLI was not found."),
+        ])
+
+        #expect(result.selectableProviders == [.codex])
+        #expect(result.suggestedProviders == [.codex])
+    }
+
+    @Test
+    func `onboarding detection includes saved provider credentials`() async throws {
+        let suite = "SettingsStoreTests-onboarding-config-credentials"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(providers: [
+            ProviderConfig(id: .elevenlabs, enabled: false, apiKey: "sk-elevenlabs-test"),
+            ProviderConfig(id: .openai, enabled: false, apiKey: "sk-openai-test"),
+        ]))
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        let result = await store.detectProviderAccesses(localSnapshot: Self.noLocalProviderAccess)
+        let elevenLabsAccess = try #require(result.accesses.first { $0.provider == .elevenlabs })
+        let openAIAccess = try #require(result.accesses.first { $0.provider == .openai })
+
+        #expect(elevenLabsAccess.state == .detected)
+        #expect(elevenLabsAccess.detail == L("onboarding_provider_config_api_key_found"))
+        #expect(openAIAccess.state == .detected)
+        #expect(result.suggestedProviders.contains(.elevenlabs))
+        #expect(result.suggestedProviders.contains(.openai))
+    }
+
+    @Test
+    func `startup provider detection stays conservative with saved credentials`() async throws {
+        let suite = "SettingsStoreTests-startup-detection-conservative"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(providers: [
+            ProviderConfig(id: .elevenlabs, enabled: false, apiKey: "sk-elevenlabs-test"),
+        ]))
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        store.providerDetectionCompleted = false
+
+        await store.applyProviderDetection(localSnapshot: Self.noLocalProviderAccess)
+
+        let metadata = try #require(ProviderDescriptorRegistry.metadata[.elevenlabs])
+        #expect(!store.isProviderEnabled(provider: .elevenlabs, metadata: metadata))
+    }
+
+    @Test
+    func `complete onboarding enables only selected detected providers`() throws {
+        let suite = "SettingsStoreTests-onboarding-provider-selection"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        store.providerDetectionCompleted = false
+        store.onboardingCompleted = false
+
+        let result = ProviderAccessDetectionResult(accesses: [
+            ProviderAccessDetection(provider: .codex, state: .detected, detail: "Codex CLI found."),
+            ProviderAccessDetection(provider: .claude, state: .detected, detail: "Claude CLI found."),
+            ProviderAccessDetection(provider: .gemini, state: .detected, detail: "Gemini CLI found."),
+            ProviderAccessDetection(
+                provider: .antigravity,
+                state: .notFound,
+                detail: "Antigravity auth was not found."),
+        ])
+
+        store.completeOnboarding(detectionResult: result, selectedProviders: [.codex, .gemini, .antigravity])
+
+        let metadata = ProviderDescriptorRegistry.metadata
+        let codexMetadata = try #require(metadata[.codex])
+        let claudeMetadata = try #require(metadata[.claude])
+        let geminiMetadata = try #require(metadata[.gemini])
+        let antigravityMetadata = try #require(metadata[.antigravity])
+        #expect(store.onboardingCompleted)
+        #expect(store.providerDetectionCompleted)
+        #expect(store.isProviderEnabled(provider: .codex, metadata: codexMetadata))
+        #expect(!store.isProviderEnabled(provider: .claude, metadata: claudeMetadata))
+        #expect(store.isProviderEnabled(provider: .gemini, metadata: geminiMetadata))
+        #expect(!store.isProviderEnabled(provider: .antigravity, metadata: antigravityMetadata))
+    }
+
+    @Test
+    func `complete onboarding disables unavailable default-enabled codex when another provider is selected`() throws {
+        let suite = "SettingsStoreTests-onboarding-unavailable-codex"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "providerDetectionCompleted")
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        store.providerDetectionCompleted = false
+        store.onboardingCompleted = false
+
+        let result = ProviderAccessDetectionResult(accesses: [
+            ProviderAccessDetection(provider: .codex, state: .notFound, detail: "Codex CLI was not found."),
+            ProviderAccessDetection(provider: .claude, state: .detected, detail: "Claude CLI found."),
+        ])
+
+        store.completeOnboarding(detectionResult: result, selectedProviders: [.claude])
+
+        let metadata = ProviderDescriptorRegistry.metadata
+        let codexMetadata = try #require(metadata[.codex])
+        let claudeMetadata = try #require(metadata[.claude])
+        #expect(!store.isProviderEnabled(provider: .codex, metadata: codexMetadata))
+        #expect(store.isProviderEnabled(provider: .claude, metadata: claudeMetadata))
+
+        let reloadedDefaults = try #require(UserDefaults(suiteName: suite))
+        let reloaded = SettingsStore(
+            userDefaults: reloadedDefaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(!reloaded.isProviderEnabled(provider: .codex, metadata: codexMetadata))
+        #expect(reloaded.isProviderEnabled(provider: .claude, metadata: claudeMetadata))
+    }
+
+    @Test
+    func `onboarding menu bar preview keeps selected provider first`() {
+        let preview = OnboardingMenuBarLivePreview(
+            preferences: .defaults,
+            providers: [.claude])
+
+        #expect(preview.previewProvidersForTesting.prefix(3) == [.claude, .openai, .cursor])
+        #expect(preview.activeProviderForTesting == .claude)
+    }
+
+    @Test
+    func `notification onboarding choice persists across instances`() throws {
+        let suite = "SettingsStoreTests-notification-onboarding-choice"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        defaultsA.set(true, forKey: "providerDetectionCompleted")
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(!storeA.notificationPermissionPromptHandled)
+        storeA.notificationPermissionPromptHandled = true
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.notificationPermissionPromptHandled)
     }
 
     @Test

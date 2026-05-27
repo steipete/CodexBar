@@ -16,19 +16,46 @@ enum ProviderBrandIcon {
         return Bundle.main
     }()
 
+    @MainActor
+    static func appIconImage() -> NSImage? {
+        if let image = NSApplication.shared.applicationIconImage {
+            return image
+        }
+        if let image = self.resourceImage(named: "Icon-classic", fileExtension: "icns") {
+            return image
+        }
+        return NSImage(named: NSImage.applicationIconName)
+    }
+
     static func image(for provider: UsageProvider) -> NSImage? {
         let baseName = ProviderDescriptorRegistry.descriptor(for: provider).branding.iconResourceName
-        guard let bundle = self.resourceBundle else {
-            return nil
-        }
-        guard let url = bundle.url(forResource: baseName, withExtension: "svg"),
-              let image = NSImage(contentsOf: url)
-        else {
-            return nil
-        }
+        return self.resourceImage(
+            named: baseName,
+            fileExtension: "svg",
+            size: self.size,
+            isTemplate: true)
+    }
 
-        image.size = self.size
-        image.isTemplate = true
+    private static func resourceImage(
+        named name: String,
+        fileExtension: String,
+        subdirectory: String? = nil,
+        size: NSSize? = nil,
+        isTemplate: Bool = false)
+        -> NSImage?
+    {
+        guard let bundle = self.resourceBundle,
+              let url = bundle.url(
+                  forResource: name,
+                  withExtension: fileExtension,
+                  subdirectory: subdirectory),
+              let image = NSImage(contentsOf: url)
+        else { return nil }
+
+        if let size {
+            image.size = size
+        }
+        image.isTemplate = isTemplate
         return image
     }
 }

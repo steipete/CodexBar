@@ -17,6 +17,7 @@ struct AppDelegateTests {
             configStore: testConfigStore(suiteName: "AppDelegateTests"),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.onboardingCompleted = true
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let account = fetcher.loadAccountInfo()
