@@ -1464,7 +1464,7 @@ extension StatusItemController {
         guard let submenu = self.makeCostHistorySubmenu(provider: provider, width: self.renderedMenuWidth(for: menu))
         else { return false }
         let days = self.store.settings.costUsageHistoryDays
-        let title = days == 1 ? "Usage history (today)" : "Usage history (\(days) days)"
+        let title = days == 1 ? L("Usage history (today)") : String(format: L("Usage history (%d days)"), days)
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.submenu = submenu

@@ -29,10 +29,10 @@ struct CreditsHistoryChartMenuView: View {
         let model = Self.makeModel(from: self.breakdown)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
-                Text("No credits history data.")
+                Text(L("No credits history data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("No credits history data available.")
+                    .accessibilityLabel(L("No credits history data available."))
             } else {
                 Chart {
                     ForEach(model.points) { point in
@@ -62,8 +62,11 @@ struct CreditsHistoryChartMenuView: View {
                 }
                 .chartLegend(.hidden)
                 .frame(height: 130)
-                .accessibilityLabel("Credits history chart")
-                .accessibilityValue(model.points.isEmpty ? "No data" : "\(model.points.count) days of credits data")
+                .accessibilityLabel(L("Credits history chart"))
+                .accessibilityValue(
+                    model.points.isEmpty
+                        ? L("No data")
+                        : String(format: L("%d days of credits data"), model.points.count))
                 .chartOverlay { proxy in
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {

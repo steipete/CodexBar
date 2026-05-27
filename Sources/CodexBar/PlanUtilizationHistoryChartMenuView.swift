@@ -146,8 +146,11 @@ struct PlanUtilizationHistoryChartMenuView: View {
                     }
                     .chartLegend(.hidden)
                     .frame(height: Layout.chartHeight)
-                    .accessibilityLabel("Plan utilization chart")
-                    .accessibilityValue(model.points.isEmpty ? "No data" : "\(model.points.count) utilization samples")
+                    .accessibilityLabel(L("Plan utilization chart"))
+                    .accessibilityValue(
+                        model.points.isEmpty
+                            ? L("No data")
+                            : String(format: L("%d utilization samples"), model.points.count))
                     .chartOverlay { proxy in
                         GeometryReader { geo in
                             MouseLocationReader { location in

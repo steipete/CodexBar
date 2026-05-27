@@ -99,8 +99,11 @@ struct CostHistoryChartMenuView: View {
                 }
                 .chartLegend(.hidden)
                 .frame(height: 130)
-                .accessibilityLabel("Cost history chart")
-                .accessibilityValue(model.points.isEmpty ? "No data" : "\(model.points.count) days of cost data")
+                .accessibilityLabel(L("Cost history chart"))
+                .accessibilityValue(
+                    model.points.isEmpty
+                        ? L("No data")
+                        : String(format: L("%d days of cost data"), model.points.count))
                 .chartOverlay { proxy in
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {

@@ -8,13 +8,13 @@ extension UsageMenuCardView.Model {
             .trimmingCharacters(in: .whitespacesAndNewlines),
             !authMethod.isEmpty
         {
-            notes.append("Auth: \(authMethod)")
+            notes.append("\(L("Auth")): \(authMethod)")
         }
         if let overages = input.snapshot?.kiroUsage?.overagesStatus?
             .trimmingCharacters(in: .whitespacesAndNewlines),
             !overages.isEmpty
         {
-            notes.append("Overages: \(overages)")
+            notes.append("\(L("Overages")): \(overages)")
         }
         let overagesEnabled = input.snapshot?.kiroUsage?.overagesStatus?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -23,12 +23,13 @@ extension UsageMenuCardView.Model {
         if overagesEnabled,
            let overageCreditsUsed = input.snapshot?.kiroUsage?.overageCreditsUsed
         {
-            notes.append("Overage usage: \(UsageFormatter.kiroCreditNumber(overageCreditsUsed)) credits")
+            notes.append(
+                "\(L("Overage usage")): \(UsageFormatter.kiroCreditNumber(overageCreditsUsed)) \(L("credits"))")
         }
         if overagesEnabled,
            let estimatedOverageCostUSD = input.snapshot?.kiroUsage?.estimatedOverageCostUSD
         {
-            notes.append("Overage cost: \(UsageFormatter.usdString(estimatedOverageCostUSD))")
+            notes.append("\(L("Overage cost")): \(UsageFormatter.usdString(estimatedOverageCostUSD))")
         }
         return notes
     }

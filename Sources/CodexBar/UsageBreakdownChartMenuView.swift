@@ -65,11 +65,14 @@ struct UsageBreakdownChartMenuView: View {
                 }
                 .chartLegend(.hidden)
                 .frame(height: 130)
-                .accessibilityLabel("Usage breakdown chart")
+                .accessibilityLabel(L("Usage breakdown chart"))
                 .accessibilityValue(
                     model.points.isEmpty
-                        ? "No data"
-                        : "\(model.points.count) days of usage data across \(model.services.count) services")
+                        ? L("No data")
+                        : String(
+                            format: L("%d days of usage data across %d services"),
+                            model.points.count,
+                            model.services.count))
                 .chartOverlay { proxy in
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {

@@ -210,8 +210,8 @@ struct StoragePathCopyButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(self.didCopy ? "Copied" : "Copy path")
-        .accessibilityLabel(self.didCopy ? "Copied" : "Copy path")
+        .help(self.didCopy ? L("Copied") : L("Copy path"))
+        .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy path"))
     }
 
     static func copyToPasteboard(_ path: String) {

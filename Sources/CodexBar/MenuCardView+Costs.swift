@@ -151,18 +151,18 @@ extension UsageMenuCardView.Model {
         if provider == .factory, cost.period == "Extra usage balance" {
             let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             return ProviderCostSection(
-                title: "Extra usage",
+                title: L("Extra usage"),
                 percentUsed: nil,
-                spendLine: "Balance: \(balance)",
+                spendLine: "\(L("Balance")): \(balance)",
                 percentLine: nil)
         }
 
         if provider == .opencodego, cost.period == "Zen balance" {
             let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             return ProviderCostSection(
-                title: "Zen balance",
+                title: L("Zen balance"),
                 percentUsed: nil,
-                spendLine: "Balance: \(balance)",
+                spendLine: "\(L("Balance")): \(balance)",
                 percentLine: nil)
         }
 
@@ -170,7 +170,7 @@ extension UsageMenuCardView.Model {
             let spend = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let periodLabel = Self.localizedPeriodLabel(cost.period ?? "Last 30 days")
             return ProviderCostSection(
-                title: "API spend",
+                title: L("API spend"),
                 percentUsed: nil,
                 spendLine: "\(periodLabel): \(spend)",
                 percentLine: nil)
@@ -183,11 +183,11 @@ extension UsageMenuCardView.Model {
         let title: String
 
         if cost.currencyCode == "Quota" {
-            title = "Quota usage"
+            title = L("Quota usage")
             used = String(format: "%.0f", cost.used)
             limit = String(format: "%.0f", cost.limit)
         } else {
-            title = "Extra usage"
+            title = L("Extra usage")
             used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
         }
@@ -199,7 +199,7 @@ extension UsageMenuCardView.Model {
             title: title,
             percentUsed: percentUsed,
             spendLine: "\(periodLabel): \(used) / \(limit)",
-            percentLine: String(format: "%.0f%% used", min(100, max(0, percentUsed))))
+            percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))))
     }
 
     private static func localizedPeriodLabel(_ label: String) -> String {

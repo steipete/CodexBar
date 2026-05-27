@@ -47,8 +47,10 @@ extension UsageMenuCardView.Model {
            let billing = input.snapshot?.minimaxUsage?.billingSummary
         {
             return [
-                "Today: \(UsageFormatter.tokenCountString(billing.todayTokens)) tokens",
-                "Last 30 days: \(UsageFormatter.tokenCountString(billing.last30DaysTokens)) tokens",
+                String(format: L("Today: %@ tokens"), UsageFormatter.tokenCountString(billing.todayTokens)),
+                String(
+                    format: L("Last 30 days: %@ tokens"),
+                    UsageFormatter.tokenCountString(billing.last30DaysTokens)),
             ]
         }
 
@@ -59,15 +61,18 @@ extension UsageMenuCardView.Model {
             let symbol = usage.currency == "CNY" ? "¥" : "$"
             let todayCostStr = usage.todayCost.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
             return [
-                "Today: \(todayCostStr) · \(UsageFormatter.tokenCountString(usage.todayTokens)) tokens",
-                "This month: \(UsageFormatter.tokenCountString(usage.currentMonthTokens)) tokens",
+                String(
+                    format: L("Today: %@ · %@ tokens"),
+                    todayCostStr,
+                    UsageFormatter.tokenCountString(usage.todayTokens)),
+                String(format: L("This month: %@ tokens"), UsageFormatter.tokenCountString(usage.currentMonthTokens)),
             ]
         }
 
         if input.provider == .ollama,
            input.snapshot?.identity?.loginMethod == "API key"
         {
-            return ["API key verified. Ollama does not expose Cloud quota limits through the API."]
+            return [L("API key verified. Ollama does not expose Cloud quota limits through the API.")]
         }
 
         return nil
@@ -78,19 +83,22 @@ extension UsageMenuCardView.Model {
         let seven = usage.last7Days
         let thirty = usage.last30Days
         let historyLabel = usage.historyWindowLabel
-        let todayNote = "Today: \(UsageFormatter.usdString(today.costUSD)) · " +
-            "\(UsageFormatter.tokenCountString(today.totalTokens)) tokens"
+        let todayNote = String(
+            format: L("Today: %@ · %@ tokens"),
+            UsageFormatter.usdString(today.costUSD),
+            UsageFormatter.tokenCountString(today.totalTokens))
         let sevenDayNote = "7d: \(UsageFormatter.usdString(seven.costUSD)) · " +
-            "\(UsageFormatter.tokenCountString(seven.requests)) requests"
-        let thirtyDayNote = "\(historyLabel): \(UsageFormatter.tokenCountString(thirty.totalTokens)) tokens · " +
-            "\(UsageFormatter.tokenCountString(thirty.requests)) requests"
+            "\(UsageFormatter.tokenCountString(seven.requests)) \(L("requests"))"
+        let thirtyDayNote =
+            "\(historyLabel): \(UsageFormatter.tokenCountString(thirty.totalTokens)) \(L("tokens")) · " +
+            "\(UsageFormatter.tokenCountString(thirty.requests)) \(L("requests"))"
         var notes: [String] = [
             todayNote,
             sevenDayNote,
             thirtyDayNote,
         ]
         if let topModel = usage.topModels.first {
-            notes.append("Top model: \(topModel.name)")
+            notes.append("\(L("Top model")): \(topModel.name)")
         }
         return notes
     }
@@ -201,7 +209,7 @@ extension UsageMenuCardView.Model {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
         if let requestCount = snapshot.last30DaysRequests {
-            details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) requests")
+            details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
         }
         if let hint = Self.tokenUsageHint(provider: provider) {
             details.append(hint)
@@ -266,24 +274,24 @@ extension UsageMenuCardView.Model {
                 accessibilityValue: "\($0.day): \(UsageFormatter.usdString($0.costUSD))")
         }
         var details = [
-            "30d: \(UsageFormatter.tokenCountString(last30.totalTokens)) tokens",
-            "Cache read: \(UsageFormatter.tokenCountString(last30.cacheReadInputTokens)) tokens",
+            "30d: \(UsageFormatter.tokenCountString(last30.totalTokens)) \(L("tokens"))",
+            "\(L("Cache read")): \(UsageFormatter.tokenCountString(last30.cacheReadInputTokens)) \(L("tokens"))",
         ]
         if let topModel = usage.topModels.first {
-            details.append("Top model: \(Self.shortModelName(topModel.name))")
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel.name))")
         }
         return InlineUsageDashboardModel(
-            accessibilityLabel: "Claude Admin API 30 day spend trend",
+            accessibilityLabel: L("Claude Admin API 30 day spend trend"),
             valueStyle: .currencyUSD,
             kpis: [
-                .init(title: "Today", value: UsageFormatter.usdString(today.costUSD), emphasis: true),
-                .init(title: "7d spend", value: UsageFormatter.usdString(last7.costUSD), emphasis: false),
+                .init(title: L("Today"), value: UsageFormatter.usdString(today.costUSD), emphasis: true),
+                .init(title: L("7d spend"), value: UsageFormatter.usdString(last7.costUSD), emphasis: false),
                 .init(
-                    title: "30d spend",
+                    title: L("30d spend"),
                     value: UsageFormatter.usdString(last30.costUSD),
                     emphasis: false),
                 .init(
-                    title: "Today tokens",
+                    title: L("Today tokens"),
                     value: UsageFormatter.tokenCountString(today.totalTokens),
                     emphasis: false),
             ],
@@ -293,9 +301,9 @@ extension UsageMenuCardView.Model {
 
     private static func openRouterInlineDashboard(_ usage: OpenRouterUsageSnapshot) -> InlineUsageDashboardModel? {
         let periodValues: [(String, String, Double?)] = [
-            ("day", "Today", usage.keyUsageDaily),
-            ("week", "Week", usage.keyUsageWeekly),
-            ("month", "Month", usage.keyUsageMonthly),
+            ("day", L("Today"), usage.keyUsageDaily),
+            ("week", L("Week"), usage.keyUsageWeekly),
+            ("month", L("Month"), usage.keyUsageMonthly),
         ]
         let points = periodValues.compactMap { id, label, value -> InlineUsageDashboardModel.Point? in
             guard let value else { return nil }
@@ -308,33 +316,33 @@ extension UsageMenuCardView.Model {
         guard !points.isEmpty else { return nil }
         var details: [String] = []
         if let rate = usage.rateLimit {
-            details.append("Rate limit: \(rate.requests) / \(rate.interval)")
+            details.append(String(format: L("Rate limit: %d / %@"), rate.requests, rate.interval))
         }
         switch usage.keyQuotaStatus {
         case .available:
             if let remaining = usage.keyRemaining {
-                details.append("Key remaining: \(Self.openRouterCurrencyString(remaining))")
+                details.append("\(L("Key remaining")): \(Self.openRouterCurrencyString(remaining))")
             }
         case .noLimitConfigured:
-            details.append("No limit set for the API key")
+            details.append(L("No limit set for the API key"))
         case .unavailable:
-            details.append("API key limit unavailable right now")
+            details.append(L("API key limit unavailable right now"))
         }
         return InlineUsageDashboardModel(
-            accessibilityLabel: "OpenRouter API key spend trend",
+            accessibilityLabel: L("OpenRouter API key spend trend"),
             valueStyle: .currencyUSD,
             kpis: [
-                .init(title: "Balance", value: Self.openRouterCurrencyString(usage.balance), emphasis: true),
+                .init(title: L("Balance"), value: Self.openRouterCurrencyString(usage.balance), emphasis: true),
                 .init(
-                    title: "Today",
+                    title: L("Today"),
                     value: usage.keyUsageDaily.map(Self.openRouterCurrencyString) ?? "—",
                     emphasis: false),
                 .init(
-                    title: "Week",
+                    title: L("Week"),
                     value: usage.keyUsageWeekly.map(Self.openRouterCurrencyString) ?? "—",
                     emphasis: false),
                 .init(
-                    title: "Month",
+                    title: L("Month"),
                     value: usage.keyUsageMonthly.map(Self.openRouterCurrencyString) ?? "—",
                     emphasis: false),
             ],
@@ -353,26 +361,26 @@ extension UsageMenuCardView.Model {
                 id: "\(index)-\(bar.label)",
                 label: bar.label,
                 value: Double(bar.totalTokens),
-                accessibilityValue: "\(bar.label): \(UsageFormatter.tokenCountString(bar.totalTokens)) tokens")
+                accessibilityValue: "\(bar.label): \(UsageFormatter.tokenCountString(bar.totalTokens)) \(L("tokens"))")
         }
         let topModel = Self.topZaiModel(from: bars)
         return InlineUsageDashboardModel(
-            accessibilityLabel: "z.ai hourly token trend",
+            accessibilityLabel: L("z.ai hourly token trend"),
             valueStyle: .tokens,
             kpis: [
-                .init(title: "24h tokens", value: UsageFormatter.tokenCountString(total), emphasis: true),
+                .init(title: L("24h tokens"), value: UsageFormatter.tokenCountString(total), emphasis: true),
                 .init(
-                    title: "Latest hour",
+                    title: L("Latest hour"),
                     value: latest.map { UsageFormatter.tokenCountString($0.totalTokens) } ?? "—",
                     emphasis: false),
                 .init(
-                    title: "Peak hour",
+                    title: L("Peak hour"),
                     value: peak.map { UsageFormatter.tokenCountString($0.totalTokens) } ?? "—",
                     emphasis: false),
-                .init(title: "Models", value: "\(modelUsage.modelNames.count)", emphasis: false),
+                .init(title: L("Models"), value: "\(modelUsage.modelNames.count)", emphasis: false),
             ],
             points: points,
-            detailLines: topModel.map { ["Top model: \(Self.shortModelName($0))"] } ?? [])
+            detailLines: topModel.map { ["\(L("Top model")): \(Self.shortModelName($0))"] } ?? [])
     }
 
     private static func minimaxInlineDashboard(_ billing: MiniMaxBillingSummary) -> InlineUsageDashboardModel {
@@ -381,36 +389,36 @@ extension UsageMenuCardView.Model {
                 id: $0.day,
                 label: Self.shortDayLabel($0.day),
                 value: Double($0.tokens),
-                accessibilityValue: "\($0.day): \(UsageFormatter.tokenCountString($0.tokens)) tokens")
+                accessibilityValue: "\($0.day): \(UsageFormatter.tokenCountString($0.tokens)) \(L("tokens"))")
         }
-        var details = ["30d billing history from MiniMax web session"]
+        var details = [L("30d billing history from MiniMax web session")]
         if let topModel = billing.topModels.first {
-            details.append("Top model: \(Self.shortModelName(topModel.name))")
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel.name))")
         }
         if let topMethod = billing.topMethods.first {
-            details.append("Top method: \(Self.shortModelName(topMethod.name))")
+            details.append("\(L("Top method")): \(Self.shortModelName(topMethod.name))")
         }
         if let cash = billing.last30DaysCash {
-            details.append("30d cash: \(Self.minimaxCashString(cash))")
+            details.append("\(L("30d cash")): \(Self.minimaxCashString(cash))")
         }
         return InlineUsageDashboardModel(
-            accessibilityLabel: "MiniMax 30 day token usage trend",
+            accessibilityLabel: L("MiniMax 30 day token usage trend"),
             valueStyle: .tokens,
             kpis: [
                 .init(
-                    title: "Today",
+                    title: L("Today"),
                     value: UsageFormatter.tokenCountString(billing.todayTokens),
                     emphasis: true),
                 .init(
-                    title: "30d tokens",
+                    title: L("30d tokens"),
                     value: UsageFormatter.tokenCountString(billing.last30DaysTokens),
                     emphasis: false),
                 .init(
-                    title: "Today cash",
+                    title: L("Today cash"),
                     value: billing.todayCash.map(Self.minimaxCashString) ?? "—",
                     emphasis: false),
                 .init(
-                    title: "Models",
+                    title: L("Models"),
                     value: "\(billing.topModels.count)",
                     emphasis: false),
             ],
@@ -425,45 +433,45 @@ extension UsageMenuCardView.Model {
                 id: $0.date,
                 label: Self.shortDayLabel($0.date),
                 value: Double($0.totalTokens),
-                accessibilityValue: "\($0.date): \(UsageFormatter.tokenCountString($0.totalTokens)) tokens")
+                accessibilityValue: "\($0.date): \(UsageFormatter.tokenCountString($0.totalTokens)) \(L("tokens"))")
         }
         var details: [String] = []
         if let topModel = usage.topModel {
-            details.append("Top model: \(Self.shortModelName(topModel))")
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
         if let cacheHit = usage.categoryBreakdown.first(where: { $0.category == .promptCacheHitToken }) {
-            details.append("cache-hit input: \(UsageFormatter.tokenCountString(cacheHit.tokens))")
+            details.append("\(L("cache-hit input")): \(UsageFormatter.tokenCountString(cacheHit.tokens))")
         }
         if let cacheMiss = usage.categoryBreakdown.first(where: { $0.category == .promptCacheMissToken }) {
-            details.append("cache-miss input: \(UsageFormatter.tokenCountString(cacheMiss.tokens))")
+            details.append("\(L("cache-miss input")): \(UsageFormatter.tokenCountString(cacheMiss.tokens))")
         }
         if let output = usage.categoryBreakdown.first(where: { $0.category == .responseToken }) {
-            details.append("output: \(UsageFormatter.tokenCountString(output.tokens))")
+            details.append("\(L("output")): \(UsageFormatter.tokenCountString(output.tokens))")
         }
-        details.append("requests: \(usage.currentMonthRequestCount)")
+        details.append("\(L("requests")): \(usage.currentMonthRequestCount)")
 
         let todayCostStr = usage.todayCost.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
         let monthCostStr = usage.currentMonthCost.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
         let monthTokensStr = UsageFormatter.tokenCountString(usage.currentMonthTokens)
 
         return InlineUsageDashboardModel(
-            accessibilityLabel: "DeepSeek 30 day token usage trend",
+            accessibilityLabel: L("DeepSeek 30 day token usage trend"),
             valueStyle: .tokens,
             kpis: [
                 .init(
-                    title: "Today",
+                    title: L("Today"),
                     value: "\(todayCostStr) · \(UsageFormatter.tokenCountString(usage.todayTokens))",
                     emphasis: true),
                 .init(
-                    title: "This month",
+                    title: L("This month"),
                     value: "\(monthCostStr) · \(monthTokensStr)",
                     emphasis: false),
                 .init(
-                    title: "Models",
+                    title: L("Models"),
                     value: usage.topModel.map { Self.shortModelName($0) } ?? "—",
                     emphasis: false),
                 .init(
-                    title: "Requests",
+                    title: L("Requests"),
                     value: "\(usage.currentMonthRequestCount)",
                     emphasis: false),
             ],

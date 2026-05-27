@@ -48,11 +48,11 @@ extension UsageMenuCardView.Model {
 
     static func placeholder(input: Input) -> String? {
         if self.shouldShowRateLimitsUnavailablePlaceholder(input: input) {
-            return "Limits not available"
+            return L("Limits not available")
         }
 
         if input.snapshot == nil, !input.isRefreshing, input.lastError == nil {
-            return "No usage yet"
+            return L("No usage yet")
         }
 
         return nil

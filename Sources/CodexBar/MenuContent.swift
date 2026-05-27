@@ -183,15 +183,15 @@ struct StatusIconView: View {
     private var accessibilityValue: String {
         let snapshot = self.store.snapshot(for: self.provider)
         guard let snap = snapshot else {
-            return "No data"
+            return L("No data")
         }
         let remaining = IconRemainingResolver.resolvedRemaining(
             snapshot: snap,
             style: self.store.style(for: self.provider))
         let primary = remaining.primary
-        let percent = primary.map { "\(Int($0 * 100)) percent remaining" } ?? "Unknown"
+        let percent = primary.map { String(format: L("%d percent remaining"), Int($0 * 100)) } ?? L("Unknown")
         let stale = self.store.isStale(provider: self.provider)
-        return stale ? "\(percent), stale data" : percent
+        return stale ? "\(percent), \(L("stale data"))" : percent
     }
 
     private var icon: NSImage {
