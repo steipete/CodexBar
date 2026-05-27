@@ -217,6 +217,35 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `bedrock config without explicit mode preserves env profile inference`() {
+        let config = ProviderConfig(id: .bedrock, region: "us-east-1")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [BedrockSettingsReader.profileKey: "work"],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.authModeKey] == nil)
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+        #expect(BedrockSettingsReader.authMode(environment: env) == .profile)
+    }
+
+    @Test
+    func `bedrock profile mode scrubs inherited static credentials`() {
+        let config = ProviderConfig(id: .bedrock, awsProfile: "work", awsAuthMode: "profile")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                BedrockSettingsReader.accessKeyIDKey: "AKIAINHERITED",
+                BedrockSettingsReader.secretAccessKeyKey: "inherited-secret",
+                BedrockSettingsReader.sessionTokenKey: "inherited-token",
+            ],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == nil)
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == nil)
+        #expect(env[BedrockSettingsReader.sessionTokenKey] == nil)
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+    }
+
+    @Test
     func `bedrock keys mode still projects static credentials`() {
         let config = ProviderConfig(
             id: .bedrock,

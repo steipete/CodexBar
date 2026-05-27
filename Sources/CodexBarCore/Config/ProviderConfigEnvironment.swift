@@ -135,14 +135,28 @@ public enum ProviderConfigEnvironment {
         guard let config else { return base }
         var env = base
 
-        let mode = BedrockAuthMode(rawValue: config.sanitizedAWSAuthMode ?? "") ?? .keys
-        env[BedrockSettingsReader.authModeKey] = mode.rawValue
+        // Only project an explicit auth-mode selection. When the config does not
+        // specify one, leave the base environment untouched so an env-driven setup
+        // (AWS_PROFILE or CODEXBAR_BEDROCK_AUTH_MODE from the launch environment) is
+        // still inferred by BedrockSettingsReader instead of being forced to `keys`.
+        let explicitMode = config.sanitizedAWSAuthMode.flatMap(BedrockAuthMode.init(rawValue:))
+        if let explicitMode {
+            env[BedrockSettingsReader.authModeKey] = explicitMode.rawValue
+        }
 
-        switch mode {
+        let effectiveMode = explicitMode ?? BedrockSettingsReader.authMode(environment: base)
+
+        switch effectiveMode {
         case .profile:
             if let profile = config.sanitizedAWSProfile {
                 env[BedrockSettingsReader.profileKey] = profile
             }
+            // Static credential env vars take precedence over a profile in the AWS
+            // CLI, so drop any inherited ones to ensure the chosen profile is used
+            // for both Cost Explorer signing and `aws configure export-credentials`.
+            env[BedrockSettingsReader.accessKeyIDKey] = nil
+            env[BedrockSettingsReader.secretAccessKeyKey] = nil
+            env[BedrockSettingsReader.sessionTokenKey] = nil
         case .keys:
             if let accessKeyID = config.sanitizedAPIKey {
                 env[BedrockSettingsReader.accessKeyIDKey] = accessKeyID
