@@ -79,14 +79,14 @@ public struct AntigravityStatusSnapshot: Sendable {
         let secondary = secondaryQuota.map(Self.rateWindow(for:))
         let tertiary = tertiaryQuota.map(Self.rateWindow(for:))
 
-        // primary/secondary/tertiary keep the 3-family representative summary for
-        // back-compat. extraRateWindows carries EVERY model quota loss-free —
-        // including families with no dedicated slot (e.g. GPT-OSS) and the
-        // per-effort variants the representative selection collapses — so a
-        // consumer can render the complete per-model breakdown the IDE shows.
-        let extraWindows = self.modelQuotas.map { quota in
-            NamedRateWindow(id: quota.modelId, title: quota.label, window: Self.rateWindow(for: quota))
-        }
+        // primary/secondary/tertiary keep the 3-family summary for back-compat.
+        // extraRateWindows carries every model quota loss-free, including families
+        // with no dedicated slot and variants the representative selection collapses.
+        let extraWindows = self.modelQuotas
+            .sorted(by: Self.modelQuotaSortPrecedes)
+            .map { quota in
+                NamedRateWindow(id: quota.modelId, title: quota.label, window: Self.rateWindow(for: quota))
+            }
 
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
@@ -108,6 +108,14 @@ public struct AntigravityStatusSnapshot: Sendable {
             windowMinutes: nil,
             resetsAt: quota.resetTime,
             resetDescription: quota.resetDescription)
+    }
+
+    private static func modelQuotaSortPrecedes(_ lhs: AntigravityModelQuota, _ rhs: AntigravityModelQuota) -> Bool {
+        let labelOrder = lhs.label.caseInsensitiveCompare(rhs.label)
+        if labelOrder != .orderedSame {
+            return labelOrder == .orderedAscending
+        }
+        return lhs.modelId.caseInsensitiveCompare(rhs.modelId) == .orderedAscending
     }
 
     private static func normalizedModels(_ models: [AntigravityModelQuota]) -> [AntigravityNormalizedModel] {
