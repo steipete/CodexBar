@@ -229,6 +229,23 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `bedrock saved static keys survive base AWS_PROFILE when auth mode is unset`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIASAVED",
+            secretKey: "saved-secret",
+            region: "us-east-1")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [BedrockSettingsReader.profileKey: "work"],
+            provider: .bedrock,
+            config: config)
+        // Upgrade path: saved keys win over an inherited AWS_PROFILE, no silent switch.
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "AKIASAVED")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "saved-secret")
+        #expect(BedrockSettingsReader.authMode(environment: env) == .keys)
+    }
+
+    @Test
     func `bedrock profile mode scrubs inherited static credentials`() {
         let config = ProviderConfig(id: .bedrock, awsProfile: "work", awsAuthMode: "profile")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
