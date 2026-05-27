@@ -100,6 +100,26 @@ extension SettingsStore {
         }
     }
 
+    func providerSubscriptionReminderState(for provider: UsageProvider) -> ProviderSubscriptionReminderState? {
+        self.configSnapshot.providerConfig(for: provider)?.subscriptionReminderState?[provider.rawValue]
+    }
+
+    func setProviderSubscriptionReminderState(
+        for provider: UsageProvider,
+        state: ProviderSubscriptionReminderState?)
+    {
+        self.updateConfig(reason: "subscription-reminder-state-\(provider.rawValue)") { config in
+            guard let index = config.providers.firstIndex(where: { $0.id == provider }) else { return }
+            var states = config.providers[index].subscriptionReminderState ?? [:]
+            if let state {
+                states[provider.rawValue] = state
+            } else {
+                states.removeValue(forKey: provider.rawValue)
+            }
+            config.providers[index].subscriptionReminderState = states.isEmpty ? nil : states
+        }
+    }
+
     var tokenAccountsByProvider: [UsageProvider: ProviderTokenAccountData] {
         get {
             Dictionary(uniqueKeysWithValues: self.configSnapshot.providers.compactMap { entry in

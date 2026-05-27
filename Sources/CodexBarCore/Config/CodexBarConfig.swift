@@ -88,6 +88,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var codexActiveSource: CodexActiveSource?
     public var quotaWarnings: QuotaWarningConfig?
     public var subscriptionSnapshot: ProviderSubscriptionSnapshot?
+    public var subscriptionReminderState: [String: ProviderSubscriptionReminderState]?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
     public var awsProfile: String?
@@ -109,6 +110,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         codexActiveSource: CodexActiveSource? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
         subscriptionSnapshot: ProviderSubscriptionSnapshot? = nil,
+        subscriptionReminderState: [String: ProviderSubscriptionReminderState]? = nil,
         kiloKnownOrganizations: [KiloOrganization]? = nil,
         kiloEnabledOrganizationIDs: [String]? = nil,
         awsProfile: String? = nil,
@@ -129,6 +131,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.codexActiveSource = codexActiveSource
         self.quotaWarnings = quotaWarnings
         self.subscriptionSnapshot = subscriptionSnapshot
+        self.subscriptionReminderState = subscriptionReminderState
         self.kiloKnownOrganizations = kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = kiloEnabledOrganizationIDs
         self.awsProfile = awsProfile

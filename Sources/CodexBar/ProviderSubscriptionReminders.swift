@@ -1,30 +1,14 @@
 import CodexBarCore
 import Foundation
 
-enum ProviderSubscriptionReminderType: String, Hashable, Sendable {
-    case renewsIn30Days
-    case renewsIn7Days
-    case renewsIn3Days
-    case renewsIn1Day
-    case renewsToday
-    case expiresIn30Days
-    case expiresIn7Days
-    case expiresIn3Days
-    case expiresIn1Day
-    case expiresToday
-    case expired
-}
+// ProviderSubscriptionReminderType and ProviderSubscriptionReminderState are defined in
+// CodexBarCore/ProviderSubscriptionReminderState.swift
 
 struct ProviderSubscriptionReminderEvent: Equatable, Sendable {
     let type: ProviderSubscriptionReminderType
     let title: String
     let body: String
     let idSuffix: String
-}
-
-struct ProviderSubscriptionReminderState: Equatable, Sendable {
-    let fingerprint: String
-    var fired: Set<ProviderSubscriptionReminderType>
 }
 
 enum ProviderSubscriptionReminderLogic {
@@ -154,8 +138,8 @@ enum ProviderSubscriptionReminderLogic {
     }
 
     private static func fingerprint(snapshot: ProviderSubscriptionSnapshot) -> String {
-        let renew = snapshot.subscriptionRenewsAt?.timeIntervalSince1970.description ?? "nil"
-        let expire = snapshot.subscriptionExpiresAt?.timeIntervalSince1970.description ?? "nil"
+        let renew = Self.dayOnlyTimestamp(snapshot.subscriptionRenewsAt)
+        let expire = Self.dayOnlyTimestamp(snapshot.subscriptionExpiresAt)
         return [
             snapshot.provider.rawValue,
             snapshot.status.rawValue,
@@ -165,6 +149,12 @@ enum ProviderSubscriptionReminderLogic {
             snapshot.source.rawValue,
             snapshot.confidence.rawValue,
         ].joined(separator: "|")
+    }
+
+    private static func dayOnlyTimestamp(_ date: Date?) -> String {
+        guard let date else { return "nil" }
+        let midnight = Calendar(identifier: .iso8601).startOfDay(for: date)
+        return midnight.timeIntervalSince1970.description
     }
 
     private static func dayDelta(from now: Date, to date: Date, calendar: Calendar) -> Int {

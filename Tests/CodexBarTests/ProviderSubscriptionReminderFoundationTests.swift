@@ -180,6 +180,79 @@ struct ProviderSubscriptionReminderFoundationTests {
     }
 
     @Test
+    func `fired reminder state persists across app relaunch and dedupes correctly`() throws {
+        let suite = "ProviderSubscriptionReminderFoundationTests-relaunch-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date()
+        let inSevenDays = try #require(calendar.date(byAdding: .day, value: 7, to: now))
+
+        let originalSettings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        originalSettings.statusChecksEnabled = false
+        originalSettings.setProviderSubscriptionSnapshot(
+            provider: .minimax,
+            snapshot: ProviderSubscriptionSnapshot(
+                provider: .minimax,
+                planName: "Monthly",
+                status: .canceled,
+                subscriptionRenewsAt: nil,
+                subscriptionExpiresAt: inSevenDays,
+                updatedAt: now))
+
+        let originalNotifier = SubscriptionReminderNotifierSpy()
+        let originalStore = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: originalSettings,
+            sessionQuotaNotifier: originalNotifier,
+            startupBehavior: .testing)
+
+        originalStore.handleProviderSubscriptionReminders(provider: .minimax)
+        #expect(originalNotifier.reminders.count == 1)
+        #expect(originalNotifier.reminders.first?.event.type == .expiresIn7Days)
+
+        let configBeforeSave = originalSettings.configSnapshot
+        try configStore.save(configBeforeSave)
+
+        let reloadedConfig = try configStore.load()
+        #expect(reloadedConfig != nil)
+        let stateInReloaded = reloadedConfig?.providerConfig(for: .minimax)?.subscriptionReminderState?["minimax"]
+        #expect(stateInReloaded?.fired.contains(.expiresIn7Days) == true)
+
+        let relaunchedSettings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite, reset: false),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        relaunchedSettings.statusChecksEnabled = false
+
+        let stateFromRelaunched = relaunchedSettings.providerSubscriptionReminderState(for: .minimax)
+        #expect(stateFromRelaunched?.fired.contains(.expiresIn7Days) == true)
+
+        let snapshotFromRelaunched = relaunchedSettings.providerSubscriptionSnapshot(for: .minimax)
+        #expect(snapshotFromRelaunched != nil)
+
+        let relaunchedNotifier = SubscriptionReminderNotifierSpy()
+        let relaunchedStore = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: relaunchedSettings,
+            sessionQuotaNotifier: relaunchedNotifier,
+            startupBehavior: .testing)
+
+        relaunchedStore.handleProviderSubscriptionReminders(provider: .minimax)
+
+        let dedupeWorks = relaunchedNotifier.reminders.isEmpty
+        #expect(dedupeWorks == true)
+    }
+
+    @Test
     func `menu descriptor shows subscription line separate from quota rows`() throws {
         let suite = "ProviderSubscriptionReminderFoundationTests-menu-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
