@@ -132,4 +132,190 @@ extension UsageMenuCardView.Model {
             pacePercent: pacePercent,
             paceOnTop: paceOnTop)
     }
+
+    static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
+        let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
+        var metrics = [
+            Self.antigravityMetric(
+                id: "primary",
+                title: L(input.metadata.sessionLabel),
+                window: snapshot.primary,
+                input: input,
+                percentStyle: percentStyle),
+            Self.antigravityMetric(
+                id: "secondary",
+                title: L(input.metadata.weeklyLabel),
+                window: snapshot.secondary,
+                input: input,
+                percentStyle: percentStyle),
+            Self.antigravityMetric(
+                id: "tertiary",
+                title: input.metadata.opusLabel.map(L) ?? L("Gemini Flash"),
+                window: snapshot.tertiary,
+                input: input,
+                percentStyle: percentStyle),
+        ]
+        metrics.append(contentsOf: Self.extraRateWindowMetrics(
+            snapshot: snapshot,
+            input: input,
+            percentStyle: percentStyle))
+        return metrics
+    }
+
+    static func extraRateWindowMetrics(
+        snapshot: UsageSnapshot,
+        input: Input,
+        percentStyle: PercentStyle) -> [Metric]
+    {
+        guard let extraRateWindows = snapshot.extraRateWindows else { return [] }
+        return extraRateWindows.map { namedWindow in
+            Metric(
+                id: namedWindow.id,
+                title: namedWindow.title,
+                percent: Self.clamped(
+                    input.usageBarsShowUsed
+                        ? namedWindow.window.usedPercent
+                        : namedWindow.window.remainingPercent),
+                percentStyle: percentStyle,
+                resetText: Self.resetText(
+                    for: namedWindow.window,
+                    style: input.resetTimeDisplayStyle,
+                    now: input.now),
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true)
+        }
+    }
+
+    static func antigravityMetric(
+        id: String,
+        title: String,
+        window: RateWindow?,
+        input: Input,
+        percentStyle: PercentStyle) -> Metric
+    {
+        guard let window else {
+            let placeholderPercent = input.usageBarsShowUsed ? 100.0 : 0.0
+            return Metric(
+                id: id,
+                title: title,
+                percent: placeholderPercent,
+                percentStyle: percentStyle,
+                statusText: nil,
+                resetText: nil,
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true)
+        }
+        let percent = input.usageBarsShowUsed ? window.usedPercent : window.remainingPercent
+        return Metric(
+            id: id,
+            title: title,
+            percent: Self.clamped(percent),
+            percentStyle: percentStyle,
+            resetText: Self.resetText(for: window, style: input.resetTimeDisplayStyle, now: input.now),
+            detailText: nil,
+            detailLeftText: nil,
+            detailRightText: nil,
+            pacePercent: nil,
+            paceOnTop: true)
+    }
+
+    static func zaiLimitDetailText(limit: ZaiLimitEntry?) -> String? {
+        guard let limit else { return nil }
+
+        if let currentValue = limit.currentValue,
+           let usage = limit.usage,
+           let remaining = limit.remaining
+        {
+            let currentStr = UsageFormatter.tokenCountString(currentValue)
+            let usageStr = UsageFormatter.tokenCountString(usage)
+            let remainingStr = UsageFormatter.tokenCountString(remaining)
+            return String(format: L("%@ / %@ (%@ remaining)"), currentStr, usageStr, remainingStr)
+        }
+
+        return nil
+    }
+
+    static func openRouterQuotaDetail(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
+        guard provider == .openrouter,
+              let usage = snapshot.openRouterUsage,
+              usage.hasValidKeyQuota,
+              let keyRemaining = usage.keyRemaining,
+              let keyLimit = usage.keyLimit
+        else {
+            return nil
+        }
+
+        let remaining = UsageFormatter.usdString(keyRemaining)
+        let limit = UsageFormatter.usdString(keyLimit)
+        return String(format: L("%@/%@ left"), remaining, limit)
+    }
+
+    static func syntheticRegenDetail(
+        weekly: RateWindow,
+        cost: ProviderCostSnapshot?,
+        now: Date,
+        showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
+    {
+        guard let cost,
+              cost.limit > 0,
+              let nextRegenAmount = cost.nextRegenAmount,
+              nextRegenAmount > 0,
+              let resetsAt = weekly.resetsAt
+        else { return nil }
+
+        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = String(format: L("Regenerates %@"), countdown)
+
+        let nextRegenPercent = (nextRegenAmount / cost.limit) * 100
+        let afterNextRegenRemaining = min(100, weekly.remainingPercent + nextRegenPercent)
+        let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
+        let suffix = showUsed ? L("used after next regen") : L("after next regen")
+        let ticksToFull = max(0, cost.used) / nextRegenAmount
+        let left = String(format: "%.0f%% %@", afterNextRegen, suffix)
+        let right = if ticksToFull <= 0.1 {
+            L("Near full")
+        } else if ticksToFull < 1.5 {
+            L("Full in ~1 regen")
+        } else {
+            String(format: L("Full in ~%.0f regens"), ceil(ticksToFull))
+        }
+        return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
+    }
+
+    static func syntheticRollingRegenDetail(
+        window: RateWindow,
+        now: Date,
+        showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
+    {
+        guard let resetsAt = window.resetsAt,
+              let nextRegenPercent = window.nextRegenPercent,
+              nextRegenPercent > 0
+        else { return nil }
+
+        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = String(format: L("Regenerates %@"), countdown)
+
+        let afterNextRegenRemaining = min(100, window.remainingPercent + nextRegenPercent)
+        let afterNextRegen = showUsed ? max(0, 100 - afterNextRegenRemaining) : afterNextRegenRemaining
+        let suffix = showUsed ? L("used after next regen") : L("after next regen")
+        let left = String(format: "%.0f%% %@", afterNextRegen, suffix)
+
+        let missingPercent = max(0, window.usedPercent)
+        let ticksToFull = missingPercent / nextRegenPercent
+        let right = if ticksToFull <= 0.1 {
+            L("Near full")
+        } else if ticksToFull < 1.5 {
+            L("Full in ~1 regen")
+        } else {
+            String(format: L("Full in ~%.0f regens"), ceil(ticksToFull))
+        }
+
+        return (resetText, PaceDetail(leftLabel: left, rightLabel: right, pacePercent: nil, paceOnTop: true))
+    }
 }

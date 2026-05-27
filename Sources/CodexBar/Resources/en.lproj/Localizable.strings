@@ -773,6 +773,8 @@
 "Daily billing data finalizes at 07:00 UTC" = "Daily billing data finalizes at 07:00 UTC";
 "%@ of %@ credits left" = "%@ of %@ credits left";
 "%@ of %@ bonus credits left" = "%@ of %@ bonus credits left";
+"%@ / %@ (%@ remaining)" = "%@ / %@ (%@ remaining)";
+"%@/%@ left" = "%@/%@ left";
 "Gemini Flash" = "Gemini Flash";
 "Regenerates %@" = "Regenerates %@";
 "used after next regen" = "used after next regen";

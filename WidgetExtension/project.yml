@@ -1,0 +1,42 @@
+name: CodexBarWidgetExtension
+options:
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  CodexBar:
+    path: ..
+targets:
+  CodexBarWidgetExtension:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: ../Sources/CodexBarWidget
+    dependencies:
+      - package: CodexBar
+        product: CodexBarCore
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: CodexBar
+        CFBundleName: CodexBarWidget
+        CFBundlePackageType: XPC!
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CodexBarTeamID: "$(CODEXBAR_TEAM_ID)"
+        LSMinimumSystemVersion: "14.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        APPLICATION_EXTENSION_API_ONLY: true
+        CODE_SIGNING_ALLOWED: false
+        ENABLE_DEBUG_DYLIB: false
+        ENABLE_APP_SANDBOX: true
+        INFOPLIST_KEY_CodexBarTeamID: "$(CODEXBAR_TEAM_ID)"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks"
+        PRODUCT_BUNDLE_IDENTIFIER: "$(CODEXBAR_WIDGET_BUNDLE_ID)"
+        PRODUCT_NAME: CodexBarWidget
+        SWIFT_VERSION: "6.0"

@@ -78,16 +78,16 @@ struct UsageProgressBar: View {
             }
 
             if !markerPercents.isEmpty {
-                let markerWidth = max(1 / scale, 2)
-                let markerColor: Color = self.isHighlighted ? .white : .primary.opacity(0.72)
+                let markerColor = Self.warningMarkerColor(isHighlighted: self.isHighlighted)
                 for markerPercent in markerPercents {
                     let x = size.width * markerPercent / 100
-                    let markerRect = CGRect(
-                        x: x - markerWidth / 2,
-                        y: 0,
-                        width: markerWidth,
-                        height: size.height)
-                    context.fill(Path(markerRect), with: .color(markerColor))
+                    let markerRect = Self.warningMarkerRect(x: x, size: size, scale: scale)
+                    let markerPath = Path { p in
+                        p.addRoundedRect(
+                            in: markerRect,
+                            cornerSize: CGSize(width: markerRect.width / 2, height: markerRect.width / 2))
+                    }
+                    context.fill(markerPath, with: .color(markerColor))
                 }
             }
 
@@ -167,6 +167,25 @@ struct UsageProgressBar: View {
         })
 
         return (punchedStripe, centerStripe)
+    }
+
+    nonisolated static func warningMarkerRect(x: CGFloat, size: CGSize, scale rawScale: CGFloat) -> CGRect {
+        let scale = max(rawScale, 1)
+        let width = max(1 / scale, 1)
+        let height = min(size.height, max(1 / scale, size.height * 0.55))
+        let align: (CGFloat) -> CGFloat = { value in
+            (value * scale).rounded() / scale
+        }
+
+        return CGRect(
+            x: align(x - width / 2),
+            y: align((size.height - height) / 2),
+            width: width,
+            height: align(height))
+    }
+
+    nonisolated static func warningMarkerColor(isHighlighted: Bool) -> Color {
+        isHighlighted ? .white.opacity(0.72) : .primary.opacity(0.32)
     }
 
     private static func clampedPercent(_ value: Double?) -> Double {

@@ -17,6 +17,23 @@ let package = Package(
     platforms: [
         .macOS(.v14),
     ],
+    products: {
+        var products: [Product] = [
+            .library(name: "CodexBarCore", targets: ["CodexBarCore"]),
+            .executable(name: "CodexBarCLI", targets: ["CodexBarCLI"]),
+        ]
+
+        #if os(macOS)
+        products.append(contentsOf: [
+            .executable(name: "CodexBar", targets: ["CodexBar"]),
+            .executable(name: "CodexBarClaudeWatchdog", targets: ["CodexBarClaudeWatchdog"]),
+            .executable(name: "CodexBarWidget", targets: ["CodexBarWidget"]),
+            .executable(name: "CodexBarClaudeWebProbe", targets: ["CodexBarClaudeWebProbe"]),
+        ])
+        #endif
+
+        return products
+    }(),
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.1"),
         .package(url: "https://github.com/steipete/Commander", from: "0.2.1"),

@@ -129,7 +129,7 @@ extension UsageStore {
             return metadata?.sessionLabel ?? "Session"
         }()
 
-        let rows: [WidgetSnapshot.WidgetUsageRowSnapshot] = [
+        var rows: [WidgetSnapshot.WidgetUsageRowSnapshot] = [
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: "primary",
                 title: primaryTitle,
@@ -139,6 +139,12 @@ extension UsageStore {
                 title: metadata?.weeklyLabel ?? "Weekly",
                 percentLeft: snapshot.secondary?.remainingPercent),
         ]
+        if metadata?.supportsOpus == true {
+            rows.append(WidgetSnapshot.WidgetUsageRowSnapshot(
+                id: "tertiary",
+                title: metadata?.opusLabel ?? "Opus",
+                percentLeft: snapshot.tertiary?.remainingPercent))
+        }
         return rows.filter { $0.percentLeft != nil }
     }
 }

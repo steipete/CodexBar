@@ -654,6 +654,8 @@
 "Daily billing data finalizes at 07:00 UTC" = "Les dades diàries de facturació es tanquen a les 07:00 UTC";
 "%@ of %@ credits left" = "Queden %@ de %@ crèdits";
 "%@ of %@ bonus credits left" = "Queden %@ de %@ crèdits de bonificació";
+"%@ / %@ (%@ remaining)" = "%@ / %@ (%@ restants)";
+"%@/%@ left" = "%@/%@ restant";
 "Gemini Flash" = "Gemini Flash";
 "Regenerates %@" = "Es regenera %@";
 "used after next regen" = "usat després de la propera regeneració";

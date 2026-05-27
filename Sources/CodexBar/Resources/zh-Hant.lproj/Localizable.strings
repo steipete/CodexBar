@@ -653,6 +653,8 @@
 "Daily billing data finalizes at 07:00 UTC" = "每日帳單資料會在 UTC 07:00 完成結算";
 "%@ of %@ credits left" = "剩餘 %@ / %@ 點額度";
 "%@ of %@ bonus credits left" = "剩餘 %@ / %@ 點獎勵額度";
+"%@ / %@ (%@ remaining)" = "%@ / %@（剩餘 %@）";
+"%@/%@ left" = "剩餘 %@ / %@";
 "Gemini Flash" = "Gemini Flash";
 "Regenerates %@" = "%@後恢復";
 "used after next regen" = "下次恢復後已使用";

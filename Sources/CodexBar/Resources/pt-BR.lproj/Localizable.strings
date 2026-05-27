@@ -654,6 +654,8 @@
 "Daily billing data finalizes at 07:00 UTC" = "Os dados diários de cobrança fecham às 07:00 UTC";
 "%@ of %@ credits left" = "Restam %@ de %@ créditos";
 "%@ of %@ bonus credits left" = "Restam %@ de %@ créditos bônus";
+"%@ / %@ (%@ remaining)" = "%@ / %@ (%@ restante)";
+"%@/%@ left" = "%@/%@ restante";
 "Gemini Flash" = "Gemini Flash";
 "Regenerates %@" = "Regenera %@";
 "used after next regen" = "usado após a próxima regeneração";

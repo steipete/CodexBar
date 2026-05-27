@@ -30,7 +30,7 @@ enum CodexBarCLI {
 
         do {
             let invocation = try program.resolve(argv: argv)
-            Self.bootstrapLogging(values: invocation.parsedValues)
+            Self.bootstrapLogging(path: invocation.path, values: invocation.parsedValues)
             switch invocation.path {
             case ["usage"]:
                 await self.runUsage(invocation.parsedValues)
@@ -52,6 +52,8 @@ enum CodexBarCLI {
                 self.runConfigSetAPIKey(invocation.parsedValues)
             case ["cache", "clear"]:
                 self.runCacheClear(invocation.parsedValues)
+            case ["diagnose"]:
+                await self.runDiagnose(invocation.parsedValues)
             default:
                 Self.exit(
                     code: .failure,
@@ -74,6 +76,7 @@ enum CodexBarCLI {
         let configProviderToggleSignature = CommandSignature.describe(ConfigProviderToggleOptions())
         let configSetAPIKeySignature = CommandSignature.describe(ConfigSetAPIKeyOptions())
         let cacheSignature = CommandSignature.describe(CacheOptions())
+        let diagnoseSignature = CommandSignature.describe(DiagnoseOptions())
 
         return [
             CommandDescriptor(
@@ -142,17 +145,27 @@ enum CodexBarCLI {
                         signature: cacheSignature),
                 ],
                 defaultSubcommandName: "clear"),
+            CommandDescriptor(
+                name: "diagnose",
+                abstract: "Run provider diagnostic and emit safe JSON export",
+                discussion: nil,
+                signature: diagnoseSignature),
         ]
     }
 
     // MARK: - Helpers
 
-    private static func bootstrapLogging(values: ParsedValues) {
+    private static func bootstrapLogging(path: [String], values: ParsedValues) {
+        CodexBarLog.bootstrapIfNeeded(self.loggingConfiguration(path: path, values: values))
+    }
+
+    static func loggingConfiguration(path: [String], values: ParsedValues) -> CodexBarLog.Configuration {
         let isJSON = values.flags.contains("jsonOutput") || values.flags.contains("jsonOnly")
         let verbose = values.flags.contains("verbose")
         let rawLevel = values.options["logLevel"]?.last
         let level = Self.resolvedLogLevel(verbose: verbose, rawLevel: rawLevel)
-        CodexBarLog.bootstrapIfNeeded(.init(destination: .stderr, level: level, json: isJSON))
+        let destination: CodexBarLog.Destination = path == ["diagnose"] ? .discard : .stderr
+        return .init(destination: destination, level: level, json: isJSON)
     }
 
     static func resolvedLogLevel(verbose: Bool, rawLevel: String?) -> CodexBarLog.Level {

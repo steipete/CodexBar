@@ -4,6 +4,7 @@ import Logging
 public enum CodexBarLog {
     public enum Destination: Sendable {
         case stderr
+        case discard
         case oslog(subsystem: String)
     }
 
@@ -85,6 +86,8 @@ public enum CodexBarLog {
             case .stderr:
                 if config.json { return JSONStderrLogHandler(label: label) }
                 return StreamLogHandler.standardError(label: label)
+            case .discard:
+                return DiscardLogHandler()
             case let .oslog(subsystem):
                 #if canImport(os)
                 return OSLogLogHandler(label: label, subsystem: subsystem)
@@ -152,6 +155,18 @@ public enum CodexBarLog {
         let logger = self.logger(LogCategories.logging)
         logger.info("File logging \(state)", metadata: ["path": self.fileLogURL.path])
     }
+}
+
+private struct DiscardLogHandler: LogHandler {
+    var metadata: Logger.Metadata = [:]
+    var logLevel: Logger.Level = .critical
+
+    subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
+        get { self.metadata[metadataKey] }
+        set { self.metadata[metadataKey] = newValue }
+    }
+
+    func log(event _: LogEvent) {}
 }
 
 public struct CodexBarLogger: Sendable {
