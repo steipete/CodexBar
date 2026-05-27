@@ -343,6 +343,90 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `O auth429 error gives actionable guidance without raw body`() {
+        let err = ClaudeOAuthFetchError.rateLimited(retryAfter: nil)
+        #expect(err.localizedDescription.contains("rate limited"))
+        #expect(err.localizedDescription.contains("claude logout && claude login"))
+        #expect(!err.localizedDescription.contains("rate_limit_error"))
+    }
+
+    @Test
+    func `O auth429 usage fetch surfaces guidance without raw JSON`() async throws {
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            environment: [:],
+            dataSource: .oauth,
+            oauthKeychainPromptCooldownEnabled: true)
+
+        let loadCredsOverride: (@Sendable (
+            [String: String],
+            Bool,
+            Bool) async throws -> ClaudeOAuthCredentials)? = { _, _, _ in
+            ClaudeOAuthCredentials(
+                accessToken: "rate-limited-token",
+                refreshToken: "refresh-token",
+                expiresAt: Date(timeIntervalSinceNow: 3600),
+                scopes: ["user:profile"],
+                rateLimitTier: nil)
+        }
+        let fetchOverride: (@Sendable (String) async throws -> OAuthUsageResponse)? = { _ in
+            throw ClaudeOAuthFetchError.rateLimited(retryAfter: nil)
+        }
+
+        do {
+            _ = try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(fetchOverride) {
+                try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(
+                    loadCredsOverride,
+                    operation: {
+                        try await fetcher.loadLatestUsage(model: "sonnet")
+                    })
+            }
+            Issue.record("Expected OAuth rate limit to fail with guidance")
+        } catch let error as ClaudeUsageError {
+            guard case let .oauthFailed(message) = error else {
+                Issue.record("Expected ClaudeUsageError.oauthFailed, got \(error)")
+                return
+            }
+            #expect(message.contains("rate limited"))
+            #expect(message.contains("claude logout && claude login"))
+            #expect(!message.contains("rate_limit_error"))
+        } catch {
+            Issue.record("Expected ClaudeUsageError, got \(error)")
+        }
+    }
+
+    @Test
+    func `O auth usage rate limit gate blocks background retries until cooldown`() {
+        ClaudeOAuthUsageRateLimitGate.resetForTesting()
+        defer { ClaudeOAuthUsageRateLimitGate.resetForTesting() }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let retryAfter = now.addingTimeInterval(120)
+
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now) == nil)
+        ClaudeOAuthUsageRateLimitGate.recordRateLimit(retryAfter: retryAfter, now: now)
+
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now) == retryAfter)
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now.addingTimeInterval(119)) != nil)
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now.addingTimeInterval(121)) == nil)
+    }
+
+    @Test
+    func `O auth retry after parses seconds`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let url = try #require(URL(string: "https://api.anthropic.com/api/oauth/usage"))
+        let response = try #require(HTTPURLResponse(
+            url: url,
+            statusCode: 429,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Retry-After": "42"]))
+
+        #expect(
+            ClaudeOAuthUsageFetcher._retryAfterDateForTesting(from: response, now: now)
+                == now.addingTimeInterval(42))
+    }
+
+    @Test
     func `oauth usage user agent uses claude code version`() {
         #expect(
             ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: "2.1.70 (Claude Code)")
