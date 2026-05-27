@@ -333,8 +333,18 @@ extension StatusItemController {
                 "snapshots": snapshots.map(\.description).joined(separator: " | "),
             ])
         self.recreateStatusItemsForVisibilityRecovery()
-        // No further retries: a menu bar manager may park the newly recreated item in a state that
-        // still looks blocked, causing repeated NSStatusItem destruction that corrupts Control Center.
+        // No further async retries: a menu bar manager may park the newly recreated item in a state
+        // that still looks blocked, causing repeated NSStatusItem destruction that corrupts Control Center.
+        // Instead, do one synchronous re-check to surface guidance if macOS itself is blocking the item.
+        let finalSnapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
+        guard MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(finalSnapshots) else { return }
+        self.menuLogger.error(
+            "Status item still blocked after display-change recovery recreation",
+            metadata: ["snapshots": finalSnapshots.map(\.description).joined(separator: " | ")])
+        guard #available(macOS 26.0, *),
+              MenuBarVisibilityWatcher.shouldShowGuidance(defaults: self.settings.userDefaults)
+        else { return }
+        MenuBarVisibilityWatcher.presentGuidance(defaults: self.settings.userDefaults)
     }
 
     private var startupVisibilityStatusItems: [NSStatusItem] {
