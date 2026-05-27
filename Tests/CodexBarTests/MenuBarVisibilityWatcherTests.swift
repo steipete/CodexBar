@@ -307,7 +307,7 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
+        #expect(!MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
             attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit - 1,
             snapshots: [blocked]))
     }
@@ -322,7 +322,7 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
+        #expect(MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
             attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit - 1,
             snapshots: [blocked]))
     }
@@ -337,7 +337,7 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
+        #expect(!MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
             attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit,
             snapshots: [blocked]))
     }
@@ -351,8 +351,70 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: true,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
+        #expect(!MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
             attempt: 1,
+            snapshots: [healthy]))
+    }
+
+    // MARK: - At most one recreate per display-change event
+
+    @Test
+    func `initial screen change detection allows recovery for blocked snapshot`() {
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(snapshots: [blocked]))
+    }
+
+    @Test
+    func `initial screen change detection does not allow recovery for healthy snapshot`() {
+        let healthy = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(snapshots: [healthy]))
+    }
+
+    @Test
+    func `follow-up still reports blocked for logging and guidance purposes`() {
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 18)
+
+        // Follow-up detection may still report "blocked" for logging/guidance, even though
+        // verifyScreenChangeRecoveryIfNeeded itself will not call recreate.
+        #expect(MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
+            attempt: 1,
+            snapshots: [blocked]))
+        #expect(MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
+            attempt: 2,
+            snapshots: [blocked]))
+    }
+
+    @Test
+    func `follow-up does not report blocked for healthy snapshot`() {
+        let healthy = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
+            attempt: 1,
+            snapshots: [healthy]))
+        #expect(!MenuBarVisibilityWatcher.shouldObserveBlockedScreenChangeFollowUp(
+            attempt: 2,
             snapshots: [healthy]))
     }
 }
