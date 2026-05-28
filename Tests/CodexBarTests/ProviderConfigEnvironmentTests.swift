@@ -197,6 +197,26 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `bedrock merged static credentials win over inherited AWS_PROFILE`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            secretKey: "config-secret",
+            region: "eu-central-1")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                BedrockSettingsReader.profileKey: "work",
+                BedrockSettingsReader.accessKeyIDKey: "env-access",
+            ],
+            provider: .bedrock,
+            config: config)
+
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "env-access")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "config-secret")
+        #expect(env[BedrockSettingsReader.regionKeys[0]] == "eu-central-1")
+        #expect(BedrockSettingsReader.authMode(environment: env) == .keys)
+    }
+
+    @Test
     func `bedrock profile mode projects AWS_PROFILE without saved static keys`() {
         let config = ProviderConfig(
             id: .bedrock,
