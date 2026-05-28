@@ -41,9 +41,7 @@ enum ClaudeOAuthUsageFetcher {
     private static let fallbackClaudeCodeVersion = "2.1.0"
 
     static func fetchUsage(accessToken: String) async throws -> OAuthUsageResponse {
-        if ProviderInteractionContext.current != .userInitiated,
-           let blockedUntil = ClaudeOAuthUsageRateLimitGate.currentBlockedUntil()
-        {
+        if let blockedUntil = ClaudeOAuthUsageRateLimitGate.blockedUntil() {
             throw ClaudeOAuthFetchError.rateLimited(retryAfter: blockedUntil)
         }
 

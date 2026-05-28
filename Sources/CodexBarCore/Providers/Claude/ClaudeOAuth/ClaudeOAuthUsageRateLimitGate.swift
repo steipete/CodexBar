@@ -4,6 +4,14 @@ enum ClaudeOAuthUsageRateLimitGate {
     private static let blockedUntilKey = "claudeOAuthUsageRateLimitBlockedUntilV1"
     private static let defaultCooldown: TimeInterval = 60 * 5
 
+    static func blockedUntil(
+        interaction: ProviderInteraction = ProviderInteractionContext.current,
+        now: Date = Date()) -> Date?
+    {
+        guard interaction != .userInitiated else { return nil }
+        return self.currentBlockedUntil(now: now)
+    }
+
     static func currentBlockedUntil(now: Date = Date()) -> Date? {
         guard let raw = UserDefaults.standard.object(forKey: self.blockedUntilKey) as? Double else {
             return nil

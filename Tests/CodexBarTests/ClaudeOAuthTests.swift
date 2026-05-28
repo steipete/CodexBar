@@ -407,6 +407,8 @@ struct ClaudeOAuthTests {
         ClaudeOAuthUsageRateLimitGate.recordRateLimit(retryAfter: retryAfter, now: now)
 
         #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now) == retryAfter)
+        #expect(ClaudeOAuthUsageRateLimitGate.blockedUntil(interaction: .background, now: now) == retryAfter)
+        #expect(ClaudeOAuthUsageRateLimitGate.blockedUntil(interaction: .userInitiated, now: now) == nil)
         #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now.addingTimeInterval(119)) != nil)
         #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now.addingTimeInterval(121)) == nil)
     }
@@ -424,6 +426,21 @@ struct ClaudeOAuthTests {
         #expect(
             ClaudeOAuthUsageFetcher._retryAfterDateForTesting(from: response, now: now)
                 == now.addingTimeInterval(42))
+    }
+
+    @Test
+    func `O auth retry after parses HTTP date`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let url = try #require(URL(string: "https://api.anthropic.com/api/oauth/usage"))
+        let response = try #require(HTTPURLResponse(
+            url: url,
+            statusCode: 429,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"]))
+
+        #expect(
+            ClaudeOAuthUsageFetcher._retryAfterDateForTesting(from: response, now: now)
+                == Date(timeIntervalSince1970: 1_445_412_480))
     }
 
     @Test
