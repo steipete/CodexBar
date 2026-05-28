@@ -167,6 +167,7 @@ extension UsageMenuCardView.Model {
         input: Input,
         percentStyle: PercentStyle) -> [Metric]
     {
+        guard input.showOptionalCreditsAndExtraUsage else { return [] }
         guard let extraRateWindows = snapshot.extraRateWindows else { return [] }
         return extraRateWindows.map { namedWindow in
             Metric(

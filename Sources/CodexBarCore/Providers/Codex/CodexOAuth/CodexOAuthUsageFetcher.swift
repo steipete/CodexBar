@@ -7,11 +7,14 @@ public struct CodexUsageResponse: Decodable, Sendable {
     public let planType: PlanType?
     public let rateLimit: RateLimitDetails?
     public let credits: CreditDetails?
+    /// Model-specific limits (e.g. GPT-5.3-Codex-Spark) that sit alongside the primary/weekly windows.
+    public let additionalRateLimits: [AdditionalRateLimit]?
 
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"
         case rateLimit = "rate_limit"
         case credits
+        case additionalRateLimits = "additional_rate_limits"
     }
 
     public init(from decoder: Decoder) throws {
@@ -19,6 +22,13 @@ public struct CodexUsageResponse: Decodable, Sendable {
         self.planType = try? container.decodeIfPresent(PlanType.self, forKey: .planType)
         self.rateLimit = try? container.decodeIfPresent(RateLimitDetails.self, forKey: .rateLimit)
         self.credits = try? container.decodeIfPresent(CreditDetails.self, forKey: .credits)
+        // Optional and additive: missing/malformed extra limits must never disturb primary/weekly mapping.
+        // Decode per element so a single malformed entry cannot discard its valid siblings; a non-array
+        // value (or absent field) leaves `additionalRateLimits` nil and primary/weekly mapping untouched.
+        self.additionalRateLimits = (try? container.decodeIfPresent(
+            [LossyAdditionalRateLimit].self,
+            forKey: .additionalRateLimits))?
+            .map { $0.compactMap(\.value) }
     }
 
     public enum PlanType: Sendable, Decodable, Equatable {
@@ -133,6 +143,38 @@ public struct CodexUsageResponse: Decodable, Sendable {
             case usedPercent = "used_percent"
             case resetAt = "reset_at"
             case limitWindowSeconds = "limit_window_seconds"
+        }
+    }
+
+    /// One entry of `additional_rate_limits`: a named, model-specific limit (e.g. GPT-5.3-Codex-Spark)
+    /// whose windows reuse the same shape as the primary/weekly `RateLimitDetails`.
+    public struct AdditionalRateLimit: Decodable, Sendable {
+        public let limitName: String?
+        public let meteredFeature: String?
+        public let rateLimit: RateLimitDetails?
+
+        enum CodingKeys: String, CodingKey {
+            case limitName = "limit_name"
+            case meteredFeature = "metered_feature"
+            case rateLimit = "rate_limit"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.limitName = try? container.decodeIfPresent(String.self, forKey: .limitName)
+            self.meteredFeature = try? container.decodeIfPresent(String.self, forKey: .meteredFeature)
+            self.rateLimit = try? container.decodeIfPresent(RateLimitDetails.self, forKey: .rateLimit)
+        }
+    }
+
+    /// Decodes a single `additional_rate_limits` element without ever throwing, so one malformed
+    /// entry cannot discard its valid siblings during array decoding.
+    private struct LossyAdditionalRateLimit: Decodable {
+        let value: AdditionalRateLimit?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            self.value = try? container.decode(AdditionalRateLimit.self)
         }
     }
 
