@@ -210,6 +210,7 @@ extension StatusItemController {
         } else if self.menuNeedsRefresh(menu) {
             self.rebuildClosedMenuIfNeeded(menu)
         }
+        self.highlightedMenuItems.removeValue(forKey: key)
         for menuItem in menu.items {
             (menuItem.view as? MenuCardHighlighting)?.setHighlighted(false)
         }

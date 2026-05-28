@@ -52,4 +52,32 @@ extension StatusMenuTests {
         #expect(secondView.states == [true])
         #expect(thirdView.states.isEmpty)
     }
+
+    @Test
+    func `menu highlight clears tracked state on close so reopen rehighlights same row`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let view = HighlightProbeView()
+        let item = NSMenuItem()
+        item.view = view
+        item.isEnabled = true
+        menu.addItem(item)
+
+        controller.menu(menu, willHighlight: item)
+        controller.forgetClosedMenu(menu)
+        controller.menu(menu, willHighlight: item)
+
+        #expect(view.states == [true, false, true])
+    }
 }
