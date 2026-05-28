@@ -1,12 +1,22 @@
 # Changelog
 
-## 0.29.2 — Unreleased
+## 0.30.1 — Unreleased
+
+### Changed
+- CLI: make `codexbar diagnose` use a generic safe provider diagnostic export for all providers, with MiniMax details attached only as provider-specific metadata.
+
+## 0.30.0 — 2026-05-27
 
 ### Added
+- MiniMax: add a redacted diagnostic CLI export for safe issue reports (#1128). Thanks @Yuxin-Qiao!
+- Antigravity: show the complete per-model quota breakdown alongside the existing summary lanes (#1139). Thanks @guhyun9454!
 - Widget: show tertiary usage rows for providers that expose a third quota lane (#1160). Thanks @LeoLin990405!
 - DeepSeek: show optional web-session usage and cost summaries alongside the balance card (#1166). Thanks @Yuxin-Qiao!
 
 ### Fixed
+- App shutdown: detach status items, close tracked menus, and cancel menu tasks before quit so Dock autohide stays responsive on macOS 26.5 (#1174). Thanks @jskoiz!
+- Widgets: package the macOS widget as a real Xcode app-extension target so WidgetKit descriptors load on macOS 26.5 (#1095). Thanks @jamesjlopez!
+- Menu: render quota-warning markers as subtle inset ticks instead of full-height bars (#1149).
 - Codex: show sign-in guidance when the Codex CLI is logged out instead of reporting a temporary usage outage (#1171, fixes #1170). Thanks @jskoiz!
 - Menu bar: stop repeated display-change status-item recreation from corrupting Control Center or confusing menu bar managers (#1176, fixes #1175). Thanks @diazdesandi!
 - Menu bar: clear stale hidden macOS status-item visibility defaults once before creating CodexBar items (#1169).

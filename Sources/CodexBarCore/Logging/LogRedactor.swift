@@ -18,13 +18,23 @@ public enum LogRedactor {
         pattern: #"(?i)(authorization\s*:\s*)([^\r\n]+)"#)
     private static let bearerRegex = Self.makeRegex(
         pattern: #"(?i)\bbearer\s+[a-z0-9._\-]+=*\b"#)
+    private static let minimaxCodingPlanTokenRegex = Self.makeRegex(
+        pattern: #"sk-cp-[^\s"'`;,)>\]]+"#)
+    private static let minimaxApiTokenRegex = Self.makeRegex(
+        pattern: #"sk-api-[^\s"'`;,)>\]]+"#)
 
     public static func redact(_ text: String) -> String {
         var output = text
+        // Email is broad and safe first
         output = self.replace(self.emailRegex, in: output, with: "<redacted-email>")
+        // MiniMax tokens before broader rules catch them
+        output = self.replace(self.minimaxCodingPlanTokenRegex, in: output, with: "<redacted-minimax-token>")
+        output = self.replace(self.minimaxApiTokenRegex, in: output, with: "<redacted-minimax-token>")
+        // Bearer catches "bearer <token>" before authorization wraps it
+        output = self.replace(self.bearerRegex, in: output, with: "Bearer <redacted>")
+        // Authorization catches the rest (already-redacted content)
         output = self.replace(self.cookieHeaderRegex, in: output, with: "$1<redacted>")
         output = self.replace(self.authorizationRegex, in: output, with: "$1<redacted>")
-        output = self.replace(self.bearerRegex, in: output, with: "Bearer <redacted>")
         return output
     }
 

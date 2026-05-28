@@ -10,12 +10,15 @@ protocol StatusItemControlling: AnyObject {
     func openMenuFromShortcut()
     func runLoginFlowFromSettings(provider: UsageProvider) async
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
+    func prepareForAppShutdown()
 }
 
 extension StatusItemControlling {
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
         nil
     }
+
+    func prepareForAppShutdown() {}
 }
 
 @MainActor
@@ -92,7 +95,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let updater: UpdaterProviding
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
-    private let statusBar: NSStatusBar
+    let statusBar: NSStatusBar
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
     var lastMenuProvider: UsageProvider?
@@ -106,6 +109,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
+    var hasPreparedForAppShutdown = false
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
     var isReleasedForTesting = false
@@ -837,47 +841,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         return "\(prefix): \(base)"
     }
-
-    #if DEBUG
-    func releaseStatusItemsForTesting() {
-        guard !self.isReleasedForTesting else { return }
-        self.isReleasedForTesting = true
-        self.blinkTask?.cancel()
-        self.loginTask?.cancel()
-        self.screenChangeVisibilityTask?.cancel()
-        self.pendingScreenChangePreviousCount = nil
-        self.animationDriver?.stop()
-        self.animationDriver = nil
-        self.animationPhase = 0
-        self.blinkForceUntil = nil
-        self.blinkStates.removeAll(keepingCapacity: false)
-        self.blinkAmounts.removeAll(keepingCapacity: false)
-        self.wiggleAmounts.removeAll(keepingCapacity: false)
-        self.tiltAmounts.removeAll(keepingCapacity: false)
-
-        for task in self.menuRefreshTasks.values {
-            task.cancel()
-        }
-        self.removeProviderSwitcherShortcutMonitor()
-        self.menuRefreshTasks.removeAll(keepingCapacity: false)
-        self.openMenus.removeAll(keepingCapacity: false)
-        self.menuProviders.removeAll(keepingCapacity: false)
-        self.menuVersions.removeAll(keepingCapacity: false)
-        self.providerMenus.removeAll(keepingCapacity: false)
-        self.mergedMenu = nil
-        self.fallbackMenu = nil
-
-        self.statusItem.menu = nil
-        self.statusBar.removeStatusItem(self.statusItem)
-
-        for item in self.statusItems.values {
-            item.menu = nil
-            self.statusBar.removeStatusItem(item)
-        }
-        self.statusItems.removeAll(keepingCapacity: false)
-        self.lastAppliedProviderIconRenderSignatures.removeAll(keepingCapacity: false)
-    }
-    #endif
 
     deinit {
         let animationDriver = self.animationDriver

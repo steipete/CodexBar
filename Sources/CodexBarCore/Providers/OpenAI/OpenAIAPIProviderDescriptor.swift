@@ -106,7 +106,7 @@ struct OpenAIAPIBalanceFetchStrategy: ProviderFetchStrategy {
     }
 }
 
-struct OpenAIAPIUsageCredential: Equatable, Sendable {
+struct OpenAIAPIUsageCredential: Equatable {
     let apiKey: String
     let projectID: String?
     let usesAdminKey: Bool

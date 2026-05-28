@@ -801,6 +801,60 @@ struct AntigravityStatusProbeTests {
         #expect(usage.tertiary?.remainingPercent.rounded() == 100)
         #expect(usage.identity?.accountEmail == "user@example.com")
     }
+}
+
+extension AntigravityStatusProbeTests {
+    @Test
+    func `extra rate windows preserve all model quotas in stable label order`() throws {
+        let resetTime = Date(timeIntervalSince1970: 1_775_000_000)
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "GPT-OSS 120B (Medium)",
+                    modelId: "MODEL_PLACEHOLDER_M55",
+                    remainingFraction: 0.25,
+                    resetTime: resetTime,
+                    resetDescription: "tomorrow"),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (Low)",
+                    modelId: "MODEL_PLACEHOLDER_M53",
+                    remainingFraction: 0.5,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Claude Opus 4.6 (Thinking)",
+                    modelId: "MODEL_PLACEHOLDER_M50",
+                    remainingFraction: 0.75,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (High)",
+                    modelId: "MODEL_PLACEHOLDER_M52",
+                    remainingFraction: 1,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil)
+
+        let usage = try snapshot.toUsageSnapshot()
+        let extraWindows = try #require(usage.extraRateWindows)
+
+        #expect(extraWindows.map(\.id) == [
+            "MODEL_PLACEHOLDER_M50",
+            "MODEL_PLACEHOLDER_M52",
+            "MODEL_PLACEHOLDER_M53",
+            "MODEL_PLACEHOLDER_M55",
+        ])
+        #expect(extraWindows.map(\.title) == [
+            "Claude Opus 4.6 (Thinking)",
+            "Gemini 3 Pro (High)",
+            "Gemini 3 Pro (Low)",
+            "GPT-OSS 120B (Medium)",
+        ])
+        #expect(extraWindows.map { $0.window.remainingPercent.rounded() } == [75, 100, 50, 25])
+        #expect(extraWindows.last?.window.resetDescription == "tomorrow")
+    }
 
     @Test
     func `model without remaining fraction keeps reset time`() throws {

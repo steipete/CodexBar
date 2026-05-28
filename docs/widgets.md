@@ -16,6 +16,7 @@ read_when:
 
 ## Extension
 - `Sources/CodexBarWidget` contains timeline + views.
+- `WidgetExtension/CodexBarWidgetExtension.xcodeproj` builds those sources as the packaged macOS WidgetKit app extension.
 - Keep data shape in sync with `WidgetSnapshot` in the main app.
 
 ## Widget types

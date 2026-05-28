@@ -24,7 +24,7 @@ ARCH_LIST=( ${ARCHES_VALUE} )
 for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c release --arch "$ARCH"
 done
-CODEXBAR_WIDGET_METADATA_MODE=required ARCHES="${ARCHES_VALUE}" ./Scripts/package_app.sh release
+ARCHES="${ARCHES_VALUE}" ./Scripts/package_app.sh release
 
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"

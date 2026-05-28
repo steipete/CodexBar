@@ -168,6 +168,28 @@ extension CodexBarCLI {
         """
     }
 
+    static func diagnoseHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar diagnose --provider <name|all> --format json
+                           [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
+                           [-v|--verbose]
+                           [--pretty]
+
+        Description:
+          Run provider diagnostic fetches and print a safe JSON export for issue reporting.
+          The export is redacted and omits raw API tokens, cookies, auth headers, emails,
+          account IDs, org IDs, raw responses, and billing-history records.
+
+        Examples:
+          codexbar diagnose --provider minimax --format json --pretty
+          codexbar diagnose --provider claude --format json --pretty
+          codexbar diagnose --provider all --format json
+        """
+    }
+
     static func rootHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -198,6 +220,7 @@ extension CodexBarCLI {
           codexbar config disable --provider <name>
           codexbar config set-api-key --provider <name> (--api-key <key>|--stdin)
           codexbar cache clear <--cookies|--cost|--all> [--provider <name>]
+          codexbar diagnose --provider <name|all> --format json [--pretty]
 
         Global flags:
           -h, --help      Show help
@@ -218,6 +241,8 @@ extension CodexBarCLI {
           codexbar config enable --provider grok
           codexbar config set-api-key --provider elevenlabs --stdin
           codexbar cache clear --cookies
+          codexbar diagnose --provider minimax --format json --pretty
+          codexbar diagnose --provider all --format json
         """
     }
 }

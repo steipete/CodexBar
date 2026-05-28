@@ -3,6 +3,8 @@ import Testing
 @testable import CodexBarCore
 
 struct DeepSeekUsageFetcherTests {
+    private struct TimeoutError: Error {}
+
     private actor SummaryCancellationProbe {
         private var started = false
         private var cancelled = false
@@ -29,6 +31,26 @@ struct DeepSeekUsageFetcherTests {
 
         func wasCancelled() -> Bool {
             self.cancelled
+        }
+    }
+
+    private static func withTimeout<T: Sendable>(
+        _ timeout: Duration,
+        operation: @escaping @Sendable () async throws -> T) async throws -> T
+    {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw TimeoutError()
+            }
+
+            let result = try await group.next()
+            group.cancelAll()
+            guard let result else { throw TimeoutError() }
+            return result
         }
     }
 
@@ -320,23 +342,30 @@ struct DeepSeekUsageFetcherTests {
 
     @Test
     func `balance returns promptly when optional usage summary is slow`() async throws {
-        let startedAt = Date()
-        let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
-            apiKey: "test-key",
-            includeOptionalUsage: true,
-            optionalSummaryJoinGrace: .seconds(2),
-            fetchBalanceData: { _ in
-                Data(Self.sampleBalanceJSON.utf8)
-            },
-            fetchSummary: { _ in
-                try await Task.sleep(for: .seconds(3))
-                return Self.sampleSummary()
-            })
+        let probe = SummaryCancellationProbe()
+        let snapshot = try await Self.withTimeout(.seconds(10)) {
+            try await DeepSeekUsageFetcher._fetchUsageForTesting(
+                apiKey: "test-key",
+                includeOptionalUsage: true,
+                optionalSummaryJoinGrace: .milliseconds(50),
+                fetchBalanceData: { _ in
+                    Data(Self.sampleBalanceJSON.utf8)
+                },
+                fetchSummary: { _ in
+                    await probe.markStarted()
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                        return Self.sampleSummary()
+                    } catch is CancellationError {
+                        await probe.markCancelled()
+                        throw CancellationError()
+                    }
+                })
+        }
 
-        let elapsed = Date().timeIntervalSince(startedAt)
-        #expect(elapsed < 2.5)
         #expect(snapshot.totalBalance == 50.0)
         #expect(snapshot.usageSummary == nil)
+        #expect(await probe.wasCancelled())
     }
 
     @Test
@@ -418,29 +447,37 @@ struct DeepSeekUsageFetcherTests {
 
     @Test
     func `parent cancellation propagates while waiting for optional usage summary`() async throws {
-        let startedAt = Date()
+        let probe = SummaryCancellationProbe()
         let task = Task {
             try await DeepSeekUsageFetcher._fetchUsageForTesting(
                 apiKey: "test-key",
                 includeOptionalUsage: true,
-                optionalSummaryJoinGrace: .seconds(5),
+                optionalSummaryJoinGrace: .seconds(30),
                 fetchBalanceData: { _ in
                     Data(Self.sampleBalanceJSON.utf8)
                 },
                 fetchSummary: { _ in
-                    try await Task.sleep(for: .seconds(5))
-                    return Self.sampleSummary()
+                    await probe.markStarted()
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                        return Self.sampleSummary()
+                    } catch is CancellationError {
+                        await probe.markCancelled()
+                        throw CancellationError()
+                    }
                 })
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await probe.waitUntilStarted()
         task.cancel()
 
         do {
-            _ = try await task.value
+            _ = try await Self.withTimeout(.seconds(10)) {
+                try await task.value
+            }
             Issue.record("Expected cancellation")
         } catch is CancellationError {
-            #expect(Date().timeIntervalSince(startedAt) < 1.0)
+            #expect(await probe.wasCancelled())
         }
     }
 
