@@ -1171,6 +1171,10 @@ final class CodexAccountSwitcherView: NSView {
     private let buttonHorizontalPadding: CGFloat = 14
     private let buttonSideInset: CGFloat = 6
     private let dragThreshold: CGFloat = 4
+    private let dragAlpha: CGFloat = 0.65
+    private let dragLiftOffset: CGFloat = 2
+    private let dragAnimationDuration: TimeInterval = 0.12
+    private let reorderAnimationDuration: TimeInterval = 0.18
 
     init(
         accounts: [CodexVisibleAccount],
@@ -1437,14 +1441,17 @@ final class CodexAccountSwitcherView: NSView {
         else {
             return
         }
-        self.draggedAccountID = pressedAccountID
-        self.buttons.first { $0.identifier?.rawValue == pressedAccountID }?.alphaValue = 0.65
+        if self.draggedAccountID == nil {
+            self.draggedAccountID = pressedAccountID
+            self.animateDragStart(for: pressedAccountID)
+        }
     }
 
     override func mouseUp(with event: NSEvent) {
+        var reordered = false
         defer {
-            if let draggedAccountID {
-                self.buttons.first { $0.identifier?.rawValue == draggedAccountID }?.alphaValue = 1
+            if let draggedAccountID, !reordered {
+                self.resetDragAppearance(for: draggedAccountID)
             }
             self.pressedAccountID = nil
             self.dragStartPoint = nil
@@ -1456,11 +1463,12 @@ final class CodexAccountSwitcherView: NSView {
                targetAccountID != draggedAccountID
             {
                 let dropAfterTarget = self.dropAfterTarget(at: location, targetAccountID: targetAccountID)
-                self.reorderAccount(
+                reordered = self.reorderAccount(
                     id: draggedAccountID,
                     targetID: targetAccountID,
                     dropAfterTarget: dropAfterTarget,
-                    notify: true)
+                    notify: true,
+                    animated: true)
             }
             return
         }
@@ -1491,12 +1499,119 @@ final class CodexAccountSwitcherView: NSView {
         hypot(end.x - start.x, end.y - start.y)
     }
 
+    private var shouldAnimateSwitcherMotion: Bool {
+        !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private func button(for accountID: String) -> NSButton? {
+        self.buttons.first { $0.identifier?.rawValue == accountID }
+    }
+
+    private func animateDragStart(for accountID: String) {
+        guard let button = self.button(for: accountID) else { return }
+        if self.shouldAnimateSwitcherMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = self.dragAnimationDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                button.animator().alphaValue = self.dragAlpha
+            }
+            self.animateLayerTransform(
+                for: button,
+                to: CATransform3DMakeTranslation(0, self.dragLiftOffset, 0),
+                key: "codexAccountDragLift",
+                duration: self.dragAnimationDuration)
+        } else {
+            button.alphaValue = self.dragAlpha
+        }
+    }
+
+    private func resetDragAppearance(for accountID: String) {
+        guard let button = self.button(for: accountID) else { return }
+        if self.shouldAnimateSwitcherMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = self.dragAnimationDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                button.animator().alphaValue = 1
+            }
+            self.animateLayerTransform(
+                for: button,
+                to: CATransform3DIdentity,
+                key: "codexAccountDragLift",
+                duration: self.dragAnimationDuration)
+        } else {
+            button.alphaValue = 1
+            button.layer?.transform = CATransform3DIdentity
+        }
+    }
+
+    private func buttonFramesByAccountID() -> [String: NSRect] {
+        self.updateConstraintsForSubtreeIfNeeded()
+        self.layoutSubtreeIfNeeded()
+        var frames: [String: NSRect] = [:]
+        for button in self.buttons {
+            guard let accountID = button.identifier?.rawValue else { continue }
+            frames[accountID] = self.convert(button.bounds, from: button)
+        }
+        return frames
+    }
+
+    private func animateReorderedButtons(from oldFrames: [String: NSRect]) {
+        guard self.shouldAnimateSwitcherMotion else { return }
+        let newFrames = self.buttonFramesByAccountID()
+        for button in self.buttons {
+            guard let accountID = button.identifier?.rawValue,
+                  let oldFrame = oldFrames[accountID],
+                  let newFrame = newFrames[accountID]
+            else {
+                continue
+            }
+            let deltaX = oldFrame.minX - newFrame.minX
+            let deltaY = oldFrame.minY - newFrame.minY
+            guard abs(deltaX) > 0.5 || abs(deltaY) > 0.5 else { continue }
+            guard let layer = button.layer else { continue }
+            let transform = CATransform3DMakeTranslation(deltaX, deltaY, 0)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.transform = transform
+            CATransaction.commit()
+            self.animateLayerTransform(
+                for: button,
+                to: CATransform3DIdentity,
+                key: "codexAccountReorder",
+                duration: self.reorderAnimationDuration)
+        }
+    }
+
+    private func animateLayerTransform(
+        for button: NSButton,
+        to transform: CATransform3D,
+        key: String,
+        duration: TimeInterval)
+    {
+        guard let layer = button.layer else { return }
+        let fromTransform = layer.presentation()?.transform ?? layer.transform
+        layer.removeAnimation(forKey: key)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = transform
+        CATransaction.commit()
+
+        guard self.shouldAnimateSwitcherMotion else { return }
+        let animation = CABasicAnimation(keyPath: "transform")
+        animation.fromValue = NSValue(caTransform3D: fromTransform)
+        animation.toValue = NSValue(caTransform3D: transform)
+        animation.duration = duration
+        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(animation, forKey: key)
+    }
+
     @discardableResult
     private func reorderAccount(
         id: String,
         targetID: String,
         dropAfterTarget: Bool,
-        notify: Bool)
+        notify: Bool,
+        animated: Bool)
         -> Bool
     {
         guard id != targetID,
@@ -1506,13 +1621,14 @@ final class CodexAccountSwitcherView: NSView {
             return false
         }
 
+        let oldFrames = animated ? self.buttonFramesByAccountID() : [:]
         let account = self.accounts.remove(at: sourceIndex)
         let adjustedTargetIndex = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex
         let insertionIndex = min(
             self.accounts.count,
             adjustedTargetIndex + (dropAfterTarget ? 1 : 0))
         self.accounts.insert(account, at: insertionIndex)
-        self.rebuildButtons()
+        self.rebuildButtons(animatedFrom: animated ? oldFrames : nil)
         if notify {
             self.onReorder(self.accounts.map(\.id))
         }
@@ -1531,7 +1647,7 @@ final class CodexAccountSwitcherView: NSView {
         self.onSelect(account)
     }
 
-    private func rebuildButtons() {
+    private func rebuildButtons(animatedFrom oldFrames: [String: NSRect]? = nil) {
         for subview in self.subviews {
             subview.removeFromSuperview()
         }
@@ -1539,6 +1655,9 @@ final class CodexAccountSwitcherView: NSView {
         self.buildButtons(useTwoRows: self.accounts.count > 3)
         self.updateButtonStyles()
         self.needsLayout = true
+        if let oldFrames {
+            self.animateReorderedButtons(from: oldFrames)
+        }
     }
 
     #if DEBUG
@@ -1565,7 +1684,8 @@ final class CodexAccountSwitcherView: NSView {
             id: id,
             targetID: targetID,
             dropAfterTarget: dropAfterTarget,
-            notify: true)
+            notify: true,
+            animated: false)
     }
 
     func _test_simulateRuntimeClick(id: String) -> Bool {
