@@ -868,7 +868,7 @@
 "Paste a Cookie header or full cURL capture from T3 Chat settings." = "貼上 T3 Chat 設定中的 Cookie 標頭或完整 cURL 擷取內容。";
 "Paste the Cookie header from a request to admin.mistral.ai. Must contain an ory_session_* cookie." = "貼上發往 admin.mistral.ai 請求中的 Cookie 標頭。必須包含 ory_session_* Cookie。";
 "Paste the Oasis-Token from a logged-in browser session on platform.stepfun.com." = "貼上 platform.stepfun.com 已登入瀏覽器工作階段中的 Oasis-Token。";
-"Paste the %@ JSON bundle from %@." = "貼上來自 %@ 的 %@ JSON 組合。";
+"Paste the %@ JSON bundle from %@." = "貼上來自 %2$@ 的 %1$@ JSON 組合。";
 "Paste the %@ value or a full Cookie header." = "貼上 %@ 值或完整 Cookie 標頭。";
 "Personal account" = "個人帳號";
 "Project ID" = "專案 ID";
