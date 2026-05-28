@@ -3,6 +3,28 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.30.1</title>
+            <pubDate>Thu, 28 May 2026 07:56:49 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>72</sparkle:version>
+            <sparkle:shortVersionString>0.30.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.30.1</h2>
+<h3>Changed</h3>
+<ul>
+<li>CLI: make <code>codexbar diagnose</code> use a generic safe provider diagnostic export for all providers, with MiniMax details attached only as provider-specific metadata.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Settings: add trailing breathing room to provider-sidebar controls (#1183). Thanks @Yuxin-Qiao!</li>
+<li>Claude: treat OAuth usage HTTP 429s as rate limits, preserve cached credentials, and back off background retries while still allowing manual refresh (#1179). Thanks @LeoLin990405!</li>
+<li>Menu bar: stop repeated display-change status-item recreation from corrupting Control Center or confusing menu bar managers (#1176, fixes #1175). Thanks @diazdesandi!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.30.1/CodexBar-macos-universal-0.30.1.zip" length="44308521" type="application/octet-stream" sparkle:edSignature="cfxg8FT6uZzaLb/BVogBkANw6pBeja7Ib6sTd6VcYFqTq9FpmvJ0loeVbfkbSXanIuL7lFs2GEJeWPLQRqjJCQ=="/>
+        </item>
+        <item>
             <title>0.30.0</title>
             <pubDate>Wed, 27 May 2026 07:04:18 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -16,6 +38,7 @@
 <li>Antigravity: show the complete per-model quota breakdown alongside the existing summary lanes (#1139). Thanks @guhyun9454!</li>
 <li>Widget: show tertiary usage rows for providers that expose a third quota lane (#1160). Thanks @LeoLin990405!</li>
 <li>DeepSeek: show optional web-session usage and cost summaries alongside the balance card (#1166). Thanks @Yuxin-Qiao!</li>
+<li>OpenAI: scope Admin API usage to the configured project and keep token accounts from inheriting stale project filters (#1168). Thanks @mstallone!</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
@@ -27,6 +50,8 @@
 <li>StepFun: refresh expired Oasis tokens and persist recovered manual sessions. Thanks @LeoLin990405!</li>
 <li>Release: prevent manual CLI artifact builds from publishing or clobbering release assets (#1154). Thanks @jskoiz!</li>
 <li>Cost history: route OpenAI and Mistral API spend through the shared cost-history cards, including OpenAI request counts (#1163). Thanks @LeoLin990405!</li>
+<li>Menu: keep provider switcher Cmd-number and arrow shortcuts working while the open menu is tracking events (#1157, fixes #1156 and #1144). Thanks @anirudhvee!</li>
+<li>Codex: prevent fork token replay from overcounting corrected cumulative session totals (#1164). Thanks @xx205!</li>
 <li>Alibaba Token Plan: update usage refreshes to the Bailian subscription-summary endpoint (#1142). Thanks @YanxinXue!</li>
 <li>Ollama: show pace projections for documented 5-hour session and 7-day weekly usage windows (#1136). Thanks @bdamokos!</li>
 <li>Localization: polish Simplified Chinese wording and add notification strings (#1165). Thanks @fanfanci!</li>
@@ -69,33 +94,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.29.1/CodexBar-macos-universal-0.29.1.zip" length="43785852" type="application/octet-stream" sparkle:edSignature="7XsDO0MzlsSEiecOZ92TpWvqEhIESbKgPrhtfv7a0A21ppIpw+yq1IBkRXb0f97RoM52kdNSNXuTgVc4BNpKAw=="/>
-        </item>
-        <item>
-            <title>0.29.0</title>
-            <pubDate>Fri, 22 May 2026 18:31:14 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>68</sparkle:version>
-            <sparkle:shortVersionString>0.29.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.29.0</h2>
-<h3>Added</h3>
-<ul>
-<li>Cost history: show Codex standard and fast spend/token splits in model breakdowns (#1070). Thanks @iam-brain!</li>
-<li>Alibaba Token Plan: add Bailian token-plan quota tracking via browser or manual cookies (#1098). Thanks @YanxinXue!</li>
-<li>OpenCode: show workspace renewal dates for OpenCode and OpenCode Go usage windows (#1099). Thanks @Yuxin-Qiao!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Localization: improve Simplified Chinese settings and menu translations (#1059). Thanks @narallee!</li>
-<li>Alibaba Token Plan: reject non-HTTPS endpoint overrides and keep the provider building on Linux (#1104). Thanks @YanxinXue!</li>
-<li>Settings: avoid crashing when API key or cookie settings contain only a single quote character (#1106). Thanks @m1qaweb!</li>
-<li>Build scripts: derive the local development signing team ID from the certificate OU before falling back to the CN suffix (#1095).</li>
-<li>Menu bar: keep retrying display-change recovery when macOS leaves status items detached from the current screen (#1077, #1088).</li>
-<li>Codex: preserve last successful per-account quota snapshots when later network or DNS refreshes fail (#1097, #1101). Thanks @Yuxin-Qiao!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.29.0/CodexBar-macos-universal-0.29.0.zip" length="43483444" type="application/octet-stream" sparkle:edSignature="SpSregFkTly/niHHsR1MQIUJjOzeUKy5wIpEJqfd+ITUDpN2U61H36RtdEjY6eRhGyuLnAXuXXPAB0NdslZgDg=="/>
         </item>
         <item>
             <title>0.14.0</title>

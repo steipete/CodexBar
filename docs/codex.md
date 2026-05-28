@@ -31,6 +31,10 @@ Usage source picker:
 - Reads OAuth tokens from `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`).
 - Refreshes access tokens when `last_refresh` is older than 8 days.
 - Calls `GET https://chatgpt.com/backend-api/wham/usage` (default) with `Authorization: Bearer <token>`.
+- `rate_limit.primary_window` / `secondary_window` map to the session/weekly lanes.
+- `additional_rate_limits[]` (model-specific limits such as GPT-5.3-Codex-Spark) map to named
+  `UsageSnapshot.extraRateWindows` entries (Spark uses a stable `codex-spark` id / `Codex Spark` title).
+  When the field is absent, the snapshot is unchanged.
 
 ### OpenAI web dashboard (optional, off by default)
 - Enable it in Preferences -> Providers -> Codex -> OpenAI web extras.

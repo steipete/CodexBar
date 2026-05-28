@@ -185,6 +185,57 @@ struct MenuCardAntigravityTests {
     }
 
     @Test
+    func `antigravity per model extra windows still render when optional extras are disabled`() throws {
+        // Regression: the optional-credits/extra-usage setting is Codex-specific and must NOT hide
+        // other providers' core extra windows (here Antigravity per-model quotas).
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let resetTime = now.addingTimeInterval(3600)
+        let antigravitySnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Claude Opus 4.6 (Thinking)",
+                    modelId: "MODEL_PLACEHOLDER_M50",
+                    remainingFraction: 0.75,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (High)",
+                    modelId: "MODEL_PLACEHOLDER_M52",
+                    remainingFraction: 1,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: "Pro")
+        let snapshot = try antigravitySnapshot.toUsageSnapshot()
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
+            now: now))
+
+        // Per-model extra windows remain visible even with optional extras disabled.
+        #expect(model.metrics.contains { $0.title == "Claude Opus 4.6 (Thinking)" })
+        #expect(model.metrics.contains { $0.title == "Gemini 3 Pro (High)" })
+    }
+
+    @Test
     func `antigravity missing families show full usage in used mode`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(

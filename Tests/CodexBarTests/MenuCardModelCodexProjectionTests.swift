@@ -607,6 +607,84 @@ struct MenuCardModelCodexProjectionTests {
     }
 
     @Test
+    func `renders codex spark as a named extra metric after the core lanes`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 4,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "codex-spark",
+                    title: "Codex Spark",
+                    window: RateWindow(
+                        usedPercent: 30,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(60 * 60),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now,
+            identity: identity)
+        let projection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let spark = try #require(model.metrics.first { $0.id == "codex-spark" })
+        #expect(spark.title == "Codex Spark")
+        #expect(spark.percent == 70)
+        #expect(spark.percentLabel == "70% left")
+        #expect(spark.resetText != nil)
+        // Spark trails the core session/weekly lanes rather than replacing them.
+        let sparkIndex = try #require(model.metrics.firstIndex { $0.id == "codex-spark" })
+        let sessionIndex = try #require(model.metrics.firstIndex { $0.id == "primary" })
+        #expect(sparkIndex > sessionIndex)
+    }
+
+    @Test
     func `hides codex credits when disabled`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
@@ -656,5 +734,77 @@ struct MenuCardModelCodexProjectionTests {
             now: now))
 
         #expect(model.creditsText == nil)
+    }
+
+    @Test
+    func `hides codex spark extra metric when showOptionalCreditsAndExtraUsage is false`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 4,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "codex-spark",
+                    title: "Codex Spark",
+                    window: RateWindow(
+                        usedPercent: 30,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(60 * 60),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now,
+            identity: identity)
+        let projection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(!model.metrics.contains { $0.id == "codex-spark" })
+        #expect(model.metrics.contains { $0.id == "primary" })
+        #expect(model.metrics.contains { $0.id == "secondary" })
     }
 }

@@ -298,8 +298,11 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
-    func `screen change retry ignores detached screen with live status item`() {
-        let blocked = StatusItemVisibilitySnapshot(
+    func `manager parked item with live window is not blocked`() {
+        // A menu bar manager parks items off the active screen with the window intact.
+        // hasAnyBlockedVisibleSnapshot must return false so verifyScreenChangeRecoveryIfNeeded
+        // does not trigger repeated recreation that corrupts Control Center.
+        let managed = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
             hasWindow: true,
@@ -307,52 +310,37 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
-            attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit - 1,
-            snapshots: [blocked]))
+        #expect(!MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot([managed]))
+        #expect(MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([managed]))
     }
 
     @Test
-    func `screen change retry continues for missing window before retry limit`() {
-        let blocked = StatusItemVisibilitySnapshot(
-            isVisible: true,
-            hasButton: true,
-            hasWindow: false,
-            hasScreen: false,
-            isOnCurrentScreen: false,
-            buttonWidth: 18)
-
-        #expect(MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
-            attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit - 1,
-            snapshots: [blocked]))
-    }
-
-    @Test
-    func `screen change retry stops at retry limit for missing window`() {
-        let blocked = StatusItemVisibilitySnapshot(
-            isVisible: true,
-            hasButton: true,
-            hasWindow: false,
-            hasScreen: false,
-            isOnCurrentScreen: false,
-            buttonWidth: 18)
-
-        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
-            attempt: MenuBarVisibilityWatcher.screenChangeRecoveryRetryLimit,
-            snapshots: [blocked]))
-    }
-
-    @Test
-    func `screen change retry stops when recovered`() {
-        let healthy = StatusItemVisibilitySnapshot(
+    func `manager parked item with live window on stale screen is not blocked`() {
+        let managed = StatusItemVisibilitySnapshot(
             isVisible: true,
             hasButton: true,
             hasWindow: true,
             hasScreen: true,
+            isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRetryScreenChangeRecovery(
-            attempt: 1,
-            snapshots: [healthy]))
+        #expect(!MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot([managed]))
+        #expect(MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([managed]))
+    }
+
+    @Test
+    func `item without window is blocked regardless of screen state`() {
+        // A missing window cannot be caused by a manager parking the item; it signals
+        // a genuine system block and must trigger recovery.
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot([blocked]))
+        #expect(!MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([blocked]))
     }
 }

@@ -140,6 +140,12 @@ extension StatusItemController {
 
         self.openMenus.removeValue(forKey: key)
         self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
+        self.openMenuRebuildTasks.removeValue(forKey: key)?.cancel()
+        self.openMenuRebuildTokens.removeValue(forKey: key)
+        self.openMenuRebuildsClosingHostedSubviewMenus.remove(key)
+        if let highlightedView = self.highlightedMenuItems.removeValue(forKey: key)?.view {
+            (highlightedView as? MenuCardHighlighting)?.setHighlighted(false)
+        }
 
         let isPersistentMenu = menu === self.mergedMenu ||
             menu === self.fallbackMenu ||
@@ -148,15 +154,22 @@ extension StatusItemController {
             self.menuProviders.removeValue(forKey: key)
             self.menuVersions.removeValue(forKey: key)
         }
-        for menuItem in menu.items {
-            (menuItem.view as? MenuCardHighlighting)?.setHighlighted(false)
-        }
     }
 
     func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
-        for menuItem in menu.items {
-            let highlighted = menuItem == item && menuItem.isEnabled
-            (menuItem.view as? MenuCardHighlighting)?.setHighlighted(highlighted)
+        let key = ObjectIdentifier(menu)
+        let previous = self.highlightedMenuItems[key]
+        guard previous !== item else { return }
+
+        if let previous {
+            (previous.view as? MenuCardHighlighting)?.setHighlighted(false)
+        }
+
+        if let item, item.isEnabled {
+            self.highlightedMenuItems[key] = item
+            (item.view as? MenuCardHighlighting)?.setHighlighted(true)
+        } else {
+            self.highlightedMenuItems.removeValue(forKey: key)
         }
     }
 
@@ -1084,20 +1097,7 @@ extension StatusItemController {
     }
 
     func refreshOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
-        self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
-        Task { @MainActor [weak self, weak menu] in
-            guard let self, let menu else { return }
-            #if DEBUG
-            if let override = self._test_openMenuRefreshYieldOverride {
-                await override()
-            } else {
-                await Task.yield()
-            }
-            #else
-            await Task.yield()
-            #endif
-            self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
-        }
+        self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: provider)
     }
 
     func rebuildOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {

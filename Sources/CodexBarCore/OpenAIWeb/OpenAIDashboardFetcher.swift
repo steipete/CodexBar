@@ -53,6 +53,7 @@ public struct OpenAIDashboardFetcher {
         let breakdown: [OpenAIDashboardDailyBreakdown]
         let usageBreakdown: [OpenAIDashboardDailyBreakdown]
         let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
+        let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
         let accountPlan: String?
     }
@@ -65,6 +66,7 @@ public struct OpenAIDashboardFetcher {
         let breakdown: [OpenAIDashboardDailyBreakdown]
         let usageBreakdown: [OpenAIDashboardDailyBreakdown]
         let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
+        let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
         let accountPlan: String?
         let hasDashboardPageSignal: Bool
@@ -84,6 +86,7 @@ public struct OpenAIDashboardFetcher {
             creditsPurchaseURL: components.scrape.creditsPurchaseURL,
             primaryLimit: components.rateLimits.primary,
             secondaryLimit: components.rateLimits.secondary,
+            extraRateWindows: components.extraRateWindows.isEmpty ? nil : components.extraRateWindows,
             creditsRemaining: components.creditsRemaining,
             accountPlan: components.accountPlan,
             updatedAt: Date())
@@ -122,6 +125,9 @@ public struct OpenAIDashboardFetcher {
             hasUsageLimits: hasUsageLimits,
             creditsRemaining: creditsRemaining)
 
+        // Codex `additional_rate_limits` (e.g. Codex Spark) only ship over the JSON usage API, so the
+        // dashboard HTML scrape never contributes here; we just forward what the apiData decoded.
+        let extraRateWindows = apiData?.extraRateWindows ?? []
         return DashboardScrapeData(
             signedInEmail: self.firstNonEmpty(scrape.signedInEmail, verifiedSignedInEmail),
             codeReview: codeReview,
@@ -130,6 +136,7 @@ public struct OpenAIDashboardFetcher {
             breakdown: breakdown,
             usageBreakdown: usageBreakdown,
             rateLimits: rateLimits,
+            extraRateWindows: extraRateWindows,
             creditsRemaining: creditsRemaining,
             accountPlan: accountPlan,
             hasDashboardPageSignal: self.hasAnyDashboardSignal(
@@ -141,6 +148,7 @@ public struct OpenAIDashboardFetcher {
     struct DashboardAPIData {
         let primaryLimit: RateWindow?
         let secondaryLimit: RateWindow?
+        let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
         let accountPlan: String?
 
@@ -364,6 +372,7 @@ public struct OpenAIDashboardFetcher {
                     breakdown: dashboardData.breakdown,
                     usageBreakdown: usageBreakdown,
                     rateLimits: dashboardData.rateLimits,
+                    extraRateWindows: dashboardData.extraRateWindows,
                     creditsRemaining: dashboardData.creditsRemaining,
                     accountPlan: dashboardData.accountPlan))
             }
@@ -686,6 +695,8 @@ public struct OpenAIDashboardFetcher {
         DashboardAPIData(
             primaryLimit: self.rateWindow(from: response.rateLimit?.primaryWindow),
             secondaryLimit: self.rateWindow(from: response.rateLimit?.secondaryWindow),
+            extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
+                from: response.additionalRateLimits),
             creditsRemaining: response.credits?.balance,
             accountPlan: response.planType?.rawValue)
     }

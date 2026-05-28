@@ -187,6 +187,24 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
+    func `recreation produces immediately healthy snapshots for synchronous guidance check`() throws {
+        // verifyScreenChangeRecoveryIfNeeded does a synchronous re-check immediately after
+        // the single recreation to decide whether to show macOS 26 Allow-in-Menu-Bar guidance.
+        // AppKit must materialise the button and window before returning from
+        // recreateStatusItemsForVisibilityRecovery, so the item must not appear blocked at
+        // that point. Only a genuine system-level block would leave it blocked — which is
+        // exactly the case where guidance is useful.
+        let (_, controller) = try self.makeSplitController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.recreateStatusItemsForVisibilityRecovery()
+
+        let allItems = [controller.statusItem] + Array(controller.statusItems.values)
+        let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(allItems)
+        #expect(!MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(snapshots))
+    }
+
+    @Test
     func `visibility recovery recreates split provider status items`() throws {
         let (_, controller) = try self.makeSplitController()
         defer { controller.releaseStatusItemsForTesting() }

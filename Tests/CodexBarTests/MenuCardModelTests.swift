@@ -829,7 +829,7 @@ struct MenuCardModelTests {
     }
 
     @Test
-    func `claude model includes design and routines bars when present`() throws {
+    func `claude model includes routines bar when present`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .claude,
@@ -853,14 +853,6 @@ struct MenuCardModelTests {
                 resetsAt: now.addingTimeInterval(7800),
                 resetDescription: nil),
             extraRateWindows: [
-                NamedRateWindow(
-                    id: "claude-design",
-                    title: "Designs",
-                    window: RateWindow(
-                        usedPercent: 31,
-                        windowMinutes: 10080,
-                        resetsAt: now.addingTimeInterval(8200),
-                        resetDescription: nil)),
                 NamedRateWindow(
                     id: "claude-routines",
                     title: "Daily Routines",
@@ -893,7 +885,7 @@ struct MenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.title) == ["Session", "Weekly", "Sonnet", "Designs", "Daily Routines"])
+        #expect(model.metrics.map(\.title) == ["Session", "Weekly", "Sonnet", "Daily Routines"])
     }
 
     @Test
