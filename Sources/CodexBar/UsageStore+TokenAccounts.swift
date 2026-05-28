@@ -215,7 +215,7 @@ extension UsageStore {
         return false
     }
 
-    private static func errorIsCancellation(_ error: any Error) -> Bool {
+    nonisolated static func errorIsCancellation(_ error: any Error) -> Bool {
         if error is CancellationError {
             return true
         }
@@ -605,6 +605,37 @@ extension UsageStore {
                 self.errors[.codex] = nil
             }
         }
+    }
+
+    func rememberActiveCodexVisibleAccountSnapshot(_ snapshot: UsageSnapshot, sourceLabel: String?) {
+        let projection = self.settings.codexVisibleAccountProjection
+        guard let activeID = projection.activeVisibleAccountID,
+              let account = projection.visibleAccounts.first(where: { $0.id == activeID })
+        else {
+            return
+        }
+
+        let labeled = self.applyCodexVisibleAccountLabel(snapshot.scoped(to: .codex), account: account)
+        let accountSnapshot = CodexAccountUsageSnapshot(
+            account: account,
+            snapshot: labeled,
+            error: nil,
+            sourceLabel: sourceLabel)
+        self.upsertCodexAccountUsageSnapshot(accountSnapshot)
+    }
+
+    func cachedCodexVisibleAccountSnapshotForActiveSelection() -> CodexAccountUsageSnapshot? {
+        guard let activeID = self.settings.codexVisibleAccountProjection.activeVisibleAccountID else { return nil }
+        return self.codexAccountSnapshots.first { $0.id == activeID }
+    }
+
+    private func upsertCodexAccountUsageSnapshot(_ snapshot: CodexAccountUsageSnapshot) {
+        if let index = self.codexAccountSnapshots.firstIndex(where: { $0.id == snapshot.id }) {
+            self.codexAccountSnapshots[index] = snapshot
+        } else {
+            self.codexAccountSnapshots.append(snapshot)
+        }
+        self.codexAccountUsageSnapshotStore?.store(self.codexAccountSnapshots)
     }
 
     func applySelectedOutcome(

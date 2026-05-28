@@ -24,6 +24,7 @@ enum CostUsageScanner {
         var codexTraceDatabaseURL: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
+        var cacheOnly: Bool = false
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
 
@@ -33,6 +34,7 @@ enum CostUsageScanner {
             cacheRoot: URL? = nil,
             codexTraceDatabaseURL: URL? = nil,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
+            cacheOnly: Bool = false,
             forceRescan: Bool = false)
         {
             self.codexSessionsRoot = codexSessionsRoot
@@ -40,6 +42,7 @@ enum CostUsageScanner {
             self.cacheRoot = cacheRoot
             self.codexTraceDatabaseURL = codexTraceDatabaseURL
             self.claudeLogProviderFilter = claudeLogProviderFilter
+            self.cacheOnly = cacheOnly
             self.forceRescan = forceRescan
         }
     }
@@ -1562,7 +1565,7 @@ enum CostUsageScanner {
                 newKeys: priorityTurnKeys,
                 range: range)
             : []
-        let shouldRefresh = options.forceRescan
+        let shouldRefresh = !options.cacheOnly && (options.forceRescan
             || windowExpanded
             || rootsChanged
             || needsCostCacheMigration
@@ -1572,7 +1575,7 @@ enum CostUsageScanner {
             || priorityTurnsChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
-            || nowMs - cache.lastScanUnixMs > refreshMs
+            || nowMs - cache.lastScanUnixMs > refreshMs)
 
         return CodexRefreshPlan(
             refreshMs: refreshMs,
@@ -1596,12 +1599,32 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
+    private static func clearMovedCodexCacheForCacheOnlyLoad(
+        cache: inout CostUsageCache,
+        options: Options,
+        plan: CodexRefreshPlan)
+    {
+        guard options.cacheOnly, plan.rootsChanged else { return }
+        cache = CostUsageCache()
+    }
+
     private static func loadCodexDaily(range: CostUsageDayRange, now: Date, options: Options) -> CostUsageDailyReport {
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
+        let cacheBeforeRefresh = cache
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
+        Self.clearMovedCodexCacheForCacheOnlyLoad(cache: &cache, options: options, plan: plan)
 
         if plan.shouldRefresh {
+            func cancelledReport() -> CostUsageDailyReport {
+                Self.buildCodexReportFromCache(
+                    cache: cacheBeforeRefresh,
+                    range: range,
+                    modelsDevCatalog: plan.modelsDevCatalog,
+                    modelsDevCacheRoot: options.cacheRoot,
+                    priorityTurns: plan.priorityTurns)
+            }
+
             if options.forceRescan {
                 cache = CostUsageCache()
             }
@@ -1613,7 +1636,7 @@ enum CostUsageScanner {
                 .map { Calendar.current.startOfDay(for: $0) }
             var seenPaths: Set<String> = []
             var files: [URL] = []
-            for root in plan.roots {
+            for root in plan.roots where !Task.isCancelled {
                 let rootFiles = Self.listCodexSessionFiles(
                     root: root,
                     scanSinceKey: range.scanSinceKey,
@@ -1638,6 +1661,7 @@ enum CostUsageScanner {
                     }
                 }
             }
+            guard !Task.isCancelled else { return cancelledReport() }
 
             for fileURL in Self.cachedCodexSessionFiles(cache: cache, range: range, roots: plan.roots)
                 .sorted(by: { $0.path < $1.path })
@@ -1661,7 +1685,7 @@ enum CostUsageScanner {
                 modelsDevCatalog: plan.modelsDevCatalog,
                 modelsDevCacheRoot: options.cacheRoot,
                 priorityTurns: plan.priorityTurns)
-            for fileURL in files {
+            for fileURL in files where !Task.isCancelled {
                 Self.scanCodexFile(
                     fileURL: fileURL,
                     context: CodexFileScanContext(
@@ -1677,6 +1701,7 @@ enum CostUsageScanner {
                     cache: &cache,
                     state: &scanState)
             }
+            guard !Task.isCancelled else { return cancelledReport() }
 
             Self.pruneForceRescanFilesOutsideWindow(
                 cache: &cache,
@@ -1734,6 +1759,7 @@ enum CostUsageScanner {
                     retainedSinceKey: retainedSinceKey,
                     retainedUntilKey: retainedUntilKey)
             }
+            guard !Task.isCancelled else { return cancelledReport() }
             cache.lastScanUnixMs = nowMs
             CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
         }

@@ -5,17 +5,20 @@ enum PiSessionCostScanner {
         var piSessionsRoot: URL?
         var cacheRoot: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
+        var cacheOnly: Bool = false
         var forceRescan: Bool = false
 
         init(
             piSessionsRoot: URL? = nil,
             cacheRoot: URL? = nil,
             refreshMinIntervalSeconds: TimeInterval = 60,
+            cacheOnly: Bool = false,
             forceRescan: Bool = false)
         {
             self.piSessionsRoot = piSessionsRoot
             self.cacheRoot = cacheRoot
             self.refreshMinIntervalSeconds = refreshMinIntervalSeconds
+            self.cacheOnly = cacheOnly
             self.forceRescan = forceRescan
         }
     }
@@ -53,17 +56,18 @@ enum PiSessionCostScanner {
 
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
         var cache = PiSessionCostCacheIO.load(cacheRoot: options.cacheRoot)
+        let cacheBeforeRefresh = cache
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
         let pricingContext = ModelsDevPricingContext(
             catalog: CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot),
             cacheRoot: options.cacheRoot)
         let windowExpanded = self.requestedWindowExpandsCache(range: range, cache: cache)
-        let shouldRefresh = options.forceRescan
+        let shouldRefresh = !options.cacheOnly && (options.forceRescan
             || windowExpanded
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
-            || nowMs - cache.lastScanUnixMs > refreshMs
+            || nowMs - cache.lastScanUnixMs > refreshMs)
 
         if shouldRefresh {
             let root = self.defaultPiSessionsRoot(options: options)
@@ -71,29 +75,37 @@ enum PiSessionCostScanner {
             let files = self.listPiSessionFiles(root: root, startCutoffLocal: startCutoff)
             let filePathsInScan = Set(files.map(\.path))
 
-            for fileURL in files {
-                self.scanPiSessionFile(
-                    fileURL: fileURL,
-                    range: range,
-                    forceRescan: options.forceRescan || windowExpanded,
-                    pricingContext: pricingContext,
-                    cache: &cache)
-            }
-
-            for key in cache.files.keys where !filePathsInScan.contains(key) {
-                if let old = cache.files[key] {
-                    self.applyContributions(
-                        daysByProvider: &cache.daysByProvider,
-                        contributions: old.contributions,
-                        sign: -1)
+            do {
+                for fileURL in files {
+                    try Task.checkCancellation()
+                    try self.scanPiSessionFile(
+                        fileURL: fileURL,
+                        range: range,
+                        forceRescan: options.forceRescan || windowExpanded,
+                        pricingContext: pricingContext,
+                        cache: &cache)
                 }
-                cache.files.removeValue(forKey: key)
-            }
 
-            cache.scanSinceKey = range.scanSinceKey
-            cache.scanUntilKey = range.scanUntilKey
-            cache.lastScanUnixMs = nowMs
-            PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot)
+                try Task.checkCancellation()
+                for key in cache.files.keys where !filePathsInScan.contains(key) {
+                    if let old = cache.files[key] {
+                        self.applyContributions(
+                            daysByProvider: &cache.daysByProvider,
+                            contributions: old.contributions,
+                            sign: -1)
+                    }
+                    cache.files.removeValue(forKey: key)
+                }
+
+                cache.scanSinceKey = range.scanSinceKey
+                cache.scanUntilKey = range.scanUntilKey
+                cache.lastScanUnixMs = nowMs
+                PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot)
+            } catch is CancellationError {
+                cache = cacheBeforeRefresh
+            } catch {
+                cache = cacheBeforeRefresh
+            }
         }
 
         return self.buildReport(
@@ -180,6 +192,7 @@ enum PiSessionCostScanner {
         forceRescan: Bool,
         pricingContext: ModelsDevPricingContext,
         cache: inout PiSessionCostCache)
+        throws
     {
         let path = fileURL.path
         let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
@@ -206,7 +219,7 @@ enum PiSessionCostScanner {
            cached.parsedBytes > 0,
            cached.parsedBytes <= size
         {
-            let delta = self.parsePiSessionFile(
+            let delta = try self.parsePiSessionFile(
                 fileURL: fileURL,
                 range: range,
                 startOffset: cached.parsedBytes,
@@ -235,7 +248,7 @@ enum PiSessionCostScanner {
                 sign: -1)
         }
 
-        let parsed = self.parsePiSessionFile(
+        let parsed = try self.parsePiSessionFile(
             fileURL: fileURL,
             range: range,
             pricingContext: pricingContext)
@@ -256,7 +269,7 @@ enum PiSessionCostScanner {
         range: CostUsageScanner.CostUsageDayRange,
         startOffset: Int64 = 0,
         initialModelContext: PiModelContext? = nil,
-        pricingContext: ModelsDevPricingContext? = nil) -> ParseResult
+        pricingContext: ModelsDevPricingContext? = nil) throws -> ParseResult
     {
         var currentModelContext = initialModelContext
         var contributions: [String: [String: [String: PiPackedUsage]]] = [:]
@@ -292,41 +305,48 @@ enum PiSessionCostScanner {
             }
         }
 
-        let parsedBytes = (try? CostUsageJsonl.scan(
-            fileURL: fileURL,
-            offset: startOffset,
-            maxLineBytes: Self.maxLineBytes,
-            prefixBytes: Self.maxLineBytes,
-            onLine: { line in
-                guard !line.bytes.isEmpty, !line.wasTruncated else { return }
-                autoreleasepool {
-                    guard let object = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
-                    else { return }
-                    guard let type = object["type"] as? String else { return }
+        let parsedBytes: Int64
+        do {
+            parsedBytes = try CostUsageJsonl.scan(
+                fileURL: fileURL,
+                offset: startOffset,
+                maxLineBytes: Self.maxLineBytes,
+                prefixBytes: Self.maxLineBytes,
+                onLine: { line in
+                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    autoreleasepool {
+                        guard let object = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
+                        else { return }
+                        guard let type = object["type"] as? String else { return }
 
-                    if type == "model_change" {
-                        currentModelContext = self.modelContext(from: object)
-                        return
+                        if type == "model_change" {
+                            currentModelContext = self.modelContext(from: object)
+                            return
+                        }
+
+                        guard type == "message", let message = object["message"] as? [String: Any] else { return }
+                        guard (message["role"] as? String) == "assistant" else { return }
+
+                        let identity = self.resolveAssistantIdentity(
+                            entry: object,
+                            message: message,
+                            fallback: currentModelContext)
+                        guard let identity else { return }
+                        guard let date = self.timestampDate(entry: object, message: message) else { return }
+                        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
+                        let usage = self.extractUsage(
+                            provider: identity.provider,
+                            modelName: identity.modelName,
+                            message: message,
+                            pricingContext: pricingContext)
+                        add(provider: identity.provider, dayKey: dayKey, modelName: identity.modelName, usage: usage)
                     }
-
-                    guard type == "message", let message = object["message"] as? [String: Any] else { return }
-                    guard (message["role"] as? String) == "assistant" else { return }
-
-                    let identity = self.resolveAssistantIdentity(
-                        entry: object,
-                        message: message,
-                        fallback: currentModelContext)
-                    guard let identity else { return }
-                    guard let date = self.timestampDate(entry: object, message: message) else { return }
-                    let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
-                    let usage = self.extractUsage(
-                        provider: identity.provider,
-                        modelName: identity.modelName,
-                        message: message,
-                        pricingContext: pricingContext)
-                    add(provider: identity.provider, dayKey: dayKey, modelName: identity.modelName, usage: usage)
-                }
-            })) ?? startOffset
+                })
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            parsedBytes = startOffset
+        }
 
         return ParseResult(
             contributions: contributions,

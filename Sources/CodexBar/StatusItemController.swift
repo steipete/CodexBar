@@ -21,6 +21,20 @@ extension StatusItemControlling {
     func prepareForAppShutdown() {}
 }
 
+private enum StatusItemIdentity {
+    case merged
+    case provider(UsageProvider)
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .merged:
+            StatusItemController.statusItemAccessibilityIdentifierPrefix
+        case let .provider(provider):
+            "\(StatusItemController.statusItemAccessibilityIdentifierPrefix).\(provider.rawValue)"
+        }
+    }
+}
+
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControlling {
     // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
@@ -29,21 +43,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private(set) static var menuRefreshEnabled = !SettingsStore.isRunningTests
     static let quotaWarningFlashDuration: TimeInterval = 60
     private nonisolated static let statusItemAccessibilityTitle = "CodexBar"
-    private nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
-
-    private enum StatusItemIdentity {
-        case merged
-        case provider(UsageProvider)
-
-        var accessibilityIdentifier: String {
-            switch self {
-            case .merged:
-                StatusItemController.statusItemAccessibilityIdentifierPrefix
-            case let .provider(provider):
-                "\(StatusItemController.statusItemAccessibilityIdentifierPrefix).\(provider.rawValue)"
-            }
-        }
-    }
+    fileprivate nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
 
     #if DEBUG
     static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
@@ -114,6 +114,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
+    var tokenCostDeferredMenuIDs: Set<ObjectIdentifier> = []
     var hasPreparedForAppShutdown = false
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
@@ -179,6 +180,26 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastTokenAccountMenuDisplay: TokenAccountMenuDisplay?
     /// Monotonic token used to ignore stale deferred provider-switcher menu rebuilds.
     var providerSwitcherUpdateToken = 0
+    var providerSwitcherSettingsSuppressionGeneration = 0
+    var activeProviderSwitcherSettingsSuppressionGeneration: Int?
+    var providerSwitcherDeferredIconUpdatePending = false
+    var closingHostedSubviewMenusForParentSwitch = false
+    var providerSwitcherSettingsObservationSuppressionsRemaining = 0
+    var lastProviderSwitcherInteractionAt: Date?
+    var codexAccountSelectionRefreshGeneration = 0
+    var codexAccountSelectionRefreshTask: Task<Void, Never>?
+    var openMenuRefreshGeneration = 0
+    var openMenuRefreshTokens: [ObjectIdentifier: Int] = [:]
+    var settingsChangeDeferredDuringMenuTracking = false
+    var deferredSettingsChangeNeedsStatusItemRebuild = false
+    var deferredSettingsChangeNeedsOpenMenuRefresh = false
+    var deferredMenuInteractionRefreshPending = false
+    var deferredMenuInteractionRefreshGeneration = 0
+    var deferredMenuInteractionRefreshTask: Task<Void, Never>?
+    var tokenCostMenuHydrationRefreshTask: Task<Void, Never>?
+    var storeChangeDeferredDuringMenuTracking = false
+    var storeChangeDeferredMenuContentVersion: Int?
+    var storeChangeDeferredObservationCount = 0
     var lastAppliedMergedIconRenderSignature: String?
     var lastAppliedProviderIconRenderSignatures: [UsageProvider: String] = [:]
     var lastObservedStoreIconWorkSignature: String?
@@ -355,6 +376,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleScreenParametersDidChange(_:)),
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil)
+        self.startResponsiveMenuSupportIfNeeded()
     }
 
     convenience init(
@@ -380,6 +402,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     private func wireBindings() {
         self.observeStoreChanges()
+        self.observeTokenCostMenuHydrationChanges()
         self.observeStoreIconChanges()
         self.observeIconPerfRefreshCycleChanges()
         self.observeDebugForceAnimation()
@@ -388,12 +411,24 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.observeManagedCodexCoordinatorChanges()
     }
 
-    private func observeStoreChanges() {
+    func observeStoreChanges() {
         withObservationTracking {
             _ = self.store.menuObservationToken
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                if !self.openMenus.isEmpty {
+                    if !self.storeChangeDeferredDuringMenuTracking {
+                        self.storeChangeDeferredMenuContentVersion = self.menuContentVersion
+                        self.storeChangeDeferredObservationCount = 0
+                        self.menuLogger.debug(
+                            "store menu observations deferred during menu tracking",
+                            metadata: ["openMenus": "\(self.openMenus.count)"])
+                    }
+                    self.storeChangeDeferredDuringMenuTracking = true
+                    self.storeChangeDeferredObservationCount += 1
+                    return
+                }
                 self.observeStoreChanges()
                 self.invalidateMenus()
             }
@@ -624,6 +659,34 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
+        let hasPendingProviderSwitcherObservation = reason == "observation" &&
+            self.providerSwitcherSettingsObservationSuppressionsRemaining > 0
+        let shouldSuppressProviderSwitcherObservation =
+            self.activeProviderSwitcherSettingsSuppressionGeneration != nil ||
+            hasPendingProviderSwitcherObservation
+        if shouldSuppressProviderSwitcherObservation,
+           !configChanged,
+           !orderChanged,
+           !shouldRefreshOpenMenus
+        {
+            if self.activeProviderSwitcherSettingsSuppressionGeneration != nil {
+                self.providerSwitcherDeferredIconUpdatePending = true
+            } else if hasPendingProviderSwitcherObservation {
+                self.providerSwitcherSettingsObservationSuppressionsRemaining -= 1
+            }
+            self.menuLogger.debug("provider switch settings observation suppressed")
+            return
+        }
+        if hasPendingProviderSwitcherObservation {
+            self.providerSwitcherSettingsObservationSuppressionsRemaining = 0
+        }
+        if !self.openMenus.isEmpty, reason.hasPrefix("config:notification:provider-") {
+            self.deferSettingsChangeDuringMenuTracking(
+                reason: reason,
+                needsStatusItemRebuild: orderChanged || configChanged,
+                needsOpenMenuRefresh: shouldRefreshOpenMenus)
+            return
+        }
         self.invalidateMenus()
         if orderChanged || configChanged {
             self.rebuildProviderStatusItems()
@@ -635,7 +698,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
     }
 
-    private func updateIcons() {
+    func updateIcons() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
@@ -698,7 +761,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.updateIcons()
     }
 
-    private func updateVisibility() {
+    func updateVisibility() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
@@ -792,7 +855,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
     }
 
-    private func rebuildProviderStatusItems() {
+    func rebuildProviderStatusItems() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
@@ -838,19 +901,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.settings.mergeIcons && self.store.enabledProvidersForDisplay().count > 1
     }
 
-    func switchAccountSubtitle(for target: UsageProvider) -> String? {
-        guard self.loginTask != nil, let provider = self.activeLoginProvider, provider == target
-        else { return nil }
-        let base: String
-        switch self.loginPhase {
-        case .idle: return nil
-        case .requesting: base = "Requesting login…"
-        case .waitingBrowser: base = "Waiting in browser…"
-        }
-        let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        return "\(prefix): \(base)"
-    }
-
     deinit {
         let animationDriver = self.animationDriver
         Task { @MainActor in
@@ -865,6 +915,19 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 }
 
 extension StatusItemController {
+    func switchAccountSubtitle(for target: UsageProvider) -> String? {
+        guard self.loginTask != nil, let provider = self.activeLoginProvider, provider == target
+        else { return nil }
+        let base: String
+        switch self.loginPhase {
+        case .idle: return nil
+        case .requesting: base = "Requesting login…"
+        case .waitingBrowser: base = "Waiting in browser…"
+        }
+        let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        return "\(prefix): \(base)"
+    }
+
     func refreshExistingStatusItemsForVisibilityRecovery() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }

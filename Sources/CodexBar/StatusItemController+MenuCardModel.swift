@@ -25,6 +25,9 @@ extension StatusItemController {
         } else {
             snapshotOverride ?? self.store.snapshot(for: target)
         }
+        if surface == .liveCard, snapshotOverride == nil {
+            self.store.ensureTokenCostSnapshotScheduled(for: target, reason: "menu-card")
+        }
         let projectedTokenSnapshot = self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
         let storedTokenSnapshot = UsageStore.tokenCostRequiresProviderSnapshot(target)
             ? nil
@@ -96,6 +99,8 @@ extension StatusItemController {
             dashboardError: dashboardError,
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
+            tokenRefreshInFlight: self.store.isTokenRefreshInFlight(for: target),
+            tokenRefreshQueued: self.store.isTokenRefreshQueued(for: target),
             account: accountOverride ?? self.store.accountInfo(for: target),
             isRefreshing: self.store.shouldShowRefreshingMenuCard(for: target),
             lastError: errorOverride

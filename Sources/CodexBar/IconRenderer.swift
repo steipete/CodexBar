@@ -938,10 +938,10 @@ enum IconRenderer {
 
         switch indicator {
         case .minor, .maintenance:
-            let size: CGFloat = 4
+            let size: CGFloat = 2
             let rect = Self.snapRect(
-                x: Self.baseSize.width - size - 2,
-                y: 2,
+                x: Self.baseSize.width - size - 1,
+                y: 7,
                 width: size,
                 height: size)
             let path = NSBezierPath(ovalIn: rect)
@@ -949,19 +949,19 @@ enum IconRenderer {
             path.fill()
         case .major, .critical, .unknown:
             let lineRect = Self.snapRect(
-                x: Self.baseSize.width - 6,
-                y: 4,
-                width: 2.0,
-                height: 6)
-            let linePath = NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1)
+                x: Self.baseSize.width - 2.5,
+                y: 7.4,
+                width: 1.5,
+                height: 1.8)
+            let linePath = NSBezierPath(roundedRect: lineRect, xRadius: 0.75, yRadius: 0.75)
             color.setFill()
             linePath.fill()
 
             let dotRect = Self.snapRect(
-                x: Self.baseSize.width - 6,
-                y: 2,
-                width: 2.0,
-                height: 2.0)
+                x: Self.baseSize.width - 2.45,
+                y: 6.6,
+                width: 1.4,
+                height: 1.4)
             NSBezierPath(ovalIn: dotRect).fill()
         case .none:
             break

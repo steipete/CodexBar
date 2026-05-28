@@ -41,6 +41,23 @@ public struct CostUsageFetcher: Sendable {
             refreshPricingInBackground: refreshPricingInBackground)
     }
 
+    public func loadCachedTokenSnapshot(
+        provider: UsageProvider,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date(),
+        allowVertexClaudeFallback: Bool = false,
+        codexHomePath: String? = nil,
+        historyDays: Int = 30) -> CostUsageTokenSnapshot?
+    {
+        Self.loadCachedTokenSnapshot(
+            provider: provider,
+            environment: environment,
+            now: now,
+            allowVertexClaudeFallback: allowVertexClaudeFallback,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays)
+    }
+
     static func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -98,12 +115,14 @@ public struct CostUsageFetcher: Sendable {
         if forceRefresh {
             options.refreshMinIntervalSeconds = 0
         }
+        try Task.checkCancellation()
         var daily = CostUsageScanner.loadDailyReport(
             provider: provider,
             since: since,
             until: until,
             now: now,
             options: options)
+        try Task.checkCancellation()
 
         if provider == .vertexai,
            !allowVertexClaudeFallback,
@@ -118,6 +137,7 @@ public struct CostUsageFetcher: Sendable {
                 until: until,
                 now: now,
                 options: fallback)
+            try Task.checkCancellation()
         }
 
         if provider == .codex || provider == .claude {
@@ -134,10 +154,72 @@ public struct CostUsageFetcher: Sendable {
                 until: until,
                 now: now,
                 options: piOptions)
+            try Task.checkCancellation()
             daily = CostUsageDailyReport.merged([daily, piReport])
         }
 
         return Self.tokenSnapshot(from: daily, now: now, historyDays: clampedHistoryDays)
+    }
+
+    static func loadCachedTokenSnapshot(
+        provider: UsageProvider,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date(),
+        allowVertexClaudeFallback: Bool = false,
+        codexHomePath: String? = nil,
+        historyDays: Int = 30,
+        scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
+        piScannerOptions overridePiScannerOptions: PiSessionCostScanner
+            .Options? = nil) -> CostUsageTokenSnapshot?
+    {
+        guard provider == .codex || provider == .claude || provider == .vertexai else {
+            return nil
+        }
+
+        _ = environment
+        let until = now
+        let clampedHistoryDays = max(1, min(365, historyDays))
+        let since = Calendar.current.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
+
+        var options = overrideScannerOptions ?? CostUsageScanner.Options(cacheOnly: true)
+        options.cacheOnly = true
+        if provider == .codex,
+           let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !codexHomePath.isEmpty
+        {
+            options.codexSessionsRoot = URL(fileURLWithPath: codexHomePath, isDirectory: true)
+                .appendingPathComponent("sessions", isDirectory: true)
+        }
+        if provider == .vertexai {
+            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
+        } else if provider == .claude {
+            options.claudeLogProviderFilter = .excludeVertexAI
+        }
+
+        var daily = CostUsageScanner.loadDailyReport(
+            provider: provider,
+            since: since,
+            until: until,
+            now: now,
+            options: options)
+
+        if provider == .codex || provider == .claude {
+            var piOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options(cacheOnly: true)
+            piOptions.cacheOnly = true
+            if piOptions.cacheRoot == nil {
+                piOptions.cacheRoot = options.cacheRoot
+            }
+            let piReport = PiSessionCostScanner.loadDailyReport(
+                provider: provider,
+                since: since,
+                until: until,
+                now: now,
+                options: piOptions)
+            daily = CostUsageDailyReport.merged([daily, piReport])
+        }
+
+        let snapshot = Self.tokenSnapshot(from: daily, now: now, historyDays: clampedHistoryDays)
+        return snapshot.daily.isEmpty ? nil : snapshot
     }
 
     private static func loadBedrockDailyReport(

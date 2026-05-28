@@ -48,7 +48,9 @@ extension StatusItemController {
         provider: UsageProvider,
         width: CGFloat) -> Bool
     {
-        let histories = self.store.planUtilizationHistory(for: provider)
+        let startedAt = Date()
+        let histories = self.store.planUtilizationHistoryForMenu(for: provider)
+        let historyMs = Date().timeIntervalSince(startedAt) * 1000
         let snapshot = self.store.snapshot(for: provider)
 
         if !Self.menuCardRenderingEnabled {
@@ -64,9 +66,13 @@ extension StatusItemController {
             histories: histories,
             snapshot: snapshot,
             width: width)
+        let hostingStartedAt = Date()
         let hosting = UsageHistoryMenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let hostingMs = Date().timeIntervalSince(hostingStartedAt) * 1000
+        let sizeStartedAt = Date()
+        let size = hosting.fittingSize
+        let sizeMs = Date().timeIntervalSince(sizeStartedAt) * 1000
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()
@@ -74,6 +80,20 @@ extension StatusItemController {
         chartItem.isEnabled = true
         chartItem.representedObject = Self.usageHistoryChartID
         submenu.addItem(chartItem)
+        let totalMs = Date().timeIntervalSince(startedAt) * 1000
+        if totalMs >= 16 {
+            self.menuLogger.info(
+                "usage history submenu chart built",
+                metadata: [
+                    "entries": "\(histories.reduce(0) { $0 + $1.entries.count })",
+                    "historyMs": String(format: "%.1f", historyMs),
+                    "hostingMs": String(format: "%.1f", hostingMs),
+                    "provider": provider.rawValue,
+                    "sizeMs": String(format: "%.1f", sizeMs),
+                    "totalMs": String(format: "%.1f", totalMs),
+                    "width": String(format: "%.0f", width),
+                ])
+        }
         return true
     }
 }

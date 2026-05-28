@@ -111,6 +111,7 @@ struct UsageMenuCardView: View {
         let creditsHintCopyText: String?
         let providerCost: ProviderCostSection?
         let tokenUsage: TokenUsageSection?
+        let inlineUsageDashboardLoading: Bool
         let placeholder: String?
         let progressColor: Color
     }
@@ -137,6 +138,8 @@ struct UsageMenuCardView: View {
             if self.model.metrics.isEmpty {
                 if let dashboard = self.model.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
+                } else if self.model.inlineUsageDashboardLoading {
+                    InlineUsageDashboardLoadingContent()
                 } else if !self.model.usageNotes.isEmpty {
                     UsageNotesContent(notes: self.model.usageNotes)
                 } else if let placeholder = self.model.placeholder {
@@ -161,6 +164,8 @@ struct UsageMenuCardView: View {
                             }
                             if let dashboard = self.model.inlineUsageDashboard {
                                 InlineUsageDashboardContent(model: dashboard)
+                            } else if self.model.inlineUsageDashboardLoading {
+                                InlineUsageDashboardLoadingContent()
                             } else if !self.model.usageNotes.isEmpty {
                                 UsageNotesContent(notes: self.model.usageNotes)
                             }
@@ -484,6 +489,8 @@ struct UsageMenuCardUsageSectionView: View {
             if self.model.metrics.isEmpty {
                 if let dashboard = self.model.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
+                } else if self.model.inlineUsageDashboardLoading {
+                    InlineUsageDashboardLoadingContent()
                 } else if !self.model.usageNotes.isEmpty {
                     UsageNotesContent(notes: self.model.usageNotes)
                 } else if let placeholder = self.model.placeholder {
@@ -500,6 +507,8 @@ struct UsageMenuCardUsageSectionView: View {
                 }
                 if let dashboard = self.model.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
+                } else if self.model.inlineUsageDashboardLoading {
+                    InlineUsageDashboardLoadingContent()
                 } else if !self.model.usageNotes.isEmpty {
                     UsageNotesContent(notes: self.model.usageNotes)
                 }
@@ -685,6 +694,8 @@ extension UsageMenuCardView.Model {
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
+        let tokenRefreshInFlight: Bool
+        let tokenRefreshQueued: Bool
         let account: AccountInfo
         let isRefreshing: Bool
         let lastError: String?
@@ -711,6 +722,8 @@ extension UsageMenuCardView.Model {
             dashboardError: String?,
             tokenSnapshot: CostUsageTokenSnapshot?,
             tokenError: String?,
+            tokenRefreshInFlight: Bool = false,
+            tokenRefreshQueued: Bool = false,
             account: AccountInfo,
             isRefreshing: Bool,
             lastError: String?,
@@ -736,6 +749,8 @@ extension UsageMenuCardView.Model {
             self.dashboardError = dashboardError
             self.tokenSnapshot = tokenSnapshot
             self.tokenError = tokenError
+            self.tokenRefreshInFlight = tokenRefreshInFlight
+            self.tokenRefreshQueued = tokenRefreshQueued
             self.account = account
             self.isRefreshing = isRefreshing
             self.lastError = lastError
@@ -761,7 +776,12 @@ extension UsageMenuCardView.Model {
             metadata: input.metadata)
         let metrics = Self.metrics(input: input)
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
+        let tokenUsageSnapshot = Self.tokenUsageSnapshot(input: input)
         let inlineUsageDashboard = Self.inlineUsageDashboard(input: input)
+        let inlineUsageDashboardLoading = Self.inlineUsageDashboardLoading(
+            input: input,
+            tokenUsageSnapshot: tokenUsageSnapshot,
+            inlineUsageDashboard: inlineUsageDashboard)
         let usageNotes = Self.usageNotes(input: input)
         let creditsText: String? = if input.provider == .openrouter {
             nil
@@ -783,7 +803,6 @@ extension UsageMenuCardView.Model {
         } else {
             Self.providerCostSection(provider: input.provider, cost: input.snapshot?.providerCost)
         }
-        let tokenUsageSnapshot = Self.tokenUsageSnapshot(input: input)
         let tokenUsage = Self.tokenUsageSection(
             provider: input.provider,
             enabled: input.tokenCostUsageEnabled,
@@ -814,6 +833,7 @@ extension UsageMenuCardView.Model {
             creditsHintCopyText: redacted.creditsHintCopyText,
             providerCost: providerCost,
             tokenUsage: tokenUsage,
+            inlineUsageDashboardLoading: inlineUsageDashboardLoading,
             placeholder: placeholder,
             progressColor: Self.progressColor(for: input.provider))
     }

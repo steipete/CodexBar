@@ -37,6 +37,40 @@ extension StatusItemController {
         return submenu
     }
 
+    func makeStorageBreakdownSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
+        guard self.store.storageFootprint(for: provider)?.components.isEmpty == false else { return nil }
+        if let width {
+            return self.makeHostedSubviewPlaceholderMenu(
+                chartID: Self.storageBreakdownID,
+                provider: provider,
+                width: width)
+        }
+        return self.makeHostedSubviewPlaceholderMenu(chartID: Self.storageBreakdownID, provider: provider)
+    }
+
+    func isOpenAIWebSubviewMenu(_ menu: NSMenu) -> Bool {
+        let ids: Set = [
+            Self.usageBreakdownChartID,
+            Self.creditsHistoryChartID,
+        ]
+        return menu.items.contains { item in
+            guard let id = item.representedObject as? String else { return false }
+            return ids.contains(id)
+        }
+    }
+
+    func refreshHostedSubviewHeights(in menu: NSMenu) {
+        let width = self.renderedMenuWidth(for: menu)
+
+        for item in menu.items {
+            guard let view = item.view else { continue }
+            view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+            view.layoutSubtreeIfNeeded()
+            let height = view.fittingSize.height
+            view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        }
+    }
+
     func hydrateHostedSubviewMenuIfNeeded(_ menu: NSMenu, width requestedWidth: CGFloat? = nil) {
         guard let placeholder = menu.items.first,
               menu.items.count == 1,
@@ -46,8 +80,22 @@ extension StatusItemController {
             return
         }
 
+        let startedAt = Date()
         let width = requestedWidth ?? self.renderedMenuWidth(for: menu.supermenu ?? menu)
         menu.removeAllItems()
+        func logHydration(didHydrate: Bool) {
+            let elapsedMs = Date().timeIntervalSince(startedAt) * 1000
+            if elapsedMs >= 16 {
+                self.menuLogger.info(
+                    "hosted submenu hydration finished",
+                    metadata: [
+                        "chartID": chartID,
+                        "didHydrate": "\(didHydrate)",
+                        "elapsedMs": String(format: "%.1f", elapsedMs),
+                        "width": String(format: "%.0f", width),
+                    ])
+            }
+        }
 
         let didHydrate: Bool = switch chartID {
         case Self.usageBreakdownChartID:
@@ -90,13 +138,17 @@ extension StatusItemController {
             false
         }
 
-        guard !didHydrate else { return }
+        guard !didHydrate else {
+            logHydration(didHydrate: true)
+            return
+        }
 
         let unavailableItem = NSMenuItem(title: L("No data available"), action: nil, keyEquivalent: "")
         unavailableItem.isEnabled = false
         unavailableItem.representedObject = chartID
         unavailableItem.toolTip = placeholder.toolTip
         menu.addItem(unavailableItem)
+        logHydration(didHydrate: false)
     }
 
     @discardableResult
@@ -115,8 +167,8 @@ extension StatusItemController {
 
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()
@@ -142,8 +194,8 @@ extension StatusItemController {
 
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()
@@ -180,8 +232,8 @@ extension StatusItemController {
             windowLabel: tokenSnapshot.historyLabel,
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()
@@ -215,8 +267,8 @@ extension StatusItemController {
         let maxHeight = self.storageBreakdownMenuMaxHeight()
         let view = StorageBreakdownMenuView(footprint: footprint, width: width, maxHeight: maxHeight)
         let hosting = MenuHostingView(rootView: view)
-        let controller = NSHostingController(rootView: view)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: maxHeight))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: maxHeight))
+        let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let item = NSMenuItem()
@@ -255,8 +307,8 @@ extension StatusItemController {
 
         let chartView = ZaiHourlyUsageChartMenuView(modelUsage: modelUsage, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
 
         let chartItem = NSMenuItem()

@@ -293,7 +293,7 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
             ["menuCard-0", "menuCard-1", "menuCard-2", "menuCard-3", "menuCard-4", "menuCard-5"])
     }
 
-    func test_tokenAccountSwitchDefersOpenMenuRebuildUntilAfterSwitcherAction() async throws {
+    func test_tokenAccountSwitchUpdatesTrackedMenuContentBeforeRefreshCompletes() async throws {
         self.disableMenuCardsForTesting()
         StatusItemController.setMenuRefreshEnabledForTesting(true)
         defer { StatusItemController.setMenuRefreshEnabledForTesting(false) }
@@ -342,10 +342,8 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
         let selectionTask = try XCTUnwrap(switcher._test_select(index: 1))
 
         XCTAssertEqual(rebuildCount, 0)
-        for _ in 0..<20 where rebuildCount == 0 {
-            await Task.yield()
-        }
-        XCTAssertEqual(rebuildCount, 1)
+        XCTAssertFalse(controller.menuNeedsRefresh(menu))
+        XCTAssertEqual(settings.tokenAccountsData(for: .claude)?.clampedActiveIndex(), 1)
 
         await blocker.waitUntilStarted(count: 1)
         await blocker.resumeAll(with: .success(self.snapshot(percent: 17)))

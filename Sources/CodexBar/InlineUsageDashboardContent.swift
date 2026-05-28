@@ -141,6 +141,24 @@ extension UsageMenuCardView.Model {
         return nil
     }
 
+    static func inlineUsageDashboardLoading(
+        input: Input,
+        tokenUsageSnapshot: CostUsageTokenSnapshot?,
+        inlineUsageDashboard: InlineUsageDashboardModel?)
+        -> Bool
+    {
+        guard inlineUsageDashboard == nil else { return false }
+        guard input.tokenCostUsageEnabled else { return false }
+        guard tokenUsageSnapshot == nil else { return false }
+        guard input.tokenError?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true else { return false }
+        guard input.lastError?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true else { return false }
+        if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider) {
+            return input.isRefreshing || input.tokenRefreshInFlight || input.tokenRefreshQueued
+        }
+        guard [.codex, .claude, .vertexai, .bedrock].contains(input.provider) else { return false }
+        return input.tokenRefreshInFlight || input.tokenRefreshQueued
+    }
+
     static func usesProviderCostHistoryAsPrimaryDashboard(_ provider: UsageProvider) -> Bool {
         provider == .openai || provider == .mistral
     }
@@ -656,6 +674,104 @@ struct InlineUsageDashboardContent: View {
             case .tokens:
                 return Color(red: 0.48, green: 0.41, blue: 0.86).opacity(0.42 + ratio * 0.58)
             }
+        }
+    }
+}
+
+struct InlineUsageDashboardLoadingContent: View {
+    private let barHeights: [CGFloat] = [
+        26,
+        19,
+        10,
+        48,
+        12,
+        4,
+        4,
+        4,
+        4,
+        8,
+        13,
+        12,
+        15,
+        9,
+        36,
+        33,
+        39,
+        7,
+        22,
+        16,
+        24,
+        26,
+        27,
+        18,
+        13,
+    ]
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(minimum: 118), alignment: .leading),
+                    GridItem(.flexible(minimum: 100), alignment: .leading),
+                ],
+                alignment: .leading,
+                spacing: 6)
+            {
+                LoadingKPI(title: L("Today"), width: 68)
+                LoadingKPI(title: L("30d cost"), width: 78)
+                LoadingKPI(title: L("30d tokens"), width: 58)
+                LoadingKPI(title: L("Latest tokens"), width: 62)
+            }
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(Array(self.barHeights.enumerated()), id: \.offset) { _, height in
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(self.skeletonFill.opacity(0.85))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: height)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 58, alignment: .bottom)
+            .overlay(alignment: .bottomLeading) {
+                Rectangle()
+                    .fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.18))
+                    .frame(height: 1)
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                self.skeletonLine(width: 138)
+                self.skeletonLine(width: 228)
+            }
+        }
+        .accessibilityLabel("Loading cost history")
+    }
+
+    private var skeletonFill: Color {
+        MenuHighlightStyle.secondary(self.isHighlighted).opacity(self.isHighlighted ? 0.34 : 0.2)
+    }
+
+    private func skeletonLine(width: CGFloat, height: CGFloat = 10) -> some View {
+        RoundedRectangle(cornerRadius: height / 2, style: .continuous)
+            .fill(self.skeletonFill)
+            .frame(width: width, height: height)
+    }
+
+    private struct LoadingKPI: View {
+        let title: String
+        let width: CGFloat
+        @Environment(\.menuItemHighlighted) private var isHighlighted
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(self.title)
+                    .font(.caption2)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(self.isHighlighted ? 0.34 : 0.2))
+                    .frame(width: self.width, height: 18)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

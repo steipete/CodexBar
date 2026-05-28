@@ -567,15 +567,16 @@ extension CostUsageScanner {
         options: Options) -> CostUsageDailyReport
     {
         var cache = CostUsageCacheIO.load(provider: provider, cacheRoot: options.cacheRoot)
+        let cacheBeforeRefresh = cache
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
 
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
         let windowExpanded = Self.requestedWindowExpandsCache(range: range, cache: cache)
-        let shouldRefresh = options.forceRescan
+        let shouldRefresh = !options.cacheOnly && (options.forceRescan
             || windowExpanded
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
-            || nowMs - cache.lastScanUnixMs > refreshMs
+            || nowMs - cache.lastScanUnixMs > refreshMs)
 
         let roots = self.defaultClaudeProjectsRoots(options: options)
         let providerFilter = options.claudeLogProviderFilter
@@ -583,6 +584,16 @@ extension CostUsageScanner {
         var touched: Set<String> = []
 
         if shouldRefresh {
+            func cancelledReport() -> CostUsageDailyReport {
+                Self.buildClaudeReportFromCache(
+                    cache: cacheBeforeRefresh,
+                    range: range,
+                    modelsDevCatalog: nil,
+                    modelsDevCacheRoot: options.cacheRoot)
+            }
+
+            if Task.isCancelled { return cancelledReport() }
+
             if options.forceRescan {
                 cache = CostUsageCache()
             }
@@ -596,9 +607,11 @@ extension CostUsageScanner {
                 modelsDevCacheRoot: options.cacheRoot)
 
             for root in roots {
+                if Task.isCancelled { return cancelledReport() }
                 Self.scanClaudeRoot(
                     root: root,
                     state: scanState)
+                if Task.isCancelled { return cancelledReport() }
             }
 
             cache = scanState.cache
@@ -613,6 +626,7 @@ extension CostUsageScanner {
             Self.pruneDays(cache: &cache, sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
             cache.scanSinceKey = range.scanSinceKey
             cache.scanUntilKey = range.scanUntilKey
+            if Task.isCancelled { return cancelledReport() }
             cache.lastScanUnixMs = nowMs
             CostUsageCacheIO.save(provider: provider, cache: cache, cacheRoot: options.cacheRoot)
         }

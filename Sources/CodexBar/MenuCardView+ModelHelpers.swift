@@ -15,6 +15,7 @@ extension UsageMenuCardView.Model {
             self.usageNotes.isEmpty &&
             self.openAIAPIUsage == nil &&
             self.inlineUsageDashboard == nil &&
+            !self.inlineUsageDashboardLoading &&
             self.creditsRemaining == nil &&
             self.providerCost == nil &&
             self.tokenUsage == nil &&
@@ -26,6 +27,7 @@ extension UsageMenuCardView.Model {
             !self.usageNotes.isEmpty ||
             self.openAIAPIUsage != nil ||
             self.inlineUsageDashboard != nil ||
+            self.inlineUsageDashboardLoading ||
             self.placeholder != nil
     }
 

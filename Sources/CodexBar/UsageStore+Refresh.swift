@@ -36,8 +36,6 @@ extension UsageStore {
         if provider == .codex, self.shouldFetchAllCodexVisibleAccounts() {
             await self.refreshCodexVisibleAccountsForMenu()
             return
-        } else if provider == .codex {
-            self.codexAccountSnapshots = []
         }
 
         if provider == .kilo, self.shouldFanOutKiloScopes() {
@@ -124,6 +122,7 @@ extension UsageStore {
                 if provider == .codex {
                     self.rememberLiveSystemCodexEmailIfNeeded(scoped.accountEmail(for: .codex))
                     self.seedCodexAccountScopedRefreshGuard(accountEmail: scoped.accountEmail(for: .codex))
+                    self.rememberActiveCodexVisibleAccountSnapshot(backfilled, sourceLabel: result.sourceLabel)
                 }
                 return backfilled
             }
@@ -290,6 +289,13 @@ extension UsageStore {
     }
 
     private func handleProviderFetchFailure(provider: UsageProvider, error: Error) async {
+        if Self.errorIsCancellation(error) {
+            await MainActor.run {
+                self.errors[provider] = nil
+            }
+            return
+        }
+
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
             let hadPriorData = self.snapshots[provider] != nil
@@ -330,8 +336,8 @@ extension UsageStore {
     }
 
     private static func shouldPreservePriorSnapshot(after error: Error, hadPriorData: Bool) -> Bool {
+        if self.errorIsCancellation(error) { return true }
         guard hadPriorData else { return false }
-        if error is CancellationError { return true }
         if self.isPreservableNetworkTransportError(error) { return true }
 
         let message = error.localizedDescription.lowercased()

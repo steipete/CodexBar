@@ -63,12 +63,22 @@ extension UsageStore {
 
         guard previousGuard != nil, previousGuard != currentGuard else { return false }
 
-        self.snapshots.removeValue(forKey: .codex)
-        self.errors[.codex] = nil
-        self.lastSourceLabels.removeValue(forKey: .codex)
+        let cachedSelection = self.cachedCodexVisibleAccountSnapshotForActiveSelection()
+        if let cachedSnapshot = cachedSelection?.snapshot {
+            self.snapshots[.codex] = cachedSnapshot
+            if let sourceLabel = cachedSelection?.sourceLabel {
+                self.lastSourceLabels[.codex] = sourceLabel
+            } else {
+                self.lastSourceLabels.removeValue(forKey: .codex)
+            }
+            self.errors[.codex] = nil
+        } else {
+            self.snapshots.removeValue(forKey: .codex)
+            self.errors[.codex] = cachedSelection?.error
+            self.lastSourceLabels.removeValue(forKey: .codex)
+        }
         self.lastFetchAttempts.removeValue(forKey: .codex)
         self.accountSnapshots.removeValue(forKey: .codex)
-        self.codexAccountSnapshots = []
         self.failureGates[.codex]?.reset()
         self.lastKnownSessionRemaining.removeValue(forKey: .codex)
         self.lastKnownSessionWindowSource.removeValue(forKey: .codex)

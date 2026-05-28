@@ -998,7 +998,7 @@ extension StatusMenuCodexSwitcherTests {
 @MainActor
 extension StatusMenuCodexSwitcherTests {
     @Test
-    func `codex account switch defers open menu rebuild until after switcher action`() async throws {
+    func `codex account switch updates tracked menu content before refresh completes`() async throws {
         self.disableMenuCardsForTesting()
         StatusItemController.setMenuRefreshEnabledForTesting(true)
         defer { StatusItemController.setMenuRefreshEnabledForTesting(false) }
@@ -1072,10 +1072,8 @@ extension StatusMenuCodexSwitcherTests {
         switcher._test_selectAccount(id: managedVisibleAccount.id)
 
         #expect(rebuildCount == 0)
-        for _ in 0..<20 where rebuildCount == 0 {
-            await Task.yield()
-        }
-        #expect(rebuildCount == 1)
+        #expect(controller.menuNeedsRefresh(menu) == false)
+        #expect(settings.codexVisibleAccountProjection.activeVisibleAccountID == managedVisibleAccount.id)
 
         await blocker.waitUntilStarted()
         await blocker.resume(with: .success(self.snapshot(email: "managed@example.com", percent: 17)))

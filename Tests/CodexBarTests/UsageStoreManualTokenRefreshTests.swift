@@ -67,6 +67,23 @@ private actor TokenRefreshRecorder {
     func record(provider: UsageProvider, force: Bool) {
         self.calls.append((provider, force))
     }
+
+    func waitUntilCalls(count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let start = ContinuousClock.now
+        while self.calls.count < count {
+            if start.duration(to: .now) >= timeout { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
+    }
+}
+
+private actor ProviderRefreshRecorder {
+    private(set) var calls: [UsageProvider] = []
+
+    func record(provider: UsageProvider) {
+        self.calls.append(provider)
+    }
 }
 
 @MainActor
@@ -172,6 +189,180 @@ struct UsageStoreManualTokenRefreshTests {
         }
     }
 
+    @Test
+    func `menu interaction defers regular token-cost refresh until idle`() async {
+        let store = Self.makeStore()
+        let recorder = TokenRefreshRecorder()
+        store.tokenCostInteractionResumeDelay = 0.01
+        store._test_providerRefreshOverride = { _ in }
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+        }
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+        await store.refresh(forceTokenUsage: false)
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await recorder.calls.isEmpty)
+
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+        #expect(await recorder.waitUntilCalls(count: 1))
+
+        #expect(await recorder.calls.map(\.provider) == [.codex])
+        #expect(await recorder.calls.map(\.force) == [false])
+    }
+
+    @Test
+    func `menu interaction starts missing token-cost snapshot scan so skeleton can hydrate`() async {
+        let store = Self.makeStore()
+        let recorder = TokenRefreshRecorder()
+        store.tokenCostInteractionResumeDelay = 0.01
+        store._test_cachedTokenUsageLoadOverride = { _ in nil }
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+        }
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+        store.ensureTokenCostSnapshotScheduled(for: .codex, reason: "test-missing-chart")
+
+        #expect(await recorder.waitUntilCalls(count: 1))
+        #expect(await recorder.calls.map(\.provider) == [.codex])
+        #expect(await recorder.calls.map(\.force) == [false])
+
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+        #expect(await recorder.calls.map(\.provider) == [.codex])
+        #expect(await recorder.calls.map(\.force) == [false])
+    }
+
+    @Test
+    func `menu interaction hydrates cached token-cost snapshot before revalidation`() async {
+        let store = Self.makeStore()
+        let recorder = TokenRefreshRecorder()
+        store.tokenCostInteractionResumeDelay = 0.01
+        store._test_cachedTokenUsageLoadOverride = { _ in Self.tokenSnapshot() }
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+        }
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+        store.ensureTokenCostSnapshotScheduled(for: .codex, reason: "test-cached-chart")
+
+        #expect(await Self.waitUntil(timeout: .seconds(1)) {
+            store.tokenSnapshot(for: .codex)?.sessionTokens == 150
+        })
+        #expect(await recorder.calls.isEmpty)
+
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+        #expect(await recorder.waitUntilCalls(count: 1))
+        #expect(await recorder.calls.map(\.provider) == [.codex])
+        #expect(await recorder.calls.map(\.force) == [false])
+    }
+
+    @Test
+    func `menu interaction defers stale token-cost refresh when cached data exists`() async {
+        let store = Self.makeStore()
+        let recorder = TokenRefreshRecorder()
+        store.tokenCostInteractionResumeDelay = 0.01
+        store._setTokenSnapshotForTesting(Self.tokenSnapshot(), provider: .codex)
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+        }
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+        store.scheduleTokenRefresh(force: false, reason: "test-stale-chart")
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await recorder.calls.isEmpty)
+
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+        #expect(await recorder.waitUntilCalls(count: 1))
+        #expect(await recorder.calls.map(\.provider) == [.codex])
+        #expect(await recorder.calls.map(\.force) == [false])
+    }
+
+    @Test
+    func `menu interaction cancels token refresh even when unrelated provider is queued`() {
+        let store = Self.makeStore()
+        let task = Task<Void, Never> {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        store.tokenRefreshSequenceTask = task
+        store.tokenRefreshQueuedProviders = [.gemini]
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+
+        #expect(task.isCancelled)
+        store.tokenRefreshSequenceTask = nil
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+    }
+
+    @Test
+    func `menu interaction keeps protected missing chart refresh running`() {
+        let store = Self.makeStore()
+        let task = Task<Void, Never> {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        store.tokenRefreshSequenceTask = task
+        store.tokenRefreshQueuedProviders = [.codex]
+        store.tokenRefreshMenuAllowedProviders = [.codex]
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+
+        #expect(!task.isCancelled)
+        task.cancel()
+        store.tokenRefreshSequenceTask = nil
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+    }
+
+    @Test
+    func `menu interaction cancels stale in-flight refresh even with protected pending work`() {
+        let store = Self.makeStore()
+        let task = Task<Void, Never> {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        store.tokenRefreshSequenceTask = task
+        store.tokenRefreshQueuedProviders = [.claude, .codex]
+        store.tokenRefreshMenuAllowedProviders = [.codex]
+        store.tokenRefreshInFlightStartedAt[.claude] = Date()
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+
+        #expect(task.isCancelled)
+        store.tokenRefreshSequenceTask = nil
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+    }
+
+    @Test
+    func `menu interaction refreshes providers immediately but defers forced token-cost refresh until idle`() async {
+        let store = Self.makeStore()
+        let providerRecorder = ProviderRefreshRecorder()
+        let tokenRecorder = TokenRefreshRecorder()
+        store.tokenCostInteractionResumeDelay = 0.01
+        store._test_providerRefreshOverride = { provider in
+            await providerRecorder.record(provider: provider)
+        }
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await tokenRecorder.record(provider: provider, force: force)
+        }
+
+        store.beginInteractiveMenuTokenCostDeferral(reason: "test-menu-open")
+        await store.refresh(forceTokenUsage: true)
+
+        #expect(await providerRecorder.calls == [.codex])
+        #expect(await tokenRecorder.calls.isEmpty)
+
+        store.endInteractiveMenuTokenCostDeferral(reason: "test-menu-close")
+        #expect(await tokenRecorder.waitUntilCalls(count: 1))
+
+        #expect(await providerRecorder.calls == [.codex])
+        #expect(await tokenRecorder.calls.map(\.provider) == [.codex])
+        #expect(await tokenRecorder.calls.map(\.force) == [true])
+    }
+
     private static func makeStore() -> UsageStore {
         let suite = "UsageStoreManualTokenRefreshTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -200,5 +391,38 @@ struct UsageStoreManualTokenRefreshTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
+    }
+
+    private static func tokenSnapshot() -> CostUsageTokenSnapshot {
+        CostUsageTokenSnapshot(
+            sessionTokens: 150,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 150,
+            last30DaysCostUSD: 0.12,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-05-28",
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                    costUSD: 0.12,
+                    modelsUsed: ["gpt-5"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5",
+                            costUSD: 0.12,
+                            totalTokens: 150),
+                    ]),
+            ],
+            updatedAt: Date())
+    }
+
+    private static func waitUntil(timeout: Duration, predicate: @escaping @MainActor () -> Bool) async -> Bool {
+        let start = ContinuousClock.now
+        while !predicate() {
+            if start.duration(to: .now) >= timeout { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
     }
 }

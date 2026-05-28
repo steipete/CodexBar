@@ -15,6 +15,10 @@ struct CodexUIErrorMapper {
             return trimmed
         }
 
+        if self.looksCancellation(lower: lower) {
+            return nil
+        }
+
         if let cachedMessage = self.cachedMessage(raw: trimmed, lower: lower) {
             return cachedMessage
         }
@@ -123,6 +127,14 @@ struct CodexUIErrorMapper {
             || lower.contains("get https://")
             || lower.contains("get http://")
             || lower.contains("returned invalid data")
+    }
+
+    private static func looksCancellation(lower: String) -> Bool {
+        lower == "cancelled"
+            || lower.contains("network error: cancelled")
+            || lower.contains("nsurlerrordomain code=-999")
+            || lower.contains("nsurlerrordomain error -999")
+            || lower.contains("cancellationerror")
     }
 
     private static func looksOpenAIWebTimeout(lower: String) -> Bool {

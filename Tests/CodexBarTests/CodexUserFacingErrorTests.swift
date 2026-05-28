@@ -61,6 +61,14 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `cancelled codex refresh is hidden from user facing errors`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cancelled")
+        store.errors[.codex] = "Network error: cancelled"
+
+        #expect(store.userFacingError(for: .codex) == nil)
+    }
+
+    @Test
     func `decode mismatch codex error is sanitized`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-decode-mismatch")
         store.errors[.codex] =

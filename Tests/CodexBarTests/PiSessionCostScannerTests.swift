@@ -228,6 +228,86 @@ struct PiSessionCostScannerTests {
     }
 
     @Test
+    func `pi scanner cancellation keeps existing cache refreshable`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 4)
+        let firstTimestamp = Int(day.timeIntervalSince1970 * 1000)
+        let secondTimestamp = Int(day.addingTimeInterval(60).timeIntervalSince1970 * 1000)
+
+        let firstAssistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "openai/gpt-5.4",
+                "timestamp": firstTimestamp,
+                "usage": [
+                    "input": 10,
+                    "output": 5,
+                    "totalTokens": 15,
+                ],
+            ],
+        ]
+        let secondAssistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.4",
+                "timestamp": secondTimestamp,
+                "usage": [
+                    "input": 20,
+                    "output": 10,
+                    "totalTokens": 30,
+                ],
+            ],
+        ]
+
+        let url = try env.writePiSessionFile(
+            relativePath: "2026-04-04T10-00-00-000Z_test.jsonl",
+            contents: env.jsonl([firstAssistant]))
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+        let firstReport = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(firstReport.data.first?.totalTokens == 15)
+
+        try env.jsonl([firstAssistant, secondAssistant]).write(to: url, atomically: true, encoding: .utf8)
+
+        let cancelledRefresh = Task { () -> CostUsageDailyReport in
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+            return PiSessionCostScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day.addingTimeInterval(60),
+                options: options)
+        }
+        cancelledRefresh.cancel()
+        _ = await cancelledRefresh.value
+
+        let refreshedReport = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(120),
+            options: options)
+        #expect(refreshedReport.data.first?.totalTokens == 45)
+    }
+
+    @Test
     func `pi scanner ignores explicit unsupported provider even with fallback context`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

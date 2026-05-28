@@ -28,6 +28,7 @@ enum CostUsageJsonl {
         var lineBytes = 0
         var truncated = false
         var bytesRead: Int64 = 0
+        var scannedLines = 0
 
         func appendSegment(_ bytes: UnsafePointer<UInt8>, count: Int) {
             guard count > 0 else { return }
@@ -43,31 +44,36 @@ enum CostUsageJsonl {
             }
         }
 
-        func flushLine() {
+        func flushLine() throws {
             guard lineBytes > 0 else { return }
             let line = Line(bytes: current, wasTruncated: truncated)
             onLine(line)
+            scannedLines += 1
+            if scannedLines.isMultiple(of: 128) {
+                try Task.checkCancellation()
+            }
             current.removeAll(keepingCapacity: true)
             lineBytes = 0
             truncated = false
         }
 
         while true {
+            try Task.checkCancellation()
             let chunk = try handle.read(upToCount: 256 * 1024) ?? Data()
             if chunk.isEmpty {
-                flushLine()
+                try flushLine()
                 break
             }
 
             bytesRead += Int64(chunk.count)
-            chunk.withUnsafeBytes { rawBuffer in
+            try chunk.withUnsafeBytes { rawBuffer in
                 guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
                 var segmentStart = 0
                 var index = 0
                 while index < rawBuffer.count {
                     if base[index] == 0x0A {
                         appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
-                        flushLine()
+                        try flushLine()
                         segmentStart = index + 1
                     }
                     index += 1

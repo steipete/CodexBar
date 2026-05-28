@@ -130,7 +130,7 @@ struct StatusMenuSwitcherClickTests {
     }
 
     @Test
-    func `merged switcher switches provider while overview chart submenu is open`() async throws {
+    func `merged switcher switches provider without rebuilding tracked parent menu`() async throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         let previousMenuRefresh = StatusItemController.menuRefreshEnabled
         StatusItemController.menuCardRenderingEnabled = false
@@ -202,15 +202,13 @@ struct StatusMenuSwitcherClickTests {
 
         let switcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
         #expect(switcher._test_simulateRuntimeClick(buttonTag: 2))
-        for _ in 0..<100 where rebuildCount == 0 {
-            await Task.yield()
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await Task.yield()
 
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
         #expect(settings.selectedMenuProvider == .claude)
-        #expect(rebuildCount == 1)
+        #expect(rebuildCount == 0)
         #expect(controller.openMenus[ObjectIdentifier(submenu)] == nil)
+        #expect(controller.menuNeedsRefresh(menu) == false)
 
         let ids = menu.items.compactMap { $0.representedObject as? String }
         #expect(ids.contains("menuCard"))
@@ -525,16 +523,39 @@ struct StatusMenuSwitcherClickTests {
             },
             onSelect: { _ in })
         #expect(view._test_quotaIndicatorFillRatios().count == 2)
-        let noQuotaHeight = try #require(noQuotaView._test_buttonFittingSizes().last?.height)
-        let quotaHeight = try #require(view._test_buttonFittingSizes().last?.height)
+        let noQuotaHeight = try #require(noQuotaView._test_buttonIntrinsicSizes().last?.height)
+        let quotaHeight = try #require(view._test_buttonIntrinsicSizes().last?.height)
         #expect(quotaHeight > noQuotaHeight)
 
         grokRemaining = nil
         view.updateQuotaIndicators()
 
         #expect(view._test_quotaIndicatorFillRatios().count == 1)
-        let removedQuotaHeight = try #require(view._test_buttonFittingSizes().last?.height)
-        #expect(removedQuotaHeight == noQuotaHeight)
+        let removedQuotaHeight = try #require(view._test_buttonIntrinsicSizes().last?.height)
+        #expect(removedQuotaHeight == quotaHeight)
+    }
+
+    @Test
+    func `overview tab reserves quota bar space beside provider tabs`() throws {
+        let view = ProviderSwitcherView(
+            providers: [.codex, .claude, .gemini],
+            selected: .overview,
+            includesOverview: true,
+            width: 560,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in 50 },
+            onSelect: { _ in })
+        view.updateConstraintsForSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
+
+        let frames = view._test_buttonFrames()
+        #expect(frames.count == 4)
+        let rowHeight = view._test_rowHeight()
+        let overviewHeight = try #require(frames.first?.height)
+        let providerHeights = frames.dropFirst().map(\.height)
+        #expect(overviewHeight == rowHeight)
+        #expect(providerHeights.allSatisfy { $0 == rowHeight })
     }
 
     @Test
@@ -559,8 +580,8 @@ struct StatusMenuSwitcherClickTests {
             weeklyRemainingProvider: { _ in 50 },
             onSelect: { _ in })
 
-        let withoutQuotaHeight = try #require(textOnlyWithoutQuota._test_buttonFittingSizes().first?.height)
-        let withQuotaHeight = try #require(textOnlyWithQuota._test_buttonFittingSizes().first?.height)
+        let withoutQuotaHeight = try #require(textOnlyWithoutQuota._test_buttonIntrinsicSizes().first?.height)
+        let withQuotaHeight = try #require(textOnlyWithQuota._test_buttonIntrinsicSizes().first?.height)
         #expect(withQuotaHeight > withoutQuotaHeight)
     }
 

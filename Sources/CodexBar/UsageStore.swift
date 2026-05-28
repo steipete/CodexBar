@@ -18,6 +18,7 @@ extension UsageStore {
         _ = self.kiloScopeSnapshots
         _ = self.tokenSnapshots
         _ = self.tokenErrors
+        _ = self.tokenRefreshQueuedProviders
         _ = self.tokenRefreshInFlight
         _ = self.credits
         _ = self.lastCreditsError
@@ -148,6 +149,7 @@ final class UsageStore {
     var kiloScopeSnapshots: [KiloScopeSnapshot] = []
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
+    var tokenRefreshQueuedProviders: Set<UsageProvider> = []
     var tokenRefreshInFlight: Set<UsageProvider> = []
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
@@ -200,11 +202,13 @@ final class UsageStore {
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
+    @ObservationIgnored var _test_cachedTokenUsageLoadOverride:
+        (@MainActor (UsageProvider) async -> CostUsageTokenSnapshot?)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
 
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
-    @ObservationIgnored private let costUsageFetcher: CostUsageFetcher
+    @ObservationIgnored let costUsageFetcher: CostUsageFetcher
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
@@ -212,7 +216,7 @@ final class UsageStore {
     @ObservationIgnored private let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     @ObservationIgnored let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
-    @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
+    @ObservationIgnored let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
     @ObservationIgnored let augmentLogger = CodexBarLog.logger(LogCategories.augment)
     @ObservationIgnored let providerLogger = CodexBarLog.logger(LogCategories.providers)
     @ObservationIgnored var openAIWebDebugLines: [String] = []
@@ -224,7 +228,20 @@ final class UsageStore {
     @ObservationIgnored private var providerAvailabilityCache: [UsageProvider: ProviderAvailabilityCacheEntry] = [:]
     @ObservationIgnored private var timerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
-    @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
+    @ObservationIgnored var tokenRefreshSequenceTask: Task<Void, Never>?
+    @ObservationIgnored var tokenRefreshResumeTask: Task<Void, Never>?
+    @ObservationIgnored var pendingTokenRefreshProviders: Set<UsageProvider> = []
+    @ObservationIgnored var pendingTokenRefreshAllowsMenuInteraction = false
+    @ObservationIgnored var tokenRefreshMenuAllowedProviders: Set<UsageProvider> = []
+    @ObservationIgnored var tokenCacheHydrationTasks: [UsageProvider: Task<Void, Never>] = [:]
+    @ObservationIgnored var lastTokenCacheHydrationAttemptAt: [UsageProvider: Date] = [:]
+    @ObservationIgnored var tokenCostInteractiveDeferralDepth = 0
+    @ObservationIgnored var tokenCostInteractiveDeferralGeneration: UInt64 = 0
+    @ObservationIgnored var tokenCostDeferredUntil: Date?
+    @ObservationIgnored var refreshDeferredDuringMenuInteraction = false
+    @ObservationIgnored var refreshDeferredForceTokenUsage = false
+    @ObservationIgnored var tokenCostDeferredRefreshPending = false
+    @ObservationIgnored var tokenCostDeferredForceRefreshPending = false
     @ObservationIgnored var storageRefreshTask: Task<Void, Never>?
     @ObservationIgnored var storageRefreshGeneration: UInt64 = 0
     @ObservationIgnored var storageRefreshInFlightSignature: String?
@@ -245,12 +262,15 @@ final class UsageStore {
     @ObservationIgnored var lastPermissionPromptNotificationAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
+    @ObservationIgnored var tokenRefreshInFlightStartedAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored var weeklyLimitResetDetectorStates: [String: WeeklyLimitResetDetectorState] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
+    @ObservationIgnored var tokenCacheHydrationRetryInterval: TimeInterval = 30
+    @ObservationIgnored var tokenCostInteractionResumeDelay: TimeInterval = 2 * 60
     @ObservationIgnored private let startupBehavior: StartupBehavior
     @ObservationIgnored let planUtilizationPersistenceCoordinator: PlanUtilizationHistoryPersistenceCoordinator
 
@@ -568,7 +588,11 @@ final class UsageStore {
             }
 
             if forceTokenUsage {
-                await self.refreshTokenUsageSequenceNow(force: true)
+                if self.shouldDeferTokenRefreshForMenuInteraction(reason: "forced-refresh") {
+                    self.tokenCostDeferredForceRefreshPending = true
+                } else {
+                    await self.refreshTokenUsageSequenceNow(force: true)
+                }
             } else {
                 // Token-cost usage can be slow; run it outside regular/menu-open refreshes so we don't block UI.
                 self.scheduleTokenRefresh(force: false)
@@ -658,46 +682,14 @@ final class UsageStore {
         }
     }
 
-    private func scheduleTokenRefresh(force: Bool) {
-        if force {
-            self.tokenRefreshSequenceTask?.cancel()
-            self.tokenRefreshSequenceTask = nil
-        } else if self.tokenRefreshSequenceTask != nil {
-            return
-        }
-
-        self.tokenRefreshSequenceTask = Task(priority: .utility) { [weak self] in
-            guard let self else { return }
-            defer {
-                Task { @MainActor [weak self] in
-                    self?.tokenRefreshSequenceTask = nil
-                }
-            }
-            await self.refreshTokenUsageSequence(force: force)
-        }
-    }
-
-    private func refreshTokenUsageSequenceNow(force: Bool) async {
-        if force, let existing = self.tokenRefreshSequenceTask {
-            existing.cancel()
-            await existing.value
-            self.tokenRefreshSequenceTask = nil
-        }
-
-        await self.refreshTokenUsageSequence(force: force)
-    }
-
-    private func refreshTokenUsageSequence(force: Bool) async {
-        for provider in self.enabledProvidersForBackgroundWork() {
-            if Task.isCancelled { break }
-            await self.refreshTokenUsage(provider, force: force)
-        }
-    }
-
     deinit {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.tokenRefreshResumeTask?.cancel()
+        for task in self.tokenCacheHydrationTasks.values {
+            task.cancel()
+        }
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
     }
@@ -1451,36 +1443,11 @@ extension UsageStore {
         }
     }
 
-    func clearCostUsageCache() async -> String? {
-        let errorMessage: String? = await Task.detached(priority: .utility) {
-            let fm = FileManager.default
-            let cacheDirs = [
-                Self.costUsageCacheDirectory(fileManager: fm),
-            ]
-
-            for cacheDir in cacheDirs {
-                do {
-                    try fm.removeItem(at: cacheDir)
-                } catch let error as NSError {
-                    if error.domain == NSCocoaErrorDomain, error.code == NSFileNoSuchFileError { continue }
-                    return error.localizedDescription
-                }
-            }
-            return nil
-        }.value
-
-        guard errorMessage == nil else { return errorMessage }
-
-        self.tokenSnapshots.removeAll()
-        self.tokenErrors.removeAll()
-        self.lastTokenFetchAt.removeAll()
-        self.lastTokenFetchScope.removeAll()
-        self.tokenFailureGates[.codex]?.reset()
-        self.tokenFailureGates[.claude]?.reset()
-        return nil
-    }
-
-    private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
+    func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
+        defer {
+            self.tokenRefreshQueuedProviders.remove(provider)
+            self.tokenRefreshMenuAllowedProviders.remove(provider)
+        }
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
@@ -1543,9 +1510,14 @@ extension UsageStore {
         self.lastTokenFetchAt[provider] = now
         self.lastTokenFetchScope[provider] = costScopeSignature
         self.tokenRefreshInFlight.insert(provider)
-        defer { self.tokenRefreshInFlight.remove(provider) }
 
         let startedAt = Date()
+        self.tokenRefreshInFlightStartedAt[provider] = startedAt
+        defer {
+            self.tokenRefreshInFlight.remove(provider)
+            self.tokenRefreshInFlightStartedAt.removeValue(forKey: provider)
+        }
+
         let providerText = provider.rawValue
         self.tokenCostLogger
             .debug("cost usage start provider=\(providerText) force=\(force)")
@@ -1584,6 +1556,7 @@ extension UsageStore {
                 guard let snapshot = try await group.next() else { throw CancellationError() }
                 return snapshot
             }
+            try Task.checkCancellation()
 
             guard !snapshot.daily.isEmpty else {
                 self.tokenSnapshots.removeValue(forKey: provider)
@@ -1608,8 +1581,15 @@ extension UsageStore {
             self.tokenFailureGates[provider]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
         } catch {
-            if error is CancellationError { return }
             let duration = Date().timeIntervalSince(startedAt)
+            if error is CancellationError {
+                let durationText = String(format: "%.2f", duration)
+                self.tokenCostLogger
+                    .info("cost usage cancelled provider=\(providerText) duration=\(durationText)s")
+                self.lastTokenFetchAt.removeValue(forKey: provider)
+                self.lastTokenFetchScope.removeValue(forKey: provider)
+                return
+            }
             let msg = error.localizedDescription
             let durationText = String(format: "%.2f", duration)
             let message = "cost usage failed provider=\(providerText) duration=\(durationText)s error=\(msg)"

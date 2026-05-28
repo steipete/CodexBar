@@ -384,6 +384,7 @@ struct ProviderStorageFootprintTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             environmentBase: ["CODEX_HOME": codexHome.path])
+        store.managedCodexAccountsForStorageOverride = []
         settings.providerStorageFootprintsEnabled = true
         store.storageRefreshGeneration = 41
         store.storageRefreshInFlightSignature = "codex=\(codexHome.path)"

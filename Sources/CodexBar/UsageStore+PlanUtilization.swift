@@ -53,6 +53,16 @@ extension UsageStore {
         return providerBuckets.histories(for: accountKey)
     }
 
+    func planUtilizationHistoryForMenu(for provider: UsageProvider) -> [PlanUtilizationSeriesHistory] {
+        let providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
+        let snapshot = self.snapshots[provider]
+        let accountKey = self.planUtilizationMenuAccountKey(
+            provider: provider,
+            snapshot: snapshot,
+            providerBuckets: providerBuckets)
+        return providerBuckets.histories(for: accountKey)
+    }
+
     func shouldShowRefreshingMenuCard(for provider: UsageProvider) -> Bool {
         let isRefreshing = self.isRefreshing || self.refreshingProviders.contains(provider)
         return isRefreshing
@@ -493,6 +503,79 @@ extension UsageStore {
         }
         let resolvedSnapshot = snapshot ?? self.snapshots[provider]
         return resolvedSnapshot.flatMap { Self.planUtilizationIdentityAccountKey(provider: provider, snapshot: $0) }
+    }
+
+    private func planUtilizationMenuAccountKey(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        providerBuckets: PlanUtilizationHistoryBuckets) -> String?
+    {
+        if provider == .codex {
+            return self.codexPlanUtilizationMenuAccountKey(
+                snapshot: snapshot,
+                providerBuckets: providerBuckets)
+        }
+
+        if let tokenAccountKey = Self.planUtilizationAccountKey(
+            provider: provider,
+            account: self.settings.selectedTokenAccount(for: provider)),
+            providerBuckets.histories(for: tokenAccountKey).isEmpty == false
+        {
+            return tokenAccountKey
+        }
+
+        if let snapshot,
+           let identityAccountKey = Self.planUtilizationIdentityAccountKey(provider: provider, snapshot: snapshot),
+           providerBuckets.histories(for: identityAccountKey).isEmpty == false
+        {
+            return identityAccountKey
+        }
+
+        if provider == .claude,
+           let snapshot,
+           let legacyAccountKey = Self.legacyClaudePlanUtilizationEmailAccountKey(snapshot: snapshot),
+           providerBuckets.histories(for: legacyAccountKey).isEmpty == false
+        {
+            return legacyAccountKey
+        }
+
+        return self.stickyPlanUtilizationAccountKey(providerBuckets: providerBuckets)
+    }
+
+    private func codexPlanUtilizationMenuAccountKey(
+        snapshot: UsageSnapshot?,
+        providerBuckets: PlanUtilizationHistoryBuckets) -> String?
+    {
+        let ownership = self.codexOwnershipContext(snapshot: snapshot, includeDashboardFallback: true)
+        let preferredKeys = [
+            ownership.canonicalKey,
+            ownership.canonicalEmailHashKey,
+            ownership.planUtilizationLegacyEmailHash,
+        ].compactMap(\.self)
+        if let preferredKey = preferredKeys.first(where: { providerBuckets.histories(for: $0).isEmpty == false }) {
+            return preferredKey
+        }
+
+        if let canonicalKey = ownership.canonicalKey {
+            let matchingKeys = providerBuckets.accounts.keys.filter { rawKey in
+                let owner = CodexHistoryOwnership.classifyPersistedKey(
+                    rawKey,
+                    legacyEmailHash: ownership.planUtilizationLegacyEmailHash)
+                return CodexHistoryOwnership.belongsToTargetContinuity(
+                    owner,
+                    targetCanonicalKey: canonicalKey,
+                    canonicalEmailHashKey: ownership.canonicalEmailHashKey)
+            }
+            if let latestMatchingKey = matchingKeys.max(by: { lhs, rhs in
+                let lhsDate = providerBuckets.accounts[lhs]?.compactMap(\.latestCapturedAt).max() ?? .distantPast
+                let rhsDate = providerBuckets.accounts[rhs]?.compactMap(\.latestCapturedAt).max() ?? .distantPast
+                return lhsDate < rhsDate
+            }) {
+                return latestMatchingKey
+            }
+        }
+
+        return self.stickyPlanUtilizationAccountKey(providerBuckets: providerBuckets)
     }
 
     private nonisolated static func planUtilizationAccountKey(

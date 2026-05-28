@@ -5,6 +5,15 @@ import QuartzCore
 enum ProviderSwitcherSelection: Equatable {
     case overview
     case provider(UsageProvider)
+
+    var logValue: String {
+        switch self {
+        case .overview:
+            "overview"
+        case let .provider(provider):
+            provider.rawValue
+        }
+    }
 }
 
 final class ProviderSwitcherView: NSView {
@@ -25,6 +34,7 @@ final class ProviderSwitcherView: NSView {
     private let onSelect: (ProviderSwitcherSelection) -> Void
     private let showsIcons: Bool
     private let weeklyRemainingProvider: (UsageProvider) -> Double?
+    private let reservesQuotaIndicatorSpace: Bool
     private var buttons: [NSButton] = []
     private var quotaIndicators: [ObjectIdentifier: QuotaIndicator] = [:]
     private var hoverTrackingArea: NSTrackingArea?
@@ -60,32 +70,17 @@ final class ProviderSwitcherView: NSView {
         onSelect: @escaping (ProviderSwitcherSelection) -> Void)
     {
         let minimumGap: CGFloat = 1
-        var segments = providers.map { provider in
-            let fullTitle = Self.switcherTitle(for: provider)
-            let icon = iconProvider(provider)
-            icon.isTemplate = true
-            // Avoid any resampling: we ship exact 16pt/32px assets for crisp rendering.
-            icon.size = NSSize(width: 16, height: 16)
-            return Segment(
-                selection: .provider(provider),
-                image: icon,
-                title: fullTitle)
-        }
-        if includesOverview {
-            let overviewIcon = Self.overviewIcon()
-            overviewIcon.isTemplate = true
-            overviewIcon.size = NSSize(width: 16, height: 16)
-            segments.insert(
-                Segment(
-                    selection: .overview,
-                    image: overviewIcon,
-                    title: L("Overview")),
-                at: 0)
-        }
+        let segments = Self.makeSegments(
+            providers: providers,
+            includesOverview: includesOverview,
+            iconProvider: iconProvider)
         self.segments = segments
         self.onSelect = onSelect
         self.showsIcons = showsIcons
         self.weeklyRemainingProvider = weeklyRemainingProvider
+        self.reservesQuotaIndicatorSpace = Self.reservesQuotaIndicatorSpace(
+            segments: segments,
+            weeklyRemainingProvider: weeklyRemainingProvider)
         self.stackedIcons = showsIcons && self.segments.count > 3
         let initialOuterPadding = Self.switcherOuterPadding(
             for: width,
@@ -169,6 +164,9 @@ final class ProviderSwitcherView: NSView {
             case .overview:
                 nil
             }
+            if remaining == nil, self.reservesQuotaIndicatorSpace {
+                Self.applyQuotaBarContentInset(to: button)
+            }
             self.addQuotaIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
             button.bezelStyle = .regularSquare
             button.isBordered = false
@@ -182,6 +180,7 @@ final class ProviderSwitcherView: NSView {
             button.state = (selected == segment.selection) ? .on : .off
             button.toolTip = nil
             button.translatesAutoresizingMaskIntoConstraints = false
+            button.heightAnchor.constraint(equalToConstant: self.rowHeight).isActive = true
             self.buttons.append(button)
             return button
         }
@@ -622,9 +621,13 @@ final class ProviderSwitcherView: NSView {
                     self.addQuotaIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
                 }
             } else if let indicator = self.quotaIndicators.removeValue(forKey: key) {
-                Self.applyQuotaBarContentInset(to: button, height: 0)
+                let reservedHeight = self.reservesQuotaIndicatorSpace
+                    ? Self.quotaIndicatorReservedHeight
+                    : 0
+                Self.applyQuotaBarContentInset(to: button, height: reservedHeight)
                 indicator.track.removeFromSuperview()
-                continue
+            } else if self.reservesQuotaIndicatorSpace {
+                Self.applyQuotaBarContentInset(to: button)
             }
             self.updateQuotaIndicatorVisibility(for: button)
         }
@@ -665,6 +668,10 @@ final class ProviderSwitcherView: NSView {
 
     func _test_buttonFittingSizes() -> [NSSize] {
         self.buttons.map(\.fittingSize)
+    }
+
+    func _test_buttonIntrinsicSizes() -> [NSSize] {
+        self.buttons.map(\.intrinsicContentSize)
     }
 
     func _test_rowCount() -> Int {
@@ -897,6 +904,50 @@ final class ProviderSwitcherView: NSView {
 }
 
 extension ProviderSwitcherView {
+    private static func reservesQuotaIndicatorSpace(
+        segments: [Segment],
+        weeklyRemainingProvider: (UsageProvider) -> Double?) -> Bool
+    {
+        segments.contains { segment in
+            switch segment.selection {
+            case let .provider(provider):
+                weeklyRemainingProvider(provider) != nil
+            case .overview:
+                false
+            }
+        }
+    }
+
+    private static func makeSegments(
+        providers: [UsageProvider],
+        includesOverview: Bool,
+        iconProvider: (UsageProvider) -> NSImage) -> [Segment]
+    {
+        var segments = providers.map { provider in
+            let fullTitle = self.switcherTitle(for: provider)
+            let icon = iconProvider(provider)
+            icon.isTemplate = true
+            // Avoid any resampling: we ship exact 16pt/32px assets for crisp rendering.
+            icon.size = NSSize(width: 16, height: 16)
+            return Segment(
+                selection: .provider(provider),
+                image: icon,
+                title: fullTitle)
+        }
+        if includesOverview {
+            let overviewIcon = self.overviewIcon()
+            overviewIcon.isTemplate = true
+            overviewIcon.size = NSSize(width: 16, height: 16)
+            segments.insert(
+                Segment(
+                    selection: .overview,
+                    image: overviewIcon,
+                    title: L("Overview")),
+                at: 0)
+        }
+        return segments
+    }
+
     private func addQuotaIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {
         guard let remainingPercent else { return }
         Self.applyQuotaBarContentInset(to: view)

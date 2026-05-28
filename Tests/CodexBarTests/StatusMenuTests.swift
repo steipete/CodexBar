@@ -278,64 +278,6 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `open menu defers store data refresh until next open`() async {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = false
-
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: UsageFetcher().loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-
-        let menu = controller.makeMenu()
-        controller.menuWillOpen(menu)
-        let key = ObjectIdentifier(menu)
-        controller.openMenus[key] = menu
-        StatusItemController.setMenuRefreshEnabledForTesting(true)
-        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
-        let openedVersion = controller.menuVersions[key]
-
-        let now = Date()
-        store._setSnapshotForTesting(
-            UsageSnapshot(
-                primary: RateWindow(
-                    usedPercent: 11,
-                    windowMinutes: 300,
-                    resetsAt: now.addingTimeInterval(1800),
-                    resetDescription: nil),
-                secondary: nil,
-                tertiary: nil,
-                updatedAt: now,
-                identity: ProviderIdentitySnapshot(
-                    providerID: .codex,
-                    accountEmail: "codex@example.com",
-                    accountOrganization: nil,
-                    loginMethod: "Plus Plan")),
-            provider: .codex)
-
-        for _ in 0..<50 where controller.menuContentVersion == openedVersion {
-            await Task.yield()
-        }
-
-        let staleVersion = controller.menuContentVersion
-        controller.refreshOpenMenusIfNeeded()
-
-        #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == openedVersion)
-
-        controller.menuDidClose(menu)
-        controller.menuWillOpen(menu)
-        #expect(controller.menuVersions[key] == staleVersion)
-    }
-
-    @Test
     func `merged menu refresh uses resolved enabled provider when selection is cleared`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -441,6 +383,45 @@ struct StatusMenuTests {
     }
 
     @Test
+    func `menu open defers automatic provider refresh until tracking ends`() async {
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        StatusItemController.setMenuOpenRefreshDelayForTesting(.milliseconds(50))
+        defer {
+            StatusItemController.resetMenuOpenRefreshDelayForTesting()
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        var refreshCount = 0
+        store._test_providerRefreshOverride = { _ in
+            refreshCount += 1
+        }
+
+        await withStatusItemControllerForTesting(
+            store: store,
+            settings: settings,
+            fetcher: fetcher,
+            statusBar: self.makeStatusBarForTesting())
+        { controller in
+            let menu = controller.makeMenu()
+            controller.menuWillOpen(menu)
+            try? await Task.sleep(for: .milliseconds(180))
+            #expect(refreshCount == 0)
+            #expect(controller.deferredMenuInteractionRefreshPending)
+            controller.menuDidClose(menu)
+            controller.deferredMenuInteractionRefreshPending = false
+            controller.deferredMenuInteractionRefreshTask?.cancel()
+            controller.deferredMenuInteractionRefreshTask = nil
+        }
+    }
+
+    @Test
     func `login state callbacks do not attach menus after release`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -521,7 +502,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `open merged menu rebuilds switcher when usage bars mode changes`() async {
+    func `open merged menu marks switcher stale when usage bars mode changes`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -552,9 +533,11 @@ struct StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
-        controller.openMenus[ObjectIdentifier(menu)] = menu
+        let key = ObjectIdentifier(menu)
+        controller.openMenus[key] = menu
         StatusItemController.setMenuRefreshEnabledForTesting(true)
         defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
+        let openedVersion = controller.menuVersions[key]
 
         let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(initialSwitcher != nil)
@@ -562,17 +545,15 @@ struct StatusMenuTests {
 
         settings.usageBarsShowUsed = true
         controller.handleProviderConfigChange(reason: "usageBarsShowUsed")
-        for _ in 0..<20
-            where initialSwitcherID == (menu.items.first?.view as? ProviderSwitcherView).map(ObjectIdentifier.init)
-        {
-            await Task.yield()
-        }
 
         let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(updatedSwitcher != nil)
         if let initialSwitcherID, let updatedSwitcher {
-            #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
+            #expect(initialSwitcherID == ObjectIdentifier(updatedSwitcher))
         }
+        #expect(controller.menuContentVersion != openedVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+        #expect(controller.menuNeedsRefresh(menu))
     }
 
     @Test

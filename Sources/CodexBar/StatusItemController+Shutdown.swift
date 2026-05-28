@@ -28,6 +28,12 @@ extension StatusItemController {
         self.loginTask = nil
         self.screenChangeVisibilityTask?.cancel()
         self.screenChangeVisibilityTask = nil
+        self.mainRunLoopStallMonitor?.stop()
+        self.mainRunLoopStallMonitor = nil
+        self.codexAccountSelectionRefreshTask?.cancel()
+        self.codexAccountSelectionRefreshTask = nil
+        self.tokenCostMenuHydrationRefreshTask?.cancel()
+        self.tokenCostMenuHydrationRefreshTask = nil
         self.pendingScreenChangePreviousCount = nil
         self.animationDriver?.stop()
         self.animationDriver = nil

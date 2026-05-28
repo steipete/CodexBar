@@ -865,3 +865,74 @@ struct CostUsageFetcherTests {
         ]).write(to: url, atomically: true, encoding: .utf8)
     }
 }
+
+extension CostUsageFetcherTests {
+    @Test
+    func `fetcher can hydrate codex snapshot from cache without scanning`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "cached.jsonl",
+            tokens: 100)
+
+        let options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        let piOptions = PiSessionCostScanner.Options(piSessionsRoot: env.piSessionsRoot, cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            codexHomePath: env.codexHomeRoot.path,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        try FileManager.default.removeItem(
+            at: env.codexHomeRoot.appendingPathComponent("sessions", isDirectory: true))
+
+        let cached = CostUsageFetcher.loadCachedTokenSnapshot(
+            provider: .codex,
+            now: day.addingTimeInterval(120),
+            codexHomePath: env.codexHomeRoot.path,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        #expect(cached?.sessionTokens == 100)
+    }
+
+    @Test
+    func `fetcher does not hydrate codex snapshot from another home cache`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let managedHome = env.root.appendingPathComponent("managed-codex-home", isDirectory: true)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "ambient.jsonl",
+            tokens: 100)
+        try Self.writeCodexSessionFile(homeRoot: managedHome, env: env, day: day, filename: "managed.jsonl", tokens: 10)
+
+        let options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        let piOptions = PiSessionCostScanner.Options(piSessionsRoot: env.piSessionsRoot, cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            codexHomePath: env.codexHomeRoot.path,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        let cachedManaged = CostUsageFetcher.loadCachedTokenSnapshot(
+            provider: .codex,
+            now: day.addingTimeInterval(120),
+            codexHomePath: managedHome.path,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        #expect(cachedManaged == nil)
+    }
+}

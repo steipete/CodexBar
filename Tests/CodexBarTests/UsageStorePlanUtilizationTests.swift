@@ -541,6 +541,35 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `plan history menu lookup does not mutate account buckets`() throws {
+        let store = Self.makeStore()
+        let aliceSnapshot = Self.makeSnapshot(provider: .codex, email: "alice@example.com")
+        let aliceKey = try #require(
+            UsageStore._planUtilizationAccountKeyForTesting(
+                provider: .codex,
+                snapshot: aliceSnapshot))
+        let bootstrap = planSeries(name: .session, windowMinutes: 300, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_699_913_600), usedPercent: 90),
+        ])
+        let aliceWeekly = planSeries(name: .weekly, windowMinutes: 10080, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 20),
+        ])
+        let buckets = PlanUtilizationHistoryBuckets(
+            unscoped: [bootstrap],
+            accounts: [
+                aliceKey: [aliceWeekly],
+            ])
+        store.planUtilizationHistory[.codex] = buckets
+        store._setSnapshotForTesting(aliceSnapshot, provider: .codex)
+
+        let history = store.planUtilizationHistoryForMenu(for: .codex)
+
+        #expect(history == [aliceWeekly])
+        #expect(store.planUtilizationHistory[.codex] == buckets)
+    }
+
+    @MainActor
+    @Test
     func `plan utilization menu hides while refreshing without current snapshot`() throws {
         let store = Self.makeStore()
         let claudeKey = try #require(
