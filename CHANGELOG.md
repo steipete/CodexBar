@@ -2,6 +2,12 @@
 
 ## 0.30.1 — Unreleased
 
+### Changed
+- CLI: make `codexbar diagnose` use a generic safe provider diagnostic export for all providers, with MiniMax details attached only as provider-specific metadata.
+
+### Fixed
+- Menu bar: stop repeated display-change status-item recreation from corrupting Control Center or confusing menu bar managers (#1176, fixes #1175). Thanks @diazdesandi!
+
 ## 0.30.0 — 2026-05-27
 
 ### Added
