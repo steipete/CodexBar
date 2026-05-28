@@ -63,6 +63,7 @@ public struct CodexReconciledState: Sendable {
         return self.make(
             primary: snapshot.primaryLimit,
             secondary: snapshot.secondaryLimit,
+            extraRateWindows: snapshot.extraRateWindows ?? [],
             identity: identity,
             updatedAt: snapshot.updatedAt)
     }
