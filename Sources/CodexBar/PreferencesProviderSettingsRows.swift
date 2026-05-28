@@ -424,12 +424,12 @@ struct ProviderSettingsOrganizationsRowView: View {
                                 self.descriptor.onToggle(entry.id, newValue)
                             })) {
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(L(entry.title))
+                                    Text(entry.localizesTitle ? L(entry.title) : entry.title)
                                         .font(.footnote)
                                     if let subtitle = entry.subtitle,
                                        !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                     {
-                                        Text(L(subtitle))
+                                        Text(entry.localizesSubtitle ? L(subtitle) : subtitle)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }

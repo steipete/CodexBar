@@ -153,8 +153,28 @@ struct ProviderSettingsOrganizationsDescriptor: Identifiable {
         let id: String
         let title: String
         let subtitle: String?
+        let localizesTitle: Bool
+        let localizesSubtitle: Bool
         let isEnabled: Bool
         let isLocked: Bool
+
+        init(
+            id: String,
+            title: String,
+            subtitle: String?,
+            localizesTitle: Bool = true,
+            localizesSubtitle: Bool = true,
+            isEnabled: Bool,
+            isLocked: Bool)
+        {
+            self.id = id
+            self.title = title
+            self.subtitle = subtitle
+            self.localizesTitle = localizesTitle
+            self.localizesSubtitle = localizesSubtitle
+            self.isEnabled = isEnabled
+            self.isLocked = isLocked
+        }
     }
 
     struct RefreshOutcome {

@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -90,6 +91,68 @@ struct PopupLocalizationTests {
             #expect(dashboard.points.map(\.label) == ["今天", "週", "月"])
             #expect(dashboard.detailLines.contains("速率限制: 100 / 10s"))
         }
+    }
+
+    @Test
+    func `cookie source dynamic subtitles use selected localization`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
+            let subtitle = ProviderCookieSourceUI.subtitle(
+                source: .manual,
+                keychainDisabled: false,
+                auto: "Automatically imports browser cookies.",
+                manual: "Paste a Cookie header or cURL capture from T3 Chat settings.",
+                off: "T3 Chat cookies are disabled.")
+            let disabledSubtitle = ProviderCookieSourceUI.subtitle(
+                source: .manual,
+                keychainDisabled: true,
+                auto: "Automatically imports browser cookies.",
+                manual: "Paste a Cookie header or cURL capture from T3 Chat settings.",
+                off: "T3 Chat cookies are disabled.")
+
+            #expect(subtitle.contains("貼上"))
+            #expect(!subtitle.contains("Paste a Cookie"))
+            #expect(disabledSubtitle.contains("鑰匙圈"))
+            #expect(!disabledSubtitle.contains("Keychain access"))
+        }
+    }
+
+    @Test
+    func `provider organization entries preserve provider supplied text`() throws {
+        let settings = try Self.makeSettingsStore(suite: "PopupLocalizationTests-organizations")
+        settings.kiloKnownOrganizations = [
+            KiloOrganization(id: "org_cost", name: "Cost", role: "Today"),
+        ]
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let context = ProviderSettingsContext(
+            provider: .kilo,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+        let descriptor = try #require(KiloProviderImplementation().settingsOrganizations(context: context))
+        let orgEntry = try #require(descriptor.entries().first { $0.id == "org_cost" })
+
+        #expect(orgEntry.title == "Cost")
+        #expect(orgEntry.localizesTitle == false)
+        #expect(orgEntry.subtitle == "Today")
+        #expect(orgEntry.localizesSubtitle == false)
     }
 
     private static func makeSettingsStore(suite: String) throws -> SettingsStore {

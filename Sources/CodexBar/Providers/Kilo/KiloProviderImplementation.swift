@@ -110,6 +110,8 @@ struct KiloProviderImplementation: ProviderImplementation {
                             id: org.id,
                             title: org.name,
                             subtitle: org.role,
+                            localizesTitle: false,
+                            localizesSubtitle: false,
                             isEnabled: settings.kiloIsOrganizationEnabled(org.id),
                             isLocked: false))
                 }
