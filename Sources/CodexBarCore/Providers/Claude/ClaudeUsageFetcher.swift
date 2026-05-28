@@ -301,6 +301,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 }
                 throw ClaudeUsageError.oauthFailed(error.localizedDescription)
             } catch let error as ClaudeOAuthFetchError {
+                if case .rateLimited = error {
+                    throw ClaudeUsageError.oauthFailed(error.localizedDescription)
+                }
                 ClaudeOAuthCredentialsStore.invalidateCache()
                 if case let .serverError(statusCode, body) = error,
                    statusCode == 403,
@@ -861,7 +864,12 @@ extension ClaudeUsageFetcher {
         for outcome: ClaudeOAuthDelegatedRefreshCoordinator.Outcome,
         retryError: Error) -> String
     {
-        _ = retryError
+        if let oauthError = retryError as? ClaudeOAuthFetchError,
+           case .rateLimited = oauthError
+        {
+            return oauthError.localizedDescription
+        }
+
         switch outcome {
         case .skippedByCooldown:
             return "Claude OAuth token expired and delegated refresh is cooling down. "
@@ -895,6 +903,9 @@ extension ClaudeUsageFetcher {
             switch oauthError {
             case .unauthorized:
                 metadata["oauthError"] = "unauthorized"
+            case let .rateLimited(retryAfter):
+                metadata["oauthError"] = "rateLimited"
+                metadata["retryAfter"] = retryAfter.map { "\($0.timeIntervalSince1970)" } ?? "nil"
             case .invalidResponse:
                 metadata["oauthError"] = "invalidResponse"
             case let .serverError(statusCode, body):
