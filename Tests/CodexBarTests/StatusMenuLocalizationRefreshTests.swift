@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuLocalizationRefreshTests {
     @Test
-    func `open merged menu refreshes localized switcher and cost title when language changes`() {
+    func `open merged menu refreshes localized switcher and cost title when language changes`() async {
         let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
         let previousAppleLanguages = UserDefaults.standard.object(forKey: "AppleLanguages")
         defer {
@@ -79,12 +79,23 @@ struct StatusMenuLocalizationRefreshTests {
 
         let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
         let initialSwitcherID = initialSwitcher.map(ObjectIdentifier.init)
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
 
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             settings.appLanguage = "en"
             controller.handleProviderConfigChange(reason: "appLanguage")
         }
 
+        for _ in 0..<100 where rebuildCount == 0 {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(rebuildCount == 1)
         let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(Self.switcherButtons(in: menu).first?.title == "Overview")
         #expect(menu.items.first(where: { $0.representedObject as? String == "menuCardCost" })?.title == "Cost")

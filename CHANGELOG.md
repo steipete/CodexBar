@@ -4,6 +4,7 @@
 
 ### Changed
 - Tests: document and audit that routine validation must not trigger macOS Keychain prompts.
+- Localization: localize popup panels and provider settings UI across supported languages (#1181). Thanks @jack24254029!
 
 ### Added
 - AWS Bedrock: support resolving usage and cost-history credentials from a named AWS profile via the AWS CLI (#1190). Thanks @oleksandr-soldatov!
