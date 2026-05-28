@@ -1159,6 +1159,10 @@ final class CodexAccountSwitcherView: NSView {
     private var pressedAccountID: String?
     private var dragStartPoint: NSPoint?
     private var draggedAccountID: String?
+    private var dragLastLocation: NSPoint?
+    private var dragPointerOffsetFromButtonCenter: NSSize?
+    private var dragPreviewChanged = false
+    private var dragOverlayButton: NSButton?
     private var buttons: [NSButton] = []
     private let preferredSize: NSSize
     private let rowSpacing: CGFloat = 4
@@ -1171,8 +1175,7 @@ final class CodexAccountSwitcherView: NSView {
     private let buttonHorizontalPadding: CGFloat = 14
     private let buttonSideInset: CGFloat = 6
     private let dragThreshold: CGFloat = 4
-    private let dragAlpha: CGFloat = 0.65
-    private let dragLiftOffset: CGFloat = 2
+    private let dragOverlayAlpha: CGFloat = 0.98
     private let dragAnimationDuration: TimeInterval = 0.12
     private let reorderAnimationDuration: TimeInterval = 0.18
 
@@ -1403,8 +1406,18 @@ final class CodexAccountSwitcherView: NSView {
         for button in self.buttons {
             let selected = button.identifier?.rawValue == self.selectedAccountID
             button.state = selected ? .on : .off
+            button.alphaValue = 1
+            button.layer?.borderWidth = 0
+            button.layer?.borderColor = nil
             button.layer?.backgroundColor = selected ? self.selectedBackground : self.unselectedBackground
+            button.layer?.shadowOpacity = 0
+            button.layer?.shadowRadius = 0
+            button.layer?.shadowOffset = .zero
+            button.layer?.zPosition = 0
             button.contentTintColor = selected ? self.selectedTextColor : self.unselectedTextColor
+            if button.identifier?.rawValue == self.draggedAccountID, self.dragOverlayButton != nil {
+                self.applyPlaceholderStyle(to: button)
+            }
         }
     }
 
@@ -1427,6 +1440,17 @@ final class CodexAccountSwitcherView: NSView {
         self.pressedAccountID = self.accountID(at: location)
         self.dragStartPoint = self.pressedAccountID == nil ? nil : location
         self.draggedAccountID = nil
+        self.dragLastLocation = nil
+        self.dragPreviewChanged = false
+        if let pressedAccountID = self.pressedAccountID,
+           let frame = self.buttonFrame(for: pressedAccountID)
+        {
+            self.dragPointerOffsetFromButtonCenter = NSSize(
+                width: location.x - frame.midX,
+                height: location.y - frame.midY)
+        } else {
+            self.dragPointerOffsetFromButtonCenter = nil
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -1436,6 +1460,7 @@ final class CodexAccountSwitcherView: NSView {
             return
         }
         let location = self.convert(event.locationInWindow, from: nil)
+        self.dragLastLocation = location
         guard self.draggedAccountID != nil || self.dragDistance(from: dragStartPoint, to: location) >= self
             .dragThreshold
         else {
@@ -1443,33 +1468,31 @@ final class CodexAccountSwitcherView: NSView {
         }
         if self.draggedAccountID == nil {
             self.draggedAccountID = pressedAccountID
-            self.animateDragStart(for: pressedAccountID)
+            self.applyDragAppearance(for: pressedAccountID, animated: true)
         }
+        guard let draggedAccountID = self.draggedAccountID else { return }
+        self.previewReorderIfNeeded(id: draggedAccountID, at: location, animated: true)
+        self.updateDraggedButtonTransform(for: draggedAccountID, at: location, animated: false)
     }
 
     override func mouseUp(with event: NSEvent) {
-        var reordered = false
         defer {
-            if let draggedAccountID, !reordered {
-                self.resetDragAppearance(for: draggedAccountID)
-            }
             self.pressedAccountID = nil
             self.dragStartPoint = nil
             self.draggedAccountID = nil
+            self.dragLastLocation = nil
+            self.dragPointerOffsetFromButtonCenter = nil
+            self.dragPreviewChanged = false
+            self.dragOverlayButton = nil
         }
         if let draggedAccountID {
             let location = self.convert(event.locationInWindow, from: nil)
-            if let targetAccountID = self.accountID(at: location),
-               targetAccountID != draggedAccountID
-            {
-                let dropAfterTarget = self.dropAfterTarget(at: location, targetAccountID: targetAccountID)
-                reordered = self.reorderAccount(
-                    id: draggedAccountID,
-                    targetID: targetAccountID,
-                    dropAfterTarget: dropAfterTarget,
-                    notify: true,
-                    animated: true)
+            self.dragLastLocation = location
+            self.previewReorderIfNeeded(id: draggedAccountID, at: location, animated: true)
+            if self.dragPreviewChanged {
+                self.onReorder(self.accounts.map(\.id))
             }
+            self.resetDragAppearance(for: draggedAccountID)
             return
         }
         guard let pressedAccountID = self.pressedAccountID else { return }
@@ -1507,41 +1530,149 @@ final class CodexAccountSwitcherView: NSView {
         self.buttons.first { $0.identifier?.rawValue == accountID }
     }
 
-    private func animateDragStart(for accountID: String) {
+    private func buttonFrame(for accountID: String) -> NSRect? {
+        guard let button = self.button(for: accountID) else { return nil }
+        self.updateConstraintsForSubtreeIfNeeded()
+        self.layoutSubtreeIfNeeded()
+        return self.convert(button.bounds, from: button)
+    }
+
+    private func previewReorderIfNeeded(id: String, at location: NSPoint, animated: Bool) {
+        guard let targetAccountID = self.accountID(at: location),
+              targetAccountID != id
+        else {
+            return
+        }
+        let dropAfterTarget = self.dropAfterTarget(at: location, targetAccountID: targetAccountID)
+        if self.reorderAccount(
+            id: id,
+            targetID: targetAccountID,
+            dropAfterTarget: dropAfterTarget,
+            notify: false,
+            animated: animated,
+            excludedFromAnimation: id)
+        {
+            self.dragPreviewChanged = true
+        }
+    }
+
+    private func applyDragAppearance(for accountID: String, animated: Bool) {
         guard let button = self.button(for: accountID) else { return }
-        if self.shouldAnimateSwitcherMotion {
+        self.applyPlaceholderStyle(to: button)
+        let overlay = self.createOrUpdateDragOverlay(for: accountID)
+        if animated, self.shouldAnimateSwitcherMotion {
+            overlay.alphaValue = 0
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = self.dragAnimationDuration
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                button.animator().alphaValue = self.dragAlpha
+                overlay.animator().alphaValue = self.dragOverlayAlpha
             }
-            self.animateLayerTransform(
-                for: button,
-                to: CATransform3DMakeTranslation(0, self.dragLiftOffset, 0),
-                key: "codexAccountDragLift",
-                duration: self.dragAnimationDuration)
         } else {
-            button.alphaValue = self.dragAlpha
+            overlay.alphaValue = self.dragOverlayAlpha
+        }
+    }
+
+    private func updateDraggedButtonTransform(for accountID: String, at location: NSPoint, animated: Bool) {
+        guard let overlay = self.dragOverlayButton,
+              let pointerOffset = self.dragPointerOffsetFromButtonCenter
+        else {
+            return
+        }
+        let targetCenter = NSPoint(
+            x: location.x - pointerOffset.width,
+            y: location.y - pointerOffset.height)
+        var frame = overlay.frame
+        frame.origin.x = targetCenter.x - (frame.width / 2)
+        frame.origin.y = targetCenter.y - (frame.height / 2)
+        if animated, self.shouldAnimateSwitcherMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = self.dragAnimationDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                overlay.animator().frame = frame
+            }
+        } else {
+            overlay.frame = frame
         }
     }
 
     private func resetDragAppearance(for accountID: String) {
-        guard let button = self.button(for: accountID) else { return }
+        guard let button = self.button(for: accountID),
+              let overlay = self.dragOverlayButton
+        else {
+            self.dragOverlayButton?.removeFromSuperview()
+            self.dragOverlayButton = nil
+            self.updateButtonStyles()
+            return
+        }
+        let targetFrame = self.convert(button.bounds, from: button)
         if self.shouldAnimateSwitcherMotion {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = self.dragAnimationDuration
+                context.duration = self.reorderAnimationDuration
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                button.animator().alphaValue = 1
+                overlay.animator().frame = targetFrame
+                overlay.animator().alphaValue = self.dragOverlayAlpha
+            } completionHandler: { [weak self, weak overlay] in
+                Task { @MainActor [weak self, weak overlay] in
+                    overlay?.removeFromSuperview()
+                    if self?.dragOverlayButton === overlay {
+                        self?.dragOverlayButton = nil
+                    }
+                    self?.updateButtonStyles()
+                }
             }
-            self.animateLayerTransform(
-                for: button,
-                to: CATransform3DIdentity,
-                key: "codexAccountDragLift",
-                duration: self.dragAnimationDuration)
         } else {
-            button.alphaValue = 1
-            button.layer?.transform = CATransform3DIdentity
+            overlay.removeFromSuperview()
+            self.dragOverlayButton = nil
+            self.updateButtonStyles()
         }
+    }
+
+    private func applyPlaceholderStyle(to button: NSButton) {
+        button.state = .off
+        button.alphaValue = 1
+        button.contentTintColor = .clear
+        button.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.18).cgColor
+        button.layer?.borderWidth = 1
+        button.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.36).cgColor
+        button.layer?.shadowOpacity = 0
+        button.layer?.zPosition = 0
+    }
+
+    @discardableResult
+    private func createOrUpdateDragOverlay(for accountID: String, startingFrame: NSRect? = nil) -> NSButton {
+        if let overlay = self.dragOverlayButton {
+            return overlay
+        }
+        guard let source = self.button(for: accountID) else {
+            let overlay = PaddedToggleButton(title: "", target: nil, action: nil)
+            self.dragOverlayButton = overlay
+            return overlay
+        }
+        let overlay = PaddedToggleButton(title: source.title, target: nil, action: nil)
+        overlay.toolTip = source.toolTip
+        overlay.isBordered = false
+        overlay.setButtonType(.toggle)
+        overlay.controlSize = .small
+        overlay.font = self.buttonFont
+        overlay.cell?.lineBreakMode = .byTruncatingTail
+        overlay.wantsLayer = true
+        overlay.layer?.cornerRadius = 6
+        overlay.layer?.backgroundColor = source.identifier?.rawValue == self.selectedAccountID ?
+            self.selectedBackground :
+            NSColor.controlBackgroundColor.cgColor
+        overlay.contentTintColor = source.identifier?.rawValue == self.selectedAccountID ?
+            self.selectedTextColor :
+            self.unselectedTextColor
+        overlay.layer?.shadowColor = NSColor.black.cgColor
+        overlay.layer?.shadowOpacity = 0.2
+        overlay.layer?.shadowRadius = 6
+        overlay.layer?.shadowOffset = NSSize(width: 0, height: -2)
+        overlay.layer?.zPosition = 20
+        overlay.alphaValue = self.dragOverlayAlpha
+        overlay.frame = startingFrame ?? self.convert(source.bounds, from: source)
+        self.dragOverlayButton = overlay
+        self.addSubview(overlay)
+        return overlay
     }
 
     private func buttonFramesByAccountID() -> [String: NSRect] {
@@ -1555,11 +1686,12 @@ final class CodexAccountSwitcherView: NSView {
         return frames
     }
 
-    private func animateReorderedButtons(from oldFrames: [String: NSRect]) {
+    private func animateReorderedButtons(from oldFrames: [String: NSRect], excluding excludedAccountID: String?) {
         guard self.shouldAnimateSwitcherMotion else { return }
         let newFrames = self.buttonFramesByAccountID()
         for button in self.buttons {
             guard let accountID = button.identifier?.rawValue,
+                  accountID != excludedAccountID,
                   let oldFrame = oldFrames[accountID],
                   let newFrame = newFrames[accountID]
             else {
@@ -1568,18 +1700,22 @@ final class CodexAccountSwitcherView: NSView {
             let deltaX = oldFrame.minX - newFrame.minX
             let deltaY = oldFrame.minY - newFrame.minY
             guard abs(deltaX) > 0.5 || abs(deltaY) > 0.5 else { continue }
-            guard let layer = button.layer else { continue }
             let transform = CATransform3DMakeTranslation(deltaX, deltaY, 0)
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            layer.transform = transform
-            CATransaction.commit()
+            self.setLayerTransform(for: button, to: transform)
             self.animateLayerTransform(
                 for: button,
                 to: CATransform3DIdentity,
                 key: "codexAccountReorder",
                 duration: self.reorderAnimationDuration)
         }
+    }
+
+    private func setLayerTransform(for button: NSButton, to transform: CATransform3D) {
+        guard let layer = button.layer else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = transform
+        CATransaction.commit()
     }
 
     private func animateLayerTransform(
@@ -1611,7 +1747,8 @@ final class CodexAccountSwitcherView: NSView {
         targetID: String,
         dropAfterTarget: Bool,
         notify: Bool,
-        animated: Bool)
+        animated: Bool,
+        excludedFromAnimation: String? = nil)
         -> Bool
     {
         guard id != targetID,
@@ -1627,8 +1764,14 @@ final class CodexAccountSwitcherView: NSView {
         let insertionIndex = min(
             self.accounts.count,
             adjustedTargetIndex + (dropAfterTarget ? 1 : 0))
+        guard insertionIndex != sourceIndex else {
+            self.accounts.insert(account, at: sourceIndex)
+            return false
+        }
         self.accounts.insert(account, at: insertionIndex)
-        self.rebuildButtons(animatedFrom: animated ? oldFrames : nil)
+        self.rebuildButtons(
+            animatedFrom: animated ? oldFrames : nil,
+            excludingAnimatedAccountID: excludedFromAnimation)
         if notify {
             self.onReorder(self.accounts.map(\.id))
         }
@@ -1647,7 +1790,13 @@ final class CodexAccountSwitcherView: NSView {
         self.onSelect(account)
     }
 
-    private func rebuildButtons(animatedFrom oldFrames: [String: NSRect]? = nil) {
+    private func rebuildButtons(
+        animatedFrom oldFrames: [String: NSRect]? = nil,
+        excludingAnimatedAccountID: String? = nil)
+    {
+        let preservedOverlayFrame = self.dragOverlayButton?.frame
+        self.dragOverlayButton?.removeFromSuperview()
+        self.dragOverlayButton = nil
         for subview in self.subviews {
             subview.removeFromSuperview()
         }
@@ -1655,8 +1804,17 @@ final class CodexAccountSwitcherView: NSView {
         self.buildButtons(useTwoRows: self.accounts.count > 3)
         self.updateButtonStyles()
         self.needsLayout = true
+        if let draggedAccountID = excludingAnimatedAccountID,
+           let dragLastLocation = self.dragLastLocation
+        {
+            self.applyDragAppearance(for: draggedAccountID, animated: false)
+            if let preservedOverlayFrame {
+                self.dragOverlayButton?.frame = preservedOverlayFrame
+            }
+            self.updateDraggedButtonTransform(for: draggedAccountID, at: dragLastLocation, animated: false)
+        }
         if let oldFrames {
-            self.animateReorderedButtons(from: oldFrames)
+            self.animateReorderedButtons(from: oldFrames, excluding: excludingAnimatedAccountID)
         }
     }
 
