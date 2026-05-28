@@ -160,32 +160,36 @@ struct ClaudeOAuthCredentialsStoreTests {
 
         // Avoid interacting with the real Keychain in unit tests.
         try ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
-            let tempDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            let fileURL = tempDir.appendingPathComponent("credentials.json")
-            try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
-                let first = self.makeCredentialsData(
-                    accessToken: "first",
-                    expiresAt: Date(timeIntervalSinceNow: 3600))
-                try first.write(to: fileURL)
+            try ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    let tempDir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                    let fileURL = tempDir.appendingPathComponent("credentials.json")
+                    try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                        let first = self.makeCredentialsData(
+                            accessToken: "first",
+                            expiresAt: Date(timeIntervalSinceNow: 3600))
+                        try first.write(to: fileURL)
 
-                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
-                let cacheEntry = ClaudeOAuthCredentialsStore.CacheEntry(data: first, storedAt: Date())
-                KeychainCacheStore.store(key: cacheKey, entry: cacheEntry)
+                        let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                        let cacheEntry = ClaudeOAuthCredentialsStore.CacheEntry(data: first, storedAt: Date())
+                        KeychainCacheStore.store(key: cacheKey, entry: cacheEntry)
 
-                _ = try ClaudeOAuthCredentialsStore.load(environment: [:])
+                        _ = try ClaudeOAuthCredentialsStore.load(environment: [:])
 
-                let updated = self.makeCredentialsData(
-                    accessToken: "second",
-                    expiresAt: Date(timeIntervalSinceNow: 3600))
-                try updated.write(to: fileURL)
+                        let updated = self.makeCredentialsData(
+                            accessToken: "second",
+                            expiresAt: Date(timeIntervalSinceNow: 3600))
+                        try updated.write(to: fileURL)
 
-                #expect(ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged())
-                KeychainCacheStore.clear(key: cacheKey)
+                        #expect(ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged())
+                        KeychainCacheStore.clear(key: cacheKey)
 
-                let creds = try ClaudeOAuthCredentialsStore.load(environment: [:])
-                #expect(creds.accessToken == "second")
+                        let creds = try ClaudeOAuthCredentialsStore.load(environment: [:])
+                        #expect(creds.accessToken == "second")
+                    }
+                }
             }
         }
     }
