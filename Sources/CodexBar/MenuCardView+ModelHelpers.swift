@@ -170,6 +170,12 @@ extension UsageMenuCardView.Model {
         percentStyle: PercentStyle) -> [Metric]
     {
         guard let extraRateWindows = snapshot.extraRateWindows else { return [] }
+        // Codex additional limits (e.g. Codex Spark) are optional extra usage and follow the
+        // "optional credits and extra usage" setting. Other providers' extra windows (Antigravity
+        // per-model quotas, Factory core windows, etc.) are core data and must always render.
+        if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
+            return []
+        }
         return extraRateWindows.map { namedWindow in
             Metric(
                 id: namedWindow.id,
