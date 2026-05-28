@@ -1011,6 +1011,12 @@ extension StatusItemController {
             onSelect: { [weak self, weak menu] account in
                 guard let self else { return }
                 self.handleCodexVisibleAccountSelection(account, menu: menu)
+            },
+            onReorder: { [weak self, weak menu] orderedIDs in
+                guard let self else { return }
+                self.settings.reorderCodexVisibleAccounts(orderedIDs)
+                guard let menu else { return }
+                self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
             })
         let item = NSMenuItem()
         item.view = view

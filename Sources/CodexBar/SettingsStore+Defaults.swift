@@ -5,6 +5,18 @@ import ServiceManagement
 extension SettingsStore {
     private static let mergedOverviewSelectionEditedActiveProvidersKey = "mergedOverviewSelectionEditedActiveProviders"
 
+    private static func sanitizedCodexAccountSwitcherOrder(_ raw: [String]) -> [String] {
+        var seen: Set<String> = []
+        var sanitized: [String] = []
+        sanitized.reserveCapacity(raw.count)
+        for id in raw {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
+            sanitized.append(trimmed)
+        }
+        return sanitized
+    }
+
     var refreshFrequency: RefreshFrequency {
         get { self.defaultsState.refreshFrequency }
         set {
@@ -270,6 +282,19 @@ extension SettingsStore {
     var showAllTokenAccountsInMenu: Bool {
         get { self.multiAccountMenuLayout == .stacked }
         set { self.multiAccountMenuLayout = newValue ? .stacked : .segmented }
+    }
+
+    var codexAccountSwitcherOrder: [String] {
+        get { self.defaultsState.codexAccountSwitcherOrderRaw }
+        set {
+            let sanitized = Self.sanitizedCodexAccountSwitcherOrder(newValue)
+            self.defaultsState.codexAccountSwitcherOrderRaw = sanitized
+            if sanitized.isEmpty {
+                self.userDefaults.removeObject(forKey: "codexAccountSwitcherOrder")
+            } else {
+                self.userDefaults.set(sanitized, forKey: "codexAccountSwitcherOrder")
+            }
+        }
     }
 
     var historicalTrackingEnabled: Bool {

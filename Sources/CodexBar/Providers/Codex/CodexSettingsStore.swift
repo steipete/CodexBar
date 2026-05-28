@@ -193,7 +193,12 @@ extension SettingsStore {
     }
 
     var codexVisibleAccountProjection: CodexVisibleAccountProjection {
-        CodexVisibleAccountProjection.make(from: self.codexAccountReconciliationSnapshot)
+        let projection = CodexVisibleAccountProjection.make(from: self.codexAccountReconciliationSnapshot)
+        return CodexVisibleAccountProjection(
+            visibleAccounts: self.orderedCodexVisibleAccounts(projection.visibleAccounts),
+            activeVisibleAccountID: projection.activeVisibleAccountID,
+            liveVisibleAccountID: projection.liveVisibleAccountID,
+            hasUnreadableAddedAccountStore: projection.hasUnreadableAddedAccountStore)
     }
 
     var codexVisibleAccounts: [CodexVisibleAccount] {
@@ -215,6 +220,12 @@ extension SettingsStore {
         self.codexActiveSource = account.selectionSource
     }
 
+    func reorderCodexVisibleAccounts(_ orderedIDs: [String]) {
+        let projection = CodexVisibleAccountProjection.make(from: self.codexAccountReconciliationSnapshot)
+        let visibleIDs = Set(projection.visibleAccounts.map(\.id))
+        self.codexAccountSwitcherOrder = orderedIDs.filter { visibleIDs.contains($0) }
+    }
+
     func selectAuthenticatedManagedCodexAccount(_ account: ManagedCodexAccount) {
         if let visibleAccountID = self.codexVisibleAccountProjection.visibleAccounts
             .first(where: { $0.storedAccountID == account.id })?
@@ -230,6 +241,15 @@ extension SettingsStore {
 
     func codexSource(forVisibleAccountID id: String) -> CodexActiveSource? {
         self.codexVisibleAccountProjection.source(forVisibleAccountID: id)
+    }
+
+    private func orderedCodexVisibleAccounts(_ accounts: [CodexVisibleAccount]) -> [CodexVisibleAccount] {
+        guard !self.codexAccountSwitcherOrder.isEmpty else { return accounts }
+        let accountByID = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0) })
+        let ordered = self.codexAccountSwitcherOrder.compactMap { accountByID[$0] }
+        let orderedIDs = Set(ordered.map(\.id))
+        let remaining = accounts.filter { !orderedIDs.contains($0.id) }
+        return ordered + remaining
     }
 
     private func codexAccountReconciler(activeSource: CodexActiveSource) -> DefaultCodexAccountReconciler {

@@ -28,6 +28,7 @@ struct SettingsDefaultsState {
     var kiroMenuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String
+    var codexAccountSwitcherOrderRaw: [String]
     var menuBarMetricPreferencesRaw: [String: String]
     var costUsageEnabled: Bool
     var costUsageHistoryDays: Int

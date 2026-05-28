@@ -1152,10 +1152,13 @@ final class TokenAccountSwitcherView: NSView {
 }
 
 final class CodexAccountSwitcherView: NSView {
-    private let accounts: [CodexVisibleAccount]
+    private var accounts: [CodexVisibleAccount]
     private let onSelect: (CodexVisibleAccount) -> Void
+    private let onReorder: ([String]) -> Void
     private var selectedAccountID: String
     private var pressedAccountID: String?
+    private var dragStartPoint: NSPoint?
+    private var draggedAccountID: String?
     private var buttons: [NSButton] = []
     private let preferredSize: NSSize
     private let rowSpacing: CGFloat = 4
@@ -1167,15 +1170,18 @@ final class CodexAccountSwitcherView: NSView {
     private let buttonFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
     private let buttonHorizontalPadding: CGFloat = 14
     private let buttonSideInset: CGFloat = 6
+    private let dragThreshold: CGFloat = 4
 
     init(
         accounts: [CodexVisibleAccount],
         selectedAccountID: String?,
         width: CGFloat,
-        onSelect: @escaping (CodexVisibleAccount) -> Void)
+        onSelect: @escaping (CodexVisibleAccount) -> Void,
+        onReorder: @escaping ([String]) -> Void = { _ in })
     {
         self.accounts = accounts
         self.onSelect = onSelect
+        self.onReorder = onReorder
         self.selectedAccountID = selectedAccountID ?? accounts.first?.id ?? ""
         let useTwoRows = accounts.count > 3
         let rows = useTwoRows ? 2 : 1
@@ -1415,10 +1421,49 @@ final class CodexAccountSwitcherView: NSView {
     override func mouseDown(with event: NSEvent) {
         let location = self.convert(event.locationInWindow, from: nil)
         self.pressedAccountID = self.accountID(at: location)
+        self.dragStartPoint = self.pressedAccountID == nil ? nil : location
+        self.draggedAccountID = nil
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let pressedAccountID = self.pressedAccountID,
+              let dragStartPoint = self.dragStartPoint
+        else {
+            return
+        }
+        let location = self.convert(event.locationInWindow, from: nil)
+        guard self.draggedAccountID != nil || self.dragDistance(from: dragStartPoint, to: location) >= self
+            .dragThreshold
+        else {
+            return
+        }
+        self.draggedAccountID = pressedAccountID
+        self.buttons.first { $0.identifier?.rawValue == pressedAccountID }?.alphaValue = 0.65
     }
 
     override func mouseUp(with event: NSEvent) {
-        defer { self.pressedAccountID = nil }
+        defer {
+            if let draggedAccountID {
+                self.buttons.first { $0.identifier?.rawValue == draggedAccountID }?.alphaValue = 1
+            }
+            self.pressedAccountID = nil
+            self.dragStartPoint = nil
+            self.draggedAccountID = nil
+        }
+        if let draggedAccountID {
+            let location = self.convert(event.locationInWindow, from: nil)
+            if let targetAccountID = self.accountID(at: location),
+               targetAccountID != draggedAccountID
+            {
+                let dropAfterTarget = self.dropAfterTarget(at: location, targetAccountID: targetAccountID)
+                self.reorderAccount(
+                    id: draggedAccountID,
+                    targetID: targetAccountID,
+                    dropAfterTarget: dropAfterTarget,
+                    notify: true)
+            }
+            return
+        }
         guard let pressedAccountID = self.pressedAccountID else { return }
         let location = self.convert(event.locationInWindow, from: nil)
         guard let releasedAccountID = self.accountID(at: location),
@@ -1434,6 +1479,46 @@ final class CodexAccountSwitcherView: NSView {
         self.buttons.first(where: { self.convert($0.bounds, from: $0).contains(pointInSelf) })?.identifier?.rawValue
     }
 
+    private func dropAfterTarget(at pointInSelf: NSPoint, targetAccountID: String) -> Bool {
+        guard let button = self.buttons.first(where: { $0.identifier?.rawValue == targetAccountID }) else {
+            return false
+        }
+        let pointInButton = self.convert(pointInSelf, to: button)
+        return pointInButton.x >= button.bounds.midX
+    }
+
+    private func dragDistance(from start: NSPoint, to end: NSPoint) -> CGFloat {
+        hypot(end.x - start.x, end.y - start.y)
+    }
+
+    @discardableResult
+    private func reorderAccount(
+        id: String,
+        targetID: String,
+        dropAfterTarget: Bool,
+        notify: Bool)
+        -> Bool
+    {
+        guard id != targetID,
+              let sourceIndex = self.accounts.firstIndex(where: { $0.id == id }),
+              let targetIndex = self.accounts.firstIndex(where: { $0.id == targetID })
+        else {
+            return false
+        }
+
+        let account = self.accounts.remove(at: sourceIndex)
+        let adjustedTargetIndex = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex
+        let insertionIndex = min(
+            self.accounts.count,
+            adjustedTargetIndex + (dropAfterTarget ? 1 : 0))
+        self.accounts.insert(account, at: insertionIndex)
+        self.rebuildButtons()
+        if notify {
+            self.onReorder(self.accounts.map(\.id))
+        }
+        return true
+    }
+
     @objc private func handleSelect(_ sender: NSButton) {
         guard let accountID = sender.identifier?.rawValue,
               let account = self.accounts.first(where: { $0.id == accountID }) else { return }
@@ -1446,9 +1531,23 @@ final class CodexAccountSwitcherView: NSView {
         self.onSelect(account)
     }
 
+    private func rebuildButtons() {
+        for subview in self.subviews {
+            subview.removeFromSuperview()
+        }
+        self.buttons.removeAll()
+        self.buildButtons(useTwoRows: self.accounts.count > 3)
+        self.updateButtonStyles()
+        self.needsLayout = true
+    }
+
     #if DEBUG
     func _test_buttonTitles() -> [String] {
         self.buttons.map(\.title)
+    }
+
+    func _test_accountIDs() -> [String] {
+        self.accounts.map(\.id)
     }
 
     func _test_buttonToolTips() -> [String?] {
@@ -1458,6 +1557,15 @@ final class CodexAccountSwitcherView: NSView {
     func _test_selectAccount(id: String) {
         guard let account = self.accounts.first(where: { $0.id == id }) else { return }
         self.applySelection(account)
+    }
+
+    @discardableResult
+    func _test_reorderAccount(id: String, targetID: String, dropAfterTarget: Bool) -> Bool {
+        self.reorderAccount(
+            id: id,
+            targetID: targetID,
+            dropAfterTarget: dropAfterTarget,
+            notify: true)
     }
 
     func _test_simulateRuntimeClick(id: String) -> Bool {
