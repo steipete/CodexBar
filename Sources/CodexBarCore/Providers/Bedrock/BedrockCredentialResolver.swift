@@ -40,7 +40,10 @@ enum BedrockCredentialResolver {
             guard let awsBinary = resolveAWSBinary(environment) else {
                 throw BedrockUsageError.awsCLINotFound
             }
-            let cliEnvironment = Self.sanitizedProfileEnvironment(environment)
+            // Preserve inherited AWS credential env: assume-role profiles may use
+            // `credential_source = Environment`, while signing still uses only the
+            // credentials exported by the selected profile.
+            let cliEnvironment = environment
             let provider = makeProvider(awsBinary)
             let credentials = try await provider.exportCredentials(profile: profile, environment: cliEnvironment)
             let region = try await Self.resolveRegion(
@@ -49,14 +52,6 @@ enum BedrockCredentialResolver {
                 environment: cliEnvironment)
             return Resolved(credentials: credentials, region: region)
         }
-    }
-
-    private static func sanitizedProfileEnvironment(_ environment: [String: String]) -> [String: String] {
-        var sanitized = environment
-        sanitized[BedrockSettingsReader.accessKeyIDKey] = nil
-        sanitized[BedrockSettingsReader.secretAccessKeyKey] = nil
-        sanitized[BedrockSettingsReader.sessionTokenKey] = nil
-        return sanitized
     }
 
     private static func resolveRegion(

@@ -197,7 +197,7 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func `bedrock profile mode projects AWS_PROFILE and omits static keys`() {
+    func `bedrock profile mode projects AWS_PROFILE without saved static keys`() {
         let config = ProviderConfig(
             id: .bedrock,
             apiKey: "AKIATEST",
@@ -246,7 +246,7 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func `bedrock profile mode scrubs inherited static credentials`() {
+    func `bedrock profile mode preserves inherited static credentials for environment source profiles`() {
         let config = ProviderConfig(id: .bedrock, awsProfile: "work", awsAuthMode: "profile")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [
@@ -256,9 +256,9 @@ struct ProviderConfigEnvironmentTests {
             ],
             provider: .bedrock,
             config: config)
-        #expect(env[BedrockSettingsReader.accessKeyIDKey] == nil)
-        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == nil)
-        #expect(env[BedrockSettingsReader.sessionTokenKey] == nil)
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "AKIAINHERITED")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "inherited-secret")
+        #expect(env[BedrockSettingsReader.sessionTokenKey] == "inherited-token")
         #expect(env[BedrockSettingsReader.profileKey] == "work")
     }
 

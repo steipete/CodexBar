@@ -161,12 +161,6 @@ public enum ProviderConfigEnvironment {
             if let profile = config.sanitizedAWSProfile {
                 env[BedrockSettingsReader.profileKey] = profile
             }
-            // Static credential env vars take precedence over a profile in the AWS
-            // CLI, so drop any inherited ones to ensure the chosen profile is used
-            // for both Cost Explorer signing and `aws configure export-credentials`.
-            env[BedrockSettingsReader.accessKeyIDKey] = nil
-            env[BedrockSettingsReader.secretAccessKeyKey] = nil
-            env[BedrockSettingsReader.sessionTokenKey] = nil
         case .keys:
             if let accessKeyID = config.sanitizedAPIKey {
                 env[BedrockSettingsReader.accessKeyIDKey] = accessKeyID

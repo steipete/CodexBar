@@ -95,7 +95,7 @@ struct BedrockCredentialResolverTests {
     }
 
     @Test
-    func `profile mode strips inherited static credentials from the AWS CLI environment`() async throws {
+    func `profile mode preserves inherited static credentials for AWS CLI environment sources`() async throws {
         let captured = CapturedEnvironment()
         let env = [
             BedrockSettingsReader.authModeKey: "profile",
@@ -117,9 +117,9 @@ struct BedrockCredentialResolverTests {
                 }
             })
         let seen = captured.value
-        #expect(seen[BedrockSettingsReader.accessKeyIDKey] == nil)
-        #expect(seen[BedrockSettingsReader.secretAccessKeyKey] == nil)
-        #expect(seen[BedrockSettingsReader.sessionTokenKey] == nil)
+        #expect(seen[BedrockSettingsReader.accessKeyIDKey] == "AKIAINHERITED")
+        #expect(seen[BedrockSettingsReader.secretAccessKeyKey] == "inherited-secret")
+        #expect(seen[BedrockSettingsReader.sessionTokenKey] == "inherited-token")
         #expect(seen[BedrockSettingsReader.profileKey] == "work")
     }
 
