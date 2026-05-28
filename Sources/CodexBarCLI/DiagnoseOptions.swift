@@ -12,7 +12,7 @@ struct DiagnoseOptions: CommanderParsable {
     @Option(name: .long("log-level"), help: "Set log level (trace|verbose|debug|info|warning|error|critical)")
     var logLevel: String?
 
-    @Option(name: .long("provider"), help: "Provider to diagnose: minimax")
+    @Option(name: .long("provider"), help: ProviderHelp.optionHelp)
     var provider: String?
 
     @Option(name: .long("format"), help: "Output format: json")

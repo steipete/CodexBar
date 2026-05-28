@@ -109,6 +109,7 @@ private struct ProviderSidebarRowView: View {
                 .toggleStyle(.checkbox)
                 .controlSize(.small)
         }
+        .padding(.trailing, 6)
         .contentShape(Rectangle())
         .padding(.vertical, 2)
     }

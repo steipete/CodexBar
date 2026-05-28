@@ -134,15 +134,54 @@ public enum ProviderConfigEnvironment {
     {
         guard let config else { return base }
         var env = base
-        if let accessKeyID = config.sanitizedAPIKey {
-            env[BedrockSettingsReader.accessKeyIDKey] = accessKeyID
+
+        // Only project an explicit auth-mode selection. When the config does not
+        // specify one, leave the base environment untouched so an env-driven setup
+        // (AWS_PROFILE or CODEXBAR_BEDROCK_AUTH_MODE from the launch environment) is
+        // still inferred by BedrockSettingsReader instead of being forced to `keys`.
+        let configMode = config.sanitizedAWSAuthMode.flatMap(BedrockAuthMode.init(rawValue:))
+        if let configMode {
+            env[BedrockSettingsReader.authModeKey] = configMode.rawValue
         }
-        if let secretAccessKey = config.sanitizedSecretKey {
-            env[BedrockSettingsReader.secretAccessKeyKey] = secretAccessKey
+        let baseMode = BedrockSettingsReader
+            .cleaned(base[BedrockSettingsReader.authModeKey])
+            .flatMap { BedrockAuthMode(rawValue: $0.lowercased()) }
+
+        let mergedAccessKey = config.sanitizedAPIKey ?? BedrockSettingsReader.accessKeyID(environment: base)
+        let mergedSecretKey = config.sanitizedSecretKey ?? BedrockSettingsReader.secretAccessKey(environment: base)
+        let hasMergedStaticKeys = mergedAccessKey != nil && mergedSecretKey != nil
+        let effectiveMode: BedrockAuthMode = if let configMode {
+            configMode
+        } else if let baseMode {
+            baseMode
+        } else if hasMergedStaticKeys {
+            // Upgrade path: a config saved before auth modes existed keeps using
+            // static credentials (including env+config layering) even if AWS_PROFILE
+            // is present in the base environment, so existing users are never
+            // silently switched to a profile/account.
+            .keys
+        } else {
+            BedrockSettingsReader.authMode(environment: base)
         }
+
+        switch effectiveMode {
+        case .profile:
+            if let profile = config.sanitizedAWSProfile {
+                env[BedrockSettingsReader.profileKey] = profile
+            }
+        case .keys:
+            if let accessKeyID = config.sanitizedAPIKey {
+                env[BedrockSettingsReader.accessKeyIDKey] = accessKeyID
+            }
+            if let secretAccessKey = config.sanitizedSecretKey {
+                env[BedrockSettingsReader.secretAccessKeyKey] = secretAccessKey
+            }
+        }
+
         if let region = config.sanitizedRegion {
             env[BedrockSettingsReader.regionKeys[0]] = region
         }
+
         return env
     }
 

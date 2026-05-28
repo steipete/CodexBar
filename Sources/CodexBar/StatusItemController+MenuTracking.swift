@@ -52,8 +52,7 @@ extension StatusItemController {
         guard self.menuNeedsRefresh(menu) else { return }
 
         let provider = self.menuProvider(for: menu)
-        self.populateMenu(menu, provider: provider)
-        self.markMenuFresh(menu)
+        self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: provider)
     }
 
     private func removeOrphanedOpenMenuEntries(_ keys: [ObjectIdentifier]) {

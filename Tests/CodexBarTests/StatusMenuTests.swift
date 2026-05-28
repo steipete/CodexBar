@@ -521,7 +521,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `open merged menu rebuilds switcher when usage bars mode changes`() {
+    func `open merged menu rebuilds switcher when usage bars mode changes`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -562,6 +562,11 @@ struct StatusMenuTests {
 
         settings.usageBarsShowUsed = true
         controller.handleProviderConfigChange(reason: "usageBarsShowUsed")
+        for _ in 0..<20
+            where initialSwitcherID == (menu.items.first?.view as? ProviderSwitcherView).map(ObjectIdentifier.init)
+        {
+            await Task.yield()
+        }
 
         let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(updatedSwitcher != nil)

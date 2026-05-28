@@ -75,6 +75,8 @@ Admin API key setup:
   - `five_hour` → session window.
   - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
+  - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
+  - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
 - Successful OAuth login enables Claude and selects OAuth as the usage source.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
@@ -105,6 +107,7 @@ Admin API key setup:
   - `GET https://claude.ai/api/account` → email + plan hints.
 - Outputs:
   - Session + weekly + model-specific percent used.
+  - Daily Routines extra window when returned by the usage API.
   - Extra usage spend/limit (if enabled).
   - Account email + inferred plan.
 

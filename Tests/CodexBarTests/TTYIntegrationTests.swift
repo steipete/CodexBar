@@ -7,6 +7,9 @@ import Testing
 struct TTYIntegrationTests {
     @Test
     func `codex RPC usage live`() async throws {
+        guard ProcessInfo.processInfo.environment["LIVE_CODEX_TTY"] == "1" else {
+            return
+        }
         let fetcher = UsageFetcher()
         do {
             let snapshot = try await fetcher.loadLatestUsage()

@@ -145,17 +145,9 @@ public struct CostUsageFetcher: Sendable {
         since: Date,
         until: Date) async throws -> CostUsageDailyReport
     {
-        guard let accessKeyID = BedrockSettingsReader.accessKeyID(environment: environment),
-              let secretAccessKey = BedrockSettingsReader.secretAccessKey(environment: environment)
-        else {
-            throw BedrockUsageError.missingCredentials
-        }
-        let credentials = BedrockAWSSigner.Credentials(
-            accessKeyID: accessKeyID,
-            secretAccessKey: secretAccessKey,
-            sessionToken: BedrockSettingsReader.sessionToken(environment: environment))
+        let resolved = try await BedrockCredentialResolver.resolve(environment: environment)
         return try await BedrockUsageFetcher.fetchDailyReport(
-            credentials: credentials,
+            credentials: resolved.credentials,
             since: since,
             until: until,
             environment: environment)

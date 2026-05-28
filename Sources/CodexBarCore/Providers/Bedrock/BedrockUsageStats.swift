@@ -416,8 +416,10 @@ enum BedrockUsageFetcher {
     }
 }
 
-public enum BedrockUsageError: LocalizedError, Sendable {
+public enum BedrockUsageError: LocalizedError, Sendable, Equatable {
     case missingCredentials
+    case awsCLINotFound
+    case profileSessionExpired(String)
     case networkError(String)
     case apiError(String)
     case parseFailed(String)
@@ -427,6 +429,10 @@ public enum BedrockUsageError: LocalizedError, Sendable {
         case .missingCredentials:
             "AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY " +
                 "or configure Bedrock in Settings."
+        case .awsCLINotFound:
+            "AWS CLI not found. Install the AWS CLI (v2) or set AWS_CLI_PATH to its location."
+        case let .profileSessionExpired(profile):
+            "AWS profile session expired. Run `aws sso login --profile \(profile)` and try again."
         case let .networkError(message):
             "AWS Bedrock network error: \(message)"
         case let .apiError(message):

@@ -197,6 +197,130 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `bedrock merged static credentials win over inherited AWS_PROFILE`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            secretKey: "config-secret",
+            region: "eu-central-1")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                BedrockSettingsReader.profileKey: "work",
+                BedrockSettingsReader.accessKeyIDKey: "env-access",
+            ],
+            provider: .bedrock,
+            config: config)
+
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "env-access")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "config-secret")
+        #expect(env[BedrockSettingsReader.regionKeys[0]] == "eu-central-1")
+        #expect(BedrockSettingsReader.authMode(environment: env) == .keys)
+    }
+
+    @Test
+    func `bedrock profile mode projects AWS_PROFILE without saved static keys`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIATEST",
+            secretKey: "secret",
+            region: "eu-west-1",
+            awsProfile: "work",
+            awsAuthMode: "profile")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.authModeKey] == "profile")
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+        #expect(env[BedrockSettingsReader.regionKeys[0]] == "eu-west-1")
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == nil)
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == nil)
+    }
+
+    @Test
+    func `bedrock config without explicit mode preserves env profile inference`() {
+        let config = ProviderConfig(id: .bedrock, region: "us-east-1")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [BedrockSettingsReader.profileKey: "work"],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.authModeKey] == nil)
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+        #expect(BedrockSettingsReader.authMode(environment: env) == .profile)
+    }
+
+    @Test
+    func `bedrock saved static keys survive base AWS_PROFILE when auth mode is unset`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIASAVED",
+            secretKey: "saved-secret",
+            region: "us-east-1")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [BedrockSettingsReader.profileKey: "work"],
+            provider: .bedrock,
+            config: config)
+        // Upgrade path: saved keys win over an inherited AWS_PROFILE, no silent switch.
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "AKIASAVED")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "saved-secret")
+        #expect(BedrockSettingsReader.authMode(environment: env) == .keys)
+    }
+
+    @Test
+    func `bedrock profile mode preserves inherited static credentials for environment source profiles`() {
+        let config = ProviderConfig(id: .bedrock, awsProfile: "work", awsAuthMode: "profile")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                BedrockSettingsReader.accessKeyIDKey: "AKIAINHERITED",
+                BedrockSettingsReader.secretAccessKeyKey: "inherited-secret",
+                BedrockSettingsReader.sessionTokenKey: "inherited-token",
+            ],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "AKIAINHERITED")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "inherited-secret")
+        #expect(env[BedrockSettingsReader.sessionTokenKey] == "inherited-token")
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+    }
+
+    @Test
+    func `bedrock env profile mode does not project saved static credentials`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIASAVED",
+            secretKey: "saved-secret")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                BedrockSettingsReader.authModeKey: "profile",
+                BedrockSettingsReader.profileKey: "work",
+            ],
+            provider: .bedrock,
+            config: config)
+
+        #expect(env[BedrockSettingsReader.authModeKey] == "profile")
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == nil)
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == nil)
+    }
+
+    @Test
+    func `bedrock keys mode still projects static credentials`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIATEST",
+            secretKey: "secret",
+            region: "us-west-2",
+            awsAuthMode: "keys")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .bedrock,
+            config: config)
+        #expect(env[BedrockSettingsReader.authModeKey] == "keys")
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == "AKIATEST")
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == "secret")
+        #expect(env[BedrockSettingsReader.profileKey] == nil)
+    }
+
+    @Test
     func `ignores legacy API key override for deepseek`() {
         let config = ProviderConfig(id: .deepseek, apiKey: "ds-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

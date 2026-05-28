@@ -113,7 +113,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Crof](docs/crof.md) — API key for dollar credit balance and request quota tracking.
 - [Command Code](docs/command-code.md) — Browser cookies for monthly USD credits from Command Code billing.
 - [StepFun](docs/stepfun.md) — Username + password login for Step Plan rate limits (5‑hour + weekly windows) and subscription plan name.
-- [AWS Bedrock](docs/bedrock.md) — AWS credentials for Cost Explorer usage and monthly budget tracking.
+- [AWS Bedrock](docs/bedrock.md) — AWS access keys or a named AWS profile (SSO/assume-role via the AWS CLI) for Cost Explorer usage and monthly budget tracking.
 - [Grok](docs/grok.md) — Grok CLI billing RPC plus grok.com browser-session fallback.
 - [GroqCloud](docs/groqcloud.md) — API key for Enterprise Prometheus request/token/cache-hit metrics.
 - [LLM Proxy](docs/llm-proxy.md) — API key + base URL for aggregate proxy quota stats and provider breakdowns.
