@@ -139,16 +139,21 @@ public enum ProviderConfigEnvironment {
         // specify one, leave the base environment untouched so an env-driven setup
         // (AWS_PROFILE or CODEXBAR_BEDROCK_AUTH_MODE from the launch environment) is
         // still inferred by BedrockSettingsReader instead of being forced to `keys`.
-        let explicitMode = config.sanitizedAWSAuthMode.flatMap(BedrockAuthMode.init(rawValue:))
-        if let explicitMode {
-            env[BedrockSettingsReader.authModeKey] = explicitMode.rawValue
+        let configMode = config.sanitizedAWSAuthMode.flatMap(BedrockAuthMode.init(rawValue:))
+        if let configMode {
+            env[BedrockSettingsReader.authModeKey] = configMode.rawValue
         }
+        let baseMode = BedrockSettingsReader
+            .cleaned(base[BedrockSettingsReader.authModeKey])
+            .flatMap { BedrockAuthMode(rawValue: $0.lowercased()) }
 
         let mergedAccessKey = config.sanitizedAPIKey ?? BedrockSettingsReader.accessKeyID(environment: base)
         let mergedSecretKey = config.sanitizedSecretKey ?? BedrockSettingsReader.secretAccessKey(environment: base)
         let hasMergedStaticKeys = mergedAccessKey != nil && mergedSecretKey != nil
-        let effectiveMode: BedrockAuthMode = if let explicitMode {
-            explicitMode
+        let effectiveMode: BedrockAuthMode = if let configMode {
+            configMode
+        } else if let baseMode {
+            baseMode
         } else if hasMergedStaticKeys {
             // Upgrade path: a config saved before auth modes existed keeps using
             // static credentials (including env+config layering) even if AWS_PROFILE

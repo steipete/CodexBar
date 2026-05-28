@@ -283,6 +283,26 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `bedrock env profile mode does not project saved static credentials`() {
+        let config = ProviderConfig(
+            id: .bedrock,
+            apiKey: "AKIASAVED",
+            secretKey: "saved-secret")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                BedrockSettingsReader.authModeKey: "profile",
+                BedrockSettingsReader.profileKey: "work",
+            ],
+            provider: .bedrock,
+            config: config)
+
+        #expect(env[BedrockSettingsReader.authModeKey] == "profile")
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == nil)
+        #expect(env[BedrockSettingsReader.secretAccessKeyKey] == nil)
+    }
+
+    @Test
     func `bedrock keys mode still projects static credentials`() {
         let config = ProviderConfig(
             id: .bedrock,
