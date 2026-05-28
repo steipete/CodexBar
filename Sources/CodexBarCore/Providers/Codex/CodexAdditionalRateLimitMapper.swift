@@ -3,7 +3,7 @@ import Foundation
 /// Maps Codex `additional_rate_limits` entries (model-specific limits such as GPT-5.3-Codex-Spark)
 /// into named extra rate windows.
 ///
-/// These limits are reported by the `wham/usage` API alongside — but separately from — the primary and
+/// These limits are reported by the `wham/usage` API alongside, but separately from, the primary and
 /// weekly Codex windows, so we surface them through `UsageSnapshot.extraRateWindows` rather than the core
 /// primary/secondary lanes. When the field is absent the mapper returns an empty list and the snapshot is
 /// unchanged.

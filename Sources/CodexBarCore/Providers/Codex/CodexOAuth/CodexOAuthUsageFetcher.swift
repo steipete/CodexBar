@@ -25,10 +25,10 @@ public struct CodexUsageResponse: Decodable, Sendable {
         // Optional and additive: missing/malformed extra limits must never disturb primary/weekly mapping.
         // Decode per element so a single malformed entry cannot discard its valid siblings; a non-array
         // value (or absent field) leaves `additionalRateLimits` nil and primary/weekly mapping untouched.
-        self.additionalRateLimits = (try? container.decodeIfPresent(
+        let additionalRateLimits = try? container.decodeIfPresent(
             [LossyAdditionalRateLimit].self,
-            forKey: .additionalRateLimits))?
-            .map { $0.compactMap(\.value) }
+            forKey: .additionalRateLimits)
+        self.additionalRateLimits = additionalRateLimits?.compactMap(\.value)
     }
 
     public enum PlanType: Sendable, Decodable, Equatable {

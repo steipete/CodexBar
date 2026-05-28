@@ -2,6 +2,9 @@
 
 ## 0.30.2 — Unreleased
 
+### Added
+- Codex: show Codex Spark model-specific usage as an optional extra quota lane (#1195, fixes #1177). Thanks @LeoLin990405!
+
 ### Fixed
 - Menu bar: coalesce visible-menu rebuilds and reduce hover highlight work so the dropdown stays responsive on macOS 26.5 (#1196).
 
