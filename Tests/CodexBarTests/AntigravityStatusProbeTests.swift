@@ -1321,6 +1321,36 @@ extension AntigravityStatusProbeTests {
     }
 
     @Test
+    func `hyphenated raw model ids without display name parse minor version`() throws {
+        // When the remote catalog omits displayName/label, the raw hyphenated model id
+        // becomes the label. The newer 3.1 entry must still sort before the 3.0 entry.
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "gemini-3-pro-high",
+                    modelId: "gemini-3-pro-high",
+                    remainingFraction: 1,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "gemini-3-1-pro-low",
+                    modelId: "gemini-3-1-pro-low",
+                    remainingFraction: 1,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .remote)
+
+        let usage = try snapshot.toUsageSnapshot()
+        let titles = try #require(usage.extraRateWindows).map(\.title)
+
+        // 3.1 parses from the hyphenated id and sorts newest-first, ahead of 3.0.
+        #expect(titles == ["gemini-3-1-pro-low", "gemini-3-pro-high"])
+    }
+
+    @Test
     func `http probe errors still count as reachable`() {
         #expect(
             AntigravityStatusProbe.isReachableProbeError(

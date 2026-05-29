@@ -234,7 +234,9 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func parseVersion(from label: String) -> AntigravityModelVersion? {
-        guard let regex = try? NSRegularExpression(pattern: #"(\d+)(?:\.(\d+))?"#) else { return nil }
+        // Accept either "." or "-" between major and minor so a raw model id used as the
+        // label when displayName is missing (e.g. "gemini-3-1-pro-low") still parses 3.1.
+        guard let regex = try? NSRegularExpression(pattern: #"(\d+)(?:[.\-](\d+))?"#) else { return nil }
         let nsLabel = label as NSString
         let range = NSRange(location: 0, length: nsLabel.length)
         guard let match = regex.firstMatch(in: label, options: [], range: range) else { return nil }
