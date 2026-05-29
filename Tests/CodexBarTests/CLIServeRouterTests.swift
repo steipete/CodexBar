@@ -105,6 +105,27 @@ struct CLIServeRouterTests {
             positional: [],
             options: [:],
             flags: [])) == 60)
+
+        #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
+            positional: [],
+            options: ["requestTimeout": ["soon"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
+            positional: [],
+            options: ["requestTimeout": ["-0.5"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
+            positional: [],
+            options: ["requestTimeout": ["0"]],
+            flags: [])) == 0)
+        #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
+            positional: [],
+            options: ["requestTimeout": ["12.5"]],
+            flags: [])) == 12.5)
+        #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
+            positional: [],
+            options: [:],
+            flags: [])) == 30)
     }
 
     @Test
@@ -203,6 +224,24 @@ struct CLIServeRouterTests {
         #expect(cached.status == .ok)
         #expect(Self.bodyString(cached) == Self.bodyString(success))
         #expect(await counter.current() == 2)
+    }
+
+    @Test
+    func `serve request timeout zero disables the deadline`() async {
+        let cache = CLIServeResponseCache()
+
+        let response = await CodexBarCLI.cachedServeResponse(
+            key: "usage:",
+            cache: cache,
+            refreshInterval: 0,
+            requestTimeout: 0)
+        {
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            return Self.response("[{\"provider\":\"codex\",\"slow\":true}]")
+        }
+
+        #expect(response.status == .ok)
+        #expect(Self.bodyString(response).contains("\"slow\":true"))
     }
 
     private static func parsedRequest(host: String) throws -> CLILocalHTTPRequest {

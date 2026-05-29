@@ -17,6 +17,11 @@ struct ServeOptions: CommanderParsable {
 
     @Option(name: .long("refresh-interval"), help: "Response cache TTL in seconds (default: 60)")
     var refreshInterval: Double?
+
+    @Option(
+        name: .long("request-timeout"),
+        help: "Total per-request deadline in seconds; 0 disables (default: 30)")
+    var requestTimeout: Double?
 }
 
 enum CLIServeRoute: Equatable {
@@ -185,6 +190,7 @@ actor CLIServeResponseCache {
 private enum CLIServeArgumentError: LocalizedError {
     case invalidPort
     case invalidRefreshInterval
+    case invalidRequestTimeout
     case invalidProvider(String)
 
     var errorDescription: String? {
@@ -193,6 +199,8 @@ private enum CLIServeArgumentError: LocalizedError {
             "--port must be between 1 and 65535."
         case .invalidRefreshInterval:
             "--refresh-interval must be zero or greater."
+        case .invalidRequestTimeout:
+            "--request-timeout must be zero or greater."
         case let .invalidProvider(provider):
             "Unknown provider '\(provider)'."
         }
@@ -206,6 +214,7 @@ extension CodexBarCLI {
         let output = CLIOutputPreferences(format: .json, jsonOnly: true, pretty: false)
         let port = Self.decodeServePort(from: values)
         let refreshInterval = Self.decodeServeRefreshInterval(from: values)
+        let requestTimeout = Self.decodeServeRequestTimeout(from: values)
 
         guard let port else {
             Self.exit(
@@ -223,6 +232,14 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
+        guard let requestTimeout else {
+            Self.exit(
+                code: .failure,
+                message: CLIServeArgumentError.invalidRequestTimeout.localizedDescription,
+                output: output,
+                kind: .args)
+        }
+
         let config = Self.loadConfig(output: output)
         let cache = CLIServeResponseCache()
         let server = CLILocalHTTPServer(host: "127.0.0.1", port: port) { request in
@@ -230,7 +247,8 @@ extension CodexBarCLI {
                 request,
                 config: config,
                 cache: cache,
-                refreshInterval: refreshInterval)
+                refreshInterval: refreshInterval,
+                requestTimeout: requestTimeout)
         }
 
         do {
@@ -268,11 +286,25 @@ extension CodexBarCLI {
         return parsed
     }
 
+    static func decodeServeRequestTimeout(from values: ParsedValues) -> TimeInterval? {
+        let raw = values.options["requestTimeout"]?.last
+        let parsed: Double
+        if let raw {
+            guard let value = Double(raw) else { return nil }
+            parsed = value
+        } else {
+            parsed = Self.defaultServeRequestTimeout
+        }
+        guard parsed >= 0 else { return nil }
+        return parsed
+    }
+
     private static func handleServeRequest(
         _ request: CLILocalHTTPRequest,
         config: CodexBarConfig,
         cache: CLIServeResponseCache,
-        refreshInterval: TimeInterval) async -> CLILocalHTTPResponse
+        refreshInterval: TimeInterval,
+        requestTimeout: TimeInterval) async -> CLILocalHTTPResponse
     {
         let route: CLIServeRoute
         do {
@@ -293,7 +325,8 @@ extension CodexBarCLI {
             return await Self.cachedServeResponse(
                 key: "usage:\(provider ?? "")",
                 cache: cache,
-                refreshInterval: refreshInterval)
+                refreshInterval: refreshInterval,
+                requestTimeout: requestTimeout)
             {
                 await Self.serveUsage(provider: provider, config: config)
             }
@@ -301,7 +334,8 @@ extension CodexBarCLI {
             return await Self.cachedServeResponse(
                 key: "cost:\(provider ?? "")",
                 cache: cache,
-                refreshInterval: refreshInterval)
+                refreshInterval: refreshInterval,
+                requestTimeout: requestTimeout)
             {
                 await Self.serveCost(provider: provider, config: config)
             }
@@ -338,7 +372,7 @@ extension CodexBarCLI {
     {
         let clampedTimeout = min(max(timeout, 0), 86400)
         guard clampedTimeout > 0 else {
-            return Self.serveError(status: .gatewayTimeout, message: "request timed out")
+            return await makeResponse()
         }
         let nanoseconds = max(1, UInt64((clampedTimeout * 1_000_000_000).rounded(.up)))
 
