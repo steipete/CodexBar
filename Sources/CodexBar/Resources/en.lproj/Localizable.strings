@@ -106,6 +106,8 @@
 "Daily Routines" = "Daily Routines";
 "Debug" = "Debug";
 "Default" = "Default";
+"default_terminal_subtitle" = "Used by provider Open Terminal menu commands.";
+"default_terminal_title" = "Open Terminal app";
 "Disable Keychain access" = "Disable Keychain access";
 "Disabled" = "Disabled";
 "Dismiss" = "Dismiss";

@@ -70,6 +70,28 @@ struct GeneralPane: View {
                         title: L("start_at_login_title"),
                         subtitle: L("start_at_login_subtitle"),
                         binding: self.$settings.launchAtLogin)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(L("default_terminal_title"))
+                                    .font(.body)
+                                Text(L("default_terminal_subtitle"))
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                            Picker(L("default_terminal_title"), selection: self.$settings.preferredTerminalApp) {
+                                ForEach(PreferredTerminalApp.availableApps()) { app in
+                                    Text(app.label).tag(app)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 200)
+                        }
+                    }
                 }
 
                 Divider()

@@ -169,7 +169,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     @objc func openTerminalCommand(_ sender: NSMenuItem) {
         let command = sender.representedObject as? String ?? "claude"
-        Self.openTerminal(command: command)
+        TerminalCommandLauncher.open(command: command, preferredApp: self.settings.preferredTerminalApp)
     }
 
     @objc func openLoginToProvider(_ sender: NSMenuItem) {
@@ -321,27 +321,6 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             let pb = NSPasteboard.general
             pb.clearContents()
             pb.setString(err, forType: .string)
-        }
-    }
-
-    private static func openTerminal(command: String) {
-        let escaped = command
-            .replacingOccurrences(of: "\\\\", with: "\\\\\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "\(escaped)"
-        end tell
-        """
-        if let appleScript = NSAppleScript(source: script) {
-            var error: NSDictionary?
-            appleScript.executeAndReturnError(&error)
-            if let error {
-                CodexBarLog.logger(LogCategories.terminal).error(
-                    "Failed to open Terminal",
-                    metadata: ["error": String(describing: error)])
-            }
         }
     }
 

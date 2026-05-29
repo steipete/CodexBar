@@ -9,6 +9,7 @@ struct SettingsDefaultsState {
     var debugLogLevelRaw: String?
     var debugLoadingPatternRaw: String?
     var debugKeepCLISessionsAlive: Bool
+    var preferredTerminalAppRaw: String = "terminal"
     var statusChecksEnabled: Bool
     var sessionQuotaNotificationsEnabled: Bool
     var quotaWarningNotificationsEnabled: Bool

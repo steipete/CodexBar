@@ -135,9 +135,43 @@ struct SettingsStoreAdditionalTests {
         #expect(SettingsStore.hasAnyTokenCostUsageSources(env: env, fileManager: fm))
     }
 
-    private static func makeSettingsStore(suite: String) -> SettingsStore {
-        let defaults = UserDefaults(suiteName: suite)!
+    @Test
+    func `preferred terminal app persists in defaults`() {
+        let suite = "SettingsStoreAdditionalTests-preferred-terminal"
+        let settings = Self.makeSettingsStore(suite: suite)
+
+        #expect(settings.preferredTerminalApp == .terminal)
+
+        settings.preferredTerminalApp = .iTerm2
+
+        let reloaded = Self.makeSettingsStorePreservingDefaults(suite: suite)
+        #expect(reloaded.preferredTerminalApp == .iTerm2)
+    }
+
+    @Test
+    func `invalid preferred terminal app defaults to Terminal`() throws {
+        let suite = "SettingsStoreAdditionalTests-invalid-terminal"
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
+        defaults.set("missing", forKey: "preferredTerminalApp")
+
+        let settings = Self.makeSettingsStorePreservingDefaults(suite: suite)
+
+        #expect(settings.preferredTerminalApp == .terminal)
+    }
+
+    private static func makeSettingsStore(suite: String) -> SettingsStore {
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        return self.makeSettingsStore(defaults: defaults, suite: suite)
+    }
+
+    private static func makeSettingsStorePreservingDefaults(suite: String) -> SettingsStore {
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        return self.makeSettingsStore(defaults: defaults, suite: suite)
+    }
+
+    private static func makeSettingsStore(defaults: UserDefaults, suite: String) -> SettingsStore {
         let configStore = testConfigStore(suiteName: suite)
 
         return SettingsStore(

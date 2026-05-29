@@ -71,6 +71,18 @@ extension SettingsStore {
         }
     }
 
+    var preferredTerminalApp: PreferredTerminalApp {
+        get {
+            let raw = self.userDefaults.string(forKey: "preferredTerminalApp")
+                ?? self.defaultsState.preferredTerminalAppRaw
+            return PreferredTerminalApp(rawValue: raw) ?? .terminal
+        }
+        set {
+            self.defaultsState.preferredTerminalAppRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "preferredTerminalApp")
+        }
+    }
+
     var isVerboseLoggingEnabled: Bool {
         self.debugLogLevel.rank <= CodexBarLog.Level.verbose.rank
     }
