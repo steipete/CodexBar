@@ -127,14 +127,14 @@ enum CLILocalHTTPRequestParseError: Error, Equatable {
     case disallowedHost
 }
 
-enum CLIHTTPStatus {
+enum CLIHTTPStatus: Sendable {
     case ok
     case badRequest
     case forbidden
     case notFound
     case methodNotAllowed
     case internalServerError
-
+    case gatewayTimeout
     var code: Int {
         switch self {
         case .ok: 200
@@ -143,6 +143,7 @@ enum CLIHTTPStatus {
         case .notFound: 404
         case .methodNotAllowed: 405
         case .internalServerError: 500
+        case .gatewayTimeout: 504
         }
     }
 
@@ -154,11 +155,12 @@ enum CLIHTTPStatus {
         case .notFound: "Not Found"
         case .methodNotAllowed: "Method Not Allowed"
         case .internalServerError: "Internal Server Error"
+        case .gatewayTimeout: "Gateway Timeout"
         }
     }
 }
 
-struct CLILocalHTTPResponse {
+struct CLILocalHTTPResponse: Sendable {
     let status: CLIHTTPStatus
     let body: Data
     let contentType: String
