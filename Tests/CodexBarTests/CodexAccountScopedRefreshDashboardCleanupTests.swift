@@ -33,7 +33,7 @@ extension CodexAccountScopedRefreshTests {
         defer { store._test_codexCreditsLoaderOverride = nil }
 
         var observedTargetEmail: String?
-        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _ in
+        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _, _ in
             observedTargetEmail = accountEmail
             #expect(store.currentCodexOpenAIWebRefreshGuard().source == .liveSystem)
             #expect(store.currentCodexOpenAIWebRefreshGuard().identity == .unresolved)

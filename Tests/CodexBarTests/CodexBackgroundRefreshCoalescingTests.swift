@@ -158,7 +158,7 @@ struct CodexBackgroundRefreshCoalescingTests {
             CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
         }
         defer { store._test_codexCreditsLoaderOverride = nil }
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }

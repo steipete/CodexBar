@@ -61,6 +61,22 @@ struct OpenAIDashboardNavigationDelegateTests {
 
     @MainActor
     @Test
+    func `explicit cancel completes with cancellation error`() {
+        var result: Result<Void, Error>?
+        let delegate = NavigationDelegate { result = $0 }
+
+        delegate.cancel()
+
+        switch result {
+        case let .failure(error)?:
+            #expect(error is CancellationError)
+        default:
+            #expect(Bool(false))
+        }
+    }
+
+    @MainActor
+    @Test
     func `commit completes navigation successfully after grace period`() async {
         let webView = WKWebView()
         var result: Result<Void, Error>?

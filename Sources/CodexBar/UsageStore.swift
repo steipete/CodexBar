@@ -195,6 +195,7 @@ final class UsageStore {
     @ObservationIgnored var _test_openAIDashboardLoaderOverride: (@MainActor (
         String?,
         @escaping (String) -> Void,
+        Bool,
         TimeInterval) async throws -> OpenAIDashboardSnapshot)?
     @ObservationIgnored var _test_codexCreditsLoaderOverride: (@MainActor () async throws -> CreditsSnapshot)?
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?

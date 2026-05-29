@@ -198,10 +198,16 @@ public struct OpenAIDashboardFetcher {
         return true
     }
 
+    private nonisolated static func sleepForDashboardPoll(_ duration: Duration) async throws {
+        try? await Task.sleep(for: duration)
+        try Task.checkCancellation()
+    }
+
     public func loadLatestDashboard(
         accountEmail: String?,
         logger: ((String) -> Void)? = nil,
         debugDumpHTML: Bool = false,
+        allowNavigationTimeoutRetry: Bool = true,
         timeout: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
         let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
@@ -209,6 +215,7 @@ public struct OpenAIDashboardFetcher {
             websiteDataStore: store,
             logger: logger,
             debugDumpHTML: debugDumpHTML,
+            allowNavigationTimeoutRetry: allowNavigationTimeoutRetry,
             timeout: timeout)
     }
 
@@ -216,19 +223,21 @@ public struct OpenAIDashboardFetcher {
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)? = nil,
         debugDumpHTML: Bool = false,
+        allowNavigationTimeoutRetry: Bool = true,
         timeout: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
         let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
         let preflight = await Self.fetchDashboardAPIPreflight(
             websiteDataStore: websiteDataStore,
             logger: { logger?($0) })
-        let apiData = preflight.apiData
-        let verifiedSignedInEmail = preflight.verifiedSignedInEmail
+        try Task.checkCancellation()
+        let (apiData, verifiedSignedInEmail) = (preflight.apiData, preflight.verifiedSignedInEmail)
 
         let lease = try await self.makeWebView(
             websiteDataStore: websiteDataStore,
             logger: logger,
-            timeout: Self.remainingTimeout(until: deadline))
+            timeout: Self.remainingTimeout(until: deadline),
+            allowNavigationTimeoutRetry: allowNavigationTimeoutRetry)
         defer { lease.release() }
         let webView = lease.webView
         let log = lease.log
@@ -244,6 +253,7 @@ public struct OpenAIDashboardFetcher {
         var lastUsageBreakdownError: String?
         var lastCreditsPurchaseURL: String?
         while Date() < deadline {
+            try Task.checkCancellation()
             let scrape = try await self.scrape(webView: webView)
             lastBody = scrape.bodyText ?? lastBody
 
@@ -261,14 +271,14 @@ public struct OpenAIDashboardFetcher {
             }
 
             if scrape.workspacePicker {
-                try? await Task.sleep(for: .milliseconds(500))
+                try await Self.sleepForDashboardPoll(.milliseconds(500))
                 continue
             }
 
             // The page is a SPA and can land on ChatGPT UI or other routes; keep forcing the usage URL.
             if let href = scrape.href, !Self.isUsageRoute(href) {
                 _ = webView.load(Self.usageURLRequest(url: self.usageURL))
-                try? await Task.sleep(for: .milliseconds(500))
+                try await Self.sleepForDashboardPoll(.milliseconds(500))
                 continue
             }
 
@@ -321,7 +331,7 @@ public struct OpenAIDashboardFetcher {
                         "rows=\(scrape.rows.count)")
                 if scrape.didScrollToCredits {
                     log("scrollIntoView(Credits usage history) requested; waiting…")
-                    try? await Task.sleep(for: .milliseconds(600))
+                    try await Self.sleepForDashboardPoll(.milliseconds(600))
                     continue
                 }
 
@@ -338,7 +348,7 @@ public struct OpenAIDashboardFetcher {
                     creditsHeaderInViewport: scrape.creditsHeaderInViewport,
                     didScrollToCredits: scrape.didScrollToCredits))
                 {
-                    try? await Task.sleep(for: .milliseconds(400))
+                    try await Self.sleepForDashboardPoll(.milliseconds(400))
                     continue
                 }
             }
@@ -350,7 +360,7 @@ public struct OpenAIDashboardFetcher {
                        now: Date(),
                        errorFirstSeenAt: usageBreakdownErrorFirstSeenAt))
                 {
-                    try? await Task.sleep(for: .milliseconds(400))
+                    try await Self.sleepForDashboardPoll(.milliseconds(400))
                     continue
                 }
 
@@ -359,7 +369,7 @@ public struct OpenAIDashboardFetcher {
                 if codeReview != nil, usageBreakdown.isEmpty {
                     let elapsed = Date().timeIntervalSince(codeReviewFirstSeenAt ?? Date())
                     if elapsed < 6 {
-                        try? await Task.sleep(for: .milliseconds(400))
+                        try await Self.sleepForDashboardPoll(.milliseconds(400))
                         continue
                     }
                 }
@@ -377,7 +387,7 @@ public struct OpenAIDashboardFetcher {
                     accountPlan: dashboardData.accountPlan))
             }
 
-            try? await Task.sleep(for: .milliseconds(500))
+            try await Self.sleepForDashboardPoll(.milliseconds(500))
         }
 
         if debugDumpHTML, let html = try? await self.fetchDebugHTML(webView: webView) {
@@ -435,12 +445,13 @@ public struct OpenAIDashboardFetcher {
         var dashboardSignalSeenAt: Date?
 
         while Date() < deadline {
+            try Task.checkCancellation()
             let scrape = try await self.scrape(webView: webView)
             lastBody = scrape.bodyText ?? lastBody
             lastHref = scrape.href ?? lastHref
 
             if scrape.workspacePicker {
-                try? await Task.sleep(for: .milliseconds(500))
+                try await Self.sleepForDashboardPoll(.milliseconds(500))
                 continue
             }
 
@@ -448,7 +459,7 @@ public struct OpenAIDashboardFetcher {
                 usageRouteSeenAt = nil
                 dashboardSignalSeenAt = nil
                 _ = webView.load(Self.usageURLRequest(url: self.usageURL))
-                try? await Task.sleep(for: .milliseconds(500))
+                try await Self.sleepForDashboardPoll(.milliseconds(500))
                 continue
             }
 
@@ -482,7 +493,7 @@ public struct OpenAIDashboardFetcher {
                 signedInEmail: normalizedEmail,
                 hasDashboardSignal: hasDashboardSignal))
             {
-                try? await Task.sleep(for: .milliseconds(400))
+                try await Self.sleepForDashboardPoll(.milliseconds(400))
                 continue
             }
 
@@ -630,6 +641,7 @@ public struct OpenAIDashboardFetcher {
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)?,
         timeout: TimeInterval,
+        allowNavigationTimeoutRetry: Bool = true,
         preserveLoadedPageOnRelease: Bool = false) async throws -> OpenAIDashboardWebViewLease
     {
         try await OpenAIDashboardWebViewCache.shared.acquire(
@@ -637,6 +649,7 @@ public struct OpenAIDashboardFetcher {
             usageURL: self.usageURL,
             logger: logger,
             navigationTimeout: timeout,
+            allowTimeoutRetry: allowNavigationTimeoutRetry,
             preserveLoadedPageOnRelease: preserveLoadedPageOnRelease)
     }
 
@@ -973,6 +986,7 @@ public struct OpenAIDashboardFetcher {
         accountEmail _: String?,
         logger _: ((String) -> Void)? = nil,
         debugDumpHTML _: Bool = false,
+        allowNavigationTimeoutRetry _: Bool = true,
         timeout _: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
         throw FetchError.noDashboardData(body: "OpenAI web dashboard fetch is only supported on macOS.")

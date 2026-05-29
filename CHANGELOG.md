@@ -5,6 +5,9 @@
 ### Added
 - Settings: add search to the Providers pane so large provider lists can be filtered by name or id (#1184). Thanks @046081-dotcom!
 
+### Fixed
+- Codex: cancel OpenAI WebKit dashboard refreshes promptly and avoid an immediate second background WebView retry after timeouts, reducing launch-time Web Content CPU spikes (#1217).
+
 ## 0.31.0 — 2026-05-28
 
 ### Changed

@@ -33,7 +33,7 @@ extension CodexManagedOpenAIWebTests {
             settings: settings,
             startupBehavior: .testing)
         let blocker = CoalescingManagedOpenAIDashboardLoader()
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
