@@ -38,6 +38,10 @@ struct DisplayPane: View {
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
+                        title: "Color-coded icons",
+                        subtitle: "Tint menu bar icons green, yellow, or red based on session usage.",
+                        binding: self.$settings.colorCodedIcons)
+                    PreferenceToggleRow(
                         title: L("menu_bar_shows_percent_title"),
                         subtitle: L("menu_bar_shows_percent_subtitle"),
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)
