@@ -106,12 +106,11 @@ public struct AntigravityStatusSnapshot: Sendable {
         // extraRateWindows carries a source-aware set: the full curated list for
         // .local (verified junk-free), and a filtered list for .remote (catalog noise
         // hidden, consumed quota always kept). Sorted by family→version→tier.
-        let shownModels: [AntigravityNormalizedModel]
-        switch self.source {
+        let shownModels: [AntigravityNormalizedModel] = switch self.source {
         case .local:
-            shownModels = normalized
+            normalized
         case .remote:
-            shownModels = normalized.filter { m in
+            normalized.filter { m in
                 (m.family != .unknown && !m.isLite && !m.isAutocomplete && !m.isImage)
                     || (m.quota.remainingFraction ?? 1.0) < 0.999
             }
@@ -144,7 +143,10 @@ public struct AntigravityStatusSnapshot: Sendable {
             resetDescription: quota.resetDescription)
     }
 
-    private static func modelOrderPrecedes(_ lhs: AntigravityNormalizedModel, _ rhs: AntigravityNormalizedModel) -> Bool {
+    private static func modelOrderPrecedes(
+        _ lhs: AntigravityNormalizedModel,
+        _ rhs: AntigravityNormalizedModel) -> Bool
+    {
         // 1. Family rank: claude=0, geminiPro=1, geminiFlash=2, unknown=3
         let lhsFamilyRank = Self.familyRank(lhs.family)
         let rhsFamilyRank = Self.familyRank(rhs.family)
@@ -177,10 +179,10 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func familyRank(_ family: AntigravityModelFamily) -> Int {
         switch family {
-        case .claude: return 0
-        case .geminiPro: return 1
-        case .geminiFlash: return 2
-        case .unknown: return 3
+        case .claude: 0
+        case .geminiPro: 1
+        case .geminiFlash: 2
+        case .unknown: 3
         }
     }
 
@@ -238,14 +240,13 @@ public struct AntigravityStatusSnapshot: Sendable {
         guard let match = regex.firstMatch(in: label, options: [], range: range) else { return nil }
         let majorRange = Range(match.range(at: 1), in: label)
         guard let majorRange, let major = Int(label[majorRange]) else { return nil }
-        let minor: Int
-        if match.range(at: 2).location != NSNotFound,
-           let minorRange = Range(match.range(at: 2), in: label),
-           let parsed = Int(label[minorRange])
+        let minor: Int = if match.range(at: 2).location != NSNotFound,
+                            let minorRange = Range(match.range(at: 2), in: label),
+                            let parsed = Int(label[minorRange])
         {
-            minor = parsed
+            parsed
         } else {
-            minor = 0
+            0
         }
         return AntigravityModelVersion(major: major, minor: minor)
     }
