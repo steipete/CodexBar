@@ -190,6 +190,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastKnownScreenCount: Int
     var pendingScreenChangePreviousCount: Int?
     var screenChangeVisibilityTask: Task<Void, Never>?
+    private var appearanceObservation: NSKeyValueObservation?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     let menuLogger = CodexBarLog.logger(LogCategories.app)
     var selectedMenuProvider: UsageProvider? {
@@ -358,6 +359,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             selector: #selector(self.handleScreenParametersDidChange(_:)),
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil)
+
+        // On macOS 26+, usage colors are baked into non-template images. Re-render when the system
+        // appearance changes so dynamic colors (systemGreen/Orange/Red) resolve to their new values.
+        if #available(macOS 26, *) {
+            self.appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+                Task { @MainActor in self?.updateIcons() }
+            }
+        }
     }
 
     convenience init(

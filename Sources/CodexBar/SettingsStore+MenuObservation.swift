@@ -61,6 +61,7 @@ extension SettingsStore {
         _ = self.ampCookieSource
         _ = self.t3ChatCookieSource
         _ = self.ollamaCookieSource
+        _ = self.colorCodedIcons
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
         _ = self.mergedMenuLastSelectedWasOverview

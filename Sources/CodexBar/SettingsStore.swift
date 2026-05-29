@@ -281,6 +281,7 @@ extension SettingsStore {
         return hadExistingConfig
     }
 
+    // swiftlint:disable:next function_body_length
     private static func loadDefaultsState(userDefaults: UserDefaults) -> SettingsDefaultsState {
         let refreshDefault = userDefaults.string(forKey: "refreshFrequency")
             .flatMap(RefreshFrequency.init(rawValue:))
@@ -332,6 +333,8 @@ extension SettingsStore {
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
             ?? MenuBarDisplayMode.percent.rawValue
+        let menuBarSeparatorStyleRaw = userDefaults.string(forKey: "menuBarSeparatorStyle")
+            ?? MenuBarSeparatorStyle.dot.rawValue
         let kiroMenuBarDisplayModeRaw = userDefaults.string(forKey: "kiroMenuBarDisplayMode")
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
@@ -372,6 +375,7 @@ extension SettingsStore {
             userDefaults.set(false, forKey: "providerStorageFootprintsEnabled")
         }
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
+        let colorCodedIcons = userDefaults.object(forKey: "colorCodedIcons") as? Bool ?? true
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
         let mergedMenuLastSelectedWasOverview = userDefaults.object(
@@ -407,6 +411,7 @@ extension SettingsStore {
             providerChangelogLinksEnabled: providerChangelogLinksEnabled,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
+            menuBarSeparatorStyleRaw: menuBarSeparatorStyleRaw,
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
@@ -425,6 +430,7 @@ extension SettingsStore {
             openAIWebBatterySaverEnabled: openAIWebBatterySaverEnabled,
             providerStorageFootprintsEnabled: providerStorageFootprintsEnabled,
             jetbrainsIDEBasePath: jetbrainsIDEBasePath,
+            colorCodedIcons: colorCodedIcons,
             mergeIcons: mergeIcons,
             switcherShowsIcons: switcherShowsIcons,
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,

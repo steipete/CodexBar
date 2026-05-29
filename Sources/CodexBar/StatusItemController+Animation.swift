@@ -320,6 +320,15 @@ extension StatusItemController {
             }
             return .none
         }()
+
+        let usageColor: NSColor? = {
+            guard self.settings.colorCodedIcons, !needsAnimation else { return nil }
+            return UsageColorLevel.tintColor(for: snapshot?.primary?.usedPercent)
+        }()
+        let tintSignature = usageColor == nil
+            ? "nil"
+            : Self.iconSignatureValue(snapshot?.primary?.usedPercent)
+
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
@@ -334,6 +343,7 @@ extension StatusItemController {
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
                 "text=\(displayText ?? "nil")",
+                "tint=\(tintSignature)",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
@@ -344,6 +354,7 @@ extension StatusItemController {
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
+            self.setButtonTintColor(usageColor, for: button)
             self.noteIconPerfRender(skipped: false)
             return false
         }
@@ -366,6 +377,7 @@ extension StatusItemController {
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonTintColor(nil, for: button)
         } else {
             let signature = [
                 "mode=icon",
@@ -379,6 +391,7 @@ extension StatusItemController {
                 "blink=\(Self.iconSignatureValue(Double(blink)))",
                 "wiggle=\(Self.iconSignatureValue(Double(wiggle)))",
                 "tilt=\(Self.iconSignatureValue(Double(tilt)))",
+                "tint=\(tintSignature)",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
@@ -395,9 +408,11 @@ extension StatusItemController {
                 blink: blink,
                 wiggle: wiggle,
                 tilt: tilt,
-                statusIndicator: statusIndicator)
+                statusIndicator: statusIndicator,
+                tintColor: usageColor)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonTintColor(usageColor, for: button)
         }
         self.noteIconPerfRender(skipped: false)
         return false
@@ -424,7 +439,7 @@ extension StatusItemController {
     }
 
     @discardableResult
-    func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool {
+    func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool { // swiftlint:disable:this function_body_length
         guard let button = self.statusItems[provider]?.button else { return false }
         let snapshot = self.store.snapshot(for: provider)
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
@@ -433,6 +448,15 @@ extension StatusItemController {
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
         let style: IconStyle = self.store.style(for: provider)
         let warningFlash = self.quotaWarningFlashActive(provider: provider)
+
+        let isAnimatingForColor = phase != nil && self.shouldAnimate(provider: provider)
+        let usageColor: NSColor? = {
+            guard self.settings.colorCodedIcons, !isAnimatingForColor else { return nil }
+            return UsageColorLevel.tintColor(for: snapshot?.primary?.usedPercent)
+        }()
+        let tintSignature = usageColor == nil
+            ? "nil"
+            : Self.iconSignatureValue(snapshot?.primary?.usedPercent)
 
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: provider)
@@ -443,6 +467,7 @@ extension StatusItemController {
                 "provider=\(provider.rawValue)",
                 "style=\(String(describing: style))",
                 "text=\(displayText ?? "nil")",
+                "tint=\(tintSignature)",
                 "warningFlash=\(warningFlash ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
@@ -452,6 +477,7 @@ extension StatusItemController {
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
             self.setButtonTitle(displayText, for: button)
+            self.setButtonTintColor(usageColor, for: button)
             self.noteIconPerfRender(skipped: false)
             return false
         }
@@ -548,6 +574,7 @@ extension StatusItemController {
             let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonTintColor(nil, for: button)
         } else {
             let signature = [
                 "mode=icon",
@@ -561,6 +588,7 @@ extension StatusItemController {
                 "blink=\(Self.iconSignatureValue(Double(blink)))",
                 "wiggle=\(Self.iconSignatureValue(Double(wiggle)))",
                 "tilt=\(Self.iconSignatureValue(Double(tilt)))",
+                "tint=\(tintSignature)",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "loading=\(isLoading ? "1" : "0")",
             ].joined(separator: "|")
@@ -577,9 +605,11 @@ extension StatusItemController {
                 blink: blink,
                 wiggle: wiggle,
                 tilt: tilt,
-                statusIndicator: statusIndicator)
+                statusIndicator: statusIndicator,
+                tintColor: usageColor)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+            self.setButtonTintColor(usageColor, for: button)
         }
         self.noteIconPerfRender(skipped: false)
         return false
@@ -616,6 +646,11 @@ extension StatusItemController {
     private func setButtonImage(_ image: NSImage, for button: NSStatusBarButton) {
         if button.image === image { return }
         button.image = image
+    }
+
+    private func setButtonTintColor(_ color: NSColor?, for button: NSStatusBarButton) {
+        if button.contentTintColor == color { return }
+        button.contentTintColor = color
     }
 
     private func setButtonTitle(_ title: String?, for button: NSStatusBarButton) {
@@ -699,7 +734,8 @@ extension StatusItemController {
             mode: mode,
             percentWindow: percentWindow,
             pace: pace,
-            showUsed: self.settings.usageBarsShowUsed)
+            showUsed: self.settings.usageBarsShowUsed,
+            separatorStyle: self.settings.menuBarSeparatorStyle)
 
         if mode == .percent,
            !self.settings.usageBarsShowUsed,

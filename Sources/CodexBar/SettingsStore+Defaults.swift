@@ -242,6 +242,23 @@ extension SettingsStore {
         set { self.menuBarDisplayModeRaw = newValue.rawValue }
     }
 
+    private var menuBarSeparatorStyleRaw: String? {
+        get { self.defaultsState.menuBarSeparatorStyleRaw }
+        set {
+            self.defaultsState.menuBarSeparatorStyleRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "menuBarSeparatorStyle")
+            } else {
+                self.userDefaults.removeObject(forKey: "menuBarSeparatorStyle")
+            }
+        }
+    }
+
+    var menuBarSeparatorStyle: MenuBarSeparatorStyle {
+        get { MenuBarSeparatorStyle(rawValue: self.menuBarSeparatorStyleRaw ?? "") ?? .dot }
+        set { self.menuBarSeparatorStyleRaw = newValue.rawValue }
+    }
+
     private var kiroMenuBarDisplayModeRaw: String? {
         get { self.defaultsState.kiroMenuBarDisplayModeRaw }
         set {
@@ -432,6 +449,14 @@ extension SettingsStore {
         set {
             self.defaultsState.jetbrainsIDEBasePath = newValue
             self.userDefaults.set(newValue, forKey: "jetbrainsIDEBasePath")
+        }
+    }
+
+    var colorCodedIcons: Bool {
+        get { self.defaultsState.colorCodedIcons }
+        set {
+            self.defaultsState.colorCodedIcons = newValue
+            self.userDefaults.set(newValue, forKey: "colorCodedIcons")
         }
     }
 

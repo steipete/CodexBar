@@ -25,6 +25,7 @@ struct SettingsDefaultsState {
     var providerChangelogLinksEnabled: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarDisplayModeRaw: String?
+    var menuBarSeparatorStyleRaw: String?
     var kiroMenuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String
@@ -43,6 +44,7 @@ struct SettingsDefaultsState {
     var openAIWebBatterySaverEnabled: Bool
     var providerStorageFootprintsEnabled: Bool
     var jetbrainsIDEBasePath: String
+    var colorCodedIcons: Bool
     var mergeIcons: Bool
     var switcherShowsIcons: Bool
     var mergedMenuLastSelectedWasOverview: Bool

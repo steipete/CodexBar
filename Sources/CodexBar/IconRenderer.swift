@@ -35,6 +35,7 @@ enum IconRenderer {
         let stale: Bool
         let style: Int
         let indicator: Int
+        let tintHash: Int
     }
 
     private final class IconCacheStore: @unchecked Sendable {
@@ -118,13 +119,16 @@ enum IconRenderer {
         blink: CGFloat = 0,
         wiggle: CGFloat = 0,
         tilt: CGFloat = 0,
-        statusIndicator: ProviderStatusIndicator = .none) -> NSImage
+        statusIndicator: ProviderStatusIndicator = .none,
+        tintColor: NSColor? = nil) -> NSImage
     {
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
         let render = {
-            self.renderImage {
-                // Keep monochrome template icons; Claude uses subtle shape cues only.
-                let baseFill = NSColor.labelColor
+            self.renderImage(tintColor: tintColor) {
+                // When a tintColor is provided (macOS 26+ Liquid Glass), draw shapes directly in that
+                // color so the bitmap has real RGB values. Otherwise use labelColor for template rendering
+                // tinted via the status button's contentTintColor.
+                let baseFill = tintColor ?? NSColor.labelColor
                 let trackFillAlpha: CGFloat = stale ? 0.18 : 0.28
                 let trackStrokeAlpha: CGFloat = stale ? 0.28 : 0.44
                 let fillColor = baseFill.withAlphaComponent(stale ? 0.55 : 1.0)
@@ -738,7 +742,7 @@ enum IconRenderer {
                     drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)
                 }
 
-                Self.drawStatusOverlay(indicator: statusIndicator)
+                Self.drawStatusOverlay(indicator: statusIndicator, tintColor: tintColor)
             }
         }
 
@@ -749,7 +753,8 @@ enum IconRenderer {
                 credits: self.quantizedCredits(creditsRemaining),
                 stale: stale,
                 style: self.styleKey(style),
-                indicator: self.indicatorKey(statusIndicator))
+                indicator: self.indicatorKey(statusIndicator),
+                tintHash: self.tintColorHash(tintColor))
             if let cached = self.cachedIcon(for: key) {
                 return cached
             }
@@ -798,6 +803,21 @@ enum IconRenderer {
 
     private static func styleKey(_ style: IconStyle) -> Int {
         self.styleKeyLookup[style] ?? 0
+    }
+
+    private static func tintColorHash(_ color: NSColor?) -> Int {
+        guard let color else { return 0 }
+        // Quantize to 256 buckets per channel to avoid cache explosion while preserving visual fidelity.
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        (color.usingColorSpace(.sRGB) ?? color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        let ri = Int((r * 255).rounded())
+        let gi = Int((g * 255).rounded())
+        let bi = Int((b * 255).rounded())
+        let ai = Int((a * 255).rounded())
+        return ri << 24 | gi << 16 | bi << 8 | ai
     }
 
     private static func indicatorKey(_ indicator: ProviderStatusIndicator) -> Int {
@@ -932,9 +952,9 @@ enum IconRenderer {
         path.fill()
     }
 
-    private static func drawStatusOverlay(indicator: ProviderStatusIndicator) {
+    private static func drawStatusOverlay(indicator: ProviderStatusIndicator, tintColor: NSColor? = nil) {
         guard indicator.hasIssue else { return }
-        let color = NSColor.labelColor
+        let color = tintColor ?? NSColor.labelColor
 
         switch indicator {
         case .minor, .maintenance:
@@ -988,7 +1008,7 @@ enum IconRenderer {
         CGRect(x: self.snap(x), y: self.snap(y), width: self.snap(width), height: self.snap(height))
     }
 
-    private static func renderImage(_ draw: () -> Void) -> NSImage {
+    private static func renderImage(tintColor: NSColor? = nil, _ draw: () -> Void) -> NSImage {
         let image = NSImage(size: Self.outputSize)
 
         if let rep = NSBitmapImageRep(
@@ -999,7 +1019,7 @@ enum IconRenderer {
             samplesPerPixel: 4,
             hasAlpha: true,
             isPlanar: false,
-            colorSpaceName: .deviceRGB,
+            colorSpaceName: .calibratedRGB,
             bytesPerRow: 0,
             bitsPerPixel: 0)
         {
@@ -1019,7 +1039,9 @@ enum IconRenderer {
             image.unlockFocus()
         }
 
-        image.isTemplate = true
+        // A colored icon must be non-template so macOS 26 Liquid Glass keeps its RGB pixels
+        // instead of re-rendering it as a monochrome template.
+        image.isTemplate = tintColor == nil
         return image
     }
 }

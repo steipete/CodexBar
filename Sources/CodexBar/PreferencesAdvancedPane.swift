@@ -65,6 +65,10 @@ struct AdvancedPane: View {
                         subtitle: L("surprise_me_subtitle"),
                         binding: self.$settings.randomBlinkEnabled)
                     PreferenceToggleRow(
+                        title: "Color-coded icons",
+                        subtitle: "Tint menu bar icons green, yellow, or red based on session usage.",
+                        binding: self.$settings.colorCodedIcons)
+                    PreferenceToggleRow(
                         title: L("weekly_limit_confetti_title"),
                         subtitle: L("weekly_limit_confetti_subtitle"),
                         binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)

@@ -20,7 +20,8 @@ enum MenuBarDisplayText {
         mode: MenuBarDisplayMode,
         percentWindow: RateWindow?,
         pace: UsagePace? = nil,
-        showUsed: Bool) -> String?
+        showUsed: Bool,
+        separatorStyle: MenuBarSeparatorStyle = .dot) -> String?
     {
         switch mode {
         case .percent:
@@ -31,7 +32,7 @@ enum MenuBarDisplayText {
             guard let percent = percentText(window: percentWindow, showUsed: showUsed) else { return nil }
             // Fall back to percent-only when pace is unavailable (e.g. Copilot)
             guard let paceText = Self.paceText(pace: pace) else { return percent }
-            return "\(percent) · \(paceText)"
+            return "\(percent)\(separatorStyle.separator)\(paceText)"
         }
     }
 }
