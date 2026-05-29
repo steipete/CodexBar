@@ -2,6 +2,9 @@
 
 ## 0.31.1 — Unreleased
 
+### Added
+- Settings: add search to the Providers pane so large provider lists can be filtered by name or id (#1184). Thanks @046081-dotcom!
+
 ## 0.31.0 — 2026-05-28
 
 ### Changed
@@ -16,6 +19,7 @@
 - Localization: add Swedish as a selectable app language (#1186). Thanks @yeager!
 
 ### Fixed
+- Claude: add Opus 4.8 to the built-in pricing fallback so stale models.dev caches still show token cost (#1214, fixes #1210). Thanks @devYRPauli!
 - Cost history: make token-cost JSONL scans cancellation-aware so quitting, forced refreshes, and account switches can stop stale scans sooner.
 - Codex: show Spark 5-hour and weekly usage as separate quota lanes in Codex breakdowns (#1201).
 - Codex: show captured `codex login` output when managed Add Account fails so users can recover from account-selection or OAuth failures (#1199). Thanks @chapati23!

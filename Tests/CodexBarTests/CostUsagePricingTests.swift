@@ -361,6 +361,22 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `claude cost supports opus48`() throws {
+        // Point at a fresh, empty cache root so the models.dev lookup misses and this
+        // exercises the built-in fallback table specifically — not a local cache hit.
+        let emptyCacheRoot = try Self.cacheRoot()
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-opus-4-8",
+            inputTokens: 10,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 5,
+            modelsDevCacheRoot: emptyCacheRoot)
+        let expected = (10.0 * 5e-6) + (5.0 * 2.5e-5)
+        #expect(cost == expected)
+    }
+
+    @Test
     func `claude cost returns nil for unknown models`() {
         let cost = CostUsagePricing.claudeCostUSD(
             model: "glm-4.6",
