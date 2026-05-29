@@ -805,7 +805,7 @@ struct AntigravityStatusProbeTests {
 
 extension AntigravityStatusProbeTests {
     @Test
-    func `extra rate windows preserve all model quotas in stable label order`() throws {
+    func `extra rate windows preserve all model quotas in stable family order`() throws {
         let resetTime = Date(timeIntervalSince1970: 1_775_000_000)
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
@@ -835,11 +835,13 @@ extension AntigravityStatusProbeTests {
                     resetDescription: nil),
             ],
             accountEmail: nil,
-            accountPlan: nil)
+            accountPlan: nil,
+            source: .local)
 
         let usage = try snapshot.toUsageSnapshot()
         let extraWindows = try #require(usage.extraRateWindows)
 
+        // Local source shows all models. Order: Claude → Gemini Pro (High before Low) → GPT-OSS (unknown, last)
         #expect(extraWindows.map(\.id) == [
             "MODEL_PLACEHOLDER_M50",
             "MODEL_PLACEHOLDER_M52",
@@ -915,6 +917,407 @@ extension AntigravityStatusProbeTests {
         #expect(usage.tertiary == nil)
         #expect(usage.accountEmail(for: .antigravity) == "test@example.com")
         #expect(usage.loginMethod(for: .antigravity) == "Pro")
+    }
+
+    // MARK: - Source-aware filter + sort tests
+
+    @Test
+    func `local source shows all models including gpt oss at full remaining fraction`() throws {
+        // Fixture A: 8 opaque-ID models, source .local → all shown (show-all path)
+        let resetTime = Date(timeIntervalSince1970: 1_775_000_000)
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Claude Sonnet 4.6 (Thinking)",
+                    modelId: "MODEL_PLACEHOLDER_M60",
+                    remainingFraction: 0.8,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Claude Opus 4.6 (Thinking)",
+                    modelId: "MODEL_PLACEHOLDER_M61",
+                    remainingFraction: 0.7,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (High)",
+                    modelId: "MODEL_PLACEHOLDER_M62",
+                    remainingFraction: 0.9,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (Low)",
+                    modelId: "MODEL_PLACEHOLDER_M63",
+                    remainingFraction: 0.4,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3.5 Flash (High)",
+                    modelId: "MODEL_PLACEHOLDER_M64",
+                    remainingFraction: 0.6,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3.5 Flash (Low)",
+                    modelId: "MODEL_PLACEHOLDER_M65",
+                    remainingFraction: 0.3,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3.5 Flash (Medium)",
+                    modelId: "MODEL_PLACEHOLDER_M66",
+                    remainingFraction: 0.5,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+                // GPT-OSS pinned at remainingFraction == 1.0 — shown by local show-all
+                AntigravityModelQuota(
+                    label: "GPT-OSS 120B (Medium)",
+                    modelId: "MODEL_PLACEHOLDER_M55",
+                    remainingFraction: 1.0,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local)
+
+        let usage = try snapshot.toUsageSnapshot()
+        let extraWindows = try #require(usage.extraRateWindows)
+        let ids = extraWindows.map(\.id)
+
+        // All 8 models present
+        #expect(ids.count == 8)
+        // GPT-OSS shown despite remainingFraction == 1.0 (local show-all regression guard)
+        #expect(ids.contains("MODEL_PLACEHOLDER_M55"))
+
+        // Order: Claude (version 4.6 → both at same version, Opus vs Sonnet by label)
+        //        → Gemini Pro 3.1 (High before Low)
+        //        → Gemini Flash 3.5 (High, Medium, Low by tier)
+        //        → GPT-OSS (unknown bucket, last)
+        let titles = extraWindows.map(\.title)
+        // Claude family first
+        let claudeRange = titles.prefix(2)
+        #expect(claudeRange.allSatisfy { $0.lowercased().contains("claude") })
+        // Gemini Pro next
+        let geminiProRange = titles.dropFirst(2).prefix(2)
+        #expect(geminiProRange.allSatisfy { $0.lowercased().contains("gemini") && $0.lowercased().contains("pro") })
+        // Gemini Flash next
+        let geminiFlashRange = titles.dropFirst(4).prefix(3)
+        #expect(geminiFlashRange.allSatisfy { $0.lowercased().contains("gemini") && $0.lowercased().contains("flash") })
+        // GPT-OSS last
+        #expect(titles.last == "GPT-OSS 120B (Medium)")
+
+        // Within Gemini Pro 3.1: High before Low
+        let proTitles = Array(geminiProRange)
+        #expect(proTitles[0].contains("High"))
+        #expect(proTitles[1].contains("Low"))
+
+        // Within Gemini Flash 3.5: High(0) → Medium(1) → Low(2)
+        let flashTitles = Array(geminiFlashRange)
+        #expect(flashTitles[0].contains("High"))
+        #expect(flashTitles[1].contains("Medium"))
+        #expect(flashTitles[2].contains("Low"))
+    }
+
+    @Test
+    func `remote source filters junk models and keeps family recognized ones`() throws {
+        // Fixture B: verified 13 remote models; 6 junk hidden, 7 survivors present
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                // junk: image
+                AntigravityModelQuota(
+                    label: "Gemini 2.5 Flash Image",
+                    modelId: "gemini-2-5-flash-image",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // junk: tab autocomplete
+                AntigravityModelQuota(
+                    label: "Tab Flash Lite Vertex",
+                    modelId: "tab_flash_lite_vertex",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // survivor
+                AntigravityModelQuota(
+                    label: "Gemini 2.5 Pro",
+                    modelId: "gemini-2-5-pro",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // survivor
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (High)",
+                    modelId: "gemini-3-pro-high",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // junk: lite
+                AntigravityModelQuota(
+                    label: "Gemini 2.5 Flash Lite",
+                    modelId: "gemini-2-5-flash-lite",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // junk: image
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro Image",
+                    modelId: "gemini-3-pro-image",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // survivor
+                AntigravityModelQuota(
+                    label: "Gemini 3 Flash",
+                    modelId: "gemini-3-flash",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // junk: lite
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Flash Lite",
+                    modelId: "gemini-3-1-flash-lite",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // survivor
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (Low)",
+                    modelId: "gemini-3-1-pro-low",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // survivor
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (High)",
+                    modelId: "gemini-3-1-pro-high",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // junk: tab autocomplete
+                AntigravityModelQuota(
+                    label: "Tab Jump Flash Lite Vertex",
+                    modelId: "tab_jump_flash_lite_vertex",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // survivor
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (Low)",
+                    modelId: "gemini-3-pro-low",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // survivor
+                AntigravityModelQuota(
+                    label: "Gemini 2.5 Flash",
+                    modelId: "gemini-2-5-flash",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .remote)
+
+        let usage = try snapshot.toUsageSnapshot()
+        let extraWindows = try #require(usage.extraRateWindows)
+        let ids = extraWindows.map(\.id)
+
+        // 6 junk IDs must be absent
+        #expect(!ids.contains("gemini-2-5-flash-image"))
+        #expect(!ids.contains("tab_flash_lite_vertex"))
+        #expect(!ids.contains("gemini-2-5-flash-lite"))
+        #expect(!ids.contains("gemini-3-pro-image"))
+        #expect(!ids.contains("gemini-3-1-flash-lite"))
+        #expect(!ids.contains("tab_jump_flash_lite_vertex"))
+
+        // 7 survivors must be present by ID
+        #expect(ids.contains("gemini-2-5-pro"))
+        #expect(ids.contains("gemini-3-pro-high"))
+        #expect(ids.contains("gemini-3-flash"))
+        #expect(ids.contains("gemini-3-1-pro-low"))
+        #expect(ids.contains("gemini-3-1-pro-high"))
+        #expect(ids.contains("gemini-3-pro-low"))
+        #expect(ids.contains("gemini-2-5-flash"))
+
+        // Version-descending within Gemini Pro: 3.1 before 3 before 2.5
+        let proIds = ids.filter { $0.contains("pro") && !$0.contains("image") }
+        let proIndexOf: (String) -> Int = { id in proIds.firstIndex(of: id) ?? Int.max }
+        #expect(proIndexOf("gemini-3-1-pro-high") < proIndexOf("gemini-3-pro-high"))
+        #expect(proIndexOf("gemini-3-pro-high") < proIndexOf("gemini-2-5-pro"))
+
+        // Within same version, High before Low
+        #expect(proIndexOf("gemini-3-1-pro-high") < proIndexOf("gemini-3-1-pro-low"))
+        #expect(proIndexOf("gemini-3-pro-high") < proIndexOf("gemini-3-pro-low"))
+    }
+
+    @Test
+    func `remote source shows consumed junk models despite filter`() throws {
+        // Fixture C: junk models with remainingFraction < 0.999 must be shown
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                // consumed tab — should be shown
+                AntigravityModelQuota(
+                    label: "Tab Flash Lite Vertex",
+                    modelId: "tab_flash_lite_vertex",
+                    remainingFraction: 0.4,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // consumed image — should be shown
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro Image",
+                    modelId: "gemini-3-pro-image",
+                    remainingFraction: 0.4,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // unconsumed sibling tab (0.9995 >= 0.999) — should be hidden
+                AntigravityModelQuota(
+                    label: "Tab Jump Flash Lite Vertex",
+                    modelId: "tab_jump_flash_lite_vertex",
+                    remainingFraction: 0.9995,
+                    resetTime: nil,
+                    resetDescription: nil),
+                // a clean survivor for non-empty guard
+                AntigravityModelQuota(
+                    label: "Gemini 3 Flash",
+                    modelId: "gemini-3-flash",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .remote)
+
+        let usage = try snapshot.toUsageSnapshot()
+        let extraWindows = try #require(usage.extraRateWindows)
+        let ids = extraWindows.map(\.id)
+
+        // Consumed junk models shown despite being junk type
+        #expect(ids.contains("tab_flash_lite_vertex"))
+        #expect(ids.contains("gemini-3-pro-image"))
+
+        // Unconsumed sibling stays hidden
+        #expect(!ids.contains("tab_jump_flash_lite_vertex"))
+    }
+
+    @Test
+    func `remote source yields nil extra windows when all models are unconsumed junk`() throws {
+        // Fixture D: all-junk-unconsumed → extraRateWindows nil
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Tab Flash Lite Vertex",
+                    modelId: "tab_flash_lite_vertex",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 2.5 Flash Lite",
+                    modelId: "gemini-2-5-flash-lite",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro Image",
+                    modelId: "gemini-3-pro-image",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Unknown Model X",
+                    modelId: "unknown-model-x",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .remote)
+
+        let usage = try snapshot.toUsageSnapshot()
+        #expect(usage.extraRateWindows == nil)
+    }
+
+    @Test
+    func `ordering edge cases with unparseable version and equal version differing tier`() throws {
+        // Fixture F: local source; unparseable-version Gemini Pro lands last in pro group;
+        // same-version High precedes Low
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (Low)",
+                    modelId: "MODEL_PLACEHOLDER_M70",
+                    remainingFraction: 0.5,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (High)",
+                    modelId: "MODEL_PLACEHOLDER_M71",
+                    remainingFraction: 0.8,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini Pro Experimental",
+                    modelId: "MODEL_PLACEHOLDER_M72",
+                    remainingFraction: 0.3,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Claude Sonnet 4",
+                    modelId: "MODEL_PLACEHOLDER_M73",
+                    remainingFraction: 0.9,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local)
+
+        let usage = try snapshot.toUsageSnapshot()
+        let extraWindows = try #require(usage.extraRateWindows)
+        let titles = extraWindows.map(\.title)
+
+        // Claude first
+        #expect(titles[0] == "Claude Sonnet 4")
+        // Within Gemini Pro: version-3 models before unparseable-version model
+        // High before Low at same version
+        let proIndex: (String) -> Int = { t in titles.firstIndex(of: t) ?? Int.max }
+        #expect(proIndex("Gemini 3 Pro (High)") < proIndex("Gemini 3 Pro (Low)"))
+        #expect(proIndex("Gemini 3 Pro (High)") < proIndex("Gemini Pro Experimental"))
+        #expect(proIndex("Gemini 3 Pro (Low)") < proIndex("Gemini Pro Experimental"))
+    }
+
+    @Test
+    func `nil version unknown family models sort deterministically by label`() throws {
+        // Strict-weak-ordering guard: two .unknown models with unparseable versions
+        // should sort by label without trapping
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Zebra Unknown Model",
+                    modelId: "MODEL_PLACEHOLDER_MA",
+                    remainingFraction: 0.5,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Alpha Unknown Model",
+                    modelId: "MODEL_PLACEHOLDER_MB",
+                    remainingFraction: 0.5,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local)
+
+        let usage = try snapshot.toUsageSnapshot()
+        let extraWindows = try #require(usage.extraRateWindows)
+        let titles = extraWindows.map(\.title)
+
+        // Deterministic: label tiebreaker → Alpha before Zebra
+        #expect(titles == ["Alpha Unknown Model", "Zebra Unknown Model"])
     }
 
     @Test

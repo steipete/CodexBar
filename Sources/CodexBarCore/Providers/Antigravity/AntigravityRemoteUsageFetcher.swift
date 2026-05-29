@@ -146,7 +146,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         return AntigravityStatusSnapshot(
             modelQuotas: models,
             accountEmail: claims.email,
-            accountPlan: Self.resolvePlan(response: codeAssist, claims: claims))
+            accountPlan: Self.resolvePlan(response: codeAssist, claims: claims),
+            source: .remote)
     }
 
     private static func shouldRefresh(expiryDate: Date?, now: Date) -> Bool {

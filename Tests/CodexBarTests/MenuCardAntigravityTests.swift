@@ -143,7 +143,8 @@ struct MenuCardAntigravityTests {
                     resetDescription: nil),
             ],
             accountEmail: nil,
-            accountPlan: "Pro")
+            accountPlan: "Pro",
+            source: .local)
         let snapshot = try antigravitySnapshot.toUsageSnapshot()
         let metadata = try #require(ProviderDefaults.metadata[.antigravity])
 

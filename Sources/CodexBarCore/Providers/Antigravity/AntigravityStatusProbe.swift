@@ -37,25 +37,48 @@ private enum AntigravityModelFamily {
     case unknown
 }
 
+private struct AntigravityModelVersion: Comparable {
+    let major: Int
+    let minor: Int
+
+    static func < (lhs: AntigravityModelVersion, rhs: AntigravityModelVersion) -> Bool {
+        if lhs.major != rhs.major { return lhs.major < rhs.major }
+        return lhs.minor < rhs.minor
+    }
+}
+
 private struct AntigravityNormalizedModel {
     let quota: AntigravityModelQuota
     let family: AntigravityModelFamily
     let selectionPriority: Int?
+    let isImage: Bool
+    let isLite: Bool
+    let isAutocomplete: Bool
+    let version: AntigravityModelVersion?
+    let tier: Int
+}
+
+public enum AntigravityModelQuotaSource: Sendable {
+    case local
+    case remote
 }
 
 public struct AntigravityStatusSnapshot: Sendable {
     public let modelQuotas: [AntigravityModelQuota]
     public let accountEmail: String?
     public let accountPlan: String?
+    public let source: AntigravityModelQuotaSource
 
     public init(
         modelQuotas: [AntigravityModelQuota],
         accountEmail: String?,
-        accountPlan: String?)
+        accountPlan: String?,
+        source: AntigravityModelQuotaSource = .remote)
     {
         self.modelQuotas = modelQuotas
         self.accountEmail = accountEmail
         self.accountPlan = accountPlan
+        self.source = source
     }
 
     public func toUsageSnapshot() throws -> UsageSnapshot {
@@ -80,12 +103,23 @@ public struct AntigravityStatusSnapshot: Sendable {
         let tertiary = tertiaryQuota.map(Self.rateWindow(for:))
 
         // primary/secondary/tertiary keep the 3-family summary for back-compat.
-        // extraRateWindows carries every model quota loss-free, including families
-        // with no dedicated slot and variants the representative selection collapses.
-        let extraWindows = self.modelQuotas
-            .sorted(by: Self.modelQuotaSortPrecedes)
-            .map { quota in
-                NamedRateWindow(id: quota.modelId, title: quota.label, window: Self.rateWindow(for: quota))
+        // extraRateWindows carries a source-aware set: the full curated list for
+        // .local (verified junk-free), and a filtered list for .remote (catalog noise
+        // hidden, consumed quota always kept). Sorted by family→version→tier.
+        let shownModels: [AntigravityNormalizedModel]
+        switch self.source {
+        case .local:
+            shownModels = normalized
+        case .remote:
+            shownModels = normalized.filter { m in
+                (m.family != .unknown && !m.isLite && !m.isAutocomplete && !m.isImage)
+                    || (m.quota.remainingFraction ?? 1.0) < 0.999
+            }
+        }
+        let extraWindows = shownModels
+            .sorted(by: Self.modelOrderPrecedes)
+            .map { m in
+                NamedRateWindow(id: m.quota.modelId, title: m.quota.label, window: Self.rateWindow(for: m.quota))
             }
 
         let identity = ProviderIdentitySnapshot(
@@ -110,12 +144,44 @@ public struct AntigravityStatusSnapshot: Sendable {
             resetDescription: quota.resetDescription)
     }
 
-    private static func modelQuotaSortPrecedes(_ lhs: AntigravityModelQuota, _ rhs: AntigravityModelQuota) -> Bool {
-        let labelOrder = lhs.label.caseInsensitiveCompare(rhs.label)
-        if labelOrder != .orderedSame {
-            return labelOrder == .orderedAscending
+    private static func modelOrderPrecedes(_ lhs: AntigravityNormalizedModel, _ rhs: AntigravityNormalizedModel) -> Bool {
+        // 1. Family rank: claude=0, geminiPro=1, geminiFlash=2, unknown=3
+        let lhsFamilyRank = Self.familyRank(lhs.family)
+        let rhsFamilyRank = Self.familyRank(rhs.family)
+        if lhsFamilyRank != rhsFamilyRank {
+            return lhsFamilyRank < rhsFamilyRank
         }
-        return lhs.modelId.caseInsensitiveCompare(rhs.modelId) == .orderedAscending
+
+        // 2. Version descending (newer first); nil version sorts after non-nil
+        switch (lhs.version, rhs.version) {
+        case let (.some(lv), .some(rv)):
+            if lv != rv {
+                return lv > rv
+            }
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        case (.none, .none):
+            break
+        }
+
+        // 3. Tier ascending: High(0) < Medium(1) < Low(2)
+        if lhs.tier != rhs.tier {
+            return lhs.tier < rhs.tier
+        }
+
+        // 4. Label tiebreaker
+        return lhs.quota.label.localizedCaseInsensitiveCompare(rhs.quota.label) == .orderedAscending
+    }
+
+    private static func familyRank(_ family: AntigravityModelFamily) -> Int {
+        switch family {
+        case .claude: return 0
+        case .geminiPro: return 1
+        case .geminiFlash: return 2
+        case .unknown: return 3
+        }
     }
 
     private static func normalizedModels(_ models: [AntigravityModelQuota]) -> [AntigravityNormalizedModel] {
@@ -130,6 +196,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         let isLite = modelId.contains("lite") || label.contains("lite")
         let isAutocomplete = modelId.contains("autocomplete") || label.contains("autocomplete") || modelId
             .hasPrefix("tab_")
+        let isImage = modelId.contains("image") || label.contains("image")
         let isLowPriorityGeminiPro = modelId.contains("pro-low")
             || (label.contains("pro") && label.contains("low"))
 
@@ -150,10 +217,45 @@ public struct AntigravityStatusSnapshot: Sendable {
             nil
         }
 
+        let version = Self.parseVersion(from: label)
+        let tier = Self.parseTier(from: label, modelId: modelId)
+
         return AntigravityNormalizedModel(
             quota: quota,
             family: family,
-            selectionPriority: selectionPriority)
+            selectionPriority: selectionPriority,
+            isImage: isImage,
+            isLite: isLite,
+            isAutocomplete: isAutocomplete,
+            version: version,
+            tier: tier)
+    }
+
+    private static func parseVersion(from label: String) -> AntigravityModelVersion? {
+        guard let regex = try? NSRegularExpression(pattern: #"(\d+)(?:\.(\d+))?"#) else { return nil }
+        let nsLabel = label as NSString
+        let range = NSRange(location: 0, length: nsLabel.length)
+        guard let match = regex.firstMatch(in: label, options: [], range: range) else { return nil }
+        let majorRange = Range(match.range(at: 1), in: label)
+        guard let majorRange, let major = Int(label[majorRange]) else { return nil }
+        let minor: Int
+        if match.range(at: 2).location != NSNotFound,
+           let minorRange = Range(match.range(at: 2), in: label),
+           let parsed = Int(label[minorRange])
+        {
+            minor = parsed
+        } else {
+            minor = 0
+        }
+        return AntigravityModelVersion(major: major, minor: minor)
+    }
+
+    private static func parseTier(from label: String, modelId: String) -> Int {
+        let combined = label + " " + modelId
+        if combined.contains("high") { return 0 }
+        if combined.contains("medium") { return 1 }
+        if combined.contains("low") { return 2 }
+        return 1
     }
 
     private static func representative(
@@ -382,7 +484,8 @@ public struct AntigravityStatusProbe: Sendable {
         return AntigravityStatusSnapshot(
             modelQuotas: models,
             accountEmail: email,
-            accountPlan: planName)
+            accountPlan: planName,
+            source: .local)
     }
 
     static func parsePlanInfoSummary(_ data: Data) throws -> AntigravityPlanInfoSummary? {
@@ -411,7 +514,7 @@ public struct AntigravityStatusProbe: Sendable {
         }
         let modelConfigs = response.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
-        return AntigravityStatusSnapshot(modelQuotas: models, accountEmail: nil, accountPlan: nil)
+        return AntigravityStatusSnapshot(modelQuotas: models, accountEmail: nil, accountPlan: nil, source: .local)
     }
 
     private static func quotaFromConfig(_ config: ModelConfig) -> AntigravityModelQuota? {
