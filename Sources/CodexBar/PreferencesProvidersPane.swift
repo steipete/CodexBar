@@ -16,10 +16,18 @@ struct ProvidersPane: View {
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var codexAccountsNotice: CodexAccountsSectionNotice?
     @State private var isAuthenticatingLiveCodexAccount = false
+    @State private var providerSearchText = ""
     @State private var selectedProvider: UsageProvider?
 
     private var providers: [UsageProvider] {
         self.settings.orderedProviders()
+    }
+
+    private var filteredProviders: [UsageProvider] {
+        Self.filteredProviders(
+            self.providers,
+            query: self.providerSearchText,
+            displayName: { provider in self.store.metadata(for: provider).displayName })
     }
 
     init(
@@ -45,16 +53,18 @@ struct ProvidersPane: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             ProviderSidebarListView(
-                providers: self.providers,
+                providers: self.filteredProviders,
+                orderedProviders: self.providers,
                 store: self.store,
                 isEnabled: { provider in self.binding(for: provider) },
                 subtitle: { provider in self.providerSubtitle(provider) },
+                searchText: self.$providerSearchText,
                 selection: self.$selectedProvider,
                 moveProviders: { fromOffsets, toOffset in
                     self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
                 })
 
-            if let provider = self.selectedProvider ?? self.providers.first {
+            if let provider = self.selectedVisibleProvider {
                 ProviderDetailView(
                     provider: provider,
                     store: self.store,
@@ -116,6 +126,9 @@ struct ProvidersPane: View {
         .onChange(of: self.providers) { _, _ in
             self.ensureSelection()
         }
+        .onChange(of: self.providerSearchText) { _, _ in
+            self.ensureSelection()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             self.runSettingsDidBecomeActiveHooks()
         }
@@ -142,15 +155,38 @@ struct ProvidersPane: View {
             })
     }
 
+    private var selectedVisibleProvider: UsageProvider? {
+        let filteredProviders = self.filteredProviders
+        if let selected = self.selectedProvider, filteredProviders.contains(selected) {
+            return selected
+        }
+        return filteredProviders.first
+    }
+
+    static func filteredProviders(
+        _ providers: [UsageProvider],
+        query: String,
+        displayName: (UsageProvider) -> String) -> [UsageProvider]
+    {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return providers }
+
+        return providers.filter { provider in
+            displayName(provider).localizedCaseInsensitiveContains(trimmedQuery)
+                || provider.rawValue.localizedCaseInsensitiveContains(trimmedQuery)
+        }
+    }
+
     private func ensureSelection() {
-        guard !self.providers.isEmpty else {
+        let filteredProviders = self.filteredProviders
+        guard !filteredProviders.isEmpty else {
             self.selectedProvider = nil
             return
         }
-        if let selected = self.selectedProvider, self.providers.contains(selected) {
+        if let selected = self.selectedProvider, filteredProviders.contains(selected) {
             return
         }
-        self.selectedProvider = self.providers.first
+        self.selectedProvider = filteredProviders.first
     }
 
     private func triggerRefresh(for provider: UsageProvider) {

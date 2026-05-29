@@ -1030,3 +1030,6 @@
 "Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\n或粘贴 __Secure-next-auth.session-token 值";
 "Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\n或粘贴 kimi-auth token 值";
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\n或只粘贴 session_id 值";
+"Clear" = "清除";
+"No matching providers" = "没有匹配的提供商";
+"Search providers" = "搜索提供商";

@@ -1057,3 +1057,6 @@
 "Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\nor paste the __Secure-next-auth.session-token value";
 "Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\nor paste the kimi-auth token value";
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nor paste just the session_id value";
+"Clear" = "Clear";
+"No matching providers" = "No matching providers";
+"Search providers" = "Search providers";

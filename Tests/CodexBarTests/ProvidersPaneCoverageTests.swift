@@ -28,6 +28,30 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `provider search filters display names and raw ids`() {
+        let providers: [UsageProvider] = [.codex, .claude, .openrouter, .deepseek]
+        let names: [UsageProvider: String] = [
+            .codex: "Codex",
+            .claude: "Claude",
+            .openrouter: "OpenRouter",
+            .deepseek: "DeepSeek",
+        ]
+
+        #expect(
+            ProvidersPane.filteredProviders(providers, query: "  ", displayName: { names[$0] ?? $0.rawValue })
+                == providers)
+        #expect(
+            ProvidersPane.filteredProviders(providers, query: "router", displayName: { names[$0] ?? $0.rawValue })
+                == [.openrouter])
+        #expect(
+            ProvidersPane.filteredProviders(providers, query: "CLA", displayName: { names[$0] ?? $0.rawValue })
+                == [.claude])
+        #expect(
+            ProvidersPane.filteredProviders(providers, query: "deepseek", displayName: { _ in "API" })
+                == [.deepseek])
+    }
+
+    @Test
     func `open router menu bar metric picker shows only automatic and primary`() {
         Self.withEnglishLocalization {
             let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-openrouter-picker")

@@ -913,3 +913,6 @@
 "Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\no enganxa el valor de __Secure-next-auth.session-token";
 "Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\no enganxa el valor del token kimi-auth";
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\no enganxa només el valor de session_id";
+"Clear" = "Esborra";
+"No matching providers" = "No hi ha proveïdors coincidents";
+"Search providers" = "Cerca proveïdors";

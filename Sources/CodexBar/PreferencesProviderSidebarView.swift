@@ -5,43 +5,58 @@ import UniformTypeIdentifiers
 @MainActor
 struct ProviderSidebarListView: View {
     let providers: [UsageProvider]
+    let orderedProviders: [UsageProvider]
     @Bindable var store: UsageStore
     let isEnabled: (UsageProvider) -> Binding<Bool>
     let subtitle: (UsageProvider) -> String
+    @Binding var searchText: String
     @Binding var selection: UsageProvider?
     let moveProviders: (IndexSet, Int) -> Void
     @State private var draggingProvider: UsageProvider?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(self.providers, id: \.self) { provider in
-                    ProviderSidebarRowView(
-                        provider: provider,
-                        store: self.store,
-                        isEnabled: self.isEnabled(provider),
-                        subtitle: self.subtitle(provider),
-                        draggingProvider: self.$draggingProvider)
-                        .padding(.horizontal, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(
-                                    self.selection == provider
-                                        ? Color(nsColor: .selectedContentBackgroundColor)
-                                        : Color.clear)
-                                .padding(.horizontal, 4))
-                        .contentShape(Rectangle())
-                        .onTapGesture { self.selection = provider }
-                        .onDrop(
-                            of: [UTType.plainText],
-                            delegate: ProviderSidebarDropDelegate(
-                                item: provider,
-                                providers: self.providers,
-                                dragging: self.$draggingProvider,
-                                moveProviders: self.moveProviders))
+        VStack(spacing: 8) {
+            ProviderSidebarSearchField(searchText: self.$searchText)
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    if self.providers.isEmpty {
+                        Text(L("No matching providers"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 80)
+                    }
+
+                    ForEach(self.providers, id: \.self) { provider in
+                        ProviderSidebarRowView(
+                            provider: provider,
+                            store: self.store,
+                            isEnabled: self.isEnabled(provider),
+                            subtitle: self.subtitle(provider),
+                            draggingProvider: self.$draggingProvider)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(
+                                        self.selection == provider
+                                            ? Color(nsColor: .selectedContentBackgroundColor)
+                                            : Color.clear)
+                                    .padding(.horizontal, 4))
+                            .contentShape(Rectangle())
+                            .onTapGesture { self.selection = provider }
+                            .onDrop(
+                                of: [UTType.plainText],
+                                delegate: ProviderSidebarDropDelegate(
+                                    item: provider,
+                                    providers: self.orderedProviders,
+                                    dragging: self.$draggingProvider,
+                                    moveProviders: self.moveProviders))
+                    }
                 }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
         }
         .background(
             RoundedRectangle(cornerRadius: ProviderSettingsMetrics.sidebarCornerRadius, style: .continuous)
@@ -51,6 +66,41 @@ struct ProviderSidebarListView: View {
                 .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: ProviderSettingsMetrics.sidebarCornerRadius, style: .continuous))
         .frame(minWidth: ProviderSettingsMetrics.sidebarWidth, maxWidth: ProviderSettingsMetrics.sidebarWidth)
+    }
+}
+
+private struct ProviderSidebarSearchField: View {
+    @Binding var searchText: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            TextField(L("Search providers"), text: self.$searchText)
+                .textFieldStyle(.plain)
+
+            if !self.searchText.isEmpty {
+                Button {
+                    self.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(L("Clear"))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
     }
 }
 

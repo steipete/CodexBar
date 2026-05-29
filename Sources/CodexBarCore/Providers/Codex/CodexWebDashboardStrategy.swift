@@ -217,10 +217,15 @@ extension CodexWebDashboardStrategy {
         switch decision.disposition {
         case .attach:
             let attachedAccountEmail = CodexCLIDashboardAuthorityContext.attachmentEmail(from: input)
-            guard let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: attachedAccountEmail) else {
+            let credits = dashboard.toCreditsSnapshot()
+            let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: attachedAccountEmail)
+                ?? Self.makeCreditsOnlyUsageSnapshot(
+                    dashboard: dashboard,
+                    attachedAccountEmail: attachedAccountEmail,
+                    credits: credits)
+            guard let usage else {
                 throw OpenAIWebCodexError.missingUsage
             }
-            let credits = dashboard.toCreditsSnapshot()
             if let attachedAccountEmail {
                 OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
                     accountEmail: attachedAccountEmail,
@@ -238,6 +243,24 @@ extension CodexWebDashboardStrategy {
             }
             throw OpenAIWebCodexError.policyRejected(decision)
         }
+    }
+
+    private static func makeCreditsOnlyUsageSnapshot(
+        dashboard: OpenAIDashboardSnapshot,
+        attachedAccountEmail: String?,
+        credits: CreditsSnapshot?) -> UsageSnapshot?
+    {
+        guard credits != nil else { return nil }
+        return UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: dashboard.updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: attachedAccountEmail ?? dashboard.signedInEmail,
+                accountOrganization: nil,
+                loginMethod: dashboard.accountPlan))
     }
 
     private struct OpenAIWebDashboardFetchResult {
