@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuHostedSubmenuRefreshTests {
     @Test
-    func `open parent menu defers data rebuild until hosted submenu closes`() throws {
+    func `open parent menu defers data rebuild until hosted submenu closes`() async throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         let previousMenuRefresh = StatusItemController.menuRefreshEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -67,6 +67,10 @@ struct StatusMenuHostedSubmenuRefreshTests {
 
         controller.menuDidClose(submenu)
         #expect(controller.openMenus[submenuKey] == nil)
+
+        for _ in 0..<40 where controller.menuVersions[parentKey] != controller.menuContentVersion {
+            await Task.yield()
+        }
 
         #expect(controller.menuVersions[parentKey] == controller.menuContentVersion)
     }

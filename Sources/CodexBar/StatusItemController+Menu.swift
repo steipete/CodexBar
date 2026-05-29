@@ -111,8 +111,7 @@ extension StatusItemController {
             self.store.requestOpenAIDashboardRefreshIfStale(reason: "parent menu open")
         }
 
-        let didRefresh = self.menuNeedsRefresh(menu)
-        if didRefresh {
+        if self.menuNeedsRefresh(menu) {
             self.populateMenu(menu, provider: provider)
             self.markMenuFresh(menu)
             // Heights are already set during populateMenu, no need to remeasure

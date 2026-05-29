@@ -214,7 +214,7 @@ final class UsageStore {
 
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
-    @ObservationIgnored private let costUsageFetcher: CostUsageFetcher
+    @ObservationIgnored let costUsageFetcher: CostUsageFetcher
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
@@ -666,36 +666,6 @@ final class UsageStore {
                 try? await Task.sleep(for: .seconds(wait))
                 await self?.scheduleTokenRefresh(force: false)
             }
-        }
-    }
-
-    func hydrateCachedTokenSnapshots(now: Date = Date()) {
-        guard self.settings.costUsageEnabled else { return }
-        guard self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata).contains(.codex) else {
-            return
-        }
-
-        let scope = self.tokenCostScope(for: .codex)
-        let historyDays = self.settings.costUsageHistoryDays
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            guard self.tokenSnapshots[.codex] == nil else { return }
-            guard let snapshot = await self.costUsageFetcher.loadCachedCodexTokenSnapshot(
-                now: now,
-                codexHomePath: scope.codexHomePath,
-                historyDays: historyDays)
-            else {
-                return
-            }
-            guard self.settings.costUsageEnabled,
-                  self.isEnabled(.codex),
-                  self.tokenCostScope(for: .codex).signature == scope.signature,
-                  self.tokenSnapshots[.codex] == nil
-            else {
-                return
-            }
-            self.tokenSnapshots[.codex] = snapshot
-            self.tokenErrors[.codex] = nil
         }
     }
 

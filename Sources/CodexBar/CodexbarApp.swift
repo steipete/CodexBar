@@ -361,6 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var terminateActiveProcessesForAppShutdown: () -> Void = {
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
     }
+
     private var isTerminatingDuplicateInstance = false
 
     func configure(_ dependencies: Dependencies) {

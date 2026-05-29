@@ -832,7 +832,7 @@ extension PlanUtilizationHistoryChartMenuView {
 
     private nonisolated static func detailDateFormatter() -> DateFormatter {
         let locale = codexBarLocalizedLocale()
-        self.cachedDateFormatter(
+        return self.cachedDateFormatter(
             key: "CodexBar.PlanUtilizationHistoryChartMenuView.detailDateFormatter.\(locale.identifier)",
             timeZone: .current,
             configure: { formatter in
