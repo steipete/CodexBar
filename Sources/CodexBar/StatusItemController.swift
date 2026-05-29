@@ -31,9 +31,18 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private nonisolated static let statusItemAccessibilityTitle = "CodexBar"
     private nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
 
-    private enum StatusItemIdentity {
+    enum StatusItemIdentity {
         case merged
         case provider(UsageProvider)
+
+        var autosaveName: String {
+            switch self {
+            case .merged:
+                return "codexbar-merged"
+            case let .provider(provider):
+                return "codexbar-\(provider.rawValue)"
+            }
+        }
 
         var accessibilityIdentifier: String {
             switch self {
@@ -197,8 +206,15 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         set { self.settings.selectedMenuProvider = newValue }
     }
 
-    private static func makeStatusItem(statusBar: NSStatusBar, identity: StatusItemIdentity) -> NSStatusItem {
+    private static func makeStatusItem(
+        statusBar: NSStatusBar,
+        identity: StatusItemIdentity,
+        defaults: UserDefaults)
+        -> NSStatusItem
+    {
+        MenuBarStatusItemPlacementPreflight.prepare(defaults: defaults, autosaveName: identity.autosaveName)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = identity.autosaveName
         if let button = item.button {
             // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
             button.imageScaling = .scaleNone
@@ -318,7 +334,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let repairedStatusItemVisibilityKeys = MenuBarStatusItemDefaultsRepair
             .repairHiddenVisibilityDefaultsIfNeeded(defaults: settings.userDefaults)
         self.statusBar = statusBar
-        self.statusItem = Self.makeStatusItem(statusBar: statusBar, identity: .merged)
+        self.statusItem = Self.makeStatusItem(
+            statusBar: statusBar,
+            identity: .merged,
+            defaults: settings.userDefaults)
         self.lastKnownScreenCount = NSScreen.screens.count
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
@@ -683,7 +702,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if let existing = self.statusItems[provider] {
             return existing
         }
-        let item = Self.makeStatusItem(statusBar: self.statusBar, identity: .provider(provider))
+        let item = Self.makeStatusItem(
+            statusBar: self.statusBar,
+            identity: .provider(provider),
+            defaults: self.settings.userDefaults)
         self.statusItems[provider] = item
         return item
     }
@@ -694,7 +716,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         #endif
         self.statusItem.menu = nil
         self.statusBar.removeStatusItem(self.statusItem)
-        self.statusItem = Self.makeStatusItem(statusBar: self.statusBar, identity: .merged)
+        self.statusItem = Self.makeStatusItem(
+            statusBar: self.statusBar,
+            identity: .merged,
+            defaults: self.settings.userDefaults)
         for provider in Array(self.statusItems.keys) {
             self.removeProviderStatusItem(for: provider)
         }

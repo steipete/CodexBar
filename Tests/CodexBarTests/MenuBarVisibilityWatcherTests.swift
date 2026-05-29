@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import Testing
 @testable import CodexBar
 
@@ -61,6 +62,52 @@ struct MenuBarVisibilityWatcherTests {
             buttonWidth: 18)
 
         #expect(!MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: snapshot))
+    }
+
+    @Test
+    func `window probe matches autosave name and reports display bounds`() {
+        let snapshots = MenuBarStatusItemWindowProbe.snapshots(
+            matching: ["codexbar-merged"],
+            windowInfo: [[
+                kCGWindowName as String: "codexbar-merged",
+                kCGWindowOwnerName as String: "Control Center",
+                kCGWindowIsOnscreen as String: true,
+                kCGWindowBounds as String: [
+                    "X": 1680,
+                    "Y": 0,
+                    "Width": 70,
+                    "Height": 24,
+                ],
+            ]],
+            displayBounds: [CGRect(x: 0, y: 0, width: 2056, height: 1329)])
+
+        #expect(snapshots.count == 1)
+        #expect(snapshots.first?.name == "codexbar-merged")
+        #expect(snapshots.first?.ownerName == "Control Center")
+        #expect(snapshots.first?.isOnscreen == true)
+        #expect(snapshots.first?.isWithinDisplayBounds == true)
+    }
+
+    @Test
+    func `window probe detects offscreen status item by bounds`() {
+        let snapshots = MenuBarStatusItemWindowProbe.snapshots(
+            matching: ["codexbar-merged"],
+            windowInfo: [[
+                kCGWindowName as String: "codexbar-merged",
+                kCGWindowOwnerName as String: "Control Center",
+                kCGWindowIsOnscreen as String: true,
+                kCGWindowBounds as String: [
+                    "X": 2023,
+                    "Y": 0,
+                    "Width": 71,
+                    "Height": 24,
+                ],
+            ]],
+            displayBounds: [CGRect(x: 0, y: 0, width: 2056, height: 1329)])
+
+        #expect(snapshots.count == 1)
+        #expect(snapshots.first?.isOnscreen == true)
+        #expect(snapshots.first?.isWithinDisplayBounds == false)
     }
 
     @Test

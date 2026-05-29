@@ -203,7 +203,10 @@ extension StatusItemController {
 
         self.menuLogger.error(
             "Status item failed to materialize; recreating status items",
-            metadata: ["snapshots": snapshots.map(\.description).joined(separator: " | ")])
+            metadata: [
+                "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                "windows": self.statusItemWindowDiagnosticsDescription(),
+            ])
         self.recreateStatusItemsForVisibilityRecovery()
 
         let recoveredSnapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
@@ -220,7 +223,10 @@ extension StatusItemController {
 
         self.menuLogger.error(
             "Status item still failed to materialize after recreation",
-            metadata: ["snapshots": recoveredSnapshots.map(\.description).joined(separator: " | ")])
+            metadata: [
+                "snapshots": recoveredSnapshots.map(\.description).joined(separator: " | "),
+                "windows": self.statusItemWindowDiagnosticsDescription(),
+            ])
         guard #available(macOS 26.0, *),
               MenuBarVisibilityWatcher.shouldShowGuidance(defaults: self.settings.userDefaults, now: now)
         else {
@@ -272,6 +278,7 @@ extension StatusItemController {
                     "currentScreenCount": "\(settledCurrentScreenCount)",
                     "capturedScreenCount": "\(currentScreenCount)",
                     "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                    "windows": self.statusItemWindowDiagnosticsDescription(),
                 ])
             self.recreateStatusItemsForVisibilityRecovery()
             self.schedulePostScreenChangeRecoveryVerification(attempt: 1)
@@ -322,6 +329,7 @@ extension StatusItemController {
             metadata: [
                 "attempt": "\(attempt)",
                 "snapshots": snapshots.map(\.description).joined(separator: " | "),
+                "windows": self.statusItemWindowDiagnosticsDescription(),
             ])
         self.recreateStatusItemsForVisibilityRecovery()
         // No further async retries: a menu bar manager may park the newly recreated item in a state
@@ -331,7 +339,10 @@ extension StatusItemController {
         guard MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(finalSnapshots) else { return }
         self.menuLogger.error(
             "Status item still blocked after display-change recovery recreation",
-            metadata: ["snapshots": finalSnapshots.map(\.description).joined(separator: " | ")])
+            metadata: [
+                "snapshots": finalSnapshots.map(\.description).joined(separator: " | "),
+                "windows": self.statusItemWindowDiagnosticsDescription(),
+            ])
         guard #available(macOS 26.0, *),
               MenuBarVisibilityWatcher.shouldShowGuidance(defaults: self.settings.userDefaults)
         else { return }
@@ -340,5 +351,14 @@ extension StatusItemController {
 
     private var startupVisibilityStatusItems: [NSStatusItem] {
         [self.statusItem] + Array(self.statusItems.values)
+    }
+
+    private func statusItemWindowDiagnosticsDescription() -> String {
+        let names = Set(self.startupVisibilityStatusItems.compactMap { item in
+            item.autosaveName.isEmpty ? nil : item.autosaveName
+        })
+        let snapshots = MenuBarStatusItemWindowProbe.snapshots(matching: names)
+        guard !snapshots.isEmpty else { return "none" }
+        return snapshots.map(\.description).joined(separator: " | ")
     }
 }

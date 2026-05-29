@@ -98,22 +98,70 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
-    func `status items publish stable non persistent manager identity`() throws {
+    func `status items publish stable manager identity`() throws {
         let (_, controller) = try self.makeSplitController()
         defer { controller.releaseStatusItemsForTesting() }
 
         let codexButton = try #require(controller.statusItems[.codex]?.button)
         let claudeButton = try #require(controller.statusItems[.claude]?.button)
 
-        #expect(!controller.statusItem.autosaveName.hasPrefix("CodexBar."))
-        #expect(controller.statusItems[.codex]?.autosaveName.hasPrefix("CodexBar.") == false)
-        #expect(controller.statusItems[.claude]?.autosaveName.hasPrefix("CodexBar.") == false)
+        #expect(controller.statusItem.autosaveName == "codexbar-merged")
+        #expect(controller.statusItems[.codex]?.autosaveName == "codexbar-codex")
+        #expect(controller.statusItems[.claude]?.autosaveName == "codexbar-claude")
         #expect(controller.statusItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem")
         #expect(codexButton.accessibilityIdentifier() == "CodexBar.StatusItem.codex")
         #expect(claudeButton.accessibilityIdentifier() == "CodexBar.StatusItem.claude")
         #expect(controller.statusItem.button?.accessibilityTitle() == "CodexBar")
         #expect(codexButton.accessibilityTitle() == "CodexBar")
         #expect(claudeButton.accessibilityTitle() == "CodexBar")
+    }
+
+    @Test
+    func `status item identity returns stable autosave names`() {
+        #expect(StatusItemController.StatusItemIdentity.merged.autosaveName == "codexbar-merged")
+        #expect(StatusItemController.StatusItemIdentity.provider(.codex).autosaveName == "codexbar-codex")
+        #expect(StatusItemController.StatusItemIdentity.provider(.claude).autosaveName == "codexbar-claude")
+    }
+
+    @Test
+    func `status item placement preflight writes low position when missing`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-placement-missing-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(MenuBarStatusItemPlacementPreflight.prepare(defaults: defaults, autosaveName: "codexbar-merged"))
+
+        let key = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "codexbar-merged")
+        #expect(defaults.double(forKey: key) == 0)
+    }
+
+    @Test
+    func `status item placement preflight replaces suspicious high position`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-placement-high-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "codexbar-merged")
+        defaults.set(11298, forKey: key)
+
+        #expect(MenuBarStatusItemPlacementPreflight.prepare(defaults: defaults, autosaveName: "codexbar-merged"))
+
+        #expect(defaults.double(forKey: key) == 0)
+    }
+
+    @Test
+    func `status item placement preflight preserves reasonable position`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-placement-preserve-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "codexbar-merged")
+        defaults.set(42, forKey: key)
+
+        #expect(!MenuBarStatusItemPlacementPreflight.prepare(defaults: defaults, autosaveName: "codexbar-merged"))
+
+        #expect(defaults.double(forKey: key) == 42)
     }
 
     @Test
@@ -164,7 +212,7 @@ struct StatusItemControllerSplitLifecycleTests {
         #expect(newCodexItem === oldCodexItem)
         #expect(newClaudeItem === oldClaudeItem)
         #expect(newCodexItem.button === oldCodexButton)
-        #expect(!newCodexItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(newCodexItem.autosaveName == "codexbar-codex")
         #expect(newCodexItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem.codex")
     }
 
@@ -182,7 +230,7 @@ struct StatusItemControllerSplitLifecycleTests {
 
         #expect(controller.statusItem === oldMergedItem)
         #expect(controller.statusItem.button === oldMergedButton)
-        #expect(!controller.statusItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(controller.statusItem.autosaveName == "codexbar-merged")
         #expect(controller.statusItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem")
     }
 
@@ -214,7 +262,7 @@ struct StatusItemControllerSplitLifecycleTests {
 
         let newCodexItem = try #require(controller.statusItems[.codex])
         #expect(newCodexItem !== oldCodexItem)
-        #expect(!newCodexItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(newCodexItem.autosaveName == "codexbar-codex")
         #expect(newCodexItem.button?.accessibilityIdentifier() == "CodexBar.StatusItem.codex")
     }
 
@@ -232,7 +280,7 @@ struct StatusItemControllerSplitLifecycleTests {
 
         let mergedButton = try #require(controller.statusItem.button)
         #expect(mergedButton.image != nil)
-        #expect(!controller.statusItem.autosaveName.hasPrefix("CodexBar."))
+        #expect(controller.statusItem.autosaveName == "codexbar-merged")
         #expect(mergedButton.accessibilityIdentifier() == "CodexBar.StatusItem")
     }
 }
