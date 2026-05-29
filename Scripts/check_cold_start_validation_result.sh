@@ -8,6 +8,7 @@ RUN_DIR_PROVIDED=false
 LAUNCHD_SUMMARY_PATH=""
 LAUNCHD_VALIDATED_ARTIFACT_DIR=""
 LAUNCHD_CHECKER_EXIT_CODE=""
+PYTHON_BIN="${CODEXBAR_PYTHON_BIN:-python3}"
 
 usage() {
   cat <<EOF
@@ -22,6 +23,8 @@ Environment:
   CODEXBAR_EXPECTED_APP_SHA256  Optional app executable SHA-256 that app-bundle-metadata.txt must match.
   CODEXBAR_EXPECTED_VALIDATOR_SHA256  Optional validator script SHA-256 that app-bundle-metadata.txt must match.
   CODEXBAR_EXPECTED_CHECKER_SHA256  Optional checker script SHA-256 that app-bundle-metadata.txt must match.
+  CODEXBAR_MAX_PARENT_CAPTURE_MS_AFTER_LAUNCH  Optional first-open parent capture limit. Default: 5000.
+  CODEXBAR_MAX_COST_CAPTURE_MS_AFTER_LAUNCH  Optional first-open Cost submenu capture limit. Default: 10000.
 EOF
 }
 
@@ -89,6 +92,12 @@ assert_contains() {
   grep -F "${text}" "${path}" >/dev/null || fail "${path} is missing: ${text}"
 }
 
+assert_not_contains() {
+  local path="$1"
+  local text="$2"
+  ! grep -F "${text}" "${path}" >/dev/null || fail "${path} unexpectedly contains: ${text}"
+}
+
 assert_metadata_number_at_least() {
   local file="$1"
   local key="$2"
@@ -98,6 +107,17 @@ assert_metadata_number_at_least() {
   value="$(metadata_value "${key}" "${file}")"
   [[ "${value}" =~ ^[0-9]+$ ]] || fail "${file} is missing numeric ${key}"
   [[ "${value}" -ge "${minimum}" ]] || fail "${file} ${key}=${value}, expected at least ${minimum}"
+}
+
+assert_metadata_number_at_most() {
+  local file="$1"
+  local key="$2"
+  local maximum="$3"
+  local value
+
+  value="$(metadata_value "${key}" "${file}")"
+  [[ "${value}" =~ ^[0-9]+$ ]] || fail "${file} is missing numeric ${key}"
+  [[ "${value}" -le "${maximum}" ]] || fail "${file} ${key}=${value}, expected at most ${maximum}"
 }
 
 assert_metadata_present() {
@@ -142,6 +162,8 @@ immediate_parent_ax="${RUN_DIR}/immediate-parent-menu-ax.txt"
 settled_parent_ax="${RUN_DIR}/settled-parent-menu-ax.txt"
 cost_submenu_ax="${RUN_DIR}/settled-cost-submenu-ax.txt"
 visual_readiness="${RUN_DIR}/visual-readiness.txt"
+timing_metadata="${RUN_DIR}/timing-metadata.txt"
+proof_manifest="${RUN_DIR}/cold-start-proof-manifest.json"
 
 require_file "${boot_metadata}"
 require_file "${app_bundle_metadata}"
@@ -152,6 +174,8 @@ require_file "${immediate_parent_ax}"
 require_file "${settled_parent_ax}"
 require_file "${cost_submenu_ax}"
 require_file "${visual_readiness}"
+require_file "${timing_metadata}"
+require_file "${proof_manifest}"
 
 [[ "$(metadata_value post_boot_first_launch_candidate "${boot_metadata}")" == "true" ]] ||
   fail "Artifact is not valid first-after-boot proof: post_boot_first_launch_candidate is not true"
@@ -211,6 +235,13 @@ if [[ "$(metadata_value codexbar_login_item_present "${login_context}")" == "tru
     fail "CodexBar Login Item app binary does not match artifact app_binary_sha256"
 fi
 
+assert_metadata_equals "${login_context}" codexbar_login_item_present false
+assert_metadata_equals "${run_metadata}" manual_refresh_used false
+assert_metadata_equals "${run_metadata}" tab_switch_used false
+assert_metadata_equals "${run_metadata}" menu_reopen_required_for_parent false
+assert_metadata_equals "${run_metadata}" menu_reopen_required_for_cost false
+assert_metadata_equals "${run_metadata}" manual_recovery_used false
+
 [[ "$(tr -d '[:space:]' <"${immediate_status}")" == "complete" ]] ||
   fail "Immediate first-open parent menu was not complete"
 
@@ -226,6 +257,9 @@ assert_contains "${settled_parent_ax}" "Usage Dashboard"
 assert_contains "${settled_parent_ax}" "Status Page"
 assert_contains "${settled_parent_ax}" "Refresh"
 assert_contains "${cost_submenu_ax}" "Cost | submenu=true"
+assert_not_contains "${immediate_parent_ax}" "No data available"
+assert_not_contains "${settled_parent_ax}" "No data available"
+assert_not_contains "${cost_submenu_ax}" "No data available"
 assert_metadata_present "${visual_readiness}" python_executable
 assert_metadata_present "${visual_readiness}" python_version
 if [[ -z "$(metadata_value pillow_version "${visual_readiness}")" ]]; then
@@ -239,6 +273,61 @@ assert_metadata_number_at_least "${visual_readiness}" cost_submenu_width 1
 assert_metadata_number_at_least "${visual_readiness}" cost_submenu_height 1
 assert_metadata_equals "${visual_readiness}" settled_parent_bounds_found true
 assert_metadata_number_at_least "${visual_readiness}" cost_submenu_item_count 1
+assert_metadata_number_at_most \
+  "${timing_metadata}" \
+  immediate_parent_capture_ms_after_launch \
+  "${CODEXBAR_MAX_PARENT_CAPTURE_MS_AFTER_LAUNCH:-5000}"
+assert_metadata_number_at_most \
+  "${timing_metadata}" \
+  cost_submenu_capture_ms_after_launch \
+  "${CODEXBAR_MAX_COST_CAPTURE_MS_AFTER_LAUNCH:-10000}"
+
+"${PYTHON_BIN}" - "${proof_manifest}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest_path = Path(sys.argv[1])
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def fail(message: str) -> None:
+    raise SystemExit(f"ERROR: {manifest_path} {message}")
+
+
+if manifest.get("schema") != 1:
+    fail("schema must be 1")
+if manifest.get("first_launch_uncontested") is not True:
+    fail("first_launch_uncontested must be true")
+
+parent = manifest.get("first_open_parent", {})
+if parent.get("status") != "complete":
+    fail("first_open_parent.status must be complete")
+if parent.get("required_rows_present") is not True:
+    fail("first_open_parent.required_rows_present must be true")
+if parent.get("unexpected_placeholders"):
+    fail("first_open_parent.unexpected_placeholders must be empty")
+if parent.get("menu_bounds_found") is not True:
+    fail("first_open_parent.menu_bounds_found must be true")
+
+cost = manifest.get("first_open_cost_submenu", {})
+if cost.get("opened") is not True:
+    fail("first_open_cost_submenu.opened must be true")
+if cost.get("item_count", 0) < 1:
+    fail("first_open_cost_submenu.item_count must be at least 1")
+if cost.get("placeholder_only") is not False:
+    fail("first_open_cost_submenu.placeholder_only must be false")
+if cost.get("represented_object") != "costHistoryChart":
+    fail("first_open_cost_submenu.represented_object must be costHistoryChart")
+if cost.get("hosted_content_present") is not True:
+    fail("first_open_cost_submenu.hosted_content_present must be true")
+
+late = manifest.get("late_data_refresh", {})
+if late.get("parent_refresh_without_manual_action") is not True:
+    fail("late_data_refresh.parent_refresh_without_manual_action must be true")
+if late.get("hosted_submenu_rebuilt_without_manual_action") is not True:
+    fail("late_data_refresh.hosted_submenu_rebuilt_without_manual_action must be true")
+PY
 
 cat <<EOF
 OK: cold-start validation proves first-after-boot menu readiness.
@@ -261,6 +350,9 @@ immediate_parent_gold_pixels=$(metadata_value immediate_parent_gold_pixels "${vi
 settled_parent_gold_pixels=$(metadata_value settled_parent_gold_pixels "${visual_readiness}")
 cost_submenu_aqua_pixels=$(metadata_value cost_submenu_aqua_pixels "${visual_readiness}")
 cost_submenu_item_count=$(metadata_value cost_submenu_item_count "${visual_readiness}")
+immediate_parent_capture_ms_after_launch=$(metadata_value immediate_parent_capture_ms_after_launch "${timing_metadata}")
+cost_submenu_capture_ms_after_launch=$(metadata_value cost_submenu_capture_ms_after_launch "${timing_metadata}")
+cold_start_proof_manifest=${proof_manifest}
 boot_time_utc=$(metadata_value boot_time_utc "${boot_metadata}")
 metadata_written_at_utc=$(metadata_value metadata_written_at_utc "${boot_metadata}")
 uptime_seconds=$(metadata_value uptime_seconds "${boot_metadata}")

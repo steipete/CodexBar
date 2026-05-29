@@ -64,6 +64,9 @@ struct StatusMenuHostedSubmenuRefreshTests {
         controller.menuContentVersion &+= 1
         controller.refreshOpenMenusIfNeeded()
         #expect(controller.menuVersions[parentKey] == oldParentVersion)
+        controller.menuContentVersion &+= 1
+        controller.refreshOpenMenusIfNeeded()
+        #expect(controller.menuVersions[parentKey] == oldParentVersion)
 
         controller.menuDidClose(submenu)
         #expect(controller.openMenus[submenuKey] == nil)
@@ -137,6 +140,33 @@ struct StatusMenuHostedSubmenuRefreshTests {
 
     @Test
     func `open hydrated provider submenu preserves identity across refresh`() throws {
+        try self.assertHostedSubmenuPreservesIdentity(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .claude,
+            seed: Self.seedClaudeSnapshots)
+        try self.assertHostedSubmenuPreservesIdentity(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .openai,
+            seed: Self.seedOpenAICostSnapshot)
+        try self.assertHostedSubmenuPreservesIdentity(
+            chartID: StatusItemController.usageHistoryChartID,
+            provider: .claude,
+            seed: Self.seedPlanUtilizationHistory)
+        try self.assertHostedSubmenuPreservesIdentity(
+            chartID: StatusItemController.storageBreakdownID,
+            provider: .claude,
+            seed: Self.seedStorageFootprint)
+        try self.assertHostedSubmenuPreservesIdentity(
+            chartID: StatusItemController.zaiHourlyUsageChartID,
+            provider: .zai,
+            seed: Self.seedZaiHourlyUsage)
+    }
+
+    private func assertHostedSubmenuPreservesIdentity(
+        chartID: String,
+        provider: UsageProvider,
+        seed: (UsageStore) -> Void) throws
+    {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         let previousMenuRefresh = StatusItemController.menuRefreshEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -150,13 +180,14 @@ struct StatusMenuHostedSubmenuRefreshTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
-        settings.selectedMenuProvider = .claude
+        settings.selectedMenuProvider = provider
         settings.costUsageEnabled = true
-        Self.enableOnlyClaude(settings)
+        settings.providerStorageFootprintsEnabled = true
+        Self.enableOnly(settings, provider: provider)
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        Self.seedClaudeSnapshots(in: store)
+        seed(store)
 
         let controller = StatusItemController(
             store: store,
@@ -168,22 +199,22 @@ struct StatusMenuHostedSubmenuRefreshTests {
         defer { controller.releaseStatusItemsForTesting() }
 
         let submenu = controller.makeHostedSubviewPlaceholderMenu(
-            chartID: StatusItemController.costHistoryChartID,
-            provider: .claude,
+            chartID: chartID,
+            provider: provider,
             width: StatusItemController.menuCardBaseWidth)
         controller.menuWillOpen(submenu)
 
         let hydratedItem = try #require(submenu.items.first)
-        #expect(hydratedItem.representedObject as? String == StatusItemController.costHistoryChartID)
-        #expect(hydratedItem.toolTip == UsageProvider.claude.rawValue)
+        #expect(hydratedItem.representedObject as? String == chartID)
+        #expect(hydratedItem.toolTip == provider.rawValue)
         #expect(hydratedItem.view != nil)
         #expect(hydratedItem.title != "No data available")
 
         controller.refreshHostedSubviewMenu(submenu)
 
         let refreshedItem = try #require(submenu.items.first)
-        #expect(refreshedItem.representedObject as? String == StatusItemController.costHistoryChartID)
-        #expect(refreshedItem.toolTip == UsageProvider.claude.rawValue)
+        #expect(refreshedItem.representedObject as? String == chartID)
+        #expect(refreshedItem.toolTip == provider.rawValue)
         #expect(refreshedItem.view != nil)
         #expect(refreshedItem.title != "No data available")
     }
@@ -200,12 +231,14 @@ struct StatusMenuHostedSubmenuRefreshTests {
     }
 
     private static func enableOnlyClaude(_ settings: SettingsStore) {
+        self.enableOnly(settings, provider: .claude)
+    }
+
+    private static func enableOnly(_ settings: SettingsStore, provider enabledProvider: UsageProvider) {
         let registry = ProviderRegistry.shared
-        if let codexMeta = registry.metadata[.codex] {
-            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: false)
-        }
-        if let claudeMeta = registry.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == enabledProvider)
         }
     }
 
@@ -222,6 +255,91 @@ struct StatusMenuHostedSubmenuRefreshTests {
                 loginMethod: "Team"))
         store._setSnapshotForTesting(snapshot, provider: .claude)
         store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(), provider: .claude)
+    }
+
+    private static func seedOpenAICostSnapshot(in store: UsageStore) {
+        let day = Date(timeIntervalSince1970: 1_700_000_000)
+        let apiUsage = OpenAIAPIUsageSnapshot(
+            daily: [
+                OpenAIAPIUsageSnapshot.DailyBucket(
+                    day: "2025-12-23",
+                    startTime: day,
+                    endTime: day.addingTimeInterval(86400),
+                    costUSD: 1.23,
+                    requests: 12,
+                    inputTokens: 100,
+                    cachedInputTokens: 20,
+                    outputTokens: 40,
+                    totalTokens: 160,
+                    lineItems: [],
+                    models: []),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 1_700_086_400))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            openAIAPIUsage: apiUsage,
+            updatedAt: Date(timeIntervalSince1970: 1_700_086_400),
+            identity: ProviderIdentitySnapshot(
+                providerID: .openai,
+                accountEmail: "openai@example.com",
+                accountOrganization: nil,
+                loginMethod: "API"))
+        store._setSnapshotForTesting(snapshot, provider: .openai)
+    }
+
+    private static func seedPlanUtilizationHistory(in store: UsageStore) {
+        self.seedClaudeSnapshots(in: store)
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(
+            unscoped: [
+                PlanUtilizationSeriesHistory(
+                    name: .session,
+                    windowMinutes: 300,
+                    entries: [
+                        PlanUtilizationHistoryEntry(
+                            capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                            usedPercent: 24,
+                            resetsAt: Date(timeIntervalSince1970: 1_700_018_000)),
+                    ]),
+            ])
+    }
+
+    private static func seedStorageFootprint(in store: UsageStore) {
+        let root = "/Users/test/.claude"
+        store.providerStorageFootprints[.claude] = ProviderStorageFootprint(
+            provider: .claude,
+            totalBytes: 1024,
+            paths: [root],
+            missingPaths: [],
+            unreadablePaths: [],
+            components: [.init(path: "\(root)/projects", totalBytes: 1024)],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    private static func seedZaiHourlyUsage(in store: UsageStore) {
+        let modelUsage = ZaiModelUsageData(
+            xTime: ["2026-05-26 00:00"],
+            modelDataList: [
+                ZaiModelDataItem(modelName: "glm-4.5", tokensUsage: [512]),
+            ])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            zaiUsage: ZaiUsageSnapshot(
+                tokenLimit: nil,
+                timeLimit: nil,
+                planName: "Pro",
+                modelUsage: modelUsage,
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: "zai@example.com",
+                accountOrganization: nil,
+                loginMethod: "OAuth"))
+        store._setSnapshotForTesting(snapshot, provider: .zai)
     }
 
     private static func makeTokenSnapshot() -> CostUsageTokenSnapshot {
