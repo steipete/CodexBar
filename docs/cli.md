@@ -47,6 +47,7 @@ See `docs/configuration.md` for the schema.
 - `codexbar serve` starts a foreground localhost-only HTTP server for usage and cost JSON.
   - `--port <port>` defaults to `8080`.
   - `--refresh-interval <seconds>` defaults to `60` and controls the in-memory response cache TTL.
+  - `--request-timeout <seconds>` defaults to `30` and bounds each request before returning `504 Gateway Timeout`; use `0` to keep waiting indefinitely.
   - v1 binds to `127.0.0.1` only and rejects non-loopback `Host` headers. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
   - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`.
   - Codex usage responses include every visible Codex account, matching the menu bar switcher.
@@ -120,6 +121,7 @@ codexbar cost                     # local cost usage (default 30-day window + to
 codexbar cost --days 90           # choose a 1...365 day cost window
 codexbar cost --provider claude --format json --pretty
 codexbar serve --port 8080        # localhost HTTP JSON server
+codexbar serve --request-timeout 0 # disable serve request deadlines
 COPILOT_API_TOKEN=... codexbar --provider copilot --format json --pretty
 codexbar --status                 # include status page indicator/description
 codexbar --provider codex --source oauth --format json --pretty

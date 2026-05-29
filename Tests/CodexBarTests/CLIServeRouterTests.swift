@@ -227,6 +227,40 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `serve cache resumes coalesced waiters on timeout`() async {
+        let cache = CLIServeResponseCache()
+        let counter = ServeTestCounter()
+
+        let responses = await withTaskGroup(of: CLILocalHTTPResponse.self) { group -> [CLILocalHTTPResponse] in
+            for _ in 0..<4 {
+                group.addTask {
+                    await CodexBarCLI.cachedServeResponse(
+                        key: "usage:",
+                        cache: cache,
+                        refreshInterval: 60,
+                        requestTimeout: 0.01)
+                    {
+                        _ = await counter.increment()
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        return Self.response("[{\"provider\":\"codex\"}]")
+                    }
+                }
+            }
+
+            var responses: [CLILocalHTTPResponse] = []
+            for await response in group {
+                responses.append(response)
+            }
+            return responses
+        }
+
+        #expect(await counter.current() == 1)
+        #expect(responses.count == 4)
+        #expect(responses.allSatisfy { $0.status == .gatewayTimeout })
+        #expect(responses.allSatisfy { Self.bodyString($0).contains("request timed out") })
+    }
+
+    @Test
     func `serve request timeout zero disables the deadline`() async {
         let cache = CLIServeResponseCache()
 
