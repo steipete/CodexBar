@@ -362,9 +362,16 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
         // On macOS 26+, usage colors are baked into non-template images. Re-render when the system
         // appearance changes so dynamic colors (systemGreen/Orange/Red) resolve to their new values.
+        // The render-skip signatures don't encode appearance, so clear them first — otherwise an
+        // unchanged usage/status value would short-circuit the re-render and leave the stale bitmap.
         if #available(macOS 26, *) {
             self.appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
-                Task { @MainActor in self?.updateIcons() }
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.lastAppliedMergedIconRenderSignature = nil
+                    self.lastAppliedProviderIconRenderSignatures.removeAll()
+                    self.updateIcons()
+                }
             }
         }
     }
