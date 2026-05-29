@@ -1283,13 +1283,17 @@ final class CodexAccountSwitcherView: NSView {
         var emailWidth = max(minimumEmailWidth, contentWidth * 0.58)
         var workspaceWidth = max(minimumWorkspaceWidth, contentWidth - emailWidth)
 
-        func makeTitle() -> String {
-            let email = self.truncateMiddle(account.email, toFit: emailWidth)
-            let workspace = self.truncateTail(workspace, toFit: workspaceWidth)
-            return "\(email)\(separator)\(workspace)"
+        /// Note: takes the widths as parameters rather than capturing the mutable
+        /// `emailWidth` / `workspaceWidth` vars below. Capturing those `var`s in a
+        /// nested function crashes swift-frontend (IRGen, SIGABRT) under the
+        /// Swift 6.2.3 + macOS 26.4 SDK toolchain.
+        func makeTitle(emailWidth: CGFloat, workspaceWidth: CGFloat) -> String {
+            let emailText = self.truncateMiddle(account.email, toFit: emailWidth)
+            let workspaceText = self.truncateTail(workspace, toFit: workspaceWidth)
+            return "\(emailText)\(separator)\(workspaceText)"
         }
 
-        var title = makeTitle()
+        var title = makeTitle(emailWidth: emailWidth, workspaceWidth: workspaceWidth)
         var attempts = 0
         while self.textWidth(title) > availableTextWidth, attempts < 16 {
             let emailText = self.truncateMiddle(account.email, toFit: emailWidth)
@@ -1305,7 +1309,7 @@ final class CodexAccountSwitcherView: NSView {
                 break
             }
 
-            title = makeTitle()
+            title = makeTitle(emailWidth: emailWidth, workspaceWidth: workspaceWidth)
             attempts += 1
         }
 
