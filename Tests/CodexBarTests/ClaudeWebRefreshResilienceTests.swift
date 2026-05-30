@@ -5,7 +5,7 @@ import Testing
 
 struct ClaudeWebRefreshResilienceTests {
     @Test
-    func `web unauthorized keeps prior Claude snapshot without surfacing refresh failure`() async throws {
+    func `web unauthorized respects failure gate while keeping prior Claude snapshot`() async throws {
         try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
             let tempDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -34,11 +34,11 @@ struct ClaudeWebRefreshResilienceTests {
                 let secondResult = await MainActor.run {
                     (
                         updatedAt: store.snapshot(for: .claude)?.updatedAt,
-                        hasError: store.error(for: .claude) != nil)
+                        error: store.error(for: .claude))
                 }
 
                 #expect(secondResult.updatedAt == prior.updatedAt)
-                #expect(!secondResult.hasError)
+                #expect(secondResult.error == ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription)
             }
         }
     }

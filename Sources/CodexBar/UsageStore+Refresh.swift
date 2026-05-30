@@ -300,9 +300,12 @@ extension UsageStore {
             let shouldSurface =
                 self.failureGates[provider]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
-            if provider == .claude,
-               hadPriorData,
-               Self.isClaudeWebSessionRefreshFailure(error)
+            let preservesClaudeWebSessionFailure =
+                provider == .claude &&
+                hadPriorData &&
+                Self.isClaudeWebSessionRefreshFailure(error)
+            if preservesClaudeWebSessionFailure,
+               !shouldSurface
             {
                 self.errors[provider] = nil
                 return
@@ -320,7 +323,7 @@ extension UsageStore {
             }
             if shouldSurface {
                 self.errors[provider] = error.localizedDescription
-                if !preservesPriorData {
+                if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider)
                 }
             } else {
