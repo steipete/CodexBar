@@ -87,6 +87,51 @@ struct DisplayPane: View {
                         self.settings.menuBarDisplayMode != .both)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent &&
                         self.settings.menuBarDisplayMode == .both ? 1 : 0.5)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Time windows")
+                            .font(.body)
+                        Text("Choose which time window drives the percent and pace values.")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
+                            GridRow {
+                                Text("Percent:")
+                                    .font(.callout)
+                                Picker(
+                                    "Percent time window",
+                                    selection: self.$settings.menuBarPercentTimeWindow)
+                                {
+                                    ForEach(MenuBarTimeWindow.allCases) { window in
+                                        Text(window.label).tag(window)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.segmented)
+                                .frame(maxWidth: 160)
+                            }
+                            .disabled(self.settings.menuBarDisplayMode == .pace)
+                            .opacity(self.settings.menuBarDisplayMode == .pace ? 0.5 : 1)
+                            GridRow {
+                                Text("Pace:")
+                                    .font(.callout)
+                                Picker(
+                                    "Pace time window",
+                                    selection: self.$settings.menuBarPaceTimeWindow)
+                                {
+                                    ForEach(MenuBarTimeWindow.allCases) { window in
+                                        Text(window.label).tag(window)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.segmented)
+                                .frame(maxWidth: 160)
+                            }
+                            .disabled(self.settings.menuBarDisplayMode == .percent)
+                            .opacity(self.settings.menuBarDisplayMode == .percent ? 0.5 : 1)
+                        }
+                    }
+                    .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
+                    .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
                 }
 
                 Divider()

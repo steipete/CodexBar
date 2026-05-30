@@ -1103,4 +1103,28 @@ struct StatusItemAnimationTests {
         #expect(baselineAlpha < 0.01)
         #expect(outputAlpha > 0.01)
     }
+
+    @Test
+    func `menu bar time window settings round trip`() {
+        // These settings persist to UserDefaults.standard; clear leftovers so the defaults check is meaningful.
+        UserDefaults.standard.removeObject(forKey: "menuBarPercentTimeWindow")
+        UserDefaults.standard.removeObject(forKey: "menuBarPaceTimeWindow")
+
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-timewindow"),
+            zaiTokenStore: NoopZaiTokenStore())
+
+        // Backward-compatible defaults: percent tracks the session, pace tracks the week.
+        #expect(settings.menuBarPercentTimeWindow == .session)
+        #expect(settings.menuBarPaceTimeWindow == .weekly)
+
+        settings.menuBarPercentTimeWindow = .weekly
+        settings.menuBarPaceTimeWindow = .session
+
+        #expect(settings.menuBarPercentTimeWindow == .weekly)
+        #expect(settings.menuBarPaceTimeWindow == .session)
+
+        #expect(settings.userDefaults.string(forKey: "menuBarPercentTimeWindow") == "weekly")
+        #expect(settings.userDefaults.string(forKey: "menuBarPaceTimeWindow") == "session")
+    }
 }

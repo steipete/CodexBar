@@ -335,6 +335,10 @@ extension SettingsStore {
             ?? MenuBarDisplayMode.percent.rawValue
         let menuBarSeparatorStyleRaw = userDefaults.string(forKey: "menuBarSeparatorStyle")
             ?? MenuBarSeparatorStyle.dot.rawValue
+        let menuBarPercentTimeWindowRaw = userDefaults.string(forKey: "menuBarPercentTimeWindow")
+            ?? MenuBarTimeWindow.session.rawValue
+        let menuBarPaceTimeWindowRaw = userDefaults.string(forKey: "menuBarPaceTimeWindow")
+            ?? MenuBarTimeWindow.weekly.rawValue
         let kiroMenuBarDisplayModeRaw = userDefaults.string(forKey: "kiroMenuBarDisplayMode")
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
@@ -412,6 +416,8 @@ extension SettingsStore {
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             menuBarSeparatorStyleRaw: menuBarSeparatorStyleRaw,
+            menuBarPercentTimeWindowRaw: menuBarPercentTimeWindowRaw,
+            menuBarPaceTimeWindowRaw: menuBarPaceTimeWindowRaw,
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,

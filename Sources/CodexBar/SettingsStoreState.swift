@@ -26,6 +26,8 @@ struct SettingsDefaultsState {
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarDisplayModeRaw: String?
     var menuBarSeparatorStyleRaw: String?
+    var menuBarPercentTimeWindowRaw: String?
+    var menuBarPaceTimeWindowRaw: String?
     var kiroMenuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String

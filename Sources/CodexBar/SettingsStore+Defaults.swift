@@ -259,6 +259,40 @@ extension SettingsStore {
         set { self.menuBarSeparatorStyleRaw = newValue.rawValue }
     }
 
+    private var menuBarPercentTimeWindowRaw: String? {
+        get { self.defaultsState.menuBarPercentTimeWindowRaw }
+        set {
+            self.defaultsState.menuBarPercentTimeWindowRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "menuBarPercentTimeWindow")
+            } else {
+                self.userDefaults.removeObject(forKey: "menuBarPercentTimeWindow")
+            }
+        }
+    }
+
+    var menuBarPercentTimeWindow: MenuBarTimeWindow {
+        get { MenuBarTimeWindow(rawValue: self.menuBarPercentTimeWindowRaw ?? "") ?? .session }
+        set { self.menuBarPercentTimeWindowRaw = newValue.rawValue }
+    }
+
+    private var menuBarPaceTimeWindowRaw: String? {
+        get { self.defaultsState.menuBarPaceTimeWindowRaw }
+        set {
+            self.defaultsState.menuBarPaceTimeWindowRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "menuBarPaceTimeWindow")
+            } else {
+                self.userDefaults.removeObject(forKey: "menuBarPaceTimeWindow")
+            }
+        }
+    }
+
+    var menuBarPaceTimeWindow: MenuBarTimeWindow {
+        get { MenuBarTimeWindow(rawValue: self.menuBarPaceTimeWindowRaw ?? "") ?? .weekly }
+        set { self.menuBarPaceTimeWindowRaw = newValue.rawValue }
+    }
+
     private var kiroMenuBarDisplayModeRaw: String? {
         get { self.defaultsState.kiroMenuBarDisplayModeRaw }
         set {

@@ -708,7 +708,12 @@ extension StatusItemController {
             return spend
         }
 
-        let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        let percentWindow: RateWindow? = switch self.settings.menuBarPercentTimeWindow {
+        case .session:
+            self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        case .weekly:
+            snapshot?.secondary ?? self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        }
         let mode = self.settings.menuBarDisplayMode
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
@@ -721,13 +726,21 @@ extension StatusItemController {
         case .percent:
             pace = nil
         case .pace, .both:
-            let weeklyWindow =
-                codexProjection?.rateWindow(for: .weekly)
-                ?? snapshot?.secondary
-                // Abacus has no secondary window; pace is computed on primary monthly credits
-                ?? (provider == .abacus ? snapshot?.primary : nil)
-            pace = weeklyWindow.flatMap { window in
-                self.store.weeklyPace(provider: provider, window: window, now: now)
+            switch self.settings.menuBarPaceTimeWindow {
+            case .session:
+                let sessionWindow = snapshot?.primary ?? snapshot?.secondary
+                pace = sessionWindow.flatMap { window in
+                    UsagePaceText.sessionPace(provider: provider, window: window, now: now)
+                }
+            case .weekly:
+                let weeklyWindow =
+                    codexProjection?.rateWindow(for: .weekly)
+                    ?? snapshot?.secondary
+                    // Abacus has no secondary window; pace is computed on primary monthly credits
+                    ?? (provider == .abacus ? snapshot?.primary : nil)
+                pace = weeklyWindow.flatMap { window in
+                    self.store.weeklyPace(provider: provider, window: window, now: now)
+                }
             }
         }
         let displayText = MenuBarDisplayText.displayText(

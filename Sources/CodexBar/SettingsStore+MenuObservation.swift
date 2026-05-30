@@ -27,6 +27,8 @@ extension SettingsStore {
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode
         _ = self.menuBarSeparatorStyle
+        _ = self.menuBarPercentTimeWindow
+        _ = self.menuBarPaceTimeWindow
         _ = self.kiroMenuBarDisplayMode
         _ = self.historicalTrackingEnabled
         _ = self.multiAccountMenuLayout
