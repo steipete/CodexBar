@@ -115,30 +115,6 @@ final class UsageStore {
         case dashboardWeb
     }
 
-    enum StartupBehavior {
-        case automatic
-        case full
-        case testing
-
-        var automaticallyStartsBackgroundWork: Bool {
-            switch self {
-            case .automatic, .full:
-                true
-            case .testing:
-                false
-            }
-        }
-
-        func resolved(isRunningTests: Bool) -> StartupBehavior {
-            switch self {
-            case .automatic:
-                isRunningTests ? .testing : .full
-            case .full, .testing:
-                self
-            }
-        }
-    }
-
     var snapshots: [UsageProvider: UsageSnapshot] = [:]
     var errors: [UsageProvider: String] = [:]
     var lastSourceLabels: [UsageProvider: String] = [:]
@@ -201,6 +177,11 @@ final class UsageStore {
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
+    @ObservationIgnored var _test_providerStatusFetchOverride: (@MainActor (
+        UsageProvider) async throws -> ProviderStatus)?
+    @ObservationIgnored var _test_startupConnectivityRetryScheduled: (@MainActor (Int, TimeInterval) -> Void)?
+    @ObservationIgnored var _test_startupConnectivityRetrySleepOverride: (@MainActor (
+        TimeInterval) async throws -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
 
     @ObservationIgnored let codexFetcher: UsageFetcher
@@ -226,6 +207,9 @@ final class UsageStore {
     @ObservationIgnored private var timerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
+    @ObservationIgnored var startupConnectivityRetryTask: Task<Void, Never>?
+    @ObservationIgnored var startupConnectivityRetryNeeded = false
+    @ObservationIgnored var startupConnectivityRetryRefreshActive = false
     @ObservationIgnored var storageRefreshTask: Task<Void, Never>?
     @ObservationIgnored var storageRefreshGeneration: UInt64 = 0
     @ObservationIgnored var storageRefreshInFlightSignature: String?
@@ -252,7 +236,7 @@ final class UsageStore {
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored private let tokenFetchTTL: TimeInterval = 60 * 60
     @ObservationIgnored private let tokenFetchTimeout: TimeInterval = 10 * 60
-    @ObservationIgnored private let startupBehavior: StartupBehavior
+    @ObservationIgnored let startupBehavior: StartupBehavior
     @ObservationIgnored let planUtilizationPersistenceCoordinator: PlanUtilizationHistoryPersistenceCoordinator
 
     init(
@@ -530,9 +514,20 @@ final class UsageStore {
     }
 
     func refresh(forceTokenUsage: Bool = false) async {
+        await self.runRefresh(forceTokenUsage: forceTokenUsage, startupConnectivityRetryAttempt: nil)
+    }
+
+    func runRefresh(
+        forceTokenUsage: Bool = false,
+        startupConnectivityRetryAttempt: Int?)
+        async
+    {
         guard !self.isRefreshing else { return }
         self.prepareRefreshState()
         let refreshPhase: ProviderRefreshPhase = self.hasCompletedInitialRefresh ? .regular : .startup
+        let allowsStartupConnectivityRetry = refreshPhase == .startup || startupConnectivityRetryAttempt != nil
+        self.startupConnectivityRetryRefreshActive = allowsStartupConnectivityRetry
+        self.startupConnectivityRetryNeeded = false
         let displayEnabledProviders = self.enabledProvidersForDisplay()
         let enabledProviderSet = Set(displayEnabledProviders)
         let refreshProviders = self.enabledProvidersForBackgroundWork()
@@ -544,6 +539,7 @@ final class UsageStore {
             defer {
                 self.isRefreshing = false
                 self.hasCompletedInitialRefresh = true
+                self.startupConnectivityRetryRefreshActive = false
             }
 
             self.clearDisabledProviderState(enabledProviders: enabledProviderSet)
@@ -612,6 +608,10 @@ final class UsageStore {
             }
 
             self.persistWidgetSnapshot(reason: "refresh")
+        }
+
+        if allowsStartupConnectivityRetry {
+            self.completeStartupConnectivityRetryPass(currentAttempt: startupConnectivityRetryAttempt ?? 0)
         }
     }
 
@@ -699,6 +699,7 @@ final class UsageStore {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.startupConnectivityRetryTask?.cancel()
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
     }
@@ -890,7 +891,9 @@ final class UsageStore {
 
         do {
             let status: ProviderStatus
-            if let urlString = meta.statusPageURL, let baseURL = URL(string: urlString) {
+            if let override = self._test_providerStatusFetchOverride {
+                status = try await override(provider)
+            } else if let urlString = meta.statusPageURL, let baseURL = URL(string: urlString) {
                 status = try await Self.fetchStatus(from: baseURL)
             } else if let productID = meta.statusWorkspaceProductID {
                 status = try await Self.fetchWorkspaceStatus(productID: productID)
@@ -899,6 +902,7 @@ final class UsageStore {
             }
             await MainActor.run { self.statuses[provider] = status }
         } catch {
+            self.recordStartupConnectivityRetryableFailure(error)
             // Keep the previous status to avoid flapping when the API hiccups.
             await MainActor.run {
                 if self.statuses[provider] == nil {
