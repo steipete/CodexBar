@@ -106,8 +106,6 @@ final class AugmentProviderRuntime: ProviderRuntime {
         }
 
         await keepalive.forceRefresh()
-        context.store.augmentLogger.info("Refreshing Augment usage after session refresh")
-        await context.store.refreshProvider(.augment)
         #endif
     }
 }
