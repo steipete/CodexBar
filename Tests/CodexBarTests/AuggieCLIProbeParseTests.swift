@@ -40,7 +40,7 @@ struct AuggieCLIProbeParseTests {
 
         let snapshot = try probe.parse(output)
 
-        #expect(snapshot.creditsRemaining == 11_657)
+        #expect(snapshot.creditsRemaining == 11657)
         #expect(snapshot.creditsUsed == 953_170)
         #expect(snapshot.creditsLimit == 964_827)
         #expect(snapshot.accountPlan == "450,000 credits/month")
