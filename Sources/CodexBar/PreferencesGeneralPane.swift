@@ -74,6 +74,26 @@ struct GeneralPane: View {
                         }
                     }
 
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("terminal_app_title"))
+                                .font(.body)
+                            Text(L("terminal_app_subtitle"))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Picker(L("terminal_app_title"), selection: self.$settings.terminalApp) {
+                            ForEach(TerminalApp.allCases) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 200)
+                    }
+
                     PreferenceToggleRow(
                         title: L("start_at_login_title"),
                         subtitle: L("start_at_login_subtitle"),
