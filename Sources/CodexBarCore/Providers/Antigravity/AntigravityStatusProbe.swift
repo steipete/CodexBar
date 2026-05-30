@@ -87,13 +87,19 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
 
         let normalized = Self.normalizedModels(self.modelQuotas)
-        let primaryQuota = Self.representative(for: .claude, in: normalized)
-        let secondaryQuota = Self.representative(for: .geminiPro, in: normalized)
-        let tertiaryQuota = Self.representative(for: .geminiFlash, in: normalized)
+        let summaryModels: [AntigravityNormalizedModel] = switch self.source {
+        case .local:
+            normalized
+        case .remote:
+            normalized.filter(Self.isRemoteSummaryCandidate)
+        }
+        let primaryQuota = Self.representative(for: .claude, in: summaryModels)
+        let secondaryQuota = Self.representative(for: .geminiPro, in: summaryModels)
+        let tertiaryQuota = Self.representative(for: .geminiFlash, in: summaryModels)
         let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil,
                                                        tertiaryQuota == nil
         {
-            Self.fallbackRepresentative(in: normalized)
+            Self.fallbackRepresentative(in: summaryModels)
         } else {
             nil
         }
@@ -111,8 +117,7 @@ public struct AntigravityStatusSnapshot: Sendable {
             normalized
         case .remote:
             normalized.filter { m in
-                (m.family != .unknown && !m.isLite && !m.isAutocomplete && !m.isImage)
-                    || (m.quota.remainingFraction ?? 1.0) < 0.999
+                Self.isRemoteSummaryCandidate(m) || (m.quota.remainingFraction ?? 1.0) < 0.999
             }
         }
         let extraWindows = shownModels
@@ -184,6 +189,10 @@ public struct AntigravityStatusSnapshot: Sendable {
         case .geminiFlash: 2
         case .unknown: 3
         }
+    }
+
+    private static func isRemoteSummaryCandidate(_ model: AntigravityNormalizedModel) -> Bool {
+        model.family != .unknown && !model.isLite && !model.isAutocomplete && !model.isImage
     }
 
     private static func normalizedModels(_ models: [AntigravityModelQuota]) -> [AntigravityNormalizedModel] {

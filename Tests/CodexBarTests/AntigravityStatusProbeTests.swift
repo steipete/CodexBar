@@ -909,7 +909,8 @@ extension AntigravityStatusProbeTests {
                     resetDescription: nil),
             ],
             accountEmail: "test@example.com",
-            accountPlan: "Pro")
+            accountPlan: "Pro",
+            source: .local)
 
         let usage = try snapshot.toUsageSnapshot()
         #expect(usage.primary?.remainingPercent.rounded() == 20)
@@ -1278,6 +1279,9 @@ extension AntigravityStatusProbeTests {
             source: .remote)
 
         let usage = try snapshot.toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary == nil)
         #expect(usage.extraRateWindows == nil)
     }
 
