@@ -3,6 +3,94 @@ import CodexBarCore
 import QuartzCore
 
 extension StatusItemController {
+    func didMenuAdjunctReadinessChange() -> Bool {
+        let signature = self.menuAdjunctReadinessSignature()
+        defer { self.lastMenuAdjunctReadinessSignature = signature }
+        return signature != self.lastMenuAdjunctReadinessSignature
+    }
+
+    func menuAdjunctReadinessSignature() -> String {
+        let dashboard = self.store.openAIDashboard
+        let dashboardUsageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: dashboard?.usageBreakdown ?? [])
+        var parts = [
+            "costEnabled=\(self.settings.costUsageEnabled ? "1" : "0")",
+            "openAIAttached=\(self.store.openAIDashboardAttachmentAuthorized ? "1" : "0")",
+            "openAILogin=\(self.store.openAIDashboardRequiresLogin ? "1" : "0")",
+            "openAIUpdated=\(Self.millisecondsSinceEpoch(dashboard?.updatedAt))",
+            "openAIDaily=\(Self.dashboardBreakdownReadinessSignature(dashboard?.dailyBreakdown ?? []))",
+            "openAIUsage=\(Self.dashboardBreakdownReadinessSignature(dashboardUsageBreakdown))",
+            "credits=\(self.store.credits == nil ? "0" : "1")",
+            "planHistoryRevision=\(self.store.planUtilizationHistoryRevision)",
+        ]
+
+        for provider in self.store.enabledProvidersForDisplay() {
+            let tokenSignature = self.tokenSnapshotReadinessSignature(for: provider)
+            let usageHistoryVisible = self.store.supportsPlanUtilizationHistory(for: provider) &&
+                !self.store.shouldHidePlanUtilizationMenuItem(for: provider)
+            parts.append(
+                [
+                    provider.rawValue,
+                    "token=\(tokenSignature)",
+                    "usageHistory=\(usageHistoryVisible ? "1" : "0")",
+                ].joined(separator: ":"))
+        }
+
+        return parts.joined(separator: "|")
+    }
+
+    private static func dashboardBreakdownReadinessSignature(
+        _ breakdown: [OpenAIDashboardDailyBreakdown]) -> String
+    {
+        breakdown
+            .map { day in
+                let services = day.services
+                    .map { "\($0.service)=\(Self.formatDoubleForSignature($0.creditsUsed))" }
+                    .joined(separator: ",")
+                return [
+                    day.day,
+                    Self.formatDoubleForSignature(day.totalCreditsUsed),
+                    services,
+                ].joined(separator: ":")
+            }
+            .joined(separator: ";")
+    }
+
+    private func tokenSnapshotReadinessSignature(for provider: UsageProvider) -> String {
+        guard let snapshot = self.store.tokenSnapshot(for: provider) else { return "none" }
+        let daily = snapshot.daily
+            .map { entry in
+                [
+                    entry.date,
+                    "\(entry.totalTokens ?? -1)",
+                    Self.formatOptionalDoubleForSignature(entry.costUSD),
+                ].joined(separator: ",")
+            }
+            .joined(separator: ";")
+        return [
+            "sessionTokens=\(snapshot.sessionTokens ?? -1)",
+            "sessionCost=\(Self.formatOptionalDoubleForSignature(snapshot.sessionCostUSD))",
+            "lastTokens=\(snapshot.last30DaysTokens ?? -1)",
+            "lastCost=\(Self.formatOptionalDoubleForSignature(snapshot.last30DaysCostUSD))",
+            "updated=\(Int(snapshot.updatedAt.timeIntervalSince1970 * 1000))",
+            "daily=\(daily)",
+        ].joined(separator: ",")
+    }
+
+    private static func millisecondsSinceEpoch(_ date: Date?) -> Int {
+        guard let date else { return -1 }
+        return Int(date.timeIntervalSince1970 * 1000)
+    }
+
+    private static func formatOptionalDoubleForSignature(_ value: Double?) -> String {
+        guard let value else { return "nil" }
+        return self.formatDoubleForSignature(value)
+    }
+
+    private static func formatDoubleForSignature(_ value: Double) -> String {
+        String(format: "%.8f", value)
+    }
+
     func performMenuMutationWithoutAnimation(_ updates: () -> Void) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)

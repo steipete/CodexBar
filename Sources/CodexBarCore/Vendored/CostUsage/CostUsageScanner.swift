@@ -572,6 +572,10 @@ enum CostUsageScanner {
         return out
     }
 
+    static func codexRootsFingerprint(options: Options) -> [String: Int64] {
+        self.codexRootsFingerprint(self.codexSessionsRoots(options: options))
+    }
+
     private static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
         guard let modelsDevArtifact else {
             let fingerprint = CostUsagePricing.codexBuiltInPricingFingerprint()

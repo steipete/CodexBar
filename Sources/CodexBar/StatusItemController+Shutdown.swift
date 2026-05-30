@@ -49,6 +49,8 @@ extension StatusItemController {
         for task in self.openMenuRebuildTasks.values {
             task.cancel()
         }
+        self.openMenuInvalidationRetryTask?.cancel()
+        self.openMenuInvalidationRetryTask = nil
     }
 
     private func clearShutdownMenuState() {

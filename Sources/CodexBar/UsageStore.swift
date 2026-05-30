@@ -24,6 +24,7 @@ extension UsageStore {
         _ = self.openAIDashboard
         _ = self.lastOpenAIDashboardError
         _ = self.openAIDashboardRequiresLogin
+        _ = self.openAIDashboardAttachmentRevision
         _ = self.versions
         _ = self.isRefreshing
         _ = self.refreshingProviders
@@ -31,6 +32,7 @@ extension UsageStore {
         _ = self.statuses
         _ = self.probeLogs
         _ = self.historicalPaceRevision
+        _ = self.planUtilizationHistoryRevision
         _ = self.providerStorageFootprints
         return 0
     }
@@ -140,12 +142,20 @@ final class UsageStore {
     var statuses: [UsageProvider: ProviderStatus] = [:]
     var probeLogs: [UsageProvider: String] = [:]
     var historicalPaceRevision: Int = 0
+    var planUtilizationHistoryRevision: Int = 0
     var providerStorageFootprints: [UsageProvider: ProviderStorageFootprint] = [:]
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
     @ObservationIgnored var lastCreditsSource: CodexCreditsSource = .none
     @ObservationIgnored var creditsFailureStreak: Int = 0
-    @ObservationIgnored var openAIDashboardAttachmentAuthorized: Bool = false
+    @ObservationIgnored var openAIDashboardAttachmentAuthorized: Bool = false {
+        didSet {
+            guard self.openAIDashboardAttachmentAuthorized != oldValue else { return }
+            self.openAIDashboardAttachmentRevision &+= 1
+        }
+    }
+
+    var openAIDashboardAttachmentRevision = 0
     @ObservationIgnored var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
     @ObservationIgnored var lastOpenAIDashboardAttachmentAuthorized: Bool = false
     @ObservationIgnored var lastOpenAIDashboardTargetEmail: String?
@@ -186,7 +196,7 @@ final class UsageStore {
 
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
-    @ObservationIgnored private let costUsageFetcher: CostUsageFetcher
+    @ObservationIgnored let costUsageFetcher: CostUsageFetcher
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
@@ -301,6 +311,7 @@ final class UsageStore {
             effectivePATH: PathBuilder.effectivePATH(purposes: [.rpc, .tty, .nodeTooling]),
             loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
         guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+        self.hydrateCachedTokenSnapshots()
         self.detectVersions()
         self.updateProviderRuntimes()
         Task { @MainActor [weak self] in

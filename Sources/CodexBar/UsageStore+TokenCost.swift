@@ -14,6 +14,36 @@ extension UsageStore {
         self.lastTokenFetchAt[provider]
     }
 
+    func hydrateCachedTokenSnapshots(now: Date = Date()) {
+        guard self.settings.costUsageEnabled else { return }
+        guard self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata).contains(.codex) else {
+            return
+        }
+
+        let scope = self.tokenCostScope(for: .codex)
+        let historyDays = self.settings.costUsageHistoryDays
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard self.tokenSnapshots[.codex] == nil else { return }
+            guard let snapshot = await self.costUsageFetcher.loadCachedCodexTokenSnapshot(
+                now: now,
+                codexHomePath: scope.codexHomePath,
+                historyDays: historyDays)
+            else {
+                return
+            }
+            guard self.settings.costUsageEnabled,
+                  self.isEnabled(.codex),
+                  self.tokenCostScope(for: .codex).signature == scope.signature,
+                  self.tokenSnapshots[.codex] == nil
+            else {
+                return
+            }
+            self.tokenSnapshots[.codex] = snapshot
+            self.tokenErrors[.codex] = nil
+        }
+    }
+
     func isTokenRefreshInFlight(for provider: UsageProvider) -> Bool {
         self.tokenRefreshInFlight.contains(provider)
     }

@@ -7,7 +7,7 @@ extension StatusItemController {
     }
 
     func refreshOpenMenusIfNeeded() {
-        guard Self.menuRefreshEnabled else { return }
+        guard self.isMenuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
         self.refreshOpenMenusIfNeeded(allowsParentRebuild: false)
     }
@@ -17,9 +17,23 @@ extension StatusItemController {
     }
 
     func refreshOpenMenusAllowingParentRebuild() {
-        guard Self.menuRefreshEnabled else { return }
+        guard self.isMenuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
         self.refreshOpenMenusIfNeeded(allowsParentRebuild: true)
+    }
+
+    func scheduleOpenMenuInvalidationRetry() {
+        self.openMenuInvalidationRetryTask?.cancel()
+        self.openMenuInvalidationRetryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            #if DEBUG
+            self.onOpenMenuInvalidationRetryForTesting?()
+            #endif
+            self.refreshOpenMenusAllowingParentRebuild()
+            self.openMenuInvalidationRetryTask = nil
+        }
     }
 
     private func refreshOpenMenusIfNeeded(allowsParentRebuild: Bool) {
@@ -44,7 +58,7 @@ extension StatusItemController {
         hasOpenHostedSubviewMenu: Bool)
     {
         if self.isHostedSubviewMenu(menu) {
-            self.refreshHostedSubviewHeights(in: menu)
+            self.refreshHostedSubviewMenu(menu)
             return
         }
         guard allowsParentRebuild else { return }

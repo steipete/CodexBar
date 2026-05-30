@@ -115,6 +115,7 @@ extension UsageStore {
 
             providerBuckets.setHistories(updatedHistories, for: accountKey)
             self.planUtilizationHistory[provider] = providerBuckets
+            self.planUtilizationHistoryRevision &+= 1
             snapshotToPersist = self.planUtilizationHistory
         }
 

@@ -60,7 +60,7 @@ final class ProviderSwitcherShortcutEventMonitor {
 
 extension StatusItemController {
     func installProviderSwitcherShortcutMonitorIfNeeded(for menu: NSMenu) {
-        guard Self.menuRefreshEnabled,
+        guard self.isMenuRefreshEnabled,
               self.shouldMergeIcons,
               menu.items.first?.view is ProviderSwitcherView
         else {

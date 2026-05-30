@@ -18,7 +18,27 @@ public enum CostUsageError: LocalizedError, Sendable {
 }
 
 public struct CostUsageFetcher: Sendable {
-    public init() {}
+    private let scannerOptions: CostUsageScanner.Options?
+
+    public init(cacheRoot: URL? = nil) {
+        self.scannerOptions = cacheRoot.map { CostUsageScanner.Options(cacheRoot: $0) }
+    }
+
+    init(scannerOptions: CostUsageScanner.Options) {
+        self.scannerOptions = scannerOptions
+    }
+
+    public func loadCachedCodexTokenSnapshot(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30) async -> CostUsageTokenSnapshot?
+    {
+        await Self.loadCachedCodexTokenSnapshot(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            scannerOptions: self.scannerOptionsOverride())
+    }
 
     public func loadTokenSnapshot(
         provider: UsageProvider,
@@ -38,7 +58,12 @@ public struct CostUsageFetcher: Sendable {
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             codexHomePath: codexHomePath,
             historyDays: historyDays,
-            refreshPricingInBackground: refreshPricingInBackground)
+            refreshPricingInBackground: refreshPricingInBackground,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
+    private func scannerOptionsOverride() -> CostUsageScanner.Options? {
+        self.scannerOptions
     }
 
     static func loadTokenSnapshot(
@@ -148,6 +173,58 @@ public struct CostUsageFetcher: Sendable {
         }
 
         return Self.tokenSnapshot(from: daily, now: now, historyDays: clampedHistoryDays)
+    }
+
+    static func loadCachedCodexTokenSnapshot(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30,
+        scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async -> CostUsageTokenSnapshot?
+    {
+        if let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !codexHomePath.isEmpty
+        {
+            return nil
+        }
+
+        return await Task.detached(priority: .utility) {
+            let clampedHistoryDays = max(1, min(365, historyDays))
+            let until = now
+            let since = Calendar.current.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
+            let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+            let options = overrideScannerOptions ?? CostUsageScanner.Options()
+            let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
+            var reports: [CostUsageDailyReport] = []
+
+            if !cache.days.isEmpty,
+               cache.roots == CostUsageScanner.codexRootsFingerprint(options: options),
+               !CostUsageScanner.requestedWindowExpandsCache(range: range, cache: cache)
+            {
+                let daily = CostUsageScanner.buildCodexReportFromCache(
+                    cache: cache,
+                    range: range,
+                    modelsDevCacheRoot: options.cacheRoot)
+                if !daily.data.isEmpty {
+                    reports.append(daily)
+                }
+            }
+
+            if let piDaily = PiSessionCostScanner.loadCachedDailyReport(
+                provider: .codex,
+                since: since,
+                until: until,
+                now: now,
+                cacheRoot: options.cacheRoot)
+            {
+                reports.append(piDaily)
+            }
+
+            guard !reports.isEmpty else { return nil }
+            return Self.tokenSnapshot(
+                from: CostUsageDailyReport.merged(reports),
+                now: now,
+                historyDays: clampedHistoryDays)
+        }.value
     }
 
     private static func loadBedrockDailyReport(

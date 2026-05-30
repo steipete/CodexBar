@@ -133,6 +133,31 @@ enum PiSessionCostScanner {
             pricingContext: pricingContext)
     }
 
+    static func loadCachedDailyReport(
+        provider: UsageProvider,
+        since: Date,
+        until: Date,
+        now: Date = Date(),
+        cacheRoot: URL? = nil) -> CostUsageDailyReport?
+    {
+        guard provider == .codex || provider == .claude else { return nil }
+
+        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+        let cache = PiSessionCostCacheIO.load(cacheRoot: cacheRoot)
+        guard !cache.daysByProvider.isEmpty else { return nil }
+        guard !self.requestedWindowExpandsCache(range: range, cache: cache) else { return nil }
+
+        let pricingContext = ModelsDevPricingContext(
+            catalog: CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: cacheRoot),
+            cacheRoot: cacheRoot)
+        let report = self.buildReport(
+            provider: provider,
+            cache: cache,
+            range: range,
+            pricingContext: pricingContext)
+        return report.data.isEmpty ? nil : report
+    }
+
     private static func requestedWindowExpandsCache(
         range: CostUsageScanner.CostUsageDayRange,
         cache: PiSessionCostCache) -> Bool

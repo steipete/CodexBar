@@ -110,4 +110,36 @@ struct OpenAIWebRefreshGateTests {
 
         #expect(shouldSkip == false)
     }
+
+    @Test
+    func `Empty dashboard history retry is throttled after a recent attempt`() {
+        let now = Date()
+
+        let shouldSkip = UsageStore.shouldSkipOpenAIWebEmptyHistoryRetry(.init(
+            force: false,
+            accountDidChange: false,
+            lastError: nil,
+            lastSnapshotAt: now.addingTimeInterval(-120),
+            lastAttemptAt: now.addingTimeInterval(-60),
+            now: now,
+            refreshInterval: 300))
+
+        #expect(shouldSkip == true)
+    }
+
+    @Test
+    func `Empty dashboard history retry runs once for a newer empty snapshot`() {
+        let now = Date()
+
+        let shouldSkip = UsageStore.shouldSkipOpenAIWebEmptyHistoryRetry(.init(
+            force: false,
+            accountDidChange: false,
+            lastError: nil,
+            lastSnapshotAt: now.addingTimeInterval(-60),
+            lastAttemptAt: now.addingTimeInterval(-120),
+            now: now,
+            refreshInterval: 300))
+
+        #expect(shouldSkip == false)
+    }
 }
