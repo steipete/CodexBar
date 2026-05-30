@@ -24,7 +24,7 @@ public enum AntigravityUsageDataSource: String, CaseIterable, Identifiable, Send
         case .oauth:
             "oauth"
         case .cli:
-            "cli"
+            "local"
         }
     }
 }

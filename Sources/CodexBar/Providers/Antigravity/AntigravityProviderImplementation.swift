@@ -42,7 +42,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "antigravity-usage-source",
                 title: "Usage source",
-                subtitle: "Auto uses the local IDE API first, then Google OAuth when the IDE is closed.",
+                subtitle: "Auto prefers the Antigravity CLI (`agy`) OAuth session, then the local IDE API, then CodexBar Google OAuth.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -84,7 +84,10 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     }
 
     func detectVersion(context _: ProviderVersionContext) async -> String? {
-        await AntigravityStatusProbe.detectVersion()
+        if let agyVersion = await AgyCLIVersionDetector.detectVersion() {
+            return agyVersion
+        }
+        return await AntigravityStatusProbe.detectVersion()
     }
 
     @MainActor

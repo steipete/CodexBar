@@ -17,7 +17,7 @@ public enum AntigravityProviderDescriptor {
                 supportsCredits: false,
                 creditsHint: "",
                 toggleTitle: "Show Antigravity usage (experimental)",
-                cliName: "antigravity",
+                cliName: "agy",
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
@@ -36,11 +36,12 @@ public enum AntigravityProviderDescriptor {
                 sourceModes: [.auto, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
-                name: "antigravity",
+                name: "agy",
                 versionDetector: nil))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        let agy = AntigravityAgyFetchStrategy()
         let local = AntigravityStatusFetchStrategy()
         let oauth = AntigravityOAuthFetchStrategy()
 
@@ -48,12 +49,66 @@ public enum AntigravityProviderDescriptor {
         case .cli:
             return [local]
         case .oauth:
+            if await agy.isAvailable(context) {
+                return [agy, oauth]
+            }
             return [oauth]
         case .auto:
+            if await agy.isAvailable(context) {
+                return [agy, local, oauth]
+            }
             return [local, oauth]
         case .web, .api:
             return []
         }
+    }
+}
+
+struct AntigravityAgyFetchStrategy: ProviderFetchStrategy {
+    let id: String = "antigravity.agy"
+    let kind: ProviderFetchKind = .cli
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        AntigravityAgyCredentials.isAvailable(
+            homeDirectory: NSHomeDirectory(),
+            env: context.env)
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let fetcher = AntigravityRemoteUsageFetcher(
+            environment: context.env,
+            credentialPreference: .agyCLI,
+            credentialsUpdateHandler: { credentials in
+                guard let accountID = context.selectedTokenAccountID,
+                      let updater = context.tokenAccountTokenUpdater
+                else {
+                    return
+                }
+                let token = try AntigravityOAuthCredentialsStore.tokenAccountValue(for: credentials)
+                await updater(.antigravity, accountID, token)
+            })
+        let snapshot = try await fetcher.fetch()
+        let usage = if snapshot.modelQuotas.isEmpty {
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .antigravity,
+                    accountEmail: snapshot.accountEmail,
+                    accountOrganization: nil,
+                    loginMethod: snapshot.accountPlan))
+        } else {
+            try snapshot.toUsageSnapshot()
+        }
+        return self.makeResult(
+            usage: usage,
+            sourceLabel: "agy")
+    }
+
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto || context.sourceMode == .oauth
     }
 }
 
@@ -90,6 +145,7 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let fetcher = AntigravityRemoteUsageFetcher(
             environment: context.env,
+            credentialPreference: .codexbarStore,
             credentialsUpdateHandler: { credentials in
                 guard let accountID = context.selectedTokenAccountID,
                       let updater = context.tokenAccountTokenUpdater

@@ -140,7 +140,24 @@ public enum AntigravityOAuthConfig {
         if let client = environmentClient() {
             return client
         }
-        return Self.discoverClientFromInstalledApp()
+        if let client = discoverClientFromInstalledApp() {
+            return client
+        }
+        return self.discoverClientFromAgyBinary()
+    }
+
+    public static func discoverClientFromAgyBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        fileManager: FileManager = .default) -> AntigravityOAuthClient?
+    {
+        guard let binaryPath = BinaryLocator.resolveAgyBinary(env: env, loginPATH: loginPATH),
+              fileManager.isExecutableFile(atPath: binaryPath),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: binaryPath))
+        else {
+            return nil
+        }
+        return Self.parseClient(fromInstalledArtifactData: data)
     }
 
     private static func environmentClient() -> AntigravityOAuthClient? {

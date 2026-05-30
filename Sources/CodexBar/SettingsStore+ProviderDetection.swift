@@ -16,18 +16,20 @@ extension SettingsStore {
         let codexInstalled = BinaryLocator.resolveCodexBinary() != nil
         let claudeInstalled = BinaryLocator.resolveClaudeBinary() != nil
         let geminiInstalled = BinaryLocator.resolveGeminiBinary() != nil
+        let agyInstalled = BinaryLocator.resolveAgyBinary() != nil
         let antigravityRunning = await AntigravityStatusProbe.isRunning()
         let antigravityLoggedIn = FileManager.default.fileExists(
             atPath: AntigravityOAuthCredentialsStore().fileURL.path)
+        let agyLoggedIn = AntigravityAgyCredentials.hasStoredCredentials()
         let logger = CodexBarLog.logger(LogCategories.providerDetection)
 
         // If none installed, keep Codex enabled to match previous behavior.
-        let noneInstalled = !codexInstalled && !claudeInstalled && !geminiInstalled && !antigravityRunning &&
-            !antigravityLoggedIn
+        let noneInstalled = !codexInstalled && !claudeInstalled && !geminiInstalled && !agyInstalled
+            && !antigravityRunning && !antigravityLoggedIn && !agyLoggedIn
         let enableCodex = codexInstalled || noneInstalled
         let enableClaude = claudeInstalled
-        let enableGemini = geminiInstalled
-        let enableAntigravity = antigravityRunning || antigravityLoggedIn
+        let enableGemini = geminiInstalled && !agyInstalled
+        let enableAntigravity = antigravityRunning || antigravityLoggedIn || agyLoggedIn || agyInstalled
 
         logger.info(
             "Provider detection results",
@@ -35,8 +37,10 @@ extension SettingsStore {
                 "codexInstalled": codexInstalled ? "1" : "0",
                 "claudeInstalled": claudeInstalled ? "1" : "0",
                 "geminiInstalled": geminiInstalled ? "1" : "0",
+                "agyInstalled": agyInstalled ? "1" : "0",
                 "antigravityRunning": antigravityRunning ? "1" : "0",
                 "antigravityLoggedIn": antigravityLoggedIn ? "1" : "0",
+                "agyLoggedIn": agyLoggedIn ? "1" : "0",
             ])
         logger.info(
             "Provider detection enablement",

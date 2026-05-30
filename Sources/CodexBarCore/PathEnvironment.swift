@@ -133,6 +133,36 @@ public enum BinaryLocator {
             home: home)
     }
 
+    public static func resolveAgyBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "agy",
+            overrideKey: "AGY_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: self.agyWellKnownPaths(home: home),
+            fileManager: fileManager,
+            home: home)
+    }
+
+    /// Well-known install locations for the Antigravity CLI (`agy`).
+    static func agyWellKnownPaths(home: String) -> [String] {
+        [
+            "\(home)/.local/bin/agy",
+            "/opt/homebrew/bin/agy",
+            "/usr/local/bin/agy",
+        ]
+    }
+
     public static func resolveGrokBinary(
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,

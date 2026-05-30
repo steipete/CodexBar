@@ -69,6 +69,9 @@
 ### Added
 - Settings: add search to the Providers pane so large provider lists can be filtered by name or id (#1184). Thanks @046081-dotcom!
 
+### Changed
+- Antigravity: prefer the Antigravity CLI (`agy`) OAuth session for quota fetch before the local IDE API or CodexBar-managed Google OAuth, and auto-disable Gemini when `agy` is installed.
+
 ### Fixed
 - Augment: parse the updated `auggie account status` output format, fall back to browser cookies when CLI parsing fails, and restore session cookie detection (#1224). Thanks @bcharleson!
 - Amp/Ollama: require HTTPS before reattaching imported browser cookies on provider redirects to avoid cleartext cookie exposure (#1226). Thanks @Hinotoi-agent!

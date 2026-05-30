@@ -27,6 +27,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     public var timeout: TimeInterval = 10.0
     public var homeDirectory: String
     public var environment: [String: String]
+    public var credentialPreference: AntigravityCredentialSourcePreference
     public var dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
     public var oauthClientResolver: @Sendable () -> AntigravityOAuthClient?
     public var credentialsUpdateHandler: @Sendable (AntigravityOAuthCredentials) async throws -> Void
@@ -60,6 +61,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         timeout: TimeInterval = 10.0,
         homeDirectory: String = NSHomeDirectory(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
+        credentialPreference: AntigravityCredentialSourcePreference = .automatic,
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
             try await ProviderHTTPClient.shared.data(for: request)
         },
@@ -71,13 +73,17 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         self.timeout = timeout
         self.homeDirectory = homeDirectory
         self.environment = environment
+        self.credentialPreference = credentialPreference
         self.dataLoader = dataLoader
         self.oauthClientResolver = oauthClientResolver
         self.credentialsUpdateHandler = credentialsUpdateHandler
     }
 
     public func fetch() async throws -> AntigravityStatusSnapshot {
-        let source = try Self.resolveCredentialSource(homeDirectory: self.homeDirectory, environment: self.environment)
+        let source = try Self.resolveCredentialSource(
+            homeDirectory: self.homeDirectory,
+            environment: self.environment,
+            preference: self.credentialPreference)
         guard let credentials = source.credentials else {
             throw AntigravityRemoteFetchError.notLoggedIn
         }
@@ -529,7 +535,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
     private static func resolveCredentialSource(
         homeDirectory: String,
-        environment: [String: String]) throws -> (
+        environment: [String: String],
+        preference: AntigravityCredentialSourcePreference) throws -> (
         credentials: AntigravityOAuthCredentials?,
         store: AntigravityOAuthCredentialsStore?)
     {
@@ -541,7 +548,24 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             }
             return (credentials, nil)
         }
-        return try (primaryStore.load(), primaryStore)
+
+        switch preference {
+        case .agyCLI:
+            guard let credentials = try AntigravityAgyCredentials.loadCredentials(homeDirectory: homeDirectory) else {
+                throw AntigravityRemoteFetchError.notLoggedIn
+            }
+            return (credentials, nil)
+        case .codexbarStore:
+            return try (primaryStore.load(), primaryStore)
+        case .automatic:
+            if let credentials = try primaryStore.load() {
+                return (credentials, primaryStore)
+            }
+            if let credentials = try AntigravityAgyCredentials.loadCredentials(homeDirectory: homeDirectory) {
+                return (credentials, nil)
+            }
+            return (nil, primaryStore)
+        }
     }
 
     private struct RefreshResult {
