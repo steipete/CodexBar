@@ -29,6 +29,10 @@ struct AmpUsageFetcherTests {
         let signIn = try #require(URL(string: "https://ampcode.com/auth/sign-in?returnTo=%2Fsettings"))
         #expect(AmpUsageFetcher.isLoginRedirect(signIn))
 
+        let downgradedSignIn = try #require(URL(string: "http://ampcode.com/auth/sign-in?returnTo=%2Fsettings"))
+        #expect(AmpUsageFetcher.isLoginRedirect(downgradedSignIn))
+        #expect(!AmpUsageFetcher.shouldAttachCookie(to: downgradedSignIn))
+
         let sso = try #require(URL(string: "https://ampcode.com/auth/sso?returnTo=%2Fsettings"))
         #expect(AmpUsageFetcher.isLoginRedirect(sso))
 

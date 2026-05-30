@@ -372,13 +372,17 @@ public struct AmpUsageFetcher: Sendable {
 
     static func shouldAttachCookie(to url: URL?) -> Bool {
         guard url?.scheme?.lowercased() == "https" else { return false }
+        return self.isAmpHost(url)
+    }
+
+    private static func isAmpHost(_ url: URL?) -> Bool {
         guard let host = url?.host?.lowercased() else { return false }
         if host == "ampcode.com" || host == "www.ampcode.com" { return true }
         return host.hasSuffix(".ampcode.com")
     }
 
     static func isLoginRedirect(_ url: URL) -> Bool {
-        guard self.shouldAttachCookie(to: url) else { return false }
+        guard self.isAmpHost(url) else { return false }
 
         let path = url.path.lowercased()
         let components = path.split(separator: "/").map(String.init)
