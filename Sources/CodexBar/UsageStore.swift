@@ -234,6 +234,9 @@ final class UsageStore {
     @ObservationIgnored var managedCodexAccountsForStorageOverride: [ManagedCodexAccount]?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
     @ObservationIgnored var codexPlanHistoryBackfillTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var startupRetryTask: Task<Void, Never>?
+    static var startupRetryDelay: Duration = .seconds(30)
+
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
     @ObservationIgnored let planUtilizationHistoryStore: PlanUtilizationHistoryStore
     @ObservationIgnored let codexAccountUsageSnapshotStore: (any CodexAccountUsageSnapshotStoring)?
@@ -330,7 +333,10 @@ final class UsageStore {
         Task { @MainActor [weak self] in
             await self?.refreshHistoricalDatasetIfNeeded()
         }
-        Task { await self.refresh() }
+        Task { @MainActor [weak self] in
+            await self?.refresh()
+            self?.scheduleStartupRetryIfNeeded()
+        }
         self.startTimer()
         self.startTokenTimer()
     }
@@ -659,6 +665,23 @@ final class UsageStore {
         }
     }
 
+    func scheduleStartupRetryIfNeeded() {
+        guard self.startupRetryTask == nil else { return }
+        let providers = self.enabledProvidersForBackgroundWork()
+        guard providers
+            .contains(where: {
+                self
+                    .errors[$0] != nil ||
+                    (self.statuses[$0]?.indicator == .unknown && self.statuses[$0]?.updatedAt == nil)
+            }) else { return }
+        self.startupRetryTask = Task { @MainActor [weak self] in
+            defer { self?.startupRetryTask = nil }
+            do { try await Task.sleep(for: Self.startupRetryDelay) } catch { return }
+            guard !Task.isCancelled else { return }
+            await self?.refresh()
+        }
+    }
+
     private func scheduleTokenRefresh(force: Bool) {
         if force {
             self.tokenRefreshSequenceTask?.cancel()
@@ -701,6 +724,7 @@ final class UsageStore {
         self.tokenRefreshSequenceTask?.cancel()
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
+        self.startupRetryTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {
