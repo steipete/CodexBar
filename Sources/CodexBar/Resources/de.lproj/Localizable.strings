@@ -409,6 +409,7 @@
 "language_ukrainian" = "Ukrainisch";
 "language_vietnamese" = "Vietnamesisch";
 "language_korean" = "Koreanisch";
+"language_turkish" = "Türkçe";
 "start_at_login_title" = "Beim Login starten";
 "start_at_login_subtitle" = "Startet CodexBar automatisch, wenn dein Mac hochfährt.";
 "show_cost_summary" = "Kostenübersicht anzeigen";

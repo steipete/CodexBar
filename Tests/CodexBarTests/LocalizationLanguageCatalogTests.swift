@@ -19,6 +19,7 @@ struct LocalizationLanguageCatalogTests {
         "language_vietnamese",
         "language_japanese",
         "language_korean",
+        "language_turkish",
     ]
 
     @Test
@@ -31,6 +32,12 @@ struct LocalizationLanguageCatalogTests {
     func `app language catalog includes Korean`() {
         #expect(AppLanguage.allCases.contains(.korean))
         #expect(AppLanguage.korean.rawValue == "ko")
+    }
+
+    @Test
+    func `app language catalog includes Turkish`() {
+        #expect(AppLanguage.allCases.contains(.turkish))
+        #expect(AppLanguage.turkish.rawValue == "tr")
     }
 
     @Test
@@ -92,6 +99,33 @@ struct LocalizationLanguageCatalogTests {
         #expect(catalog["quota_warning_session"] == "세션")
         #expect(catalog["quota_warning_warn_at"] == "경고 기준")
         #expect(catalog["quit_app"] == "CodexBar 종료")
+    }
+
+    @Test
+    func `turkish localization matches English catalog and preserves format placeholders`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let enURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
+        let trURL = resourcesURL.appendingPathComponent("tr.lproj/Localizable.strings")
+        let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
+        let turkish = try #require(NSDictionary(contentsOf: trURL) as? [String: String])
+
+        #expect(Set(turkish.keys) == Set(english.keys))
+        #expect(turkish["language_turkish"] == "Türkçe")
+        #expect(turkish["tab_general"] == "Genel")
+        #expect(turkish["quit_app"] == "CodexBar'dan Çık")
+        #expect(turkish["display_mode_percent_desc"]?.contains("%45") == true)
+
+        let format = try #require(turkish["quota_warning_notification_body"])
+        let rendered = String(
+            format: format,
+            locale: Locale(identifier: "tr_TR"),
+            arguments: ["%20", 15, "oturum"])
+        #expect(rendered.contains("15%"))
+        #expect(!rendered.contains("%2$d"))
     }
 
     @Test

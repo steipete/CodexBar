@@ -409,6 +409,7 @@
 "language_japanese" = "Японська";
 "language_korean" = "Корейська";
 "language_vietnamese" = "В'єтнамська";
+"language_turkish" = "Türkçe";
 "start_at_login_title" = "Почніть із входу";
 "start_at_login_subtitle" = "Автоматично відкриває CodexBar під час запуску Mac.";
 "show_cost_summary" = "Показати підсумок витрат";
