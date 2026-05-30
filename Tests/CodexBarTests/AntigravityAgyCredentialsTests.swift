@@ -22,6 +22,29 @@ struct AntigravityAgyCredentialsTests {
     }
 
     @Test
+    func `maps gemini quota snapshot into antigravity models`() {
+        let gemini = GeminiStatusSnapshot(
+            modelQuotas: [
+                GeminiModelQuota(
+                    modelId: "gemini-2.5-pro",
+                    percentLeft: 80,
+                    resetTime: Date(timeIntervalSince1970: 1_700_000_000),
+                    resetDescription: "Resets in 1d"),
+            ],
+            rawText: "{}",
+            accountEmail: "user@example.com",
+            accountPlan: "Free")
+
+        let snapshot = AntigravityAgyQuotaFetcher.makeAntigravitySnapshot(from: gemini)
+
+        #expect(snapshot.accountEmail == "user@example.com")
+        #expect(snapshot.accountPlan == "Free")
+        #expect(snapshot.modelQuotas.count == 1)
+        #expect(snapshot.modelQuotas[0].modelId == "gemini-2.5-pro")
+        #expect(snapshot.modelQuotas[0].remainingFraction == 0.8)
+    }
+
+    @Test
     func `agy fetch strategy falls back in auto mode`() async {
         let strategy = AntigravityAgyFetchStrategy()
         let context = ProviderFetchContext(
@@ -38,6 +61,7 @@ struct AntigravityAgyCredentialsTests {
             browserDetection: BrowserDetection(cacheTTL: 0))
 
         #expect(strategy.shouldFallback(on: AntigravityRemoteFetchError.notLoggedIn, context: context))
+        #expect(strategy.shouldFallback(on: GeminiStatusProbeError.notLoggedIn, context: context))
     }
 
     @Test

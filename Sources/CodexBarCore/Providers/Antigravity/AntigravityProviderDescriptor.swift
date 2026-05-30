@@ -55,7 +55,7 @@ public enum AntigravityProviderDescriptor {
             return [oauth]
         case .auto:
             if await agy.isAvailable(context) {
-                return [agy, local, oauth]
+                return [agy, oauth, local]
             }
             return [local, oauth]
         case .web, .api:
@@ -75,40 +75,19 @@ struct AntigravityAgyFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let fetcher = AntigravityRemoteUsageFetcher(
-            environment: context.env,
-            credentialPreference: .agyCLI,
-            credentialsUpdateHandler: { credentials in
-                guard let accountID = context.selectedTokenAccountID,
-                      let updater = context.tokenAccountTokenUpdater
-                else {
-                    return
-                }
-                let token = try AntigravityOAuthCredentialsStore.tokenAccountValue(for: credentials)
-                await updater(.antigravity, accountID, token)
-            })
-        let snapshot = try await fetcher.fetch()
-        let usage = if snapshot.modelQuotas.isEmpty {
-            UsageSnapshot(
-                primary: nil,
-                secondary: nil,
-                tertiary: nil,
-                updatedAt: Date(),
-                identity: ProviderIdentitySnapshot(
-                    providerID: .antigravity,
-                    accountEmail: snapshot.accountEmail,
-                    accountOrganization: nil,
-                    loginMethod: snapshot.accountPlan))
-        } else {
-            try snapshot.toUsageSnapshot()
-        }
+        let snapshot = try await AntigravityAgyQuotaFetcher.fetch()
+        let usage = try snapshot.toUsageSnapshot()
         return self.makeResult(
             usage: usage,
             sourceLabel: "agy")
     }
 
-    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        context.sourceMode == .auto || context.sourceMode == .oauth
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto || context.sourceMode == .oauth else { return false }
+        if error is AntigravityRemoteFetchError || error is GeminiStatusProbeError {
+            return true
+        }
+        return false
     }
 }
 
