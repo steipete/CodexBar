@@ -362,6 +362,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
     }
 
+    private var isTerminatingDuplicateInstance = false
+
     func configure(_ dependencies: Dependencies) {
         self.store = dependencies.store
         self.settings = dependencies.settings
@@ -372,10 +374,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        if SingleInstanceLaunchGuard.terminateCurrentIfDuplicateRunning() {
+            self.isTerminatingDuplicateInstance = true
+            return
+        }
         self.configureAppIconForMacOSVersion()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !self.isTerminatingDuplicateInstance else { return }
         AppNotifications.shared.requestAuthorizationOnStartup()
         self.ensureStatusController()
         KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in

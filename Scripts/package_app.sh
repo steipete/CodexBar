@@ -461,6 +461,12 @@ codesign "${CODESIGN_ARGS[@]}" \
   --entitlements "$APP_ENTITLEMENTS" \
   "$APP"
 
+if [[ -e "$APP_FINAL" && ! -w "$APP_FINAL" ]]; then
+    echo "ERROR: Cannot replace $APP_FINAL because it is not writable by $(id -un)." >&2
+    echo "Fix ownership or remove the stale bundle before launching a freshly packaged CodexBar." >&2
+    exit 1
+fi
+
 rm -rf "$APP_FINAL"
 mv "$APP" "$APP_FINAL"
 APP="$APP_FINAL"

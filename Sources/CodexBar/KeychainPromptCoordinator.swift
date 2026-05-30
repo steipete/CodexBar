@@ -119,20 +119,26 @@ enum KeychainPromptCoordinator {
     }
 
     private static func presentAlert(title: String, message: String) {
-        self.promptLock.lock()
-        defer { self.promptLock.unlock() }
-
         if Thread.isMainThread {
             MainActor.assumeIsolated {
-                self.showAlert(title: title, message: message)
+                self.showSerializedAlert(title: title, message: message)
             }
             return
         }
+        // macos-smell:disable MACOS002
+        // Keychain prompt callbacks are synchronous; wait for the main-actor acknowledgement before continuing.
         DispatchQueue.main.sync {
             MainActor.assumeIsolated {
-                self.showAlert(title: title, message: message)
+                self.showSerializedAlert(title: title, message: message)
             }
         }
+    }
+
+    @MainActor
+    private static func showSerializedAlert(title: String, message: String) {
+        self.promptLock.lock()
+        defer { self.promptLock.unlock() }
+        self.showAlert(title: title, message: message)
     }
 
     @MainActor

@@ -2,6 +2,9 @@ import CodexBarCore
 import ServiceManagement
 
 enum LaunchAtLoginManager {
+    typealias StatusProvider = () -> SMAppService.Status
+    typealias RegistrationAction = () throws -> Void
+
     private static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil { return true }
@@ -13,11 +16,26 @@ enum LaunchAtLoginManager {
     static func setEnabled(_ enabled: Bool) {
         if self.isRunningTests { return }
         let service = SMAppService.mainApp
+        self.setEnabled(
+            enabled,
+            status: { service.status },
+            register: { try service.register() },
+            unregister: { try service.unregister() })
+    }
+
+    static func setEnabled(
+        _ enabled: Bool,
+        status: StatusProvider,
+        register: RegistrationAction,
+        unregister: RegistrationAction)
+    {
         do {
             if enabled {
-                try service.register()
+                guard status() != .enabled else { return }
+                try register()
             } else {
-                try service.unregister()
+                guard status() != .notRegistered else { return }
+                try unregister()
             }
         } catch {
             CodexBarLog.logger(LogCategories.launchAtLogin).error("Failed to update login item: \(error)")

@@ -60,6 +60,65 @@ struct AppDelegateTests {
         #expect(dummyStatusController.shutdowns == 1)
         #expect(ttyShutdowns == 1)
     }
+
+    @Test
+    func `single instance guard continues when only current process is running`() {
+        let decision = SingleInstanceLaunchGuard.launchDecision(
+            currentProcessIdentifier: 10,
+            runningApplications: [
+                RunningApplicationSnapshot(processIdentifier: 10, bundleURL: nil, isTerminated: false),
+            ])
+
+        #expect(decision == .continueLaunch)
+    }
+
+    @Test
+    func `single instance guard terminates current process when another copy is already running`() {
+        let decision = SingleInstanceLaunchGuard.launchDecision(
+            currentProcessIdentifier: 20,
+            runningApplications: [
+                RunningApplicationSnapshot(
+                    processIdentifier: 10,
+                    bundleURL: URL(fileURLWithPath: "/Applications/CodexBar.app"),
+                    isTerminated: false),
+                RunningApplicationSnapshot(
+                    processIdentifier: 20,
+                    bundleURL: URL(fileURLWithPath: "/tmp/CodexBar.app"),
+                    isTerminated: false),
+            ])
+
+        #expect(decision == .terminateCurrent(existingProcessIdentifier: 10))
+    }
+
+    @Test
+    func `single instance guard keeps current process when it is the oldest running copy`() {
+        let decision = SingleInstanceLaunchGuard.launchDecision(
+            currentProcessIdentifier: 10,
+            runningApplications: [
+                RunningApplicationSnapshot(
+                    processIdentifier: 20,
+                    bundleURL: URL(fileURLWithPath: "/tmp/CodexBar.app"),
+                    isTerminated: false),
+                RunningApplicationSnapshot(
+                    processIdentifier: 10,
+                    bundleURL: URL(fileURLWithPath: "/Applications/CodexBar.app"),
+                    isTerminated: false),
+            ])
+
+        #expect(decision == .continueLaunch)
+    }
+
+    @Test
+    func `single instance guard ignores terminated copies`() {
+        let decision = SingleInstanceLaunchGuard.launchDecision(
+            currentProcessIdentifier: 20,
+            runningApplications: [
+                RunningApplicationSnapshot(processIdentifier: 10, bundleURL: nil, isTerminated: true),
+                RunningApplicationSnapshot(processIdentifier: 20, bundleURL: nil, isTerminated: false),
+            ])
+
+        #expect(decision == .continueLaunch)
+    }
 }
 
 @MainActor
