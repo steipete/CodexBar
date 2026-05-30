@@ -95,10 +95,8 @@ struct AugmentCLIFetchStrategy: ProviderFetchStrategy {
         // Fallback to web if CLI fails (not authenticated, etc.)
         if let cliError = error as? AuggieCLIError {
             switch cliError {
-            case .notAuthenticated, .noOutput:
+            case .notAuthenticated, .noOutput, .parseError:
                 return true
-            case .parseError:
-                return false // Don't fallback on parse errors - something is wrong
             }
         }
         return true

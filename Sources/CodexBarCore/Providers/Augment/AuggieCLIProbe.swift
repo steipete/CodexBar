@@ -52,11 +52,16 @@ public struct AuggieCLIProbe: Sendable {
         return output
     }
 
-    private func parse(_ output: String) throws -> AugmentStatusSnapshot {
-        // Parse output like:
+    func parse(_ output: String) throws -> AugmentStatusSnapshot {
+        // Legacy output:
         // Max Plan 450,000 credits / month
         // 11,657 remaining · 953,170 / 964,827 credits used
         // 2 days remaining in this billing cycle (ends 1/8/2026)
+        //
+        // Current output (2026+):
+        // 319,054 credits remaining                     Max Plan
+        // 450,000 credits / month
+        // 9 days remaining in this billing cycle (ends 6/9/2026)
 
         var maxCredits: Int?
         var remaining: Int?
@@ -67,8 +72,15 @@ public struct AuggieCLIProbe: Sendable {
         for line in output.split(separator: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // Parse "Max Plan 450,000 credits / month"
-            if trimmed.contains("Max Plan"), trimmed.contains("credits") {
+            if trimmed.contains("credits / month") {
+                if let match = trimmed.range(of: #"([\d,]+)\s+credits\s*/\s*month"#, options: .regularExpression) {
+                    let numberStr = String(trimmed[match]).replacingOccurrences(of: ",", with: "")
+                        .replacingOccurrences(of: " credits", with: "")
+                        .replacingOccurrences(of: " / month", with: "")
+                    maxCredits = Int(numberStr)
+                    total = total ?? Int(numberStr)
+                }
+            } else if trimmed.contains("Max Plan"), trimmed.contains("credits"), !trimmed.contains("remaining") {
                 if let match = trimmed.range(of: #"([\d,]+)\s+credits"#, options: .regularExpression) {
                     let numberStr = String(trimmed[match]).replacingOccurrences(of: ",", with: "")
                         .replacingOccurrences(of: " credits", with: "")
@@ -76,9 +88,17 @@ public struct AuggieCLIProbe: Sendable {
                 }
             }
 
+            if trimmed.contains("credits remaining"), !trimmed.contains("billing cycle") {
+                if let match = trimmed.range(of: #"([\d,]+)\s+credits\s+remaining"#, options: .regularExpression) {
+                    let numberStr = String(trimmed[match]).replacingOccurrences(of: ",", with: "")
+                        .replacingOccurrences(of: " credits", with: "")
+                        .replacingOccurrences(of: " remaining", with: "")
+                    remaining = Int(numberStr)
+                }
+            }
+
             // Parse "11,657 remaining · 953,170 / 964,827 credits used"
             if trimmed.contains("remaining"), trimmed.contains("credits used") {
-                // Extract remaining
                 if let remMatch = trimmed.range(of: #"([\d,]+)\s+remaining"#, options: .regularExpression) {
                     let numStr = String(trimmed[remMatch])
                         .replacingOccurrences(of: ",", with: "")
@@ -86,7 +106,6 @@ public struct AuggieCLIProbe: Sendable {
                     remaining = Int(numStr)
                 }
 
-                // Extract used / total
                 if let usedMatch = trimmed.range(
                     of: #"([\d,]+)\s*/\s*([\d,]+)\s+credits used"#,
                     options: .regularExpression)
@@ -103,15 +122,12 @@ public struct AuggieCLIProbe: Sendable {
                 }
             }
 
-            // Parse "2 days remaining in this billing cycle (ends 1/8/2026)"
             if trimmed.contains("billing cycle"), trimmed.contains("ends") {
-                // Extract date from "(ends 1/8/2026)"
                 if let dateMatch = trimmed.range(of: #"ends\s+([\d/]+)"#, options: .regularExpression) {
                     let dateStr = String(trimmed[dateMatch])
                         .replacingOccurrences(of: "ends", with: "")
                         .trimmingCharacters(in: .whitespaces)
 
-                    // Parse date like "1/8/2026"
                     let formatter = DateFormatter()
                     formatter.dateFormat = "M/d/yyyy"
                     formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -121,10 +137,18 @@ public struct AuggieCLIProbe: Sendable {
             }
         }
 
-        guard let finalRemaining = remaining, let finalUsed = used, let finalTotal = total else {
+        guard let finalRemaining = remaining else {
             Self.log.error("Failed to parse auggie output: \(output)")
             throw AuggieCLIError.parseError("Could not extract credits from output")
         }
+
+        let finalTotal = total ?? maxCredits
+        guard let finalTotal else {
+            Self.log.error("Failed to parse auggie output: \(output)")
+            throw AuggieCLIError.parseError("Could not extract credits from output")
+        }
+
+        let finalUsed = used ?? max(0, finalTotal - finalRemaining)
 
         return AugmentStatusSnapshot(
             creditsRemaining: Double(finalRemaining),
