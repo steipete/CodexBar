@@ -30,6 +30,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     static let quotaWarningFlashDuration: TimeInterval = 60
     private nonisolated static let statusItemAccessibilityTitle = "CodexBar"
     private nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
+    private nonisolated static let mergedLegacyDefaultItemIndex = 0
 
     enum StatusItemIdentity {
         case merged
@@ -38,9 +39,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         var autosaveName: String {
             switch self {
             case .merged:
-                return "codexbar-merged"
+                "codexbar-merged"
             case let .provider(provider):
-                return "codexbar-\(provider.rawValue)"
+                "codexbar-\(provider.rawValue)"
             }
         }
 
@@ -209,10 +210,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private static func makeStatusItem(
         statusBar: NSStatusBar,
         identity: StatusItemIdentity,
-        defaults: UserDefaults)
+        defaults: UserDefaults,
+        legacyDefaultItemIndex: Int?)
         -> NSStatusItem
     {
-        MenuBarStatusItemPlacementPreflight.prepare(defaults: defaults, autosaveName: identity.autosaveName)
+        MenuBarStatusItemPlacementPreflight.prepare(
+            defaults: defaults,
+            autosaveName: identity.autosaveName,
+            legacyDefaultItemIndex: legacyDefaultItemIndex)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = identity.autosaveName
         if let button = item.button {
@@ -337,7 +342,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.statusItem = Self.makeStatusItem(
             statusBar: statusBar,
             identity: .merged,
-            defaults: settings.userDefaults)
+            defaults: settings.userDefaults,
+            legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
         self.lastKnownScreenCount = NSScreen.screens.count
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
@@ -705,7 +711,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let item = Self.makeStatusItem(
             statusBar: self.statusBar,
             identity: .provider(provider),
-            defaults: self.settings.userDefaults)
+            defaults: self.settings.userDefaults,
+            legacyDefaultItemIndex: self.legacyDefaultItemIndex(forNewProvider: provider))
         self.statusItems[provider] = item
         return item
     }
@@ -719,7 +726,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.statusItem = Self.makeStatusItem(
             statusBar: self.statusBar,
             identity: .merged,
-            defaults: self.settings.userDefaults)
+            defaults: self.settings.userDefaults,
+            legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
         for provider in Array(self.statusItems.keys) {
             self.removeProviderStatusItem(for: provider)
         }
@@ -896,6 +904,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 }
 
 extension StatusItemController {
+    private func legacyDefaultItemIndex(forNewProvider provider: UsageProvider) -> Int? {
+        let visibleProviders = self.settings.orderedProviders().filter { self.isVisible($0) }
+        guard let providerOffset = visibleProviders.firstIndex(of: provider) else { return nil }
+        return Self.mergedLegacyDefaultItemIndex + 1 + providerOffset
+    }
+
     func refreshExistingStatusItemsForVisibilityRecovery() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
