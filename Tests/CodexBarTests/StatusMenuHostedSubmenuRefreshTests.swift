@@ -59,11 +59,13 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(submenu.items.first?.view != nil)
 
         let oldParentVersion = try #require(controller.menuVersions[parentKey])
-        controller.menuContentVersion &+= 1
-        controller.refreshOpenMenusIfNeeded()
+        controller.invalidateMenus(
+            refreshOpenMenus: true,
+            deferOpenParentMenuRebuild: true)
         #expect(controller.menuVersions[parentKey] == oldParentVersion)
-        controller.menuContentVersion &+= 1
-        controller.refreshOpenMenusIfNeeded()
+        controller.invalidateMenus(
+            refreshOpenMenus: true,
+            deferOpenParentMenuRebuild: true)
         #expect(controller.menuVersions[parentKey] == oldParentVersion)
 
         controller.menuDidClose(submenu)

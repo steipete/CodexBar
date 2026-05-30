@@ -136,6 +136,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var openMenuRebuildTokens: [ObjectIdentifier: Int] = [:]
     var openMenuRebuildTokenCounter = 0
     var openMenuRebuildsClosingHostedSubviewMenus: Set<ObjectIdentifier> = []
+    var parentMenuRebuildsDeferredDuringTracking: Set<ObjectIdentifier> = []
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
@@ -852,6 +853,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.openMenuRebuildTasks.removeValue(forKey: menuID)?.cancel()
             self.openMenuRebuildTokens.removeValue(forKey: menuID)
             self.openMenuRebuildsClosingHostedSubviewMenus.remove(menuID)
+            self.parentMenuRebuildsDeferredDuringTracking.remove(menuID)
             self.highlightedMenuItems.removeValue(forKey: menuID)
         }
 

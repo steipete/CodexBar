@@ -130,7 +130,7 @@ extension StatusItemController {
         let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
         self.forgetClosedMenu(menu)
         if wasHostedSubviewMenu {
-            self.refreshOpenMenusAllowingParentRebuild(deferParentRebuildDuringTracking: true)
+            self.refreshOpenMenusAfterHostedSubviewClose()
         }
     }
 
@@ -159,6 +159,7 @@ extension StatusItemController {
         } else if self.menuNeedsRefresh(menu) {
             self.rebuildClosedMenuIfNeeded(menu)
         }
+        self.parentMenuRebuildsDeferredDuringTracking.remove(key)
     }
 
     func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {

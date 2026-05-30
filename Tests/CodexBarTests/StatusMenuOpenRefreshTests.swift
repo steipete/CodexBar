@@ -146,6 +146,59 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `explicit refresh rebuilds stale parent after hosted submenu closes`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let menuKey = ObjectIdentifier(menu)
+        controller.openMenus[menuKey] = menu
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.usageBreakdownChartID,
+            provider: .codex)
+        let submenuKey = ObjectIdentifier(submenu)
+        controller.openMenus[submenuKey] = submenu
+        controller.menuRefreshEnabledOverrideForTesting = true
+
+        let openedVersion = controller.menuVersions[menuKey]
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
+
+        controller.refreshOpenMenusAfterExplicitStoreAction()
+        for _ in 0..<20 where controller.menuContentVersion == openedVersion {
+            await Task.yield()
+        }
+        #expect(controller.menuVersions[menuKey] == openedVersion)
+
+        controller.menuDidClose(submenu)
+        for _ in 0..<20 where rebuildCount == 0 {
+            await Task.yield()
+        }
+
+        #expect(controller.openMenus[submenuKey] == nil)
+        #expect(rebuildCount == 1)
+        #expect(controller.menuVersions[menuKey] == controller.menuContentVersion)
+    }
+
+    @Test
     func `plain open menu refresh preserves pending switcher hosted submenu cleanup`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()

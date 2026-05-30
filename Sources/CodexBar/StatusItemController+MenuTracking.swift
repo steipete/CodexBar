@@ -79,6 +79,14 @@ extension StatusItemController {
         self.refreshOpenMenusAllowingParentRebuild()
     }
 
+    func refreshOpenMenusAfterHostedSubviewClose() {
+        guard self.isMenuRefreshEnabled else { return }
+        guard !self.openMenus.isEmpty else { return }
+        self.refreshOpenMenusIfNeeded(
+            allowsParentRebuild: true,
+            respectsParentRebuildDeferral: true)
+    }
+
     func refreshOpenMenusAllowingParentRebuild(deferParentRebuildDuringTracking: Bool = false) {
         guard self.isMenuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
@@ -104,7 +112,8 @@ extension StatusItemController {
 
     private func refreshOpenMenusIfNeeded(
         allowsParentRebuild: Bool,
-        deferParentRebuildDuringTracking: Bool = false)
+        deferParentRebuildDuringTracking: Bool = false,
+        respectsParentRebuildDeferral: Bool = false)
     {
         var orphanedKeys: [ObjectIdentifier] = []
         let hasOpenHostedSubviewMenu = self.hasOpenHostedSubviewMenu()
@@ -117,6 +126,7 @@ extension StatusItemController {
                 menu,
                 allowsParentRebuild: allowsParentRebuild,
                 deferParentRebuildDuringTracking: deferParentRebuildDuringTracking,
+                respectsParentRebuildDeferral: respectsParentRebuildDeferral,
                 hasOpenHostedSubviewMenu: hasOpenHostedSubviewMenu)
         }
         self.removeOrphanedOpenMenuEntries(orphanedKeys)
@@ -126,6 +136,7 @@ extension StatusItemController {
         _ menu: NSMenu,
         allowsParentRebuild: Bool,
         deferParentRebuildDuringTracking: Bool,
+        respectsParentRebuildDeferral: Bool,
         hasOpenHostedSubviewMenu: Bool)
     {
         if self.isHostedSubviewMenu(menu) {
@@ -133,10 +144,18 @@ extension StatusItemController {
             return
         }
         guard allowsParentRebuild else { return }
-        guard !hasOpenHostedSubviewMenu else { return }
         guard self.menuNeedsRefresh(menu) else { return }
+        let key = ObjectIdentifier(menu)
 
-        guard !deferParentRebuildDuringTracking else { return }
+        if deferParentRebuildDuringTracking {
+            self.parentMenuRebuildsDeferredDuringTracking.insert(key)
+            return
+        }
+        if respectsParentRebuildDeferral, self.parentMenuRebuildsDeferredDuringTracking.contains(key) {
+            return
+        }
+        self.parentMenuRebuildsDeferredDuringTracking.remove(key)
+        guard !hasOpenHostedSubviewMenu else { return }
 
         let provider = self.menuProvider(for: menu)
         self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: provider)
@@ -148,6 +167,7 @@ extension StatusItemController {
             self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
             self.menuProviders.removeValue(forKey: key)
             self.menuVersions.removeValue(forKey: key)
+            self.parentMenuRebuildsDeferredDuringTracking.remove(key)
         }
     }
 }
