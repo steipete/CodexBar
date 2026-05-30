@@ -1203,6 +1203,47 @@ extension AntigravityStatusProbeTests {
     }
 
     @Test
+    func `remote source image models do not drive family summary bars`() throws {
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro Image",
+                    modelId: "gemini-3-pro-image",
+                    remainingFraction: 0.2,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro (High)",
+                    modelId: "gemini-3-pro-high",
+                    remainingFraction: 0.9,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Flash Image",
+                    modelId: "gemini-3-flash-image",
+                    remainingFraction: 0.1,
+                    resetTime: nil,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3 Flash",
+                    modelId: "gemini-3-flash",
+                    remainingFraction: 0.8,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .remote)
+
+        let usage = try snapshot.toUsageSnapshot()
+
+        #expect(usage.secondary?.usedPercent == 10)
+        #expect(usage.tertiary?.usedPercent == 20)
+        #expect(usage.extraRateWindows?.map(\.id).contains("gemini-3-pro-image") == true)
+        #expect(usage.extraRateWindows?.map(\.id).contains("gemini-3-flash-image") == true)
+    }
+
+    @Test
     func `remote source yields nil extra windows when all models are unconsumed junk`() throws {
         // Fixture D: all-junk-unconsumed → extraRateWindows nil
         let snapshot = AntigravityStatusSnapshot(

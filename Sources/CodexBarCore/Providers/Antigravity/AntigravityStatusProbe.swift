@@ -199,6 +199,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         let isAutocomplete = modelId.contains("autocomplete") || label.contains("autocomplete") || modelId
             .hasPrefix("tab_")
         let isImage = modelId.contains("image") || label.contains("image")
+        let isSelectableTextModel = !isLite && !isAutocomplete && !isImage
         let isLowPriorityGeminiPro = modelId.contains("pro-low")
             || (label.contains("pro") && label.contains("low"))
 
@@ -206,15 +207,15 @@ public struct AntigravityStatusSnapshot: Sendable {
         case .claude:
             0
         case .geminiPro:
-            if isLowPriorityGeminiPro {
+            if isLowPriorityGeminiPro, isSelectableTextModel {
                 0
-            } else if !isLite, !isAutocomplete {
+            } else if isSelectableTextModel {
                 1
             } else {
                 nil
             }
         case .geminiFlash:
-            (!isLite && !isAutocomplete) ? 0 : nil
+            isSelectableTextModel ? 0 : nil
         case .unknown:
             nil
         }
