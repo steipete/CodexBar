@@ -371,6 +371,7 @@ public struct AmpUsageFetcher: Sendable {
     }
 
     static func shouldAttachCookie(to url: URL?) -> Bool {
+        guard url?.scheme?.lowercased() == "https" else { return false }
         guard let host = url?.host?.lowercased() else { return false }
         if host == "ampcode.com" || host == "www.ampcode.com" { return true }
         return host.hasSuffix(".ampcode.com")
