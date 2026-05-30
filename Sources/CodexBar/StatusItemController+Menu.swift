@@ -130,7 +130,7 @@ extension StatusItemController {
         let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
         self.forgetClosedMenu(menu)
         if wasHostedSubviewMenu {
-            self.refreshOpenMenusAllowingParentRebuild()
+            self.refreshOpenMenusAllowingParentRebuild(deferParentRebuildDuringTracking: true)
         }
     }
 
@@ -156,6 +156,8 @@ extension StatusItemController {
         if !isPersistentMenu {
             self.menuProviders.removeValue(forKey: key)
             self.menuVersions.removeValue(forKey: key)
+        } else if self.menuNeedsRefresh(menu) {
+            self.rebuildClosedMenuIfNeeded(menu)
         }
     }
 
@@ -1073,16 +1075,6 @@ extension StatusItemController {
         return .provider(self.resolvedMenuProvider(enabledProviders: enabledProviders) ?? .codex)
     }
 
-    func menuNeedsRefresh(_ menu: NSMenu) -> Bool {
-        let key = ObjectIdentifier(menu)
-        return self.menuVersions[key] != self.menuContentVersion
-    }
-
-    func markMenuFresh(_ menu: NSMenu) {
-        let key = ObjectIdentifier(menu)
-        self.menuVersions[key] = self.menuContentVersion
-    }
-
     func menuProvider(for menu: NSMenu) -> UsageProvider? {
         if self.shouldMergeIcons {
             return self.resolvedMenuProvider()
@@ -1094,25 +1086,6 @@ extension StatusItemController {
             return nil
         }
         return self.store.enabledProvidersForDisplay().first ?? .codex
-    }
-
-    func hasOpenHostedSubviewMenu() -> Bool {
-        self.openMenus.values.contains { self.isHostedSubviewMenu($0) }
-    }
-
-    func refreshOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
-        self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: provider)
-    }
-
-    func rebuildOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
-        guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
-        guard self.isHostedSubviewMenu(menu) || !self.hasOpenHostedSubviewMenu() else { return }
-        self.populateMenu(menu, provider: provider)
-        self.markMenuFresh(menu)
-        self.applyIcon(phase: nil)
-        #if DEBUG
-        self._test_openMenuRebuildObserver?(menu)
-        #endif
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {

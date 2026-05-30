@@ -441,7 +441,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeStoreChanges()
-                self.invalidateMenus(refreshOpenMenus: self.didMenuAdjunctReadinessChange())
+                self.invalidateMenus(
+                    refreshOpenMenus: self.didMenuAdjunctReadinessChange(),
+                    deferOpenParentMenuRebuild: true)
             }
         }
     }
@@ -603,20 +605,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 self.observeManagedCodexCoordinatorChanges()
                 self.refreshMenusForLoginStateChange()
             }
-        }
-    }
-
-    func invalidateMenus(refreshOpenMenus: Bool = false) {
-        #if DEBUG
-        guard !self.isReleasedForTesting else { return }
-        #endif
-        self.menuContentVersion &+= 1
-        guard self.isMenuRefreshEnabled else { return }
-        if !self.openMenus.isEmpty {
-            guard refreshOpenMenus else { return }
-            self.refreshOpenMenusAllowingParentRebuild()
-            self.scheduleOpenMenuInvalidationRetry()
-            return
         }
     }
 

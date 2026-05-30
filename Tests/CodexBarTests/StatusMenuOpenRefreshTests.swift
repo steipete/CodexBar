@@ -333,7 +333,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `credits history arriving after open refreshes parent menu without explicit refresh`() async throws {
+    func `credits history arriving after open rebuilds parent menu after tracking ends`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -370,10 +370,12 @@ extension StatusMenuTests {
             ],
             updatedAt: now.addingTimeInterval(10))
 
-        await self.waitUntilOpenMenuIsFresh(controller, key: key, after: openedVersion)
+        await self.waitUntilOpenMenuStaysStale(controller, key: key, after: openedVersion)
 
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        await self.closeMenuAndWaitUntilFresh(controller, menu: menu, key: key)
 
         let creditsItem = try #require(self.menuItem(in: menu, id: "menuCardCredits"))
         #expect(
@@ -383,7 +385,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `fresh dashboard history with same day count refreshes parent menu`() async throws {
+    func `fresh dashboard history with same day count rebuilds parent menu after tracking ends`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -424,17 +426,20 @@ extension StatusMenuTests {
             ],
             updatedAt: now.addingTimeInterval(10))
 
-        await self.waitUntilOpenMenuIsFresh(controller, key: key, after: openedVersion)
+        await self.waitUntilOpenMenuStaysStale(controller, key: key, after: openedVersion)
 
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        await self.closeMenuAndWaitUntilFresh(controller, menu: menu, key: key)
+
         let creditsItem = try #require(self.menuItem(in: menu, id: "menuCardCredits"))
         #expect(creditsItem.submenu?.items.first?.representedObject as? String == StatusItemController
             .creditsHistoryChartID)
     }
 
     @Test
-    func `token cost history arriving after open refreshes parent menu without explicit refresh`() async throws {
+    func `token cost history arriving after open rebuilds parent menu after tracking ends`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -464,10 +469,12 @@ extension StatusMenuTests {
 
         store._setTokenSnapshotForTesting(self.makeCodexTokenCostSnapshot(), provider: .codex)
 
-        await self.waitUntilOpenMenuIsFresh(controller, key: key, after: openedVersion)
+        await self.waitUntilOpenMenuStaysStale(controller, key: key, after: openedVersion)
 
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        await self.closeMenuAndWaitUntilFresh(controller, menu: menu, key: key)
 
         let costItem = try #require(self.menuItem(in: menu, id: "menuCardCost"))
         #expect(costItem.submenu?.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
@@ -475,7 +482,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `fresh token cost history with same day count refreshes parent menu`() async throws {
+    func `fresh token cost history with same day count rebuilds parent menu after tracking ends`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -520,16 +527,19 @@ extension StatusMenuTests {
                 updatedAt: Date(timeIntervalSince1970: 200)),
             provider: .codex)
 
-        await self.waitUntilOpenMenuIsFresh(controller, key: key, after: openedVersion)
+        await self.waitUntilOpenMenuStaysStale(controller, key: key, after: openedVersion)
 
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        await self.closeMenuAndWaitUntilFresh(controller, menu: menu, key: key)
+
         let costItem = try #require(self.menuItem(in: menu, id: "menuCardCost"))
         #expect(costItem.submenu?.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
     }
 
     @Test
-    func `plan utilization history arriving after open refreshes parent menu without explicit refresh`() async throws {
+    func `plan utilization history arriving after open rebuilds parent menu after tracking ends`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -564,15 +574,17 @@ extension StatusMenuTests {
             snapshot: self.makeCodexPlanUtilizationSnapshot(),
             now: Date())
 
-        await self.waitUntilOpenMenuIsFresh(controller, key: key, after: openedVersion)
+        await self.waitUntilOpenMenuStaysStale(controller, key: key, after: openedVersion)
 
         #expect(store.planUtilizationHistoryRevision > openedRevision)
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        await self.closeMenuAndWaitUntilFresh(controller, menu: menu, key: key)
     }
 
     @Test
-    func `dashboard attachment authorization arriving after open refreshes parent menu`() async throws {
+    func `dashboard attachment authorization arriving after open rebuilds parent menu after close`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -609,11 +621,13 @@ extension StatusMenuTests {
 
         store.openAIDashboardAttachmentAuthorized = true
 
-        await self.waitUntilOpenMenuIsFresh(controller, key: key, after: openedVersion)
+        await self.waitUntilOpenMenuStaysStale(controller, key: key, after: openedVersion)
 
         #expect(store.openAIDashboardAttachmentRevision == 1)
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        await self.closeMenuAndWaitUntilFresh(controller, menu: menu, key: key)
     }
 
     private func enableOnlyCodex(_ settings: SettingsStore) {
@@ -637,7 +651,7 @@ extension StatusMenuTests {
         }
     }
 
-    private func waitUntilOpenMenuIsFresh(
+    private func waitUntilOpenMenuStaysStale(
         _ controller: StatusItemController,
         key: ObjectIdentifier,
         after version: Int?) async
@@ -647,12 +661,30 @@ extension StatusMenuTests {
                 await Task.yield()
                 continue
             }
-            guard controller.menuVersions[key] == controller.menuContentVersion else {
+            guard controller.menuVersions[key] == version else {
                 await Task.yield()
                 continue
             }
             return
         }
+    }
+
+    private func closeMenuAndWaitUntilFresh(
+        _ controller: StatusItemController,
+        menu: NSMenu,
+        key: ObjectIdentifier) async
+    {
+        controller.menuDidClose(menu)
+        for _ in 0..<40 where controller.menuVersions[key] != controller.menuContentVersion {
+            await Task.yield()
+        }
+        if controller.menuVersions[key] != controller.menuContentVersion {
+            controller.menuWillOpen(menu)
+        }
+        for _ in 0..<40 where controller.menuVersions[key] != controller.menuContentVersion {
+            await Task.yield()
+        }
+        #expect(controller.menuVersions[key] == controller.menuContentVersion)
     }
 
     private func makeOpenAIDashboard(
