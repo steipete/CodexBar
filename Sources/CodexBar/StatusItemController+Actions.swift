@@ -351,7 +351,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
-    private func openTerminal(command: String) {
+    func openTerminal(command: String) {
         let terminal = self.settings.terminalApp
         let escaped = command
             .replacingOccurrences(of: "\\", with: "\\\\")
