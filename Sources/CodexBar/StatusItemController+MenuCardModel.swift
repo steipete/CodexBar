@@ -89,6 +89,19 @@ extension StatusItemController {
             ?? (metadata.usesAccountFallback
                 ? self.store.accountInfo(for: target)
                 : AccountInfo(email: nil, plan: nil))
+        let subscriptionText: String? = self.settings
+            .providerSubscriptionSnapshot(for: target)
+            .flatMap { snapshot in
+                ProviderSubscriptionFormatter.menuLine(
+                    from: snapshot,
+                    now: now,
+                    locale: codexBarLocalizedLocale())
+            }
+            .flatMap { line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : "Subscription: \(trimmed)"
+            }
+
         let input = UsageMenuCardView.Model.Input(
             provider: target,
             metadata: metadata,
@@ -114,6 +127,7 @@ extension StatusItemController {
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
+            subscriptionText: subscriptionText,
             quotaWarningThresholds: [
                 .session: self.quotaWarningMarkerThresholds(provider: target, window: .session),
                 .weekly: self.quotaWarningMarkerThresholds(provider: target, window: .weekly),

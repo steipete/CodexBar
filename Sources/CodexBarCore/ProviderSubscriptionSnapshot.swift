@@ -173,36 +173,41 @@ public enum ProviderSubscriptionFormatter {
     public static func menuLine(
         from snapshot: ProviderSubscriptionSnapshot,
         now: Date = .init(),
-        calendar: Calendar = .current) -> String?
+        calendar: Calendar = .current,
+        locale: Locale = .current) -> String?
     {
         if let expires = snapshot.subscriptionExpiresAt {
-            return self.expiresLine(date: expires, now: now, calendar: calendar)
+            return self.expiresLine(date: expires, now: now, calendar: calendar, locale: locale)
         }
         if let renews = snapshot.subscriptionRenewsAt,
            snapshot.status == .active || snapshot.status == .trialing
         {
-            return self.renewsLine(date: renews, now: now, calendar: calendar)
+            return self.renewsLine(date: renews, now: now, calendar: calendar, locale: locale)
         }
         return nil
     }
 
-    private static func renewsLine(date: Date, now: Date, calendar: Calendar) -> String {
+    private static func renewsLine(date: Date, now: Date, calendar: Calendar, locale: Locale) -> String {
         let dayDelta = dayDelta(from: now, to: date, calendar: calendar)
         if dayDelta == 0 { return "Renews today" }
-        return "Renews \(date.formatted(date: .abbreviated, time: .omitted))"
+        return "Renews \(self.formattedDate(date, locale: locale))"
     }
 
-    private static func expiresLine(date: Date, now: Date, calendar: Calendar) -> String {
+    private static func expiresLine(date: Date, now: Date, calendar: Calendar, locale: Locale) -> String {
         let dayDelta = dayDelta(from: now, to: date, calendar: calendar)
         if dayDelta < 0 {
-            return "Expired \(date.formatted(date: .abbreviated, time: .omitted))"
+            return "Expired \(self.formattedDate(date, locale: locale))"
         }
         if dayDelta == 0 { return "Expires today" }
         if dayDelta <= 7 {
             let label = dayDelta == 1 ? "day" : "days"
             return "Expires in \(dayDelta) \(label)"
         }
-        return "Expires \(date.formatted(date: .abbreviated, time: .omitted))"
+        return "Expires \(self.formattedDate(date, locale: locale))"
+    }
+
+    private static func formattedDate(_ date: Date, locale: Locale) -> String {
+        date.formatted(.dateTime.month(.abbreviated).day().year().locale(locale))
     }
 
     private static func dayDelta(from now: Date, to date: Date, calendar: Calendar) -> Int {

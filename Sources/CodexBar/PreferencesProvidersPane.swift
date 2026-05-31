@@ -83,33 +83,46 @@ struct ProvidersPane: View {
                     onRefresh: {
                         self.triggerRefresh(for: provider)
                     },
-                    showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
+                    showsSupplementarySettingsContent: self.showsSupplementarySettings(for: provider),
                     supplementarySettingsContent: {
-                        if let state = self.codexAccountsSectionState(for: provider) {
-                            CodexAccountsSectionView(
-                                state: state,
-                                setActiveVisibleAccount: { visibleAccountID in
-                                    Task { @MainActor in
-                                        await self.selectCodexVisibleAccount(id: visibleAccountID)
-                                    }
+                        if provider == .codex {
+                            if let state = self.codexAccountsSectionState(for: provider) {
+                                CodexAccountsSectionView(
+                                    state: state,
+                                    setActiveVisibleAccount: { visibleAccountID in
+                                        Task { @MainActor in
+                                            await self.selectCodexVisibleAccount(id: visibleAccountID)
+                                        }
+                                    },
+                                    reauthenticateAccount: { account in
+                                        Task { @MainActor in
+                                            await self.reauthenticateCodexAccount(account)
+                                        }
+                                    },
+                                    removeAccount: { account in
+                                        self.requestManagedCodexAccountRemoval(account)
+                                    },
+                                    requestSystemVisibleAccount: { visibleAccountID in
+                                        Task { @MainActor in
+                                            await self.requestCodexSystemVisibleAccount(id: visibleAccountID)
+                                        }
+                                    },
+                                    addAccount: {
+                                        Task { @MainActor in
+                                            await self.addManagedCodexAccount()
+                                        }
+                                    })
+                            }
+
+                            CodexManualSubscriptionSectionView(
+                                snapshot: self.settings.providerSubscriptionSnapshot(for: .codex),
+                                onSave: { snapshot in
+                                    self.settings.setProviderSubscriptionSnapshot(provider: .codex, snapshot: snapshot)
+                                    self.store.handleProviderSubscriptionReminders(provider: .codex)
                                 },
-                                reauthenticateAccount: { account in
-                                    Task { @MainActor in
-                                        await self.reauthenticateCodexAccount(account)
-                                    }
-                                },
-                                removeAccount: { account in
-                                    self.requestManagedCodexAccountRemoval(account)
-                                },
-                                requestSystemVisibleAccount: { visibleAccountID in
-                                    Task { @MainActor in
-                                        await self.requestCodexSystemVisibleAccount(id: visibleAccountID)
-                                    }
-                                },
-                                addAccount: {
-                                    Task { @MainActor in
-                                        await self.addManagedCodexAccount()
-                                    }
+                                onClear: {
+                                    self.settings.setProviderSubscriptionSnapshot(provider: .codex, snapshot: nil)
+                                    self.store.handleProviderSubscriptionReminders(provider: .codex)
                                 })
                         }
                     })
@@ -187,6 +200,10 @@ struct ProvidersPane: View {
             return
         }
         self.selectedProvider = filteredProviders.first
+    }
+
+    private func showsSupplementarySettings(for provider: UsageProvider) -> Bool {
+        provider == .codex
     }
 
     private func triggerRefresh(for provider: UsageProvider) {

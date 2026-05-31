@@ -1183,6 +1183,7 @@ extension UsageStore {
             self.handleProviderSubscriptionReminders(provider: .codex)
             self.lastKnownResetSnapshots[.codex] = backfilled
             self.lastCodexAccountScopedRefreshGuard = Self.codexScopedRefreshGuard(for: account)
+
             self.snapshots[.codex] = backfilled
             if let sourceLabel {
                 self.lastSourceLabels[.codex] = sourceLabel

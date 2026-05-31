@@ -253,6 +253,46 @@ struct ProviderSubscriptionReminderFoundationTests {
     }
 
     @Test
+    func `unchanged subscription reminder state does not rewrite config`() throws {
+        let suite = "ProviderSubscriptionReminderFoundationTests-no-rewrite-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        let inSevenDays = Date().addingTimeInterval(7 * 24 * 60 * 60)
+        settings.setProviderSubscriptionSnapshot(
+            provider: .codex,
+            snapshot: ProviderSubscriptionSnapshot(
+                provider: .codex,
+                planName: "Codex Plus (manual)",
+                status: .active,
+                subscriptionRenewsAt: inSevenDays,
+                subscriptionExpiresAt: nil,
+                updatedAt: Date()))
+
+        let notifier = SubscriptionReminderNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier,
+            startupBehavior: .testing)
+
+        let revisionBefore = settings.configRevision
+        store.handleProviderSubscriptionReminders(provider: .codex)
+        let revisionAfterFirst = settings.configRevision
+        #expect(revisionAfterFirst > revisionBefore)
+
+        store.handleProviderSubscriptionReminders(provider: .codex)
+        let revisionAfterSecond = settings.configRevision
+        #expect(revisionAfterSecond == revisionAfterFirst)
+    }
+
+    @Test
     func `menu descriptor shows subscription line separate from quota rows`() throws {
         let suite = "ProviderSubscriptionReminderFoundationTests-menu-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -297,6 +337,52 @@ struct ProviderSubscriptionReminderFoundationTests {
         let lines = Self.textLines(from: descriptor)
         #expect(lines.contains(where: { $0.hasPrefix("Subscription: Expires in 7 days") }))
         #expect(!lines.contains(where: { $0.hasPrefix("Subscription: Resets ") }))
+    }
+
+    @Test
+    func `menu descriptor shows manual codex renewal line`() throws {
+        let suite = "ProviderSubscriptionReminderFoundationTests-codex-line-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        let renewsAt = Date().addingTimeInterval(8 * 24 * 60 * 60)
+        settings.setProviderSubscriptionSnapshot(
+            provider: .codex,
+            snapshot: ProviderSubscriptionSnapshot(
+                provider: .codex,
+                planName: "Codex Plus (manual)",
+                status: .active,
+                subscriptionRenewsAt: renewsAt,
+                subscriptionExpiresAt: nil,
+                updatedAt: Date()))
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 40, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                updatedAt: Date()),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = Self.textLines(from: descriptor)
+        #expect(lines.contains(where: { $0.hasPrefix("Subscription: Renews ") }))
     }
 
     @Test

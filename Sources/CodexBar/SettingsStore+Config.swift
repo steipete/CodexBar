@@ -108,6 +108,9 @@ extension SettingsStore {
         for provider: UsageProvider,
         state: ProviderSubscriptionReminderState?)
     {
+        let current = self.configSnapshot.providerConfig(for: provider)?
+            .subscriptionReminderState?[provider.rawValue]
+        if current == state { return }
         self.updateConfig(reason: "subscription-reminder-state-\(provider.rawValue)") { config in
             guard let index = config.providers.firstIndex(where: { $0.id == provider }) else { return }
             var states = config.providers[index].subscriptionReminderState ?? [:]

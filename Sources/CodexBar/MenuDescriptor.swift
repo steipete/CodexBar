@@ -463,7 +463,9 @@ struct MenuDescriptor {
         }
 
         if let subscription,
-           let subscriptionLine = ProviderSubscriptionFormatter.menuLine(from: subscription),
+           let subscriptionLine = ProviderSubscriptionFormatter.menuLine(
+               from: subscription,
+               locale: codexBarLocalizedLocale()),
            !subscriptionLine.isEmpty
         {
             entries.append(.text("Subscription: \(subscriptionLine)", .secondary))
@@ -485,7 +487,6 @@ struct MenuDescriptor {
            !subscriptionLine.isEmpty
         {
             entries.append(.text("Subscription: \(subscriptionLine)", .secondary))
-        }
         }
 
         return entries
