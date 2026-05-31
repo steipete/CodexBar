@@ -116,6 +116,32 @@ struct PreferencesPaneSmokeTests {
         #expect(!L("vertex_ai_login_instructions").contains("\\n"))
     }
 
+    @Test
+    func `italian language preference resolves italian strings`() {
+        let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
+        let previousAppleLanguages = UserDefaults.standard.object(forKey: "AppleLanguages")
+        defer {
+            if let previousLanguage {
+                UserDefaults.standard.set(previousLanguage, forKey: "appLanguage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "appLanguage")
+            }
+            if let previousAppleLanguages {
+                UserDefaults.standard.set(previousAppleLanguages, forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
+        }
+
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-language-italian")
+        settings.appLanguage = "it"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "it")
+        #expect(L("language_title") == "Lingua")
+        #expect(L("section_system") == "Sistema")
+        #expect(L("language_italian") == "Italiano")
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

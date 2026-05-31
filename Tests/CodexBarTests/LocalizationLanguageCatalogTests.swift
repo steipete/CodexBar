@@ -20,6 +20,7 @@ struct LocalizationLanguageCatalogTests {
         "language_japanese",
         "language_korean",
         "language_turkish",
+        "language_italian",
     ]
 
     @Test
@@ -179,5 +180,29 @@ struct LocalizationLanguageCatalogTests {
 
         #expect(rendered.contains("7일간"))
         #expect(rendered.contains("3개 서비스"))
+    }
+
+    @Test
+    func `all localization catalogs include italian language label`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resources = root.appendingPathComponent("Sources/CodexBar/Resources", isDirectory: true)
+
+        let lprojDirectories = try FileManager.default.contentsOfDirectory(
+            at: resources,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ).filter { $0.pathExtension == "lproj" }
+
+        #expect(!lprojDirectories.isEmpty)
+        for directory in lprojDirectories {
+            let content = try String(
+                contentsOf: directory.appendingPathComponent("Localizable.strings"),
+                encoding: .utf8
+            )
+            #expect(content.contains("\"language_italian\" = \"Italiano\";"))
+        }
     }
 }
