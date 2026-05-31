@@ -136,6 +136,64 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     }
 
     @Test
+    func `load with auto refresh keeps codexbar cache ownership without Claude CLI storage`() async throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+            defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
+
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+            await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                        await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
+                            ClaudeOAuthCredentialsStore.invalidateCache()
+                            let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                            defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                            let expiredData = self.makeCredentialsData(
+                                accessToken: "expired-codexbar-only",
+                                expiresAt: Date(timeIntervalSinceNow: -3600),
+                                refreshToken: "cached-refresh-token")
+                            KeychainCacheStore.store(
+                                key: cacheKey,
+                                entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                    data: expiredData,
+                                    storedAt: Date(timeIntervalSinceNow: 60),
+                                    owner: .codexbar))
+
+                            await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(false) {
+                                do {
+                                    _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                        environment: [:],
+                                        allowKeychainPrompt: false,
+                                        respectKeychainPromptCooldown: true)
+                                    Issue.record("Expected direct CodexBar refresh failure")
+                                } catch let error as ClaudeOAuthCredentialsError {
+                                    guard case let .refreshFailed(message) = error else {
+                                        Issue.record("Expected .refreshFailed, got \(error)")
+                                        return
+                                    }
+                                    #expect(message.contains("suppressed") || message.contains("backed off"))
+                                } catch {
+                                    Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     func `load record treats codexbar cache as claude CLI owned when Claude keychain item exists`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try KeychainCacheStore.withServiceOverrideForTesting(service) {

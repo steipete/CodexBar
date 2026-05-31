@@ -436,6 +436,7 @@ public enum ClaudeOAuthCredentialsStore {
         private func resolvedCacheOwner(_ owner: ClaudeOAuthCredentialOwner) -> ClaudeOAuthCredentialOwner {
             guard owner == .codexbar else { return owner }
             guard self.hasClaudeCLIStorageWithoutPrompt() else { return owner }
+            // Claude Code rotates refresh tokens; when its storage exists, it owns the refresh lifecycle.
             return .claudeCLI
         }
 
