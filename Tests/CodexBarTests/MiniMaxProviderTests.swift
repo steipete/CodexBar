@@ -133,7 +133,7 @@ struct MiniMaxProviderStrategyTests {
     }
 
     private func makeContext(runtime: ProviderRuntime, env: [String: String] = [:]) -> ProviderFetchContext {
-        return ProviderFetchContext(
+        ProviderFetchContext(
             runtime: runtime,
             sourceMode: .web,
             includeCredits: false,
