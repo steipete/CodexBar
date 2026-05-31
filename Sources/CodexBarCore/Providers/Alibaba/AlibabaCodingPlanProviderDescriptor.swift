@@ -112,6 +112,8 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: context.env)
+
         let cookieSource = context.settings?.alibaba?.cookieSource ?? .auto
         let cookieHeader = try Self.resolveCookieHeader(context: context, allowCached: true)
         do {
@@ -171,7 +173,7 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
 
         if let settingsError = error as? AlibabaCodingPlanSettingsError {
             switch settingsError {
-            case .missingCookie, .invalidCookie:
+            case .missingCookie, .invalidCookie, .invalidEndpointOverride:
                 return true
             case .missingToken:
                 return false

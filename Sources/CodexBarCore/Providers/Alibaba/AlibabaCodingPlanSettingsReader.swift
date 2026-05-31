@@ -25,7 +25,11 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
     public static func hostOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.hostKey])
+        guard let raw = self.cleaned(environment[self.hostKey]) else { return nil }
+        if let scheme = URL(string: raw)?.scheme {
+            return scheme.lowercased() == "https" ? raw : nil
+        }
+        return raw
     }
 
     public static func cookieHeader(
@@ -38,10 +42,21 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         guard let raw = self.cleaned(environment[self.quotaURLKey]) else { return nil }
-        if let url = URL(string: raw), url.scheme != nil {
-            return url
+        if let url = URL(string: raw), let scheme = url.scheme {
+            return scheme.lowercased() == "https" ? url : nil
         }
         return URL(string: "https://\(raw)")
+    }
+
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        if self.hasExplicitNonHTTPSURL(environment[self.quotaURLKey]) {
+            throw AlibabaCodingPlanSettingsError.invalidEndpointOverride(self.quotaURLKey)
+        }
+        if self.hasExplicitNonHTTPSURL(environment[self.hostKey]) {
+            throw AlibabaCodingPlanSettingsError.invalidEndpointOverride(self.hostKey)
+        }
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -58,12 +73,20 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
     }
+
+    private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
+        guard let cleaned = self.cleaned(raw),
+              let scheme = URL(string: cleaned)?.scheme
+        else { return false }
+        return scheme.lowercased() != "https"
+    }
 }
 
-public enum AlibabaCodingPlanSettingsError: LocalizedError, Sendable {
+public enum AlibabaCodingPlanSettingsError: LocalizedError, Sendable, Equatable {
     case missingToken
     case missingCookie(details: String? = nil)
     case invalidCookie
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
@@ -78,6 +101,8 @@ public enum AlibabaCodingPlanSettingsError: LocalizedError, Sendable {
             return "\(base) \(details)"
         case .invalidCookie:
             return "Alibaba Coding Plan cookie header is invalid."
+        case let .invalidEndpointOverride(key):
+            return "Alibaba Coding Plan endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

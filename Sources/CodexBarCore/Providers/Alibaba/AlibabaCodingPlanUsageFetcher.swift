@@ -28,6 +28,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         guard !cleanedKey.isEmpty else {
             throw AlibabaCodingPlanUsageError.invalidCredentials
         }
+        try AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: environment)
 
         if region != .international {
             return try await self.fetchUsageOnce(
@@ -63,6 +64,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         guard let normalizedCookie = CookieHeaderNormalizer.normalize(cookieHeader) else {
             throw AlibabaCodingPlanSettingsError.invalidCookie
         }
+        try AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: environment)
 
         if region != .international {
             return try await self.fetchUsageOnce(
@@ -273,8 +275,8 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
         guard let cleaned else { return nil }
 
-        let base: URL? = if let url = URL(string: cleaned), url.scheme != nil {
-            url
+        let base: URL? = if let url = URL(string: cleaned), let scheme = url.scheme {
+            scheme.lowercased() == "https" ? url : nil
         } else {
             URL(string: "https://\(cleaned)")
         }
@@ -297,8 +299,8 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
         guard let cleaned else { return nil }
 
-        let base: URL? = if let url = URL(string: cleaned), url.scheme != nil {
-            url
+        let base: URL? = if let url = URL(string: cleaned), let scheme = url.scheme {
+            scheme.lowercased() == "https" ? url : nil
         } else {
             URL(string: "https://\(cleaned)")
         }
@@ -360,8 +362,8 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
         guard let cleaned else { return nil }
 
-        let base: URL? = if let url = URL(string: cleaned), url.scheme != nil {
-            url
+        let base: URL? = if let url = URL(string: cleaned), let scheme = url.scheme {
+            scheme.lowercased() == "https" ? url : nil
         } else {
             URL(string: "https://\(cleaned)")
         }
@@ -423,8 +425,8 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
         guard let cleaned else { return nil }
 
-        let base: URL? = if let url = URL(string: cleaned), url.scheme != nil {
-            url
+        let base: URL? = if let url = URL(string: cleaned), let scheme = url.scheme {
+            scheme.lowercased() == "https" ? url : nil
         } else {
             URL(string: "https://\(cleaned)")
         }

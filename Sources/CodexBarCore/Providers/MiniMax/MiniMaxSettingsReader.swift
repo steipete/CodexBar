@@ -27,7 +27,11 @@ public struct MiniMaxSettingsReader: Sendable {
     }
 
     public static func hostOverride(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.cleaned(environment[self.hostKey])
+        guard let raw = self.cleaned(environment[self.hostKey]) else { return nil }
+        if let scheme = URL(string: raw)?.scheme {
+            return scheme.lowercased() == "https" ? raw : nil
+        }
+        return raw
     }
 
     public static func codingPlanURL(
@@ -48,6 +52,18 @@ public struct MiniMaxSettingsReader: Sendable {
         self.url(from: environment[self.billingHistoryURLKey])
     }
 
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        let explicitURLKeys = [self.codingPlanURLKey, self.remainsURLKey, self.billingHistoryURLKey]
+        for key in explicitURLKeys where self.hasExplicitNonHTTPSURL(environment[key]) {
+            throw MiniMaxSettingsError.invalidEndpointOverride(key)
+        }
+        if self.hasExplicitNonHTTPSURL(environment[self.hostKey]) {
+            throw MiniMaxSettingsError.invalidEndpointOverride(self.hostKey)
+        }
+    }
+
     static func cleaned(_ raw: String?) -> String? {
         guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
             return nil
@@ -65,20 +81,30 @@ public struct MiniMaxSettingsReader: Sendable {
 
     private static func url(from raw: String?) -> URL? {
         guard let cleaned = self.cleaned(raw) else { return nil }
-        if let url = URL(string: cleaned), url.scheme != nil {
-            return url
+        if let url = URL(string: cleaned), let scheme = url.scheme {
+            return scheme.lowercased() == "https" ? url : nil
         }
         return URL(string: "https://\(cleaned)")
     }
+
+    private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
+        guard let cleaned = self.cleaned(raw),
+              let scheme = URL(string: cleaned)?.scheme
+        else { return false }
+        return scheme.lowercased() != "https"
+    }
 }
 
-public enum MiniMaxSettingsError: LocalizedError, Sendable {
+public enum MiniMaxSettingsError: LocalizedError, Sendable, Equatable {
     case missingCookie
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingCookie:
             "MiniMax session not found. Sign in to platform.minimax.io or platform.minimaxi.com in your browser and try again."
+        case let .invalidEndpointOverride(key):
+            "MiniMax endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

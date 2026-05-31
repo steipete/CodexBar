@@ -3,6 +3,20 @@ import Testing
 @testable import CodexBarCore
 
 struct AlibabaCodingPlanSettingsReaderTests {
+    private struct StubClaudeFetcher: ClaudeUsageFetching {
+        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+            throw ClaudeUsageError.parseFailed("stub")
+        }
+
+        func debugRawProbe(model _: String) async -> String {
+            "stub"
+        }
+
+        func detectVersion() -> String? {
+            nil
+        }
+    }
+
     @Test
     func `api token reads from environment`() {
         let token = AlibabaCodingPlanSettingsReader.apiToken(environment: ["ALIBABA_CODING_PLAN_API_KEY": "abc123"])
@@ -44,6 +58,104 @@ struct AlibabaCodingPlanSettingsReaderTests {
             .quotaURL(environment: [AlibabaCodingPlanSettingsReader
                     .quotaURLKey: "modelstudio.console.alibabacloud.com/data/api.json"])
         #expect(url?.absoluteString == "https://modelstudio.console.alibabacloud.com/data/api.json")
+    }
+
+    @Test
+    func `quota URL rejects non HTTPS schemes`() {
+        let httpURL = AlibabaCodingPlanSettingsReader.quotaURL(environment: [
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "http://modelstudio.console.alibabacloud.com/data/api.json",
+        ])
+        let ftpURL = AlibabaCodingPlanSettingsReader.quotaURL(environment: [
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "ftp://modelstudio.console.alibabacloud.com/data/api.json",
+        ])
+
+        #expect(httpURL == nil)
+        #expect(ftpURL == nil)
+    }
+
+    @Test
+    func `host override rejects non HTTPS schemes`() {
+        let httpHost = AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+            AlibabaCodingPlanSettingsReader.hostKey: "http://modelstudio.console.alibabacloud.com",
+        ])
+        let httpsHost = AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+            AlibabaCodingPlanSettingsReader.hostKey: "https://modelstudio.console.alibabacloud.com",
+        ])
+        let bareHost = AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+            AlibabaCodingPlanSettingsReader.hostKey: "modelstudio.console.alibabacloud.com",
+        ])
+
+        #expect(httpHost == nil)
+        #expect(httpsHost == "https://modelstudio.console.alibabacloud.com")
+        #expect(bareHost == "modelstudio.console.alibabacloud.com")
+    }
+
+    @Test
+    func `validation fails closed for explicit non HTTPS endpoint overrides`() throws {
+        let rejectedOverrides = [
+            AlibabaCodingPlanSettingsReader.quotaURLKey:
+                "http://modelstudio.console.alibabacloud.com/data/api.json",
+            AlibabaCodingPlanSettingsReader.hostKey: "ftp://modelstudio.console.alibabacloud.com",
+        ]
+
+        for (key, value) in rejectedOverrides {
+            #expect(throws: AlibabaCodingPlanSettingsError.invalidEndpointOverride(key)) {
+                try AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: [key: value])
+            }
+        }
+
+        try AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: [
+            AlibabaCodingPlanSettingsReader.quotaURLKey:
+                "https://modelstudio.console.alibabacloud.com/data/api.json",
+            AlibabaCodingPlanSettingsReader.hostKey: "modelstudio.console.alibabacloud.com",
+        ])
+    }
+
+    @Test
+    func `api fetch rejects non HTTPS endpoint override before sending credentials`() async {
+        await #expect(throws: AlibabaCodingPlanSettingsError.invalidEndpointOverride(
+            AlibabaCodingPlanSettingsReader.quotaURLKey))
+        {
+            try await AlibabaCodingPlanUsageFetcher.fetchUsage(
+                apiKey: "dummy-api-key",
+                environment: [
+                    AlibabaCodingPlanSettingsReader.quotaURLKey: "http://localhost:8080/data/api.json",
+                ])
+        }
+    }
+
+    @Test
+    func `cookie fetch rejects non HTTPS host override before sending credentials`() async {
+        await #expect(throws: AlibabaCodingPlanSettingsError.invalidEndpointOverride(
+            AlibabaCodingPlanSettingsReader.hostKey))
+        {
+            try await AlibabaCodingPlanUsageFetcher.fetchUsage(
+                cookieHeader: "login_aliyunid_ticket=abc; login_aliyunid_pk=123",
+                environment: [AlibabaCodingPlanSettingsReader.hostKey: "http://localhost:8080"])
+        }
+    }
+
+    @Test
+    func `web strategy rejects invalid endpoint override before cookie discovery`() async {
+        let env = [AlibabaCodingPlanSettingsReader.quotaURLKey: "http://localhost:8080/data/api.json"]
+        let context = ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .web,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: env,
+            settings: nil,
+            fetcher: UsageFetcher(environment: env),
+            claudeFetcher: StubClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+
+        await #expect(throws: AlibabaCodingPlanSettingsError.invalidEndpointOverride(
+            AlibabaCodingPlanSettingsReader.quotaURLKey))
+        {
+            try await AlibabaCodingPlanWebFetchStrategy().fetch(context)
+        }
     }
 
     @Test

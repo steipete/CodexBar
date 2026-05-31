@@ -25,6 +25,71 @@ struct MiniMaxAPISettingsReaderTests {
     }
 }
 
+struct MiniMaxSettingsReaderTests {
+    @Test
+    func `URL overrides infer HTTPS scheme`() {
+        let url = MiniMaxSettingsReader.codingPlanURL(environment: [
+            MiniMaxSettingsReader.codingPlanURLKey: "platform.minimax.test/account",
+        ])
+
+        #expect(url?.scheme == "https")
+        #expect(url?.host == "platform.minimax.test")
+    }
+
+    @Test
+    func `URL overrides reject non HTTPS schemes`() {
+        let httpURL = MiniMaxSettingsReader.remainsURL(environment: [
+            MiniMaxSettingsReader.remainsURLKey: "http://platform.minimax.test/remains",
+        ])
+        let ftpURL = MiniMaxSettingsReader.billingHistoryURL(environment: [
+            MiniMaxSettingsReader.billingHistoryURLKey: "ftp://platform.minimax.test/billing",
+        ])
+
+        #expect(httpURL == nil)
+        #expect(ftpURL == nil)
+    }
+
+    @Test
+    func `host override rejects non HTTPS schemes`() {
+        let httpHost = MiniMaxSettingsReader.hostOverride(environment: [
+            MiniMaxSettingsReader.hostKey: "http://platform.minimax.test",
+        ])
+        let httpsHost = MiniMaxSettingsReader.hostOverride(environment: [
+            MiniMaxSettingsReader.hostKey: "https://platform.minimax.test",
+        ])
+        let bareHost = MiniMaxSettingsReader.hostOverride(environment: [
+            MiniMaxSettingsReader.hostKey: "platform.minimax.test",
+        ])
+
+        #expect(httpHost == nil)
+        #expect(httpsHost == "https://platform.minimax.test")
+        #expect(bareHost == "platform.minimax.test")
+    }
+
+    @Test
+    func `validation fails closed for explicit non HTTPS endpoint overrides`() throws {
+        let rejectedOverrides = [
+            MiniMaxSettingsReader.codingPlanURLKey: "http://platform.minimax.test/account",
+            MiniMaxSettingsReader.remainsURLKey: "http://platform.minimax.test/remains",
+            MiniMaxSettingsReader.billingHistoryURLKey: "ftp://platform.minimax.test/history",
+            MiniMaxSettingsReader.hostKey: "http://platform.minimax.test",
+        ]
+
+        for (key, value) in rejectedOverrides {
+            #expect(throws: MiniMaxSettingsError.invalidEndpointOverride(key)) {
+                try MiniMaxSettingsReader.validateEndpointOverrides(environment: [key: value])
+            }
+        }
+
+        try MiniMaxSettingsReader.validateEndpointOverrides(environment: [
+            MiniMaxSettingsReader.codingPlanURLKey: "https://platform.minimax.test/account",
+            MiniMaxSettingsReader.remainsURLKey: "https://platform.minimax.test/remains",
+            MiniMaxSettingsReader.billingHistoryURLKey: "https://platform.minimax.test/history",
+            MiniMaxSettingsReader.hostKey: "platform.minimax.test",
+        ])
+    }
+}
+
 struct MiniMaxProviderStrategyTests {
     private struct StubClaudeFetcher: ClaudeUsageFetching {
         func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
@@ -54,8 +119,20 @@ struct MiniMaxProviderStrategyTests {
         }
     }
 
-    private func makeContext(runtime: ProviderRuntime) -> ProviderFetchContext {
-        let env: [String: String] = [:]
+    @Test
+    func `web strategy rejects invalid endpoint override before browser credential discovery`() async {
+        let context = self.makeContext(
+            runtime: .app,
+            env: [MiniMaxSettingsReader.remainsURLKey: "http://localhost:8080/remains"])
+
+        await #expect(throws: MiniMaxSettingsError.invalidEndpointOverride(MiniMaxSettingsReader.remainsURLKey)) {
+            try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                try await MiniMaxCodingPlanFetchStrategy().fetch(context)
+            }
+        }
+    }
+
+    private func makeContext(runtime: ProviderRuntime, env: [String: String] = [:]) -> ProviderFetchContext {
         return ProviderFetchContext(
             runtime: runtime,
             sourceMode: .web,
@@ -766,6 +843,27 @@ struct MiniMaxUsageParserTests {
         #expect(summary.topMethods[0].tokens == 4000)
         #expect(summary.topMethods[1].name == "chat")
         #expect(summary.topMethods[1].tokens == 1000)
+    }
+
+    @Test
+    func `web usage fetch rejects non HTTPS endpoint override before sending credentials`() async throws {
+        let transport = ProviderHTTPTransportStub { _ in
+            Issue.record("request should not be sent for invalid endpoint override")
+            return try Self.httpResponse(
+                url: #require(URL(string: "https://platform.minimax.test/unreachable")),
+                body: "{}",
+                contentType: "application/json")
+        }
+
+        await #expect(throws: MiniMaxSettingsError.invalidEndpointOverride(MiniMaxSettingsReader.remainsURLKey)) {
+            try await MiniMaxUsageFetcher.fetchUsage(
+                cookieHeader: "HERTZ-SESSION=abc",
+                region: .global,
+                environment: [MiniMaxSettingsReader.remainsURLKey: "http://localhost:8080/remains"],
+                session: transport)
+        }
+        let requests = await transport.requests()
+        #expect(requests.isEmpty)
     }
 
     @Test

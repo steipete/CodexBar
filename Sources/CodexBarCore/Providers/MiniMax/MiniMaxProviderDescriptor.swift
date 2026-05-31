@@ -131,6 +131,8 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try MiniMaxSettingsReader.validateEndpointOverrides(environment: context.env)
+
         let fetchContext = FetchContext(
             region: context.settings?.minimax?.apiRegion ?? .global,
             environment: context.env,
