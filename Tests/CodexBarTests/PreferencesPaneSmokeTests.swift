@@ -79,6 +79,33 @@ struct PreferencesPaneSmokeTests {
         #expect(L("show_provider_storage_usage_title") == "显示提供商存储用量")
     }
 
+    @Test
+    func `language preference supports japanese localization`() {
+        let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
+        let previousAppleLanguages = UserDefaults.standard.object(forKey: "AppleLanguages")
+        defer {
+            if let previousLanguage {
+                UserDefaults.standard.set(previousLanguage, forKey: "appLanguage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "appLanguage")
+            }
+            if let previousAppleLanguages {
+                UserDefaults.standard.set(previousAppleLanguages, forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
+        }
+
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-language-ja")
+
+        settings.appLanguage = "ja"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "ja")
+        #expect(L("language_title") == "言語")
+        #expect(L("start_at_login_title") == "ログイン時に起動")
+        #expect(L("quit_app") == "終了")
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

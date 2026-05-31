@@ -1,4 +1,4 @@
-/* English localization for CodexBar (base/fallback) */
+/* Japanese localization for CodexBar */
 
 " providers" = " providers";
 "(System)" = "(System)";
@@ -387,12 +387,12 @@
 "© 2026 Peter Steinberger. MIT License." = "© 2026 Peter Steinberger. MIT License.";
 
 /* General Pane */
-"section_system" = "System";
-"section_usage" = "Usage";
-"section_automation" = "Automation";
-"language_title" = "Language";
-"language_subtitle" = "Change the display language. Requires app restart to take full effect.";
-"language_system" = "System";
+"section_system" = "システム";
+"section_usage" = "使用状況";
+"section_automation" = "自動化";
+"language_title" = "言語";
+"language_subtitle" = "表示言語を変更します。完全に反映するにはアプリの再起動が必要です。";
+"language_system" = "システム";
 "language_english" = "English";
 "language_spanish" = "Español";
 "language_catalan" = "Català";
@@ -401,21 +401,21 @@
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_swedish" = "Svenska";
 "language_japanese" = "日本語";
-"start_at_login_title" = "Start at Login";
-"start_at_login_subtitle" = "Automatically opens CodexBar when you start your Mac.";
-"show_cost_summary" = "Show cost summary";
-"show_cost_summary_subtitle" = "Reads local usage logs. Shows today + the selected history window in the menu.";
-"cost_history_days_title" = "History window: %d days";
-"cost_auto_refresh_info" = "Auto-refresh: hourly · Timeout: 10m";
-"refresh_cadence_title" = "Refresh cadence";
-"refresh_cadence_subtitle" = "How often CodexBar polls providers in the background.";
-"manual_refresh_hint" = "Auto-refresh is off; use the menu's Refresh command.";
-"check_provider_status_title" = "Check provider status";
-"check_provider_status_subtitle" = "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu.";
-"session_quota_notifications_title" = "Session quota notifications";
-"session_quota_notifications_subtitle" = "Notifies when the 5-hour session quota hits 0% and when it becomes available again.";
-"quota_warning_notifications_title" = "Quota warning notifications";
-"quota_warning_notifications_subtitle" = "Warns when session or weekly quota remaining crosses configured thresholds.";
+"start_at_login_title" = "ログイン時に起動";
+"start_at_login_subtitle" = "Mac の起動時に CodexBar を自動的に開きます。";
+"show_cost_summary" = "コスト概要を表示";
+"show_cost_summary_subtitle" = "ローカルの使用ログを読み込み、今日と選択した履歴期間のコストをメニューに表示します。";
+"cost_history_days_title" = "履歴期間: %d 日";
+"cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
+"refresh_cadence_title" = "更新間隔";
+"refresh_cadence_subtitle" = "バックグラウンドでプロバイダーをポーリングする頻度を設定します。";
+"manual_refresh_hint" = "自動更新はオフです。メニューの更新コマンドを使ってください。";
+"check_provider_status_title" = "プロバイダーのステータスを確認";
+"check_provider_status_subtitle" = "OpenAI/Claude のステータスページと Gemini/Antigravity 向け Google Workspace を確認し、障害をアイコンとメニューに表示します。";
+"session_quota_notifications_title" = "セッションクォータ通知";
+"session_quota_notifications_subtitle" = "5 時間セッションクォータが 0% になった時と再利用可能になった時に通知します。";
+"quota_warning_notifications_title" = "クォータ警告通知";
+"quota_warning_notifications_subtitle" = "セッションまたは週次クォータの残量が設定しきい値を下回ると通知します。";
 "quota_warnings_title" = "Quota warnings";
 "quota_warning_session" = "session";
 "quota_warning_session_capitalized" = "Session";
@@ -441,7 +441,7 @@
 "quota_warning_upper" = "Upper";
 "quota_warning_lower" = "Lower";
 "apply" = "Apply";
-"quit_app" = "Quit CodexBar";
+"quit_app" = "終了";
 
 /* Tab titles */
 "tab_general" = "General";
