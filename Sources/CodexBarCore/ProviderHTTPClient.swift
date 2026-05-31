@@ -189,7 +189,16 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
             // XCTest URLProtocol.registerClass stubs only intercept URLSession.shared on macOS.
             return .shared
         }
-        return URLSession(configuration: self.defaultConfiguration())
+        return self.redirectGuardedSession()
+    }
+
+    static func redirectGuardedSession(
+        configuration: URLSessionConfiguration = ProviderHTTPClient.defaultConfiguration()) -> URLSession
+    {
+        URLSession(
+            configuration: configuration,
+            delegate: ProviderHTTPRedirectGuardDelegate(),
+            delegateQueue: nil)
     }
 
     private static var isRunningTests: Bool {
@@ -205,5 +214,65 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await self.session.data(for: request)
+    }
+}
+
+final class ProviderHTTPRedirectGuardDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private static let sensitiveHeaderNames = Set([
+        "authorization",
+        "cookie",
+        "proxy-authorization",
+        "api-key",
+        "x-api-key",
+        "x-api-token",
+        "x-auth-token",
+        "x-csrf-token",
+        "x-xsrf-token",
+    ])
+
+    func urlSession(
+        _: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void)
+    {
+        completionHandler(Self.guardedRedirectRequest(originalURL: task.originalRequest?.url, redirectRequest: request))
+    }
+
+    static func guardedRedirectRequest(originalURL: URL?, redirectRequest request: URLRequest) -> URLRequest? {
+        guard let redirectedURL = request.url else { return nil }
+        guard redirectedURL.scheme?.caseInsensitiveCompare("https") == .orderedSame else { return nil }
+
+        if let originalURL, !self.isSameOrigin(originalURL, redirectedURL) {
+            return nil
+        }
+
+        return self.removingSensitiveHeaders(from: request)
+    }
+
+    private static func isSameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
+            && lhs.host?.lowercased() == rhs.host?.lowercased()
+            && self.normalizedPort(lhs) == self.normalizedPort(rhs)
+    }
+
+    private static func normalizedPort(_ url: URL) -> Int? {
+        if let port = url.port { return port }
+        switch url.scheme?.lowercased() {
+        case "http": return 80
+        case "https": return 443
+        default: return nil
+        }
+    }
+
+    private static func removingSensitiveHeaders(from request: URLRequest) -> URLRequest {
+        var sanitized = request
+        for headerName in Array(request.allHTTPHeaderFields?.keys ?? [:].keys)
+            where self.sensitiveHeaderNames.contains(headerName.lowercased())
+        {
+            sanitized.setValue(nil, forHTTPHeaderField: headerName)
+        }
+        return sanitized
     }
 }

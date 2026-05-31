@@ -763,7 +763,7 @@ public struct OpenAIDashboardFetcher {
         guard !cookieHeader.isEmpty else { return nil }
 
         do {
-            let (data, response) = try await URLSession.shared.data(
+            let (data, response) = try await ProviderHTTPClient.shared.data(
                 for: self.dashboardUsageAPIRequest(cookieHeader: cookieHeader))
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             logger("usage api status=\(status)")
@@ -793,7 +793,7 @@ public struct OpenAIDashboardFetcher {
 
         for url in endpoints {
             do {
-                let (data, response) = try await URLSession.shared.data(
+                let (data, response) = try await ProviderHTTPClient.shared.data(
                     for: self.dashboardIdentityAPIRequest(url: url, cookieHeader: cookieHeader))
                 let status = (response as? HTTPURLResponse)?.statusCode ?? -1
                 logger("identity api \(url.path) status=\(status)")

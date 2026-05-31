@@ -129,6 +129,51 @@ struct ProviderHTTPClientTests {
         #expect(response.statusCode == 403)
         #expect(await script.requestCount() == 1)
     }
+
+    @Test
+    func `redirect guard blocks cross origin redirects`() throws {
+        var redirectRequest = try URLRequest(url: #require(URL(string: "https://attacker.example/capture")))
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Cookie")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-api-key")
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard blocks non HTTPS redirects`() throws {
+        var redirectRequest = try URLRequest(url: #require(URL(string: "http://provider.example/capture")))
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Cookie")
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard strips sensitive headers on same origin redirects`() throws {
+        var redirectRequest = try URLRequest(url: #require(URL(string: "https://provider.example/usage/next")))
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Cookie")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Authorization")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "api-key")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-api-key")
+        redirectRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let guarded = try #require(ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest))
+
+        #expect(guarded.value(forHTTPHeaderField: "Cookie") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "api-key") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "x-api-key") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "Accept") == "application/json")
+    }
 }
 
 extension ProviderHTTPRetryPolicy {
