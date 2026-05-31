@@ -2,6 +2,10 @@
 
 ## 0.32.1 — Unreleased
 
+### Fixed
+- Menu bar: reuse short-lived Codex account reconciliation snapshots so repeated menu rebuilds do not reread local auth state on every open.
+- Menu bar: defer automatic provider refreshes until after AppKit menu tracking ends so opening the dropdown no longer starts work that can freeze focus and keyboard input.
+
 ## 0.32.0 — 2026-05-31
 
 ### Added

@@ -47,7 +47,7 @@ struct CodexBarApp: App {
         configureUsageFormatterLocalizationProvider()
         let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
         managedCodexAccountCoordinator.onManagedAccountsDidChange = {
-            _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
+            _ = settings.refreshCodexAccountReconciliationAfterManagedAccountsDidChange()
         }
         _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
         let fetcher = UsageFetcher()

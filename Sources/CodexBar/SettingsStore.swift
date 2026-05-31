@@ -108,11 +108,18 @@ enum MultiAccountMenuLayout: String, CaseIterable, Identifiable {
     }
 }
 
+struct CachedCodexAccountReconciliationSnapshot {
+    let activeSource: CodexActiveSource
+    let loadedAt: Date
+    let snapshot: CodexAccountReconciliationSnapshot
+}
+
 @MainActor
 @Observable
 final class SettingsStore {
     static let sharedDefaults = AppGroupSupport.sharedDefaults()
     static let mergedOverviewProviderLimit = 3
+    static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil { return true }
@@ -121,12 +128,18 @@ final class SettingsStore {
         return NSClassFromString("XCTestCase") != nil
     }()
 
+    #if DEBUG
+    static var codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting: TimeInterval?
+    #endif
+
     @ObservationIgnored let userDefaults: UserDefaults
     @ObservationIgnored let configStore: CodexBarConfigStore
     @ObservationIgnored var config: CodexBarConfig
     @ObservationIgnored var configPersistTask: Task<Void, Never>?
     @ObservationIgnored var configLoading = false
     @ObservationIgnored var tokenAccountsLoaded = false
+    @ObservationIgnored var cachedCodexAccountReconciliationSnapshot:
+        CachedCodexAccountReconciliationSnapshot?
     var defaultsState: SettingsDefaultsState
     var configRevision: Int = 0
     var providerOrder: [UsageProvider] = []
