@@ -99,8 +99,6 @@
 "Could not start codex login" = "Could not start codex login";
 "Could not switch system account" = "Could not switch system account";
 "Credits" = "Credits";
-"Individual credits" = "Individual credits";
-"Workspace" = "Workspace";
 "Credits history" = "Credits history";
 "Cursor login failed" = "Cursor login failed";
 "Custom" = "Custom";
@@ -307,8 +305,6 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.";
 "System" = "System";
 "Temporarily shows the loading animation after the next refresh." = "Temporarily shows the loading animation after the next refresh.";
-"terminal_app_subtitle" = "Terminal used by the Open Terminal action";
-"terminal_app_title" = "Default Terminal";
 "Tertiary (\\(label))" = "Tertiary (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiary (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "The default Codex account on this Mac.";
@@ -394,24 +390,16 @@
 "section_system" = "System";
 "section_usage" = "Usage";
 "section_automation" = "Automation";
-"language_title" = "Language";
-"language_subtitle" = "Change the display language. Requires app restart to take full effect.";
-"language_system" = "System";
+"language_title" = "Język";
+"language_subtitle" = "Zmień język interfejsu. Aby zmiana zaczęła w pełni obowiązywać, uruchom aplikację ponownie.";
+"language_system" = "Systemowy";
 "language_english" = "English";
 "language_spanish" = "Español";
 "language_catalan" = "Català";
 "language_chinese_simplified" = "简体中文";
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
-"language_dutch" = "Nederlands";
-"language_german" = "Deutsch";
 "language_swedish" = "Svenska";
-"language_french" = "French";
-"language_ukrainian" = "Українська";
-"language_japanese" = "Japanese";
-"language_korean" = "Korean";
-"language_turkish" = "Türkçe";
-"language_italian" = "Italiano";
 "language_polish" = "Polski";
 "start_at_login_title" = "Start at Login";
 "start_at_login_subtitle" = "Automatically opens CodexBar when you start your Mac.";
@@ -506,7 +494,7 @@
 "show_quota_warning_markers_title" = "Show quota warning markers";
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
 "weekly_progress_work_days_title" = "Weekly progress work days";
-"weekly_progress_work_days_subtitle" = "Set work days for weekly usage-bar markers and pace calculations.";
+"weekly_progress_work_days_subtitle" = "Draw day-boundary tick marks on weekly usage bars.";
 "show_reset_time_as_clock_title" = "Show reset time as clock";
 "show_reset_time_as_clock_subtitle" = "Display reset times as absolute clock values instead of countdowns.";
 "show_provider_changelog_links_title" = "Show provider changelog links";
@@ -631,11 +619,9 @@
 "display_mode_percent" = "Percent";
 "display_mode_pace" = "Pace";
 "display_mode_both" = "Both";
-"display_mode_reset_time" = "Reset time";
 "display_mode_percent_desc" = "Show remaining/used percentage (e.g. 45%)";
 "display_mode_pace_desc" = "Show pace indicator (e.g. +5%)";
 "display_mode_both_desc" = "Show both percentage and pace (e.g. 45% · +5%)";
-"display_mode_reset_time_desc" = "Show the reset time for the selected metric (e.g. ↻ 3:56 PM)";
 
 /* Provider status */
 "status_operational" = "Operational";
@@ -920,7 +906,7 @@
 "Antigravity login failed" = "Antigravity login failed";
 "Antigravity login timed out" = "Antigravity login timed out";
 "Auth source" = "Auth source";
-"Automatic imports browser cookies from Xiaomi MiMo." = "Automatic imports browser cookies from Xiaomi MiMo.";
+"Automatic imports Chrome browser cookies from Xiaomi MiMo." = "Automatic imports Chrome browser cookies from Xiaomi MiMo.";
 "Automatic imports Windsurf session data from Chromium browser localStorage." = "Automatic imports Windsurf session data from Chromium browser localStorage.";
 "Automatic imports browser cookies from Bailian." = "Automatic imports browser cookies from Bailian.";
 "Automatically imports browser cookies." = "Automatically imports browser cookies.";
@@ -1020,7 +1006,6 @@
 "Personal account" = "Personal account";
 "Project ID" = "Project ID";
 "Re-auth" = "Re-auth";
-"Re-login at claude.ai" = "Re-login at claude.ai";
 "Re-authenticating…" = "Re-authenticating…";
 "Refresh Session" = "Refresh Session";
 "Refresh organizations" = "Refresh organizations";
@@ -1076,8 +1061,3 @@
 "Clear" = "Clear";
 "No matching providers" = "No matching providers";
 "Search providers" = "Search providers";
-
-"language_vietnamese" = "Vietnamese";
-"language_indonesian" = "Bahasa Indonesia";
-
-"Request quota: %@ / %@" = "Request quota: %@ / %@";
