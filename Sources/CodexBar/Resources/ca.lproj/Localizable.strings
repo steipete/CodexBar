@@ -399,6 +399,7 @@
 "language_chinese_simplified" = "简体中文";
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
+"language_dutch" = "Nederlands";
 "language_french" = "Francès";
 "language_ukrainian" = "Ucraïnès";
 "start_at_login_title" = "Obrir en iniciar la sessió";

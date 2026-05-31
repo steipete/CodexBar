@@ -1,0 +1,13 @@
+/* Dutch localization for CodexBar */
+
+"language_title" = "Taal";
+"language_subtitle" = "Wijzig de weergavetaal. Herstart de app om de wijziging volledig toe te passen.";
+"language_system" = "Systeem";
+"language_english" = "Engels";
+"language_spanish" = "Spaans";
+"language_catalan" = "Catalaans";
+"language_chinese_simplified" = "Chinees (vereenvoudigd)";
+"language_chinese_traditional" = "Chinees (traditioneel)";
+"language_portuguese_brazilian" = "Portugees (Brazilië)";
+"language_swedish" = "Zweeds";
+"language_dutch" = "Nederlands";
