@@ -402,6 +402,7 @@
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_swedish" = "Svenska";
 "language_french" = "Franska";
+"language_ukrainian" = "Ukrainska";
 "start_at_login_title" = "Starta vid inloggning";
 "start_at_login_subtitle" = "Öppnar CodexBar automatiskt när du startar din Mac.";
 "show_cost_summary" = "Visa kostnadssammanfattning";

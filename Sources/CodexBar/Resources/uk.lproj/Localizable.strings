@@ -1,4 +1,4 @@
-/* English localization for CodexBar (base/fallback) */
+/* Ukrainian localization for CodexBar */
 
 " providers" = " providers";
 "(System)" = "(System)";
@@ -390,9 +390,9 @@
 "section_system" = "System";
 "section_usage" = "Usage";
 "section_automation" = "Automation";
-"language_title" = "Language";
-"language_subtitle" = "Change the display language. Requires app restart to take full effect.";
-"language_system" = "System";
+"language_title" = "Мова";
+"language_subtitle" = "Змінює мову інтерфейсу. Для повного застосування потрібно перезапустити застосунок.";
+"language_system" = "Система";
 "language_english" = "English";
 "language_spanish" = "Español";
 "language_catalan" = "Català";
@@ -400,7 +400,7 @@
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_swedish" = "Svenska";
-"language_french" = "French";
+"language_french" = "Français";
 "language_ukrainian" = "Українська";
 "start_at_login_title" = "Start at Login";
 "start_at_login_subtitle" = "Automatically opens CodexBar when you start your Mac.";

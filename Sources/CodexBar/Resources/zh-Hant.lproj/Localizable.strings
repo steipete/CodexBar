@@ -407,6 +407,7 @@
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_french" = "法語";
+"language_ukrainian" = "烏克蘭語";
 "start_at_login_title" = "登入時啟動";
 "start_at_login_subtitle" = "登入 Mac 時自動開啟 CodexBar。";
 "show_cost_summary" = "顯示費用摘要";
