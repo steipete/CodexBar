@@ -193,15 +193,13 @@ struct LocalizationLanguageCatalogTests {
         let lprojDirectories = try FileManager.default.contentsOfDirectory(
             at: resources,
             includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ).filter { $0.pathExtension == "lproj" }
+            options: [.skipsHiddenFiles]).filter { $0.pathExtension == "lproj" }
 
         #expect(!lprojDirectories.isEmpty)
         for directory in lprojDirectories {
             let content = try String(
                 contentsOf: directory.appendingPathComponent("Localizable.strings"),
-                encoding: .utf8
-            )
+                encoding: .utf8)
             #expect(content.contains("\"language_italian\" = \"Italiano\";"))
         }
     }
