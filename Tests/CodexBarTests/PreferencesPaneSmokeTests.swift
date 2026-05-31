@@ -86,6 +86,26 @@ struct PreferencesPaneSmokeTests {
         #expect(L("quit_app") == "CodexBar を終了")
     }
 
+    @Test
+    func `german app language resolves localized labels`() {
+        let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
+        defer {
+            if let previousLanguage {
+                UserDefaults.standard.set(previousLanguage, forKey: "appLanguage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "appLanguage")
+            }
+        }
+
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-language-de")
+        settings.appLanguage = "de"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "de")
+        #expect(L("tab_general") == "Allgemein")
+        #expect(L("language_title") == "Sprache")
+        #expect(L("quit_app") == "CodexBar beenden")
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
