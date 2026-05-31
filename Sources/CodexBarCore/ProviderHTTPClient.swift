@@ -227,7 +227,10 @@ final class ProviderHTTPRedirectGuardDelegate: NSObject, URLSessionTaskDelegate,
         "x-api-token",
         "x-auth-token",
         "x-csrf-token",
+        "x-devin-auth1-token",
+        "x-devin-session-token",
         "x-xsrf-token",
+        "xi-api-key",
     ])
 
     func urlSession(

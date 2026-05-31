@@ -162,6 +162,9 @@ struct ProviderHTTPClientTests {
         redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Authorization")
         redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "api-key")
         redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-api-key")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "xi-api-key")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-devin-session-token")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-devin-auth1-token")
         redirectRequest.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let guarded = try #require(ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
@@ -172,6 +175,9 @@ struct ProviderHTTPClientTests {
         #expect(guarded.value(forHTTPHeaderField: "Authorization") == nil)
         #expect(guarded.value(forHTTPHeaderField: "api-key") == nil)
         #expect(guarded.value(forHTTPHeaderField: "x-api-key") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "xi-api-key") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "x-devin-session-token") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "x-devin-auth1-token") == nil)
         #expect(guarded.value(forHTTPHeaderField: "Accept") == "application/json")
     }
 }
