@@ -13,6 +13,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case portugueseBrazilian = "pt-BR"
     case swedish = "sv"
     case french = "fr"
+    case italian = "it"
     case dutch = "nl"
     case ukrainian = "uk"
     case vietnamese = "vi"
@@ -36,6 +37,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .portugueseBrazilian: L("language_portuguese_brazilian")
         case .swedish: L("language_swedish")
         case .french: L("language_french")
+        case .italian: L("language_italian")
         case .dutch: L("language_dutch")
         case .ukrainian: L("language_ukrainian")
         case .vietnamese: L("language_vietnamese")

@@ -415,6 +415,7 @@
 "language_ukrainian" = "烏克蘭語";
 "language_japanese" = "日語";
 "language_korean" = "韓語";
+"language_italian" = "Italiano";
 "start_at_login_title" = "登入時啟動";
 "start_at_login_subtitle" = "登入 Mac 時自動開啟 CodexBar。";
 "show_cost_summary" = "顯示費用摘要";

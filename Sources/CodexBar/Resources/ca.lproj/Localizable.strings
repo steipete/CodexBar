@@ -408,6 +408,7 @@
 "language_ukrainian" = "Ucraïnès";
 "language_japanese" = "Japonès";
 "language_korean" = "Coreà";
+"language_italian" = "Italiano";
 "start_at_login_title" = "Obrir en iniciar la sessió";
 "start_at_login_subtitle" = "Obre el CodexBar automàticament en iniciar el Mac.";
 "show_cost_summary" = "Mostra el resum de cost";
