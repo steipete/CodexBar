@@ -399,6 +399,7 @@
 "language_chinese_simplified" = "Chinês simplificado";
 "language_chinese_traditional" = "Chinês tradicional";
 "language_portuguese_brazilian" = "Português (Brasil)";
+"language_french" = "Francês";
 "start_at_login_title" = "Iniciar ao fazer login";
 "start_at_login_subtitle" = "Abre o CodexBar automaticamente ao iniciar o Mac.";
 "show_cost_summary" = "Mostrar resumo de custos";

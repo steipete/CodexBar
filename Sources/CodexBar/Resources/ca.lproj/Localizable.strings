@@ -399,6 +399,7 @@
 "language_chinese_simplified" = "简体中文";
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
+"language_french" = "Francès";
 "start_at_login_title" = "Obrir en iniciar la sessió";
 "start_at_login_subtitle" = "Obre el CodexBar automàticament en iniciar el Mac.";
 "show_cost_summary" = "Mostra el resum de cost";

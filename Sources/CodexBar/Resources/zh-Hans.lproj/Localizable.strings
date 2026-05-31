@@ -406,6 +406,7 @@
 "language_chinese_simplified" = "简体中文";
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
+"language_french" = "法语";
 "start_at_login_title" = "开机启动";
 "start_at_login_subtitle" = "启动 Mac 时自动打开 CodexBar。";
 "show_cost_summary" = "显示费用摘要";

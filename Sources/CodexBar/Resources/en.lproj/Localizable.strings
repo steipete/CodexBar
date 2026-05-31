@@ -400,6 +400,7 @@
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_swedish" = "Svenska";
+"language_french" = "French";
 "start_at_login_title" = "Start at Login";
 "start_at_login_subtitle" = "Automatically opens CodexBar when you start your Mac.";
 "show_cost_summary" = "Show cost summary";
