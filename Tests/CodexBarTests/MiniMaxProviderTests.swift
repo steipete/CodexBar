@@ -846,27 +846,6 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func `web usage fetch rejects non HTTPS endpoint override before sending credentials`() async throws {
-        let transport = ProviderHTTPTransportStub { _ in
-            Issue.record("request should not be sent for invalid endpoint override")
-            return try Self.httpResponse(
-                url: #require(URL(string: "https://platform.minimax.test/unreachable")),
-                body: "{}",
-                contentType: "application/json")
-        }
-
-        await #expect(throws: MiniMaxSettingsError.invalidEndpointOverride(MiniMaxSettingsReader.remainsURLKey)) {
-            try await MiniMaxUsageFetcher.fetchUsage(
-                cookieHeader: "HERTZ-SESSION=abc",
-                region: .global,
-                environment: [MiniMaxSettingsReader.remainsURLKey: "http://localhost:8080/remains"],
-                session: transport)
-        }
-        let requests = await transport.requests()
-        #expect(requests.isEmpty)
-    }
-
-    @Test
     func `web usage fetch attaches billing history when available`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in
@@ -1073,6 +1052,43 @@ struct MiniMaxUsageParserTests {
       }
     }
     """
+
+    private static func httpResponse(
+        url: URL,
+        body: String,
+        statusCode: Int = 200,
+        contentType: String) -> (Data, URLResponse)
+    {
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": contentType])!
+        return (Data(body.utf8), response)
+    }
+}
+
+struct MiniMaxUsageFetcherSecurityTests {
+    @Test
+    func `web usage fetch rejects non HTTPS endpoint override before sending credentials`() async throws {
+        let transport = ProviderHTTPTransportStub { _ in
+            Issue.record("request should not be sent for invalid endpoint override")
+            return try Self.httpResponse(
+                url: #require(URL(string: "https://platform.minimax.test/unreachable")),
+                body: "{}",
+                contentType: "application/json")
+        }
+
+        await #expect(throws: MiniMaxSettingsError.invalidEndpointOverride(MiniMaxSettingsReader.remainsURLKey)) {
+            try await MiniMaxUsageFetcher.fetchUsage(
+                cookieHeader: "[REDACTED]",
+                region: .global,
+                environment: [MiniMaxSettingsReader.remainsURLKey: "http://localhost:8080/remains"],
+                session: transport)
+        }
+        let requests = await transport.requests()
+        #expect(requests.isEmpty)
+    }
 
     private static func httpResponse(
         url: URL,
