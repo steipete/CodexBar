@@ -83,7 +83,8 @@ final class AugmentProviderRuntime: ProviderRuntime {
 
     private func stopKeepalive(context: ProviderRuntimeContext, reason: String) {
         #if os(macOS)
-        self.keepalive?.stop()
+        guard let keepalive = self.keepalive else { return }
+        keepalive.stop()
         self.keepalive = nil
         context.store.augmentLogger.info("Augment keepalive stopped (\(reason))")
         #endif
