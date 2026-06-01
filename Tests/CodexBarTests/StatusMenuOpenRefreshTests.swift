@@ -246,6 +246,41 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `closed menu rebuild cleanup runs when weak menu disappears`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        var menu: NSMenu? = NSMenu()
+        let key = ObjectIdentifier(menu!)
+
+        controller.rebuildClosedMenuIfNeeded(menu!)
+        #expect(controller.closedMenuRebuildTasks[key] != nil)
+        #expect(controller.closedMenuRebuildTokens[key] != nil)
+
+        menu = nil
+        for _ in 0..<40 where controller.closedMenuRebuildTasks[key] != nil {
+            await Task.yield()
+        }
+
+        #expect(controller.closedMenuRebuildTasks[key] == nil)
+        #expect(controller.closedMenuRebuildTokens[key] == nil)
+    }
+
+    @Test
     func `menu open keeps stale nonempty content while store refresh is active`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()

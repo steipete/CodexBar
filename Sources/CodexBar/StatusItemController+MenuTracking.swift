@@ -112,13 +112,14 @@ extension StatusItemController {
             guard !Task.isCancelled else { return }
             await Task.yield()
             guard !Task.isCancelled else { return }
-            guard let self, let menu else { return }
+            guard let self else { return }
             defer {
                 if self.closedMenuRebuildTokens[key] == rebuildToken {
                     self.closedMenuRebuildTasks.removeValue(forKey: key)
                     self.closedMenuRebuildTokens.removeValue(forKey: key)
                 }
             }
+            guard let menu else { return }
             guard self.closedMenuRebuildTokens[key] == rebuildToken else { return }
             guard !self.hasPreparedForAppShutdown else { return }
             guard !self.isMenuDataRefreshInFlight else { return }
