@@ -25,4 +25,27 @@ struct CopilotUsageFetcherTests {
         #expect(requests.count == 1)
         #expect(requests.first?.url?.host == "api.github.com")
     }
+
+    @Test
+    func `makeRateWindow drops business token billing placeholder quota`() {
+        // entitlement=0/remaining=0/percent_remaining=100 must not become a "0% used"
+        // rate window for Copilot Business token-based billing accounts. (#1258)
+        let placeholder = CopilotUsageResponse.QuotaSnapshot(
+            entitlement: 0,
+            remaining: 0,
+            percentRemaining: 100,
+            quotaId: "premium_interactions")
+        #expect(CopilotUsageFetcher.makeRateWindow(from: placeholder) == nil)
+    }
+
+    @Test
+    func `makeRateWindow keeps real quota window`() {
+        let real = CopilotUsageResponse.QuotaSnapshot(
+            entitlement: 500,
+            remaining: 125,
+            percentRemaining: 25,
+            quotaId: "premium_interactions")
+        let window = CopilotUsageFetcher.makeRateWindow(from: real)
+        #expect(window?.usedPercent == 75)
+    }
 }

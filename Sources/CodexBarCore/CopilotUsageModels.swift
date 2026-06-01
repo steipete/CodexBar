@@ -31,7 +31,12 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         }
 
         public var isPlaceholder: Bool {
-            self.entitlement == 0 && self.remaining == 0 && self.percentRemaining == 0 && self.quotaId.isEmpty
+            // A zero-entitlement, zero-remaining snapshot carries no usable quota signal.
+            // GitHub returns this shape for token-based billing / Copilot Business seats,
+            // sometimes as percent_remaining=100 with a non-empty quota_id, which would
+            // otherwise render as a misleading "0% used" (100 - 100). Treat it as a
+            // placeholder so the usual handling drops it instead of showing fake usage.
+            self.entitlement == 0 && self.remaining == 0
         }
 
         private enum CodingKeys: String, CodingKey {
