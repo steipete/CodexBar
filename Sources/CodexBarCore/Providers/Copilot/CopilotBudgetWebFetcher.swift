@@ -367,8 +367,9 @@ public struct CopilotBudgetWebFetcher: Sendable {
         let nonce = await self.bestEffortFetchNonce(cookieHeader: cookieHeader)
         var allBudgets: [Budget] = []
         var page = 1
+        let maxPages = 20
         var shouldContinue = true
-        while shouldContinue, page <= 20 {
+        while shouldContinue, page <= maxPages {
             let response = try await self.fetchBudgetPage(
                 cookieHeader: cookieHeader,
                 nonce: nonce,
@@ -376,6 +377,11 @@ public struct CopilotBudgetWebFetcher: Sendable {
             allBudgets.append(contentsOf: response.budgets)
             shouldContinue = response.hasNextPage == true
             page += 1
+        }
+        if shouldContinue {
+            CodexBarLog.logger(LogCategories.providers).warning(
+                "Copilot budget pagination reached page cap",
+                metadata: ["pageCap": "\(maxPages)"])
         }
         return Self.extraRateWindows(from: allBudgets, now: self.now())
     }
@@ -494,10 +500,6 @@ public struct CopilotBudgetWebFetcher: Sendable {
             }
     }
 
-    static func isCopilotBudget(_ budget: Budget) -> Bool {
-        self.isCopilotBudget(budget, selectors: budget.normalizedSelectors)
-    }
-
     private static func isCopilotBudget(_ budget: Budget, selectors: Set<String>) -> Bool {
         guard budget.budgetAmount > 0 else { return false }
         return !selectors.isDisjoint(with: self.copilotBudgetSelectors)
@@ -541,10 +543,6 @@ public struct CopilotBudgetWebFetcher: Sendable {
             return self.copilotPremiumRequestSKU
         }
         return underscored
-    }
-
-    private static func windowTitle(for budget: Budget) -> String {
-        self.windowTitle(for: budget, selectors: budget.normalizedSelectors)
     }
 
     private static func windowTitle(for budget: Budget, selectors: Set<String>) -> String {

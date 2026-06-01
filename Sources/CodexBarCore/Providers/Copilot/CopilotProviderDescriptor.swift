@@ -92,7 +92,7 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
                 browserDetection: context.browserDetection)
                 .fetchBudgetWindows()
             guard !extraRateWindows.isEmpty else { return usage }
-            return Self.snapshot(usage, withExtraRateWindows: extraRateWindows)
+            return usage.with(extraRateWindows: extraRateWindows)
         } catch {
             CodexBarLog.logger(LogCategories.providers).warning(
                 "Copilot budget extras unavailable",
@@ -107,29 +107,5 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         guard settings.budgetCookieSource == .manual else { return nil }
         let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return cookieHeader.isEmpty ? nil : cookieHeader
-    }
-
-    private static func snapshot(
-        _ snapshot: UsageSnapshot,
-        withExtraRateWindows extraRateWindows: [NamedRateWindow]) -> UsageSnapshot
-    {
-        UsageSnapshot(
-            primary: snapshot.primary,
-            secondary: snapshot.secondary,
-            tertiary: snapshot.tertiary,
-            extraRateWindows: extraRateWindows,
-            kiroUsage: snapshot.kiroUsage,
-            providerCost: snapshot.providerCost,
-            zaiUsage: snapshot.zaiUsage,
-            minimaxUsage: snapshot.minimaxUsage,
-            deepseekUsage: snapshot.deepseekUsage,
-            openRouterUsage: snapshot.openRouterUsage,
-            openAIAPIUsage: snapshot.openAIAPIUsage,
-            claudeAdminAPIUsage: snapshot.claudeAdminAPIUsage,
-            mistralUsage: snapshot.mistralUsage,
-            deepgramUsage: snapshot.deepgramUsage,
-            cursorRequests: snapshot.cursorRequests,
-            updatedAt: snapshot.updatedAt,
-            identity: snapshot.identity)
     }
 }

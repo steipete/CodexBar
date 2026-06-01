@@ -157,6 +157,41 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `clearing copilot budget extras syncs reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-budget-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: [Self.makeCopilotBudgetWindow()])
+        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotBudgetExtras()
+
+        #expect(store.snapshot(for: .copilot)?.extraRateWindows == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.extraRateWindows == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.primary?.usedPercent == 20)
+    }
+
+    @Test
+    func `clearing copilot budget extras also clears stale reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-budget-reset-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil)
+        let resetBaseline = Self.makeCopilotSnapshot(
+            usedPercent: 10,
+            extraRateWindows: [Self.makeCopilotBudgetWindow()])
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotBudgetExtras()
+
+        #expect(store.snapshot(for: .copilot)?.extraRateWindows == nil)
+        #expect(store.snapshot(for: .copilot)?.primary?.usedPercent == 20)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.extraRateWindows == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.primary?.usedPercent == 10)
+    }
+
+    @Test
     func `permission prompt errors are detected for notifications`() {
         let errors: [LocalizedTestError] = [
             LocalizedTestError("Waiting for folder trust prompt"),
@@ -734,6 +769,24 @@ struct UsageStoreCoverageTests {
             .replacingOccurrences(of: "=", with: "")
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
+    }
+
+    private static func makeCopilotSnapshot(
+        usedPercent: Double,
+        extraRateWindows: [NamedRateWindow]?) -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            extraRateWindows: extraRateWindows,
+            updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
+    }
+
+    private static func makeCopilotBudgetWindow() -> NamedRateWindow {
+        NamedRateWindow(
+            id: "copilot-budget-test",
+            title: "Budget - Copilot",
+            window: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
     }
 
     private static func enableOnly(_ enabledProvider: UsageProvider, settings: SettingsStore) throws {
