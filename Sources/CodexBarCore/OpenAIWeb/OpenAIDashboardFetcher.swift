@@ -275,13 +275,11 @@ public struct OpenAIDashboardFetcher {
                 continue
             }
 
-            if debugDumpHTML,
-               scrape.loginRequired || scrape.cloudflareInterstitial,
-               let html = try? await self.fetchDebugHTML(webView: webView)
-            {
-                Self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: log)
-            }
-            try Self.throwIfBlockingScrapeState(scrape)
+            try await self.handleBlockingScrapeState(
+                scrape,
+                webView: webView,
+                debugDumpHTML: debugDumpHTML,
+                logger: log)
 
             // The page is a SPA and can land on ChatGPT UI or other routes; keep forcing the usage URL.
             if Self.shouldReloadUsageRoute(scrape) {
@@ -455,10 +453,8 @@ public struct OpenAIDashboardFetcher {
                 continue
             }
 
-            if scrape.loginRequired { throw FetchError.loginRequired }
-            if scrape.cloudflareInterstitial {
-                throw FetchError.noDashboardData(body: "Cloudflare challenge detected in WebView.")
-            }
+            Self.logBlockingStateIfNeeded(scrape, logger: log)
+            try Self.throwIfBlockingScrapeState(scrape)
 
             if Self.shouldReloadUsageRoute(scrape) {
                 usageRouteSeenAt = nil
@@ -978,6 +974,32 @@ extension OpenAIDashboardFetcher {
         guard error != lastError else { return }
         lastError = error
         logger("usage breakdown error: \(error)")
+    }
+}
+
+extension OpenAIDashboardFetcher {
+    private static func logBlockingStateIfNeeded(_ scrape: ScrapeResult, logger: (String) -> Void) {
+        guard scrape.loginRequired || scrape.cloudflareInterstitial else { return }
+        let route = self.isUsageRoute(scrape.href) ? "usage" : "other"
+        logger(
+            "blocking state before route reload route=\(route) " +
+                "login=\(scrape.loginRequired) cloudflare=\(scrape.cloudflareInterstitial)")
+    }
+
+    private func handleBlockingScrapeState(
+        _ scrape: ScrapeResult,
+        webView: WKWebView,
+        debugDumpHTML: Bool,
+        logger: (String) -> Void) async throws
+    {
+        if debugDumpHTML,
+           scrape.loginRequired || scrape.cloudflareInterstitial,
+           let html = try? await self.fetchDebugHTML(webView: webView)
+        {
+            Self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: logger)
+        }
+        Self.logBlockingStateIfNeeded(scrape, logger: logger)
+        try Self.throwIfBlockingScrapeState(scrape)
     }
 }
 #else
