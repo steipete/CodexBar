@@ -82,14 +82,9 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
               settings.budgetCookieSource != .off
         else { return usage }
 
-        let manualCookieHeader: String?
-        if settings.budgetCookieSource == .manual {
-            let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !cookieHeader.isEmpty else { return usage }
-            manualCookieHeader = cookieHeader
-        } else {
-            let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            manualCookieHeader = cookieHeader.isEmpty ? nil : cookieHeader
+        let manualCookieHeader = Self.budgetCookieHeaderOverride(from: settings)
+        if settings.budgetCookieSource == .manual, manualCookieHeader == nil {
+            return usage
         }
         do {
             let extraRateWindows = try await CopilotBudgetWebFetcher(
@@ -104,6 +99,14 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
                 metadata: ["error": "\(error.localizedDescription)"])
             return usage
         }
+    }
+
+    static func budgetCookieHeaderOverride(
+        from settings: ProviderSettingsSnapshot.CopilotProviderSettings) -> String?
+    {
+        guard settings.budgetCookieSource == .manual else { return nil }
+        let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return cookieHeader.isEmpty ? nil : cookieHeader
     }
 
     private static func snapshot(
