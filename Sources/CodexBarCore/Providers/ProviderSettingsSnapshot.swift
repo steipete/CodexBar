@@ -206,10 +206,22 @@ public struct ProviderSettingsSnapshot: Sendable {
     public struct CopilotProviderSettings: Sendable {
         public let apiToken: String?
         public let enterpriseHost: String?
+        public let budgetExtrasEnabled: Bool
+        public let budgetCookieSource: ProviderCookieSource
+        public let manualBudgetCookieHeader: String?
 
-        public init(apiToken: String? = nil, enterpriseHost: String? = nil) {
+        public init(
+            apiToken: String? = nil,
+            enterpriseHost: String? = nil,
+            budgetExtrasEnabled: Bool = false,
+            budgetCookieSource: ProviderCookieSource = .auto,
+            manualBudgetCookieHeader: String? = nil)
+        {
             self.apiToken = apiToken
             self.enterpriseHost = enterpriseHost
+            self.budgetExtrasEnabled = budgetExtrasEnabled
+            self.budgetCookieSource = budgetCookieSource
+            self.manualBudgetCookieHeader = manualBudgetCookieHeader
         }
     }
 

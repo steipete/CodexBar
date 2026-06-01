@@ -253,7 +253,8 @@ extension StatusItemController {
             IconRemainingResolver.resolvedPercents(
                 snapshot: $0,
                 style: style,
-                showUsed: showUsed)
+                showUsed: showUsed,
+                secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0))
         }
         var primary = resolved?.primary
         var weekly = resolved?.secondary
@@ -479,7 +480,8 @@ extension StatusItemController {
             IconRemainingResolver.resolvedPercents(
                 snapshot: $0,
                 style: style,
-                showUsed: showUsed)
+                showUsed: showUsed,
+                secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0))
         }
         var primary = resolved?.primary
         var weekly = resolved?.secondary

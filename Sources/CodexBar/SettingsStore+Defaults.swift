@@ -288,6 +288,14 @@ extension SettingsStore {
         }
     }
 
+    var copilotIconSecondaryWindowIDRaw: String {
+        get { self.defaultsState.copilotIconSecondaryWindowIDRaw }
+        set {
+            self.defaultsState.copilotIconSecondaryWindowIDRaw = newValue
+            self.userDefaults.set(newValue, forKey: "copilotIconSecondaryWindowID")
+        }
+    }
+
     var costUsageEnabled: Bool {
         get { self.defaultsState.costUsageEnabled }
         set {
@@ -373,6 +381,17 @@ extension SettingsStore {
     var claudeWebExtrasEnabled: Bool {
         get { self.claudeWebExtrasEnabledRaw }
         set { self.claudeWebExtrasEnabledRaw = newValue }
+    }
+
+    var copilotBudgetExtrasEnabled: Bool {
+        get { self.defaultsState.copilotBudgetExtrasEnabled }
+        set {
+            self.defaultsState.copilotBudgetExtrasEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "copilotBudgetExtrasEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Copilot budget extras updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+        }
     }
 
     private var claudeWebExtrasEnabledRaw: Bool {

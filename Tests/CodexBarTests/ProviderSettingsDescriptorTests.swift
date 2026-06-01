@@ -154,6 +154,18 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `copilot budget secondary picker appears before cookie picker`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-budget-pickers")
+        fixture.settings.copilotBudgetExtrasEnabled = true
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let pickers = CopilotProviderImplementation().settingsPickers(context: context)
+
+        #expect(pickers.map(\.id) == ["copilot-icon-secondary-window", "copilot-budget-cookie-source"])
+        #expect(pickers.first?.title == "Menu bar secondary metric")
+    }
+
+    @Test
     func `deepgram exposes api key and project id fields`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepgram")
         let context = fixture.settingsContext(provider: .deepgram)

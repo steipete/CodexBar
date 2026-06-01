@@ -21,6 +21,7 @@ public enum CopilotProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://github.com/settings/copilot",
                 statusPageURL: "https://www.githubstatus.com/"),
             branding: ProviderBranding(
@@ -54,7 +55,8 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         let fetcher = CopilotUsageFetcher(
             token: token,
             enterpriseHost: context.settings?.copilot?.enterpriseHost)
-        let snap = try await fetcher.fetch()
+        let usage = try await fetcher.fetch()
+        let snap = await self.addBudgetWindowsIfNeeded(to: usage, context: context)
         return self.makeResult(
             usage: snap,
             sourceLabel: "api")
@@ -69,5 +71,62 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
             ?? ProviderTokenResolver.copilotResolution(environment: [
                 "COPILOT_API_TOKEN": context.settings?.copilot?.apiToken ?? "",
             ])?.token
+    }
+
+    private func addBudgetWindowsIfNeeded(
+        to usage: UsageSnapshot,
+        context: ProviderFetchContext) async -> UsageSnapshot
+    {
+        guard let settings = context.settings?.copilot,
+              settings.budgetExtrasEnabled,
+              settings.budgetCookieSource != .off
+        else { return usage }
+
+        let manualCookieHeader: String?
+        if settings.budgetCookieSource == .manual {
+            let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !cookieHeader.isEmpty else { return usage }
+            manualCookieHeader = cookieHeader
+        } else {
+            let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            manualCookieHeader = cookieHeader.isEmpty ? nil : cookieHeader
+        }
+        do {
+            let extraRateWindows = try await CopilotBudgetWebFetcher(
+                cookieHeaderOverride: manualCookieHeader,
+                browserDetection: context.browserDetection)
+                .fetchBudgetWindows()
+            guard !extraRateWindows.isEmpty else { return usage }
+            return Self.snapshot(usage, withExtraRateWindows: extraRateWindows)
+        } catch {
+            CodexBarLog.logger(LogCategories.providers).warning(
+                "Copilot budget extras unavailable",
+                metadata: ["error": "\(error.localizedDescription)"])
+            return usage
+        }
+    }
+
+    private static func snapshot(
+        _ snapshot: UsageSnapshot,
+        withExtraRateWindows extraRateWindows: [NamedRateWindow]) -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: snapshot.primary,
+            secondary: snapshot.secondary,
+            tertiary: snapshot.tertiary,
+            extraRateWindows: extraRateWindows,
+            kiroUsage: snapshot.kiroUsage,
+            providerCost: snapshot.providerCost,
+            zaiUsage: snapshot.zaiUsage,
+            minimaxUsage: snapshot.minimaxUsage,
+            deepseekUsage: snapshot.deepseekUsage,
+            openRouterUsage: snapshot.openRouterUsage,
+            openAIAPIUsage: snapshot.openAIAPIUsage,
+            claudeAdminAPIUsage: snapshot.claudeAdminAPIUsage,
+            mistralUsage: snapshot.mistralUsage,
+            deepgramUsage: snapshot.deepgramUsage,
+            cursorRequests: snapshot.cursorRequests,
+            updatedAt: snapshot.updatedAt,
+            identity: snapshot.identity)
     }
 }

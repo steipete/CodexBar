@@ -206,6 +206,9 @@ extension UsageMenuCardView.Model {
         if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
             return []
         }
+        if input.provider == .copilot, !input.copilotBudgetExtrasEnabled {
+            return []
+        }
         return extraRateWindows.map { namedWindow in
             let paceDetail = Self.extraRateWindowPaceDetail(
                 provider: input.provider,

@@ -30,6 +30,7 @@ extension SettingsStore {
         _ = self.historicalTrackingEnabled
         _ = self.multiAccountMenuLayout
         _ = self.menuBarMetricPreferencesRaw
+        _ = self.copilotIconSecondaryWindowIDRaw
         _ = self.costUsageEnabled
         _ = self.costUsageHistoryDays
         _ = self.appLanguage
@@ -39,6 +40,7 @@ extension SettingsStore {
         _ = self.claudeOAuthKeychainPromptMode
         _ = self.claudeOAuthKeychainReadStrategy
         _ = self.claudeWebExtrasEnabled
+        _ = self.copilotBudgetExtrasEnabled
         _ = self.showOptionalCreditsAndExtraUsage
         _ = self.openAIWebAccessEnabled
         _ = self.openAIWebBatterySaverEnabled

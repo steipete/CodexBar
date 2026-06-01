@@ -1360,7 +1360,8 @@ extension StatusItemController {
             IconRemainingResolver.resolvedPercents(
                 snapshot: $0,
                 style: style,
-                showUsed: showUsed)
+                showUsed: showUsed,
+                secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0))
         }
         let primary = resolved?.primary
         var weekly = resolved?.secondary

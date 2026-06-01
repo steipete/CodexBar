@@ -164,6 +164,45 @@ struct CodexBarTests {
     }
 
     @Test
+    func `copilot icon can use selected budget as secondary lane`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "copilot-budget-agent",
+                    title: "Budget - Copilot Agent Premium Requests",
+                    window: RateWindow(usedPercent: 65, windowMinutes: nil, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(
+            snapshot: snapshot,
+            style: .copilot,
+            secondaryOverrideWindowID: "copilot-budget-agent")
+
+        #expect(remaining.primary == 80)
+        #expect(remaining.secondary == 35)
+    }
+
+    @Test
+    func `copilot icon falls back to chat lane when selected budget is unavailable`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            extraRateWindows: nil,
+            updatedAt: Date())
+
+        let remaining = IconRemainingResolver.resolvedRemaining(
+            snapshot: snapshot,
+            style: .copilot,
+            secondaryOverrideWindowID: "copilot-budget-agent")
+
+        #expect(remaining.primary == 80)
+        #expect(remaining.secondary == 70)
+    }
+
+    @Test
     func `codex icon promotes weekly only window into primary display lane`() {
         let snapshot = UsageSnapshot(
             primary: nil,

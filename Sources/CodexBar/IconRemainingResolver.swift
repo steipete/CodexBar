@@ -23,7 +23,8 @@ enum IconRemainingResolver {
 
     static func resolvedWindows(
         snapshot: UsageSnapshot,
-        style: IconStyle)
+        style: IconStyle,
+        secondaryOverrideWindowID: String? = nil)
         -> (primary: RateWindow?, secondary: RateWindow?)
     {
         if style == .perplexity {
@@ -44,6 +45,14 @@ enum IconRemainingResolver {
                 primary: windows.first,
                 secondary: windows.dropFirst().first)
         }
+        if style == .copilot,
+           let secondaryOverrideWindowID,
+           let extraWindow = snapshot.extraRateWindows?.first(where: { $0.id == secondaryOverrideWindowID })?.window
+        {
+            return (
+                primary: snapshot.primary,
+                secondary: extraWindow)
+        }
         return (
             primary: snapshot.primary,
             secondary: snapshot.secondary)
@@ -51,7 +60,8 @@ enum IconRemainingResolver {
 
     static func resolvedRemaining(
         snapshot: UsageSnapshot,
-        style: IconStyle)
+        style: IconStyle,
+        secondaryOverrideWindowID: String? = nil)
         -> (primary: Double?, secondary: Double?)
     {
         if style == .perplexity {
@@ -72,6 +82,14 @@ enum IconRemainingResolver {
                 primary: windows.first?.remainingPercent,
                 secondary: windows.dropFirst().first?.remainingPercent)
         }
+        if style == .copilot,
+           let secondaryOverrideWindowID,
+           let extraWindow = snapshot.extraRateWindows?.first(where: { $0.id == secondaryOverrideWindowID })?.window
+        {
+            return (
+                primary: snapshot.primary?.remainingPercent,
+                secondary: extraWindow.remainingPercent)
+        }
         return (
             primary: snapshot.primary?.remainingPercent,
             secondary: snapshot.secondary?.remainingPercent)
@@ -80,10 +98,14 @@ enum IconRemainingResolver {
     static func resolvedPercents(
         snapshot: UsageSnapshot,
         style: IconStyle,
-        showUsed: Bool)
+        showUsed: Bool,
+        secondaryOverrideWindowID: String? = nil)
         -> (primary: Double?, secondary: Double?)
     {
-        let windows = Self.resolvedWindows(snapshot: snapshot, style: style)
+        let windows = Self.resolvedWindows(
+            snapshot: snapshot,
+            style: style,
+            secondaryOverrideWindowID: secondaryOverrideWindowID)
         return (
             primary: showUsed ? windows.primary?.usedPercent : windows.primary?.remainingPercent,
             secondary: showUsed ? windows.secondary?.usedPercent : windows.secondary?.remainingPercent)
