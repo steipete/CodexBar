@@ -10,6 +10,7 @@ protocol StatusItemMenuPersistentActionDelegate: AnyObject {
     func performPersistentSettingsAction()
     func performPersistentQuitAction()
     func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection)
+    func performProviderSelection(at index: Int)
 }
 
 final class StatusItemMenu: NSMenu {
@@ -31,6 +32,12 @@ final class StatusItemMenu: NSMenu {
            self.items.first?.view is ProviderSwitcherView
         {
             self.persistentActionDelegate?.performProviderNavigation(direction)
+            return true
+        }
+        if let index = Self.providerSelectionIndex(for: event),
+           self.items.first?.view is ProviderSwitcherView
+        {
+            self.persistentActionDelegate?.performProviderSelection(at: index)
             return true
         }
 

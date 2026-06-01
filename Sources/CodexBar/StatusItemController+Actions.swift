@@ -77,6 +77,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
+    nonisolated func performProviderSelection(at index: Int) {
+        Task { @MainActor [weak self] in
+            self?.selectOpenProviderSwitcherSegment(at: index)
+        }
+    }
+
     @objc func refreshAugmentSession() {
         Task {
             await self.store.forceRefreshAugmentSession()

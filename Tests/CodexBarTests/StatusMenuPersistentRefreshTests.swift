@@ -24,6 +24,8 @@ private final class RefreshShortcutRecorder: StatusItemMenuPersistentActionDeleg
     func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection) {
         self.navigationDirections.append(direction)
     }
+
+    func performProviderSelection(at index: Int) {}
 }
 
 @MainActor

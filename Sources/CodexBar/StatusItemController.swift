@@ -141,8 +141,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var deferredOpenAIDashboardRefreshReason: String?
     var deferredMenuInteractionRefreshTask: Task<Void, Never>?
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
-    var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
-    var providerSwitcherShortcutMenuID: ObjectIdentifier?
     var hasPreparedForAppShutdown = false
     var openMenuInvalidationRetryTask: Task<Void, Never>?
     #if DEBUG

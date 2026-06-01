@@ -51,7 +51,6 @@ struct StatusItemControllerShutdownTests {
         #expect(controller.hasPreparedForAppShutdown)
         #expect(controller.openMenus.isEmpty)
         #expect(controller.menuRefreshTasks.isEmpty)
-        #expect(controller.providerSwitcherShortcutEventMonitor == nil)
         #expect(controller.statusItem.menu == nil)
         #expect(controller.statusItems.isEmpty)
         #expect(controller.providerMenus.isEmpty)
