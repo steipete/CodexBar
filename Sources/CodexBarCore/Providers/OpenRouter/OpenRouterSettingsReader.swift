@@ -12,12 +12,18 @@ public enum OpenRouterSettingsReader {
 
     /// Returns the API URL, defaulting to production endpoint
     public static func apiURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let override = environment["OPENROUTER_API_URL"],
-           let url = URL(string: cleaned(override) ?? "")
-        {
-            return url
+        if let override = self.validAPIURL(environment: environment) {
+            return override
         }
         return URL(string: "https://openrouter.ai/api/v1")!
+    }
+
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        if self.hasExplicitNonHTTPSURL(environment["OPENROUTER_API_URL"]) {
+            throw OpenRouterSettingsError.invalidEndpointOverride("OPENROUTER_API_URL")
+        }
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -34,4 +40,21 @@ public enum OpenRouterSettingsReader {
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
     }
+
+    private static func validAPIURL(environment: [String: String]) -> URL? {
+        guard let raw = self.cleaned(environment["OPENROUTER_API_URL"]) else { return nil }
+        if let url = URL(string: raw), let scheme = url.scheme {
+            return scheme.lowercased() == "https" ? url : nil
+        }
+        return URL(string: "https://\(raw)")
+    }
+
+    private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
+        guard let cleaned = self.cleaned(raw),
+              let scheme = URL(string: cleaned)?.scheme
+        else { return false }
+        return scheme.lowercased() != "https"
+    }
 }
+
+

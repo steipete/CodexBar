@@ -23,6 +23,7 @@ public enum CodebuffUsageFetcher {
         guard !trimmed.isEmpty else {
             throw CodebuffUsageError.missingCredentials
         }
+        try CodebuffSettingsReader.validateEndpointOverrides(environment: environment)
 
         let baseURL = CodebuffSettingsReader.apiURL(environment: environment)
 

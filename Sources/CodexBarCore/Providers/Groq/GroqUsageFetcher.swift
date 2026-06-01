@@ -144,6 +144,7 @@ public struct GroqUsageFetcher: Sendable {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GroqUsageError.missingCredentials
         }
+        try GroqSettingsReader.validateEndpointOverrides(environment: environment)
         let baseURL = GroqSettingsReader.apiURL(environment: environment)
             .appendingPathComponent("metrics")
             .appendingPathComponent("prometheus")

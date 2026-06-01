@@ -80,14 +80,17 @@ struct CodebuffAPIFetchStrategy: ProviderFetchStrategy {
 }
 
 /// Errors related to Codebuff settings.
-public enum CodebuffSettingsError: LocalizedError, Sendable {
+public enum CodebuffSettingsError: LocalizedError, Sendable, Equatable {
     case missingToken
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingToken:
             "Codebuff API token not configured. Set CODEBUFF_API_KEY or run `codebuff login` to " +
                 "populate ~/.config/manicode/credentials.json."
+        case let .invalidEndpointOverride(key):
+            "Codebuff endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

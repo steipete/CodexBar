@@ -71,13 +71,16 @@ struct OpenRouterAPIFetchStrategy: ProviderFetchStrategy {
 }
 
 /// Errors related to OpenRouter settings
-public enum OpenRouterSettingsError: LocalizedError, Sendable {
+public enum OpenRouterSettingsError: LocalizedError, Sendable, Equatable {
     case missingToken
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingToken:
             "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings."
+        case let .invalidEndpointOverride(key):
+            "OpenRouter endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

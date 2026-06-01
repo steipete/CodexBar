@@ -225,6 +225,7 @@ public struct OpenRouterUsageFetcher: Sendable {
         guard !apiKey.isEmpty else {
             throw OpenRouterUsageError.invalidCredentials
         }
+        try OpenRouterSettingsReader.validateEndpointOverrides(environment: environment)
 
         let baseURL = OpenRouterSettingsReader.apiURL(environment: environment)
         let creditsURL = baseURL.appendingPathComponent("credits")
