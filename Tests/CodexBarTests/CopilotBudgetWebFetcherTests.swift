@@ -267,6 +267,11 @@ struct CopilotBudgetWebFetcherTests {
                     }
                     """.utf8))
             }
+            if url.host == "api.github.com", url.path == "/user" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data(#"{"id":123,"login":"expecteduser"}"#.utf8))
+            }
             if url.host == "github.com", url.path == "/settings/billing/budgets", url.query == nil {
                 return Self.stubResponse(
                     url: url,
@@ -296,6 +301,79 @@ struct CopilotBudgetWebFetcherTests {
         }
         #expect(result.usage.primary?.usedPercent == 20)
         #expect(result.usage.extraRateWindows == nil)
+        #expect(CopilotBudgetBindingStubURLProtocol.requests().contains {
+            $0.url?.query?.contains("page=") == true
+        } == false)
+    }
+
+    @Test
+    func `stale selected account identifier is ignored for budget cookie binding`() async {
+        let registered = URLProtocol.registerClass(CopilotBudgetBindingStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(CopilotBudgetBindingStubURLProtocol.self)
+            }
+            CopilotBudgetBindingStubURLProtocol.reset()
+        }
+        CopilotBudgetBindingStubURLProtocol.reset()
+        CopilotBudgetBindingStubURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            if url.host == "api.github.com", url.path == "/copilot_internal/user" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data("""
+                    {
+                      "quota_snapshots": {
+                        "premium_interactions": {
+                          "entitlement": 300,
+                          "remaining": 240,
+                          "percent_remaining": 80,
+                          "quota_id": "premium"
+                        }
+                      },
+                      "copilot_plan": "pro"
+                    }
+                    """.utf8))
+            }
+            if url.host == "api.github.com", url.path == "/user" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data(#"{"id":999,"login":"newuser"}"#.utf8))
+            }
+            if url.host == "github.com", url.path == "/settings/billing/budgets", url.query == nil {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data("""
+                    <meta name="x-fetch-nonce" content="nonce">
+                    <meta name="octolytics-actor-id" content="123">
+                    <meta name="user-login" content="olduser">
+                    """.utf8))
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.stubResponse(url: url, data: Data("{}".utf8), statusCode: 404)
+        }
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .copilot)
+        let settings = ProviderSettingsSnapshot.make(copilot: .init(
+            apiToken: "new-selected-token",
+            selectedAccountExternalIdentifier: "github:user:123",
+            budgetExtrasEnabled: true,
+            budgetCookieSource: .manual,
+            manualBudgetCookieHeader: "user_session=old-browser-account"))
+        let context = Self.makeFetchContext(settings: settings)
+
+        let outcome = await descriptor.fetchPlan.fetchOutcome(context: context, provider: .copilot)
+
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Expected Copilot usage fetch to succeed")
+            return
+        }
+        #expect(result.usage.primary?.usedPercent == 20)
+        #expect(result.usage.extraRateWindows == nil)
+        #expect(CopilotBudgetBindingStubURLProtocol.requests().contains {
+            $0.url?.path == "/user"
+        })
         #expect(CopilotBudgetBindingStubURLProtocol.requests().contains {
             $0.url?.query?.contains("page=") == true
         } == false)

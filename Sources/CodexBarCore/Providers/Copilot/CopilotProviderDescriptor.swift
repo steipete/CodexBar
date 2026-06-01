@@ -118,12 +118,20 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         token: String,
         settings: ProviderSettingsSnapshot.CopilotProviderSettings) async throws -> String
     {
-        if let identifier = settings.selectedAccountExternalIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !identifier.isEmpty
-        {
-            return identifier
-        }
         let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: token)
-        return CopilotBudgetWebFetcher.normalizedGitHubAccountIdentifier(for: identity)
+        let tokenIdentifier = CopilotBudgetWebFetcher.normalizedGitHubAccountIdentifier(for: identity)
+        if let selectedIdentifier = Self.normalizedBudgetAccountIdentifier(settings.selectedAccountExternalIdentifier),
+           selectedIdentifier != tokenIdentifier.lowercased(),
+           selectedIdentifier != identity.login.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        {
+            CodexBarLog.logger(LogCategories.providers).warning(
+                "Ignoring stale Copilot account identifier")
+        }
+        return tokenIdentifier
+    }
+
+    private static func normalizedBudgetAccountIdentifier(_ identifier: String?) -> String? {
+        let trimmed = identifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed.lowercased()
     }
 }
