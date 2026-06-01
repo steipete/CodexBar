@@ -46,7 +46,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             // sometimes as percent_remaining=100 with a non-empty quota_id, which would
             // otherwise render as a misleading "0% used" (100 - 100). Treat it as a
             // placeholder so the usual handling drops it instead of showing fake usage.
-            return self.entitlementWasDecoded && self.remainingWasDecoded && self.entitlement == 0 && self.remaining == 0
+            return self.entitlementWasDecoded && self.remainingWasDecoded && self.entitlement == 0 && self
+                .remaining == 0
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -232,12 +233,14 @@ public struct CopilotUsageResponse: Sendable, Decodable {
 
     public let quotaSnapshots: QuotaSnapshots
     public let copilotPlan: String
+    public let tokenBasedBilling: Bool
     public let assignedDate: String?
     public let quotaResetDate: String?
 
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
         case copilotPlan = "copilot_plan"
+        case tokenBasedBilling = "token_based_billing"
         case assignedDate = "assigned_date"
         case quotaResetDate = "quota_reset_date"
         case monthlyQuotas = "monthly_quotas"
@@ -247,11 +250,13 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     public init(
         quotaSnapshots: QuotaSnapshots,
         copilotPlan: String,
+        tokenBasedBilling: Bool = false,
         assignedDate: String?,
         quotaResetDate: String?)
     {
         self.quotaSnapshots = quotaSnapshots
         self.copilotPlan = copilotPlan
+        self.tokenBasedBilling = tokenBasedBilling
         self.assignedDate = assignedDate
         self.quotaResetDate = quotaResetDate
     }
@@ -272,6 +277,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             self.quotaSnapshots = directSnapshots ?? QuotaSnapshots(premiumInteractions: nil, chat: nil)
         }
         self.copilotPlan = try container.decodeIfPresent(String.self, forKey: .copilotPlan) ?? "unknown"
+        self.tokenBasedBilling = try container.decodeIfPresent(Bool.self, forKey: .tokenBasedBilling) ?? false
         self.assignedDate = try container.decodeIfPresent(String.self, forKey: .assignedDate)
         self.quotaResetDate = try container.decodeIfPresent(String.self, forKey: .quotaResetDate)
     }

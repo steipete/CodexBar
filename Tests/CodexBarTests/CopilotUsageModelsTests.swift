@@ -447,6 +447,7 @@ struct CopilotUsageModelsTests {
             """
             {
               "copilot_plan": "business",
+              "token_based_billing": true,
               "quota_snapshots": {
                 "premium_interactions": {
                   "entitlement": 0,
@@ -470,6 +471,7 @@ struct CopilotUsageModelsTests {
             }
             """)
 
+        #expect(response.tokenBasedBilling)
         #expect(response.quotaSnapshots.premiumInteractions == nil)
         #expect(response.quotaSnapshots.chat == nil)
     }

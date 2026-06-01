@@ -16,10 +16,16 @@ public struct CopilotUsageFetcher: Sendable {
 
     private let token: String
     private let enterpriseHost: String?
+    private let transport: any ProviderHTTPTransport
 
-    public init(token: String, enterpriseHost: String? = nil) {
+    public init(
+        token: String,
+        enterpriseHost: String? = nil,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
+    {
         self.token = token
         self.enterpriseHost = enterpriseHost
+        self.transport = transport
     }
 
     public static func apiHost(enterpriseHost: String?) -> String {
@@ -49,7 +55,7 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("token \(self.token)", forHTTPHeaderField: "Authorization")
         self.addCommonHeaders(to: &request)
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await self.transport.response(for: request)
 
         if response.statusCode == 401 || response.statusCode == 403 {
             throw URLError(.userAuthenticationRequired)
@@ -73,6 +79,11 @@ public struct CopilotUsageFetcher: Sendable {
             // ("Premium" for primary, "Chat" for secondary) on chat-only plans.
             primary = nil
             secondary = chatWindow
+        } else if usage.tokenBasedBilling {
+            // Copilot Business token-based billing currently exposes zero-entitlement
+            // placeholder quotas on this endpoint, so surface the plan without fake usage.
+            primary = nil
+            secondary = nil
         } else {
             throw URLError(.cannotDecodeRawData)
         }

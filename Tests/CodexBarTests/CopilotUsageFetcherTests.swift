@@ -27,6 +27,47 @@ struct CopilotUsageFetcherTests {
     }
 
     @Test
+    func `fetch returns unavailable snapshot for business token billing placeholders`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token gh-token")
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": true,
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 0,
+                      "remaining": 0,
+                      "percent_remaining": 100,
+                      "quota_id": "premium_interactions"
+                    },
+                    "chat": {
+                      "entitlement": 0,
+                      "remaining": 0,
+                      "percent_remaining": 100,
+                      "quota_id": "chat"
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+        let fetcher = CopilotUsageFetcher(token: "gh-token", transport: transport)
+
+        let snapshot = try await fetcher.fetch()
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.identity?.loginMethod == "Business")
+    }
+
+    @Test
     func `makeRateWindow drops business token billing placeholder quota`() {
         // entitlement=0/remaining=0/percent_remaining=100 must not become a "0% used"
         // rate window for Copilot Business token-based billing accounts. (#1258)
