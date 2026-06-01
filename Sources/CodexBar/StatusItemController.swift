@@ -153,6 +153,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var onDeferredMenuInteractionRefreshForTesting: (() -> Void)?
     var onOpenMenuInvalidationRetryForTesting: (() -> Void)?
     var isReleasedForTesting = false
+    var lastLoggedClosedMenuRebuildVersion: Int?
     var _test_openMenuRefreshYieldOverride: (@MainActor () async -> Void)?
     var _test_openMenuRebuildObserver: (@MainActor (NSMenu) -> Void)?
     var _test_codexAmbientLoginRunnerOverride:

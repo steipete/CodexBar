@@ -60,6 +60,15 @@ extension StatusItemController {
     func refreshMenuForOpenIfNeeded(_ menu: NSMenu, provider: UsageProvider?) {
         guard self.menuNeedsRefresh(menu) else { return }
         if self.isMenuDataRefreshInFlight, !menu.items.isEmpty {
+            #if DEBUG
+            self.menuLogger.debug(
+                "menu open kept existing content during refresh",
+                metadata: [
+                    "items": "\(menu.items.count)",
+                    "provider": provider?.rawValue ?? "nil",
+                    "storeRefreshing": self.store.isRefreshing ? "1" : "0",
+                ])
+            #endif
             self.deferMenuInteractionRefreshIfNeeded()
             return
         }
@@ -127,6 +136,17 @@ extension StatusItemController {
             guard self.menuNeedsRefresh(menu) else { return }
             self.populateMenu(menu, provider: provider)
             self.markMenuFresh(menu)
+            #if DEBUG
+            if self.lastLoggedClosedMenuRebuildVersion != self.menuContentVersion {
+                self.lastLoggedClosedMenuRebuildVersion = self.menuContentVersion
+                self.menuLogger.debug(
+                    "closed menu rebuild completed",
+                    metadata: [
+                        "items": "\(menu.items.count)",
+                        "provider": provider?.rawValue ?? "nil",
+                    ])
+            }
+            #endif
         }
     }
 
