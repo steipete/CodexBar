@@ -70,7 +70,7 @@
 - Settings: add search to the Providers pane so large provider lists can be filtered by name or id (#1184). Thanks @046081-dotcom!
 
 ### Changed
-- Antigravity: prefer the Antigravity CLI (`agy`) OAuth session for quota fetch before CodexBar Google OAuth or the local IDE API, using the Gemini quota API for `agy` sessions, and auto-disable Gemini when `agy` is installed.
+- Antigravity: capture the `agy` interactive `/usage` Model Quota panel via PTY (Claude + Gemini without Antigravity.app), fall back to the Gemini `retrieveUserQuota` API when capture is partial, fix the remote quota fallback blocked by `User-Agent: antigravity` (HTTP 403), prefer `agy` in CLI source mode, and skip the slow local IDE probe when `agy` is available; auto-disable Gemini when `agy` is installed.
 
 ### Fixed
 - Augment: parse the updated `auggie account status` output format, fall back to browser cookies when CLI parsing fails, and restore session cookie detection (#1224). Thanks @bcharleson!

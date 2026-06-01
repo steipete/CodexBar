@@ -40,7 +40,7 @@ public enum AntigravityAgyCredentials {
         fileManager: FileManager = .default) -> Bool
     {
         self.isCLIInstalled(env: env, loginPATH: loginPATH)
-            && self.hasStoredCredentials(homeDirectory: homeDirectory, fileManager: fileManager)
+            || self.hasStoredCredentials(homeDirectory: homeDirectory, fileManager: fileManager)
     }
 
     public static func loadCredentials(

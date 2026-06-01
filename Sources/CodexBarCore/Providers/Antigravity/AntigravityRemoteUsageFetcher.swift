@@ -34,6 +34,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
     private static let userAgent = "antigravity"
+    /// `retrieveUserQuota` rejects `User-Agent: antigravity` (HTTP 403); Gemini CLI UA works.
+    private static let quotaUserAgent = "GeminiCLI"
     private static let baseURL = "https://cloudcode-pa.googleapis.com"
     private static let loadCodeAssistEndpoint = "\(baseURL)/v1internal:loadCodeAssist"
     private static let onboardUserEndpoint = "\(baseURL)/v1internal:onboardUser"
@@ -326,7 +328,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             accessToken: accessToken,
             body: body,
             timeout: timeout,
-            dataLoader: dataLoader)
+            dataLoader: dataLoader,
+            userAgent: Self.quotaUserAgent)
     }
 
     private static func resolveProjectID(
@@ -392,7 +395,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         accessToken: String,
         body: [String: Any],
         timeout: TimeInterval,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        userAgent: String = Self.userAgent) async throws
         -> Response
     {
         guard let url = URL(string: endpoint) else {
@@ -404,7 +408,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         request.timeoutInterval = timeout
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let httpResponse = try await ProviderHTTPTransportHandler(dataLoader).response(for: request)

@@ -47,6 +47,9 @@ public enum AntigravityProviderDescriptor {
 
         switch context.sourceMode {
         case .cli:
+            if await agy.isAvailable(context) {
+                return [agy]
+            }
             return [local]
         case .oauth:
             if await agy.isAvailable(context) {
@@ -55,7 +58,7 @@ public enum AntigravityProviderDescriptor {
             return [oauth]
         case .auto:
             if await agy.isAvailable(context) {
-                return [agy, oauth, local]
+                return [agy, oauth]
             }
             return [local, oauth]
         case .web, .api:
@@ -75,7 +78,7 @@ struct AntigravityAgyFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let snapshot = try await AntigravityAgyQuotaFetcher.fetch()
+        let snapshot = try await AntigravityAgyStatusProbe.fetch(environment: context.env)
         let usage = try snapshot.toUsageSnapshot()
         return self.makeResult(
             usage: usage,
@@ -84,7 +87,9 @@ struct AntigravityAgyFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.sourceMode == .auto || context.sourceMode == .oauth else { return false }
-        if error is AntigravityRemoteFetchError || error is GeminiStatusProbeError {
+        if error is AntigravityRemoteFetchError || error is GeminiStatusProbeError
+            || error is AntigravityAgyCLIUsageProbeError
+        {
             return true
         }
         return false
