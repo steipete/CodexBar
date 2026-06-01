@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct CopilotBudgetWebFetcherTests {
     @Test
     func `maps positive copilot budgets to extra rate windows`() {
@@ -70,6 +71,35 @@ struct CopilotBudgetWebFetcherTests {
     }
 
     @Test
+    func `ignores malformed embedded minus amounts`() throws {
+        let data = Data("""
+        {
+          "budgets": [
+            {
+              "uuid": "budget-1",
+              "pricingTargetId": "premium_requests",
+              "targetAmount": "1-5",
+              "currentAmount": "$5.00"
+            },
+            {
+              "uuid": "budget-2",
+              "pricingTargetId": "premium_requests",
+              "targetAmount": "-$15.00",
+              "currentAmount": "$5.00"
+            }
+          ]
+        }
+        """.utf8)
+
+        let response = try JSONDecoder().decode(CopilotBudgetWebFetcher.BudgetResponse.self, from: data)
+
+        #expect(response.budgets.map(\.budgetAmount) == [0, -15])
+        #expect(CopilotBudgetWebFetcher.extraRateWindows(
+            from: response.budgets,
+            now: Date(timeIntervalSince1970: 1_780_358_400)).isEmpty)
+    }
+
+    @Test
     func `normalizes documented copilot billing names`() {
         #expect(CopilotBudgetWebFetcher.normalizedBillingIdentifier("Copilot") == "copilot")
         #expect(
@@ -128,5 +158,62 @@ struct CopilotBudgetWebFetcherTests {
         } catch let error as CopilotBudgetWebFetcher.Error {
             #expect(error == .invalidResponse)
         }
+    }
+
+    @Test
+    func `cached cookie non auth errors do not fall back to browser import`() async throws {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+        CookieHeaderCache.store(provider: .copilot, cookieHeader: "user_session=cached", sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: .copilot) }
+
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 500,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            return (Data("{}".utf8), response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(transport: transport)
+
+        do {
+            _ = try await fetcher.fetchBudgetWindows()
+            Issue.record("Expected badStatus")
+        } catch let error as CopilotBudgetWebFetcher.Error {
+            #expect(error == .badStatus(500))
+        }
+
+        #expect(await transport.requests().count == 2)
+        #expect(CookieHeaderCache.load(provider: .copilot)?.cookieHeader == "user_session=cached")
+    }
+
+    @Test
+    func `budget page request omits content type on get`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                return (Data(#"{"budgets":[],"has_next_page":false}"#.utf8), response)
+            }
+            return (Data(#"<meta name="x-fetch-nonce" content="nonce">"#.utf8), response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(transport: transport)
+
+        _ = try await fetcher.fetchBudgetWindows(cookieHeader: "user_session=abc")
+
+        let pageRequest = try #require(await transport.requests().first { $0.url?.query?.contains("page=") == true })
+        #expect(pageRequest.value(forHTTPHeaderField: "Content-Type") == nil)
     }
 }

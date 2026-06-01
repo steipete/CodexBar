@@ -7,7 +7,7 @@ read_when:
 
 # Copilot provider
 
-Copilot uses GitHub OAuth device flow and the Copilot internal usage API. No browser cookies.
+Copilot uses GitHub OAuth device flow and the Copilot internal usage API for primary usage. Optional budget extras use GitHub web cookies only when enabled.
 
 ## Data sources + fallback order
 
@@ -23,7 +23,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API. No bro
    - Scope: `read:user`.
    - Token stored in config:
      - `~/.codexbar/config.json` → `providers[].apiKey` for `copilot`
-      - token accounts use `providers[].tokenAccounts`
+     - token accounts use `providers[].tokenAccounts`
 
 2) **Usage fetch**
    - `GET https://api.github.com/copilot_internal/user`
@@ -34,7 +34,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API. No bro
      - `Editor-Version: vscode/1.96.2`
      - `Editor-Plugin-Version: copilot-chat/0.26.7`
      - `User-Agent: GitHubCopilotChat/0.26.7`
-   - `X-Github-Api-Version: 2025-04-01`
+     - `X-Github-Api-Version: 2025-04-01`
 
 3) **Budget fetch** (optional GitHub web endpoint, best-effort)
    - Disabled by default. The Copilot provider's "Budget extras" setting must be enabled before CodexBar imports

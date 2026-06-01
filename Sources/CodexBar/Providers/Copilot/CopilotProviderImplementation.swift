@@ -98,7 +98,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.copilotBudgetCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies for github.com budget extras.",
+                auto: "Automatically imports browser cookies for github.com budget extras.",
                 manual: "Paste a Cookie header from github.com.",
                 off: "GitHub cookies are disabled.")
         }
@@ -139,12 +139,14 @@ struct CopilotProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "copilot-budget-cookie-source",
                 title: "GitHub cookies",
-                subtitle: "Automatic imports browser cookies for budget extras.",
+                subtitle: "Automatically imports browser cookies for budget extras.",
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
                 isVisible: { context.settings.copilotBudgetExtrasEnabled },
-                onChange: nil,
+                onChange: { _ in
+                    await context.store.refreshProvider(.copilot, allowDisabled: true)
+                },
                 trailingText: {
                     guard context.settings.copilotBudgetCookieSource != .manual else { return nil }
                     guard let entry = CookieHeaderCache.load(provider: .copilot) else { return nil }
@@ -159,12 +161,21 @@ struct CopilotProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "copilot-budget-cookie-header",
-                title: "",
-                subtitle: "",
+                title: "Manual GitHub Cookie header",
+                subtitle: "Paste a github.com Cookie header. Treat this value like a password.",
                 kind: .secure,
                 placeholder: "Cookie: ...",
                 binding: context.stringBinding(\.copilotBudgetCookieHeader),
-                actions: [],
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "refresh-copilot-budget-cookie",
+                        title: "Refresh budgets",
+                        style: .bordered,
+                        isVisible: nil,
+                        perform: {
+                            await context.store.refreshProvider(.copilot, allowDisabled: true)
+                        }),
+                ],
                 isVisible: {
                     context.settings.copilotBudgetExtrasEnabled &&
                         context.settings.copilotBudgetCookieSource == .manual

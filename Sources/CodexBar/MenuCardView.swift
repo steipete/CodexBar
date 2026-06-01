@@ -810,7 +810,7 @@ extension UsageMenuCardView.Model {
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
             showOptionalCreditsAndExtraUsage: Bool,
-            copilotBudgetExtrasEnabled: Bool = true,
+            copilotBudgetExtrasEnabled: Bool = false,
             sourceLabel: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,

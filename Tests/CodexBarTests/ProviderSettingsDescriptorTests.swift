@@ -166,6 +166,21 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `copilot manual cookie field is labelled and refreshable`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-budget-field")
+        fixture.settings.copilotBudgetExtrasEnabled = true
+        fixture.settings.copilotBudgetCookieSource = .manual
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-budget-cookie-header" })
+
+        #expect(field.title == "Manual GitHub Cookie header")
+        #expect(field.subtitle.contains("Treat this value like a password"))
+        #expect(field.actions.map(\.id) == ["refresh-copilot-budget-cookie"])
+    }
+
+    @Test
     func `deepgram exposes api key and project id fields`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepgram")
         let context = fixture.settingsContext(provider: .deepgram)

@@ -992,7 +992,6 @@ struct MenuCardModelTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
-            copilotBudgetExtrasEnabled: false,
             hidePersonalInfo: false,
             now: now))
 

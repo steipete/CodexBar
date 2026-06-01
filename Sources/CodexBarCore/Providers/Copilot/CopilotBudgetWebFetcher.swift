@@ -220,9 +220,12 @@ public struct CopilotBudgetWebFetcher: Sendable {
         }
 
         fileprivate static func parseAmount(_ value: String) -> Double? {
-            let filtered = value.filter { $0.isNumber || $0 == "." || $0 == "-" }
-            guard !filtered.isEmpty else { return nil }
-            return Double(filtered)
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isNegative = trimmed.first == "-"
+            guard !trimmed.dropFirst(isNegative ? 1 : 0).contains("-") else { return nil }
+            let unsigned = trimmed.filter { $0.isNumber || $0 == "." }
+            guard !unsigned.isEmpty else { return nil }
+            return Double(isNegative ? "-\(unsigned)" : unsigned)
         }
     }
 
@@ -333,6 +336,8 @@ public struct CopilotBudgetWebFetcher: Sendable {
             } catch {
                 if case Error.notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .copilot)
+                } else {
+                    throw error
                 }
             }
         }
@@ -359,7 +364,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
     }
 
     func fetchBudgetWindows(cookieHeader: String) async throws -> [NamedRateWindow] {
-        let nonce = try? await self.fetchNonce(cookieHeader: cookieHeader)
+        let nonce = await self.bestEffortFetchNonce(cookieHeader: cookieHeader)
         var allBudgets: [Budget] = []
         var page = 1
         var shouldContinue = true
@@ -373,6 +378,16 @@ public struct CopilotBudgetWebFetcher: Sendable {
             page += 1
         }
         return Self.extraRateWindows(from: allBudgets, now: self.now())
+    }
+
+    private func bestEffortFetchNonce(cookieHeader: String) async -> String? {
+        do {
+            return try await self.fetchNonce(cookieHeader: cookieHeader)
+        } catch {
+            // GitHub accepts some budget requests without a nonce. Keep auth failures and
+            // page-shape changes non-fatal so a valid Cookie header can still be tried.
+            return nil
+        }
     }
 
     private func fetchNonce(cookieHeader: String) async throws -> String? {
@@ -411,7 +426,6 @@ public struct CopilotBudgetWebFetcher: Sendable {
         request.timeoutInterval = 15
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("https://github.com/settings/billing/budgets", forHTTPHeaderField: "Referer")
         request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
         request.setValue("true", forHTTPHeaderField: "GitHub-Verified-Fetch")
@@ -457,27 +471,36 @@ public struct CopilotBudgetWebFetcher: Sendable {
 
     static func extraRateWindows(from budgets: [Budget], now: Date) -> [NamedRateWindow] {
         var usedIDs = Set<String>()
+        let resetDate = self.approximateNextMonthResetDate(now: now)
         return budgets
-            .filter(Self.isCopilotBudget)
-            .map { budget in
-                let id = self.uniqueWindowID(for: budget, usedIDs: &usedIDs)
+            .compactMap { budget in
+                let selectors = budget.normalizedSelectors
+                guard self.isCopilotBudget(budget, selectors: selectors) else { return nil }
+                let id = self.uniqueWindowID(for: budget, selectors: selectors, usedIDs: &usedIDs)
                 let usedPercent = budget.budgetAmount > 0
                     ? min(999, max(0, budget.currentAmount / budget.budgetAmount * 100))
                     : 0
                 let window = RateWindow(
                     usedPercent: usedPercent,
                     windowMinutes: nil,
-                    resetsAt: self.nextMonthResetDate(now: now),
-                    resetDescription: self.nextMonthResetDate(now: now).map {
+                    resetsAt: resetDate,
+                    resetDescription: resetDate.map {
                         UsageFormatter.resetDescription(from: $0, now: now)
                     })
-                return NamedRateWindow(id: id, title: self.windowTitle(for: budget), window: window)
+                return NamedRateWindow(
+                    id: id,
+                    title: self.windowTitle(for: budget, selectors: selectors),
+                    window: window)
             }
     }
 
     static func isCopilotBudget(_ budget: Budget) -> Bool {
+        self.isCopilotBudget(budget, selectors: budget.normalizedSelectors)
+    }
+
+    private static func isCopilotBudget(_ budget: Budget, selectors: Set<String>) -> Bool {
         guard budget.budgetAmount > 0 else { return false }
-        return !budget.normalizedSelectors.isDisjoint(with: self.copilotBudgetSelectors)
+        return !selectors.isDisjoint(with: self.copilotBudgetSelectors)
     }
 
     static func normalizedBillingIdentifier(_ value: String?) -> String? {
@@ -521,7 +544,10 @@ public struct CopilotBudgetWebFetcher: Sendable {
     }
 
     private static func windowTitle(for budget: Budget) -> String {
-        let selectors = budget.normalizedSelectors
+        self.windowTitle(for: budget, selectors: budget.normalizedSelectors)
+    }
+
+    private static func windowTitle(for budget: Budget, selectors: Set<String>) -> String {
         let budgetType = if selectors == [self.copilotProductID] {
             "Copilot"
         } else if selectors.contains(self.copilotAgentPremiumRequestSKU) {
@@ -540,9 +566,13 @@ public struct CopilotBudgetWebFetcher: Sendable {
         return "Budget - \(budgetType)"
     }
 
-    private static func uniqueWindowID(for budget: Budget, usedIDs: inout Set<String>) -> String {
+    private static func uniqueWindowID(
+        for budget: Budget,
+        selectors: Set<String>,
+        usedIDs: inout Set<String>) -> String
+    {
         let source = budget.id ?? budget.budgetProductSkus.joined(separator: "-")
-        let slug = self.slug(source.isEmpty ? self.windowTitle(for: budget) : source)
+        let slug = self.slug(source.isEmpty ? self.windowTitle(for: budget, selectors: selectors) : source)
         let base = slug.isEmpty ? "copilot-budget" : "copilot-budget-\(slug)"
         var candidate = base
         var suffix = 2
@@ -553,9 +583,11 @@ public struct CopilotBudgetWebFetcher: Sendable {
         return candidate
     }
 
-    private static func nextMonthResetDate(now: Date) -> Date? {
+    private static func approximateNextMonthResetDate(now: Date) -> Date? {
+        // GitHub's budget response does not expose a reset instant. Use the local
+        // start of next month as a display-only approximation.
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        calendar.timeZone = .current
         let components = calendar.dateComponents([.year, .month], from: now)
         guard let monthStart = calendar.date(from: DateComponents(
             year: components.year,
