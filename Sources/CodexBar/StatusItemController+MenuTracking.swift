@@ -5,13 +5,13 @@ extension StatusItemController {
     private static let defaultClosedMenuPreparationDelay: Duration = .milliseconds(350)
 
     #if DEBUG
-    private static var closedMenuPreparationDelayForTesting: Duration = .zero
+    private static var closedMenuPreparationDelayForTesting: Duration = defaultClosedMenuPreparationDelay
     static func setClosedMenuPreparationDelayForTesting(_ delay: Duration) {
         self.closedMenuPreparationDelayForTesting = delay
     }
 
     static func resetClosedMenuPreparationDelayForTesting() {
-        self.closedMenuPreparationDelayForTesting = .zero
+        self.closedMenuPreparationDelayForTesting = self.defaultClosedMenuPreparationDelay
     }
     #endif
 

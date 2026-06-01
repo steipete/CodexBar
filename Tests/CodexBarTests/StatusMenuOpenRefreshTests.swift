@@ -32,6 +32,8 @@ extension StatusMenuTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
         defer { controller.releaseStatusItemsForTesting() }
+        StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
+        defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
 
         controller.menuRefreshEnabledOverrideForTesting = true
         StatusItemController.setDeferredMenuInteractionRefreshDelayForTesting(.zero)
@@ -131,6 +133,8 @@ extension StatusMenuTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
         defer { controller.releaseStatusItemsForTesting() }
+        StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
+        defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
 
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu()
@@ -169,6 +173,8 @@ extension StatusMenuTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
         defer { controller.releaseStatusItemsForTesting() }
+        StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
+        defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
 
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu()
@@ -200,6 +206,9 @@ extension StatusMenuTests {
 
     @Test
     func `closed attached menu preparation waits for token refresh to finish`() async {
+        StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
+        defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
+
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -263,15 +272,18 @@ extension StatusMenuTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
         defer { controller.releaseStatusItemsForTesting() }
+        StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
+        defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
 
-        var menu: NSMenu? = NSMenu()
-        let key = ObjectIdentifier(menu!)
+        let key: ObjectIdentifier
+        do {
+            let menu = NSMenu()
+            key = ObjectIdentifier(menu)
+            controller.rebuildClosedMenuIfNeeded(menu)
+            #expect(controller.closedMenuRebuildTasks[key] != nil)
+            #expect(controller.closedMenuRebuildTokens[key] != nil)
+        }
 
-        controller.rebuildClosedMenuIfNeeded(menu!)
-        #expect(controller.closedMenuRebuildTasks[key] != nil)
-        #expect(controller.closedMenuRebuildTokens[key] != nil)
-
-        menu = nil
         for _ in 0..<40 where controller.closedMenuRebuildTasks[key] != nil {
             await Task.yield()
         }

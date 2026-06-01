@@ -56,16 +56,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     #if DEBUG
-    static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
-        self.menuRefreshEnabled = enabled
-    }
-
-    static func resetMenuRefreshEnabledForTesting() {
-        self.menuRefreshEnabled = self.defaultMenuRefreshEnabled
-    }
-    #endif
-
-    #if DEBUG
     var menuRefreshEnabledOverrideForTesting: Bool?
     #endif
 
@@ -907,6 +897,18 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         NotificationCenter.default.removeObserver(self)
     }
 }
+
+#if DEBUG
+extension StatusItemController {
+    static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
+        self.menuRefreshEnabled = enabled
+    }
+
+    static func resetMenuRefreshEnabledForTesting() {
+        self.menuRefreshEnabled = self.defaultMenuRefreshEnabled
+    }
+}
+#endif
 
 extension StatusItemController {
     private func legacyDefaultItemIndex(forNewProvider provider: UsageProvider) -> Int? {
