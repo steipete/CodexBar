@@ -135,7 +135,7 @@ struct CopilotBudgetWebFetcherTests {
     func `extracts github web identity from html`() throws {
         let html = """
         <meta name="octolytics-actor-id" content="123">
-        <meta content="octocat" name="user-login">
+        <meta content = "octocat" name = "user-login">
         """
 
         let identity = try #require(CopilotBudgetWebFetcher.extractGitHubWebIdentity(from: html))
@@ -145,6 +145,72 @@ struct CopilotBudgetWebFetcherTests {
         #expect(CopilotBudgetWebFetcher.webIdentity(identity, matches: "github:user:123"))
         #expect(CopilotBudgetWebFetcher.webIdentity(identity, matches: "OctoCat"))
         #expect(!CopilotBudgetWebFetcher.webIdentity(identity, matches: "github:user:456"))
+    }
+
+    @Test
+    func `missing github web identity with expected account maps to invalid response`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                Issue.record("Missing identity should not reach budget JSON endpoint")
+                return (Data(#"{"budgets":[],"has_next_page":false}"#.utf8), response)
+            }
+            return (Data(#"<meta name="x-fetch-nonce" content="nonce">"#.utf8), response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(
+            cookieHeaderOverride: "user_session=missing-identity",
+            expectedGitHubAccountIdentifier: "github:user:123",
+            transport: transport)
+
+        do {
+            _ = try await fetcher.fetchBudgetWindows()
+            Issue.record("Expected invalid response")
+        } catch let error as CopilotBudgetWebFetcher.Error {
+            #expect(error == .invalidResponse)
+        }
+
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test
+    func `invalid github budget page html encoding maps to invalid response`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                Issue.record("Invalid HTML encoding should not reach budget JSON endpoint")
+                return (Data(#"{"budgets":[],"has_next_page":false}"#.utf8), response)
+            }
+            return (Data([0xC3, 0x28]), response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(
+            cookieHeaderOverride: "user_session=invalid-html",
+            expectedGitHubAccountIdentifier: "github:user:123",
+            transport: transport)
+
+        do {
+            _ = try await fetcher.fetchBudgetWindows()
+            Issue.record("Expected invalid response")
+        } catch let error as CopilotBudgetWebFetcher.Error {
+            #expect(error == .invalidResponse)
+        }
+
+        #expect(await transport.requests().count == 1)
     }
 
     @Test
@@ -514,7 +580,16 @@ final class CopilotBudgetBindingStubURLProtocol: URLProtocol {
     }
 
     override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "api.github.com" || request.url?.host == "github.com"
+        guard self.hasHandler else { return false }
+        guard request.url?.scheme == "https" else { return false }
+        switch (request.url?.host, request.url?.path) {
+        case ("api.github.com", "/copilot_internal/user"),
+             ("api.github.com", "/user"),
+             ("github.com", "/settings/billing/budgets"):
+            return true
+        default:
+            return false
+        }
     }
 
     override static func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -543,4 +618,12 @@ final class CopilotBudgetBindingStubURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+extension CopilotBudgetBindingStubURLProtocol {
+    fileprivate static var hasHandler: Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.handler != nil
+    }
 }

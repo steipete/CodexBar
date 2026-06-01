@@ -232,7 +232,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
         }
     }
 
-    public struct GitHubWebIdentity: Equatable, Sendable {
+    struct GitHubWebIdentity: Equatable, Sendable {
         let id: String?
         let login: String?
 
@@ -359,8 +359,6 @@ public struct CopilotBudgetWebFetcher: Sendable {
             } catch {
                 if case Error.notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .copilot)
-                } else if case Error.accountMismatch = error {
-                    CookieHeaderCache.clear(provider: .copilot)
                 } else {
                     throw error
                 }
@@ -451,9 +449,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
         let response = try await self.transport.response(for: request)
         switch response.statusCode {
         case 200:
-            guard let html = String(data: response.data, encoding: .utf8) else {
-                return BudgetPageMetadata(nonce: nil, identity: nil)
-            }
+            guard let html = String(data: response.data, encoding: .utf8) else { throw Error.invalidResponse }
             return BudgetPageMetadata(
                 nonce: Self.extractFetchNonce(from: html),
                 identity: Self.extractGitHubWebIdentity(from: html))
@@ -466,8 +462,9 @@ public struct CopilotBudgetWebFetcher: Sendable {
 
     private func verifyExpectedGitHubAccount(_ actual: GitHubWebIdentity?) throws {
         guard let expected = self.expectedGitHubAccountIdentifier else { return }
+        guard let actual else { throw Error.invalidResponse }
         guard Self.webIdentity(actual, matches: expected) else {
-            throw Error.accountMismatch(expected: expected, actual: actual?.displayName)
+            throw Error.accountMismatch(expected: expected, actual: actual.displayName)
         }
     }
 
@@ -547,25 +544,41 @@ public struct CopilotBudgetWebFetcher: Sendable {
         return identity.id == nil && identity.login == nil ? nil : identity
     }
 
+    private static let metaTagRegex = try? NSRegularExpression(
+        pattern: #"<meta\b[^>]*>"#,
+        options: [.caseInsensitive])
+
+    private static let metaAttributeRegex = try? NSRegularExpression(
+        pattern: #"([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*(['"])(.*?)\2"#,
+        options: [.caseInsensitive])
+
     private static func extractMetaContent(named names: [String], from html: String) -> String? {
-        for name in names {
-            let escapedName = NSRegularExpression.escapedPattern(for: name)
-            let patterns = [
-                #"<meta\b(?=[^>]*\bname=["']\#(escapedName)["'])(?=[^>]*\bcontent=["']([^"']+)["'])[^>]*>"#,
-                #"<meta\b(?=[^>]*\bcontent=["']([^"']+)["'])(?=[^>]*\bname=["']\#(escapedName)["'])[^>]*>"#,
-            ]
-            for pattern in patterns {
-                guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-                    continue
-                }
-                let range = NSRange(html.startIndex..<html.endIndex, in: html)
-                guard let match = regex.firstMatch(in: html, range: range),
-                      let contentRange = Range(match.range(at: 1), in: html)
+        guard let metaTagRegex, let metaAttributeRegex else { return nil }
+        let expectedNames = Set(names.map { $0.lowercased() })
+        var contentByName: [String: String] = [:]
+        let htmlRange = NSRange(html.startIndex..<html.endIndex, in: html)
+        for tagMatch in metaTagRegex.matches(in: html, range: htmlRange) {
+            guard let tagRange = Range(tagMatch.range, in: html) else { continue }
+            let tag = String(html[tagRange])
+            let tagNSRange = NSRange(tag.startIndex..<tag.endIndex, in: tag)
+            var attributes: [String: String] = [:]
+            for attributeMatch in metaAttributeRegex.matches(in: tag, range: tagNSRange) {
+                guard let keyRange = Range(attributeMatch.range(at: 1), in: tag),
+                      let valueRange = Range(attributeMatch.range(at: 3), in: tag)
                 else { continue }
-                let content = String(html[contentRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !content.isEmpty {
-                    return content
-                }
+                attributes[String(tag[keyRange]).lowercased()] = String(tag[valueRange])
+            }
+            guard let name = attributes["name"]?.lowercased(),
+                  expectedNames.contains(name),
+                  contentByName[name] == nil,
+                  let content = attributes["content"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !content.isEmpty
+            else { continue }
+            contentByName[name] = content
+        }
+        for name in names {
+            if let content = contentByName[name.lowercased()] {
+                return content
             }
         }
         return nil
@@ -576,9 +589,9 @@ public struct CopilotBudgetWebFetcher: Sendable {
               let identity
         else { return false }
         if let expectedID = self.githubUserID(from: expected) {
-            return identity.id?.trimmingCharacters(in: .whitespacesAndNewlines) == expectedID
+            return identity.id == expectedID
         }
-        return identity.login?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == expected
+        return identity.login?.lowercased() == expected
     }
 
     static func normalizedGitHubAccountIdentifier(for identity: CopilotUsageFetcher.GitHubUserIdentity) -> String {
