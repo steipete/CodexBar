@@ -667,6 +667,7 @@ struct ProvidersPane: View {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
             quotaWarningThresholds: [

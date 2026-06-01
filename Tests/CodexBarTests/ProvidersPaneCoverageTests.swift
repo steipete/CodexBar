@@ -52,6 +52,35 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `copilot menu card preview follows budget extras setting`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-copilot-budget-preview")
+        let store = Self.makeUsageStore(settings: settings)
+        let budgetTitle = "Budget - Copilot Agent Premium Requests"
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "copilot-budget-agent",
+                        title: budgetTitle,
+                        window: RateWindow(
+                            usedPercent: 65,
+                            windowMinutes: nil,
+                            resetsAt: nil,
+                            resetDescription: nil)),
+                ],
+                updatedAt: Date()),
+            provider: .copilot)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        #expect(!pane._test_menuCardModel(for: .copilot).metrics.map(\.title).contains(budgetTitle))
+
+        settings.copilotBudgetExtrasEnabled = true
+        #expect(pane._test_menuCardModel(for: .copilot).metrics.map(\.title).contains(budgetTitle))
+    }
+
+    @Test
     func `open router menu bar metric picker shows only automatic and primary`() {
         Self.withEnglishLocalization {
             let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-openrouter-picker")
