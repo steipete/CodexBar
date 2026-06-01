@@ -37,6 +37,18 @@ struct MiniMaxSettingsReaderTests {
     }
 
     @Test
+    func `URL overrides preserve bare host port values`() {
+        let url = MiniMaxSettingsReader.codingPlanURL(environment: [
+            MiniMaxSettingsReader.codingPlanURLKey: "localhost:8443/account",
+        ])
+
+        #expect(url?.scheme == "https")
+        #expect(url?.host == "localhost")
+        #expect(url?.port == 8443)
+        #expect(url?.path == "/account")
+    }
+
+    @Test
     func `URL overrides reject non HTTPS schemes`() {
         let httpURL = MiniMaxSettingsReader.remainsURL(environment: [
             MiniMaxSettingsReader.remainsURLKey: "http://platform.minimax.test/remains",
@@ -60,10 +72,14 @@ struct MiniMaxSettingsReaderTests {
         let bareHost = MiniMaxSettingsReader.hostOverride(environment: [
             MiniMaxSettingsReader.hostKey: "platform.minimax.test",
         ])
+        let bareHostWithPort = MiniMaxSettingsReader.hostOverride(environment: [
+            MiniMaxSettingsReader.hostKey: "localhost:8443",
+        ])
 
         #expect(httpHost == nil)
         #expect(httpsHost == "https://platform.minimax.test")
         #expect(bareHost == "platform.minimax.test")
+        #expect(bareHostWithPort == "localhost:8443")
     }
 
     @Test
@@ -86,6 +102,12 @@ struct MiniMaxSettingsReaderTests {
             MiniMaxSettingsReader.remainsURLKey: "https://platform.minimax.test/remains",
             MiniMaxSettingsReader.billingHistoryURLKey: "https://platform.minimax.test/history",
             MiniMaxSettingsReader.hostKey: "platform.minimax.test",
+        ])
+        try MiniMaxSettingsReader.validateEndpointOverrides(environment: [
+            MiniMaxSettingsReader.codingPlanURLKey: "localhost:8443/account",
+            MiniMaxSettingsReader.remainsURLKey: "localhost:8443/remains",
+            MiniMaxSettingsReader.billingHistoryURLKey: "localhost:8443/history",
+            MiniMaxSettingsReader.hostKey: "localhost:8443",
         ])
     }
 }
@@ -125,6 +147,7 @@ struct MiniMaxProviderStrategyTests {
             runtime: .app,
             env: [MiniMaxSettingsReader.remainsURLKey: "http://localhost:8080/remains"])
 
+        #expect(await MiniMaxCodingPlanFetchStrategy().isAvailable(context))
         await #expect(throws: MiniMaxSettingsError.invalidEndpointOverride(MiniMaxSettingsReader.remainsURLKey)) {
             try await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 try await MiniMaxCodingPlanFetchStrategy().fetch(context)
@@ -960,6 +983,35 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `bare host port override applies to web usage request`() async throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            #expect(url.scheme == "https")
+            #expect(url.host == "localhost")
+            #expect(url.port == 8443)
+            #expect(url.path == "/user-center/payment/coding-plan")
+            return Self.httpResponse(
+                url: url,
+                body: Self.codingPlanJSON,
+                contentType: "application/json")
+        }
+
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            cookieHeader: "HERTZ-SESSION=abc",
+            region: .global,
+            environment: [MiniMaxSettingsReader.hostKey: "localhost:8443"],
+            includeBillingHistory: false,
+            session: transport,
+            now: now)
+
+        let requests = await transport.requests()
+        #expect(snapshot.currentPrompts == 2)
+        #expect(snapshot.billingSummary == nil)
+        #expect(requests.count == 1)
+    }
+
+    @Test
     func `web usage fetch keeps quota when billing history is forbidden`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in
@@ -1130,6 +1182,23 @@ struct MiniMaxAPIRegionTests {
         let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
         #expect(codingPlan.host == "api.minimaxi.com")
         #expect(remains.host == "api.minimaxi.com")
+    }
+
+    @Test
+    func `bare host port override is honored by usage URLs`() {
+        let env = [MiniMaxSettingsReader.hostKey: "localhost:8443"]
+        let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
+        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
+        let billingHistory = MiniMaxUsageFetcher.resolveBillingHistoryURL(region: .global, environment: env)
+
+        for url in [codingPlan, remains, billingHistory] {
+            #expect(url.scheme == "https")
+            #expect(url.host == "localhost")
+            #expect(url.port == 8443)
+        }
+        #expect(codingPlan.path == "/user-center/payment/coding-plan")
+        #expect(remains.path == "/v1/api/openplatform/coding_plan/remains")
+        #expect(billingHistory.path == "/account/amount")
     }
 
     @Test

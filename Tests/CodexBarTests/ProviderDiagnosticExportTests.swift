@@ -166,6 +166,34 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
+    func `invalid provider endpoint overrides map to configuration diagnostics`() {
+        let alibaba = ProviderDiagnosticError(
+            from: AlibabaCodingPlanSettingsError.invalidEndpointOverride(AlibabaCodingPlanSettingsReader.quotaURLKey),
+            authConfigured: true)
+        #expect(alibaba.category == "configuration")
+        #expect(alibaba.safeDescription == "Configuration issue - check provider source and settings")
+
+        let minimax = ProviderDiagnosticError(
+            from: MiniMaxSettingsError.invalidEndpointOverride(MiniMaxSettingsReader.remainsURLKey),
+            authConfigured: true)
+        #expect(minimax.category == "configuration")
+        #expect(minimax.safeDescription == "Configuration issue - check provider source and settings")
+    }
+
+    @Test
+    func `invalid endpoint override fetch attempt text maps to configuration before auth or api`() {
+        let alibabaDescription = AlibabaCodingPlanSettingsError
+            .invalidEndpointOverride(AlibabaCodingPlanSettingsReader.quotaURLKey)
+            .localizedDescription
+        let minimaxDescription = MiniMaxSettingsError
+            .invalidEndpointOverride(MiniMaxSettingsReader.remainsURLKey)
+            .localizedDescription
+
+        #expect(ProviderDiagnosticFetchAttempt.errorCategoryLabel(alibabaDescription) == "configuration")
+        #expect(ProviderDiagnosticFetchAttempt.errorCategoryLabel(minimaxDescription) == "configuration")
+    }
+
+    @Test
     func `MiniMax details map from MiniMaxUsageSnapshot correctly`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = MiniMaxUsageSnapshot(

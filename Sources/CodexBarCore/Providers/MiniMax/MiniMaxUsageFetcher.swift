@@ -467,7 +467,10 @@ public struct MiniMaxUsageFetcher: Sendable {
             return components.url
         }
 
-        if let url = URL(string: cleaned), let scheme = url.scheme {
+        if MiniMaxSettingsReader.hasExplicitURLScheme(cleaned),
+           let url = URL(string: cleaned),
+           let scheme = url.scheme
+        {
             guard scheme.lowercased() == "https" else { return nil }
             if let composed = compose(url) { return composed }
             return url

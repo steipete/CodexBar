@@ -61,6 +61,18 @@ struct AlibabaCodingPlanSettingsReaderTests {
     }
 
     @Test
+    func `quota URL preserves bare host port values`() {
+        let url = AlibabaCodingPlanSettingsReader.quotaURL(environment: [
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "localhost:8443/data/api.json",
+        ])
+
+        #expect(url?.scheme == "https")
+        #expect(url?.host == "localhost")
+        #expect(url?.port == 8443)
+        #expect(url?.path == "/data/api.json")
+    }
+
+    @Test
     func `quota URL rejects non HTTPS schemes`() {
         let httpURL = AlibabaCodingPlanSettingsReader.quotaURL(environment: [
             AlibabaCodingPlanSettingsReader.quotaURLKey: "http://modelstudio.console.alibabacloud.com/data/api.json",
@@ -84,10 +96,14 @@ struct AlibabaCodingPlanSettingsReaderTests {
         let bareHost = AlibabaCodingPlanSettingsReader.hostOverride(environment: [
             AlibabaCodingPlanSettingsReader.hostKey: "modelstudio.console.alibabacloud.com",
         ])
+        let bareHostWithPort = AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+            AlibabaCodingPlanSettingsReader.hostKey: "localhost:8443",
+        ])
 
         #expect(httpHost == nil)
         #expect(httpsHost == "https://modelstudio.console.alibabacloud.com")
         #expect(bareHost == "modelstudio.console.alibabacloud.com")
+        #expect(bareHostWithPort == "localhost:8443")
     }
 
     @Test
@@ -108,6 +124,10 @@ struct AlibabaCodingPlanSettingsReaderTests {
             AlibabaCodingPlanSettingsReader.quotaURLKey:
                 "https://modelstudio.console.alibabacloud.com/data/api.json",
             AlibabaCodingPlanSettingsReader.hostKey: "modelstudio.console.alibabacloud.com",
+        ])
+        try AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: [
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "localhost:8443/data/api.json",
+            AlibabaCodingPlanSettingsReader.hostKey: "localhost:8443",
         ])
     }
 
@@ -651,6 +671,42 @@ struct AlibabaCodingPlanFallbackTests {
     }
 
     @Test
+    func `web strategy rejects invalid endpoint override before cookie discovery`() async {
+        let strategy = AlibabaCodingPlanWebFetchStrategy()
+        let context = self.makeContext(
+            sourceMode: .web,
+            env: [AlibabaCodingPlanSettingsReader.quotaURLKey: "http://localhost:8080/data/api.json"])
+
+        #expect(await strategy.isAvailable(context))
+        await #expect(
+            throws: AlibabaCodingPlanSettingsError.invalidEndpointOverride(AlibabaCodingPlanSettingsReader.quotaURLKey))
+        {
+            try await strategy.fetch(context)
+        }
+    }
+
+    @Test
+    func `api key strategy rejects invalid endpoint override as configuration error`() async {
+        let strategy = AlibabaCodingPlanAPIFetchStrategy()
+        let context = self.makeContext(
+            sourceMode: .api,
+            env: [
+                AlibabaCodingPlanSettingsReader.apiTokenKey: "[REDACTED]",
+                AlibabaCodingPlanSettingsReader.quotaURLKey: "http://localhost:8080/data/api.json",
+            ])
+
+        #expect(await strategy.isAvailable(context))
+        await #expect(
+            throws: AlibabaCodingPlanSettingsError.invalidEndpointOverride(AlibabaCodingPlanSettingsReader.quotaURLKey))
+        {
+            try await strategy.fetch(context)
+        }
+        #expect(strategy.shouldFallback(
+            on: AlibabaCodingPlanSettingsError.invalidEndpointOverride(AlibabaCodingPlanSettingsReader.quotaURLKey),
+            context: context) == false)
+    }
+
+    @Test
     func `falls back on TLS failure in auto mode`() {
         let strategy = AlibabaCodingPlanWebFetchStrategy()
         let context = self.makeContext(sourceMode: .auto)
@@ -741,6 +797,23 @@ struct AlibabaCodingPlanRegionTests {
         let url = AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env)
         #expect(url.host == "custom.aliyun.com")
         #expect(url.path == "/data/api.json")
+    }
+
+    @Test
+    func `bare host port override is honored by usage URLs`() {
+        let env = [AlibabaCodingPlanSettingsReader.hostKey: "localhost:8443"]
+        let quota = AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env)
+        let console = AlibabaCodingPlanUsageFetcher.resolveConsoleDashboardURL(region: .international, environment: env)
+        let userInfo = AlibabaCodingPlanUsageFetcher.resolveConsoleUserInfoURL(region: .international, environment: env)
+
+        for url in [quota, console, userInfo] {
+            #expect(url.scheme == "https")
+            #expect(url.host == "localhost")
+            #expect(url.port == 8443)
+        }
+        #expect(quota.path == "/data/api.json")
+        #expect(console.path == AlibabaCodingPlanAPIRegion.international.dashboardURL.path)
+        #expect(userInfo.path == "/tool/user/info.json")
     }
 
     @Test
@@ -917,6 +990,50 @@ struct AlibabaCodingPlanUsageFetcherRequestTests {
     }
 
     @Test
+    func `bare host port override applies to API key usage request`() async throws {
+        let registered = URLProtocol.registerClass(AlibabaUsageFetcherStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(AlibabaUsageFetcherStubURLProtocol.self)
+            }
+            AlibabaUsageFetcherStubURLProtocol.handler = nil
+        }
+
+        AlibabaUsageFetcherStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            #expect(url.scheme == "https")
+            #expect(url.host == "localhost")
+            #expect(url.port == 8443)
+            #expect(url.path == "/data/api.json")
+            let json = """
+            {
+              "data": {
+                "codingPlanInstanceInfos": [
+                  { "planName": "Alibaba Coding Plan Pro", "status": "VALID" }
+                ],
+                "codingPlanQuotaInfo": {
+                  "per5HourUsedQuota": 13,
+                  "per5HourTotalQuota": 1000,
+                  "per5HourQuotaNextRefreshTime": 1700000300000
+                }
+              },
+              "status_code": 0
+            }
+            """
+            return Self.makeResponse(url: url, body: json, statusCode: 200)
+        }
+
+        let snapshot = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
+            apiKey: "[REDACTED]",
+            region: .international,
+            environment: [AlibabaCodingPlanSettingsReader.hostKey: "localhost:8443"],
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.planName == "Alibaba Coding Plan Pro")
+        #expect(snapshot.fiveHourUsedQuota == 13)
+    }
+
+    @Test
     func `console request body uses region specific metadata`() async throws {
         let registered = URLProtocol.registerClass(AlibabaConsoleSECTokenStubURLProtocol.self)
         defer {
@@ -1034,7 +1151,8 @@ final class AlibabaUsageFetcherStubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "alibaba-api.test"
+        guard let host = request.url?.host else { return false }
+        return ["alibaba-api.test", "localhost"].contains(host)
     }
 
     override static func canonicalRequest(for request: URLRequest) -> URLRequest {

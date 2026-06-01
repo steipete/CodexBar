@@ -84,6 +84,9 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        if (try? AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: context.env)) == nil {
+            return true
+        }
         guard context.settings?.alibaba?.cookieSource != .off else { return false }
 
         if AlibabaCodingPlanSettingsReader.cookieHeader(environment: context.env) != nil {
@@ -173,8 +176,10 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
 
         if let settingsError = error as? AlibabaCodingPlanSettingsError {
             switch settingsError {
-            case .missingCookie, .invalidCookie, .invalidEndpointOverride:
+            case .missingCookie, .invalidCookie:
                 return true
+            case .invalidEndpointOverride:
+                return false
             case .missingToken:
                 return false
             }
@@ -242,10 +247,14 @@ struct AlibabaCodingPlanAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiToken
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
+        if (try? AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: context.env)) == nil {
+            return true
+        }
+        return Self.resolveToken(environment: context.env) != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try AlibabaCodingPlanSettingsReader.validateEndpointOverrides(environment: context.env)
         guard let apiKey = Self.resolveToken(environment: context.env) else {
             throw AlibabaCodingPlanSettingsError.missingToken
         }

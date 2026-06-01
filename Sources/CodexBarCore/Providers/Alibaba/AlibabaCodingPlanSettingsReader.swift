@@ -26,10 +26,7 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         guard let raw = self.cleaned(environment[self.hostKey]) else { return nil }
-        if let scheme = URL(string: raw)?.scheme {
-            return scheme.lowercased() == "https" ? raw : nil
-        }
-        return raw
+        return self.hasExplicitNonHTTPSURL(raw) ? nil : raw
     }
 
     public static func cookieHeader(
@@ -42,8 +39,9 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         guard let raw = self.cleaned(environment[self.quotaURLKey]) else { return nil }
-        if let url = URL(string: raw), let scheme = url.scheme {
-            return scheme.lowercased() == "https" ? url : nil
+        if self.hasExplicitURLScheme(raw) {
+            guard let url = URL(string: raw), url.scheme?.lowercased() == "https" else { return nil }
+            return url
         }
         return URL(string: "https://\(raw)")
     }
@@ -75,10 +73,23 @@ public struct AlibabaCodingPlanSettingsReader: Sendable {
     }
 
     private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
-        guard let cleaned = self.cleaned(raw),
-              let scheme = URL(string: cleaned)?.scheme
+        guard let cleaned = self.cleaned(raw), self.hasExplicitURLScheme(cleaned) else { return false }
+        return URL(string: cleaned)?.scheme?.lowercased() != "https"
+    }
+
+    static func hasExplicitURLScheme(_ value: String) -> Bool {
+        guard let colonIndex = value.firstIndex(of: ":") else { return false }
+        let scheme = value[..<colonIndex]
+        guard !scheme.isEmpty,
+              scheme.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "+" || $0 == "-" || $0 == "." }),
+              scheme.first?.isLetter == true
         else { return false }
-        return scheme.lowercased() != "https"
+
+        let remainder = value[value.index(after: colonIndex)...]
+        if remainder.hasPrefix("//") { return true }
+
+        let portCandidate = remainder.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+        return portCandidate.isEmpty || !portCandidate.allSatisfy(\.isNumber)
     }
 }
 

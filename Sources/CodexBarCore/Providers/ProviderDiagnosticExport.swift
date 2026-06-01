@@ -177,6 +177,11 @@ public struct ProviderDiagnosticFetchAttempt: Codable, Sendable {
 
     public static func errorCategoryLabel(_ description: String?) -> String {
         guard let desc = description?.lowercased() else { return "unknown" }
+        if desc.contains("endpoint override") || desc.contains("source") || desc.contains("not supported") ||
+            desc.contains("unavailable")
+        {
+            return "configuration"
+        }
         if desc.contains("network") || desc.contains("timeout") || desc.contains("connection") {
             return "network"
         }
@@ -184,9 +189,6 @@ public struct ProviderDiagnosticFetchAttempt: Codable, Sendable {
             desc.contains("api key") || desc.contains("key not configured") || desc.contains("missing key")
         {
             return "auth"
-        }
-        if desc.contains("source") || desc.contains("not supported") || desc.contains("unavailable") {
-            return "configuration"
         }
         if desc.contains("api") || desc.contains("http") || desc.contains("404") || desc.contains("403") {
             return "api"
@@ -224,7 +226,23 @@ public struct ProviderDiagnosticError: Codable, Sendable {
             case .parseFailed: return "parse"
             }
         }
-        if error is MiniMaxSettingsError || error is MiniMaxAPISettingsError { return "auth" }
+        if let minimaxError = error as? MiniMaxSettingsError {
+            switch minimaxError {
+            case .invalidEndpointOverride:
+                return "configuration"
+            case .missingCookie:
+                return "auth"
+            }
+        }
+        if error is MiniMaxAPISettingsError { return "auth" }
+        if let alibabaError = error as? AlibabaCodingPlanSettingsError {
+            switch alibabaError {
+            case .invalidEndpointOverride:
+                return "configuration"
+            case .missingToken, .missingCookie, .invalidCookie:
+                return "auth"
+            }
+        }
         return ProviderDiagnosticFetchAttempt.errorCategoryLabel(error.localizedDescription)
     }
 
