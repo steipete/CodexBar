@@ -190,7 +190,7 @@
 "Notifies when the 5-hour session quota hits 0% and when it becomes " = "Notifies when the 5-hour session quota hits 0% and when it becomes ";
 "OK" = "OK";
 "Obscure email addresses in the menu bar and menu UI." = "Obscure email addresses in the menu bar and menu UI.";
-"Off" = "Off";
+"Off" = "オフ";
 "Offline" = "Offline";
 "On" = "On";
 "Online" = "Online";
@@ -435,7 +435,7 @@
 "quota_warning_customize_thresholds" = "Customize %@ thresholds";
 "quota_warning_enable_warnings" = "Enable %@ warnings";
 "quota_warning_window_warn_at" = "%@ warn at";
-"quota_warning_off" = "Off";
+"quota_warning_off" = "オフ";
 "quota_warning_inherited" = "Inherited: %@";
 "quota_warning_depleted_only" = "depleted only";
 "quota_warning_upper" = "Upper";
@@ -477,17 +477,17 @@
 "primary_api_key_limit" = "Primary (API key limit)";
 
 /* Display Pane */
-"section_menu_bar" = "Menu bar";
-"merge_icons_title" = "Merge Icons";
-"merge_icons_subtitle" = "Use a single menu bar icon with a provider switcher.";
-"switcher_shows_icons_title" = "Switcher shows icons";
-"switcher_shows_icons_subtitle" = "Show provider icons in the switcher (otherwise show a weekly progress line).";
+"section_menu_bar" = "メニューバー";
+"merge_icons_title" = "アイコンを統合";
+"merge_icons_subtitle" = "1つのメニューバーアイコンに統合し、プロバイダー切替を表示します。";
+"switcher_shows_icons_title" = "切替にアイコンを表示";
+"switcher_shows_icons_subtitle" = "切替バーにプロバイダーアイコンを表示します（無効時は週次進捗ライン）。";
 "show_most_used_provider_title" = "最も使用中のプロバイダーを表示";
 "show_most_used_provider_subtitle" = "レート制限に最も近いプロバイダーをメニューバーに自動表示します。";
 "menu_bar_shows_percent_title" = "メニューバーに割合を表示";
 "menu_bar_shows_percent_subtitle" = "クリッターバーをプロバイダーアイコンと割合表示に置き換えます。";
 "display_mode_title" = "表示モード";
-"display_mode_subtitle" = "メニューバーに何を表示するか選択します（Pace は使用量と期待値を比較）。";
+"display_mode_subtitle" = "メニューバーに何を表示するか選択します（Pace は使用量と想定ペースの比較）。";
 "section_menu_content" = "メニュー内容";
 "show_usage_as_used_title" = "使用済みとして表示";
 "show_usage_as_used_subtitle" = "進捗バーを残量ではなく使用量の増加として表示します。";
@@ -501,18 +501,18 @@
 "show_provider_changelog_links_subtitle" = "対応する CLI ベースのプロバイダーにリリースノートへのリンクを追加します。";
 "show_credits_extra_usage_title" = "クレジットと追加使用量を表示";
 "show_credits_extra_usage_subtitle" = "メニューに Codex Credits と Claude Extra usage セクションを表示します。";
-"show_all_token_accounts_title" = "Show all token accounts";
-"show_all_token_accounts_subtitle" = "Stack token accounts in the menu (otherwise show an account switcher bar).";
+"show_all_token_accounts_title" = "すべてのトークンアカウントを表示";
+"show_all_token_accounts_subtitle" = "メニューにトークンアカウントを積み上げ表示します（無効時は切替バー表示）。";
 "multi_account_layout_title" = "マルチアカウント表示";
 "multi_account_layout_subtitle" = "セグメント切替か積み上げカード表示かを選択します。";
 "multi_account_layout_segmented" = "セグメント";
 "multi_account_layout_stacked" = "スタック";
-"overview_tab_providers_title" = "Overview タブのプロバイダー";
+"overview_tab_providers_title" = "Overview タブの表示プロバイダー";
 "configure" = "設定…";
-"overview_enable_merge_icons_hint" = "Enable Merge Icons to configure Overview tab providers.";
-"overview_no_providers_hint" = "No enabled providers available for Overview.";
-"overview_rows_follow_order" = "Overview rows always follow provider order.";
-"overview_no_providers_selected" = "No providers selected";
+"overview_enable_merge_icons_hint" = "Overview タブのプロバイダー設定には「アイコンを統合」を有効にしてください。";
+"overview_no_providers_hint" = "Overview 用に有効なプロバイダーがありません。";
+"overview_rows_follow_order" = "Overview の行はプロバイダー順に表示されます。";
+"overview_no_providers_selected" = "選択されたプロバイダーがありません";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "キーボードショートカット";
@@ -616,11 +616,11 @@
 "metric_pref_average" = "Average";
 
 /* Display modes */
-"display_mode_percent" = "Percent";
-"display_mode_pace" = "Pace";
+"display_mode_percent" = "割合";
+"display_mode_pace" = "ペース";
 "display_mode_both" = "Both";
-"display_mode_percent_desc" = "Show remaining/used percentage (e.g. 45%)";
-"display_mode_pace_desc" = "Show pace indicator (e.g. +5%)";
+"display_mode_percent_desc" = "残量/使用率を割合で表示（例: 45%）";
+"display_mode_pace_desc" = "進行ペースを表示（例: +5%）";
 "display_mode_both_desc" = "Show both percentage and pace (e.g. 45% · +5%)";
 
 /* Provider status */
