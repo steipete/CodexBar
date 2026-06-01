@@ -21,7 +21,7 @@
 "Animation pattern" = "Animation pattern";
 "Antigravity login is managed in the app" = "Antigravity login is managed in the app";
 "Applies only to the Security.framework OAuth keychain reader." = "Applies only to the Security.framework OAuth keychain reader.";
-"Auto falls back to the next source if the preferred one fails." = "Auto falls back to the next source if the preferred one fails.";
+"Auto falls back to the next source if the preferred one fails." = "In modalità Auto passa alla fonte successiva se quella preferita fallisce.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Auto uses API first, then falls back to CLI on auth failures.";
 "Auto-detect" = "Auto-detect";
 "Auto-refresh is off; use the menu's Refresh command." = "Auto-refresh is off; use the menu's Refresh command.";
@@ -211,7 +211,7 @@
 "Open Warp API Key Guide" = "Open Warp API Key Guide";
 "Open menu" = "Open menu";
 "Open token file" = "Open token file";
-"OpenAI cookies" = "OpenAI cookies";
+"OpenAI cookies" = "Cookie OpenAI";
 "OpenAI web extras" = "OpenAI web extras";
 "Option A" = "Option A";
 "Option B" = "Option B";
@@ -321,7 +321,7 @@
 "Usage" = "Utilizzo";
 "Usage breakdown" = "Usage breakdown";
 "Usage history (30 days)" = "Usage history";
-"Usage source" = "Usage source";
+"Usage source" = "Fonte utilizzo";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Use BigModel for the China mainland endpoints (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Use a single menu bar icon with a provider switcher.";
 "Use international or China mainland console gateways for quota fetches." = "Use international or China mainland console gateways for quota fetches.";
@@ -574,9 +574,9 @@
 "no_log_yet_fetch" = "No log yet. Fetch to load.";
 "section_fetch_strategy" = "Fetch strategy attempts";
 "fetch_strategy_caption" = "Last fetch pipeline decisions and errors for a provider.";
-"section_openai_cookies" = "OpenAI cookies";
-"openai_cookies_caption" = "Cookie import + WebKit scrape logs from the last OpenAI cookies attempt.";
-"no_log_yet" = "No log yet. Update OpenAI cookies in Providers → Codex to run an import.";
+"section_openai_cookies" = "Cookie OpenAI";
+"openai_cookies_caption" = "Importazione cookie + log di scraping WebKit dall'ultimo tentativo cookie OpenAI.";
+"no_log_yet" = "Nessun log ancora. Aggiorna i cookie OpenAI in Provider → Codex per avviare un'importazione.";
 "section_caches" = "Caches";
 "caches_caption" = "Clear cached cost scan results or browser cookie caches.";
 "clear_cookie_cache" = "Svuota cache cookie";
@@ -650,7 +650,7 @@
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY.";
 "Missing DeepSeek API key." = "Missing DeepSeek API key.";
 "%@ is unavailable in the current environment." = "%@ is unavailable in the current environment.";
-"All Systems Operational" = "Tutti i sistemi operativi";
+"All Systems Operational" = "Tutti i sistemi sono operativi";
 "Last 30 days" = "Ultimi 30 giorni";
 "Last 30 days:" = "Ultimi 30 giorni:";
 "This month" = "This month";
@@ -682,7 +682,7 @@
 "Usage Dashboard" = "Dashboard utilizzo";
 "Status Page" = "Pagina di stato";
 "Settings..." = "Impostazioni...";
-"About CodexBar" = "About CodexBar";
+"About CodexBar" = "Informazioni su CodexBar";
 "Quit" = "Esci";
 "Last %d day" = "Last %d day";
 "Last %d days" = "Last %d days";
@@ -748,7 +748,7 @@
 "Last 30 days: %@" = "Ultimi 30 giorni: %@";
 "Est. total (30d): %@" = "Est. total (30d): %@";
 "Est. total (%@): %@" = "Est. total (%@): %@";
-"Hover a bar for details" = "Hover a bar for details";
+"Hover a bar for details" = "Passa il mouse su una barra per i dettagli";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ tokens";
 "No providers selected for Overview." = "No providers selected for Overview.";
 "No overview data available." = "No overview data available.";
@@ -877,7 +877,7 @@
 "Unavailable" = "Non disponibile";
 "Weekly" = "Settimanale";
 "not detected" = "non rilevato";
-"Estimated from local Codex logs for the selected account." = "Estimated from local Codex logs for the selected account.";
+"Estimated from local Codex logs for the selected account." = "Stima basata sui log locali di Codex per l'account selezionato.";
 "minimax_usage_amount_format" = "Usage: %@ / %@";
 "minimax_used_percent_format" = "Used %@";
 "minimax_service_text_generation" = "Text Generation";
