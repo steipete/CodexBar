@@ -183,6 +183,20 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `devin presentation follows store source label`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-devin-presentation")
+        fixture.store.lastSourceLabels[.devin] = "web"
+        let metadata = try #require(ProviderDescriptorRegistry.metadata[.devin])
+        let context = fixture.presentationContext(provider: .devin, metadata: metadata)
+
+        let detailLine = DevinProviderImplementation()
+            .presentation(context: context)
+            .detailLine(context)
+
+        #expect(detailLine == "web")
+    }
+
+    @Test
     func `alibaba token plan settings expose cookie controls`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-settings")
         fixture.settings.alibabaTokenPlanCookieSource = .manual

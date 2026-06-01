@@ -66,6 +66,7 @@ public enum ProviderDescriptorRegistry {
         .gemini: GeminiProviderDescriptor.descriptor,
         .antigravity: AntigravityProviderDescriptor.descriptor,
         .copilot: CopilotProviderDescriptor.descriptor,
+        .devin: DevinProviderDescriptor.descriptor,
         .zai: ZaiProviderDescriptor.descriptor,
         .minimax: MiniMaxProviderDescriptor.descriptor,
         .manus: ManusProviderDescriptor.descriptor,

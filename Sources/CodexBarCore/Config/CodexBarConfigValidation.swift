@@ -33,6 +33,7 @@ public enum CodexBarConfigValidator {
         .openai,
         .opencode,
         .opencodego,
+        .devin,
         .deepgram,
     ]
 
