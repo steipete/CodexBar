@@ -83,6 +83,7 @@ extension StatusItemController {
         }
 
         self.cancelDeferredMenuInteractionRefreshTask()
+        self.cancelClosedMenuRebuild(menu)
 
         if self.isHostedSubviewMenu(menu) {
             self.hydrateHostedSubviewMenuIfNeeded(menu)
@@ -122,11 +123,7 @@ extension StatusItemController {
             self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "parent menu open")
         }
 
-        if self.menuNeedsRefresh(menu) {
-            self.populateMenu(menu, provider: provider)
-            self.markMenuFresh(menu)
-            // Heights are already set during populateMenu, no need to remeasure
-        }
+        self.refreshMenuForOpenIfNeeded(menu, provider: provider)
         if self.isMenuRefreshEnabled {
             // Intentionally skip open-menu tracking when refresh is disabled (tests).
             // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
@@ -152,6 +149,7 @@ extension StatusItemController {
             self.removeProviderSwitcherShortcutMonitor()
         }
 
+        self.cancelClosedMenuRebuild(menu)
         self.openMenus.removeValue(forKey: key)
         self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
         self.openMenuRebuildTasks.removeValue(forKey: key)?.cancel()

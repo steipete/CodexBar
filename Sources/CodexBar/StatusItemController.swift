@@ -132,6 +132,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var closedMenuRebuildTokens: [ObjectIdentifier: Int] = [:]
+    var closedMenuRebuildTokenCounter = 0
     var openMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var openMenuRebuildTokens: [ObjectIdentifier: Int] = [:]
     var openMenuRebuildTokenCounter = 0
@@ -797,6 +800,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if self.statusItem.menu !== self.mergedMenu {
             self.statusItem.menu = self.mergedMenu
         }
+        self.prepareAttachedClosedMenusIfNeeded()
     }
 
     private func attachMenus(fallback: UsageProvider? = nil) {
@@ -827,6 +831,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 item.menu = nil
             }
         }
+        self.prepareAttachedClosedMenusIfNeeded()
     }
 
     private func rebuildProviderStatusItems() {

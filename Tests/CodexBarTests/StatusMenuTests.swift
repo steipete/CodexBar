@@ -22,11 +22,13 @@ struct StatusMenuTests {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
-        return SettingsStore(
+        let settings = SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.providerDetectionCompleted = true
+        return settings
     }
 
     func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
@@ -85,7 +87,6 @@ struct StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        settings.providerDetectionCompleted = true
         settings.alibabaCodingPlanAPIRegion = .chinaMainland
 
         let fetcher = UsageFetcher()
@@ -820,7 +821,6 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        settings.providerDetectionCompleted = true
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -860,7 +860,6 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        settings.providerDetectionCompleted = true
 
         let registry = ProviderRegistry.shared
         try settings.setProviderEnabled(provider: .codex, metadata: #require(registry.metadata[.codex]), enabled: true)

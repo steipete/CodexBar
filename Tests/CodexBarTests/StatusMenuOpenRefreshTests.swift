@@ -114,6 +114,222 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `closed attached menu is prepared before next open after invalidation`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.statusItem.menu = menu
+
+        controller.populateMenu(menu, provider: nil)
+        controller.markMenuFresh(menu)
+        let key = ObjectIdentifier(menu)
+        let openedVersion = controller.menuVersions[key]
+
+        controller.invalidateMenus()
+        for _ in 0..<40 where controller.menuVersions[key] == openedVersion {
+            await Task.yield()
+        }
+
+        #expect(controller.openMenus.isEmpty)
+        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+    }
+
+    @Test
+    func `closed attached menu preparation waits for store refresh to finish`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.statusItem.menu = menu
+
+        controller.populateMenu(menu, provider: nil)
+        controller.markMenuFresh(menu)
+        let key = ObjectIdentifier(menu)
+        let openedVersion = controller.menuVersions[key]
+
+        store.isRefreshing = true
+        controller.invalidateMenus()
+        for _ in 0..<40 {
+            await Task.yield()
+        }
+
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        store.isRefreshing = false
+        controller.invalidateMenus()
+        for _ in 0..<40 where controller.menuVersions[key] == openedVersion {
+            await Task.yield()
+        }
+
+        #expect(controller.openMenus.isEmpty)
+        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+    }
+
+    @Test
+    func `closed attached menu preparation waits for token refresh to finish`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.statusItem.menu = menu
+
+        controller.populateMenu(menu, provider: nil)
+        controller.markMenuFresh(menu)
+        let key = ObjectIdentifier(menu)
+        let openedVersion = controller.menuVersions[key]
+
+        store.tokenRefreshInFlight.insert(.codex)
+        controller.invalidateMenus()
+        for _ in 0..<40 {
+            await Task.yield()
+        }
+
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        store.tokenRefreshInFlight.remove(.codex)
+        controller.invalidateMenus()
+        for _ in 0..<40 where controller.menuVersions[key] == openedVersion {
+            await Task.yield()
+        }
+
+        #expect(controller.openMenus.isEmpty)
+        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+    }
+
+    @Test
+    func `menu open keeps stale nonempty content while store refresh is active`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.statusItem.menu = menu
+
+        controller.populateMenu(menu, provider: nil)
+        controller.markMenuFresh(menu)
+        let key = ObjectIdentifier(menu)
+        let openedVersion = controller.menuVersions[key]
+        let openedItemCount = menu.items.count
+
+        store.isRefreshing = true
+        defer { store.isRefreshing = false }
+        controller.invalidateMenus()
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        #expect(controller.menuVersions[key] == openedVersion)
+        #expect(controller.menuContentVersion != openedVersion)
+        #expect(menu.items.count == openedItemCount)
+        #expect(controller.openMenus[key] === menu)
+    }
+
+    @Test
+    func `menu open keeps stale nonempty content while token refresh is active`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.statusItem.menu = menu
+
+        controller.populateMenu(menu, provider: nil)
+        controller.markMenuFresh(menu)
+        let key = ObjectIdentifier(menu)
+        let openedVersion = controller.menuVersions[key]
+        let openedItemCount = menu.items.count
+
+        store.tokenRefreshInFlight.insert(.codex)
+        defer { store.tokenRefreshInFlight.remove(.codex) }
+        controller.invalidateMenus()
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        #expect(controller.menuVersions[key] == openedVersion)
+        #expect(controller.menuContentVersion != openedVersion)
+        #expect(menu.items.count == openedItemCount)
+        #expect(controller.openMenus[key] === menu)
+    }
+
+    @Test
     func `explicit store actions refresh a visible open menu`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
