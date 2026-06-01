@@ -350,6 +350,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
                 if case Error.notLoggedIn = error {
                     continue
                 }
+                throw error
             }
         }
         #endif
@@ -422,7 +423,11 @@ public struct CopilotBudgetWebFetcher: Sendable {
         let response = try await self.transport.response(for: request)
         switch response.statusCode {
         case 200:
-            return try JSONDecoder().decode(BudgetResponse.self, from: response.data)
+            do {
+                return try JSONDecoder().decode(BudgetResponse.self, from: response.data)
+            } catch {
+                throw Error.invalidResponse
+            }
         case 401, 403:
             throw Error.notLoggedIn
         default:
@@ -582,7 +587,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
 private enum CopilotGitHubCookieImporter {
     private static let cookieClient = BrowserCookieClient()
     private static let cookieImportOrder: BrowserCookieImportOrder =
-        ProviderDefaults.metadata[.copilot]?.browserCookieOrder ?? Browser.defaultImportOrder
+        ProviderDefaults.metadata[.copilot]?.browserCookieOrder ?? [.chrome]
     private static let sessionCookieNames: Set<String> = [
         "user_session",
         "__Host-user_session_same_site",

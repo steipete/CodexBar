@@ -100,4 +100,33 @@ struct CopilotBudgetWebFetcherTests {
         let html = #"<meta name="x-fetch-nonce" content="v2:abc-123">"#
         #expect(CopilotBudgetWebFetcher.extractFetchNonce(from: html) == "v2:abc-123")
     }
+
+    @Test
+    func `invalid github budget JSON maps to invalid response`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                return (Data("{".utf8), response)
+            }
+            return (Data(#"<meta name="x-fetch-nonce" content="nonce">"#.utf8), response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(
+            transport: transport,
+            now: { Date(timeIntervalSince1970: 1_780_358_400) })
+
+        do {
+            _ = try await fetcher.fetchBudgetWindows(cookieHeader: "user_session=abc")
+            Issue.record("Expected invalidResponse")
+        } catch let error as CopilotBudgetWebFetcher.Error {
+            #expect(error == .invalidResponse)
+        }
+    }
 }

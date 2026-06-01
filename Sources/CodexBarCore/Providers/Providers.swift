@@ -243,4 +243,13 @@ public enum ProviderBrowserCookieDefaults {
         nil
         #endif
     }
+
+    /// Copilot budget imports should stay Chrome-only by default to avoid prompting unrelated browsers.
+    public static var copilotCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 }

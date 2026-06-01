@@ -21,7 +21,7 @@ public enum CopilotProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.copilotCookieImportOrder,
                 dashboardURL: "https://github.com/settings/copilot",
                 statusPageURL: "https://www.githubstatus.com/"),
             branding: ProviderBranding(
