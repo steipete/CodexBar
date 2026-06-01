@@ -132,6 +132,176 @@ struct CopilotBudgetWebFetcherTests {
     }
 
     @Test
+    func `extracts github web identity from html`() throws {
+        let html = """
+        <meta name="octolytics-actor-id" content="123">
+        <meta content="octocat" name="user-login">
+        """
+
+        let identity = try #require(CopilotBudgetWebFetcher.extractGitHubWebIdentity(from: html))
+
+        #expect(identity.id == "123")
+        #expect(identity.login == "octocat")
+        #expect(CopilotBudgetWebFetcher.webIdentity(identity, matches: "github:user:123"))
+        #expect(CopilotBudgetWebFetcher.webIdentity(identity, matches: "OctoCat"))
+        #expect(!CopilotBudgetWebFetcher.webIdentity(identity, matches: "github:user:456"))
+    }
+
+    @Test
+    func `manual budget cookie for different github account is ignored before budget request`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                Issue.record("Mismatched cookie should not reach budget JSON endpoint")
+                return (Data(#"{"budgets":[],"has_next_page":false}"#.utf8), response)
+            }
+            return (
+                Data("""
+                <meta name="x-fetch-nonce" content="nonce">
+                <meta name="octolytics-actor-id" content="456">
+                <meta name="user-login" content="otheruser">
+                """.utf8),
+                response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(
+            cookieHeaderOverride: "user_session=other",
+            expectedGitHubAccountIdentifier: "github:user:123",
+            transport: transport)
+
+        do {
+            _ = try await fetcher.fetchBudgetWindows()
+            Issue.record("Expected account mismatch")
+        } catch let error as CopilotBudgetWebFetcher.Error {
+            #expect(error == .accountMismatch(expected: "github:user:123", actual: "otheruser"))
+        }
+
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test
+    func `manual budget cookie with matching github account appends budget windows`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                return (
+                    Data("""
+                    {
+                      "budgets": [
+                        {
+                          "uuid": "budget-1",
+                          "pricingTargetId": "premium_requests",
+                          "targetAmount": 100.0,
+                          "currentAmount": 40.0
+                        }
+                      ],
+                      "has_next_page": false
+                    }
+                    """.utf8),
+                    response)
+            }
+            return (
+                Data("""
+                <meta name="x-fetch-nonce" content="nonce">
+                <meta name="octolytics-actor-id" content="123">
+                <meta name="user-login" content="octocat">
+                """.utf8),
+                response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(
+            cookieHeaderOverride: "user_session=matching",
+            expectedGitHubAccountIdentifier: "github:user:123",
+            transport: transport,
+            now: { Date(timeIntervalSince1970: 1_780_358_400) })
+
+        let windows = try await fetcher.fetchBudgetWindows()
+
+        #expect(windows.map(\.id) == ["copilot-budget-budget-1"])
+        #expect(windows.first?.window.usedPercent == 40)
+        #expect(await transport.requests().count == 2)
+    }
+
+    @Test
+    func `mismatched manual budget cookie leaves normal copilot usage unchanged`() async {
+        let registered = URLProtocol.registerClass(CopilotBudgetBindingStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(CopilotBudgetBindingStubURLProtocol.self)
+            }
+            CopilotBudgetBindingStubURLProtocol.reset()
+        }
+        CopilotBudgetBindingStubURLProtocol.reset()
+        CopilotBudgetBindingStubURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            if url.host == "api.github.com", url.path == "/copilot_internal/user" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data("""
+                    {
+                      "quota_snapshots": {
+                        "premium_interactions": {
+                          "entitlement": 300,
+                          "remaining": 240,
+                          "percent_remaining": 80,
+                          "quota_id": "premium"
+                        }
+                      },
+                      "copilot_plan": "pro"
+                    }
+                    """.utf8))
+            }
+            if url.host == "github.com", url.path == "/settings/billing/budgets", url.query == nil {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data("""
+                    <meta name="x-fetch-nonce" content="nonce">
+                    <meta name="octolytics-actor-id" content="456">
+                    <meta name="user-login" content="otheruser">
+                    """.utf8))
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.stubResponse(url: url, data: Data("{}".utf8), statusCode: 404)
+        }
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .copilot)
+        let settings = ProviderSettingsSnapshot.make(copilot: .init(
+            apiToken: "selected-token",
+            selectedAccountExternalIdentifier: "github:user:123",
+            budgetExtrasEnabled: true,
+            budgetCookieSource: .manual,
+            manualBudgetCookieHeader: "user_session=other"))
+        let context = Self.makeFetchContext(settings: settings)
+
+        let outcome = await descriptor.fetchPlan.fetchOutcome(context: context, provider: .copilot)
+
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Expected Copilot usage fetch to succeed")
+            return
+        }
+        #expect(result.usage.primary?.usedPercent == 20)
+        #expect(result.usage.extraRateWindows == nil)
+        #expect(CopilotBudgetBindingStubURLProtocol.requests().contains {
+            $0.url?.query?.contains("page=") == true
+        } == false)
+    }
+
+    @Test
     func `invalid github budget JSON maps to invalid response`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             guard let url = request.url,
@@ -216,4 +386,83 @@ struct CopilotBudgetWebFetcherTests {
         let pageRequest = try #require(await transport.requests().first { $0.url?.query?.contains("page=") == true })
         #expect(pageRequest.value(forHTTPHeaderField: "Content-Type") == nil)
     }
+
+    private static func makeFetchContext(settings: ProviderSettingsSnapshot) -> ProviderFetchContext {
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        return ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .api,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: settings,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+    }
+
+    private static func stubResponse(
+        url: URL,
+        data: Data,
+        statusCode: Int = 200) -> (Data, URLResponse)
+    {
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!
+        return (data, response)
+    }
+}
+
+final class CopilotBudgetBindingStubURLProtocol: URLProtocol {
+    private static let lock = NSLock()
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (Data, URLResponse))?
+    private nonisolated(unsafe) static var recordedRequests: [URLRequest] = []
+
+    static func reset() {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.handler = nil
+        self.recordedRequests = []
+    }
+
+    static func requests() -> [URLRequest] {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.recordedRequests
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "api.github.com" || request.url?.host == "github.com"
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.lock.lock()
+        Self.recordedRequests.append(self.request)
+        let handler = Self.handler
+        Self.lock.unlock()
+
+        guard let handler else {
+            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (data, response) = try handler(self.request)
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            self.client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }

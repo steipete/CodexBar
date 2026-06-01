@@ -214,6 +214,21 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `copilot settings snapshot carries selected account identifier`() {
+        let settings = Self.makeSettingsStore()
+        settings.addTokenAccount(
+            provider: .copilot,
+            label: "octocat (Pro)",
+            token: "token-1",
+            externalIdentifier: "github:user:123")
+
+        let snapshot = settings.copilotSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.apiToken == "token-1")
+        #expect(snapshot.selectedAccountExternalIdentifier == "github:user:123")
+    }
+
+    @Test
     func `copilot enterprise host persists in provider config`() throws {
         let suite = "SettingsStoreCoverageTests-copilot-enterprise-host"
         let defaults = try #require(UserDefaults(suiteName: suite))

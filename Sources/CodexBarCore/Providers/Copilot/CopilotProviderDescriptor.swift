@@ -56,7 +56,7 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
             token: token,
             enterpriseHost: context.settings?.copilot?.enterpriseHost)
         let usage = try await fetcher.fetch()
-        let snap = await self.addBudgetWindowsIfNeeded(to: usage, context: context)
+        let snap = await self.addBudgetWindowsIfNeeded(to: usage, token: token, context: context)
         return self.makeResult(
             usage: snap,
             sourceLabel: "api")
@@ -75,6 +75,7 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
 
     private func addBudgetWindowsIfNeeded(
         to usage: UsageSnapshot,
+        token: String,
         context: ProviderFetchContext) async -> UsageSnapshot
     {
         guard let settings = context.settings?.copilot,
@@ -87,8 +88,12 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
             return usage
         }
         do {
+            let expectedAccountIdentifier = try await self.expectedBudgetAccountIdentifier(
+                token: token,
+                settings: settings)
             let extraRateWindows = try await CopilotBudgetWebFetcher(
                 cookieHeaderOverride: manualCookieHeader,
+                expectedGitHubAccountIdentifier: expectedAccountIdentifier,
                 browserDetection: context.browserDetection)
                 .fetchBudgetWindows()
             guard !extraRateWindows.isEmpty else { return usage }
@@ -107,5 +112,18 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         guard settings.budgetCookieSource == .manual else { return nil }
         let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return cookieHeader.isEmpty ? nil : cookieHeader
+    }
+
+    private func expectedBudgetAccountIdentifier(
+        token: String,
+        settings: ProviderSettingsSnapshot.CopilotProviderSettings) async throws -> String
+    {
+        if let identifier = settings.selectedAccountExternalIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !identifier.isEmpty
+        {
+            return identifier
+        }
+        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: token)
+        return CopilotBudgetWebFetcher.normalizedGitHubAccountIdentifier(for: identity)
     }
 }

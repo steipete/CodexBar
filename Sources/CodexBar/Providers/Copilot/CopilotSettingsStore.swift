@@ -82,6 +82,7 @@ extension SettingsStore {
         return ProviderSettingsSnapshot.CopilotProviderSettings(
             apiToken: self.normalizedConfigValue(token),
             enterpriseHost: host == CopilotDeviceFlow.defaultHost ? nil : host,
+            selectedAccountExternalIdentifier: account?.externalIdentifier.flatMap(self.normalizedConfigValue),
             budgetExtrasEnabled: self.copilotBudgetExtrasEnabled,
             budgetCookieSource: self.copilotBudgetCookieSource,
             manualBudgetCookieHeader: self.normalizedConfigValue(self.copilotBudgetCookieHeader))

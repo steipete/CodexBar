@@ -10,6 +10,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
     public enum Error: Swift.Error, LocalizedError, Equatable {
         case noSessionCookie
         case notLoggedIn
+        case accountMismatch(expected: String, actual: String?)
         case badStatus(Int)
         case invalidResponse
 
@@ -19,6 +20,8 @@ public struct CopilotBudgetWebFetcher: Sendable {
                 "No GitHub browser session cookie found."
             case .notLoggedIn:
                 "GitHub browser session is not logged in."
+            case let .accountMismatch(expected, actual):
+                "GitHub browser session belongs to \(actual ?? "an unknown account"), expected \(expected)."
             case let .badStatus(status):
                 "GitHub budgets request failed with HTTP \(status)."
             case .invalidResponse:
@@ -229,6 +232,22 @@ public struct CopilotBudgetWebFetcher: Sendable {
         }
     }
 
+    public struct GitHubWebIdentity: Equatable, Sendable {
+        let id: String?
+        let login: String?
+
+        init(id: String?, login: String?) {
+            let trimmedID = id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let trimmedLogin = login?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            self.id = trimmedID.isEmpty ? nil : trimmedID
+            self.login = trimmedLogin.isEmpty ? nil : trimmedLogin
+        }
+
+        var displayName: String? {
+            self.login ?? self.id.map { "github:user:\($0)" }
+        }
+    }
+
     private struct ProductSKU: Decodable, Sendable, Equatable {
         let selectors: [String]
 
@@ -307,17 +326,21 @@ public struct CopilotBudgetWebFetcher: Sendable {
     ]
 
     private let cookieHeaderOverride: String?
+    private let expectedGitHubAccountIdentifier: String?
     private let browserDetection: BrowserDetection
     private let transport: any ProviderHTTPTransport
     private let now: @Sendable () -> Date
 
     public init(
         cookieHeaderOverride: String? = nil,
+        expectedGitHubAccountIdentifier: String? = nil,
         browserDetection: BrowserDetection = BrowserDetection(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: @escaping @Sendable () -> Date = { Date() })
     {
         self.cookieHeaderOverride = CookieHeaderNormalizer.normalize(cookieHeaderOverride ?? "")
+        self.expectedGitHubAccountIdentifier = Self.normalizedExpectedAccountIdentifier(
+            expectedGitHubAccountIdentifier)
         self.browserDetection = browserDetection
         self.transport = transport
         self.now = now
@@ -335,6 +358,8 @@ public struct CopilotBudgetWebFetcher: Sendable {
                 return try await self.fetchBudgetWindows(cookieHeader: cached.cookieHeader)
             } catch {
                 if case Error.notLoggedIn = error {
+                    CookieHeaderCache.clear(provider: .copilot)
+                } else if case Error.accountMismatch = error {
                     CookieHeaderCache.clear(provider: .copilot)
                 } else {
                     throw error
@@ -355,6 +380,9 @@ public struct CopilotBudgetWebFetcher: Sendable {
                 if case Error.notLoggedIn = error {
                     continue
                 }
+                if case Error.accountMismatch = error {
+                    continue
+                }
                 throw error
             }
         }
@@ -364,7 +392,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
     }
 
     func fetchBudgetWindows(cookieHeader: String) async throws -> [NamedRateWindow] {
-        let nonce = await self.bestEffortFetchNonce(cookieHeader: cookieHeader)
+        let nonce = try await self.boundFetchNonce(cookieHeader: cookieHeader)
         var allBudgets: [Budget] = []
         var page = 1
         let maxPages = 20
@@ -386,9 +414,18 @@ public struct CopilotBudgetWebFetcher: Sendable {
         return Self.extraRateWindows(from: allBudgets, now: self.now())
     }
 
+    private func boundFetchNonce(cookieHeader: String) async throws -> String? {
+        guard self.expectedGitHubAccountIdentifier != nil else {
+            return await self.bestEffortFetchNonce(cookieHeader: cookieHeader)
+        }
+        let metadata = try await self.fetchBudgetPageMetadata(cookieHeader: cookieHeader)
+        try self.verifyExpectedGitHubAccount(metadata.identity)
+        return metadata.nonce
+    }
+
     private func bestEffortFetchNonce(cookieHeader: String) async -> String? {
         do {
-            return try await self.fetchNonce(cookieHeader: cookieHeader)
+            return try await self.fetchBudgetPageMetadata(cookieHeader: cookieHeader).nonce
         } catch {
             // GitHub accepts some budget requests without a nonce. Keep auth failures and
             // page-shape changes non-fatal so a valid Cookie header can still be tried.
@@ -396,7 +433,12 @@ public struct CopilotBudgetWebFetcher: Sendable {
         }
     }
 
-    private func fetchNonce(cookieHeader: String) async throws -> String? {
+    private struct BudgetPageMetadata: Sendable {
+        let nonce: String?
+        let identity: GitHubWebIdentity?
+    }
+
+    private func fetchBudgetPageMetadata(cookieHeader: String) async throws -> BudgetPageMetadata {
         guard let url = URL(string: "https://github.com/settings/billing/budgets") else {
             throw URLError(.badURL)
         }
@@ -409,12 +451,23 @@ public struct CopilotBudgetWebFetcher: Sendable {
         let response = try await self.transport.response(for: request)
         switch response.statusCode {
         case 200:
-            guard let html = String(data: response.data, encoding: .utf8) else { return nil }
-            return Self.extractFetchNonce(from: html)
+            guard let html = String(data: response.data, encoding: .utf8) else {
+                return BudgetPageMetadata(nonce: nil, identity: nil)
+            }
+            return BudgetPageMetadata(
+                nonce: Self.extractFetchNonce(from: html),
+                identity: Self.extractGitHubWebIdentity(from: html))
         case 401, 403:
             throw Error.notLoggedIn
         default:
             throw Error.badStatus(response.statusCode)
+        }
+    }
+
+    private func verifyExpectedGitHubAccount(_ actual: GitHubWebIdentity?) throws {
+        guard let expected = self.expectedGitHubAccountIdentifier else { return }
+        guard Self.webIdentity(actual, matches: expected) else {
+            throw Error.accountMismatch(expected: expected, actual: actual?.displayName)
         }
     }
 
@@ -473,6 +526,76 @@ public struct CopilotBudgetWebFetcher: Sendable {
             return String(html[nonceRange])
         }
         return nil
+    }
+
+    static func extractGitHubWebIdentity(from html: String) -> GitHubWebIdentity? {
+        let id = self.extractMetaContent(
+            named: [
+                "octolytics-actor-id",
+                "analytics-user-id",
+                "user-id",
+            ],
+            from: html)
+        let login = self.extractMetaContent(
+            named: [
+                "user-login",
+                "octolytics-actor-login",
+                "analytics-user-login",
+            ],
+            from: html)
+        let identity = GitHubWebIdentity(id: id, login: login)
+        return identity.id == nil && identity.login == nil ? nil : identity
+    }
+
+    private static func extractMetaContent(named names: [String], from html: String) -> String? {
+        for name in names {
+            let escapedName = NSRegularExpression.escapedPattern(for: name)
+            let patterns = [
+                #"<meta\b(?=[^>]*\bname=["']\#(escapedName)["'])(?=[^>]*\bcontent=["']([^"']+)["'])[^>]*>"#,
+                #"<meta\b(?=[^>]*\bcontent=["']([^"']+)["'])(?=[^>]*\bname=["']\#(escapedName)["'])[^>]*>"#,
+            ]
+            for pattern in patterns {
+                guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                    continue
+                }
+                let range = NSRange(html.startIndex..<html.endIndex, in: html)
+                guard let match = regex.firstMatch(in: html, range: range),
+                      let contentRange = Range(match.range(at: 1), in: html)
+                else { continue }
+                let content = String(html[contentRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !content.isEmpty {
+                    return content
+                }
+            }
+        }
+        return nil
+    }
+
+    static func webIdentity(_ identity: GitHubWebIdentity?, matches expectedIdentifier: String?) -> Bool {
+        guard let expected = self.normalizedExpectedAccountIdentifier(expectedIdentifier),
+              let identity
+        else { return false }
+        if let expectedID = self.githubUserID(from: expected) {
+            return identity.id?.trimmingCharacters(in: .whitespacesAndNewlines) == expectedID
+        }
+        return identity.login?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == expected
+    }
+
+    static func normalizedGitHubAccountIdentifier(for identity: CopilotUsageFetcher.GitHubUserIdentity) -> String {
+        "github:user:\(identity.id)"
+    }
+
+    private static func normalizedExpectedAccountIdentifier(_ identifier: String?) -> String? {
+        let trimmed = identifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed.lowercased()
+    }
+
+    private static func githubUserID(from identifier: String) -> String? {
+        let prefix = "github:user:"
+        guard identifier.hasPrefix(prefix) else { return nil }
+        let suffix = String(identifier.dropFirst(prefix.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return suffix.isEmpty ? nil : suffix
     }
 
     static func extraRateWindows(from budgets: [Budget], now: Date) -> [NamedRateWindow] {
