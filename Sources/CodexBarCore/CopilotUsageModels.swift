@@ -22,6 +22,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         public let percentRemaining: Double
         public let quotaId: String
         public let hasPercentRemaining: Bool
+        private let entitlementWasDecoded: Bool
+        private let remainingWasDecoded: Bool
         public var usedPercent: Double {
             max(0, 100 - self.percentRemaining)
         }
@@ -31,12 +33,20 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         }
 
         public var isPlaceholder: Bool {
-            // A zero-entitlement, zero-remaining snapshot carries no usable quota signal.
+            if self.entitlement == 0,
+               self.remaining == 0,
+               self.percentRemaining == 0,
+               !self.hasPercentRemaining
+            {
+                return true
+            }
+
+            // An explicit zero-entitlement, zero-remaining snapshot carries no usable quota signal.
             // GitHub returns this shape for token-based billing / Copilot Business seats,
             // sometimes as percent_remaining=100 with a non-empty quota_id, which would
             // otherwise render as a misleading "0% used" (100 - 100). Treat it as a
             // placeholder so the usual handling drops it instead of showing fake usage.
-            self.entitlement == 0 && self.remaining == 0
+            return self.entitlementWasDecoded && self.remainingWasDecoded && self.entitlement == 0 && self.remaining == 0
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -58,6 +68,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             self.percentRemaining = percentRemaining
             self.quotaId = quotaId
             self.hasPercentRemaining = hasPercentRemaining
+            self.entitlementWasDecoded = true
+            self.remainingWasDecoded = true
         }
 
         public init(from decoder: any Decoder) throws {
@@ -66,6 +78,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             let decodedRemaining = Self.decodeNumberIfPresent(container: container, key: .remaining)
             self.entitlement = decodedEntitlement ?? 0
             self.remaining = decodedRemaining ?? 0
+            self.entitlementWasDecoded = decodedEntitlement != nil
+            self.remainingWasDecoded = decodedRemaining != nil
             let decodedPercent = Self.decodeNumberIfPresent(container: container, key: .percentRemaining)
             if let decodedPercent {
                 self.percentRemaining = decodedPercent

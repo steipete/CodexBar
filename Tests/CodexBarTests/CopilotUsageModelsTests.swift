@@ -496,6 +496,26 @@ struct CopilotUsageModelsTests {
         #expect(snapshot.usedPercent == 100)
     }
 
+    @Test
+    func `keeps percent only quota snapshots available`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "business",
+              "quota_snapshots": {
+                "chat": {
+                  "percent_remaining": 40,
+                  "quota_id": "chat"
+                }
+              }
+            }
+            """)
+
+        #expect(response.quotaSnapshots.chat?.percentRemaining == 40)
+        #expect(response.quotaSnapshots.chat?.usedPercent == 60)
+        #expect(response.quotaSnapshots.chat?.isPlaceholder == false)
+    }
+
     private static func decodeFixture(_ fixture: String) throws -> CopilotUsageResponse {
         try JSONDecoder().decode(CopilotUsageResponse.self, from: Data(fixture.utf8))
     }
