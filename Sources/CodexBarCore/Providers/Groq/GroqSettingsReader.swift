@@ -42,17 +42,25 @@ public enum GroqSettingsReader {
 
     private static func validAPIURL(environment: [String: String]) -> URL? {
         guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return nil }
-        if let url = URL(string: raw), let scheme = url.scheme {
-            return scheme.lowercased() == "https" ? url : nil
+        if let scheme = self.explicitURLScheme(raw) {
+            return scheme == "https" ? URL(string: raw) : nil
         }
         return URL(string: "https://\(raw)")
     }
 
     private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
         guard let cleaned = self.cleaned(raw),
-              let scheme = URL(string: cleaned)?.scheme
+              let scheme = self.explicitURLScheme(cleaned)
         else { return false }
-        return scheme.lowercased() != "https"
+        return scheme != "https"
+    }
+
+    private static func explicitURLScheme(_ raw: String) -> String? {
+        guard let schemeSeparator = raw.range(
+            of: #"^[A-Za-z][A-Za-z0-9+.-]*://"#,
+            options: .regularExpression)
+        else { return nil }
+        return raw[..<schemeSeparator.upperBound].dropLast(3).lowercased()
     }
 }
 
@@ -62,7 +70,7 @@ public enum GroqSettingsError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case let .invalidEndpointOverride(key):
-            return "Groq endpoint override \(key) must use HTTPS or a bare host."
+            "Groq endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

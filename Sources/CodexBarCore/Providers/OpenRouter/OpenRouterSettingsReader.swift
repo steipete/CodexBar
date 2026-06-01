@@ -43,18 +43,24 @@ public enum OpenRouterSettingsReader {
 
     private static func validAPIURL(environment: [String: String]) -> URL? {
         guard let raw = self.cleaned(environment["OPENROUTER_API_URL"]) else { return nil }
-        if let url = URL(string: raw), let scheme = url.scheme {
-            return scheme.lowercased() == "https" ? url : nil
+        if let scheme = self.explicitURLScheme(raw) {
+            return scheme == "https" ? URL(string: raw) : nil
         }
         return URL(string: "https://\(raw)")
     }
 
     private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
         guard let cleaned = self.cleaned(raw),
-              let scheme = URL(string: cleaned)?.scheme
+              let scheme = self.explicitURLScheme(cleaned)
         else { return false }
-        return scheme.lowercased() != "https"
+        return scheme != "https"
+    }
+
+    private static func explicitURLScheme(_ raw: String) -> String? {
+        guard let schemeSeparator = raw.range(
+            of: #"^[A-Za-z][A-Za-z0-9+.-]*://"#,
+            options: .regularExpression)
+        else { return nil }
+        return raw[..<schemeSeparator.upperBound].dropLast(3).lowercased()
     }
 }
-
-
