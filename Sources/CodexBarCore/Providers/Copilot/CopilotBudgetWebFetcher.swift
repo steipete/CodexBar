@@ -359,6 +359,8 @@ public struct CopilotBudgetWebFetcher: Sendable {
             } catch {
                 if case Error.notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .copilot)
+                } else if case Error.accountMismatch = error {
+                    CookieHeaderCache.clear(provider: .copilot)
                 } else {
                     throw error
                 }
@@ -462,7 +464,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
 
     private func verifyExpectedGitHubAccount(_ actual: GitHubWebIdentity?) throws {
         guard let expected = self.expectedGitHubAccountIdentifier else { return }
-        guard let actual else { throw Error.invalidResponse }
+        guard let actual else { throw Error.accountMismatch(expected: expected, actual: nil) }
         guard Self.webIdentity(actual, matches: expected) else {
             throw Error.accountMismatch(expected: expected, actual: actual.displayName)
         }

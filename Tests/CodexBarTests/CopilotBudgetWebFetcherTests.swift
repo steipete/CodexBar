@@ -148,7 +148,7 @@ struct CopilotBudgetWebFetcherTests {
     }
 
     @Test
-    func `missing github web identity with expected account maps to invalid response`() async throws {
+    func `missing github web identity with expected account maps to unknown account mismatch`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             guard let url = request.url,
                   let response = HTTPURLResponse(
@@ -172,9 +172,9 @@ struct CopilotBudgetWebFetcherTests {
 
         do {
             _ = try await fetcher.fetchBudgetWindows()
-            Issue.record("Expected invalid response")
+            Issue.record("Expected account mismatch")
         } catch let error as CopilotBudgetWebFetcher.Error {
-            #expect(error == .invalidResponse)
+            #expect(error == .accountMismatch(expected: "github:user:123", actual: nil))
         }
 
         #expect(await transport.requests().count == 1)
@@ -504,6 +504,98 @@ struct CopilotBudgetWebFetcherTests {
 
         #expect(await transport.requests().count == 2)
         #expect(CookieHeaderCache.load(provider: .copilot)?.cookieHeader == "user_session=cached")
+    }
+
+    @Test
+    func `cached cookie account mismatch clears cache before browser fallback`() async throws {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+        CookieHeaderCache.store(provider: .copilot, cookieHeader: "user_session=cached", sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: .copilot) }
+
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                Issue.record("Mismatched cached cookie should not reach budget JSON endpoint")
+                return (Data(#"{"budgets":[],"has_next_page":false}"#.utf8), response)
+            }
+            return (
+                Data("""
+                <meta name="x-fetch-nonce" content="nonce">
+                <meta name="octolytics-actor-id" content="456">
+                <meta name="user-login" content="otheruser">
+                """.utf8),
+                response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(
+            expectedGitHubAccountIdentifier: "github:user:123",
+            browserDetection: BrowserDetection(homeDirectory: temp.path, cacheTTL: 0),
+            transport: transport)
+
+        do {
+            _ = try await fetcher.fetchBudgetWindows()
+            Issue.record("Expected browser fallback to exhaust without a session")
+        } catch let error as CopilotBudgetWebFetcher.Error {
+            #expect(error == .noSessionCookie)
+        }
+
+        #expect(await transport.requests().count == 1)
+        #expect(CookieHeaderCache.load(provider: .copilot) == nil)
+    }
+
+    @Test
+    func `cached cookie missing identity clears cache before browser fallback`() async throws {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+        CookieHeaderCache.store(provider: .copilot, cookieHeader: "user_session=cached", sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: .copilot) }
+
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: nil)
+            else {
+                throw URLError(.badServerResponse)
+            }
+            if request.url?.query?.contains("page=") == true {
+                Issue.record("Unverifiable cached cookie should not reach budget JSON endpoint")
+                return (Data(#"{"budgets":[],"has_next_page":false}"#.utf8), response)
+            }
+            return (Data(#"<meta name="x-fetch-nonce" content="nonce">"#.utf8), response)
+        }
+        let fetcher = CopilotBudgetWebFetcher(
+            expectedGitHubAccountIdentifier: "github:user:123",
+            browserDetection: BrowserDetection(homeDirectory: temp.path, cacheTTL: 0),
+            transport: transport)
+
+        do {
+            _ = try await fetcher.fetchBudgetWindows()
+            Issue.record("Expected browser fallback to exhaust without a session")
+        } catch let error as CopilotBudgetWebFetcher.Error {
+            #expect(error == .noSessionCookie)
+        }
+
+        #expect(await transport.requests().count == 1)
+        #expect(CookieHeaderCache.load(provider: .copilot) == nil)
     }
 
     @Test
