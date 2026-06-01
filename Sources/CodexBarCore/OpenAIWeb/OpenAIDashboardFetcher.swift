@@ -275,13 +275,6 @@ public struct OpenAIDashboardFetcher {
                 continue
             }
 
-            // The page is a SPA and can land on ChatGPT UI or other routes; keep forcing the usage URL.
-            if let href = scrape.href, !Self.isUsageRoute(href) {
-                _ = webView.load(Self.usageURLRequest(url: self.usageURL))
-                try await Self.sleepForDashboardPoll(.milliseconds(500))
-                continue
-            }
-
             if debugDumpHTML,
                scrape.loginRequired || scrape.cloudflareInterstitial,
                let html = try? await self.fetchDebugHTML(webView: webView)
@@ -289,6 +282,13 @@ public struct OpenAIDashboardFetcher {
                 Self.writeDebugArtifacts(html: html, bodyText: scrape.bodyText, logger: log)
             }
             try Self.throwIfBlockingScrapeState(scrape)
+
+            // The page is a SPA and can land on ChatGPT UI or other routes; keep forcing the usage URL.
+            if Self.shouldReloadUsageRoute(scrape) {
+                _ = webView.load(Self.usageURLRequest(url: self.usageURL))
+                try await Self.sleepForDashboardPoll(.milliseconds(500))
+                continue
+            }
 
             let dashboardData = Self.parseDashboardScrape(
                 scrape,
@@ -455,17 +455,17 @@ public struct OpenAIDashboardFetcher {
                 continue
             }
 
-            if let href = scrape.href, !Self.isUsageRoute(href) {
+            if scrape.loginRequired { throw FetchError.loginRequired }
+            if scrape.cloudflareInterstitial {
+                throw FetchError.noDashboardData(body: "Cloudflare challenge detected in WebView.")
+            }
+
+            if Self.shouldReloadUsageRoute(scrape) {
                 usageRouteSeenAt = nil
                 dashboardSignalSeenAt = nil
                 _ = webView.load(Self.usageURLRequest(url: self.usageURL))
                 try await Self.sleepForDashboardPoll(.milliseconds(500))
                 continue
-            }
-
-            if scrape.loginRequired { throw FetchError.loginRequired }
-            if scrape.cloudflareInterstitial {
-                throw FetchError.noDashboardData(body: "Cloudflare challenge detected in WebView.")
             }
 
             let normalizedEmail = scrape.signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -674,6 +674,25 @@ public struct OpenAIDashboardFetcher {
             || path.hasSuffix("codex/cloud/settings/usage")
             || path.hasSuffix("codex/settings/analytics")
             || path.hasSuffix("codex/cloud/settings/analytics")
+    }
+
+    nonisolated static func shouldReloadUsageRoute(
+        href: String?,
+        loginRequired: Bool,
+        workspacePicker: Bool,
+        cloudflareInterstitial: Bool) -> Bool
+    {
+        guard !workspacePicker, !loginRequired, !cloudflareInterstitial else { return false }
+        guard let href else { return false }
+        return !self.isUsageRoute(href)
+    }
+
+    private nonisolated static func shouldReloadUsageRoute(_ scrape: ScrapeResult) -> Bool {
+        self.shouldReloadUsageRoute(
+            href: scrape.href,
+            loginRequired: scrape.loginRequired,
+            workspacePicker: scrape.workspacePicker,
+            cloudflareInterstitial: scrape.cloudflareInterstitial)
     }
 
     nonisolated static func usageURLRequest(url: URL) -> URLRequest {

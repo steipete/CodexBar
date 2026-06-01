@@ -235,6 +235,25 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         #expect(!OpenAIDashboardFetcher.isUsageRoute(nil))
     }
 
+    @Test(arguments: [
+        ("https://chatgpt.com/#usage", true, false, false, false),
+        ("https://chatgpt.com/", false, false, true, false),
+        ("https://chatgpt.com/", false, false, false, true)
+    ])
+    func `usage route reload skips blocking states`(
+        href: String,
+        loginRequired: Bool,
+        workspacePicker: Bool,
+        cloudflareInterstitial: Bool,
+        expected: Bool)
+    {
+        #expect(OpenAIDashboardFetcher.shouldReloadUsageRoute(
+            href: href,
+            loginRequired: loginRequired,
+            workspacePicker: workspacePicker,
+            cloudflareInterstitial: cloudflareInterstitial) == expected)
+    }
+
     @Test
     func `dashboard requests prefer English localization`() throws {
         let url = try #require(URL(string: "https://chatgpt.com/codex/cloud/settings/analytics#usage"))
