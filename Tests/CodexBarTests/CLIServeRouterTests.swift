@@ -129,6 +129,16 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `serve help documents request timeout option`() {
+        let serve = CodexBarCLI.serveHelp(version: "0.0.0")
+        let root = CodexBarCLI.rootHelp(version: "0.0.0")
+
+        #expect(serve.contains("--request-timeout <seconds>"))
+        #expect(serve.contains("codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30"))
+        #expect(root.contains("--request-timeout <seconds>"))
+    }
+
+    @Test
     func `serve cache skips provider error payloads`() {
         let success = CLILocalHTTPResponse(
             status: .ok,

@@ -78,6 +78,7 @@ extension CodexBarCLI {
 
         Usage:
           codexbar serve [--port <port>] [--refresh-interval <seconds>]
+                         [--request-timeout <seconds>]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
@@ -95,7 +96,7 @@ extension CodexBarCLI {
 
         Examples:
           codexbar serve
-          codexbar serve --port 8080 --refresh-interval 60
+          codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30
           curl http://127.0.0.1:8080/usage?provider=all
         """
     }
@@ -209,6 +210,7 @@ extension CodexBarCLI {
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
           codexbar serve [--port <port>] [--refresh-interval <seconds>]
+                       [--request-timeout <seconds>]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
           codexbar config <validate|dump|providers> [--format text|json]
                                         [--json]
