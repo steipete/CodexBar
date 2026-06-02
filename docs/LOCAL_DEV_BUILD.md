@@ -27,14 +27,14 @@ keychain Access Control List (ACL) whose **trusted-apps list** is anchored
 to the **code identity** of the binary that originally wrote the item —
 bundle identifier, Team identifier, and CD hash.
 
-A SwiftPM dev build is **ad-hoc signed**: it has no Team identifier and its
-binary identity changes on every rebuild. The keychain item's trusted-apps
-list does not match the dev build's identity, so `SecItemCopyMatching`
-returns `errSecAuthFailed` and macOS displays a keychain prompt to
-re-evaluate the ACL. Clicking "Allow" for an ad-hoc identity is a no-op in
-practice: the next rebuild has a different binary identity, and the
-trusted-apps list is anchored to the previous one. Hence the *recurring*
-prompt.
+A SwiftPM dev build is **ad-hoc signed**: it has no certificate-backed
+stable identity and its binary identity changes on every rebuild. The
+keychain item's trusted-apps list does not match the dev build's identity,
+so `SecItemCopyMatching` returns `errSecAuthFailed` and macOS displays a
+keychain prompt to re-evaluate the ACL. Clicking "Allow" for an ad-hoc
+identity is a no-op in practice: the next rebuild has a different binary
+identity, and the trusted-apps list is anchored to the previous one. Hence
+the *recurring* prompt.
 
 The same is true in the opposite direction: if you click "Always Allow"
 on a dev build's prompt, the dev build's identity is added to the
@@ -120,7 +120,8 @@ visible in Console.app under the `com.steipete.codexbar` subsystem.
 
 If you are running `/Applications/CodexBar.app` you will *not* see this
 hint and keychain access is not auto-disabled. The guard only fires for
-ad-hoc / dev-build binaries.
+ad-hoc / raw SwiftPM dev-build binaries. A packaged `CodexBar.app` signed
+with a stable local development certificate keeps normal keychain access.
 
 ## References
 

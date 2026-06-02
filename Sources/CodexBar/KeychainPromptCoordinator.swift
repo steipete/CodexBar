@@ -139,9 +139,10 @@ enum KeychainPromptCoordinator {
             "See docs/LOCAL_DEV_BUILD.md."
     }
 
-    /// True if the bundle at `bundleURL` is ad-hoc signed (no cert chain, or
-    /// no Team identifier). Matches the `Signature=adhoc` / `TeamIdentifier=not set`
-    /// output of `codesign -dvvv` for the same binary.
+    /// True if the bundle at `bundleURL` is ad-hoc signed (no cert chain).
+    /// Stable self-signed dev certificates may not have an Apple Team ID, but
+    /// they still provide a certificate-backed identity and should not be
+    /// treated as ad-hoc here.
     private static func isAdHocSigned(bundleURL: URL) -> Bool {
         var staticCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(bundleURL as CFURL, SecCSFlags(), &staticCode) == errSecSuccess,
@@ -150,9 +151,7 @@ enum KeychainPromptCoordinator {
         guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &infoCF) ==
             errSecSuccess,
             let info = infoCF as? [String: Any] else { return false }
-        if (info[kSecCodeInfoCertificates as String] as? [SecCertificate])?.isEmpty ?? true { return true }
-        if (info[kSecCodeInfoTeamIdentifier as String] as? String) == nil { return true }
-        return false
+        return (info[kSecCodeInfoCertificates as String] as? [SecCertificate])?.isEmpty ?? true
     }
 
     private static func presentKeychainPrompt(_ context: KeychainPromptContext) {

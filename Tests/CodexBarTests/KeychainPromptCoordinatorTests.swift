@@ -27,11 +27,21 @@ struct KeychainPromptCoordinatorTests {
     }
 
     @Test
+    func `adHocDevBuildHint returns nil for stable signed packaged dev app`() {
+        // compile_and_run.sh packages CodexBar.app and can sign it with the
+        // stable self-signed "CodexBar Development" identity. That path should
+        // not be treated like a direct ad-hoc SwiftPM executable.
+        let result = KeychainPromptCoordinator.adHocDevBuildHint(
+            bundlePath: "/Users/me/Developer/codexbar/CodexBar.app",
+            executablePath: "/Users/me/Developer/codexbar/CodexBar.app/Contents/MacOS/CodexBar",
+            isAdHocSigned: false)
+        #expect(result == nil, "stable signed packaged dev app should keep normal keychain access")
+    }
+
+    @Test
     func `adHocDevBuildHint returns warning for SwiftPM dev build path even when not ad-hoc`() {
-        // Even if a local-dev build is signed with a stable Developer ID
-        // (per Scripts/compile_and_run.sh), the .build/debug/ path itself is
-        // a strong signal the user is in local-dev mode and should be steered
-        // to the workaround doc.
+        // The .build/debug/ path is a strong signal the user launched the raw
+        // SwiftPM executable rather than a packaged CodexBar.app.
         let result = KeychainPromptCoordinator.adHocDevBuildHint(
             bundlePath: "/Users/me/Developer/codexbar/.build/arm64-apple-macosx/debug/CodexBar",
             executablePath: "/Users/me/Developer/codexbar/.build/arm64-apple-macosx/debug/CodexBar",
