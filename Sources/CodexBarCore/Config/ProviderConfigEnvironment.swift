@@ -97,6 +97,8 @@ public enum ProviderConfigEnvironment {
             self.applyDeepSeekOverrides(base: base, config: config)
         case .deepgram:
             self.applyDeepgramOverrides(base: base, config: config)
+        case .rovodev:
+            self.applyRovoDevOverrides(base: base, config: config)
         case .azureopenai:
             self.applyAzureOpenAIOverrides(base: base, config: config)
         case .kimi:
@@ -217,6 +219,21 @@ public enum ProviderConfigEnvironment {
         default:
             nil
         }
+    }
+
+    private static func applyRovoDevOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let apiKey = config.sanitizedAPIKey {
+            env[RovoDevSettingsReader.apiTokenEnvironmentKey] = apiKey
+        }
+        if let email = config.sanitizedWorkspaceID {
+            env[RovoDevSettingsReader.emailEnvironmentKey] = email
+        }
+        return env
     }
 
     private static func applyOpenAIOverrides(
