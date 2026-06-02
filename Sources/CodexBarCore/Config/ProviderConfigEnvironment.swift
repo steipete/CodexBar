@@ -89,6 +89,8 @@ public enum ProviderConfigEnvironment {
             self.applyBedrockOverrides(base: base, config: config)
         case .deepgram:
             self.applyDeepgramOverrides(base: base, config: config)
+        case .rovodev:
+            self.applyRovoDevOverrides(base: base, config: config)
         case .llmproxy, .litellm:
             self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
         case .azureopenai:
@@ -156,6 +158,21 @@ public enum ProviderConfigEnvironment {
         default:
             nil
         }
+    }
+
+    private static func applyRovoDevOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let apiKey = config.sanitizedAPIKey {
+            env[RovoDevSettingsReader.apiTokenEnvironmentKey] = apiKey
+        }
+        if let email = config.sanitizedWorkspaceID {
+            env[RovoDevSettingsReader.emailEnvironmentKey] = email
+        }
+        return env
     }
 
     private static func applyOpenAIOverrides(

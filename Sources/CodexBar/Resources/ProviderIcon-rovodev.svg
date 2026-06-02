@@ -1,0 +1,5 @@
+<svg viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  <!-- Atlassian "A" mesh / diamond mark, simplified for small icon use -->
+  <path d="M15.08 6.36a.55.55 0 0 0-.96 0L7.04 19.56a.55.55 0 0 0 .48.84h4.32l3.24-6.48 3.24 6.48h4.32a.55.55 0 0 0 .48-.84L15.08 6.36Z"/>
+  <path d="M16 16.8l-2.4 4.8h4.8L16 16.8Z" opacity=".5"/>
+</svg>
