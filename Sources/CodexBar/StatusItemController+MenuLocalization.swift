@@ -4,6 +4,7 @@ extension StatusItemController {
     func menuLocalizationSignature() -> String {
         [
             codexBarLocalizationSignature(),
+            self.settings.hidePersonalInfo ? "hide-personal-info" : "show-personal-info",
             L("Overview"),
             L("Cost"),
         ].joined(separator: "|")
