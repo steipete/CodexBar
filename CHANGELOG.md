@@ -4,6 +4,7 @@
 
 ### Fixed
 - Copilot: treat GitHub Copilot Business token-billing zero-entitlement quotas as unavailable instead of showing misleading 0% used usage (#1258, #1270). Thanks @devYRPauli!
+- Menu bar: prepare closed menus after refresh and only reuse stale dropdown content for data-refresh invalidations so merged menu opens stay responsive without bypassing privacy or structure changes (#1261). Thanks @ProspectOre!
 - OpenAI Web: stop reloading away from login and Cloudflare blocking states so the dashboard WebView does not loop on route corrections (#1259). Thanks @ProspectOre!
 
 ## 0.32.2 — 2026-06-01
