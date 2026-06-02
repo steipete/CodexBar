@@ -70,24 +70,18 @@ struct RovoDevAPIFetchStrategy: ProviderFetchStrategy {
 
     // MARK: - Credential resolution
 
-    /// Resolves (email, apiToken) from environment variables or token accounts.
+    /// Resolves (email, apiToken) from the fetch environment.
     ///
-    /// Priority:
-    /// 1. ROVODEV_API_TOKEN + ROVODEV_EMAIL environment variables
-    /// 2. Token accounts (label = email, token = API token)
+    /// Credentials are injected into the environment by ``ProviderConfigEnvironment.applyRovoDevOverrides``
+    /// from the settings-stored values (``SettingsStore.rovoDevEmail`` + ``SettingsStore.rovoDevAPIToken``),
+    /// or can be supplied directly as ``RovoDevSettingsReader.emailEnvironmentKey`` /
+    /// ``RovoDevSettingsReader.apiTokenEnvironmentKey`` environment variables.
     private static func resolveCredentials(context: ProviderFetchContext) -> (String, String)? {
-        // 1. Environment variables
-        if let token = RovoDevSettingsReader.apiToken(environment: context.env),
-           let email = RovoDevSettingsReader.email(environment: context.env)
-        {
-            return (email, token)
+        guard let token = RovoDevSettingsReader.apiToken(environment: context.env),
+              let email = RovoDevSettingsReader.email(environment: context.env)
+        else {
+            return nil
         }
-
-        // 2. Token accounts (label stores email, token stores API key)
-        if let account = context.tokenAccounts?.first(where: { !$0.token.isEmpty && !$0.label.isEmpty }) {
-            return (account.label, account.token)
-        }
-
-        return nil
+        return (email, token)
     }
 }
