@@ -558,9 +558,11 @@ extension StatusItemController {
                     guard let self, let menu else { return }
                     self.selectOverviewProvider(row.provider, menu: menu)
                 })
-            // Keep menu item action wired for keyboard activation and accessibility action paths.
-            item.target = self
-            item.action = #selector(self.selectOverviewProvider(_:))
+            if submenu == nil {
+                // Keep plain rows wired for keyboard activation and accessibility action paths.
+                item.target = self
+                item.action = #selector(self.selectOverviewProvider(_:))
+            }
             menu.addItem(item)
             if index < rows.count - 1 {
                 menu.addItem(.separator())

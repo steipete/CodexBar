@@ -1671,7 +1671,7 @@ extension StatusMenuTests {
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude
+            let shouldEnable = provider == .codex || provider == .cursor
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
         }
 
@@ -1688,15 +1688,15 @@ extension StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
 
-        let claudeRow = try #require(menu.items.first {
-            ($0.representedObject as? String) == "overviewRow-claude"
+        let cursorRow = try #require(menu.items.first {
+            ($0.representedObject as? String) == "overviewRow-cursor"
         })
-        let action = try #require(claudeRow.action)
-        let target = try #require(claudeRow.target as? StatusItemController)
-        _ = target.perform(action, with: claudeRow)
+        let action = try #require(cursorRow.action)
+        let target = try #require(cursorRow.target as? StatusItemController)
+        _ = target.perform(action, with: cursorRow)
 
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
-        #expect(settings.selectedMenuProvider == .claude)
+        #expect(settings.selectedMenuProvider == .cursor)
 
         let ids = self.representedIDs(in: menu)
         #expect(ids.contains("menuCard"))
