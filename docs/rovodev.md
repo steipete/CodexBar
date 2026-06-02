@@ -76,9 +76,10 @@ export ROVODEV_API_URL="https://my-proxy.example.com"
 
 The fetch strategy tries credentials in this order:
 
-1. `ROVODEV_API_TOKEN` + `ROVODEV_EMAIL` environment variables
+1. `ROVODEV_API_TOKEN` + `ROVODEV_EMAIL` environment variables (highest priority)
 2. Settings-stored values (email saved as `workspaceID`, token as `apiKey` in `~/.codexbar/config.json`)
-3. Token accounts (label = email, token = API token)
+
+> **Note:** Token accounts are not supported for Rovo Dev because this provider requires two separate credentials (email + API token). Use environment variables or Settings instead.
 
 ## Troubleshooting
 

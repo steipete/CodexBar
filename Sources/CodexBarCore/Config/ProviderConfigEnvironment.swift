@@ -140,7 +140,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm:
+        case .chutes, .poe, .litellm, .rovodev:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -155,6 +155,8 @@ public enum ProviderConfigEnvironment {
             PoeSettingsReader.apiKeyEnvironmentKey
         case .litellm:
             LiteLLMSettingsReader.apiKeyEnvironmentKey
+        case .rovodev:
+            RovoDevSettingsReader.apiTokenEnvironmentKey
         default:
             nil
         }
