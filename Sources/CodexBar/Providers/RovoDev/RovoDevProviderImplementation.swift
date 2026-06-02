@@ -20,17 +20,14 @@ struct RovoDevProviderImplementation: ProviderImplementation {
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
+        // Available when both email and API token are configured (env vars take precedence over settings)
         if RovoDevSettingsReader.apiToken(environment: context.environment) != nil,
            RovoDevSettingsReader.email(environment: context.environment) != nil
         {
             return true
         }
-        if !context.settings.rovoDevAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !context.settings.rovoDevEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return true
-        }
-        return !context.settings.tokenAccounts(for: .rovodev).isEmpty
+        return !context.settings.rovoDevAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !context.settings.rovoDevEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @MainActor
