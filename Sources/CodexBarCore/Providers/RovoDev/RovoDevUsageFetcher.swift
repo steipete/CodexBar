@@ -13,15 +13,6 @@ public struct RovoDevBalance: Decodable, Sendable, Equatable {
     public let monthlyTotal: Int?
     public let monthlyRemaining: Int?
     public let monthlyUsed: Int?
-
-    private enum CodingKeys: String, CodingKey {
-        case dailyTotal
-        case dailyRemaining
-        case dailyUsed
-        case monthlyTotal
-        case monthlyRemaining
-        case monthlyUsed
-    }
 }
 
 /// Parsed snapshot from the Rovo Dev credits/check response.
@@ -29,12 +20,24 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
     public let status: String
     public let balance: RovoDevBalance
     public let message: String?
+    public let retryAfterSeconds: Int?
+    /// Per-model token usage, e.g. {"Claude Haiku 4.5": 91295}
+    public let modelUsages: [String: Int]?
     public let updatedAt: Date
 
-    public init(status: String, balance: RovoDevBalance, message: String?, updatedAt: Date) {
+    public init(
+        status: String,
+        balance: RovoDevBalance,
+        message: String?,
+        retryAfterSeconds: Int? = nil,
+        modelUsages: [String: Int]? = nil,
+        updatedAt: Date)
+    {
         self.status = status
         self.balance = balance
         self.message = message
+        self.retryAfterSeconds = retryAfterSeconds
+        self.modelUsages = modelUsages
         self.updatedAt = updatedAt
     }
 
@@ -189,6 +192,8 @@ public struct RovoDevUsageFetcher: Sendable {
                 monthlyRemaining: nil,
                 monthlyUsed: nil),
             message: decoded.message,
+            retryAfterSeconds: decoded.retryAfterSeconds,
+            modelUsages: decoded.modelUsages,
             updatedAt: updatedAt)
     }
 
@@ -203,4 +208,7 @@ private struct CreditsCheckResponse: Decodable {
     let status: String?
     let balance: RovoDevBalance?
     let message: String?
+    let retryAfterSeconds: Int?
+    /// Per-model token usage map, e.g. {"Claude Haiku 4.5": 91295, "claude-sonnet-4-6": 18862727}
+    let modelUsages: [String: Int]?
 }
