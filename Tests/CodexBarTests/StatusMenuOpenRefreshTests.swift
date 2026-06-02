@@ -6,7 +6,7 @@ import Testing
 
 extension StatusMenuTests {
     @Test
-    func `menu open defers automatic refresh until tracking ends`() async {
+    func `opening fresh menu does not schedule deferred refresh`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -15,6 +15,59 @@ extension StatusMenuTests {
         self.enableOnlyCodex(settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        var providerRefreshCount = 0
+        var refreshInteractions: [ProviderInteraction] = []
+        store._test_providerRefreshOverride = { provider in
+            guard provider == .codex else { return }
+            refreshInteractions.append(ProviderInteractionContext.current)
+            providerRefreshCount += 1
+        }
+        defer { store._test_providerRefreshOverride = nil }
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+        StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
+        defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
+
+        controller.menuRefreshEnabledOverrideForTesting = true
+        StatusItemController.setDeferredMenuInteractionRefreshDelayForTesting(.zero)
+        defer { StatusItemController.resetDeferredMenuInteractionRefreshDelayForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+        #expect(providerRefreshCount == 0)
+        #expect(!controller.deferredMenuInteractionRefreshPending)
+
+        controller.menuDidClose(menu)
+        for _ in 0..<40 {
+            await Task.yield()
+        }
+
+        #expect(providerRefreshCount == 0)
+        #expect(refreshInteractions.isEmpty)
+    }
+
+    @Test
+    func `menu open with missing data defers automatic refresh until tracking ends`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._setSnapshotForTesting(nil, provider: .codex)
         var providerRefreshCount = 0
         var refreshInteractions: [ProviderInteraction] = []
         store._test_providerRefreshOverride = { provider in
@@ -776,6 +829,7 @@ extension StatusMenuTests {
         self.enableOnlyCodex(settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._setSnapshotForTesting(nil, provider: .codex)
         store.openAIDashboard = nil
         store.lastOpenAIDashboardSnapshot = nil
         let providerBlocker = BlockingStatusMenuProviderRefresh()
@@ -832,6 +886,7 @@ extension StatusMenuTests {
         self.enableOnlyCodex(settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._setSnapshotForTesting(nil, provider: .codex)
         store.openAIDashboard = nil
         store.lastOpenAIDashboardSnapshot = nil
         let providerBlocker = BlockingStatusMenuProviderRefresh()

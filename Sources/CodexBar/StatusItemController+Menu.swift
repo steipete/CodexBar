@@ -1109,9 +1109,13 @@ extension StatusItemController {
     }
 
     private func scheduleOpenMenuRefresh(for menu: NSMenu) {
-        // Queue refresh work until the menu closes. AppKit menu tracking is modal; starting provider refreshes
-        // while it is active can make the menu feel frozen and can block keyboard focus from returning.
-        self.deferMenuInteractionRefreshIfNeeded()
+        // Queue refresh work only when visible menu data is missing or stale. Here "stale" means the last
+        // provider fetch failed and needs a retry; periodic freshness is handled by the refresh timer.
+        // AppKit menu tracking is modal, so starting provider refreshes while it is active can make the menu
+        // feel frozen and can block keyboard focus from returning.
+        if self.menuNeedsDelayedRefreshRetry(for: menu) {
+            self.deferMenuInteractionRefreshIfNeeded()
+        }
         let key = ObjectIdentifier(menu)
         self.menuRefreshTasks[key]?.cancel()
         self.menuRefreshTasks[key] = Task { @MainActor [weak self, weak menu] in
