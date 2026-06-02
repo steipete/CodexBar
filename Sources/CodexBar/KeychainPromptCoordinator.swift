@@ -111,7 +111,7 @@ enum KeychainPromptCoordinator {
             isAdHocSigned: isAdHoc) else { return }
         KeychainAccessGate.forceDisabledForProcess(reason: "ad-hoc-dev-build")
         Self.log.warning(
-            "Ad-hoc dev build detected — disabling keychain access for this process to avoid repeated CodexBarCache prompts",
+            "Ad-hoc dev build detected — disabling keychain access to avoid CodexBarCache prompts",
             metadata: [
                 "bundlePath": Bundle.main.bundleURL.path,
                 "adHocSigned": isAdHoc ? "true" : "false",
