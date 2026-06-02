@@ -115,6 +115,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastMenuProvider: UsageProvider?
     var menuProviders: [ObjectIdentifier: UsageProvider] = [:]
     var menuContentVersion: Int = 0
+    var latestRequiredMenuRebuildVersion: Int = 0
     var menuVersions: [ObjectIdentifier: Int] = [:]
     var lastMenuAdjunctReadinessSignature = ""
     var mergedMenu: NSMenu?
@@ -189,6 +190,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastMergeIcons: Bool
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
+    private var lastObservedHidePersonalInfo: Bool
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
     /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
     var lastSwitcherUsageBarsShowUsed: Bool
@@ -351,6 +353,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
+        self.lastObservedHidePersonalInfo = settings.hidePersonalInfo
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         let repairedStatusItemVisibilityKeys = MenuBarStatusItemDefaultsRepair
             .repairHiddenVisibilityDefaultsIfNeeded(defaults: settings.userDefaults)
@@ -442,7 +445,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 self.observeStoreChanges()
                 self.invalidateMenus(
                     refreshOpenMenus: self.didMenuAdjunctReadinessChange(),
-                    deferOpenParentMenuRebuild: true)
+                    deferOpenParentMenuRebuild: true,
+                    allowStaleContentDuringDataRefresh: true)
             }
         }
     }
@@ -632,6 +636,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let usageBarsShowUsed = self.settings.usageBarsShowUsed
         if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
             self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
+            shouldRefresh = true
+        }
+        let hidePersonalInfo = self.settings.hidePersonalInfo
+        if hidePersonalInfo != self.lastObservedHidePersonalInfo {
+            self.lastObservedHidePersonalInfo = hidePersonalInfo
             shouldRefresh = true
         }
         if self.menuLocalizationSignature() != self.lastMenuLocalizationSignature {

@@ -25,12 +25,16 @@ extension StatusItemController {
 
     func invalidateMenus(
         refreshOpenMenus: Bool = false,
-        deferOpenParentMenuRebuild: Bool = false)
+        deferOpenParentMenuRebuild: Bool = false,
+        allowStaleContentDuringDataRefresh: Bool = false)
     {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
         self.menuContentVersion &+= 1
+        if !allowStaleContentDuringDataRefresh {
+            self.latestRequiredMenuRebuildVersion = self.menuContentVersion
+        }
         guard self.isMenuRefreshEnabled else { return }
         if !self.openMenus.isEmpty {
             guard refreshOpenMenus else { return }
@@ -59,7 +63,7 @@ extension StatusItemController {
 
     func refreshMenuForOpenIfNeeded(_ menu: NSMenu, provider: UsageProvider?) {
         guard self.menuNeedsRefresh(menu) else { return }
-        if self.isMenuDataRefreshInFlight, !menu.items.isEmpty {
+        if self.canPreserveStaleMenuContentDuringRefresh(menu) {
             #if DEBUG
             self.menuLogger.debug(
                 "menu open kept existing content during refresh",
@@ -74,6 +78,13 @@ extension StatusItemController {
         }
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
+    }
+
+    private func canPreserveStaleMenuContentDuringRefresh(_ menu: NSMenu) -> Bool {
+        guard self.isMenuDataRefreshInFlight, !menu.items.isEmpty else { return false }
+        let key = ObjectIdentifier(menu)
+        guard let menuVersion = self.menuVersions[key] else { return false }
+        return menuVersion >= self.latestRequiredMenuRebuildVersion
     }
 
     private func attachedMenusForClosedPreparation() -> [NSMenu] {

@@ -324,7 +324,7 @@ extension StatusMenuTests {
 
         store.isRefreshing = true
         defer { store.isRefreshing = false }
-        controller.invalidateMenus()
+        controller.invalidateMenus(allowStaleContentDuringDataRefresh: true)
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
 
@@ -332,6 +332,47 @@ extension StatusMenuTests {
         #expect(controller.menuContentVersion != openedVersion)
         #expect(menu.items.count == openedItemCount)
         #expect(controller.openMenus[key] === menu)
+    }
+
+    @Test
+    func `menu open rebuilds stale content after privacy setting changes during refresh`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnlyCodex(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.statusItem.menu = menu
+
+        controller.populateMenu(menu, provider: nil)
+        controller.markMenuFresh(menu)
+        let key = ObjectIdentifier(menu)
+        let openedVersion = controller.menuVersions[key]
+
+        store.isRefreshing = true
+        defer { store.isRefreshing = false }
+        controller.invalidateMenus(allowStaleContentDuringDataRefresh: true)
+        settings.hidePersonalInfo = true
+        controller.invalidateMenus()
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(controller.menuVersions[key] != openedVersion)
     }
 
     @Test
@@ -366,7 +407,7 @@ extension StatusMenuTests {
 
         store.tokenRefreshInFlight.insert(.codex)
         defer { store.tokenRefreshInFlight.remove(.codex) }
-        controller.invalidateMenus()
+        controller.invalidateMenus(allowStaleContentDuringDataRefresh: true)
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
 
