@@ -6,8 +6,9 @@ import Testing
 ///
 /// The helper is intentionally side-effect-free: a pure function returns a
 /// warning string when the running binary looks like a SwiftPM dev build or
-/// is ad-hoc signed, and `nil` otherwise. A separate one-shot log function
-/// gates emission of the warning to once per process.
+/// is ad-hoc signed, and `nil` otherwise. A separate one-shot startup function
+/// disables keychain access for that process and gates emission of the warning
+/// to once per process.
 ///
 /// The pure function lives next to `KeychainPromptCoordinator` because the
 /// detection is conceptually part of the prompt-coordination subsystem, not
@@ -77,5 +78,8 @@ struct KeychainPromptCoordinatorTests {
         #expect(
             hasReleaseAppRef || hasScriptRef,
             "warning should mention at least one workaround")
+        #expect(
+            result?.contains("disabled keychain access for this process") == true,
+            "warning should make it clear CodexBar avoided the prompt loop")
     }
 }

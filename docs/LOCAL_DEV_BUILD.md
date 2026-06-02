@@ -15,7 +15,9 @@ shows:
 > CodexBar wants to use your confidential information stored in
 > "CodexBarCache" in your keychain.
 
-this document explains why and what to do.
+this document explains why. Current CodexBar dev builds automatically disable
+keychain access for that process when this risky launch mode is detected, so
+you should not get trapped in the recurring prompt loop.
 
 ## Why
 
@@ -64,9 +66,9 @@ trigger this prompt.
 ```
 
 This script (per `AGENTS.md` line 36 and PR #888) detects a stable local
-signing identity, signs the dev binary with it so its CD hash matches
-the release's, packages the bundle, and relaunches it. The keychain ACL
-then matches.
+signing identity, signs the app bundle with that identity, packages it,
+and relaunches it from `CodexBar.app`. That gives local runtime validation
+a stable signing identity instead of a fresh ad-hoc identity on every rebuild.
 
 Avoid running `.build/<config>/debug/CodexBar` directly when you are
 about to touch the keychain.
@@ -93,12 +95,13 @@ honors app-wide (see `KeychainPromptCoordinator.swift` and the
 - Per `docs/KEYCHAIN_FIX.md`, this is the steipete-acknowledged
   last-resort workaround for exactly this case.
 
-## Self-diagnosis
+## Self-protection
 
 As of the patch that introduced this doc, when CodexBar detects at
 startup that it is running from a SwiftPM dev build or is ad-hoc signed,
-it emits a one-shot `os_log` warning pointing back to this file. The
-warning's `eventMessage` begins with the exact phrase:
+it disables keychain access for that process and emits a one-shot `os_log`
+warning pointing back to this file. The warning's `eventMessage` begins
+with the exact phrase:
 
 ```
 Ad-hoc dev build detected
@@ -116,7 +119,8 @@ The same line is also written to `~/.codexbar/.../CodexBar.log` and is
 visible in Console.app under the `com.steipete.codexbar` subsystem.
 
 If you are running `/Applications/CodexBar.app` you will *not* see this
-hint. It only fires for ad-hoc / dev-build binaries.
+hint and keychain access is not auto-disabled. The guard only fires for
+ad-hoc / dev-build binaries.
 
 ## References
 

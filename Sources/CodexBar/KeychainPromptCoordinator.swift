@@ -73,8 +73,8 @@ enum KeychainPromptCoordinator {
 
     // One-shot guard. Safe to mutate from any context because
     // `install()` is the only writer (called once from `CodexbarApp.init` on
-    // the main thread at app launch), and the read-modify-write is gated
-    // by the existing `promptLock`.
+    // the main thread at app launch), and the read-modify-write is gated by
+    // `adHocDevBuildHintLock`.
     private static let adHocDevBuildHintLock = NSLock()
     private nonisolated(unsafe) static var hasLoggedAdHocDevBuildHint = false
 
@@ -109,8 +109,9 @@ enum KeychainPromptCoordinator {
             bundlePath: Bundle.main.bundleURL.path,
             executablePath: Bundle.main.executableURL?.path ?? "<unknown>",
             isAdHocSigned: isAdHoc) else { return }
+        KeychainAccessGate.forceDisabledForProcess(reason: "ad-hoc-dev-build")
         Self.log.warning(
-            "Ad-hoc dev build detected — may cause repeated macOS keychain prompts for CodexBarCache",
+            "Ad-hoc dev build detected — disabling keychain access for this process to avoid repeated CodexBarCache prompts",
             metadata: [
                 "bundlePath": Bundle.main.bundleURL.path,
                 "adHocSigned": isAdHoc ? "true" : "false",
@@ -133,6 +134,7 @@ enum KeychainPromptCoordinator {
             "(bundle=\(bundlePath), exec=\(executablePath), adHoc=\(isAdHocSigned)). " +
             "This commonly causes macOS to repeatedly prompt for 'CodexBar wants to use your " +
             "confidential information stored in CodexBarCache in your keychain.' " +
+            "CodexBar has disabled keychain access for this process to avoid the prompt loop. " +
             "Use /Applications/CodexBar.app for normal use, or run via ./Scripts/compile_and_run.sh. " +
             "See docs/LOCAL_DEV_BUILD.md."
     }
