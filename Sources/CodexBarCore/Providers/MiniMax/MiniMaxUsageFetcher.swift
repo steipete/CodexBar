@@ -787,9 +787,22 @@ enum MiniMaxUsageParser {
             throw MiniMaxUsageError.parseFailed("Missing coding plan data.")
         }
 
+        // Filter modelRemains to coding-plan-relevant models only (drop auxiliary services
+        // like video/image/music/speech). Order: "general" (main coding plan quota) first,
+        // then text generation models, dropping everything else. This stops the menu from
+        // surfacing e.g. `video 0/3` when the user's primary intent is the coding plan
+        // (auxiliary services are typically a few free-tier extras and clutter the card).
+        let codingPlanRemains = payload.data.modelRemains.filter { item in
+            guard let name = item.modelName?.lowercased() else { return false }
+            if name == "general" { return true }
+            if let raw = item.modelName, Self.isTextGenerationModelName(raw) { return true }
+            return false
+        }
+        let effectiveRemains = codingPlanRemains.isEmpty ? payload.data.modelRemains : codingPlanRemains
+
         // Convert model_remains to services array for multi-service UI display
         var services: [MiniMaxServiceUsage] = []
-        for item in payload.data.modelRemains {
+        for item in effectiveRemains {
             guard let modelName = item.modelName else { continue }
             let serviceTypeIdentifier = self.mapModelNameToServiceType(modelName: modelName)
 
@@ -825,7 +838,7 @@ enum MiniMaxUsageParser {
         }
 
         // Use first service for backward compatibility fields
-        let first = payload.data.modelRemains.first
+        let first = effectiveRemains.first
         let total = first?.currentIntervalTotalCount
         let remaining = first?.currentIntervalUsageCount
         let usedPercent = self.usedPercent(total: total, remaining: remaining)
