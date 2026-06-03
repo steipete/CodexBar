@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBar
 
@@ -42,5 +43,62 @@ extension StatusMenuTests {
 
         controller.invalidateMenus()
         #expect(controller.menuCardHeightCache.isEmpty)
+    }
+
+    @Test
+    func `menu card height cache scopes same row ids by provider`() {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+        }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .codex || provider == .claude)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 12,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .claude,
+                    accountEmail: "claude@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "Claude Pro")),
+            provider: .claude)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.populateMenu(menu, provider: .codex)
+        controller.populateMenu(menu, provider: .claude)
+
+        let scopes = Set(controller.menuCardHeightCache.keys.map(\.scope))
+        #expect(scopes.contains(UsageProvider.codex.rawValue))
+        #expect(scopes.contains(UsageProvider.claude.rawValue))
     }
 }

@@ -24,6 +24,7 @@ extension StatusItemController {
             },
             id: "zaiHourlyUsageSubmenu",
             width: width,
+            heightCacheScope: provider.rawValue,
             submenu: submenu,
             submenuIndicatorAlignment: .trailing,
             submenuIndicatorTopPadding: 0)

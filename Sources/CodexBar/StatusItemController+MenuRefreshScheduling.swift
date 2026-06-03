@@ -3,6 +3,8 @@ import CodexBarCore
 import QuartzCore
 
 extension StatusItemController {
+    private static let providerSwitcherMenuRebuildDebounceNanoseconds: UInt64 = 45_000_000
+
     func didMenuAdjunctReadinessChange() -> Bool {
         let signature = self.menuAdjunctReadinessSignature()
         defer { self.lastMenuAdjunctReadinessSignature = signature }
@@ -101,10 +103,17 @@ extension StatusItemController {
     func deferSwitcherMenuRebuildIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
         self.providerSwitcherUpdateToken &+= 1
         let updateToken = self.providerSwitcherUpdateToken
+        #if DEBUG
+        let debounceNanoseconds = self._test_providerSwitcherMenuRebuildDebounceNanoseconds ?? (
+            self._test_openMenuRebuildObserver == nil ? Self.providerSwitcherMenuRebuildDebounceNanoseconds : 0)
+        #else
+        let debounceNanoseconds = Self.providerSwitcherMenuRebuildDebounceNanoseconds
+        #endif
         self.scheduleOpenMenuRebuildIfStillVisible(
             menu,
             provider: provider,
-            closeHostedSubviewMenusBeforeRebuild: true)
+            closeHostedSubviewMenusBeforeRebuild: true,
+            debounceNanoseconds: debounceNanoseconds)
         { [weak self] in
             guard let self else { return false }
             return self.providerSwitcherUpdateToken == updateToken
@@ -115,6 +124,7 @@ extension StatusItemController {
         _ menu: NSMenu,
         provider: UsageProvider?,
         closeHostedSubviewMenusBeforeRebuild: Bool = false,
+        debounceNanoseconds: UInt64 = 0,
         beforeRebuild: (@MainActor () -> Bool)? = nil)
     {
         let key = ObjectIdentifier(menu)
@@ -137,6 +147,9 @@ extension StatusItemController {
             #else
             await Task.yield()
             #endif
+            if debounceNanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: debounceNanoseconds)
+            }
             guard !Task.isCancelled else { return }
             guard self.openMenuRebuildTokens[key] == rebuildToken else { return }
             defer {
