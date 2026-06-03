@@ -45,6 +45,7 @@ extension StatusItemController {
                 deferParentRebuildDuringTracking: deferOpenParentMenuRebuild)
             return
         }
+        guard !allowStaleContentDuringDataRefresh else { return }
         self.prepareAttachedClosedMenusIfNeeded()
     }
 
@@ -148,6 +149,7 @@ extension StatusItemController {
         guard !self.isMenuDataRefreshInFlight else { return }
         let key = ObjectIdentifier(menu)
         let provider = self.menuProvider(for: menu)
+        let requiredMenuVersion = self.latestRequiredMenuRebuildVersion
         self.closedMenuRebuildTokenCounter &+= 1
         let rebuildToken = self.closedMenuRebuildTokenCounter
         self.closedMenuRebuildTokens[key] = rebuildToken
@@ -172,7 +174,7 @@ extension StatusItemController {
             guard !self.hasPreparedForAppShutdown else { return }
             guard !self.isMenuDataRefreshInFlight else { return }
             guard self.openMenus[ObjectIdentifier(menu)] == nil else { return }
-            guard self.menuNeedsRefresh(menu) else { return }
+            guard (self.menuVersions[key] ?? -1) < requiredMenuVersion else { return }
             self.populateMenu(menu, provider: provider)
             self.markMenuFresh(menu)
             #if DEBUG
