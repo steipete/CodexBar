@@ -375,9 +375,9 @@ extension SettingsStore {
             userDefaults.set(false, forKey: "openAIWebAccessEnabled")
         }
         let openAIWebBatterySaverDefault = userDefaults.object(forKey: "openAIWebBatterySaverEnabled") as? Bool
-        let openAIWebBatterySaverEnabled = openAIWebBatterySaverDefault ?? true
+        let openAIWebBatterySaverEnabled = openAIWebBatterySaverDefault ?? false
         if Self.isRunningTests, openAIWebBatterySaverDefault == nil {
-            userDefaults.set(true, forKey: "openAIWebBatterySaverEnabled")
+            userDefaults.set(false, forKey: "openAIWebBatterySaverEnabled")
         }
         let providerStorageFootprintsDefault = userDefaults.object(forKey: "providerStorageFootprintsEnabled") as? Bool
         let providerStorageFootprintsEnabled = providerStorageFootprintsDefault ?? false
