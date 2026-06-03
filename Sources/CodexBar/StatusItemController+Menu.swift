@@ -163,10 +163,9 @@ extension StatusItemController {
             menu === self.fallbackMenu ||
             self.providerMenus.values.contains { $0 === menu }
         if !isPersistentMenu {
-            self.menuProviders.removeValue(forKey: key)
-            self.menuVersions.removeValue(forKey: key)
+            self.clearTransientMenuTrackingState(key)
         } else if self.menuNeedsRefresh(menu) {
-            self.rebuildClosedMenuIfNeeded(menu)
+            self.handleClosedPersistentMenuNeedingRefresh(menu)
         }
         self.parentMenuRebuildsDeferredDuringTracking.remove(key)
         self.scheduleDeferredMenuInteractionRefreshIfNeeded()

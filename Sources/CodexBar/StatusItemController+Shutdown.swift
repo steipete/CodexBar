@@ -59,6 +59,7 @@ extension StatusItemController {
         self.menuRefreshTasks.removeAll(keepingCapacity: false)
         self.closedMenuRebuildTasks.removeAll(keepingCapacity: false)
         self.closedMenuRebuildTokens.removeAll(keepingCapacity: false)
+        self.closedMenusDeferredUntilNextOpen.removeAll(keepingCapacity: false)
         self.openMenuRebuildTasks.removeAll(keepingCapacity: false)
         self.openMenuRebuildTokens.removeAll(keepingCapacity: false)
         self.openMenuRebuildsClosingHostedSubviewMenus.removeAll(keepingCapacity: false)

@@ -126,6 +126,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var closedMenuRebuildTokens: [ObjectIdentifier: Int] = [:]
     var closedMenuRebuildTokenCounter = 0
+    var closedMenusDeferredUntilNextOpen: Set<ObjectIdentifier> = []
     var openMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var openMenuRebuildTokens: [ObjectIdentifier: Int] = [:]
     var openMenuRebuildTokenCounter = 0

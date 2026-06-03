@@ -52,6 +52,7 @@ extension StatusItemController {
         guard self.openMenus.isEmpty else { return }
         guard !self.isMenuDataRefreshInFlight else { return }
         for menu in self.attachedMenusForClosedPreparation() {
+            guard !self.closedMenusDeferredUntilNextOpen.contains(ObjectIdentifier(menu)) else { continue }
             self.rebuildClosedMenuIfNeeded(menu)
         }
     }
@@ -61,7 +62,24 @@ extension StatusItemController {
             UsageProvider.allCases.contains { self.store.isTokenRefreshInFlight(for: $0) }
     }
 
+    func clearTransientMenuTrackingState(_ key: ObjectIdentifier) {
+        self.menuProviders.removeValue(forKey: key)
+        self.menuVersions.removeValue(forKey: key)
+        self.closedMenusDeferredUntilNextOpen.remove(key)
+    }
+
+    func handleClosedPersistentMenuNeedingRefresh(_ menu: NSMenu) {
+        if menu === self.mergedMenu {
+            // Closing the merged menu is on the user's dismiss path. Leave stale content attached and let
+            // menuWillOpen rebuild it, while other closed-menu invalidations can still prepare in the background.
+            self.closedMenusDeferredUntilNextOpen.insert(ObjectIdentifier(menu))
+        } else {
+            self.rebuildClosedMenuIfNeeded(menu)
+        }
+    }
+
     func refreshMenuForOpenIfNeeded(_ menu: NSMenu, provider: UsageProvider?) {
+        self.closedMenusDeferredUntilNextOpen.remove(ObjectIdentifier(menu))
         guard self.menuNeedsRefresh(menu) else { return }
         if self.canPreserveStaleMenuContentDuringRefresh(menu) {
             #if DEBUG
