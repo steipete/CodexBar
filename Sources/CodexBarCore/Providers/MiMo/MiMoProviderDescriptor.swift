@@ -55,6 +55,32 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        do {
+            return try await self.fetchFromWeb(context)
+        } catch {
+            // Local tracker fallback: when platform cookie/SSO is unavailable
+            // (missingCookie / invalidCookie / loginRequired / invalidCredentials),
+            // fall back to local jsonl token accounting via ~/.codexbar/mimo-local-usage.json
+            // (populated by `~/bin/mimo-usage`, scanning ~/.claude-envs/mimo session jsonl).
+            if Self.shouldFallbackToLocal(error: error),
+               let local = MiMoLocalUsageFallback.snapshot()
+            {
+                return self.makeResult(usage: local.toUsageSnapshot(), sourceLabel: "local")
+            }
+            throw error
+        }
+    }
+
+    private static func shouldFallbackToLocal(error: Error) -> Bool {
+        if error is MiMoSettingsError { return true }
+        guard let mimoError = error as? MiMoUsageError else { return false }
+        switch mimoError {
+        case .invalidCredentials, .loginRequired: return true
+        case .parseFailed, .networkError: return false
+        }
+    }
+
+    private func fetchFromWeb(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard context.settings?.mimo?.cookieSource != .off else {
             throw MiMoSettingsError.missingCookie()
         }
