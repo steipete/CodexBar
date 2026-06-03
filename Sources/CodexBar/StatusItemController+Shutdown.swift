@@ -66,6 +66,7 @@ extension StatusItemController {
         self.parentMenuRebuildsDeferredDuringTracking.removeAll(keepingCapacity: false)
         self.openMenus.removeAll(keepingCapacity: false)
         self.highlightedMenuItems.removeAll(keepingCapacity: false)
+        self.menuCardHeightCache.removeAll(keepingCapacity: false)
         self.menuProviders.removeAll(keepingCapacity: false)
         self.menuVersions.removeAll(keepingCapacity: false)
         self.providerMenus.removeAll(keepingCapacity: false)

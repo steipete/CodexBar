@@ -291,7 +291,8 @@ extension StatusItemController {
                     menuWidth: menuWidth,
                     codexAccountDisplay: codexAccountDisplay,
                     tokenAccountDisplay: tokenAccountDisplay,
-                    openAIContext: openAIContext))
+                    openAIContext: openAIContext,
+                    descriptor: descriptor))
             return
         }
 
@@ -323,7 +324,8 @@ extension StatusItemController {
                     menuWidth: menuWidth,
                     codexAccountDisplay: codexAccountDisplay,
                     tokenAccountDisplay: tokenAccountDisplay,
-                    openAIContext: openAIContext))
+                    openAIContext: openAIContext,
+                    descriptor: descriptor))
             return
         }
 
@@ -378,6 +380,7 @@ extension StatusItemController {
         let codexAccountDisplay: CodexAccountMenuDisplay?
         let tokenAccountDisplay: TokenAccountMenuDisplay?
         let openAIContext: OpenAIWebContext
+        let descriptor: MenuDescriptor
     }
 
     /// Smart update: rebuild everything below the provider switcher while keeping the switcher view intact.
@@ -408,16 +411,6 @@ extension StatusItemController {
                 width: context.menuWidth)
             self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
 
-            let descriptor = MenuDescriptor.build(
-                provider: context.provider,
-                store: self.store,
-                settings: self.settings,
-                account: self.account,
-                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
-                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
-                updateReady: self.updater.updateStatus.isUpdateReady,
-                includeContextualActions: context.switcherSelection != .overview)
-
             let menuContext = MenuCardContext(
                 currentProvider: context.currentProvider,
                 selectedProvider: context.provider,
@@ -426,7 +419,7 @@ extension StatusItemController {
                 tokenAccountDisplay: context.tokenAccountDisplay,
                 openAIContext: context.openAIContext)
             self.addPrimaryMenuContent(to: menu, context: menuContext, switcherSelection: context.switcherSelection)
-            self.addActionableSections(descriptor.sections, to: menu, width: context.menuWidth)
+            self.addActionableSections(context.descriptor.sections, to: menu, width: context.menuWidth)
         }
     }
 
@@ -1177,7 +1170,10 @@ extension StatusItemController {
         for item in cardItems {
             guard let view = item.view else { continue }
             let width = self.renderedMenuWidth(for: menu)
-            let height = self.menuCardHeight(for: view, width: width)
+            let id = item.representedObject as? String ?? "menuCard"
+            let height = self.cachedMenuCardHeight(for: id, width: width) {
+                self.menuCardHeight(for: view, width: width)
+            }
             view.frame = NSRect(
                 origin: .zero,
                 size: NSSize(width: width, height: height))
@@ -1216,7 +1212,9 @@ extension StatusItemController {
         }
         let hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState, onClick: onClick)
         // Set frame with target width immediately
-        let height = self.menuCardHeight(for: hosting, width: width)
+        let height = self.cachedMenuCardHeight(for: id, width: width) {
+            self.menuCardHeight(for: hosting, width: width)
+        }
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
         let item = NSMenuItem()
         item.view = hosting
