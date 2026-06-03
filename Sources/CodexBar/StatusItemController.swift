@@ -139,6 +139,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
     var hasPreparedForAppShutdown = false
     var openMenuInvalidationRetryTask: Task<Void, Never>?
+    var lastMenuDescriptors: [ObjectIdentifier: MenuDescriptor] = [:]
+    var lastMeasuredMenuWidths: [ObjectIdentifier: CGFloat] = [:]
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
     var onDeferredMenuInteractionRefreshForTesting: (() -> Void)?

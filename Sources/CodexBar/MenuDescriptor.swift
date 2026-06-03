@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 
 @MainActor
-struct MenuDescriptor {
+struct MenuDescriptor: Equatable {
     struct SubmenuItem: Equatable {
         let title: String
         let action: MenuAction?
@@ -17,11 +17,11 @@ struct MenuDescriptor {
         }
     }
 
-    struct Section {
+    struct Section: Equatable {
         var entries: [Entry]
     }
 
-    enum Entry {
+    enum Entry: Equatable {
         case text(String, TextStyle)
         case action(String, MenuAction)
         case submenu(String, String?, [SubmenuItem])
@@ -663,10 +663,11 @@ struct MenuDescriptor {
         }
     }
 
+    private static let versionRegex = try? NSRegularExpression(pattern: #"[0-9]+(?:\.[0-9]+)*"#)
+
     private static func versionNumber(for provider: UsageProvider, store: UsageStore) -> String? {
         guard let raw = store.version(for: provider) else { return nil }
-        let pattern = #"[0-9]+(?:\.[0-9]+)*"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        guard let regex = self.versionRegex else { return nil }
         let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
         guard let match = regex.firstMatch(in: raw, options: [], range: range),
               let r = Range(match.range, in: raw) else { return nil }

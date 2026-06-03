@@ -43,6 +43,8 @@ public enum UsageFormatter {
         return provider?() ?? Locale(identifier: "en_US_POSIX")
     }
 
+    private static let coreBundle = Bundle(for: BundleToken.self)
+
     private static func localized(_ key: String) -> String {
         self.localizationLock.lock()
         let provider = self.localizationProvider
@@ -50,8 +52,7 @@ public enum UsageFormatter {
         if let provider {
             return provider(key)
         }
-        let coreBundle = Bundle(for: BundleToken.self)
-        let coreValue = NSLocalizedString(key, tableName: "Localizable", bundle: coreBundle, value: key, comment: "")
+        let coreValue = NSLocalizedString(key, tableName: "Localizable", bundle: self.coreBundle, value: key, comment: "")
         if coreValue != key { return coreValue }
 
         let mainValue = NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
@@ -68,6 +69,40 @@ public enum UsageFormatter {
         let format = self.localized(key)
         return String(format: format, locale: self.currentLocale(), arguments: args)
     }
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let rel = RelativeDateTimeFormatter()
+        rel.unitsStyle = .abbreviated
+        return rel
+    }()
+
+    private static let creditsNumberFormatter: NumberFormatter = {
+        let number = NumberFormatter()
+        number.numberStyle = .decimal
+        number.maximumFractionDigits = 2
+        number.locale = Locale(identifier: "en_US_POSIX")
+        return number
+    }()
+
+    private static let tokenCountNumberFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
+
+    private static let mediumDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private static let compactDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter
+    }()
 
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
@@ -153,10 +188,12 @@ public enum UsageFormatter {
         }
         if let hours = Calendar.current.dateComponents([.hour], from: date, to: now).hour, hours < 24 {
             #if os(macOS)
-            let rel = RelativeDateTimeFormatter()
+            self.localizationLock.lock()
+            let rel = self.relativeFormatter
             rel.locale = self.currentLocale()
-            rel.unitsStyle = .abbreviated
-            return self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
+            let result = self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
+            self.localizationLock.unlock()
+            return result
             #else
             let seconds = max(0, Int(now.timeIntervalSince(date)))
             if seconds < 3600 {
@@ -174,12 +211,10 @@ public enum UsageFormatter {
     }
 
     public static func creditsString(from value: Double) -> String {
-        let number = NumberFormatter()
-        number.numberStyle = .decimal
-        number.maximumFractionDigits = 2
-        // Use explicit locale for consistent formatting on all systems
-        number.locale = Locale(identifier: "en_US_POSIX")
+        self.localizationLock.lock()
+        let number = self.creditsNumberFormatter
         let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        self.localizationLock.unlock()
         return self.localized("%@ left", formatted)
     }
 
@@ -239,11 +274,11 @@ public enum UsageFormatter {
             return "\(sign)\(formatted)\(unit.suffix)"
         }
 
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        self.localizationLock.lock()
+        let formatter = self.tokenCountNumberFormatter
+        let result = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        self.localizationLock.unlock()
+        return result
     }
 
     public static func byteCountString(_ bytes: Int64) -> String {
@@ -266,23 +301,23 @@ public enum UsageFormatter {
     }
 
     public static func creditEventSummary(_ event: CreditEvent) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        let number = NumberFormatter()
-        number.numberStyle = .decimal
-        number.maximumFractionDigits = 2
+        self.localizationLock.lock()
+        let formatter = self.mediumDateFormatter
+        let number = self.creditsNumberFormatter
         let credits = number.string(from: NSNumber(value: event.creditsUsed)) ?? "0"
-        return "\(formatter.string(from: event.date)) · \(event.service) · \(credits) credits"
+        let dateString = formatter.string(from: event.date)
+        self.localizationLock.unlock()
+        return "\(dateString) · \(event.service) · \(credits) credits"
     }
 
     public static func creditEventCompact(_ event: CreditEvent) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        let number = NumberFormatter()
-        number.numberStyle = .decimal
-        number.maximumFractionDigits = 2
+        self.localizationLock.lock()
+        let formatter = self.compactDateFormatter
+        let number = self.creditsNumberFormatter
         let credits = number.string(from: NSNumber(value: event.creditsUsed)) ?? "0"
-        return "\(formatter.string(from: event.date)) — \(event.service): \(credits)"
+        let dateString = formatter.string(from: event.date)
+        self.localizationLock.unlock()
+        return "\(dateString) — \(event.service): \(credits)"
     }
 
     public static func creditShort(_ value: Double) -> String {

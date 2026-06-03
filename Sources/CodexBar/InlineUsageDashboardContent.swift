@@ -576,16 +576,21 @@ struct InlineUsageDashboardContent: View {
     }
 
     private var kpis: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(minimum: 118), alignment: .leading),
-                GridItem(.flexible(minimum: 100), alignment: .leading),
-            ],
-            alignment: .leading,
-            spacing: 6)
-        {
-            ForEach(Array(self.model.kpis.enumerated()), id: \.offset) { _, kpi in
-                KPIBlock(title: kpi.title, value: kpi.value, emphasis: kpi.emphasis)
+        Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 6) {
+            let rowCount = (self.model.kpis.count + 1) / 2
+            ForEach(0..<rowCount, id: \.self) { rowIndex in
+                GridRow {
+                    let firstIndex = rowIndex * 2
+                    if firstIndex < self.model.kpis.count {
+                        let kpi = self.model.kpis[firstIndex]
+                        KPIBlock(title: kpi.title, value: kpi.value, emphasis: kpi.emphasis)
+                    }
+                    let secondIndex = firstIndex + 1
+                    if secondIndex < self.model.kpis.count {
+                        let kpi = self.model.kpis[secondIndex]
+                        KPIBlock(title: kpi.title, value: kpi.value, emphasis: kpi.emphasis)
+                    }
+                }
             }
         }
     }

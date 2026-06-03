@@ -234,7 +234,19 @@ extension StatusItemController {
             codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
             updateReady: self.updater.updateStatus.isUpdateReady,
             includeContextualActions: !isOverviewSelected)
-        let menuWidth = self.menuCardWidth(for: enabledProviders, sections: descriptor.sections)
+        
+        let menuKey = ObjectIdentifier(menu)
+        let menuWidth: CGFloat
+        if let lastDescriptor = self.lastMenuDescriptors[menuKey],
+           lastDescriptor == descriptor,
+           let cachedWidth = self.lastMeasuredMenuWidths[menuKey]
+        {
+            menuWidth = cachedWidth
+        } else {
+            menuWidth = self.menuCardWidth(for: enabledProviders, sections: descriptor.sections)
+            self.lastMenuDescriptors[menuKey] = descriptor
+            self.lastMeasuredMenuWidths[menuKey] = menuWidth
+        }
 
         let hasTokenSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let hasCodexSwitcher = menu.items.contains { $0.view is CodexAccountSwitcherView }

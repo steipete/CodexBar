@@ -1090,7 +1090,14 @@ public struct UsageFetcher: Sendable {
         return value
     }
 
+    private static let jwtCache = NSCache<NSString, NSDictionary>()
+
     public static func parseJWT(_ token: String) -> [String: Any]? {
+        let cacheKey = token as NSString
+        if let cached = self.jwtCache.object(forKey: cacheKey) {
+            return cached as? [String: Any]
+        }
+
         let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         let payloadPart = parts[1]
@@ -1102,7 +1109,9 @@ public struct UsageFetcher: Sendable {
             padded.append("=")
         }
         guard let data = Data(base64Encoded: padded) else { return nil }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        guard let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) else { return nil }
+        
+        self.jwtCache.setObject(json as NSDictionary, forKey: cacheKey)
         return json
     }
 }
