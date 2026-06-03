@@ -743,6 +743,12 @@ extension StatusMenuTests {
         }
 
         #expect(rebuildCount == 1)
+
+        for _ in 0..<40 where controller.menuVersions[menuKey] != controller.menuContentVersion {
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+
         #expect(controller.menuVersions[menuKey] == controller.menuContentVersion)
     }
 
