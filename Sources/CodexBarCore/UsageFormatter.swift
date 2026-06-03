@@ -70,13 +70,13 @@ public enum UsageFormatter {
         return String(format: format, locale: self.currentLocale(), arguments: args)
     }
 
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
+    private nonisolated(unsafe) static let relativeFormatter: RelativeDateTimeFormatter = {
         let rel = RelativeDateTimeFormatter()
         rel.unitsStyle = .abbreviated
         return rel
     }()
 
-    private static let creditsNumberFormatter: NumberFormatter = {
+    private nonisolated(unsafe) static let creditsNumberFormatter: NumberFormatter = {
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
@@ -84,7 +84,7 @@ public enum UsageFormatter {
         return number
     }()
 
-    private static let tokenCountNumberFormatter: NumberFormatter = {
+    private nonisolated(unsafe) static let tokenCountNumberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.usesGroupingSeparator = true
@@ -92,13 +92,13 @@ public enum UsageFormatter {
         return formatter
     }()
 
-    private static let mediumDateFormatter: DateFormatter = {
+    private nonisolated(unsafe) static let mediumDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return formatter
     }()
 
-    private static let compactDateFormatter: DateFormatter = {
+    private nonisolated(unsafe) static let compactDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter

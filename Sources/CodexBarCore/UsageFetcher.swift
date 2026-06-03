@@ -1090,7 +1090,7 @@ public struct UsageFetcher: Sendable {
         return value
     }
 
-    private static let jwtCache = NSCache<NSString, NSDictionary>()
+    private nonisolated(unsafe) static let jwtCache = NSCache<NSString, NSDictionary>()
 
     public static func parseJWT(_ token: String) -> [String: Any]? {
         let cacheKey = token as NSString
