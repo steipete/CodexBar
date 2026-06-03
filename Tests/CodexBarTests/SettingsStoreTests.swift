@@ -880,8 +880,8 @@ struct SettingsStoreTests {
 
         #expect(store.openAIWebAccessEnabled == false)
         #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == false)
-        #expect(store.openAIWebBatterySaverEnabled == false)
-        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
+        #expect(store.openAIWebBatterySaverEnabled == true)
+        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == true)
         #expect(store.codexCookieSource == .off)
     }
 
@@ -905,8 +905,8 @@ struct SettingsStoreTests {
 
         #expect(store.openAIWebAccessEnabled == true)
         #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
-        #expect(store.openAIWebBatterySaverEnabled == false)
-        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
+        #expect(store.openAIWebBatterySaverEnabled == true)
+        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == true)
         #expect(store.codexCookieSource == .auto)
     }
 
@@ -953,8 +953,8 @@ struct SettingsStoreTests {
 
         #expect(store.openAIWebAccessEnabled == true)
         #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
-        #expect(store.openAIWebBatterySaverEnabled == false)
-        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
+        #expect(store.openAIWebBatterySaverEnabled == true)
+        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == true)
         #expect(store.codexCookieSource == .auto)
     }
 
@@ -998,7 +998,7 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(store.openAIWebBatterySaverEnabled == false)
+        #expect(store.openAIWebBatterySaverEnabled == true)
 
         store.openAIWebBatterySaverEnabled = false
         #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)

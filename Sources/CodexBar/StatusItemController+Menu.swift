@@ -165,7 +165,7 @@ extension StatusItemController {
         if !isPersistentMenu {
             self.menuProviders.removeValue(forKey: key)
             self.menuVersions.removeValue(forKey: key)
-        } else if self.menuNeedsRefresh(menu) {
+        } else if Self.isClosedMenuPreparationEnabled, self.menuNeedsRefresh(menu) {
             self.rebuildClosedMenuIfNeeded(menu)
         }
         self.parentMenuRebuildsDeferredDuringTracking.remove(key)

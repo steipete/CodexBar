@@ -3,15 +3,26 @@ import CodexBarCore
 
 extension StatusItemController {
     private static let defaultClosedMenuPreparationDelay: Duration = .milliseconds(350)
+    private static let defaultClosedMenuPreparationEnabled = false // Avoid idle SwiftUI layout work.
 
     #if DEBUG
     private static var closedMenuPreparationDelayForTesting: Duration = defaultClosedMenuPreparationDelay
+    private static var closedMenuPreparationEnabledForTesting = defaultClosedMenuPreparationEnabled
+
     static func setClosedMenuPreparationDelayForTesting(_ delay: Duration) {
         self.closedMenuPreparationDelayForTesting = delay
     }
 
     static func resetClosedMenuPreparationDelayForTesting() {
         self.closedMenuPreparationDelayForTesting = self.defaultClosedMenuPreparationDelay
+    }
+
+    static func setClosedMenuPreparationEnabledForTesting(_ enabled: Bool) {
+        self.closedMenuPreparationEnabledForTesting = enabled
+    }
+
+    static func resetClosedMenuPreparationEnabledForTesting() {
+        self.closedMenuPreparationEnabledForTesting = self.defaultClosedMenuPreparationEnabled
     }
     #endif
 
@@ -20,6 +31,14 @@ extension StatusItemController {
         closedMenuPreparationDelayForTesting
         #else
         defaultClosedMenuPreparationDelay
+        #endif
+    }
+
+    static var isClosedMenuPreparationEnabled: Bool {
+        #if DEBUG
+        closedMenuPreparationEnabledForTesting
+        #else
+        defaultClosedMenuPreparationEnabled
         #endif
     }
 
@@ -49,6 +68,7 @@ extension StatusItemController {
 
     func prepareAttachedClosedMenusIfNeeded() {
         guard self.isMenuRefreshEnabled else { return }
+        guard Self.isClosedMenuPreparationEnabled else { return }
         guard self.openMenus.isEmpty else { return }
         guard !self.isMenuDataRefreshInFlight else { return }
         for menu in self.attachedMenusForClosedPreparation() {

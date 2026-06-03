@@ -63,7 +63,7 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `codex exposes open AI web extras toggle as default off opt in`() throws {
+    func `codex exposes open AI web extras toggle as default off with battery saver on`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex-openai-toggle")
         let context = fixture.settingsContext(provider: .codex)
 
@@ -74,7 +74,7 @@ struct ProviderSettingsDescriptorTests {
         #expect(extrasToggle.subtitle.contains("Turn this on"))
 
         let batterySaverToggle = try #require(toggles.first(where: { $0.id == "codex-openai-web-battery-saver" }))
-        #expect(batterySaverToggle.binding.wrappedValue == false)
+        #expect(batterySaverToggle.binding.wrappedValue == true)
         #expect(batterySaverToggle.isVisible?() == false)
 
         fixture.settings.openAIWebAccessEnabled = true

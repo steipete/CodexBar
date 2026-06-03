@@ -169,7 +169,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `closed attached menu is prepared before next open after invalidation`() async {
+    func `closed attached menu stays stale after invalidation until next open`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -200,11 +200,17 @@ extension StatusMenuTests {
         let openedVersion = controller.menuVersions[key]
 
         controller.invalidateMenus()
-        for _ in 0..<40 where controller.menuVersions[key] == openedVersion {
+        for _ in 0..<40 {
             await Task.yield()
         }
 
         #expect(controller.openMenus.isEmpty)
+        #expect(controller.closedMenuRebuildTasks[key] == nil)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
         #expect(controller.menuVersions[key] == controller.menuContentVersion)
     }
 
@@ -228,6 +234,8 @@ extension StatusMenuTests {
         defer { controller.releaseStatusItemsForTesting() }
         StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
         defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
+        StatusItemController.setClosedMenuPreparationEnabledForTesting(true)
+        defer { StatusItemController.resetClosedMenuPreparationEnabledForTesting() }
 
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu()
@@ -261,6 +269,8 @@ extension StatusMenuTests {
     func `closed attached menu preparation waits for token refresh to finish`() async {
         StatusItemController.setClosedMenuPreparationDelayForTesting(.zero)
         defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
+        StatusItemController.setClosedMenuPreparationEnabledForTesting(true)
+        defer { StatusItemController.resetClosedMenuPreparationEnabledForTesting() }
 
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
