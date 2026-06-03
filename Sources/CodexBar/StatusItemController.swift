@@ -668,8 +668,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             let skippedMergedRender = self.applyIcon(phase: phase)
             if skippedMergedRender,
                !self.deferredMergedIconRenderAfterTracking,
-               let mergedMenu = self.mergedMenu,
-               self.statusItem.menu === mergedMenu
+               self.mergedMenu != nil
             {
                 return
             }
@@ -785,8 +784,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if self.mergedMenu == nil {
             self.mergedMenu = self.makeMenu()
         }
-        if self.statusItem.menu !== self.mergedMenu {
-            self.statusItem.menu = self.mergedMenu
+        if self.statusItem.menu != nil {
+            self.statusItem.menu = nil
+        }
+        if let button = self.statusItem.button {
+            button.target = self
+            button.action = #selector(self.showMergedMenu(_:))
         }
         self.prepareAttachedClosedMenusIfNeeded()
     }

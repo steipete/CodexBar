@@ -43,7 +43,10 @@ struct StatusItemControllerShutdownTests {
         controller.menuRefreshTasks[key] = Task { try? await Task.sleep(for: .seconds(30)) }
 
         #expect(controller.openMenus[key] === menu)
-        #expect(controller.statusItem.menu != nil)
+        #expect(controller.mergedMenu != nil)
+        #expect(controller.statusItem.menu == nil)
+        #expect(controller.statusItem.button?.target === controller)
+        #expect(controller.statusItem.button?.action == #selector(StatusItemController.showMergedMenu(_:)))
 
         controller.prepareForAppShutdown()
         controller.prepareForAppShutdown()
