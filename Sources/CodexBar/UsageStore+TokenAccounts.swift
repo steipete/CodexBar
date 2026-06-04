@@ -560,7 +560,7 @@ extension UsageStore {
         priorSnapshot: CodexAccountUsageSnapshot?) -> UsageSnapshot?
     {
         if let priorSnapshot,
-           priorSnapshot.account.selectionSource == account.selectionSource,
+           Self.codexVisibleAccountsMatchForResetBackfill(priorSnapshot.account, account),
            let snapshot = priorSnapshot.snapshot
         {
             return snapshot
@@ -578,6 +578,19 @@ extension UsageStore {
               cachedSnapshot.accountEmail(for: .codex) == account.email
         else { return nil }
         return cachedSnapshot
+    }
+
+    private static func codexVisibleAccountsMatchForResetBackfill(
+        _ prior: CodexVisibleAccount,
+        _ current: CodexVisibleAccount) -> Bool
+    {
+        prior.id == current.id &&
+            prior.email == current.email &&
+            prior.workspaceAccountID == current.workspaceAccountID &&
+            prior.authFingerprint == current.authFingerprint &&
+            prior.storedAccountID == current.storedAccountID &&
+            prior.selectionSource == current.selectionSource &&
+            prior.isLive == current.isLive
     }
 
     private static func shouldPreserveCodexAccountSnapshotOnFailure(_ message: String) -> Bool {

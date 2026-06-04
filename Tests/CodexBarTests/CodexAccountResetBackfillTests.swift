@@ -645,6 +645,95 @@ extension CodexAccountScopedRefreshTests {
     }
 
     @Test
+    func `visible account refresh does not backfill same id when stable live identity changes`() async throws {
+        let settings = self.makeSettingsStore(suite: "CodexAccountResetBackfillTests-same-id-live-identity")
+        settings.refreshFrequency = .manual
+        settings.multiAccountMenuLayout = .stacked
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "shared@example.com",
+            workspaceLabel: "New Live Workspace",
+            workspaceAccountID: "acct-new",
+            authFingerprint: "new-auth",
+            codexHomePath: "/Users/test/.codex-new",
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-new"))
+        settings.codexActiveSource = .liveSystem
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-999999999997"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+        settings._test_managedCodexAccountStoreURL = storeURL
+
+        let projection = settings.codexVisibleAccountProjection
+        let currentLive = try #require(projection.visibleAccounts.first { $0.selectionSource == .liveSystem })
+        #expect(currentLive.id == "shared@example.com")
+        #expect(currentLive.workspaceAccountID == "acct-new")
+        let priorLiveSameID = CodexVisibleAccount(
+            id: currentLive.id,
+            email: "shared@example.com",
+            workspaceLabel: "Old Live Workspace",
+            workspaceAccountID: "acct-old",
+            authFingerprint: "old-auth",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: true,
+            canRemove: false)
+        let priorSnapshots = [
+            CodexAccountUsageSnapshot(
+                account: priorLiveSameID,
+                snapshot: self.codexSnapshot(
+                    email: "shared@example.com",
+                    usedPercent: 5,
+                    resetsAt: Date().addingTimeInterval(3600)),
+                error: nil,
+                sourceLabel: "cached"),
+        ]
+        let snapshotStore = RecordingCodexAccountUsageSnapshotStore(initialSnapshots: priorSnapshots)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            codexAccountUsageSnapshotStore: snapshotStore,
+            startupBehavior: .testing)
+        store.codexAccountSnapshots = priorSnapshots
+        self.installImmediateCodexProvider(
+            on: store,
+            snapshot: UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 6,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "shared@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "Pro")))
+
+        await store.refreshCodexVisibleAccountsForMenu()
+
+        let liveSnapshot = try #require(snapshotStore.storedSnapshots.first { $0.account.id == currentLive.id })
+        #expect(liveSnapshot.account.workspaceAccountID == "acct-new")
+        #expect(liveSnapshot.snapshot?.primary?.resetsAt == nil)
+        #expect(store.snapshots[.codex]?.primary?.resetsAt == nil)
+    }
+
+    @Test
     func `visible account refresh repairs collapsed codex windows from matching cached account`() async throws {
         let settings = self.makeSettingsStore(suite: "CodexAccountResetBackfillTests-collapsed")
         settings.refreshFrequency = .manual
@@ -733,6 +822,37 @@ extension CodexAccountScopedRefreshTests {
         #expect(liveSnapshot.snapshot?.secondary?.resetDescription == "next week")
         #expect(store.snapshots[.codex]?.primary?.resetsAt == sessionReset)
         #expect(store.snapshots[.codex]?.secondary?.resetsAt == weeklyReset)
+
+        if ProcessInfo.processInfo.environment["CODEXBAR_RESET_BACKFILL_PROOF"] == "1" {
+            let formatter = ISO8601DateFormatter()
+            print("""
+
+            Codex visible-account reset backfill proof
+            path=UsageStore.refreshCodexVisibleAccountsForMenu()
+            account=[redacted-live-account]
+            fresh.primary.usedPercent=1
+            fresh.primary.windowMinutes=0
+            fresh.primary.resetsAt=nil
+            fresh.secondary=nil
+            cached.primary.windowMinutes=300
+            cached.primary.resetsAt=\(formatter.string(from: sessionReset))
+            cached.secondary.windowMinutes=10080
+            cached.secondary.resetsAt=\(formatter.string(from: weeklyReset))
+            stored.primary.usedPercent=\(liveSnapshot.snapshot?.primary?.usedPercent ?? -1)
+            stored.primary.windowMinutes=\(liveSnapshot.snapshot?.primary?.windowMinutes ?? -1)
+            stored.primary.resetsAt=\(liveSnapshot.snapshot?.primary?.resetsAt
+                .map { formatter.string(from: $0) } ?? "nil")
+            stored.secondary.usedPercent=\(liveSnapshot.snapshot?.secondary?.usedPercent ?? -1)
+            stored.secondary.windowMinutes=\(liveSnapshot.snapshot?.secondary?.windowMinutes ?? -1)
+            stored.secondary.resetsAt=\(liveSnapshot.snapshot?.secondary?.resetsAt
+                .map { formatter.string(from: $0) } ?? "nil")
+            selected.primary.resetsAt=\(store.snapshots[.codex]?.primary?.resetsAt
+                .map { formatter.string(from: $0) } ?? "nil")
+            selected.secondary.resetsAt=\(store.snapshots[.codex]?.secondary?.resetsAt
+                .map { formatter.string(from: $0) } ?? "nil")
+            result=PASS cached reset/window metadata preserved when fresh visible-account response omitted it
+            """)
+        }
     }
 
     @Test
