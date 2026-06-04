@@ -253,8 +253,8 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `resolved merged overview providers defaults to first three when selection empty`() throws {
-        let suite = "SettingsStoreTests-merged-overview-default-first-three"
+    func `resolved merged overview providers defaults to first four when selection empty`() throws {
+        let suite = "SettingsStoreTests-merged-overview-default-first-four"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
@@ -267,7 +267,7 @@ struct SettingsStoreTests {
         let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp]
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
 
-        #expect(resolved == [.codex, .claude, .cursor])
+        #expect(resolved == [.codex, .claude, .cursor, .opencode])
     }
 
     @Test
@@ -302,7 +302,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.opencode, .codex, .cursor]
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode]
+        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp]
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
 
         #expect(resolved == [.codex, .cursor, .opencode])
@@ -321,7 +321,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.codex, .claude, .opencode]
-        let activeProviders: [UsageProvider] = [.codex, .cursor, .gemini, .opencode]
+        let activeProviders: [UsageProvider] = [.codex, .cursor, .gemini, .opencode, .warp]
 
         let resolved = store.reconcileMergedOverviewSelectedProviders(activeProviders: activeProviders)
 
@@ -422,7 +422,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `merged overview selection allows deselecting providers when more than three active`() throws {
+    func `merged overview selection allows deselecting providers when more than four active`() throws {
         let suite = "SettingsStoreTests-merged-overview-deselect-subset"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -434,7 +434,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.codex, .claude, .cursor]
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode]
+        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp]
 
         _ = store.setMergedOverviewProviderSelection(
             provider: .cursor,
@@ -496,13 +496,13 @@ struct SettingsStoreTests {
             provider: .codex,
             isSelected: false,
             activeProviders: activeProviders)
-        #expect(store.resolvedMergedOverviewProviders(activeProviders: activeProviders) == [.claude, .cursor])
+        #expect(store.resolvedMergedOverviewProviders(activeProviders: activeProviders) == [.claude, .cursor, .opencode])
 
         let resolvedWhenEmpty = store.reconcileMergedOverviewSelectedProviders(activeProviders: [])
         #expect(resolvedWhenEmpty == [])
 
         let resolvedAfterReenable = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
-        #expect(resolvedAfterReenable == [.codex, .claude, .cursor])
+        #expect(resolvedAfterReenable == [.codex, .claude, .cursor, .opencode])
     }
 
     @Test

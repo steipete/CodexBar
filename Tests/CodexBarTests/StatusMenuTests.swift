@@ -1492,7 +1492,7 @@ extension StatusMenuTests {
 
 extension StatusMenuTests {
     @Test
-    func `overview tab renders overview rows for all active providers when three or fewer`() {
+    func `overview tab renders overview rows for all active providers when four or fewer`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -1502,9 +1502,10 @@ extension StatusMenuTests {
         settings.mergedMenuLastSelectedWasOverview = true
 
         let registry = ProviderRegistry.shared
+        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode]
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude || provider == .cursor
+            let shouldEnable = activeProviders.contains(provider)
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
         }
 
@@ -1523,10 +1524,11 @@ extension StatusMenuTests {
 
         let ids = self.representedIDs(in: menu)
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
-        #expect(overviewRows.count == 3)
+        #expect(overviewRows.count == 4)
         #expect(overviewRows.contains("overviewRow-codex"))
         #expect(overviewRows.contains("overviewRow-claude"))
         #expect(overviewRows.contains("overviewRow-cursor"))
+        #expect(overviewRows.contains("overviewRow-opencode"))
         #expect(ids.contains("menuCard") == false)
     }
 
@@ -1582,16 +1584,19 @@ extension StatusMenuTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
         settings.mergedMenuLastSelectedWasOverview = true
-        settings.mergedOverviewSelectedProviders = []
 
         let registry = ProviderRegistry.shared
+        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode]
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex ||
-                provider == .claude ||
-                provider == .cursor ||
-                provider == .opencode
+            let shouldEnable = activeProviders.contains(provider)
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+        }
+        for provider in activeProviders {
+            _ = settings.setMergedOverviewProviderSelection(
+                provider: provider,
+                isSelected: false,
+                activeProviders: activeProviders)
         }
 
         let fetcher = UsageFetcher()

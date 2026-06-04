@@ -118,7 +118,7 @@ struct CachedCodexAccountReconciliationSnapshot {
 @Observable
 final class SettingsStore {
     static let sharedDefaults = AppGroupSupport.sharedDefaults()
-    static let mergedOverviewProviderLimit = 3
+    static let mergedOverviewProviderLimit = 4
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
