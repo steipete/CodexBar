@@ -507,8 +507,11 @@ extension UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: .codex)
+            let cachedSnapshot = self.codexVisibleAccountBackfillSnapshot(
+                for: account,
+                priorSnapshot: priorSnapshot)
             let labeled = self.applyCodexVisibleAccountLabel(scoped, account: account)
-                .backfillingResetTimes(from: self.lastKnownResetSnapshots[.codex])
+                .backfillingCodexWindowMetadata(from: cachedSnapshot)
             let snapshot = CodexAccountUsageSnapshot(
                 account: account,
                 snapshot: labeled,
@@ -552,6 +555,31 @@ extension UsageStore {
         }
     }
 
+    private func codexVisibleAccountBackfillSnapshot(
+        for account: CodexVisibleAccount,
+        priorSnapshot: CodexAccountUsageSnapshot?) -> UsageSnapshot?
+    {
+        if let priorSnapshot,
+           priorSnapshot.account.selectionSource == account.selectionSource,
+           let snapshot = priorSnapshot.snapshot
+        {
+            return snapshot
+        }
+        guard account.isActive else { return nil }
+        let priorSameEmailDifferentSource = self.codexAccountSnapshots.contains {
+            $0.account.email == account.email
+        }
+        guard !priorSameEmailDifferentSource else { return nil }
+        let sameEmailAccountCount = self.settings.codexVisibleAccountProjection.visibleAccounts.count {
+            $0.email == account.email
+        }
+        guard sameEmailAccountCount <= 1 else { return nil }
+        guard let cachedSnapshot = self.lastKnownResetSnapshots[.codex],
+              cachedSnapshot.accountEmail(for: .codex) == account.email
+        else { return nil }
+        return cachedSnapshot
+    }
+
     private static func shouldPreserveCodexAccountSnapshotOnFailure(_ message: String) -> Bool {
         guard CodexAccountHealth.status(forError: message) == .unavailable else { return false }
         let normalized = message.lowercased()
@@ -577,19 +605,18 @@ extension UsageStore {
         switch outcome.result {
         case .success:
             guard let snapshot else { return }
-            let backfilled = snapshot.backfillingResetTimes(from: self.lastKnownResetSnapshots[.codex])
-            self.handleSessionQuotaTransition(provider: .codex, snapshot: backfilled)
-            self.lastKnownResetSnapshots[.codex] = backfilled
-            self.snapshots[.codex] = backfilled
+            self.handleSessionQuotaTransition(provider: .codex, snapshot: snapshot)
+            self.lastKnownResetSnapshots[.codex] = snapshot
+            self.snapshots[.codex] = snapshot
             if let sourceLabel {
                 self.lastSourceLabels[.codex] = sourceLabel
             }
             self.errors[.codex] = nil
             self.failureGates[.codex]?.recordSuccess()
-            self.rememberLiveSystemCodexEmailIfNeeded(backfilled.accountEmail(for: .codex))
-            self.seedCodexAccountScopedRefreshGuard(accountEmail: backfilled.accountEmail(for: .codex))
-            await self.recordPlanUtilizationHistorySample(provider: .codex, snapshot: backfilled)
-            self.recordCodexHistoricalSampleIfNeeded(snapshot: backfilled)
+            self.rememberLiveSystemCodexEmailIfNeeded(snapshot.accountEmail(for: .codex))
+            self.seedCodexAccountScopedRefreshGuard(accountEmail: snapshot.accountEmail(for: .codex))
+            await self.recordPlanUtilizationHistorySample(provider: .codex, snapshot: snapshot)
+            self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
         case let .failure(error):
             guard let message = self.tokenAccountErrorMessage(error) else {
                 self.errors[.codex] = nil

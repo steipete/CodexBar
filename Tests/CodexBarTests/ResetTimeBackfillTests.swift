@@ -44,6 +44,27 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertNil(result.resetDescription)
     }
 
+    func test_codexWindowMetadataDoesNotCopyCachedDescriptionForDifferentFreshReset() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let cachedReset = now.addingTimeInterval(3600)
+        let freshReset = now.addingTimeInterval(7200)
+        let cached = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 300,
+            resetsAt: cachedReset,
+            resetDescription: "Resets in 1h")
+        let fresh = RateWindow(
+            usedPercent: 62,
+            windowMinutes: 300,
+            resetsAt: freshReset,
+            resetDescription: nil)
+
+        let result = fresh.backfillingCodexWindowMetadata(from: cached, now: now)
+
+        XCTAssertEqual(result.resetsAt, freshReset)
+        XCTAssertNil(result.resetDescription)
+    }
+
     func test_snapshotBackfillPreservesCurrentSnapshotFields() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let reset = now.addingTimeInterval(3600)

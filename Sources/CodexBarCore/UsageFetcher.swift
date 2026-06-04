@@ -37,6 +37,39 @@ public struct RateWindow: Codable, Equatable, Sendable {
             resetDescription: self.resetDescription ?? cached?.resetDescription,
             nextRegenPercent: self.nextRegenPercent)
     }
+
+    public func backfillingCodexWindowMetadata(from cached: RateWindow?, now: Date = .init()) -> RateWindow {
+        guard let cached else { return self }
+        let resolvedWindowMinutes = if let windowMinutes = self.windowMinutes, windowMinutes > 0 {
+            windowMinutes
+        } else {
+            cached.windowMinutes
+        }
+        let resolvedResetsAt = if let resetsAt = self.resetsAt {
+            resetsAt
+        } else if let cachedReset = cached.resetsAt, cachedReset > now {
+            cachedReset
+        } else {
+            self.resetsAt
+        }
+        let cachedResetMatchesResolvedReset = cached.resetsAt != nil &&
+            cached.resetsAt == resolvedResetsAt &&
+            (cached.resetsAt.map { $0 > now } ?? false)
+        let resolvedResetDescription = self.resetDescription ??
+            (cachedResetMatchesResolvedReset ? cached.resetDescription : nil)
+        if resolvedWindowMinutes == self.windowMinutes,
+           resolvedResetsAt == self.resetsAt,
+           resolvedResetDescription == self.resetDescription
+        {
+            return self
+        }
+        return RateWindow(
+            usedPercent: self.usedPercent,
+            windowMinutes: resolvedWindowMinutes,
+            resetsAt: resolvedResetsAt,
+            resetDescription: resolvedResetDescription,
+            nextRegenPercent: self.nextRegenPercent)
+    }
 }
 
 public struct NamedRateWindow: Codable, Equatable, Sendable {
@@ -335,6 +368,7 @@ public struct UsageSnapshot: Codable, Sendable {
             secondary: secondary,
             tertiary: tertiary,
             extraRateWindows: self.extraRateWindows,
+            kiroUsage: self.kiroUsage,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
@@ -347,6 +381,42 @@ public struct UsageSnapshot: Codable, Sendable {
             cursorRequests: self.cursorRequests,
             updatedAt: self.updatedAt,
             identity: self.identity)
+    }
+
+    public func backfillingCodexWindowMetadata(from cached: UsageSnapshot?, now: Date = .init()) -> UsageSnapshot {
+        guard let cached else { return self }
+        guard Self.identitiesMatch(self.identity, cached.identity) else { return self }
+        let primary = self.primary?.backfillingCodexWindowMetadata(from: cached.primary, now: now)
+        let secondary = self.secondary?.backfillingCodexWindowMetadata(from: cached.secondary, now: now) ??
+            Self.codexCachedWindowIfUsable(cached.secondary, now: now)
+        let tertiary = self.tertiary?.backfillingCodexWindowMetadata(from: cached.tertiary, now: now)
+        if primary == self.primary, secondary == self.secondary, tertiary == self.tertiary {
+            return self
+        }
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            extraRateWindows: self.extraRateWindows,
+            kiroUsage: self.kiroUsage,
+            providerCost: self.providerCost,
+            zaiUsage: self.zaiUsage,
+            minimaxUsage: self.minimaxUsage,
+            deepseekUsage: self.deepseekUsage,
+            openRouterUsage: self.openRouterUsage,
+            openAIAPIUsage: self.openAIAPIUsage,
+            claudeAdminAPIUsage: self.claudeAdminAPIUsage,
+            mistralUsage: self.mistralUsage,
+            deepgramUsage: self.deepgramUsage,
+            cursorRequests: self.cursorRequests,
+            updatedAt: self.updatedAt,
+            identity: self.identity)
+    }
+
+    private static func codexCachedWindowIfUsable(_ window: RateWindow?, now: Date) -> RateWindow? {
+        guard let window, let windowMinutes = window.windowMinutes, windowMinutes > 0 else { return nil }
+        guard let resetsAt = window.resetsAt, resetsAt > now else { return nil }
+        return window
     }
 
     private func orderedPerplexityFallbackWindows() -> [RateWindow] {
