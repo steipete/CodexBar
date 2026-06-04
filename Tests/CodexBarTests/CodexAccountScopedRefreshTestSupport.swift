@@ -84,9 +84,13 @@ extension CodexAccountScopedRefreshTests {
             identity: identity)
     }
 
-    func codexSnapshot(email: String, usedPercent: Double) -> UsageSnapshot {
+    func codexSnapshot(email: String, usedPercent: Double, resetsAt: Date? = nil) -> UsageSnapshot {
         UsageSnapshot(
-            primary: RateWindow(usedPercent: usedPercent, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: 300,
+                resetsAt: resetsAt,
+                resetDescription: nil),
             secondary: nil,
             updatedAt: Date(),
             identity: ProviderIdentitySnapshot(

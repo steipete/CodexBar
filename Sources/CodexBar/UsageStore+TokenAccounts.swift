@@ -508,6 +508,7 @@ extension UsageStore {
         case let .success(result):
             let scoped = result.usage.scoped(to: .codex)
             let labeled = self.applyCodexVisibleAccountLabel(scoped, account: account)
+                .backfillingResetTimes(from: self.lastKnownResetSnapshots[.codex])
             let snapshot = CodexAccountUsageSnapshot(
                 account: account,
                 snapshot: labeled,
