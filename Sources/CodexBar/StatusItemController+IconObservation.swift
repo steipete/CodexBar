@@ -26,7 +26,7 @@ extension StatusItemController {
             "merge=\(mergeIcons ? "1" : "0")",
             "visible=\(visibleProviders)",
             "primary=\(primaryProvider?.rawValue ?? "nil")",
-            "iconStyle=\(String(describing: self.store.iconStyle))",
+            "iconStyle=\(self.store.iconStyle.rawValue)",
             "showUsed=\(self.settings.usageBarsShowUsed ? "1" : "0")",
             "brandPercent=\(showBrandPercent ? "1" : "0")",
             "needsAnimation=\(self.needsMenuBarIconAnimation() ? "1" : "0")",
@@ -48,7 +48,7 @@ extension StatusItemController {
 
         return [
             provider.rawValue,
-            "style=\(String(describing: style))",
+            "style=\(style.rawValue)",
             "primary=\(Self.iconSignatureValue(resolved?.primary))",
             "weekly=\(Self.iconSignatureValue(resolved?.secondary))",
             "credits=\(Self.iconSignatureValue(creditsRemaining))",
