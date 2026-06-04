@@ -232,7 +232,7 @@ extension StatusItemController {
     }
 
     @discardableResult
-    func applyIcon(phase: Double?) -> Bool { // swiftlint:disable:this function_body_length
+    func applyIcon(phase: Double?) -> Bool {
         guard let button = self.statusItem.button else { return false }
 
         let style = self.store.iconStyle
@@ -269,17 +269,7 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
-            for: primaryProvider,
-            surface: .menuBar,
-            snapshotOverride: snapshot,
-            now: snapshot?.updatedAt ?? Date())
-        var credits: Double? =
-            codexProjection?.menuBarFallback == .creditsBalance
-                ? self.store.codexMenuBarCreditsRemaining(
-                    snapshotOverride: snapshot,
-                    now: snapshot?.updatedAt ?? Date())
-                : nil
+        var credits = self.menuBarCreditsRemainingForIcon(provider: primaryProvider, snapshot: snapshot)
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
 
@@ -486,17 +476,7 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
-            for: provider,
-            surface: .menuBar,
-            snapshotOverride: snapshot,
-            now: snapshot?.updatedAt ?? Date())
-        var credits: Double? =
-            codexProjection?.menuBarFallback == .creditsBalance
-                ? self.store.codexMenuBarCreditsRemaining(
-                    snapshotOverride: snapshot,
-                    now: snapshot?.updatedAt ?? Date())
-                : nil
+        var credits = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
 
@@ -587,9 +567,25 @@ extension StatusItemController {
         return false
     }
 
-    private static func iconSignatureValue(_ value: Double?) -> String {
+    static func iconSignatureValue(_ value: Double?) -> String {
         guard let value else { return "nil" }
         return String(format: "%.3f", value)
+    }
+
+    func menuBarCreditsRemainingForIcon(provider: UsageProvider, snapshot: UsageSnapshot?) -> Double? {
+        guard provider == .codex,
+              let creditsRemaining = self.store.credits?.remaining,
+              creditsRemaining > 0
+        else {
+            return nil
+        }
+
+        let rateWindows = [snapshot?.primary, snapshot?.secondary].compactMap(\.self)
+        guard rateWindows.isEmpty || rateWindows.contains(where: { $0.remainingPercent <= 0 })
+        else {
+            return nil
+        }
+        return creditsRemaining
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
@@ -894,7 +890,7 @@ extension StatusItemController {
         self.menuBarMetricWindow(for: provider, snapshot: snapshot)
     }
 
-    private func primaryProviderForUnifiedIcon() -> UsageProvider {
+    func primaryProviderForUnifiedIcon() -> UsageProvider {
         // When "show highest usage" is enabled, auto-select the provider closest to rate limit.
         if self.settings.menuBarShowsHighestUsage,
            self.shouldMergeIcons,
@@ -966,7 +962,7 @@ extension StatusItemController {
         self.tickBlink(now: now)
     }
 
-    private func shouldAnimate(provider: UsageProvider, mergeIcons: Bool? = nil) -> Bool {
+    func shouldAnimate(provider: UsageProvider, mergeIcons: Bool? = nil) -> Bool {
         if self.store.debugForceAnimation { return true }
 
         let isMerged = mergeIcons ?? self.shouldMergeIcons
