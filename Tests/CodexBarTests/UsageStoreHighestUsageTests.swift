@@ -196,6 +196,89 @@ struct UsageStoreHighestUsageTests {
     }
 
     @Test
+    func `automatic metric excludes antigravity only when every lane is exhausted`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-all-100"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.setMenuBarMetricPreference(.automatic, for: .antigravity)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let antigravityMeta = registry.metadata[.antigravity] {
+            settings.setProviderEnabled(provider: .antigravity, metadata: antigravityMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let codexSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 80, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        let antigravitySnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(codexSnapshot, provider: .codex)
+        store._setSnapshotForTesting(antigravitySnapshot, provider: .antigravity)
+
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 80)
+    }
+
+    @Test
+    func `automatic metric skips antigravity with no quota lanes`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-empty"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.setMenuBarMetricPreference(.automatic, for: .antigravity)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let antigravityMeta = registry.metadata[.antigravity] {
+            settings.setProviderEnabled(provider: .antigravity, metadata: antigravityMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let codexSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 80, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        let antigravitySnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: "user@example.com",
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+
+        store._setSnapshotForTesting(codexSnapshot, provider: .codex)
+        store._setSnapshotForTesting(antigravitySnapshot, provider: .antigravity)
+
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 80)
+    }
+
+    @Test
     func `automatic metric uses zai 5-hour token lane when ranking highest usage`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-zai-automatic-tertiary"),
