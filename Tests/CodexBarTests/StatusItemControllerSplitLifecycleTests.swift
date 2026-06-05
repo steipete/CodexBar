@@ -329,15 +329,13 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
-    func `status item defaults repair removes stale hidden Control Center keys once`() throws {
-        let suite = "StatusItemControllerSplitLifecycleTests-repair-\(UUID().uuidString)"
+    func `status item defaults repair removes stale hidden Control Center keys repeatedly`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-repair-repeated-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defaults.set(false, forKey: "NSStatusItem VisibleCC Item-0")
         defaults.set(0, forKey: "NSStatusItem VisibleCC Item-12")
         defaults.set(false, forKey: "NSStatusItem VisibleCC codexbar-merged")
-        defaults.set(true, forKey: "NSStatusItem VisibleCC Item-1")
-        defaults.set(false, forKey: "NSStatusItem VisibleCC com.apple.clock")
         defer {
             defaults.removePersistentDomain(forName: suite)
         }
@@ -352,12 +350,53 @@ struct StatusItemControllerSplitLifecycleTests {
         #expect(defaults.object(forKey: "NSStatusItem VisibleCC Item-0") == nil)
         #expect(defaults.object(forKey: "NSStatusItem VisibleCC Item-12") == nil)
         #expect(defaults.object(forKey: "NSStatusItem VisibleCC codexbar-merged") == nil)
-        #expect(defaults.bool(forKey: "NSStatusItem VisibleCC Item-1"))
-        #expect(defaults.object(forKey: "NSStatusItem VisibleCC com.apple.clock") != nil)
+        #expect(defaults.bool(forKey: MenuBarStatusItemDefaultsRepair.didRepairKey))
 
         defaults.set(false, forKey: "NSStatusItem VisibleCC Item-2")
+        defaults.set(false, forKey: "NSStatusItem VisibleCC codexbar-codex")
+
+        #expect(MenuBarStatusItemDefaultsRepair.repairHiddenVisibilityDefaultsIfNeeded(defaults: defaults) == [
+            "NSStatusItem VisibleCC Item-2",
+            "NSStatusItem VisibleCC codexbar-codex",
+        ])
+        #expect(defaults.object(forKey: "NSStatusItem VisibleCC Item-2") == nil)
+        #expect(defaults.object(forKey: "NSStatusItem VisibleCC codexbar-codex") == nil)
+    }
+
+    @Test
+    func `status item defaults repair preserves true CodexBar keys`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-repair-true-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "NSStatusItem VisibleCC Item-1")
+        defaults.set(1, forKey: "NSStatusItem VisibleCC codexbar-codex")
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+        }
+
         #expect(MenuBarStatusItemDefaultsRepair.repairHiddenVisibilityDefaultsIfNeeded(defaults: defaults).isEmpty)
-        #expect(defaults.object(forKey: "NSStatusItem VisibleCC Item-2") != nil)
+        #expect(defaults.bool(forKey: "NSStatusItem VisibleCC Item-1"))
+        #expect(defaults.bool(forKey: "NSStatusItem VisibleCC codexbar-codex"))
+    }
+
+    @Test
+    func `status item defaults repair preserves unrelated hidden keys`() throws {
+        let suite = "StatusItemControllerSplitLifecycleTests-repair-unrelated-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(false, forKey: "NSStatusItem VisibleCC com.apple.clock")
+        defaults.set(false, forKey: "NSStatusItem VisibleCC OtherApp")
+        defaults.set(false, forKey: "NSStatusItem VisibleCC codexbuddy")
+        defaults.set(false, forKey: "NSStatusItem VisibleCC Item-X")
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+        }
+
+        #expect(MenuBarStatusItemDefaultsRepair.repairHiddenVisibilityDefaultsIfNeeded(defaults: defaults).isEmpty)
+        #expect(defaults.object(forKey: "NSStatusItem VisibleCC com.apple.clock") != nil)
+        #expect(defaults.object(forKey: "NSStatusItem VisibleCC OtherApp") != nil)
+        #expect(defaults.object(forKey: "NSStatusItem VisibleCC codexbuddy") != nil)
+        #expect(defaults.object(forKey: "NSStatusItem VisibleCC Item-X") != nil)
     }
 
     @Test

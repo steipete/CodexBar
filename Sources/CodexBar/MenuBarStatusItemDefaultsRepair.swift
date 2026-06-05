@@ -6,8 +6,6 @@ enum MenuBarStatusItemDefaultsRepair {
     private static let legacyAutosavePrefix = "codexbar-"
 
     static func repairHiddenVisibilityDefaultsIfNeeded(defaults: UserDefaults) -> [String] {
-        guard !defaults.bool(forKey: self.didRepairKey) else { return [] }
-
         let repairedKeys = defaults.dictionaryRepresentation().keys
             .filter { key in
                 self.shouldRepair(key: key, value: defaults.object(forKey: key))
@@ -17,7 +15,9 @@ enum MenuBarStatusItemDefaultsRepair {
         for key in repairedKeys {
             defaults.removeObject(forKey: key)
         }
-        defaults.set(true, forKey: self.didRepairKey)
+        if !defaults.bool(forKey: self.didRepairKey) {
+            defaults.set(true, forKey: self.didRepairKey)
+        }
         return repairedKeys
     }
 
