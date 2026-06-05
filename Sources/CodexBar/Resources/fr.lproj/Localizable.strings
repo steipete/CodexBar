@@ -382,7 +382,7 @@
 "overview_choose_providers" = "Choisissez jusqu'à %@ fournisseurs";
 "remove_account_message" = "Supprimer %@ de CodexBar ? Sa maison Codex gérée sera supprimée.";
 "version_format" = "Version %@";
-"vertex_ai_login_instructions" = "Pour suivre l'utilisation de Vertex AI, authentifiez-vous auprès de Google Cloud.\n\n1. Ouvrez le terminal\n2. Exécutez : gcloud auth application-login par défaut\n3. Suivez les invites du navigateur pour vous connecter\n4. Définissez votre projet : gcloud config set project PROJECT_ID\n\nOuvrir le terminal maintenant ?";
+"vertex_ai_login_instructions" = "Pour suivre l'utilisation de Vertex AI, authentifiez-vous auprès de Google Cloud.\n\n1. Ouvrez le terminal\n2. Exécutez : gcloud auth application-default login\n3. Suivez les invites du navigateur pour vous connecter\n4. Définissez votre projet : gcloud config set project PROJECT_ID\n\nOuvrir le terminal maintenant ?";
 "workspaceID is set but only opencode, opencodego, and deepgram support workspaceID." = "workspaceID est défini mais seuls opencode, opencodego et deepgram prennent en charge workspaceID.";
 "© 2026 Peter Steinberger. MIT License." = "© 2026 Peter Steinberger. Licence MIT.";
 
@@ -668,7 +668,7 @@
 "No local data found" = "Aucune donnée locale trouvée";
 "Credits unavailable; keep Codex running to refresh." = "Crédits indisponibles ; laissez le Codex fonctionner pour l'actualiser.";
 "No available fetch strategy for minimax." = "Aucune stratégie de récupération disponible pour minimax.";
-"No Cursor session found. Please log in to cursor.com in Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX, or Edge Canary. If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security. You can also sign in to Cursor from the CodexBar menu (Add / switch account)." = "Aucune session de curseur trouvée. Veuillez vous connecter à curseur.com dans Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX ou Edge Canary. Si vous utilisez Safari, accordez l'accès complet au disque à CodexBar dans Paramètres système ▸ Confidentialité et sécurité. Vous pouvez également vous connecter à Cursor à partir du menu CodexBar (Ajouter/changer de compte).";
+"No Cursor session found. Please log in to cursor.com in Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX, or Edge Canary. If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security. You can also sign in to Cursor from the CodexBar menu (Add / switch account)." = "Aucune session de Cursor trouvée. Veuillez vous connecter à cursor.com dans Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX ou Edge Canary. Si vous utilisez Safari, accordez l'accès complet au disque à CodexBar dans Paramètres système ▸ Confidentialité et sécurité. Vous pouvez également vous connecter à Cursor à partir du menu CodexBar (Ajouter/changer de compte).";
 "No OpenCode session cookies found in browsers." = "Aucun cookie de session OpenCode trouvé dans les navigateurs.";
 "No available fetch strategy for %@." = "Aucune stratégie de récupération disponible pour %@.";
 "Today" = "Aujourd’hui";
@@ -1017,7 +1017,7 @@
 "Service" = "Service";
 "Show or hide Kiro credits, percent, or both next to the menu bar icon." = "Affichez ou masquez les crédits Kiro, le pourcentage ou les deux à côté de l'icône de la barre de menu.";
 "Show usage for organizations you belong to. Personal account is always shown." = "Afficher l'utilisation des organisations auxquelles vous appartenez. Le compte personnel est toujours affiché.";
-"Sign in to cursor.com in your browser, then refresh Cursor in CodexBar." = "Connectez-vous à curseur.com dans votre navigateur, puis actualisez le curseur dans CodexBar.";
+"Sign in to cursor.com in your browser, then refresh Cursor in CodexBar." = "Connectez-vous à cursor.com dans votre navigateur, puis actualisez Cursor dans CodexBar.";
 "Simulated error text" = "Texte d'erreur simulé";
 "StepFun platform account (phone number or email)." = "Compte de la plateforme StepFun (numéro de téléphone ou email).";
 "Stored in ~/.codexbar/config.json." = "Stocké dans ~/.codexbar/config.json.";
