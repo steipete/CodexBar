@@ -573,19 +573,17 @@ extension StatusItemController {
     }
 
     func menuBarCreditsRemainingForIcon(provider: UsageProvider, snapshot: UsageSnapshot?) -> Double? {
-        guard provider == .codex,
-              let creditsRemaining = self.store.credits?.remaining,
-              creditsRemaining > 0
-        else {
-            return nil
-        }
-
-        let rateWindows = [snapshot?.primary, snapshot?.secondary].compactMap(\.self)
-        guard rateWindows.isEmpty || rateWindows.contains(where: { $0.remainingPercent <= 0 })
-        else {
-            return nil
-        }
-        return creditsRemaining
+        // Derive the menu-bar credits fallback from the same Codex projection path the rendered
+        // icon and menu use (`codexConsumerProjection` -> `menuBarFallback`), instead of a
+        // hand-rolled rate-window predicate. The projection is pure value composition over
+        // already-loaded snapshot/credits state (no IO), so this stays cheap while keeping the
+        // icon render, this signature input, and the menu-bar fallback semantics on a single
+        // source of truth — a hand-rolled approximation can silently drift from the projection
+        // as its fallback logic evolves.
+        guard provider == .codex else { return nil }
+        return self.store.codexMenuBarCreditsRemaining(
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
