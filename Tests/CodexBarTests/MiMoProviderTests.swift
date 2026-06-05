@@ -196,7 +196,7 @@ struct MiMoProviderTests {
         #expect(abs((usage.primary?.usedPercent ?? .nan) - 5.05) < 0.0001)
         #expect(usage.primary?.resetDescription == "10,100,158 / 200,000,000 Credits")
         #expect(usage.primary?.resetsAt == resetDate)
-        #expect(usage.primary?.windowMinutes == 43_200) // May 31 → June 30 = 30 days (Calendar preserves end-of-month)
+        #expect(usage.primary?.windowMinutes == 44_640) // UTC: June 30 − 1 month = May 30 → 31 days
         #expect(usage.loginMethod(for: .mimo) == "Standard")
     }
 

@@ -50,11 +50,11 @@ extension MiMoUsageSnapshot {
                 let timeUntilReset = periodEnd.timeIntervalSince(self.updatedAt)
                 guard timeUntilReset > 0 else { return nil }
                 // The reset date marks the end of the billing cycle, so the cycle
-                // started one month before.  This correctly handles mid-month
-                // subscriptions (e.g. reset June 15 → started May 15 → 31 days)
-                // and February resets (28/29 days).
-                let calendar = Calendar.current
-                guard let cycleStart = calendar.date(byAdding: .month, value: -1, to: periodEnd) else { return nil }
+                // started one month before.  Use a UTC calendar so the result is
+                // deterministic regardless of the system timezone.
+                var utcCalendar = Calendar.current
+                utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+                guard let cycleStart = utcCalendar.date(byAdding: .month, value: -1, to: periodEnd) else { return nil }
                 let windowLength = periodEnd.timeIntervalSince(cycleStart)
                 guard windowLength > 0 else { return nil }
                 return Int(windowLength / 60)
