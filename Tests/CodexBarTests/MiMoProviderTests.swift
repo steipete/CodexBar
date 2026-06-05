@@ -231,6 +231,58 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `annual plan gets year-length window`() {
+        // June 30, 2027 23:59:59 UTC — annual plan reset
+        let resetDate = Date(timeIntervalSince1970: 1_814_399_999)
+        // July 1, 2026 00:00:00 UTC — 1 day into a 365-day annual cycle
+        let updatedAt = Date(timeIntervalSince1970: 1_782_950_400)
+        let snapshot = MiMoUsageSnapshot(
+            balance: 100.00,
+            currency: "USD",
+            planCode: "annual",
+            planPeriodEnd: resetDate,
+            planExpired: false,
+            tokenUsed: 1_000_000,
+            tokenLimit: 500_000_000,
+            tokenPercent: 0.002,
+            updatedAt: updatedAt)
+
+        let usage = snapshot.toUsageSnapshot()
+        // Annual: June 30, 2027 − 1 year = June 30, 2026 → 365 days = 525,600 minutes
+        #expect(usage.primary?.windowMinutes == 525_600)
+        #expect(usage.primary?.resetsAt == resetDate)
+    }
+
+    @Test
+    func `annual plan pace is computed with year-length window`() {
+        // June 30, 2027 23:59:59 UTC — annual plan reset
+        let resetDate = Date(timeIntervalSince1970: 1_814_399_999)
+        // July 1, 2026 00:00:00 UTC — ~0.27% through a 365-day period
+        let updatedAt = Date(timeIntervalSince1970: 1_782_950_400)
+        let snapshot = MiMoUsageSnapshot(
+            balance: 100.00,
+            currency: "USD",
+            planCode: "annual",
+            planPeriodEnd: resetDate,
+            planExpired: false,
+            tokenUsed: 1_000_000,
+            tokenLimit: 500_000_000,
+            tokenPercent: 0.002,
+            updatedAt: updatedAt)
+
+        let usage = snapshot.toUsageSnapshot()
+        guard let primary = usage.primary else {
+            Issue.record("Expected primary RateWindow")
+            return
+        }
+
+        let pace = UsagePace.weekly(window: primary, now: updatedAt, defaultWindowMinutes: 525_600)
+        #expect(pace != nil)
+        #expect(pace?.stage == .onTrack) // 0.2% actual vs ~0.27% expected → on-track (delta < 2%)
+        #expect(pace?.willLastToReset == true)
+    }
+
+    @Test
     func `usage snapshot falls back to balance when no token plan`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 0,
