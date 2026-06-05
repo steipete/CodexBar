@@ -49,9 +49,15 @@ extension MiMoUsageSnapshot {
                 guard let periodEnd = self.planPeriodEnd else { return nil }
                 let timeUntilReset = periodEnd.timeIntervalSince(self.updatedAt)
                 guard timeUntilReset > 0 else { return nil }
-                // Estimate total monthly period (30 or 31 days) since we only have the end date.
-                let twentyEightDays: TimeInterval = 28 * 24 * 60 * 60
-                return timeUntilReset > twentyEightDays ? 44_640 : 43_200
+                // The reset date marks the end of the billing cycle, so the cycle
+                // started one month before.  This correctly handles mid-month
+                // subscriptions (e.g. reset June 15 → started May 15 → 31 days)
+                // and February resets (28/29 days).
+                let calendar = Calendar.current
+                guard let cycleStart = calendar.date(byAdding: .month, value: -1, to: periodEnd) else { return nil }
+                let windowLength = periodEnd.timeIntervalSince(cycleStart)
+                guard windowLength > 0 else { return nil }
+                return Int(windowLength / 60)
             }()
             return RateWindow(
                 usedPercent: usedPercent,
