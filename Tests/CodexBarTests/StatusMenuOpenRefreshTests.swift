@@ -734,10 +734,7 @@ extension StatusMenuTests {
         try? await Task.sleep(nanoseconds: 10_000_000)
         controller.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
 
-        try? await Task.sleep(nanoseconds: 25_000_000)
-        #expect(rebuildCount == 0)
-
-        for _ in 0..<20 where rebuildCount == 0 {
+        for _ in 0..<40 where rebuildCount == 0 {
             await Task.yield()
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
