@@ -105,7 +105,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
-    func `strategy pipeline uses OAuth only for selected token account`() async {
+    func `strategy pipeline keeps source mode authoritative with selected token account`() async {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .antigravity)
 
         let accountID = UUID()
@@ -113,9 +113,12 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             self.makeFetchContext(sourceMode: .auto, selectedTokenAccountID: accountID))
         let cliStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeFetchContext(sourceMode: .cli, selectedTokenAccountID: accountID))
+        let oauthStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeFetchContext(sourceMode: .oauth, selectedTokenAccountID: accountID))
 
-        #expect(autoStrategies.map(\.id) == ["antigravity.oauth"])
-        #expect(cliStrategies.map(\.id) == ["antigravity.oauth"])
+        #expect(autoStrategies.map(\.id) == ["antigravity.local", "antigravity.cli-https", "antigravity.oauth"])
+        #expect(cliStrategies.map(\.id) == ["antigravity.local", "antigravity.cli-https"])
+        #expect(oauthStrategies.map(\.id) == ["antigravity.oauth"])
     }
 
     @Test

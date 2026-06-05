@@ -44,9 +44,6 @@ public enum AntigravityProviderDescriptor {
         let local = AntigravityStatusFetchStrategy()
         let cli = AntigravityCLIHTTPSFetchStrategy()
         let oauth = AntigravityOAuthFetchStrategy()
-        if context.selectedTokenAccountID != nil {
-            return [oauth]
-        }
         switch context.sourceMode {
         case .cli:
             return [local, cli]
