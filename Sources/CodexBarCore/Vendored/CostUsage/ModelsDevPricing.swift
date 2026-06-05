@@ -323,19 +323,28 @@ struct ModelsDevCacheLoadResult: Equatable {
 /// `ModelsDevCache.load` is called once per usage row whenever a cost lookup is performed without a
 /// pre-resolved catalog (see `CostUsagePricing.modelsDevLookup`). Without this memo, scanning a large
 /// `~/.codex` history re-reads and re-decodes the ~800 KB catalog JSON for every row, which pegs the CPU
-/// and freezes the menu during a refresh. Decoding once and reusing it while the file is unchanged keeps
-/// the fallback path cheap.
+/// and freezes the menu during a refresh.
+///
+/// The full load *outcome* is memoized, not just successful decodes: a corrupt or wrong-version cache is
+/// read and decode-attempted exactly as expensively as a valid one, so caching only successes would leave
+/// the per-row storm in place whenever the cache is unreadable. Reusing the outcome while the file is
+/// unchanged keeps every fallback path cheap.
 private final class ModelsDevCacheMemo: @unchecked Sendable {
+    enum Outcome {
+        case decoded(ModelsDevCacheArtifact)
+        case failure(ModelsDevCache.Error)
+    }
+
     private struct Entry {
         let modificationDate: Date?
         let size: Int?
-        let artifact: ModelsDevCacheArtifact
+        let outcome: Outcome
     }
 
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
 
-    func artifact(path: String, modificationDate: Date?, size: Int?) -> ModelsDevCacheArtifact? {
+    func outcome(path: String, modificationDate: Date?, size: Int?) -> Outcome? {
         self.lock.lock()
         defer { self.lock.unlock() }
         guard let entry = self.entries[path],
@@ -344,13 +353,13 @@ private final class ModelsDevCacheMemo: @unchecked Sendable {
         else {
             return nil
         }
-        return entry.artifact
+        return entry.outcome
     }
 
-    func store(path: String, modificationDate: Date?, size: Int?, artifact: ModelsDevCacheArtifact) {
+    func store(path: String, modificationDate: Date?, size: Int?, outcome: Outcome) {
         self.lock.lock()
         defer { self.lock.unlock() }
-        self.entries[path] = Entry(modificationDate: modificationDate, size: size, artifact: artifact)
+        self.entries[path] = Entry(modificationDate: modificationDate, size: size, outcome: outcome)
     }
 
     func invalidate(path: String) {
@@ -397,41 +406,50 @@ enum ModelsDevCache {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let metadata = Self.fileMetadata(at: url)
 
-        // Staleness depends on `now`, so it is always recomputed; only the decoded artifact is memoized.
-        if let cached = Self.memo.artifact(
+        // Staleness depends on `now`, so the result is always rebuilt; only the read+decode outcome is memoized.
+        if let outcome = Self.memo.outcome(
             path: url.path,
             modificationDate: metadata.modificationDate,
             size: metadata.size)
         {
-            return ModelsDevCacheLoadResult(
-                artifact: cached,
-                isStale: now.timeIntervalSince(cached.fetchedAt) > Self.ttlSeconds,
-                error: nil)
+            return Self.result(for: outcome, now: now)
         }
 
+        let outcome = Self.readOutcome(at: url)
+        Self.memo.store(
+            path: url.path,
+            modificationDate: metadata.modificationDate,
+            size: metadata.size,
+            outcome: outcome)
+        return Self.result(for: outcome, now: now)
+    }
+
+    private static func readOutcome(at url: URL) -> ModelsDevCacheMemo.Outcome {
         guard let data = try? Data(contentsOf: url) else {
-            return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .unreadable)
+            return .failure(.unreadable)
         }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let decoded = try? decoder.decode(ModelsDevCacheArtifact.self, from: data) else {
-            return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .invalidJSON)
+            return .failure(.invalidJSON)
         }
         guard decoded.version == Self.artifactVersion else {
-            return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .invalidVersion)
+            return .failure(.invalidVersion)
         }
+        return .decoded(decoded)
+    }
 
-        Self.memo.store(
-            path: url.path,
-            modificationDate: metadata.modificationDate,
-            size: metadata.size,
-            artifact: decoded)
-
-        return ModelsDevCacheLoadResult(
-            artifact: decoded,
-            isStale: now.timeIntervalSince(decoded.fetchedAt) > Self.ttlSeconds,
-            error: nil)
+    private static func result(for outcome: ModelsDevCacheMemo.Outcome, now: Date) -> ModelsDevCacheLoadResult {
+        switch outcome {
+        case let .decoded(artifact):
+            ModelsDevCacheLoadResult(
+                artifact: artifact,
+                isStale: now.timeIntervalSince(artifact.fetchedAt) > Self.ttlSeconds,
+                error: nil)
+        case let .failure(error):
+            ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: error)
+        }
     }
 
     static func save(catalog: ModelsDevCatalog, fetchedAt: Date = Date(), cacheRoot: URL? = nil) {

@@ -551,6 +551,30 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `serves a failed load from memo while the file is unchanged`() throws {
+        let root = try Self.cacheRoot()
+        let url = ModelsDevCache.cacheFileURL(cacheRoot: root)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let validData = try Self.encodedArtifactData()
+
+        // Write invalid JSON of the same size as a valid encoding, with a pinned modification date, then prime
+        // the memo with the resulting failure.
+        let pinnedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try Data(repeating: 0x7B, count: validData.count).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: url.path)
+        #expect(ModelsDevCache.load(cacheRoot: root).error == .invalidJSON)
+
+        // Replace the bytes with a valid encoding of identical size + modification date. A re-read would now
+        // succeed, so a returned failure proves the unchanged-identity file was not read and decoded again.
+        try validData.write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: url.path)
+        let reloaded = ModelsDevCache.load(cacheRoot: root)
+
+        #expect(reloaded.error == .invalidJSON)
+        #expect(reloaded.artifact == nil)
+    }
+
+    @Test
     func `client fetches with mock transport`() async throws {
         let data = try Self.fixtureData()
         let client = ModelsDevClient(transport: MockTransport(result: .success((data, Self.response(status: 200)))))
@@ -585,6 +609,17 @@ struct ModelsDevPricingTests {
 
     private static func fixtureCatalog() throws -> ModelsDevCatalog {
         try JSONDecoder().decode(ModelsDevCatalog.self, from: self.fixtureData())
+    }
+
+    /// A valid `ModelsDevCacheArtifact` encoding, written the same way `ModelsDevCache.save` writes the file.
+    private static func encodedArtifactData() throws -> Data {
+        let artifact = try ModelsDevCacheArtifact(
+            version: ModelsDevCache.artifactVersion,
+            fetchedAt: Date(timeIntervalSince1970: 0),
+            catalog: self.fixtureCatalog())
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(artifact)
     }
 
     private static func catalog(_ json: String) throws -> ModelsDevCatalog {
