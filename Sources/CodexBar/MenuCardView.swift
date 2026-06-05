@@ -1270,6 +1270,21 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
+        if input.provider == .mimo {
+            if let pace = input.weeklyPace {
+                let paceDetail = Self.weeklyPaceDetail(
+                    window: primary,
+                    now: input.now,
+                    pace: pace,
+                    showUsed: input.usageBarsShowUsed)
+                if let paceDetail {
+                    primaryDetailLeft = paceDetail.leftLabel
+                    primaryDetailRight = paceDetail.rightLabel
+                    primaryPacePercent = paceDetail.pacePercent
+                    primaryPaceOnTop = paceDetail.paceOnTop
+                }
+            }
+        }
         if input.provider == .synthetic,
            let regen = Self.syntheticRollingRegenDetail(
                window: primary,

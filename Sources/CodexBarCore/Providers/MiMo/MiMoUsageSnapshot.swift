@@ -45,9 +45,17 @@ extension MiMoUsageSnapshot {
             let usedText = Self.fullCountString(self.tokenUsed)
             let limitText = Self.fullCountString(self.tokenLimit)
             let resetDesc = "\(usedText) / \(limitText) Credits"
+            let windowMinutes: Int? = {
+                guard let periodEnd = self.planPeriodEnd else { return nil }
+                let timeUntilReset = periodEnd.timeIntervalSince(self.updatedAt)
+                guard timeUntilReset > 0 else { return nil }
+                // Estimate total monthly period (30 or 31 days) since we only have the end date.
+                let twentyEightDays: TimeInterval = 28 * 24 * 60 * 60
+                return timeUntilReset > twentyEightDays ? 44_640 : 43_200
+            }()
             return RateWindow(
                 usedPercent: usedPercent,
-                windowMinutes: nil,
+                windowMinutes: windowMinutes,
                 resetsAt: self.planPeriodEnd,
                 resetDescription: resetDesc)
         }()

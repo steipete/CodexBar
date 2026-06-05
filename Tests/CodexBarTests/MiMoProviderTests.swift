@@ -175,7 +175,10 @@ struct MiMoProviderTests {
 
     @Test
     func `usage snapshot shows token plan as primary when available`() {
-        let resetDate = Date(timeIntervalSince1970: 1_778_025_599)
+        // June 30, 2026 23:59:59 UTC
+        let resetDate = Date(timeIntervalSince1970: 1_782_863_999)
+        // June 5, 2026 00:00:00 UTC
+        let updatedAt = Date(timeIntervalSince1970: 1_780_704_000)
         let snapshot = MiMoUsageSnapshot(
             balance: 25.51,
             currency: "USD",
@@ -185,7 +188,7 @@ struct MiMoProviderTests {
             tokenUsed: 10_100_158,
             tokenLimit: 200_000_000,
             tokenPercent: 0.0505,
-            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+            updatedAt: updatedAt)
 
         let usage = snapshot.toUsageSnapshot()
 
@@ -193,7 +196,38 @@ struct MiMoProviderTests {
         #expect(abs((usage.primary?.usedPercent ?? .nan) - 5.05) < 0.0001)
         #expect(usage.primary?.resetDescription == "10,100,158 / 200,000,000 Credits")
         #expect(usage.primary?.resetsAt == resetDate)
+        #expect(usage.primary?.windowMinutes == 43_200)
         #expect(usage.loginMethod(for: .mimo) == "Standard")
+    }
+
+    @Test
+    func `token plan pace is computed when window and reset date are present`() {
+        // June 30, 2026 23:59:59 UTC
+        let resetDate = Date(timeIntervalSince1970: 1_782_863_999)
+        // June 5, 2026 00:00:00 UTC — about 5 days into a 30-day period
+        let updatedAt = Date(timeIntervalSince1970: 1_780_704_000)
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            planPeriodEnd: resetDate,
+            planExpired: false,
+            tokenUsed: 1_000_000,
+            tokenLimit: 200_000_000,
+            tokenPercent: 0.005,
+            updatedAt: updatedAt)
+
+        let usage = snapshot.toUsageSnapshot()
+        guard let primary = usage.primary else {
+            Issue.record("Expected primary RateWindow")
+            return
+        }
+
+        // ~5 days elapsed out of 30 → expected ~16.7%, actual 0.5% → well in reserve
+        let pace = UsagePace.weekly(window: primary, now: updatedAt, defaultWindowMinutes: 43_200)
+        #expect(pace != nil)
+        #expect(pace?.stage == .farBehind) // behind expected = in reserve
+        #expect(pace?.willLastToReset == true)
     }
 
     @Test
