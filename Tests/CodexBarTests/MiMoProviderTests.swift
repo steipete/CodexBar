@@ -283,6 +283,32 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `annual plan with 76 days remaining still gets year-length window`() {
+        // June 30, 2027 23:59:59 UTC — annual plan reset
+        let resetDate = Date(timeIntervalSince1970: 1_814_399_999)
+        // April 15, 2027 12:00:00 UTC — 76 days before reset
+        let updatedAt = Date(timeIntervalSince1970: 1_807_843_200)
+        let snapshot = MiMoUsageSnapshot(
+            balance: 100.00,
+            currency: "USD",
+            planCode: "annual",
+            planPeriodEnd: resetDate,
+            planExpired: false,
+            tokenUsed: 400_000_000,
+            tokenLimit: 500_000_000,
+            tokenPercent: 0.80,
+            updatedAt: updatedAt)
+
+        let usage = snapshot.toUsageSnapshot()
+        guard let primary = usage.primary else {
+            Issue.record("Expected primary RateWindow")
+            return
+        }
+
+        #expect(primary.windowMinutes == 525_600)
+    }
+
+    @Test
     func `usage snapshot falls back to balance when no token plan`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 0,

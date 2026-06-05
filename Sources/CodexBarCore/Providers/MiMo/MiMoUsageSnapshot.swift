@@ -49,19 +49,17 @@ extension MiMoUsageSnapshot {
                 guard let periodEnd = self.planPeriodEnd else { return nil }
                 let timeUntilReset = periodEnd.timeIntervalSince(self.updatedAt)
                 guard timeUntilReset > 0 else { return nil }
-                // The reset date marks the end of the billing cycle, so the cycle
-                // started before that.  Use a UTC calendar so the result is
-                // deterministic regardless of the system timezone.
-                //
-                // Annual plans have periodEnd far in the future (months away);
-                // subtract one year for those, one month otherwise.
                 var utcCalendar = Calendar.current
                 utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
-                let component: Calendar.Component = timeUntilReset > 90 * 86_400 ? .year : .month
-                guard let cycleStart = utcCalendar.date(byAdding: component, value: -1, to: periodEnd) else { return nil }
-                let windowLength = periodEnd.timeIntervalSince(cycleStart)
-                guard windowLength > 0 else { return nil }
-                return Int(windowLength / 60)
+                guard let monthStart = utcCalendar.date(byAdding: .month, value: -1, to: periodEnd) else { return nil }
+                let monthWindow = periodEnd.timeIntervalSince(monthStart)
+                if monthWindow >= timeUntilReset {
+                    return Int(monthWindow / 60)
+                }
+                guard let yearStart = utcCalendar.date(byAdding: .year, value: -1, to: periodEnd) else { return nil }
+                let yearWindow = periodEnd.timeIntervalSince(yearStart)
+                guard yearWindow > 0 else { return nil }
+                return Int(yearWindow / 60)
             }()
             return RateWindow(
                 usedPercent: usedPercent,
