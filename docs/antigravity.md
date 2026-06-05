@@ -24,7 +24,8 @@ The local and CLI paths both prefer Antigravity's internal `GetUserStatus` quota
 - A successful login writes the latest shared credentials to `~/.codexbar/antigravity/oauth_creds.json` and upserts a token-account entry for the Google account.
 - Each token-account entry stores serialized `AntigravityOAuthCredentials` and is injected into remote fetches through `ANTIGRAVITY_OAUTH_CREDENTIALS_JSON`.
 - When a token account is selected, the OAuth fetcher uses that account before falling back to the shared credentials file.
-- The menu action is labeled `Add Account...`; switching between saved accounts uses the existing segmented/stacked token-account menu UI.
+  Local desktop and `agy` CLI probes remain source-mode driven and are not scoped to saved OAuth accounts.
+- The menu action is labeled `Add Account...`; switching between saved accounts scopes Google OAuth fetches.
 
 ## Remote OAuth data sources
 
@@ -107,8 +108,8 @@ Differences from the desktop local probe:
 
 ### 3) OAuth remote fallback
 
-When source mode is `auto`, OAuth is used after both local paths fail. If a specific saved Google account is selected,
-CodexBar uses OAuth directly for that account. When source mode is `oauth`, only OAuth is used.
+When source mode is `auto`, OAuth is used after both local paths fail. A selected saved Google account scopes the OAuth
+fallback, but it does not bypass the desktop local or `agy` CLI probes. When source mode is `oauth`, only OAuth is used.
 
 ## Request body (summary)
 - Minimal metadata payload:

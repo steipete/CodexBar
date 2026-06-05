@@ -353,17 +353,14 @@ actor AntigravityCLISession {
 
     private func ensureStartedLocked(binary: String) async throws -> pid_t {
         while true {
-            let canPersistRecord = if self.process == nil {
-                self.reapRecordedSessionIfNeeded()
-            } else {
-                true
-            }
+            let canPersistRecord = self.canPersistRecordForLaunch()
 
             if let proc = self.process,
                proc.isRunning,
                self.binaryPath == binary,
                self.consecutiveProbeFailures < max(1, self.dependencies.failureRelaunchThreshold)
             {
+                self.persistCurrentRecordIfNeeded(proc, binary: binary, canPersistRecord: canPersistRecord)
                 Self.log.debug("Antigravity CLI session reused", metadata: ["pid": "\(proc.pid)"])
                 return proc.pid
             }
@@ -409,6 +406,20 @@ actor AntigravityCLISession {
                 ])
             return launchedPID
         }
+    }
+
+    private func canPersistRecordForLaunch() -> Bool {
+        guard self.process == nil || self.persistedProcessIdentity == nil else { return true }
+        return self.reapRecordedSessionIfNeeded()
+    }
+
+    private func persistCurrentRecordIfNeeded(
+        _ proc: any AntigravityCLIProcessHandle,
+        binary: String,
+        canPersistRecord: Bool)
+    {
+        guard canPersistRecord, self.persistedProcessIdentity == nil else { return }
+        self.persistRecord(pid: proc.pid, binary: binary, processGroup: proc.processGroup)
     }
 
     private func cancelIdleTimer() {

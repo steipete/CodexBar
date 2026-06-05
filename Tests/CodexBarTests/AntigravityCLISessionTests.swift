@@ -672,6 +672,76 @@ struct AntigravityCLISessionTests {
     }
 
     @Test
+    func `binary-change relaunch preserves persisted session owned by another live process`() async throws {
+        let protectedRecord = AntigravityCLISessionRecord(
+            pid: 777,
+            requestedBinaryPath: "/bin/agy",
+            executablePath: "/bin/agy",
+            startEpoch: 42,
+            processGroup: 777,
+            ownerPID: 900,
+            ownerExecutablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
+            ownerStartEpoch: 10)
+        let store = MemoryAntigravitySessionRecordStore(record: protectedRecord)
+        let fixture = self.makeFixture(store: store, currentProcessID: 901)
+        fixture.identity.setIdentity(pid: 777, executablePath: "/bin/agy", startEpoch: 42)
+        fixture.identity.setIdentity(
+            pid: 900,
+            executablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
+            startEpoch: 10)
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+        fixture.identity.setIdentity(pid: 11, executablePath: "/new/agy", startEpoch: 101)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
+        let relaunchedPID = try await fixture.session.beginProbe(binary: "/new/agy")
+        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
+
+        #expect(relaunchedPID == 11)
+        #expect(fixture.store.saveCount == 0)
+        #expect(fixture.store.snapshot() == protectedRecord)
+    }
+
+    @Test
+    func `reused unrecorded session is persisted after protected owner exits`() async throws {
+        let protectedRecord = AntigravityCLISessionRecord(
+            pid: 777,
+            requestedBinaryPath: "/bin/agy",
+            executablePath: "/bin/agy",
+            startEpoch: 42,
+            processGroup: 777,
+            ownerPID: 900,
+            ownerExecutablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
+            ownerStartEpoch: 10)
+        let store = MemoryAntigravitySessionRecordStore(record: protectedRecord)
+        let fixture = self.makeFixture(store: store, currentProcessID: 901)
+        fixture.identity.setIdentity(pid: 777, executablePath: "/bin/agy", startEpoch: 42)
+        fixture.identity.setIdentity(
+            pid: 900,
+            executablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
+            startEpoch: 10)
+        fixture.identity.setIdentity(
+            pid: 901,
+            executablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
+            startEpoch: 20)
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        let firstPID = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
+        fixture.identity.removeIdentity(pid: 900)
+        let secondPID = try await fixture.session.beginProbe(binary: "/bin/agy")
+        let record = fixture.store.snapshot()
+        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
+        #expect(firstPID == 10)
+        #expect(secondPID == 10)
+        #expect(fixture.launcher.launchedBinarySnapshot() == ["/bin/agy"])
+        #expect(fixture.terminations.snapshot().map(\.pid) == [777, 777])
+        #expect(fixture.store.saveCount == 1)
+        #expect(record?.pid == 10)
+        #expect(record?.ownerPID == 901)
+    }
+
+    @Test
     func `reset rechecks protected persisted session after owner exits`() async {
         let store = MemoryAntigravitySessionRecordStore(record: AntigravityCLISessionRecord(
             pid: 777,

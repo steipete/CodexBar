@@ -42,7 +42,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "antigravity-usage-source",
                 title: "Usage source",
-                subtitle: "Auto uses the local IDE API first, then Google OAuth when the IDE is closed.",
+                subtitle: "Auto uses the desktop local API first, then agy CLI, then Google OAuth.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
