@@ -509,6 +509,48 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `serves decoded catalog from memo while the file is unchanged`() throws {
+        let root = try Self.cacheRoot()
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
+        let url = ModelsDevCache.cacheFileURL(cacheRoot: root)
+
+        // Pin a whole-second modification date so the memo key (which compares modification dates) round-trips
+        // deterministically through the filesystem.
+        let pinnedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: url.path)
+
+        // Prime the in-memory memo with a successful decode.
+        let primed = ModelsDevCache.load(cacheRoot: root)
+        let cachedArtifact = try #require(primed.artifact)
+
+        // Corrupt the file contents while preserving its size and modification date, so the on-disk identity
+        // the memo keys on is unchanged. A re-decode would now fail; a memo hit returns the cached artifact.
+        let size = try #require(
+            try (FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber).intValue
+        try Data(repeating: 0, count: size).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: url.path)
+
+        let reloaded = ModelsDevCache.load(cacheRoot: root)
+
+        #expect(reloaded.error == nil)
+        #expect(reloaded.artifact == cachedArtifact)
+    }
+
+    @Test
+    func `saving a new catalog invalidates the memo`() throws {
+        let root = try Self.cacheRoot()
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
+        #expect(ModelsDevCache.load(cacheRoot: root).artifact?.catalog.providers["openai"] != nil)
+
+        // Overwriting the cache must drop the memo so the next load reflects the freshly written catalog.
+        ModelsDevCache.save(catalog: ModelsDevCatalog(providers: [:]), fetchedAt: Date(), cacheRoot: root)
+        let reloaded = ModelsDevCache.load(cacheRoot: root)
+
+        #expect(reloaded.error == nil)
+        #expect(reloaded.artifact?.catalog.providers.isEmpty == true)
+    }
+
+    @Test
     func `client fetches with mock transport`() async throws {
         let data = try Self.fixtureData()
         let client = ModelsDevClient(transport: MockTransport(result: .success((data, Self.response(status: 200)))))

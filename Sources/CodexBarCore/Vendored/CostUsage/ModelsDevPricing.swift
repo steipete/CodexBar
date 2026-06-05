@@ -318,6 +318,48 @@ struct ModelsDevCacheLoadResult: Equatable {
     var error: ModelsDevCache.Error?
 }
 
+/// In-memory memo for the decoded models.dev catalog, keyed by file path + on-disk identity.
+///
+/// `ModelsDevCache.load` is called once per usage row whenever a cost lookup is performed without a
+/// pre-resolved catalog (see `CostUsagePricing.modelsDevLookup`). Without this memo, scanning a large
+/// `~/.codex` history re-reads and re-decodes the ~800 KB catalog JSON for every row, which pegs the CPU
+/// and freezes the menu during a refresh. Decoding once and reusing it while the file is unchanged keeps
+/// the fallback path cheap.
+private final class ModelsDevCacheMemo: @unchecked Sendable {
+    private struct Entry {
+        let modificationDate: Date?
+        let size: Int?
+        let artifact: ModelsDevCacheArtifact
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+
+    func artifact(path: String, modificationDate: Date?, size: Int?) -> ModelsDevCacheArtifact? {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        guard let entry = self.entries[path],
+              entry.modificationDate == modificationDate,
+              entry.size == size
+        else {
+            return nil
+        }
+        return entry.artifact
+    }
+
+    func store(path: String, modificationDate: Date?, size: Int?, artifact: ModelsDevCacheArtifact) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.entries[path] = Entry(modificationDate: modificationDate, size: size, artifact: artifact)
+    }
+
+    func invalidate(path: String) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.entries.removeValue(forKey: path)
+    }
+}
+
 enum ModelsDevCache {
     enum Error: Swift.Error, Equatable {
         case unreadable
@@ -327,6 +369,17 @@ enum ModelsDevCache {
 
     static let artifactVersion = 1
     static let ttlSeconds: TimeInterval = 24 * 60 * 60
+
+    private static let memo = ModelsDevCacheMemo()
+
+    private static func fileMetadata(at url: URL) -> (modificationDate: Date?, size: Int?) {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return (nil, nil)
+        }
+        let modificationDate = attributes[.modificationDate] as? Date
+        let size = (attributes[.size] as? NSNumber)?.intValue
+        return (modificationDate, size)
+    }
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -342,6 +395,20 @@ enum ModelsDevCache {
 
     static func load(now: Date = Date(), cacheRoot: URL? = nil) -> ModelsDevCacheLoadResult {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
+        let metadata = Self.fileMetadata(at: url)
+
+        // Staleness depends on `now`, so it is always recomputed; only the decoded artifact is memoized.
+        if let cached = Self.memo.artifact(
+            path: url.path,
+            modificationDate: metadata.modificationDate,
+            size: metadata.size)
+        {
+            return ModelsDevCacheLoadResult(
+                artifact: cached,
+                isStale: now.timeIntervalSince(cached.fetchedAt) > Self.ttlSeconds,
+                error: nil)
+        }
+
         guard let data = try? Data(contentsOf: url) else {
             return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .unreadable)
         }
@@ -354,6 +421,12 @@ enum ModelsDevCache {
         guard decoded.version == Self.artifactVersion else {
             return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .invalidVersion)
         }
+
+        Self.memo.store(
+            path: url.path,
+            modificationDate: metadata.modificationDate,
+            size: metadata.size,
+            artifact: decoded)
 
         return ModelsDevCacheLoadResult(
             artifact: decoded,
@@ -386,6 +459,8 @@ enum ModelsDevCache {
             } else {
                 try FileManager.default.moveItem(at: tmp, to: url)
             }
+            // The on-disk catalog changed; drop the memo so the next load decodes the fresh file.
+            Self.memo.invalidate(path: url.path)
         } catch {
             try? FileManager.default.removeItem(at: tmp)
         }
