@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 
 namespace CodexBar.Windows.Core;
 
@@ -155,29 +156,104 @@ public sealed class ProviderProbeRunner
     private static string ExtractJsonPayload(string stdout)
     {
         var trimmed = stdout.Trim();
-        if (IsCompleteJsonPayload(trimmed))
+        if (IsCompleteJsonPayload(trimmed) && CanParseJson(trimmed))
         {
             return trimmed;
         }
 
-        var builder = new StringBuilder();
-        foreach (var line in trimmed.Split('\n'))
+        for (var index = 0; index < trimmed.Length; index++)
         {
-            var candidate = line.Trim();
-            if (IsCompleteJsonPayload(candidate))
+            var start = trimmed[index];
+            if (start != '{' && start != '[')
+            {
+                continue;
+            }
+
+            var candidate = ReadBalancedJson(trimmed, index);
+            if (candidate is not null && CanParseJson(candidate))
             {
                 return candidate;
             }
-
-            builder.AppendLine(candidate);
         }
 
-        throw new InvalidOperationException($"Probe did not print a JSON object or array: {builder.ToString().Trim()}");
+        throw new InvalidOperationException($"Probe did not print a JSON object or array: {trimmed}");
     }
 
     private static bool IsCompleteJsonPayload(string candidate)
     {
         return candidate.StartsWith('{') && candidate.EndsWith('}') ||
             candidate.StartsWith('[') && candidate.EndsWith(']');
+    }
+
+    private static string? ReadBalancedJson(string text, int startIndex)
+    {
+        var stack = new Stack<char>();
+        var inString = false;
+        var escaped = false;
+
+        for (var index = startIndex; index < text.Length; index++)
+        {
+            var character = text[index];
+            if (inString)
+            {
+                if (escaped)
+                {
+                    escaped = false;
+                }
+                else if (character == '\\')
+                {
+                    escaped = true;
+                }
+                else if (character == '"')
+                {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            if (character == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (character == '{')
+            {
+                stack.Push('}');
+                continue;
+            }
+
+            if (character == '[')
+            {
+                stack.Push(']');
+                continue;
+            }
+
+            if ((character == '}' || character == ']') && (stack.Count == 0 || stack.Pop() != character))
+            {
+                return null;
+            }
+
+            if (stack.Count == 0)
+            {
+                return text[startIndex..(index + 1)];
+            }
+        }
+
+        return null;
+    }
+
+    private static bool CanParseJson(string candidate)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(candidate);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

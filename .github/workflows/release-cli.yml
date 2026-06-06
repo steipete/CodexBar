@@ -263,6 +263,10 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT || 'https://wus2.codesigning.azure.net/' }}
+      AZURE_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_SIGNING_ACCOUNT_NAME || 'hanselman' }}
+      AZURE_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_CERTIFICATE_PROFILE_NAME || 'WindowsEdgeLight' }}
+      AZURE_TIMESTAMP_RFC3161: ${{ vars.AZURE_TIMESTAMP_RFC3161 || 'https://timestamp.acs.microsoft.com' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -329,14 +333,14 @@ jobs:
           azure-tenant-id: ${{ env.AZURE_TENANT_ID }}
           azure-client-id: ${{ env.AZURE_CLIENT_ID }}
           azure-client-secret: ${{ env.AZURE_CLIENT_SECRET }}
-          endpoint: https://wus2.codesigning.azure.net/
-          signing-account-name: hanselman
-          certificate-profile-name: WindowsEdgeLight
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
           files-folder: publish/windows/${{ matrix.rid }}
           files-folder-filter: exe
           files-folder-recurse: true
           file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-rfc3161: ${{ env.AZURE_TIMESTAMP_RFC3161 }}
           timestamp-digest: SHA256
 
       - name: Install Inno Setup
@@ -354,14 +358,14 @@ jobs:
           azure-tenant-id: ${{ env.AZURE_TENANT_ID }}
           azure-client-id: ${{ env.AZURE_CLIENT_ID }}
           azure-client-secret: ${{ env.AZURE_CLIENT_SECRET }}
-          endpoint: https://wus2.codesigning.azure.net/
-          signing-account-name: hanselman
-          certificate-profile-name: WindowsEdgeLight
+          endpoint: ${{ env.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}
           files-folder: Output
           files-folder-filter: exe
           files-folder-recurse: false
           file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-rfc3161: ${{ env.AZURE_TIMESTAMP_RFC3161 }}
           timestamp-digest: SHA256
 
       - name: Package release assets

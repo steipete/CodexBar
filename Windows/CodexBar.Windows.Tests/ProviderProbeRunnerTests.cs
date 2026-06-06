@@ -107,6 +107,67 @@ public sealed class ProviderProbeRunnerTests
     }
 
     [WindowsFact]
+    public async Task LoadProviderAsync_ParsesPrettyJsonArrayBetweenLogLines()
+    {
+        using var temp = new TempDirectory();
+        var scriptPath = Path.Combine(temp.Path, "pretty-probe.cmd");
+        await File.WriteAllLinesAsync(scriptPath,
+        [
+            "@echo off",
+            "echo warning: refreshing cache",
+            "echo [",
+            "echo   {\"provider\":\"claude\",\"source\":\"claude-cli\",\"status\":{\"indicator\":\"none\",\"url\":\"https://status.example.com\"},\"usage\":{\"primary\":{\"usedPercent\":40,\"windowMinutes\":10080},\"updatedAt\":\"2026-06-06T10:00:00Z\"},\"credits\":null,\"error\":null}",
+            "echo ]",
+            "echo done",
+        ]);
+
+        var runner = new ProviderProbeRunner();
+
+        var snapshot = await runner.LoadProviderAsync(
+            new ProviderProbeSettings
+            {
+                Id = "claude",
+                Name = "Claude",
+                Command = "cmd.exe",
+                Arguments = ["/c", scriptPath],
+            },
+            CancellationToken.None);
+
+        Assert.Equal(ProviderHealth.Healthy, snapshot.Health);
+        Assert.Equal("weekly", snapshot.Window);
+        Assert.Equal(60, snapshot.Remaining);
+    }
+
+    [WindowsFact]
+    public async Task LoadProviderAsync_SkipsMalformedJsonLikeLogText()
+    {
+        using var temp = new TempDirectory();
+        var scriptPath = Path.Combine(temp.Path, "logged-probe.cmd");
+        await File.WriteAllLinesAsync(scriptPath,
+        [
+            "@echo off",
+            "echo [warn] ignored",
+            "echo {\"health\":\"ok\",\"remaining\":7,\"limit\":9}",
+        ]);
+
+        var runner = new ProviderProbeRunner();
+
+        var snapshot = await runner.LoadProviderAsync(
+            new ProviderProbeSettings
+            {
+                Id = "codex",
+                Name = "Codex",
+                Command = "cmd.exe",
+                Arguments = ["/c", scriptPath],
+            },
+            CancellationToken.None);
+
+        Assert.Equal(ProviderHealth.Healthy, snapshot.Health);
+        Assert.Equal(7, snapshot.Remaining);
+        Assert.Equal(9, snapshot.Limit);
+    }
+
+    [WindowsFact]
     public async Task LoadProviderAsync_ReturnsFailedSnapshotWhenCommandTimesOut()
     {
         using var temp = new TempDirectory();
