@@ -340,8 +340,8 @@
 "Window: \\(window)" = "Вікно: \\(window)";
 "Write logs to \\(self.fileLogPath) for debugging." = "Записати журнали в \\(self.fileLogPath) для налагодження.";
 "Yes" = "Так";
-"\\(detail.modelCode): \\(usage)" = "\\(detail.modelCode): \\(використання)";
-"\\(name): \\(truncated)" = "\\(ім'я): \\(урізано)";
+"\\(detail.modelCode): \\(usage)" = "\\(detail.modelCode): \\(usage)";
+"\\(name): \\(truncated)" = "\\(name): \\(truncated)";
 "\\(name): \\(updated) · 30d \\(cost)" = "\\(name): \\(updated) · 30 дн \\(cost)";
 "\\(name): fetching…\\(elapsed)" = "\\(name): отримання…\\(elapsed)";
 "\\(name): last attempt \\(when)" = "\\(name): остання спроба \\(when)";
