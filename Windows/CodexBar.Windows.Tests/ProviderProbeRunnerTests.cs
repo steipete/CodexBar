@@ -73,4 +73,32 @@ public sealed class ProviderProbeRunnerTests
         Assert.Equal(7, snapshot.Remaining);
         Assert.Equal(9, snapshot.Limit);
     }
+
+    [WindowsFact]
+    public async Task LoadProviderAsync_ReturnsFailedSnapshotWhenCommandTimesOut()
+    {
+        using var temp = new TempDirectory();
+        var scriptPath = Path.Combine(temp.Path, "hang.cmd");
+        await File.WriteAllLinesAsync(scriptPath,
+        [
+            "@echo off",
+            "ping -n 30 127.0.0.1 >nul",
+        ]);
+
+        var runner = new ProviderProbeRunner();
+
+        var snapshot = await runner.LoadProviderAsync(
+            new ProviderProbeSettings
+            {
+                Id = "codex",
+                Name = "Codex",
+                Command = "cmd.exe",
+                Arguments = ["/c", scriptPath],
+                TimeoutSeconds = 1,
+            },
+            CancellationToken.None);
+
+        Assert.Equal(ProviderHealth.Failing, snapshot.Health);
+        Assert.Contains("timed out", snapshot.Detail);
+    }
 }

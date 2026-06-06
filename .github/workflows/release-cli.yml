@@ -267,6 +267,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Validate release tag
+        if: github.event_name == 'release' || inputs.tag != ''
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:RELEASE_TAG)) {
@@ -275,6 +276,20 @@ jobs:
           if ($env:RELEASE_TAG -notmatch '^v[0-9A-Za-z._-]+$') {
             throw "Invalid release tag: $env:RELEASE_TAG"
           }
+
+      - name: Resolve Windows build version
+        id: winver
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -match '^v[0-9A-Za-z._-]+$') {
+            $version = $env:RELEASE_TAG.TrimStart('v')
+            $assetSuffix = $env:RELEASE_TAG
+          } else {
+            $version = "0.0.0-dev"
+            $assetSuffix = ($env:RELEASE_TAG -replace '[^0-9A-Za-z._-]', '-')
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "asset_suffix=$assetSuffix" >> $env:GITHUB_OUTPUT
 
       - name: Require signing secrets for release assets
         if: github.event_name == 'release' && (env.AZURE_TENANT_ID == '' || env.AZURE_CLIENT_ID == '' || env.AZURE_CLIENT_SECRET == '' || env.AZURE_SUBSCRIPTION_ID == '')
@@ -299,7 +314,7 @@ jobs:
 
       - name: Publish native tray
         shell: pwsh
-        run: ./Scripts/build_windows.ps1 publish -Runtime ${{ matrix.rid }} -Version $($env:RELEASE_TAG.TrimStart('v'))
+        run: ./Scripts/build_windows.ps1 publish -Runtime ${{ matrix.rid }} -Version ${{ steps.winver.outputs.version }}
 
       - name: Azure Login for Signing
         if: env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
@@ -330,7 +345,7 @@ jobs:
 
       - name: Build installer
         shell: pwsh
-        run: ./Scripts/build_windows.ps1 installer -Runtime ${{ matrix.rid }} -Version $($env:RELEASE_TAG.TrimStart('v')) -NoPublish
+        run: ./Scripts/build_windows.ps1 installer -Runtime ${{ matrix.rid }} -Version ${{ steps.winver.outputs.version }} -NoPublish
 
       - name: Sign installer
         if: env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
@@ -353,8 +368,7 @@ jobs:
         id: pkg
         shell: pwsh
         run: |
-          $version = $env:RELEASE_TAG.TrimStart('v')
-          $zip = "CodexBarWindows-v$version-${{ matrix.rid }}.zip"
+          $zip = "CodexBarWindows-${{ steps.winver.outputs.asset_suffix }}-${{ matrix.rid }}.zip"
           $installer = "CodexBar-Setup-${{ matrix.arch }}.exe"
           Compress-Archive -Path "publish/windows/${{ matrix.rid }}/*" -DestinationPath $zip -Force
           Get-FileHash -Algorithm SHA256 $zip | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $zip" } | Set-Content "$zip.sha256"

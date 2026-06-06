@@ -29,6 +29,8 @@ public sealed class PackagingContractTests
 
         Assert.Contains("build-windows", release);
         Assert.Contains("Require signing secrets for release assets", release);
+        Assert.Contains("if: github.event_name == 'release' || inputs.tag != ''", release);
+        Assert.Contains("0.0.0-dev", release);
         Assert.Contains("gh release upload $env:RELEASE_TAG", release);
     }
 }

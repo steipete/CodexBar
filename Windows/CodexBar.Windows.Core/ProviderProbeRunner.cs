@@ -60,8 +60,8 @@ public sealed class ProviderProbeRunner
         ProviderProbeSettings provider,
         CancellationToken cancellationToken)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(provider.TimeoutSeconds));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(provider.TimeoutSeconds));
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
         var startInfo = new ProcessStartInfo
         {
@@ -85,9 +85,17 @@ public sealed class ProviderProbeRunner
         using var process = Process.Start(startInfo) ??
             throw new InvalidOperationException($"Unable to start {provider.Command}.");
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(timeout.Token);
-        var stderrTask = process.StandardError.ReadToEndAsync(timeout.Token);
-        await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        try
+        {
+            await process.WaitForExitAsync(linkedCancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            await KillTimedOutProcessAsync(process, stdoutTask, stderrTask).ConfigureAwait(false);
+            throw new TimeoutException($"{provider.Command} timed out after {provider.TimeoutSeconds} seconds.");
+        }
 
         var stdout = await stdoutTask.ConfigureAwait(false);
         var stderr = await stderrTask.ConfigureAwait(false);
@@ -99,6 +107,45 @@ public sealed class ProviderProbeRunner
 
         var payload = ExtractJsonObject(stdout);
         return ProviderSnapshotJson.Parse(payload).ToSnapshot(provider);
+    }
+
+    private static async Task KillTimedOutProcessAsync(
+        Process process,
+        Task<string> stdoutTask,
+        Task<string> stderrTask)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        await IgnoreReadFailureAsync(stdoutTask).ConfigureAwait(false);
+        await IgnoreReadFailureAsync(stderrTask).ConfigureAwait(false);
+    }
+
+    private static async Task IgnoreReadFailureAsync(Task<string> task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
     }
 
     private static string ExtractJsonObject(string stdout)
