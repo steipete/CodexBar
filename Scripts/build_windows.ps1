@@ -45,7 +45,7 @@ function Resolve-InnoCompiler {
         if ($LASTEXITCODE -ne 0) {
             throw "winget failed to install Inno Setup."
         }
-        return Resolve-InnoCompiler
+        return (Resolve-InnoCompiler)
     }
 
     throw "Inno Setup compiler (ISCC.exe) was not found. Install it, or rerun with -InstallInno."

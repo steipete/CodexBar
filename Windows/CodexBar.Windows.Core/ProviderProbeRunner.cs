@@ -53,7 +53,7 @@ public sealed class ProviderProbeRunner
         }
 
         var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
-        return ProviderSnapshotJson.Parse(json).ToSnapshot(provider);
+        return ProviderSnapshotJson.ParseSnapshot(json, provider);
     }
 
     private static async Task<ProviderSnapshot> LoadCommandAsync(
@@ -85,28 +85,32 @@ public sealed class ProviderProbeRunner
         using var process = Process.Start(startInfo) ??
             throw new InvalidOperationException($"Unable to start {provider.Command}.");
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
+        var stdoutTask = ReadToEndAsync(process.StandardOutput, linkedCancellation.Token);
+        var stderrTask = ReadToEndAsync(process.StandardError, linkedCancellation.Token);
         try
         {
             await process.WaitForExitAsync(linkedCancellation.Token).ConfigureAwait(false);
+            var stdout = await stdoutTask.ConfigureAwait(false);
+            var stderr = await stderrTask.ConfigureAwait(false);
+            if (process.ExitCode != 0)
+            {
+                var message = string.IsNullOrWhiteSpace(stderr) ? $"exit code {process.ExitCode}" : stderr.Trim();
+                throw new InvalidOperationException($"{provider.Command} failed: {message}");
+            }
+
+            var payload = ExtractJsonPayload(stdout);
+            return ProviderSnapshotJson.ParseSnapshot(payload, provider);
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             await KillTimedOutProcessAsync(process, stdoutTask, stderrTask).ConfigureAwait(false);
             throw new TimeoutException($"{provider.Command} timed out after {provider.TimeoutSeconds} seconds.");
         }
+    }
 
-        var stdout = await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-        if (process.ExitCode != 0)
-        {
-            var message = string.IsNullOrWhiteSpace(stderr) ? $"exit code {process.ExitCode}" : stderr.Trim();
-            throw new InvalidOperationException($"{provider.Command} failed: {message}");
-        }
-
-        var payload = ExtractJsonObject(stdout);
-        return ProviderSnapshotJson.Parse(payload).ToSnapshot(provider);
+    private static async Task<string> ReadToEndAsync(TextReader reader, CancellationToken cancellationToken)
+    {
+        return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task KillTimedOutProcessAsync(
@@ -148,10 +152,10 @@ public sealed class ProviderProbeRunner
         }
     }
 
-    private static string ExtractJsonObject(string stdout)
+    private static string ExtractJsonPayload(string stdout)
     {
         var trimmed = stdout.Trim();
-        if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
+        if (IsCompleteJsonPayload(trimmed))
         {
             return trimmed;
         }
@@ -160,7 +164,7 @@ public sealed class ProviderProbeRunner
         foreach (var line in trimmed.Split('\n'))
         {
             var candidate = line.Trim();
-            if (candidate.StartsWith('{') && candidate.EndsWith('}'))
+            if (IsCompleteJsonPayload(candidate))
             {
                 return candidate;
             }
@@ -168,6 +172,12 @@ public sealed class ProviderProbeRunner
             builder.AppendLine(candidate);
         }
 
-        throw new InvalidOperationException($"Probe did not print a JSON object: {builder.ToString().Trim()}");
+        throw new InvalidOperationException($"Probe did not print a JSON object or array: {builder.ToString().Trim()}");
+    }
+
+    private static bool IsCompleteJsonPayload(string candidate)
+    {
+        return candidate.StartsWith('{') && candidate.EndsWith('}') ||
+            candidate.StartsWith('[') && candidate.EndsWith(']');
     }
 }
