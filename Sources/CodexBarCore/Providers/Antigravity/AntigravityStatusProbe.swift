@@ -635,11 +635,12 @@ public struct AntigravityStatusProbe: Sendable {
     }
 
     private static func isLanguageServerCommandLine(_ lowerCommand: String) -> Bool {
-        let pattern = #"(^|[/\\])language_server(_macos|\.exe)?(\s|$)"#
+        let pattern = #"(^|[/\\])(language_server|antigravity-cli|antigravity_cli)(_macos|\.exe)?(\s|/|$)"#
         return lowerCommand.range(of: pattern, options: .regularExpression) != nil
     }
 
     private static func isAntigravityCommandLine(_ command: String) -> Bool {
+        if command.contains("antigravity-cli") || command.contains("antigravity_cli") { return true }
         if command.contains("--app_data_dir") && command.contains("antigravity") { return true }
         if command.contains("/antigravity/") || command.contains("\\antigravity\\") { return true }
         return false
