@@ -4,6 +4,7 @@
 
 ### Added
 - Localization: add French as a selectable app language (#1241). Thanks @Yuxin-Qiao!
+- Localization: add Ukrainian as a selectable app language (#1250). Thanks @Yuxin-Qiao!
 
 ### Fixed
 - Menu bar: defer merged-menu close rebuilds and cache repeated menu-card height measurements so dismissing or rapidly switching the merged dropdown avoids rebuilding SwiftUI-backed cards on the main thread (#1274, #1286, #1314). Thanks @hhh2210!
