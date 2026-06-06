@@ -245,6 +245,148 @@ jobs:
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256
 
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            arch: x64
+            runs-on: windows-latest
+          - rid: win-arm64
+            arch: arm64
+            runs-on: windows-11-arm
+    runs-on: ${{ matrix.runs-on }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_TAG)) {
+            throw "Missing release tag."
+          }
+          if ($env:RELEASE_TAG -notmatch '^v[0-9A-Za-z._-]+$') {
+            throw "Invalid release tag: $env:RELEASE_TAG"
+          }
+
+      - name: Require signing secrets for release assets
+        if: github.event_name == 'release' && (env.AZURE_TENANT_ID == '' || env.AZURE_CLIENT_ID == '' || env.AZURE_CLIENT_SECRET == '' || env.AZURE_SUBSCRIPTION_ID == '')
+        shell: pwsh
+        run: throw "Windows release assets require Azure Trusted Signing secrets."
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ matrix.rid }}-${{ hashFiles('Windows/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-${{ matrix.rid }}-
+
+      - name: Test Windows core
+        shell: pwsh
+        run: ./Scripts/build_windows.ps1 test
+
+      - name: Publish native tray
+        shell: pwsh
+        run: ./Scripts/build_windows.ps1 publish -Runtime ${{ matrix.rid }} -Version $($env:RELEASE_TAG.TrimStart('v'))
+
+      - name: Azure Login for Signing
+        if: env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/login@v3
+        with:
+          creds: '{"clientId":"${{ env.AZURE_CLIENT_ID }}","clientSecret":"${{ env.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ env.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ env.AZURE_TENANT_ID }}"}'
+
+      - name: Sign tray executable
+        if: env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/trusted-signing-action@v2
+        with:
+          azure-tenant-id: ${{ env.AZURE_TENANT_ID }}
+          azure-client-id: ${{ env.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ env.AZURE_CLIENT_SECRET }}
+          endpoint: https://wus2.codesigning.azure.net/
+          signing-account-name: hanselman
+          certificate-profile-name: WindowsEdgeLight
+          files-folder: publish/windows/${{ matrix.rid }}
+          files-folder-filter: exe
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: ./Scripts/build_windows.ps1 installer -Runtime ${{ matrix.rid }} -Version $($env:RELEASE_TAG.TrimStart('v')) -NoPublish
+
+      - name: Sign installer
+        if: env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/trusted-signing-action@v2
+        with:
+          azure-tenant-id: ${{ env.AZURE_TENANT_ID }}
+          azure-client-id: ${{ env.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ env.AZURE_CLIENT_SECRET }}
+          endpoint: https://wus2.codesigning.azure.net/
+          signing-account-name: hanselman
+          certificate-profile-name: WindowsEdgeLight
+          files-folder: Output
+          files-folder-filter: exe
+          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Package release assets
+        id: pkg
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          $zip = "CodexBarWindows-v$version-${{ matrix.rid }}.zip"
+          $installer = "CodexBar-Setup-${{ matrix.arch }}.exe"
+          Compress-Archive -Path "publish/windows/${{ matrix.rid }}/*" -DestinationPath $zip -Force
+          Get-FileHash -Algorithm SHA256 $zip | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $zip" } | Set-Content "$zip.sha256"
+          Get-FileHash -Algorithm SHA256 "Output/$installer" | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $installer" } | Set-Content "$installer.sha256"
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "installer=Output/$installer" >> $env:GITHUB_OUTPUT
+          "installer_sha=$installer.sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Upload release assets
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release upload $env:RELEASE_TAG `
+            "${{ steps.pkg.outputs.zip }}" `
+            "${{ steps.pkg.outputs.zip }}.sha256" `
+            "${{ steps.pkg.outputs.installer }}" `
+            "${{ steps.pkg.outputs.installer_sha }}" `
+            --clobber
+
+      - name: Upload workflow artifact (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: codexbar-windows-${{ matrix.rid }}
+          path: |
+            ${{ steps.pkg.outputs.zip }}
+            ${{ steps.pkg.outputs.zip }}.sha256
+            ${{ steps.pkg.outputs.installer }}
+            ${{ steps.pkg.outputs.installer_sha }}
+
   update-homebrew-tap:
     runs-on: ubuntu-latest
     needs: build-cli

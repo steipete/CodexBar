@@ -48,6 +48,11 @@ Or download release tarballs from GitHub Releases:
 - macOS: `CodexBarCLI-v<tag>-macos-arm64.tar.gz`, `CodexBarCLI-v<tag>-macos-x86_64.tar.gz`
 - Linux: `CodexBarCLI-v<tag>-linux-aarch64.tar.gz`, `CodexBarCLI-v<tag>-linux-x86_64.tar.gz`
 
+### Windows native tray
+CodexBar now has a native Windows notification-area companion with self-contained `win-x64` and `win-arm64` builds. It reads provider quota snapshots or command probes from `%APPDATA%\CodexBar\windows-settings.json`.
+
+See [CodexBar for Windows](docs/windows.md) for build, installer, and probe configuration.
+
 ### First run
 - Open Settings → Providers and enable what you use.
 - Install/sign in to the provider sources you rely on: CLIs, browser sessions, OAuth/device flow, API keys, local app files, or provider apps depending on the provider.
@@ -214,8 +219,9 @@ CLI install:
 - 🧳 [MCPorter](https://mcporter.dev) — TypeScript toolkit + CLI for Model Context Protocol servers.
 - 🧿 [oracle](https://askoracle.dev) — Ask the oracle when you're stuck. Invoke GPT-5 Pro with a custom context and files.
 
-## Looking for a Windows version?
-- [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
+## Windows desktop integration
+- Native CodexBar Windows tray companion: [docs/windows.md](docs/windows.md).
+- Community app: [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar).
 
 ## Linux desktop integration?
 - [codexbar-waybar](https://github.com/Marouan-chak/codexbar-waybar) — Waybar custom module + GTK4 popover for Hyprland / Sway / other Wayland compositors, built on top of the bundled Linux CLI.

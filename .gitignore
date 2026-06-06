@@ -8,6 +8,10 @@ xcuserdata/
 # Build products
 .build/
 DerivedData
+Windows/**/bin/
+Windows/**/obj/
+publish/
+Output/
 
 # Bundles / artifacts
 # Main app bundle (any variation)

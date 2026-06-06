@@ -2,6 +2,9 @@
 
 ## 0.32.5 — Unreleased
 
+### Added
+- Windows: add a native notification-area companion with provider snapshot/command probes, self-contained publish targets, installer packaging, CI artifacts, and Azure Trusted Signing hooks.
+
 ### Fixed
 - Menu bar: defer merged-menu close rebuilds and cache repeated menu-card height measurements so dismissing or rapidly switching the merged dropdown avoids rebuilding SwiftUI-backed cards on the main thread (#1274, #1286, #1314). Thanks @hhh2210!
 - Menu bar: observe a compact icon-state signature so merged status icons no longer redraw for provider snapshot changes that cannot affect the visible icon (#1297). Thanks @hhh2210!

@@ -119,3 +119,95 @@ jobs:
           fi
           "$BIN" usage --provider codex --web 2>&1 | tee /tmp/codexbarcli-stderr.txt >/dev/null || true
           grep -q "macOS" /tmp/codexbarcli-stderr.txt
+
+  build-windows-tray:
+    name: Windows tray (${{ matrix.rid }})
+    timeout-minutes: 35
+    runs-on: ${{ matrix.rid == 'win-arm64' && 'windows-11-arm' || 'windows-latest' }}
+    env:
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ matrix.rid }}-${{ hashFiles('Windows/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-${{ matrix.rid }}-
+
+      - name: Test Windows core
+        shell: pwsh
+        run: ./Scripts/build_windows.ps1 test
+
+      - name: Publish native tray
+        shell: pwsh
+        run: ./Scripts/build_windows.ps1 publish -Runtime ${{ matrix.rid }}
+
+      - name: Azure Login for Signing
+        if: startsWith(github.ref, 'refs/tags/v') && env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/login@v3
+        with:
+          creds: '{"clientId":"${{ env.AZURE_CLIENT_ID }}","clientSecret":"${{ env.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ env.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ env.AZURE_TENANT_ID }}"}'
+
+      - name: Sign tray executable
+        if: startsWith(github.ref, 'refs/tags/v') && env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/trusted-signing-action@v2
+        with:
+          azure-tenant-id: ${{ env.AZURE_TENANT_ID }}
+          azure-client-id: ${{ env.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ env.AZURE_CLIENT_SECRET }}
+          endpoint: https://wus2.codesigning.azure.net/
+          signing-account-name: hanselman
+          certificate-profile-name: WindowsEdgeLight
+          files-folder: publish/windows/${{ matrix.rid }}
+          files-folder-filter: exe
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: ./Scripts/build_windows.ps1 installer -Runtime ${{ matrix.rid }} -NoPublish
+
+      - name: Sign installer
+        if: startsWith(github.ref, 'refs/tags/v') && env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/trusted-signing-action@v2
+        with:
+          azure-tenant-id: ${{ env.AZURE_TENANT_ID }}
+          azure-client-id: ${{ env.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ env.AZURE_CLIENT_SECRET }}
+          endpoint: https://wus2.codesigning.azure.net/
+          signing-account-name: hanselman
+          certificate-profile-name: WindowsEdgeLight
+          files-folder: Output
+          files-folder-filter: exe
+          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Upload Windows tray artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: codexbar-windows-${{ matrix.rid }}
+          path: |
+            publish/windows/${{ matrix.rid }}/
+            Output/CodexBar-Setup-*.exe
