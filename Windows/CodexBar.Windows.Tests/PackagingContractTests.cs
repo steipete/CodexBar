@@ -24,7 +24,8 @@ public sealed class PackagingContractTests
 
         Assert.Contains("build-windows-tray", ci);
         Assert.Contains("azure/trusted-signing-action@v2", ci);
-        Assert.Contains("certificate-profile-name: WindowsEdgeLight", ci);
+        Assert.Contains("AZURE_CERTIFICATE_PROFILE_NAME: ${{ vars.AZURE_CERTIFICATE_PROFILE_NAME || 'WindowsEdgeLight' }}", ci);
+        Assert.Contains("certificate-profile-name: ${{ env.AZURE_CERTIFICATE_PROFILE_NAME }}", ci);
         Assert.Contains("codexbar-windows-${{ matrix.rid }}", ci);
 
         Assert.Contains("build-windows", release);
