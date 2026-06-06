@@ -75,6 +75,43 @@ public sealed class ProviderProbeRunnerTests
     }
 
     [WindowsFact]
+    public async Task LoadProviderAsync_ExpandsCommandAndWorkingDirectoryEnvironmentVariables()
+    {
+        using var temp = new TempDirectory();
+        var variableName = $"CODEXBAR_TEST_PROBE_DIR_{Guid.NewGuid():N}";
+        var scriptPath = Path.Combine(temp.Path, "probe.cmd");
+        await File.WriteAllLinesAsync(scriptPath,
+        [
+            "@echo off",
+            "echo {\"health\":\"ok\",\"remaining\":5,\"limit\":8}",
+        ]);
+
+        Environment.SetEnvironmentVariable(variableName, temp.Path);
+        try
+        {
+            var runner = new ProviderProbeRunner();
+            var snapshot = await runner.LoadProviderAsync(
+                new ProviderProbeSettings
+                {
+                    Id = "codex",
+                    Name = "Codex",
+                    Command = "%ComSpec%",
+                    Arguments = ["/c", "probe.cmd"],
+                    WorkingDirectory = $"%{variableName}%",
+                },
+                CancellationToken.None);
+
+            Assert.Equal(ProviderHealth.Healthy, snapshot.Health);
+            Assert.Equal(5, snapshot.Remaining);
+            Assert.Equal(8, snapshot.Limit);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variableName, null);
+        }
+    }
+
+    [WindowsFact]
     public async Task LoadProviderAsync_ParsesCodexBarCliJsonArray()
     {
         using var temp = new TempDirectory();
@@ -193,6 +230,34 @@ public sealed class ProviderProbeRunnerTests
         Assert.Equal(ProviderHealth.Failing, snapshot.Health);
         Assert.Contains("Output preview", snapshot.Detail);
         Assert.True(snapshot.Detail!.Length < 620);
+    }
+
+    [WindowsFact]
+    public async Task LoadProviderAsync_FailsWhenProbeOutputExceedsLimit()
+    {
+        using var temp = new TempDirectory();
+        var scriptPath = Path.Combine(temp.Path, "large-probe.cmd");
+        await File.WriteAllLinesAsync(scriptPath,
+        [
+            "@echo off",
+            $"for /L %%i in (1,1,600) do echo {new string('x', 2048)}",
+        ]);
+
+        var runner = new ProviderProbeRunner();
+
+        var snapshot = await runner.LoadProviderAsync(
+            new ProviderProbeSettings
+            {
+                Id = "codex",
+                Name = "Codex",
+                Command = "cmd.exe",
+                Arguments = ["/c", scriptPath],
+                TimeoutSeconds = 5,
+            },
+            CancellationToken.None);
+
+        Assert.Equal(ProviderHealth.Failing, snapshot.Health);
+        Assert.Contains("output exceeded", snapshot.Detail);
     }
 
     [WindowsFact]

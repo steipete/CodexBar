@@ -6,6 +6,8 @@ namespace CodexBar.Windows.Core;
 
 public sealed class ProviderProbeRunner
 {
+    private const int MaxProbeStreamCharacters = 1024 * 1024;
+
     public async Task<IReadOnlyList<ProviderSnapshot>> LoadAsync(
         IReadOnlyList<ProviderProbeSettings> providers,
         CancellationToken cancellationToken)
@@ -66,7 +68,7 @@ public sealed class ProviderProbeRunner
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = provider.Command!,
+            FileName = Environment.ExpandEnvironmentVariables(provider.Command!),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -75,7 +77,7 @@ public sealed class ProviderProbeRunner
 
         if (!string.IsNullOrWhiteSpace(provider.WorkingDirectory))
         {
-            startInfo.WorkingDirectory = provider.WorkingDirectory;
+            startInfo.WorkingDirectory = Environment.ExpandEnvironmentVariables(provider.WorkingDirectory);
         }
 
         foreach (var argument in provider.Arguments)
@@ -86,11 +88,15 @@ public sealed class ProviderProbeRunner
         using var process = Process.Start(startInfo) ??
             throw new InvalidOperationException($"Unable to start {provider.Command}.");
 
-        var stdoutTask = ReadToEndAsync(process.StandardOutput, linkedCancellation.Token);
-        var stderrTask = ReadToEndAsync(process.StandardError, linkedCancellation.Token);
+        var stdoutTask = ReadBoundedAsync(process.StandardOutput, linkedCancellation.Token);
+        var stderrTask = ReadBoundedAsync(process.StandardError, linkedCancellation.Token);
         try
         {
-            await process.WaitForExitAsync(linkedCancellation.Token).ConfigureAwait(false);
+            var exitTask = process.WaitForExitAsync(linkedCancellation.Token);
+            var firstCompleted = await Task.WhenAny(exitTask, stdoutTask, stderrTask).ConfigureAwait(false);
+            await firstCompleted.ConfigureAwait(false);
+            await exitTask.ConfigureAwait(false);
+
             var stdout = await stdoutTask.ConfigureAwait(false);
             var stderr = await stderrTask.ConfigureAwait(false);
             if (process.ExitCode != 0)
@@ -107,11 +113,33 @@ public sealed class ProviderProbeRunner
             await KillTimedOutProcessAsync(process, stdoutTask, stderrTask).ConfigureAwait(false);
             throw new TimeoutException($"{provider.Command} timed out after {provider.TimeoutSeconds} seconds.");
         }
+        catch (ProbeOutputLimitExceededException exception)
+        {
+            await KillTimedOutProcessAsync(process, stdoutTask, stderrTask).ConfigureAwait(false);
+            throw new InvalidOperationException($"{provider.Command} {exception.Message}");
+        }
     }
 
-    private static async Task<string> ReadToEndAsync(TextReader reader, CancellationToken cancellationToken)
+    private static async Task<string> ReadBoundedAsync(TextReader reader, CancellationToken cancellationToken)
     {
-        return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        var buffer = new char[4096];
+        var builder = new StringBuilder();
+        while (true)
+        {
+            var read = await reader.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                return builder.ToString();
+            }
+
+            if (builder.Length + read > MaxProbeStreamCharacters)
+            {
+                throw new ProbeOutputLimitExceededException(
+                    $"output exceeded {MaxProbeStreamCharacters} characters.");
+            }
+
+            builder.Append(buffer, 0, read);
+        }
     }
 
     private static async Task KillTimedOutProcessAsync(
@@ -269,4 +297,6 @@ public sealed class ProviderProbeRunner
 
         return $"{compact[..MaxPreviewLength]}...";
     }
+
+    private sealed class ProbeOutputLimitExceededException(string message) : Exception(message);
 }

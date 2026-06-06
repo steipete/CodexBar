@@ -28,7 +28,13 @@ public sealed class WindowsSettingsStoreTests
             refreshIntervalMinutes = 5,
             providers = new object[]
             {
-                new { id = " codex ", name = " Codex ", timeoutSeconds = 999 },
+                new
+                {
+                    id = " codex ",
+                    name = " Codex ",
+                    arguments = new string?[] { "usage", "", "  ", null, "--json" },
+                    timeoutSeconds = 999,
+                },
                 new { id = "", name = "Broken" },
             },
         };
@@ -39,6 +45,7 @@ public sealed class WindowsSettingsStoreTests
         var provider = Assert.Single(store.Settings.Providers);
         Assert.Equal("codex", provider.Id);
         Assert.Equal("Codex", provider.Name);
+        Assert.Equal(new[] { "usage", "--json" }, provider.Arguments);
         Assert.Equal(300, provider.TimeoutSeconds);
     }
 }

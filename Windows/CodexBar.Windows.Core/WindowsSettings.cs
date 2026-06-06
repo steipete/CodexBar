@@ -103,7 +103,9 @@ public sealed class WindowsSettingsStore
             Enabled = provider.Enabled,
             SnapshotPath = NormalizeOptional(provider.SnapshotPath),
             Command = NormalizeOptional(provider.Command),
-            Arguments = provider.Arguments?.Where(argument => argument != null).ToList() ?? [],
+            Arguments = provider.Arguments?
+                .Where(argument => !string.IsNullOrWhiteSpace(argument))
+                .ToList() ?? [],
             WorkingDirectory = NormalizeOptional(provider.WorkingDirectory),
             TimeoutSeconds = Math.Clamp(provider.TimeoutSeconds <= 0 ? 20 : provider.TimeoutSeconds, 1, 300),
         };
