@@ -48,6 +48,15 @@ public sealed class ProviderProbeRunnerTests
     [WindowsFact]
     public async Task LoadProviderAsync_ParsesCommandJsonLine()
     {
+        using var temp = new TempDirectory();
+        var scriptPath = Path.Combine(temp.Path, "probe.cmd");
+        await File.WriteAllLinesAsync(scriptPath,
+        [
+            "@echo off",
+            "echo ignored",
+            "echo {\"health\":\"ok\",\"remaining\":7,\"limit\":9}",
+        ]);
+
         var runner = new ProviderProbeRunner();
 
         var snapshot = await runner.LoadProviderAsync(
@@ -56,7 +65,7 @@ public sealed class ProviderProbeRunnerTests
                 Id = "codex",
                 Name = "Codex",
                 Command = "cmd.exe",
-                Arguments = ["/c", "echo ignored && echo {\"health\":\"ok\",\"remaining\":7,\"limit\":9}"],
+                Arguments = ["/c", scriptPath],
             },
             CancellationToken.None);
 
