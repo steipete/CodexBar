@@ -9,6 +9,9 @@ public sealed class WindowsBuildScriptTests
         var scriptPath = Path.Combine(root, "Scripts", "build_windows.ps1");
         var script = File.ReadAllText(scriptPath);
 
+        Assert.Contains("[string]$Version = \"\"", script);
+        Assert.Contains("function Resolve-BuildVersion", script);
+        Assert.Contains("<Version>", script);
         Assert.Contains("return (Resolve-InnoCompiler)", script);
         Assert.DoesNotContain("return Resolve-InnoCompiler", script);
     }

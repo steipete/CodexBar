@@ -17,7 +17,7 @@
 #endif
 
 [Setup]
-AppId={{C0DEXBAR-7RAY-W1ND-0001}}
+AppId={{76C53A02-90C7-4EB7-8132-4F8032741474}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}

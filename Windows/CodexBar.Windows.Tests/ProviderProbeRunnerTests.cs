@@ -168,6 +168,34 @@ public sealed class ProviderProbeRunnerTests
     }
 
     [WindowsFact]
+    public async Task LoadProviderAsync_TruncatesInvalidProbeOutput()
+    {
+        using var temp = new TempDirectory();
+        var scriptPath = Path.Combine(temp.Path, "invalid-probe.cmd");
+        await File.WriteAllLinesAsync(scriptPath,
+        [
+            "@echo off",
+            $"echo {new string('x', 700)}",
+        ]);
+
+        var runner = new ProviderProbeRunner();
+
+        var snapshot = await runner.LoadProviderAsync(
+            new ProviderProbeSettings
+            {
+                Id = "codex",
+                Name = "Codex",
+                Command = "cmd.exe",
+                Arguments = ["/c", scriptPath],
+            },
+            CancellationToken.None);
+
+        Assert.Equal(ProviderHealth.Failing, snapshot.Health);
+        Assert.Contains("Output preview", snapshot.Detail);
+        Assert.True(snapshot.Detail!.Length < 620);
+    }
+
+    [WindowsFact]
     public async Task LoadProviderAsync_ReturnsFailedSnapshotWhenCommandTimesOut()
     {
         using var temp = new TempDirectory();

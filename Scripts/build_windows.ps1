@@ -8,7 +8,7 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
 
-    [string]$Version = "0.32.5",
+    [string]$Version = "",
 
     [switch]$NoPublish,
 
@@ -59,9 +59,25 @@ function Convert-RuntimeToArch {
     return "x64"
 }
 
+function Resolve-BuildVersion {
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        return $Version
+    }
+
+    [xml]$project = Get-Content -LiteralPath $appProject
+    $projectVersion = @($project.Project.PropertyGroup.Version | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($projectVersion)) {
+        throw "Missing <Version> in $appProject. Pass -Version explicitly."
+    }
+
+    return $projectVersion
+}
+
+$resolvedVersion = Resolve-BuildVersion
+
 switch ($Command) {
     "build" {
-        dotnet build $appProject -c $Configuration -r $Runtime -p:Version=$Version
+        dotnet build $appProject -c $Configuration -r $Runtime -p:Version=$resolvedVersion
     }
     "test" {
         dotnet test $testProject -c $Configuration --verbosity normal
@@ -69,7 +85,7 @@ switch ($Command) {
     "publish" {
         Remove-Item -LiteralPath $publishDir -Recurse -Force -ErrorAction SilentlyContinue
         dotnet publish $appProject -c $Configuration -r $Runtime --self-contained true `
-            -p:Version=$Version `
+            -p:Version=$resolvedVersion `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:PublishReadyToRun=true `
@@ -77,7 +93,7 @@ switch ($Command) {
     }
     "installer" {
         if (-not $NoPublish) {
-            & $PSCommandPath publish -Runtime $Runtime -Configuration $Configuration -Version $Version
+            & $PSCommandPath publish -Runtime $Runtime -Configuration $Configuration -Version $resolvedVersion
             if ($LASTEXITCODE -ne 0) {
                 exit $LASTEXITCODE
             }
@@ -90,7 +106,7 @@ switch ($Command) {
 
         $iscc = Resolve-InnoCompiler
         $arch = Convert-RuntimeToArch
-        & $iscc "/DMyAppVersion=$Version" "/DMyAppArch=$arch" "/Dpublish=$publishDir" (Join-Path $root "installer.iss")
+        & $iscc "/DMyAppVersion=$resolvedVersion" "/DMyAppArch=$arch" "/Dpublish=$publishDir" (Join-Path $root "installer.iss")
         if ($LASTEXITCODE -ne 0) {
             throw "ISCC failed for $Runtime."
         }

@@ -176,7 +176,8 @@ public sealed class ProviderProbeRunner
             }
         }
 
-        throw new InvalidOperationException($"Probe did not print a JSON object or array: {trimmed}");
+        throw new InvalidOperationException(
+            $"Probe did not print a JSON object or array. Output preview: {FormatOutputPreview(trimmed)}");
     }
 
     private static bool IsCompleteJsonPayload(string candidate)
@@ -255,5 +256,17 @@ public sealed class ProviderProbeRunner
         {
             return false;
         }
+    }
+
+    private static string FormatOutputPreview(string output)
+    {
+        const int MaxPreviewLength = 512;
+        var compact = output.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (compact.Length <= MaxPreviewLength)
+        {
+            return compact;
+        }
+
+        return $"{compact[..MaxPreviewLength]}...";
     }
 }
