@@ -35,6 +35,33 @@ public struct AntigravityOAuthCredentials: Codable, Sendable, Equatable {
         return Date(timeIntervalSince1970: expiryDateMilliseconds / 1000)
     }
 
+    /// Email of the Google account these credentials authenticate, preferring the
+    /// signed `id_token` claim (what the remote OAuth fetcher reports) and falling
+    /// back to the stored `email` field. Used to verify that an ambient local/CLI
+    /// Antigravity snapshot belongs to the account the user explicitly selected.
+    public var resolvedAccountEmail: String? {
+        Self.email(fromIDToken: self.idToken) ?? self.email?.trimmedNonEmptyEmail
+    }
+
+    static func email(fromIDToken idToken: String?) -> String? {
+        guard let idToken else { return nil }
+        let parts = idToken.components(separatedBy: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+        return (json["email"] as? String)?.trimmedNonEmptyEmail
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.accessToken =
@@ -456,5 +483,10 @@ extension JSONEncoder {
 extension String {
     fileprivate var nilIfEmpty: String? {
         self.isEmpty ? nil : self
+    }
+
+    fileprivate var trimmedNonEmptyEmail: String? {
+        let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

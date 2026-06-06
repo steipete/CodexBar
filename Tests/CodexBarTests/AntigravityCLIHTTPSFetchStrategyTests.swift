@@ -121,6 +121,109 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         #expect(oauthStrategies.map(\.id) == ["antigravity.oauth"])
     }
 
+    // MARK: - Selected-account guard
+
+    @Test
+    func `account guard ignores fetches without a selected account`() throws {
+        let usage = self.makeUsage(accountEmail: "ambient@example.com")
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            env: self.accountEnv(email: "selected@example.com"))
+
+        try AntigravitySelectedAccountGuard.validate(usage, context: context)
+    }
+
+    @Test
+    func `account guard accepts matching ambient snapshot in auto mode`() throws {
+        let usage = self.makeUsage(accountEmail: "Selected@Example.com")
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            selectedTokenAccountID: UUID(),
+            env: self.accountEnv(email: "selected@example.com"))
+
+        try AntigravitySelectedAccountGuard.validate(usage, context: context)
+    }
+
+    @Test
+    func `account guard rejects mismatched ambient snapshot in auto mode`() {
+        let usage = self.makeUsage(accountEmail: "ambient@example.com")
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            selectedTokenAccountID: UUID(),
+            env: self.accountEnv(email: "selected@example.com"))
+
+        #expect(throws: AntigravityStatusProbeError.accountMismatch(
+            expected: "selected@example.com",
+            found: "ambient@example.com"))
+        {
+            try AntigravitySelectedAccountGuard.validate(usage, context: context)
+        }
+    }
+
+    @Test
+    func `account guard rejects snapshot without an identity email`() {
+        let usage = self.makeUsage(accountEmail: nil)
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            selectedTokenAccountID: UUID(),
+            env: self.accountEnv(email: "selected@example.com"))
+
+        #expect(throws: AntigravityStatusProbeError.accountMismatch(
+            expected: "selected@example.com",
+            found: nil))
+        {
+            try AntigravitySelectedAccountGuard.validate(usage, context: context)
+        }
+    }
+
+    @Test
+    func `account guard rejects when selected account email cannot be resolved`() {
+        let usage = self.makeUsage(accountEmail: "ambient@example.com")
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            selectedTokenAccountID: UUID())
+
+        #expect(throws: AntigravityStatusProbeError.accountMismatch(
+            expected: nil,
+            found: "ambient@example.com"))
+        {
+            try AntigravitySelectedAccountGuard.validate(usage, context: context)
+        }
+    }
+
+    @Test
+    func `account guard leaves explicit cli source mode authoritative`() throws {
+        let usage = self.makeUsage(accountEmail: "ambient@example.com")
+        let context = self.makeFetchContext(
+            sourceMode: .cli,
+            selectedTokenAccountID: UUID(),
+            env: self.accountEnv(email: "selected@example.com"))
+
+        try AntigravitySelectedAccountGuard.validate(usage, context: context)
+    }
+
+    @Test
+    func `selected account email resolves from id_token when email field missing`() {
+        let idToken = Self.makeIDToken(email: "jwt@example.com")
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            selectedTokenAccountID: UUID(),
+            env: self.accountEnv(email: nil, idToken: idToken))
+
+        #expect(AntigravitySelectedAccountGuard.selectedAccountEmail(context: context) == "jwt@example.com")
+    }
+
+    @Test
+    func `selected account email prefers id_token over stored email field`() {
+        let idToken = Self.makeIDToken(email: "jwt@example.com")
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            selectedTokenAccountID: UUID(),
+            env: self.accountEnv(email: "stored@example.com", idToken: idToken))
+
+        #expect(AntigravitySelectedAccountGuard.selectedAccountEmail(context: context) == "jwt@example.com")
+    }
+
     @Test
     func `cli HTTPS resets session only for short lived CLI runtime`() {
         #expect(AntigravityCLIHTTPSFetchStrategy.shouldResetSessionAfterFetch(self.makeFetchContext(runtime: .cli)))
@@ -475,10 +578,10 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     private func makeFetchContext(
         runtime: ProviderRuntime = .app,
         sourceMode: ProviderSourceMode = .auto,
-        selectedTokenAccountID: UUID? = nil) -> ProviderFetchContext
+        selectedTokenAccountID: UUID? = nil,
+        env: [String: String] = [:]) -> ProviderFetchContext
     {
-        let env: [String: String] = [:]
-        return ProviderFetchContext(
+        ProviderFetchContext(
             runtime: runtime,
             sourceMode: sourceMode,
             includeCredits: false,
@@ -491,6 +594,40 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             selectedTokenAccountID: selectedTokenAccountID)
+    }
+
+    private func makeUsage(accountEmail: String?) -> UsageSnapshot {
+        UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: accountEmail,
+                accountOrganization: nil,
+                loginMethod: nil))
+    }
+
+    private func accountEnv(email: String?, idToken: String? = nil) -> [String: String] {
+        let credentials = AntigravityOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            expiryDate: Date().addingTimeInterval(3600),
+            idToken: idToken,
+            email: email)
+        guard let value = try? AntigravityOAuthCredentialsStore.tokenAccountValue(for: credentials) else {
+            return [:]
+        }
+        return [AntigravityOAuthCredentialsStore.environmentCredentialsKey: value]
+    }
+
+    private static func makeIDToken(email: String) -> String {
+        let payload = Data("{\"email\":\"\(email)\"}".utf8)
+        let encodedPayload = payload.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "header.\(encodedPayload).signature"
     }
 
     private struct StubClaudeFetcher: ClaudeUsageFetching {

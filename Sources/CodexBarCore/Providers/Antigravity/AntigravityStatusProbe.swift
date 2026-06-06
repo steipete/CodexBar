@@ -356,6 +356,7 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
     case apiError(String)
     case parseFailed(String)
     case timedOut
+    case accountMismatch(expected: String?, found: String?)
 
     public var errorDescription: String? {
         switch self {
@@ -371,7 +372,19 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
             "Could not parse Antigravity quota: \(message)"
         case .timedOut:
             "Antigravity quota request timed out."
+        case let .accountMismatch(expected, found):
+            Self.accountMismatchDescription(expected: expected, found: found)
         }
+    }
+
+    private static func accountMismatchDescription(expected: String?, found: String?) -> String {
+        let selected = expected ?? "the selected account"
+        if let found {
+            return "Antigravity local session is signed in as \(found), not \(selected); "
+                + "using the selected account's OAuth data instead."
+        }
+        return "Antigravity local session did not report an account matching \(selected); "
+            + "using the selected account's OAuth data instead."
     }
 
     private static func portDetectionDescription(_ message: String) -> String {

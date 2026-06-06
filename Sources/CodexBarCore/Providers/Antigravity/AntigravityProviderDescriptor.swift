@@ -64,10 +64,11 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
         true
     }
 
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = AntigravityStatusProbe()
         let snap = try await probe.fetch()
         let usage = try snap.toUsageSnapshot()
+        try AntigravitySelectedAccountGuard.validate(usage, context: context)
         return self.makeResult(
             usage: usage,
             sourceLabel: "local")
@@ -104,9 +105,11 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         guard let binary = BinaryLocator.resolveAntigravityBinary(env: context.env) else {
             throw AntigravityStatusProbeError.notRunning
         }
-        return try await self.fetchUsingWarmSession(
+        let result = try await self.fetchUsingWarmSession(
             binary: binary,
             resetAfterFetch: Self.shouldResetSessionAfterFetch(context))
+        try AntigravitySelectedAccountGuard.validate(result.usage, context: context)
+        return result
     }
 
     private func fetchUsingWarmSession(binary: String, resetAfterFetch: Bool) async throws -> ProviderFetchResult {
@@ -255,5 +258,44 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
+    }
+}
+
+/// Guards ambient Antigravity snapshots against the explicitly selected account.
+///
+/// The local desktop probe and the ``agy`` CLI HTTPS server report whichever
+/// Antigravity account is signed into the local session. When the user has
+/// selected a specific saved Google account, an ambient probe can return a
+/// *different* account's quota. Only the OAuth strategy is account-scoped (it
+/// fetches with the selected account's injected credentials), so in ``auto``
+/// mode we reject a snapshot whose identity does not match the selected account
+/// and let the pipeline fall through to OAuth. Explicit ``cli``/``oauth`` source
+/// modes stay authoritative and are never second-guessed here.
+enum AntigravitySelectedAccountGuard {
+    static func validate(_ usage: UsageSnapshot, context: ProviderFetchContext) throws {
+        guard context.sourceMode == .auto, context.selectedTokenAccountID != nil else { return }
+        let expected = self.selectedAccountEmail(context: context)
+        let found = self.normalizedEmail(usage.identity?.accountEmail)
+        guard let expected, let found, found.caseInsensitiveCompare(expected) == .orderedSame else {
+            throw AntigravityStatusProbeError.accountMismatch(expected: expected, found: found)
+        }
+    }
+
+    /// Email of the selected token account, read from the same injected
+    /// credentials the OAuth strategy would use (`ANTIGRAVITY_OAUTH_CREDENTIALS_JSON`).
+    static func selectedAccountEmail(context: ProviderFetchContext) -> String? {
+        guard let value = context.env[AntigravityOAuthCredentialsStore.environmentCredentialsKey],
+              let credentials = AntigravityOAuthCredentialsStore.credentials(fromTokenAccountValue: value)
+        else {
+            return nil
+        }
+        return credentials.resolvedAccountEmail
+    }
+
+    private static func normalizedEmail(_ email: String?) -> String? {
+        guard let trimmed = email?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 }
