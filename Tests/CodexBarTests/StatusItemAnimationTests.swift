@@ -1025,6 +1025,110 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `menu bar display text pairs claude primary percent with session pace`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-primary-session-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 17,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(107 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 3,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(9172 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        #expect(displayText == "83% · -47%")
+    }
+
+    @Test
+    func `menu bar display text preserves weekly fallback when selected metric lacks session timing`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-primary-weekly-fallback"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 17,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 3,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(9172 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        #expect(displayText == "83% · -6%")
+    }
+
+    @Test
     func `menu bar display text shows zero percent for kilo zero total edge`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-kilo-zero-edge"),

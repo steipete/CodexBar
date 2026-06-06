@@ -670,6 +670,10 @@ extension StatusItemController {
         }
 
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
+        let weeklyFallbackWindow =
+            snapshot?.secondary
+                // Abacus has no secondary window; pace is computed on primary monthly credits.
+                ?? (provider == .abacus ? snapshot?.primary : nil)
         let mode = self.settings.menuBarDisplayMode
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
@@ -677,19 +681,16 @@ extension StatusItemController {
             surface: .menuBar,
             snapshotOverride: snapshot,
             now: now)
-        let pace: UsagePace?
-        switch mode {
+        let pace: UsagePace? = switch mode {
         case .percent:
-            pace = nil
+            nil
         case .pace, .both:
-            let weeklyWindow =
-                codexProjection?.rateWindow(for: .weekly)
-                ?? snapshot?.secondary
-                // Abacus has no secondary window; pace is computed on primary monthly credits
-                ?? (provider == .abacus ? snapshot?.primary : nil)
-            pace = weeklyWindow.flatMap { window in
-                self.store.weeklyPace(provider: provider, window: window, now: now)
-            }
+            self.menuBarPace(
+                for: provider,
+                percentWindow: percentWindow,
+                weeklyFallbackWindow: weeklyFallbackWindow,
+                codexProjection: codexProjection,
+                now: now)
         }
         let displayText = MenuBarDisplayText.displayText(
             mode: mode,
@@ -710,6 +711,26 @@ extension StatusItemController {
         }
 
         return displayText
+    }
+
+    private func menuBarPace(
+        for provider: UsageProvider,
+        percentWindow: RateWindow?,
+        weeklyFallbackWindow: RateWindow?,
+        codexProjection: CodexConsumerProjection?,
+        now: Date)
+        -> UsagePace?
+    {
+        if let codexWeekly = codexProjection?.rateWindow(for: .weekly) {
+            return self.store.weeklyPace(provider: provider, window: codexWeekly, now: now)
+        }
+        if let percentWindow,
+           let sessionPace = UsagePaceText.sessionPace(provider: provider, window: percentWindow, now: now)
+        {
+            return sessionPace
+        }
+        guard let weeklyFallbackWindow else { return nil }
+        return self.store.weeklyPace(provider: provider, window: weeklyFallbackWindow, now: now)
     }
 
     nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
