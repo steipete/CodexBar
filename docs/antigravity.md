@@ -9,7 +9,7 @@ read_when:
 
 # Antigravity provider
 
-Antigravity supports local IDE probing and Google OAuth-backed remote usage. The OAuth path can store multiple Google accounts through the shared token-account switcher.
+Antigravity supports local probing of either the IDE or the CLI (`agy` / `antigravity-cli`) language server, plus Google OAuth-backed remote usage. The OAuth path can store multiple Google accounts through the shared token-account switcher.
 
 ## OAuth account switching
 
@@ -32,11 +32,16 @@ Antigravity supports local IDE probing and Google OAuth-backed remote usage. The
 
 1) **Process detection**
    - Command: `ps -ax -o pid=,command=`.
-   - Match process name: `language_server_macos` plus Antigravity markers:
-     - `--app_data_dir antigravity` OR path contains `/antigravity/`.
+   - Match either:
+     - the **IDE** language server: process name `language_server_macos` plus Antigravity
+       markers (`--app_data_dir antigravity` OR path contains `/antigravity/`); or
+     - the **CLI**: `antigravity-cli` / `antigravity_cli`, or the `agy` binary
+       (path-anchored so unrelated binaries do not match).
    - Extract CLI flags:
-     - `--csrf_token <token>` (required).
-     - `--extension_server_port <port>` (HTTP fallback).
+     - `--csrf_token <token>` (optional). The IDE language server supplies one and
+       requires it; the CLI's language server exposes no `--csrf_token` flag and
+       requires none, so an empty token is used when the flag is absent.
+     - `--extension_server_port <port>` (HTTP fallback; IDE only).
 
 2) **Port discovery**
    - Command: `lsof -nP -iTCP -sTCP:LISTEN -p <pid>`.
