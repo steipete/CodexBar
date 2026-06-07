@@ -40,6 +40,7 @@ final class ProviderSwitcherView: NSView {
     private var preferredWidth: CGFloat = 0
     private var hoveredButtonTag: Int?
     private var pressedButtonTag: Int?
+    private var selectedSegmentIndex: Int?
     private let lightModeOverlayLayer = CALayer()
     private static let quotaIndicatorHeight: CGFloat = 3
     private static let quotaIndicatorBottomInset: CGFloat = 2
@@ -190,6 +191,9 @@ final class ProviderSwitcherView: NSView {
             let button = makeButton(index: index, segment: segment)
             self.addSubview(button)
         }
+        self.selectedSegmentIndex = selected.flatMap { selected in
+            self.segments.firstIndex { $0.selection == selected }
+        }
 
         let uniformWidth: CGFloat
         if self.rowCount > 1 || !self.stackedIcons {
@@ -319,7 +323,7 @@ final class ProviderSwitcherView: NSView {
 
     private func applySelection(at index: Int) {
         let selection = self.segments[index].selection
-        guard self.selectedSelection != selection else { return }
+        guard self.selectedSegmentIndex != index else { return }
         self.updateSelection(selection)
         self.onSelect(selection)
     }
@@ -332,6 +336,16 @@ final class ProviderSwitcherView: NSView {
     func _test_simulateRuntimeClick(buttonTag: Int) -> Bool {
         guard self.segments.indices.contains(buttonTag) else { return false }
         self.applySelection(at: buttonTag)
+        return true
+    }
+
+    @discardableResult
+    func _test_simulateNativeAction(buttonTag: Int, preToggleState: Bool = true) -> Bool {
+        guard let button = self.buttons.first(where: { $0.tag == buttonTag }) else { return false }
+        if preToggleState {
+            button.state = .on
+        }
+        self.handleSelection(button)
         return true
     }
     #endif
@@ -597,10 +611,15 @@ final class ProviderSwitcherView: NSView {
     }
 
     func updateSelection(_ selection: ProviderSwitcherSelection) {
+        var selectedIndex: Int?
         for (index, button) in self.buttons.enumerated() {
             let isSelected = self.segments.indices.contains(index) && self.segments[index].selection == selection
+            if isSelected {
+                selectedIndex = index
+            }
             button.state = isSelected ? .on : .off
         }
+        self.selectedSegmentIndex = selectedIndex
         self.updateButtonStyles()
     }
 

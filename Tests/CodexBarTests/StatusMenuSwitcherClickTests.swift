@@ -67,6 +67,42 @@ struct StatusMenuSwitcherClickTests {
     }
 
     @Test
+    func `native switcher action preserves off tab switches after button state toggles`() {
+        var selections: [ProviderSwitcherSelection] = []
+        let switcher = ProviderSwitcherView(
+            providers: [.codex, .claude],
+            selected: .provider(.codex),
+            includesOverview: false,
+            width: 310,
+            showsIcons: false,
+            iconProvider: { _ in NSImage() },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { selections.append($0) })
+
+        #expect(switcher._test_simulateNativeAction(buttonTag: 1) == true)
+        #expect(selections == [.provider(.claude)])
+        #expect(switcher.selectedSelection == .provider(.claude))
+    }
+
+    @Test
+    func `native switcher action ignores active tab reselect`() {
+        var selections: [ProviderSwitcherSelection] = []
+        let switcher = ProviderSwitcherView(
+            providers: [.codex, .claude],
+            selected: .provider(.codex),
+            includesOverview: false,
+            width: 310,
+            showsIcons: false,
+            iconProvider: { _ in NSImage() },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { selections.append($0) })
+
+        #expect(switcher._test_simulateNativeAction(buttonTag: 0) == true)
+        #expect(selections.isEmpty)
+        #expect(switcher.selectedSelection == .provider(.codex))
+    }
+
+    @Test
     func `merged switcher routes runtime clicks after overview round-trip`() throws {
         // Regression test for #867: after Provider → Overview, subsequent runtime clicks on a
         // sub-provider tab dropped through NSButton's tracking and never updated state.
