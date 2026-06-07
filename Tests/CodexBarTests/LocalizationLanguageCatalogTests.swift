@@ -6,6 +6,7 @@ struct LocalizationLanguageCatalogTests {
     private let languageKeys = [
         "language_system",
         "language_english",
+        "language_german",
         "language_spanish",
         "language_catalan",
         "language_chinese_simplified",
