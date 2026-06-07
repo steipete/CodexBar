@@ -708,7 +708,7 @@
 "≈ %d%% run-out risk" = "≈ %d%% uitlooprisico";
 "%d%% in deficit" = "%d%% tekort";
 "%d%% in reserve" = "%d%% in reserve";
-"usage_percent_suffix_left" = "links";
+"usage_percent_suffix_left" = "over";
 "usage_percent_suffix_used" = "gebruikt";
 "Store multiple DeepSeek API keys." = "Bewaar meerdere DeepSeek API-sleutels.";
 "This week" = "Deze week";
