@@ -132,7 +132,7 @@ extension UsageStore {
                     expectedGuard: expectedGuard,
                     routingTargetEmail: targetEmail)
             case .displayOnly, .failClosed:
-                self.shouldApplyOpenAIWebNonSuccessResult(
+                self.shouldApplyOpenAIDashboardRefreshGuard(
                     expectedGuard: expectedGuard,
                     routingTargetEmail: targetEmail)
             }

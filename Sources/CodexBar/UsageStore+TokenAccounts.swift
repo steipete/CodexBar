@@ -324,6 +324,9 @@ extension UsageStore {
             }
             switch account.selectionSource {
             case .managedAccount:
+                if !self.codexVisibleAccountAuthFingerprintMatches(prior, account: account) {
+                    return priorEmail != nil && priorEmail == accountEmail
+                }
                 return true
             case .liveSystem:
                 return priorEmail != nil && priorEmail == accountEmail
