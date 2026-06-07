@@ -65,8 +65,13 @@ extension StatusItemController {
     {
         let menuKey = ObjectIdentifier(menu)
         guard let entry = self.mergedSwitcherContentCaches[menuKey]?[selection] else { return nil }
+        let visibleMenuVersion = self.menuVersions[menuKey] ?? self.menuContentVersion
+        guard visibleMenuVersion >= self.latestRequiredMenuRebuildVersion else {
+            self.mergedSwitcherContentCaches[menuKey]?.removeValue(forKey: selection)
+            return nil
+        }
         guard entry.matches(
-            menuContentVersion: self.menuContentVersion,
+            menuContentVersion: visibleMenuVersion,
             menuWidth: menuWidth,
             codexAccountDisplay: codexAccountDisplay,
             tokenAccountDisplay: tokenAccountDisplay,
