@@ -444,6 +444,11 @@ extension StatusItemController {
                 openAIContext: context.openAIContext)
             self.addPrimaryMenuContent(to: menu, context: menuContext, switcherSelection: context.switcherSelection)
             self.addActionableSections(context.descriptor.sections, to: menu, width: context.menuWidth)
+            self.cacheVisibleMergedSwitcherContent(
+                in: menu,
+                selection: context.switcherSelection,
+                contentStartIndex: contentStartIndex,
+                menuWidth: context.menuWidth)
         }
     }
 
@@ -490,6 +495,11 @@ extension StatusItemController {
                 context: menuContext,
                 switcherSelection: context.switcherSelection ?? .provider(context.currentProvider))
             self.addActionableSections(context.descriptor.sections, to: menu, width: context.menuWidth)
+            self.cacheVisibleMergedSwitcherContent(
+                in: menu,
+                selection: context.switcherSelection ?? .provider(context.currentProvider),
+                contentStartIndex: self.providerSwitcherContentStartIndex(in: menu),
+                menuWidth: context.menuWidth)
         }
     }
 

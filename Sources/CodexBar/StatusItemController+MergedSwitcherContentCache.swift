@@ -40,13 +40,14 @@ extension StatusItemController {
         menuWidth: CGFloat)
     {
         guard self.shouldMergeIcons else { return }
+        guard menu.items.first?.view is ProviderSwitcherView else { return }
         guard contentStartIndex < menu.items.count else { return }
         let items = Array(menu.items[contentStartIndex...])
         guard !items.isEmpty else { return }
 
         let menuKey = ObjectIdentifier(menu)
         let entry = CachedMergedSwitcherMenuContent(
-            menuContentVersion: self.menuVersions[menuKey] ?? self.menuContentVersion,
+            menuContentVersion: self.menuContentVersion,
             menuWidth: menuWidth,
             codexAccountDisplay: self.lastCodexAccountMenuDisplay,
             tokenAccountDisplay: self.lastTokenAccountMenuDisplay,
