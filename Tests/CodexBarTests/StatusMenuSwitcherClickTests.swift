@@ -81,7 +81,6 @@ struct StatusMenuSwitcherClickTests {
 
         #expect(switcher._test_simulateNativeAction(buttonTag: 1) == true)
         #expect(selections == [.provider(.claude)])
-        #expect(switcher.selectedSelection == .provider(.claude))
     }
 
     @Test
@@ -99,7 +98,6 @@ struct StatusMenuSwitcherClickTests {
 
         #expect(switcher._test_simulateNativeAction(buttonTag: 0) == true)
         #expect(selections.isEmpty)
-        #expect(switcher.selectedSelection == .provider(.codex))
     }
 
     @Test

@@ -602,14 +602,6 @@ final class ProviderSwitcherView: NSView {
         NSSize(width: self.preferredWidth, height: self.frame.size.height)
     }
 
-    var selectedSelection: ProviderSwitcherSelection? {
-        for (index, button) in self.buttons.enumerated() where button.state == .on {
-            guard self.segments.indices.contains(index) else { continue }
-            return self.segments[index].selection
-        }
-        return nil
-    }
-
     func updateSelection(_ selection: ProviderSwitcherSelection) {
         var selectedIndex: Int?
         for (index, button) in self.buttons.enumerated() {
