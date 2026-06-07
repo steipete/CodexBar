@@ -25,6 +25,13 @@ struct CachedMergedSwitcherMenuContent {
 }
 
 extension StatusItemController {
+    func preservingMergedSwitcherContentCachesDuringInvalidation(_ body: () -> Void) {
+        let previous = self.preservesMergedSwitcherContentCachesDuringInvalidation
+        self.preservesMergedSwitcherContentCachesDuringInvalidation = true
+        defer { self.preservesMergedSwitcherContentCachesDuringInvalidation = previous }
+        body()
+    }
+
     func clearMergedSwitcherContentCaches() {
         self.mergedSwitcherContentCaches.removeAll(keepingCapacity: true)
     }

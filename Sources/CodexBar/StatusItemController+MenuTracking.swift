@@ -32,7 +32,9 @@ extension StatusItemController {
         guard !self.isReleasedForTesting else { return }
         #endif
         self.menuContentVersion &+= 1
-        if !allowStaleContentDuringDataRefresh || refreshOpenMenus {
+        if !self.preservesMergedSwitcherContentCachesDuringInvalidation,
+           !allowStaleContentDuringDataRefresh || refreshOpenMenus
+        {
             self.clearMergedSwitcherContentCaches()
         }
         self.pruneVersionScopedMenuCardHeightCache()

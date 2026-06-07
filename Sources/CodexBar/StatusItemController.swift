@@ -215,6 +215,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Keeps recently detached merged-menu content segments reusable while the same menu stays open.
     var mergedSwitcherContentCaches: [ObjectIdentifier: [ProviderSwitcherSelection: CachedMergedSwitcherMenuContent]]
         = [:]
+    var preservesMergedSwitcherContentCachesDuringInvalidation = false
     /// Monotonic token used to ignore stale deferred provider-switcher menu rebuilds.
     var providerSwitcherUpdateToken = 0
     var lastAppliedMergedIconRenderSignature: String?

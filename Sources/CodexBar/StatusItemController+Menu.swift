@@ -1011,15 +1011,17 @@ extension StatusItemController {
             },
             onSelect: { [weak self, weak menu] selection in
                 guard let self, let menu else { return }
-                let provider: UsageProvider?
-                switch selection {
-                case .overview:
-                    self.settings.mergedMenuLastSelectedWasOverview = true
-                    provider = self.resolvedMenuProvider()
-                case let .provider(selectedProvider):
-                    self.settings.mergedMenuLastSelectedWasOverview = false
-                    self.selectedMenuProvider = selectedProvider
-                    provider = selectedProvider
+                var provider: UsageProvider?
+                self.preservingMergedSwitcherContentCachesDuringInvalidation {
+                    switch selection {
+                    case .overview:
+                        self.settings.mergedMenuLastSelectedWasOverview = true
+                        provider = self.resolvedMenuProvider()
+                    case let .provider(selectedProvider):
+                        self.settings.mergedMenuLastSelectedWasOverview = false
+                        self.selectedMenuProvider = selectedProvider
+                        provider = selectedProvider
+                    }
                 }
                 switch selection {
                 case .overview:

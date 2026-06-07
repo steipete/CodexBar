@@ -26,17 +26,19 @@ extension StatusItemController {
         let delta = direction == .next ? 1 : -1
         let nextIndex = (currentIndex + delta + selections.count) % selections.count
         let selection = selections[nextIndex]
-        switch selection {
-        case .overview:
-            self.settings.mergedMenuLastSelectedWasOverview = true
-            self.lastMenuProvider = self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex
-        case let .provider(provider):
-            self.settings.mergedMenuLastSelectedWasOverview = false
-            self.selectedMenuProvider = provider
-            self.lastMenuProvider = provider
+        self.preservingMergedSwitcherContentCachesDuringInvalidation {
+            switch selection {
+            case .overview:
+                self.settings.mergedMenuLastSelectedWasOverview = true
+                self.lastMenuProvider = self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex
+            case let .provider(provider):
+                self.settings.mergedMenuLastSelectedWasOverview = false
+                self.selectedMenuProvider = provider
+                self.lastMenuProvider = provider
+            }
+            self.lastMergedSwitcherSelection = selection
+            self.invalidateMenus(refreshOpenMenus: true)
         }
-        self.lastMergedSwitcherSelection = selection
-        self.invalidateMenus(refreshOpenMenus: true)
         self.applyIcon(phase: nil)
     }
 
