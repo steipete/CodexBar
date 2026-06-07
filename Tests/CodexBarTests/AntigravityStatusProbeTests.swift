@@ -63,6 +63,29 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
+    func `process detection accepts antigravity cli variations and agy`() {
+        let commandDash = """
+        node /path/to/node_modules/antigravity-cli/build/mcp-server.cjs --app_data_dir /Users/test/.gemini/antigravity
+        """
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(commandDash))
+
+        let commandUnderscore = """
+        node /path/to/node_modules/antigravity_cli/build/mcp-server.cjs --app_data_dir /Users/test/.gemini/antigravity
+        """
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(commandUnderscore))
+
+        let commandAgy = """
+        /usr/local/bin/agy --app_data_dir /Users/test/.gemini/antigravity
+        """
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(commandAgy))
+
+        let commandAgyNode = """
+        node /path/to/node_modules/agy/build/mcp-server.cjs --app_data_dir /Users/test/.gemini/antigravity
+        """
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(commandAgyNode))
+    }
+
+    @Test
     func `localhost trust policy only accepts local server trust challenges`() {
         #expect(
             LocalhostTrustPolicy.shouldAcceptServerTrust(
