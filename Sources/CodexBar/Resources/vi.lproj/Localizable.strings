@@ -400,6 +400,9 @@
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_swedish" = "Svenska";
+"language_french" = "Tiếng Pháp";
+"language_dutch" = "Tiếng Hà Lan";
+"language_ukrainian" = "Tiếng Ukraina";
 "start_at_login_title" = "Bắt đầu khi đăng nhập";
 "start_at_login_subtitle" = "Tự động mở CodexBar khi bạn khởi động máy Mac.";
 "show_cost_summary" = "Hiển thị tóm tắt chi phí";
@@ -815,7 +818,7 @@
 "30d spend" = "chi tiêu 30 ngày";
 "Cache read" = "Đọc bộ nhớ đệm";
 "Claude Admin API 30 day spend trend" = "Claude Quản trị viên API Xu hướng chi tiêu 30 ngày";
-"OpenRouter API key spend trend" = "OpenRouter <span> class="w0"></span> xu hướng chi tiêu chính";
+"OpenRouter API key spend trend" = "Xu hướng chi tiêu khóa API OpenRouter";
 "z.ai hourly token trend" = "z.ai hàng giờ token xu hướng";
 "MiniMax 30 day token usage trend" = "MiniMax 30 ngày token Mức sử dụng xu hướng";
 "Today cash" = "Tiền mặt hôm nay";

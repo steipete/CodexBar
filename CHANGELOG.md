@@ -5,6 +5,8 @@
 ### Added
 - Localization: add French as a selectable app language (#1241). Thanks @Yuxin-Qiao!
 - Localization: add Ukrainian as a selectable app language (#1250). Thanks @Yuxin-Qiao!
+- Localization: add Dutch as a selectable app language (#1252). Thanks @Yuxin-Qiao!
+- Localization: add Vietnamese as a selectable app language (#1247). Thanks @Yuxin-Qiao!
 
 ### Fixed
 - Claude: remove transient ClaudeProbe session artifacts after CLI usage polls so background refreshes no longer fill Claude Code project history with CodexBar `/usage` sessions (#1301). Thanks @LPFchan and @matthewod11-stack!

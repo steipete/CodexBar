@@ -401,7 +401,9 @@
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_swedish" = "Svenska";
 "language_french" = "Français";
+"language_dutch" = "Нідерландська";
 "language_ukrainian" = "Українська";
+"language_vietnamese" = "В'єтнамська";
 "start_at_login_title" = "Почніть із входу";
 "start_at_login_subtitle" = "Автоматично відкриває CodexBar під час запуску Mac.";
 "show_cost_summary" = "Показати підсумок витрат";

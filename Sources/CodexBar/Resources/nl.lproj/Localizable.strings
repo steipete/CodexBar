@@ -403,6 +403,7 @@
 "language_french" = "Frans";
 "language_ukrainian" = "Oekraïens";
 "language_swedish" = "Zweeds";
+"language_vietnamese" = "Vietnamees";
 "start_at_login_title" = "Begin bij Inloggen";
 "start_at_login_subtitle" = "Opent automatisch CodexBar wanneer u uw Mac start.";
 "show_cost_summary" = "Kostenoverzicht weergeven";
