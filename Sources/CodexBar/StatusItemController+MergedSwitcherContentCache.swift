@@ -9,14 +9,14 @@ struct CachedMergedSwitcherMenuContent {
     let items: [NSMenuItem]
 
     func matches(
-        menuContentVersion: Int,
+        minimumMenuContentVersion: Int,
         menuWidth: CGFloat,
         codexAccountDisplay: CodexAccountMenuDisplay?,
         tokenAccountDisplay: TokenAccountMenuDisplay?,
         localizationSignature: String)
         -> Bool
     {
-        self.menuContentVersion == menuContentVersion &&
+        self.menuContentVersion >= minimumMenuContentVersion &&
             abs(self.menuWidth - menuWidth) <= 0.5 &&
             self.codexAccountDisplay == codexAccountDisplay &&
             self.tokenAccountDisplay == tokenAccountDisplay &&
@@ -79,7 +79,7 @@ extension StatusItemController {
             return nil
         }
         guard entry.matches(
-            menuContentVersion: visibleMenuVersion,
+            minimumMenuContentVersion: self.latestRequiredMenuRebuildVersion,
             menuWidth: menuWidth,
             codexAccountDisplay: codexAccountDisplay,
             tokenAccountDisplay: tokenAccountDisplay,
