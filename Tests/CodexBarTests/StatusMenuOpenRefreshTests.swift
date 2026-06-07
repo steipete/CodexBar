@@ -199,7 +199,8 @@ extension StatusMenuTests {
         let key = ObjectIdentifier(menu)
         let openedVersion = controller.menuVersions[key]
 
-        // Background data-refresh tick (stale allowed): the closed merged menu must not be pre-warmed.
+        // Background data-refresh tick (stale allowed): closed prep is skipped entirely, so
+        // the closed merged menu must not be pre-warmed or marked deferred.
         controller.invalidateMenus(allowStaleContentDuringDataRefresh: true)
         for _ in 0..<40 {
             await Task.yield()
@@ -207,7 +208,7 @@ extension StatusMenuTests {
         #expect(controller.openMenus.isEmpty)
         #expect(controller.menuContentVersion != openedVersion)
         #expect(controller.menuVersions[key] == openedVersion)
-        #expect(controller.closedMenusDeferredUntilNextOpen.contains(key))
+        #expect(!controller.closedMenusDeferredUntilNextOpen.contains(key))
 
         // A required (non-stale) invalidation must also leave the closed merged menu deferred.
         controller.invalidateMenus()
@@ -225,7 +226,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `data refresh invalidation does not rebuild closed attached menu`() async {
+    func `data refresh invalidation does not rebuild closed non merged attached menu`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -247,7 +248,9 @@ extension StatusMenuTests {
 
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu()
-        controller.mergedMenu = menu
+        // Use a non-merged attached menu: stale data-refresh invalidations should not pre-warm any
+        // closed attached menu, while required invalidations still may prepare non-merged menus.
+        controller.fallbackMenu = menu
         controller.statusItem.menu = menu
 
         controller.populateMenu(menu, provider: nil)
@@ -271,7 +274,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `required closed menu preparation survives later data refresh invalidation`() async {
+    func `required non merged closed menu preparation survives later data refresh invalidation`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -293,7 +296,9 @@ extension StatusMenuTests {
 
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu()
-        controller.mergedMenu = menu
+        // Use a non-merged attached menu so this covers the delayed closed-menu rebuild path. Merged
+        // menus are intentionally deferred until next open on current main (#1274).
+        controller.fallbackMenu = menu
         controller.statusItem.menu = menu
 
         controller.populateMenu(menu, provider: nil)
