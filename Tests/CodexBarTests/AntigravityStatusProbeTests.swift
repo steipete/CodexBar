@@ -63,6 +63,29 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
+    func `process detection accepts antigravity cli without csrf token`() {
+        // The CLI launches its language server without a `--csrf_token` flag.
+        let node = """
+        node /Users/test/.gemini/antigravity-cli/build/mcp-server.cjs \
+        --app_data_dir /Users/test/.gemini/antigravity
+        """
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(node))
+
+        let agy = "/Users/test/.local/bin/agy -p hello"
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(agy))
+
+        let agyUnderscore = "/usr/local/bin/agy --app_data_dir /Users/test/.gemini/antigravity_cli"
+        #expect(AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(agyUnderscore))
+    }
+
+    @Test
+    func `process detection ignores unrelated binaries containing agy substring`() {
+        // "agy" must be path-anchored so unrelated commands do not match.
+        #expect(!AntigravityStatusProbe.isAntigravityLanguageServerCommandLine("/usr/bin/legacy --run"))
+        #expect(!AntigravityStatusProbe.isAntigravityLanguageServerCommandLine("/opt/imagymagic/bin/tool"))
+    }
+
+    @Test
     func `localhost trust policy only accepts local server trust challenges`() {
         #expect(
             LocalhostTrustPolicy.shouldAcceptServerTrust(

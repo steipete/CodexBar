@@ -593,13 +593,14 @@ public struct AntigravityStatusProbe: Sendable {
             label: "antigravity-ps")
 
         let lines = result.stdout.split(separator: "\n")
-        var sawAntigravity = false
         for line in lines {
             let text = String(line)
             guard let match = Self.matchProcessLine(text) else { continue }
             guard Self.isAntigravityLanguageServerCommandLine(match.command) else { continue }
-            sawAntigravity = true
-            guard let token = Self.extractFlag("--csrf_token", from: match.command) else { continue }
+            // The IDE language server authenticates local requests with a
+            // `--csrf_token`; the CLI's language server requires none, so treat
+            // the token as optional and fall back to an empty value.
+            let token = Self.extractFlag("--csrf_token", from: match.command) ?? ""
             let port = Self.extractPort("--extension_server_port", from: match.command)
             let extensionServerCSRFToken = Self.extractFlag("--extension_server_csrf_token", from: match.command)
             return ProcessInfoResult(
@@ -610,9 +611,6 @@ public struct AntigravityStatusProbe: Sendable {
                 commandLine: match.command)
         }
 
-        if sawAntigravity {
-            throw AntigravityStatusProbeError.missingCSRFToken
-        }
         throw AntigravityStatusProbeError.notRunning
     }
 
@@ -631,12 +629,27 @@ public struct AntigravityStatusProbe: Sendable {
 
     static func isAntigravityLanguageServerCommandLine(_ command: String) -> Bool {
         let lower = command.lowercased()
-        return Self.isLanguageServerCommandLine(lower) && Self.isAntigravityCommandLine(lower)
+        if Self.isLanguageServerCommandLine(lower), Self.isAntigravityCommandLine(lower) {
+            return true
+        }
+        return Self.isAntigravityCLICommandLine(lower)
     }
 
     private static func isLanguageServerCommandLine(_ lowerCommand: String) -> Bool {
         let pattern = #"(^|[/\\])language_server(_macos|\.exe)?(\s|$)"#
         return lowerCommand.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    /// The Antigravity CLI (`agy` / `antigravity-cli`) hosts the same language
+    /// server locally as the IDE, but launches it without a `--csrf_token` flag
+    /// and under a different process name. Match it so usage can be probed when
+    /// only the CLI is running.
+    private static func isAntigravityCLICommandLine(_ lowerCommand: String) -> Bool {
+        if lowerCommand.contains("antigravity-cli") || lowerCommand.contains("antigravity_cli") {
+            return true
+        }
+        let agyPattern = #"(^|[/\\])agy(\s|$)"#
+        return lowerCommand.range(of: agyPattern, options: .regularExpression) != nil
     }
 
     private static func isAntigravityCommandLine(_ command: String) -> Bool {
