@@ -457,9 +457,9 @@ extension StatusItemController {
         context: MenuRebuildContext)
     {
         self.performMenuMutationWithoutAnimation {
-            self.clearMergedSwitcherContentCache(for: menu)
             self.lastMergedMenuContentSelection = nil
             menu.removeAllItems()
+            let contentSelection = context.switcherSelection ?? .provider(context.currentProvider)
             self.addProviderSwitcherIfNeeded(
                 to: menu,
                 enabledProviders: context.enabledProviders,
@@ -472,6 +472,22 @@ extension StatusItemController {
                     context.enabledProviders,
                     context.switcherSelection,
                     context.includesOverview)
+            }
+            if self.shouldMergeIcons,
+               context.enabledProviders.count > 1,
+               let cachedItems = self.cachedMergedSwitcherContent(
+                   for: contentSelection,
+                   in: menu,
+                   menuWidth: context.menuWidth,
+                   codexAccountDisplay: context.codexAccountDisplay,
+                   tokenAccountDisplay: context.tokenAccountDisplay)
+            {
+                self.lastCodexAccountMenuDisplay = context.codexAccountDisplay
+                self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
+                for item in cachedItems {
+                    menu.addItem(item)
+                }
+                return
             }
             self.addCodexAccountSwitcherIfNeeded(
                 to: menu,
@@ -493,11 +509,11 @@ extension StatusItemController {
             self.addPrimaryMenuContent(
                 to: menu,
                 context: menuContext,
-                switcherSelection: context.switcherSelection ?? .provider(context.currentProvider))
+                switcherSelection: contentSelection)
             self.addActionableSections(context.descriptor.sections, to: menu, width: context.menuWidth)
             self.cacheVisibleMergedSwitcherContent(
                 in: menu,
-                selection: context.switcherSelection ?? .provider(context.currentProvider),
+                selection: contentSelection,
                 contentStartIndex: self.providerSwitcherContentStartIndex(in: menu),
                 menuWidth: context.menuWidth)
         }
