@@ -16,18 +16,23 @@ struct CodexLoginRunner {
         let output: String
     }
 
-    static func run(homePath: String? = nil, timeout: TimeInterval = 120) async -> Result {
+    static func run(
+        homePath: String? = nil,
+        timeout: TimeInterval = 120,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current) async -> Result
+    {
         await Task(priority: .userInitiated) {
-            var env = ProcessInfo.processInfo.environment
+            var env = environment
             env["PATH"] = PathBuilder.effectivePATH(
                 purposes: [.rpc, .tty, .nodeTooling],
                 env: env,
-                loginPATH: LoginShellPathCache.shared.current)
+                loginPATH: loginPATH)
             env = CodexHomeScope.scopedEnvironment(base: env, codexHome: homePath)
 
             guard let executable = BinaryLocator.resolveCodexBinary(
                 env: env,
-                loginPATH: LoginShellPathCache.shared.current)
+                loginPATH: loginPATH)
             else {
                 return Result(outcome: .missingBinary, output: "")
             }
@@ -42,6 +47,11 @@ struct CodexLoginRunner {
             process.standardOutput = stdout
             process.standardError = stderr
 
+            let termination = ProcessTermination()
+            process.terminationHandler = { _ in
+                termination.resolve(timedOut: false)
+            }
+
             var processGroup: pid_t?
             do {
                 try process.run()
@@ -50,7 +60,7 @@ struct CodexLoginRunner {
                 return Result(outcome: .launchFailed(error.localizedDescription), output: "")
             }
 
-            let timedOut = await self.wait(for: process, timeout: timeout)
+            let timedOut = await self.wait(timeout: timeout, termination: termination)
             if timedOut {
                 self.terminate(process, processGroup: processGroup)
             }
@@ -68,21 +78,58 @@ struct CodexLoginRunner {
         }.value
     }
 
-    private static func wait(for process: Process, timeout: TimeInterval) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group -> Bool in
-            group.addTask {
-                process.waitUntilExit()
-                return false
+    private final class ProcessTermination: @unchecked Sendable {
+        private let lock = NSLock()
+        private var timedOut: Bool?
+        private var continuation: CheckedContinuation<Bool, Never>?
+
+        func resolve(timedOut: Bool) {
+            let continuation: CheckedContinuation<Bool, Never>?
+            self.lock.lock()
+            guard self.timedOut == nil else {
+                self.lock.unlock()
+                return
             }
-            group.addTask {
-                let nanos = UInt64(max(0, timeout) * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: nanos)
-                return true
-            }
-            let result = await group.next() ?? false
-            group.cancelAll()
-            return result
+            self.timedOut = timedOut
+            continuation = self.continuation
+            self.continuation = nil
+            self.lock.unlock()
+            continuation?.resume(returning: timedOut)
         }
+
+        func wait() async -> Bool {
+            await withCheckedContinuation { continuation in
+                let timedOut: Bool?
+                self.lock.lock()
+                timedOut = self.timedOut
+                if timedOut == nil {
+                    self.continuation = continuation
+                }
+                self.lock.unlock()
+
+                if let timedOut {
+                    continuation.resume(returning: timedOut)
+                }
+            }
+        }
+    }
+
+    private static func wait(timeout: TimeInterval, termination: ProcessTermination) async -> Bool {
+        let timeoutTask = Task.detached(priority: .userInitiated) {
+            try? await Task.sleep(nanoseconds: self.timeoutNanoseconds(timeout))
+            if Task.isCancelled == false {
+                termination.resolve(timedOut: true)
+            }
+        }
+        let timedOut = await termination.wait()
+        timeoutTask.cancel()
+        return timedOut
+    }
+
+    private static func timeoutNanoseconds(_ timeout: TimeInterval) -> UInt64 {
+        guard timeout.isFinite else { return UInt64.max }
+        let seconds = max(0, min(timeout, Double(UInt64.max) / 1_000_000_000))
+        return UInt64(seconds * 1_000_000_000)
     }
 
     private static func terminate(_ process: Process, processGroup: pid_t?) {
