@@ -400,6 +400,10 @@
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_swedish" = "Svenska";
+"language_french" = "フランス語";
+"language_dutch" = "オランダ語";
+"language_ukrainian" = "ウクライナ語";
+"language_vietnamese" = "ベトナム語";
 "language_japanese" = "日本語";
 "start_at_login_title" = "ログイン時に起動";
 "start_at_login_subtitle" = "Mac の起動時に CodexBar を自動的に開きます。";
