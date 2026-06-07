@@ -1,30 +1,6 @@
 import AppKit
 import CodexBarCore
 
-struct CachedMergedSwitcherMenuContent {
-    let menuContentVersion: Int
-    let menuWidth: CGFloat
-    let codexAccountDisplay: CodexAccountMenuDisplay?
-    let tokenAccountDisplay: TokenAccountMenuDisplay?
-    let localizationSignature: String
-    let items: [NSMenuItem]
-
-    func matches(
-        menuContentVersion: Int,
-        menuWidth: CGFloat,
-        codexAccountDisplay: CodexAccountMenuDisplay?,
-        tokenAccountDisplay: TokenAccountMenuDisplay?,
-        localizationSignature: String)
-        -> Bool
-    {
-        self.menuContentVersion == menuContentVersion &&
-            abs(self.menuWidth - menuWidth) <= 0.5 &&
-            self.codexAccountDisplay == codexAccountDisplay &&
-            self.tokenAccountDisplay == tokenAccountDisplay &&
-            self.localizationSignature == localizationSignature
-    }
-}
-
 extension StatusItemController {
     struct OpenAIWebContext {
         let hasUsageBreakdown: Bool
