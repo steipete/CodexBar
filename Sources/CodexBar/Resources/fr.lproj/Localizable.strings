@@ -404,6 +404,7 @@
 "language_dutch" = "Néerlandais";
 "language_ukrainian" = "Ukrainien";
 "language_vietnamese" = "Vietnamien";
+"language_turkish" = "Turc";
 "start_at_login_title" = "Lancer à l'ouverture de session";
 "start_at_login_subtitle" = "Ouvre automatiquement CodexBar au démarrage de votre Mac.";
 "show_cost_summary" = "Afficher le récapitulatif des coûts";
