@@ -86,6 +86,48 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
+    func `process kind distinguishes ide language server from cli`() {
+        let ide = """
+        /Applications/Antigravity.app/Contents/Resources/bin/language_server \
+        --csrf_token token --app_data_dir antigravity
+        """
+        #expect(AntigravityStatusProbe.antigravityProcessKind(ide) == .ide)
+        #expect(AntigravityStatusProbe.antigravityProcessKind("/Users/test/.local/bin/agy -p hi") == .cli)
+        #expect(
+            AntigravityStatusProbe.antigravityProcessKind(
+                "node /x/.gemini/antigravity-cli/build/mcp-server.cjs --app_data_dir /x/.gemini/antigravity") == .cli)
+        #expect(AntigravityStatusProbe.antigravityProcessKind("/usr/bin/legacy --run") == nil)
+    }
+
+    @Test
+    func `csrf token stays required for ide but optional for cli`() {
+        // IDE with a token returns it.
+        let ideWithToken = """
+        /Applications/Antigravity.app/Contents/Resources/bin/language_server \
+        --csrf_token ide-token --app_data_dir antigravity
+        """
+        #expect(AntigravityStatusProbe.resolvedCSRFToken(forKind: .ide, command: ideWithToken) == "ide-token")
+
+        // Tokenless IDE is skipped (nil) so detection keeps scanning for a valid
+        // server and preserves the missing-token diagnostic — no empty-token probe.
+        let ideNoToken = """
+        /Applications/Antigravity.app/Contents/Resources/bin/language_server \
+        --app_data_dir antigravity
+        """
+        #expect(AntigravityStatusProbe.resolvedCSRFToken(forKind: .ide, command: ideNoToken) == nil)
+
+        // CLI without a token resolves to an empty token (its server needs none).
+        #expect(
+            AntigravityStatusProbe.resolvedCSRFToken(
+                forKind: .cli, command: "/Users/test/.local/bin/agy -p hi") == "")
+
+        // A CLI that does carry a token still uses it.
+        #expect(
+            AntigravityStatusProbe.resolvedCSRFToken(
+                forKind: .cli, command: "/Users/test/.local/bin/agy --csrf_token cli-token") == "cli-token")
+    }
+
+    @Test
     func `localhost trust policy only accepts local server trust challenges`() {
         #expect(
             LocalhostTrustPolicy.shouldAcceptServerTrust(

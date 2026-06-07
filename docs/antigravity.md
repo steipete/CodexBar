@@ -38,9 +38,12 @@ Antigravity supports local probing of either the IDE or the CLI (`agy` / `antigr
      - the **CLI**: `antigravity-cli` / `antigravity_cli`, or the `agy` binary
        (path-anchored so unrelated binaries do not match).
    - Extract CLI flags:
-     - `--csrf_token <token>` (optional). The IDE language server supplies one and
-       requires it; the CLI's language server exposes no `--csrf_token` flag and
-       requires none, so an empty token is used when the flag is absent.
+     - `--csrf_token <token>`. Requirement depends on the match kind:
+       - **IDE** matches still require it — a tokenless IDE `language_server` match is
+         skipped so a later valid IDE server can be found, otherwise `missingCSRFToken`
+         is reported (unchanged behavior).
+       - **CLI** matches accept an empty token, because the CLI's language server
+         exposes no `--csrf_token` flag and requires none.
      - `--extension_server_port <port>` (HTTP fallback; IDE only).
 
 2) **Port discovery**
