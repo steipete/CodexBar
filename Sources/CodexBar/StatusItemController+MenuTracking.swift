@@ -53,6 +53,8 @@ extension StatusItemController {
         guard self.isMenuRefreshEnabled else { return }
         guard self.openMenus.isEmpty else { return }
         guard !self.isMenuDataRefreshInFlight else { return }
+        // Stale data-refresh invalidations should not pre-warm closed menus from any caller.
+        guard self.menuContentVersion <= self.latestRequiredMenuRebuildVersion else { return }
         for menu in self.attachedMenusForClosedPreparation() {
             let key = ObjectIdentifier(menu)
             guard !self.closedMenusDeferredUntilNextOpen.contains(key) else { continue }
