@@ -410,6 +410,7 @@
 "language_dutch" = "Nederlands";
 "language_french" = "法语";
 "language_ukrainian" = "乌克兰语";
+"language_turkish" = "Türkçe";
 "start_at_login_title" = "开机启动";
 "start_at_login_subtitle" = "启动 Mac 时自动打开 CodexBar。";
 "show_cost_summary" = "显示费用摘要";

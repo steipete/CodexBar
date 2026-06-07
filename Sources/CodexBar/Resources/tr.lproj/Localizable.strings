@@ -1,4 +1,4 @@
-/* English localization for CodexBar (base/fallback) */
+/* Turkish localization for CodexBar */
 
 " providers" = " providers";
 "(System)" = "(System)";
@@ -390,20 +390,21 @@
 "section_system" = "System";
 "section_usage" = "Usage";
 "section_automation" = "Automation";
-"language_title" = "Language";
-"language_subtitle" = "Change the display language. Requires app restart to take full effect.";
-"language_system" = "System";
-"language_english" = "English";
-"language_spanish" = "Español";
-"language_catalan" = "Català";
-"language_chinese_simplified" = "简体中文";
-"language_chinese_traditional" = "繁體中文";
-"language_portuguese_brazilian" = "Português (Brasil)";
-"language_dutch" = "Nederlands";
-"language_turkish" = "Türkçe";
-"language_swedish" = "Svenska";
-"language_french" = "French";
-"language_ukrainian" = "Українська";
+"language_title" = "Dil";
+"language_subtitle" = "Goruntuleme dilini degistirir. Tam olarak uygulanmasi icin uygulamayi yeniden baslatmaniz gerekir.";
+"language_system" = "Sistem";
+"language_english" = "Ingilizce";
+"language_spanish" = "Ispanyolca";
+"language_catalan" = "Katalanca";
+"language_chinese_simplified" = "Basitlestirilmis Cince";
+"language_chinese_traditional" = "Geleneksel Cince";
+"language_portuguese_brazilian" = "Portekizce (Brezilya)";
+"language_turkish" = "Turkce";
+"language_swedish" = "Isvecce";
+"language_french" = "Fransizca";
+"language_ukrainian" = "Ukraynaca";
+"language_dutch" = "Felemenkce";
+"language_vietnamese" = "Vietnamca";
 "start_at_login_title" = "Start at Login";
 "start_at_login_subtitle" = "Automatically opens CodexBar when you start your Mac.";
 "show_cost_summary" = "Show cost summary";
@@ -1064,5 +1065,3 @@
 "Clear" = "Clear";
 "No matching providers" = "No matching providers";
 "Search providers" = "Search providers";
-
-"language_vietnamese" = "Vietnamese";
