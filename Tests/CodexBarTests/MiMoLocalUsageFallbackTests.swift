@@ -35,9 +35,15 @@ struct MiMoLocalUsageFallbackTests {
         let payload: [String: Any] = [
             "sessions_scanned": 1296,
             "windows": [
-                "today": ["input": 1_500, "output": 500, "cache_read": 0, "cache_create": 0, "messages": 3],
-                "week": ["input": 30_000, "output": 10_000, "cache_read": 60_000, "cache_create": 0, "messages": 25],
-                "all_time": ["input": 3_600_000, "output": 1_100_000, "cache_read": 16_100_000, "cache_create": 0, "messages": 1_315],
+                "today": ["input": 1500, "output": 500, "cache_read": 0, "cache_create": 0, "messages": 3],
+                "week": ["input": 30000, "output": 10000, "cache_read": 60000, "cache_create": 0, "messages": 25],
+                "all_time": [
+                    "input": 3_600_000,
+                    "output": 1_100_000,
+                    "cache_read": 16_100_000,
+                    "cache_create": 0,
+                    "messages": 1315,
+                ],
             ],
         ]
         try JSONSerialization.data(withJSONObject: payload).write(to: file)
@@ -52,12 +58,12 @@ struct MiMoLocalUsageFallbackTests {
         #expect(plan.contains("1296 sessions"))
 
         // Progress bar: tokenUsed = week, tokenLimit = max(allTotal, week+1) → bar ~0.2% used.
-        let weekSum = 30_000 + 10_000 + 60_000  // 100k
+        let weekSum = 30000 + 10000 + 60000 // 100k
         #expect(snap.tokenUsed == weekSum)
-        let allSum = 3_600_000 + 1_100_000 + 16_100_000  // 20.8M
+        let allSum = 3_600_000 + 1_100_000 + 16_100_000 // 20.8M
         #expect(snap.tokenLimit == max(allSum, weekSum + 1))
         #expect(snap.tokenPercent > 0)
-        #expect(snap.tokenPercent < 0.01)  // ~0.5% of lifetime
+        #expect(snap.tokenPercent < 0.01) // ~0.5% of lifetime
     }
 
     @Test
@@ -79,7 +85,7 @@ struct MiMoLocalUsageFallbackTests {
 
         let snap = try #require(MiMoLocalUsageFallback.snapshot(cachePath: file.path, now: Date()))
         #expect(snap.tokenUsed == 0)
-        #expect(snap.tokenLimit == 2_000_000)  // allTotal as baseline
+        #expect(snap.tokenLimit == 2_000_000) // allTotal as baseline
         #expect(snap.tokenPercent == 0)
         // planCode skips today/week (both zero) but keeps total + sessions.
         let plan = try #require(snap.planCode)
