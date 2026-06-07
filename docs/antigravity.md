@@ -35,8 +35,8 @@ Antigravity supports local probing of either the IDE or the CLI (`agy` / `antigr
    - Match either:
      - the **IDE** language server: process name `language_server_macos` plus Antigravity
        markers (`--app_data_dir antigravity` OR path contains `/antigravity/`); or
-     - the **CLI**: `antigravity-cli` / `antigravity_cli`, or the `agy` binary
-       (path-anchored so unrelated binaries do not match).
+     - the **CLI**: an `antigravity-cli` / `antigravity_cli` path segment, or the
+       `agy` binary (path-anchored so unrelated arguments/binaries do not match).
    - Extract CLI flags:
      - `--csrf_token <token>`. Requirement depends on the match kind:
        - **IDE** matches still require it — a tokenless IDE `language_server` match is

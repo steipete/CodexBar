@@ -559,7 +559,7 @@ public struct AntigravityStatusProbe: Sendable {
 
     // MARK: - Port detection
 
-    private struct ProcessInfoResult {
+    struct ProcessInfoResult {
         let pid: Int
         let extensionPort: Int?
         let extensionServerCSRFToken: String?
@@ -592,7 +592,11 @@ public struct AntigravityStatusProbe: Sendable {
             timeout: timeout,
             label: "antigravity-ps")
 
-        let lines = result.stdout.split(separator: "\n")
+        return try Self.processInfo(fromProcessListOutput: result.stdout)
+    }
+
+    static func processInfo(fromProcessListOutput output: String) throws -> ProcessInfoResult {
+        let lines = output.split(separator: "\n")
         var sawTokenlessIDE = false
         for line in lines {
             let text = String(line)
@@ -685,7 +689,8 @@ public struct AntigravityStatusProbe: Sendable {
     /// and under a different process name. Match it so usage can be probed when
     /// only the CLI is running.
     private static func isAntigravityCLICommandLine(_ lowerCommand: String) -> Bool {
-        if lowerCommand.contains("antigravity-cli") || lowerCommand.contains("antigravity_cli") {
+        let cliPathPattern = #"(^|[/\\])(antigravity-cli|antigravity_cli)([\s/\\]|$)"#
+        if lowerCommand.range(of: cliPathPattern, options: .regularExpression) != nil {
             return true
         }
         let agyPattern = #"(^|[/\\])agy(\s|$)"#

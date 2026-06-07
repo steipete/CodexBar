@@ -86,6 +86,16 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
+    func `process detection ignores cli names outside explicit cli path segments`() {
+        #expect(
+            !AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(
+                "/usr/bin/node /tmp/not-antigravity-cli/build/server.js"))
+        #expect(
+            !AntigravityStatusProbe.isAntigravityLanguageServerCommandLine(
+                "/usr/bin/helper --workspace antigravity-cli"))
+    }
+
+    @Test
     func `process kind distinguishes ide language server from cli`() {
         let ide = """
         /Applications/Antigravity.app/Contents/Resources/bin/language_server \
@@ -119,7 +129,7 @@ struct AntigravityStatusProbeTests {
         // CLI without a token resolves to an empty token (its server needs none).
         #expect(
             AntigravityStatusProbe.resolvedCSRFToken(
-                forKind: .cli, command: "/Users/test/.local/bin/agy -p hi") == "")
+                forKind: .cli, command: "/Users/test/.local/bin/agy -p hi")?.isEmpty == true)
 
         // A CLI that does carry a token still uses it.
         #expect(
@@ -127,6 +137,49 @@ struct AntigravityStatusProbeTests {
                 forKind: .cli, command: "/Users/test/.local/bin/agy --csrf_token cli-token") == "cli-token")
     }
 
+    @Test
+    func `process scan skips tokenless ide before later valid ide`() throws {
+        let tokenlessIDE =
+            "  100 /Applications/Antigravity.app/Contents/Resources/bin/language_server --app_data_dir antigravity"
+        let validIDE = "  101 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+            "--csrf_token ide-token --app_data_dir antigravity " +
+            "--extension_server_port 64432 --extension_server_csrf_token extension-token"
+        let output = [tokenlessIDE, validIDE].joined(separator: "\n")
+
+        let result = try AntigravityStatusProbe.processInfo(fromProcessListOutput: output)
+
+        #expect(result.pid == 101)
+        #expect(result.csrfToken == "ide-token")
+        #expect(result.extensionPort == 64432)
+        #expect(result.extensionServerCSRFToken == "extension-token")
+    }
+
+    @Test
+    func `process scan reports missing csrf when only tokenless ide matches`() {
+        let output = """
+          100 /Applications/Antigravity.app/Contents/Resources/bin/language_server --app_data_dir antigravity
+        """
+
+        #expect(throws: AntigravityStatusProbeError.missingCSRFToken) {
+            try AntigravityStatusProbe.processInfo(fromProcessListOutput: output)
+        }
+    }
+
+    @Test
+    func `process scan allows empty csrf only for explicit cli match`() throws {
+        let output = """
+          200 /Users/test/.local/bin/agy -p hello
+        """
+
+        let result = try AntigravityStatusProbe.processInfo(fromProcessListOutput: output)
+
+        #expect(result.pid == 200)
+        #expect(result.csrfToken.isEmpty)
+        #expect(result.commandLine == "/Users/test/.local/bin/agy -p hello")
+    }
+}
+
+extension AntigravityStatusProbeTests {
     @Test
     func `localhost trust policy only accepts local server trust challenges`() {
         #expect(
