@@ -314,7 +314,12 @@ struct CursorStatusProbeTests {
         #expect(snapshot.planPercentUsed == 0.441025641025641)
         #expect(snapshot.autoPercentUsed == 0.36)
         #expect(snapshot.apiPercentUsed == 0.7111111111111111)
-        #expect(snapshot.toUsageSnapshot().primary?.remainingPercent == 99.55897435897436)
+        #expect(snapshot.billingCycleStart != nil)
+        let usageSnapshot = snapshot.toUsageSnapshot()
+        #expect(usageSnapshot.primary?.remainingPercent == 99.55897435897436)
+        #expect(usageSnapshot.primary?.windowMinutes == 44640)
+        #expect(usageSnapshot.secondary?.windowMinutes == 44640)
+        #expect(usageSnapshot.tertiary?.windowMinutes == 44640)
     }
 
     @Test
@@ -329,6 +334,7 @@ struct CursorStatusProbeTests {
             onDemandLimitUSD: 100.0,
             teamOnDemandUsedUSD: 25.0,
             teamOnDemandLimitUSD: 500.0,
+            billingCycleStart: Date(timeIntervalSince1970: 1_735_689_600), // Jan 1, 2025
             billingCycleEnd: Date(timeIntervalSince1970: 1_738_368_000), // Feb 1, 2025
             membershipType: "pro",
             accountEmail: "user@example.com",
@@ -342,6 +348,8 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.loginMethod(for: .cursor) == "Cursor Pro")
         #expect(usageSnapshot.secondary != nil)
         #expect(usageSnapshot.secondary?.usedPercent == 5.0)
+        #expect(usageSnapshot.primary?.windowMinutes == 44640)
+        #expect(usageSnapshot.secondary?.windowMinutes == 44640)
         #expect(usageSnapshot.providerCost?.used == 5.0)
         #expect(usageSnapshot.providerCost?.limit == 100.0)
         #expect(usageSnapshot.providerCost?.currencyCode == "USD")

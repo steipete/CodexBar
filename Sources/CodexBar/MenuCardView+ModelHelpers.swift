@@ -133,6 +133,25 @@ extension UsageMenuCardView.Model {
             paceOnTop: paceOnTop)
     }
 
+    static func cursorBillingCyclePaceDetail(
+        window: RateWindow,
+        input: Input,
+        pace: UsagePace? = nil) -> PaceDetail?
+    {
+        guard input.provider == .cursor,
+              window.windowMinutes != nil
+        else { return nil }
+        let resolved = pace ?? UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080)
+        guard let resolved,
+              resolved.expectedUsedPercent >= 3
+        else { return nil }
+        return Self.weeklyPaceDetail(
+            window: window,
+            now: input.now,
+            pace: resolved,
+            showUsed: input.usageBarsShowUsed)
+    }
+
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         var metrics = [

@@ -356,6 +356,8 @@ public struct CursorStatusSnapshot: Sendable {
     public let teamOnDemandUsedUSD: Double?
     /// Team on-demand limit in USD
     public let teamOnDemandLimitUSD: Double?
+    /// Billing cycle start date
+    public let billingCycleStart: Date?
     /// Billing cycle reset date
     public let billingCycleEnd: Date?
     /// Membership type (e.g., "enterprise", "pro", "hobby")
@@ -389,6 +391,7 @@ public struct CursorStatusSnapshot: Sendable {
         onDemandLimitUSD: Double?,
         teamOnDemandUsedUSD: Double?,
         teamOnDemandLimitUSD: Double?,
+        billingCycleStart: Date? = nil,
         billingCycleEnd: Date?,
         membershipType: String?,
         accountEmail: String?,
@@ -406,6 +409,7 @@ public struct CursorStatusSnapshot: Sendable {
         self.onDemandLimitUSD = onDemandLimitUSD
         self.teamOnDemandUsedUSD = teamOnDemandUsedUSD
         self.teamOnDemandLimitUSD = teamOnDemandLimitUSD
+        self.billingCycleStart = billingCycleStart
         self.billingCycleEnd = billingCycleEnd
         self.membershipType = membershipType
         self.accountEmail = accountEmail
@@ -428,9 +432,13 @@ public struct CursorStatusSnapshot: Sendable {
             self.planPercentUsed
         }
 
+        let billingCycleWindowMinutes = Self.billingCycleWindowMinutes(
+            start: self.billingCycleStart,
+            end: self.billingCycleEnd)
+
         let primary = RateWindow(
             usedPercent: primaryUsedPercent,
-            windowMinutes: nil,
+            windowMinutes: billingCycleWindowMinutes,
             resetsAt: self.billingCycleEnd,
             resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
 
@@ -438,7 +446,7 @@ public struct CursorStatusSnapshot: Sendable {
         let secondary: RateWindow? = self.autoPercentUsed.map { pct in
             RateWindow(
                 usedPercent: pct,
-                windowMinutes: nil,
+                windowMinutes: billingCycleWindowMinutes,
                 resetsAt: self.billingCycleEnd,
                 resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
         }
@@ -447,7 +455,7 @@ public struct CursorStatusSnapshot: Sendable {
         let tertiary: RateWindow? = self.apiPercentUsed.map { pct in
             RateWindow(
                 usedPercent: pct,
-                windowMinutes: nil,
+                windowMinutes: billingCycleWindowMinutes,
                 resetsAt: self.billingCycleEnd,
                 resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
         }
@@ -500,6 +508,14 @@ public struct CursorStatusSnapshot: Sendable {
         formatter.dateFormat = "MMM d 'at' h:mma"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return "Resets " + formatter.string(from: date)
+    }
+
+    private static func billingCycleWindowMinutes(start: Date?, end: Date?) -> Int? {
+        guard let start,
+              let end
+        else { return nil }
+        let minutes = Int((end.timeIntervalSince(start) / 60).rounded())
+        return minutes > 0 ? minutes : nil
     }
 
     private static func formatMembershipType(_ type: String) -> String {
@@ -1018,12 +1034,14 @@ public struct CursorStatusProbe: Sendable {
         rawJSON: String?,
         requestUsage: CursorUsageResponse? = nil) -> CursorStatusSnapshot
     {
-        // Parse billing cycle end date
-        let billingCycleEnd: Date? = summary.billingCycleEnd.flatMap { dateString in
+        func parseBillingCycleDate(_ dateString: String?) -> Date? {
+            guard let dateString else { return nil }
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             return formatter.date(from: dateString) ?? ISO8601DateFormatter().date(from: dateString)
         }
+        let billingCycleStart = parseBillingCycleDate(summary.billingCycleStart)
+        let billingCycleEnd = parseBillingCycleDate(summary.billingCycleEnd)
 
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
         // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.
@@ -1119,6 +1137,7 @@ public struct CursorStatusProbe: Sendable {
             onDemandLimitUSD: onDemandLimit,
             teamOnDemandUsedUSD: teamOnDemandUsed,
             teamOnDemandLimitUSD: teamOnDemandLimit,
+            billingCycleStart: billingCycleStart,
             billingCycleEnd: billingCycleEnd,
             membershipType: summary.membershipType,
             accountEmail: userInfo?.email,
