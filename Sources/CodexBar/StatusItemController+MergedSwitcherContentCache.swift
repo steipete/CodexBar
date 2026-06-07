@@ -90,4 +90,28 @@ extension StatusItemController {
         }
         return entry.items
     }
+
+    func addCachedMergedSwitcherContent(
+        for selection: ProviderSwitcherSelection,
+        to menu: NSMenu,
+        menuWidth: CGFloat,
+        codexAccountDisplay: CodexAccountMenuDisplay?,
+        tokenAccountDisplay: TokenAccountMenuDisplay?)
+        -> Bool
+    {
+        guard let cachedItems = self.cachedMergedSwitcherContent(
+            for: selection,
+            in: menu,
+            menuWidth: menuWidth,
+            codexAccountDisplay: codexAccountDisplay,
+            tokenAccountDisplay: tokenAccountDisplay)
+        else { return false }
+
+        self.lastCodexAccountMenuDisplay = codexAccountDisplay
+        self.lastTokenAccountMenuDisplay = tokenAccountDisplay
+        for item in cachedItems {
+            menu.addItem(item)
+        }
+        return true
+    }
 }

@@ -410,18 +410,13 @@ extension StatusItemController {
 
             let enabledProviders = self.store.enabledProvidersForDisplay()
             self.rememberMergedSwitcherState(enabledProviders, context.switcherSelection)
-            if let cachedItems = self.cachedMergedSwitcherContent(
+            if self.addCachedMergedSwitcherContent(
                 for: context.switcherSelection,
-                in: menu,
+                to: menu,
                 menuWidth: context.menuWidth,
                 codexAccountDisplay: context.codexAccountDisplay,
                 tokenAccountDisplay: context.tokenAccountDisplay)
             {
-                self.lastCodexAccountMenuDisplay = context.codexAccountDisplay
-                self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
-                for item in cachedItems {
-                    menu.addItem(item)
-                }
                 return
             }
             self.addCodexAccountSwitcherIfNeeded(
@@ -475,18 +470,13 @@ extension StatusItemController {
             }
             if self.shouldMergeIcons,
                context.enabledProviders.count > 1,
-               let cachedItems = self.cachedMergedSwitcherContent(
+               self.addCachedMergedSwitcherContent(
                    for: contentSelection,
-                   in: menu,
+                   to: menu,
                    menuWidth: context.menuWidth,
                    codexAccountDisplay: context.codexAccountDisplay,
                    tokenAccountDisplay: context.tokenAccountDisplay)
             {
-                self.lastCodexAccountMenuDisplay = context.codexAccountDisplay
-                self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
-                for item in cachedItems {
-                    menu.addItem(item)
-                }
                 return
             }
             self.addCodexAccountSwitcherIfNeeded(
