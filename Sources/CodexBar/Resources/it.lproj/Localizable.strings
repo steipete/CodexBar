@@ -401,6 +401,10 @@
 "language_portuguese_brazilian" = "Portoghese (Brasile)";
 "language_swedish" = "Svedese";
 "language_italian" = "Italiano";
+"language_french" = "Francese";
+"language_dutch" = "Olandese";
+"language_ukrainian" = "Ucraino";
+"language_vietnamese" = "Vietnamita";
 "start_at_login_title" = "Avvia all'accesso";
 "start_at_login_subtitle" = "Apre automaticamente CodexBar quando avvii il Mac.";
 "show_cost_summary" = "Mostra riepilogo costi";
