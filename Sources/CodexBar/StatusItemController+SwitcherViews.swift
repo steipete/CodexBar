@@ -2,7 +2,7 @@ import AppKit
 import CodexBarCore
 import QuartzCore
 
-enum ProviderSwitcherSelection: Equatable {
+enum ProviderSwitcherSelection: Hashable {
     case overview
     case provider(UsageProvider)
 }
@@ -319,6 +319,7 @@ final class ProviderSwitcherView: NSView {
 
     private func applySelection(at index: Int) {
         let selection = self.segments[index].selection
+        guard self.selectedSelection != selection else { return }
         self.updateSelection(selection)
         self.onSelect(selection)
     }
@@ -585,6 +586,14 @@ final class ProviderSwitcherView: NSView {
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: self.preferredWidth, height: self.frame.size.height)
+    }
+
+    var selectedSelection: ProviderSwitcherSelection? {
+        for (index, button) in self.buttons.enumerated() where button.state == .on {
+            guard self.segments.indices.contains(index) else { continue }
+            return self.segments[index].selection
+        }
+        return nil
     }
 
     func updateSelection(_ selection: ProviderSwitcherSelection) {

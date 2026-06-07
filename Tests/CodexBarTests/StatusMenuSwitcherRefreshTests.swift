@@ -74,6 +74,115 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
+    func `selected provider tab click does not rebuild open menu`() async throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        Self.enableCodexAndClaude(settings)
+        Self.disableOverview(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let switcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        let selectedButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .on })
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
+
+        #expect(switcher._test_simulateRuntimeClick(buttonTag: selectedButton.tag) == true)
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+
+        #expect(rebuildCount == 0)
+        #expect(Self.switcherButtons(in: menu).first { $0.tag == selectedButton.tag }?.state == .on)
+    }
+
+    @Test
+    func `merged provider switch restores cached tab content`() async throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        Self.enableCodexAndClaude(settings)
+        Self.disableOverview(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let contentStartIndex = controller.providerSwitcherContentStartIndex(in: menu)
+        #expect(menu.items.count > contentStartIndex)
+        let originalSelectedContentID = ObjectIdentifier(menu.items[contentStartIndex])
+        let selectedButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .on })
+        let alternateButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .off })
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
+
+        let initialSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        #expect(initialSwitcher._test_simulateRuntimeClick(buttonTag: alternateButton.tag) == true)
+        await Self.waitForRebuildCount(1, rebuildCount: { rebuildCount })
+        let alternateContentID = ObjectIdentifier(menu.items[contentStartIndex])
+        #expect(alternateContentID != originalSelectedContentID)
+
+        let alternateSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        #expect(alternateSwitcher._test_simulateRuntimeClick(buttonTag: selectedButton.tag) == true)
+        await Self.waitForRebuildCount(2, rebuildCount: { rebuildCount })
+        #expect(ObjectIdentifier(menu.items[contentStartIndex]) == originalSelectedContentID)
+
+        let restoredSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        #expect(restoredSwitcher._test_simulateRuntimeClick(buttonTag: alternateButton.tag) == true)
+        await Self.waitForRebuildCount(3, rebuildCount: { rebuildCount })
+        #expect(ObjectIdentifier(menu.items[contentStartIndex]) == alternateContentID)
+    }
+
+    @Test
     func `tab switch does not replace quota indicator constraints`() {
         let switcher = ProviderSwitcherView(
             providers: [.codex, .claude],
@@ -135,6 +244,28 @@ struct StatusMenuSwitcherRefreshTests {
             guard let metadata = registry.metadata[provider] else { continue }
             let shouldEnable = provider == .codex || provider == .claude
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+        }
+    }
+
+    private static func disableOverview(_ settings: SettingsStore) {
+        let activeProviders: [UsageProvider] = [.codex, .claude]
+        _ = settings.setMergedOverviewProviderSelection(
+            provider: .codex,
+            isSelected: false,
+            activeProviders: activeProviders)
+        _ = settings.setMergedOverviewProviderSelection(
+            provider: .claude,
+            isSelected: false,
+            activeProviders: activeProviders)
+    }
+
+    private static func waitForRebuildCount(
+        _ expectedCount: Int,
+        rebuildCount: () -> Int) async
+    {
+        for _ in 0..<100 where rebuildCount() < expectedCount {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(10))
         }
     }
 

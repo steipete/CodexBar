@@ -150,6 +150,7 @@ extension StatusItemController {
         }
 
         self.cancelClosedMenuRebuild(menu)
+        self.clearMergedSwitcherContentCache(for: menu)
         self.openMenus.removeValue(forKey: key)
         self.menuRefreshTasks.removeValue(forKey: key)?.cancel()
         self.openMenuRebuildTasks.removeValue(forKey: key)?.cancel()
@@ -394,12 +395,33 @@ extension StatusItemController {
                 switcherView.updateSelection(context.switcherSelection)
                 switcherView.updateQuotaIndicators()
             }
+            if let outgoingSelection = self.lastMergedMenuContentSelection,
+               outgoingSelection != context.switcherSelection
+            {
+                self.cacheVisibleMergedSwitcherContent(
+                    in: menu,
+                    selection: outgoingSelection,
+                    contentStartIndex: contentStartIndex,
+                    menuWidth: context.menuWidth)
+            }
             while menu.items.count > contentStartIndex {
                 menu.removeItem(at: contentStartIndex)
             }
 
             let enabledProviders = self.store.enabledProvidersForDisplay()
             self.rememberMergedSwitcherState(enabledProviders, context.switcherSelection)
+            if let cachedItems = self.cachedMergedSwitcherContent(
+                for: context.switcherSelection,
+                in: menu,
+                context: context)
+            {
+                self.lastCodexAccountMenuDisplay = context.codexAccountDisplay
+                self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
+                for item in cachedItems {
+                    menu.addItem(item)
+                }
+                return
+            }
             self.addCodexAccountSwitcherIfNeeded(
                 to: menu,
                 display: context.codexAccountDisplay,
@@ -423,11 +445,64 @@ extension StatusItemController {
         }
     }
 
+    func clearMergedSwitcherContentCaches() {
+        self.mergedSwitcherContentCaches.removeAll(keepingCapacity: true)
+    }
+
+    func clearMergedSwitcherContentCache(for menu: NSMenu) {
+        self.mergedSwitcherContentCaches.removeValue(forKey: ObjectIdentifier(menu))
+    }
+
+    private func cacheVisibleMergedSwitcherContent(
+        in menu: NSMenu,
+        selection: ProviderSwitcherSelection,
+        contentStartIndex: Int,
+        menuWidth: CGFloat)
+    {
+        guard self.shouldMergeIcons else { return }
+        guard contentStartIndex < menu.items.count else { return }
+        let items = Array(menu.items[contentStartIndex...])
+        guard !items.isEmpty else { return }
+
+        let menuKey = ObjectIdentifier(menu)
+        let entry = CachedMergedSwitcherMenuContent(
+            menuContentVersion: self.menuVersions[menuKey] ?? self.menuContentVersion,
+            menuWidth: menuWidth,
+            codexAccountDisplay: self.lastCodexAccountMenuDisplay,
+            tokenAccountDisplay: self.lastTokenAccountMenuDisplay,
+            localizationSignature: self.lastMenuLocalizationSignature,
+            items: items)
+        self.mergedSwitcherContentCaches[menuKey, default: [:]][selection] = entry
+    }
+
+    private func cachedMergedSwitcherContent(
+        for selection: ProviderSwitcherSelection,
+        in menu: NSMenu,
+        context: MenuUpdateContext)
+        -> [NSMenuItem]?
+    {
+        let menuKey = ObjectIdentifier(menu)
+        guard let entry = self.mergedSwitcherContentCaches[menuKey]?[selection] else { return nil }
+        guard entry.matches(
+            menuContentVersion: self.menuContentVersion,
+            menuWidth: context.menuWidth,
+            codexAccountDisplay: context.codexAccountDisplay,
+            tokenAccountDisplay: context.tokenAccountDisplay,
+            localizationSignature: self.menuLocalizationSignature())
+        else {
+            self.mergedSwitcherContentCaches[menuKey]?.removeValue(forKey: selection)
+            return nil
+        }
+        return entry.items
+    }
+
     private func rebuildMenuContent(
         _ menu: NSMenu,
         context: MenuRebuildContext)
     {
         self.performMenuMutationWithoutAnimation {
+            self.clearMergedSwitcherContentCache(for: menu)
+            self.lastMergedMenuContentSelection = nil
             menu.removeAllItems()
             self.addProviderSwitcherIfNeeded(
                 to: menu,
@@ -1572,8 +1647,10 @@ extension StatusItemController {
         if !self.settings.mergedMenuLastSelectedWasOverview, self.selectedMenuProvider == provider { return }
         self.settings.mergedMenuLastSelectedWasOverview = false
         self.lastMergedSwitcherSelection = nil
+        self.lastMergedMenuContentSelection = nil
         self.selectedMenuProvider = provider
         self.lastMenuProvider = provider
+        self.clearMergedSwitcherContentCache(for: menu)
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
         self.applyIcon(phase: nil)
