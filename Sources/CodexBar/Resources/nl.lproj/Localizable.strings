@@ -1028,7 +1028,7 @@
 "Stored in ~/.codexbar/config.json. Get your API key from the Volcengine Ark console." = "Opgeslagen in ~/.codexbar/config.json. Haal uw API-sleutel op via de Volcengine Ark-console.";
 "Stored in ~/.codexbar/config.json. Get your key from Ollama settings." = "Opgeslagen in ~/.codexbar/config.json. Haal uw sleutel op via Ollama-instellingen.";
 "Stored in ~/.codexbar/config.json. Get your key from console.deepgram.com." = "Opgeslagen in ~/.codexbar/config.json. Haal uw sleutel op via console.deepgram.com.";
-"Stored in ~/.codexbar/config.json. Get your key from elevenlabs.io/app/settings/api-keys." = "Opgeslagen in ~/.codexbar/config.json. Haal uw sleutel op via elflabs.io/app/settings/api-keys.";
+"Stored in ~/.codexbar/config.json. Get your key from elevenlabs.io/app/settings/api-keys." = "Opgeslagen in ~/.codexbar/config.json. Haal uw sleutel op via elevenlabs.io/app/settings/api-keys.";
 "Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and set a key spending limit there to enable API key quota tracking." = "Opgeslagen in ~/.codexbar/config.json. Haal uw sleutel op via openrouter.ai/settings/keys en stel daar een sleutelbestedingslimiet in om het bijhouden van API-sleutelquota in te schakelen.";
 "Stored in ~/.codexbar/config.json. In Warp, open Settings > Platform > API Keys, then create one." = "Opgeslagen in ~/.codexbar/config.json. Open in Warp Instellingen > Platform > API-sleutels en maak er vervolgens een.";
 "Stored in ~/.codexbar/config.json. Metrics require Groq Enterprise Prometheus access." = "Opgeslagen in ~/.codexbar/config.json. Voor statistieken is toegang tot Groq Enterprise Prometheus vereist.";
