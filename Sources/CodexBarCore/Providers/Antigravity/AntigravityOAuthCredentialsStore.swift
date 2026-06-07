@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Security)
+import Security
+#endif
 
 public struct AntigravityOAuthCredentials: Codable, Sendable, Equatable {
     public var accessToken: String?
@@ -391,10 +394,65 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
     }
 
     public func load() throws -> AntigravityOAuthCredentials? {
+#if canImport(Security)
+        if let keychainCreds = self.loadFromKeychain() {
+            return keychainCreds
+        }
+#endif
         guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return nil }
         let data = try Data(contentsOf: self.fileURL)
         return try JSONDecoder().decode(AntigravityOAuthCredentials.self, from: data)
     }
+
+#if canImport(Security)
+    private func loadFromKeychain() -> AntigravityOAuthCredentials? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "gemini",
+            kSecAttrAccount as String: "antigravity",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data,
+              let stringValue = String(data: data, encoding: .utf8),
+              stringValue.hasPrefix("go-keyring-base64:") else {
+            return nil
+        }
+        
+        let base64String = String(stringValue.dropFirst("go-keyring-base64:".count))
+        guard let jsonData = Data(base64Encoded: base64String) else { return nil }
+        
+        struct KeychainPayload: Decodable {
+            struct TokenInfo: Decodable {
+                let access_token: String
+                let refresh_token: String
+                let expiry: String
+            }
+            let token: TokenInfo
+        }
+        
+        guard let payload = try? JSONDecoder().decode(KeychainPayload.self, from: jsonData) else {
+            return nil
+        }
+        
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let expiryDate = formatter.date(from: payload.token.expiry) ?? Date()
+        
+        return AntigravityOAuthCredentials(
+            accessToken: payload.token.access_token,
+            refreshToken: payload.token.refresh_token,
+            expiryDate: expiryDate,
+            idToken: nil,
+            email: "antigravity-cli",
+            projectID: nil,
+            clientID: nil,
+            clientSecret: nil
+        )
+    }
+#endif
 
     public func save(_ credentials: AntigravityOAuthCredentials) throws {
         let data = try JSONEncoder.antigravityCredentials.encode(credentials)
