@@ -60,6 +60,17 @@ extension UsageStore {
             guard !percents.isEmpty else { return true }
             return percents.allSatisfy { $0 >= 100 }
         }
+        if provider == .antigravity,
+           effectivePreference == .automatic
+        {
+            let percents = [
+                snapshot.primary?.usedPercent,
+                snapshot.secondary?.usedPercent,
+                snapshot.tertiary?.usedPercent,
+            ].compactMap(\.self)
+            guard !percents.isEmpty else { return true }
+            return percents.allSatisfy { $0 >= 100 }
+        }
         return true
     }
 }
