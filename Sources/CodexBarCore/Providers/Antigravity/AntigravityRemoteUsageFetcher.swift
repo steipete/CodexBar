@@ -562,13 +562,11 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         case .codexbarStore:
             return try (primaryStore.load(), primaryStore)
         case .automatic:
-            if let credentials = try primaryStore.load() {
-                return (credentials, primaryStore)
-            }
-            if let credentials = try AntigravityAgyCredentials.loadCredentials(homeDirectory: homeDirectory) {
-                return (credentials, nil)
-            }
-            return (nil, primaryStore)
+            // Use only the Antigravity/CodexBar credential store. Do NOT silently fall back to agy CLI
+            // (Gemini) credentials: a user who is not signed into Antigravity but happens to have Gemini
+            // OAuth creds on disk must not have those used for Antigravity usage. Callers that genuinely
+            // want the agy session pass `.agyCLI` explicitly (AntigravityAgyStatusProbe does).
+            return try (primaryStore.load(), primaryStore)
         }
     }
 
