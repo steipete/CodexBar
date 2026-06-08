@@ -144,7 +144,9 @@ public enum AntigravityAgyStatusProbe: Sendable {
         }
 
         let accountEmail = cli?.accountEmail ?? remote?.accountEmail ?? gemini?.accountEmail
-        let accountPlan = cli?.accountPlan ?? remote?.accountPlan ?? gemini?.accountPlan
+        let accountPlan = Self.meaningfulAccountPlan(cli?.accountPlan)
+            ?? Self.meaningfulAccountPlan(remote?.accountPlan)
+            ?? Self.meaningfulAccountPlan(gemini?.accountPlan)
 
         return AntigravityStatusSnapshot(
             modelQuotas: modelQuotas,
@@ -186,6 +188,21 @@ public enum AntigravityAgyStatusProbe: Sendable {
             modelQuotas: snapshot.modelQuotas,
             accountEmail: email,
             accountPlan: snapshot.accountPlan)
+    }
+
+    /// The Antigravity CLI (`agy`) reaches Gemini quota through Google's free Code Assist
+    /// individual tier, so the remote/Gemini plan lookup reports "Free" even for accounts with a
+    /// paid Antigravity subscription. That label describes the Gemini lane, not the Antigravity
+    /// account, and `agy` exposes no authoritative account plan, so we drop a bare "Free" rather
+    /// than mislabel a paid account. Any concrete plan (Paid/Workspace/Legacy/etc.) passes through.
+    private static func meaningfulAccountPlan(_ plan: String?) -> String? {
+        guard let plan = plan?.trimmingCharacters(in: .whitespacesAndNewlines), !plan.isEmpty else {
+            return nil
+        }
+        if plan.caseInsensitiveCompare("Free") == .orderedSame {
+            return nil
+        }
+        return plan
     }
 
     private static func quotaKey(_ quota: AntigravityModelQuota) -> String {

@@ -73,4 +73,60 @@ struct AntigravityAgyCLIUsageProbeTests {
         #expect(merged.modelQuotas.contains { $0.modelId == "claude-sonnet-4-6-thinking" && $0.remainingFraction == 0.8 })
         #expect(merged.modelQuotas.contains { $0.modelId == "gemini-2.5-pro" && $0.remainingFraction == 1.0 })
     }
+
+    @Test
+    func `merge drops misleading Gemini free-tier plan label`() {
+        // agy `/usage` exposes no account plan, so cli.accountPlan is nil and the merge falls back
+        // to the Gemini Code Assist lookup, which reports "Free" for a paid Antigravity account.
+        // That label describes the Gemini lane, not the account, so it must not surface as the plan.
+        let gemini = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 2.5 Pro",
+                    modelId: "gemini-2.5-pro",
+                    remainingFraction: 1.0,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: "user@example.com",
+            accountPlan: "Free")
+        let cli = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Claude Sonnet 4.6 (Thinking)",
+                    modelId: "claude-sonnet-4-6-thinking",
+                    remainingFraction: 0.8,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: "cli@example.com",
+            accountPlan: nil)
+
+        let merged = AntigravityAgyStatusProbe.mergeSnapshots(cli: cli, remote: nil, gemini: gemini)
+
+        #expect(merged.accountPlan == nil)
+    }
+
+    @Test
+    func `merge keeps a concrete paid plan label`() {
+        let gemini = AntigravityStatusSnapshot(
+            modelQuotas: [],
+            accountEmail: "user@example.com",
+            accountPlan: "Paid")
+        let cli = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Claude Opus 4.6 (Thinking)",
+                    modelId: "claude-opus-4-6-thinking",
+                    remainingFraction: 0.5,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: "cli@example.com",
+            accountPlan: nil)
+
+        let merged = AntigravityAgyStatusProbe.mergeSnapshots(cli: cli, remote: nil, gemini: gemini)
+
+        #expect(merged.accountPlan == "Paid")
+    }
 }
