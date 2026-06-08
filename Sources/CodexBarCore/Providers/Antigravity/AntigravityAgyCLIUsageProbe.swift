@@ -111,16 +111,23 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let runner = TTYCommandRunner()
+                    // `agy` signs in fresh on every cold launch ("Signing in…"), and that latency is
+                    // variable. Sending `/usage` at a fixed delay races the sign-in: if it lands while
+                    // agy is still authenticating the command is dropped and the panel never renders.
+                    // Instead, wait for the ready prompt marker ("? for shortcuts") before sending
+                    // `/usage`, and stop the moment the Model Quota panel footer appears. Warm starts
+                    // finish in ~2-3s; the larger ceiling only applies to genuinely slow sign-ins.
                     let result = try runner.run(
                         binary: binary,
-                        send: "/usage\r",
+                        send: "",
                         options: TTYCommandRunner.Options(
                             rows: 40,
                             cols: 120,
-                            timeout: max(timeout, 25),
-                            initialDelay: 6.0,
-                            sendEnterEvery: 1.0,
-                            settleAfterStop: 0))
+                            timeout: max(timeout, 40),
+                            initialDelay: 0.5,
+                            sendOnSubstrings: ["? for shortcuts": "/usage\r"],
+                            stopOnSubstrings: ["pgup/pgdown", "esc Close"],
+                            settleAfterStop: 0.5))
                     continuation.resume(returning: result.text)
                 } catch TTYCommandRunner.Error.timedOut {
                     continuation.resume(throwing: AntigravityAgyCLIUsageProbeError.timedOut)
@@ -185,10 +192,16 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
     }
 
     private static func stripANSI(_ text: String) -> String {
-        var plain = text
-        plain = plain.replacingOccurrences(of: "\u{001B}[K", with: "")
-        plain = plain.replacingOccurrences(
-            of: #"\u{001B}(?:\[[0-9;?]*[ -/]*[@-~]|[\][()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PRZcf-ntqry=><~])"#,
+        // The ESC must be a real U+001B byte in the pattern. A raw string would pass Swift's `\u{001B}`
+        // escape through verbatim, and NSRegularExpression (ICU) does not understand `\u{...}`. The
+        // previous pattern also bundled a second, non-CSI alternation that was *invalid* ICU syntax, so
+        // the whole `replacingOccurrences` was rejected and silently stripped nothing — every ANSI code
+        // survived and broke label/percent detection on real `agy` captures (ANSI-free test fixtures hid
+        // the bug). This valid CSI matcher — ESC `[`, params, intermediates, final byte — covers the
+        // colour/erase/cursor sequences agy emits (`[1m`, `[m`, `[K`, `[80X`, `[38;2;…m`, etc.).
+        let escape = "\u{001B}"
+        var plain = text.replacingOccurrences(
+            of: escape + #"\[[0-9;?]*[ -/]*[@-~]"#,
             with: "",
             options: .regularExpression)
         plain = plain.replacingOccurrences(of: "\u{0008}", with: "")

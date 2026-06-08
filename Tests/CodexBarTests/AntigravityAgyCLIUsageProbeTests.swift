@@ -4,6 +4,35 @@ import Testing
 
 struct AntigravityAgyCLIUsageProbeTests {
     @Test
+    func `parses model quota panel with ANSI color codes`() throws {
+        // Real `agy /usage` output is wrapped in ANSI CSI sequences (bold labels, colored bars,
+        // truecolor percent). A previous ANSI-strip regex was invalid ICU syntax and silently stripped
+        // nothing, so labels began with ESC (not a letter) and percent lines ended in `…100%␛[m` —
+        // both detectors failed and the panel was reported "not found". This locks in the strip path.
+        let esc = "\u{001B}"
+        let bar = "\(esc)[32m███████████\(esc)[m \(esc)[32m███████████\(esc)[38;2;154;160;166m"
+        let sample = """
+        \(esc)[1m└ Model Quota\(esc)[m
+        \(esc)[1mGemini 3.5 Flash (Medium)\(esc)[m
+        \(bar) 100%\(esc)[m\(esc)[K
+        \(esc)[2mQuota available\(esc)[m
+        \(esc)[1mClaude Sonnet 4.6 (Thinking)\(esc)[m
+        \(bar) 50%\(esc)[m\(esc)[K
+        \(esc)[2mQuota available\(esc)[m
+        \(esc)[1mClaude Opus 4.6 (Thinking)\(esc)[m
+        \(bar) 0%\(esc)[m\(esc)[K
+        \(esc)[38;2;154;160;166m  (1–30 of 33 lines)\(esc)[m
+        """
+
+        let quotas = try AntigravityAgyCLIUsageProbe.parseUsageOutput(sample)
+
+        #expect(quotas.count == 3)
+        #expect(quotas.contains { $0.label == "Gemini 3.5 Flash (Medium)" && $0.remainingFraction == 1.0 })
+        #expect(quotas.contains { $0.label == "Claude Sonnet 4.6 (Thinking)" && $0.remainingFraction == 0.5 })
+        #expect(quotas.contains { $0.label == "Claude Opus 4.6 (Thinking)" && $0.remainingFraction == 0.0 })
+    }
+
+    @Test
     func `parses model quota panel from agy usage output`() throws {
         let sample = """
         └ Model Quota
