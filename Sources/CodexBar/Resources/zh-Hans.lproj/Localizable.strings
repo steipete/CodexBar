@@ -520,6 +520,8 @@
 "weekly_limit_confetti_subtitle" = "当每周用量重置时播放全屏彩纸。";
 "hide_personal_info_title" = "隐藏个人信息";
 "hide_personal_info_subtitle" = "在菜单栏和菜单界面中隐藏电子邮件地址。";
+"companion_sync_title" = "同步到 iOS 应用（iCloud）";
+"companion_sync_subtitle" = "将使用卡片上传到你的私有 iCloud，以便 CodexBar iOS 应用显示。默认关闭。";
 "show_provider_storage_usage_title" = "显示提供商存储用量";
 "show_provider_storage_usage_subtitle" = "在菜单中显示本地磁盘用量。会在后台扫描已知的提供商自有路径。";
 "section_keychain_access" = "钥匙串访问";

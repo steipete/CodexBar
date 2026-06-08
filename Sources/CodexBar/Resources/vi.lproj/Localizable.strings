@@ -532,6 +532,8 @@
 "weekly_limit_confetti_subtitle" = "Phát hoa giấy toàn màn hình khi đặt lại Mức sử dụng hàng tuần.";
 "hide_personal_info_title" = "Ẩn thông tin cá nhân";
 "hide_personal_info_subtitle" = "Địa chỉ email tối nghĩa trong thanh menu và giao diện người dùng menu.";
+"companion_sync_title" = "Đồng bộ với ứng dụng iOS (iCloud)";
+"companion_sync_subtitle" = "Tải các thẻ sử dụng lên iCloud riêng tư của bạn để ứng dụng CodexBar trên iOS có thể hiển thị. Tắt theo mặc định.";
 "show_provider_storage_usage_title" = "Hiển thị Nhà cung cấp bộ nhớ Mức sử dụng";
 "show_provider_storage_usage_subtitle" = "Hiển thị ổ đĩa cục bộ Mức sử dụng trong menu. Quét các đường dẫn thuộc quyền sở hữu của Nhà cung cấp đã biết ở chế độ nền.";
 "section_keychain_access" = "Keychain quyền truy cập";

@@ -533,6 +533,8 @@
 "weekly_limit_confetti_subtitle" = "Speel confetti op volledig scherm af wanneer het wekelijkse gebruik wordt gereset.";
 "hide_personal_info_title" = "Verberg persoonlijke informatie";
 "hide_personal_info_subtitle" = "Onduidelijke e-mailadressen in de menubalk en menu-UI.";
+"companion_sync_title" = "Synchroniseren met iOS-app (iCloud)";
+"companion_sync_subtitle" = "Upload gebruikskaarten naar je privé-iCloud zodat de CodexBar iOS-app ze kan tonen. Standaard uit.";
 "show_provider_storage_usage_title" = "Toon het opslaggebruik van de provider";
 "show_provider_storage_usage_subtitle" = "Toon lokaal schijfgebruik in menu's. Scant bekende paden van de provider op de achtergrond.";
 "section_keychain_access" = "Toegang via sleutelhanger";

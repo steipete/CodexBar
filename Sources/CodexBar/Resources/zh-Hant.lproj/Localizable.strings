@@ -531,6 +531,8 @@
 "weekly_limit_confetti_subtitle" = "每週使用量重置時播放全螢幕慶祝動畫。";
 "hide_personal_info_title" = "隱藏個人資訊";
 "hide_personal_info_subtitle" = "在選單列和選單介面中隱藏電子郵件地址。";
+"companion_sync_title" = "同步到 iOS 應用程式（iCloud）";
+"companion_sync_subtitle" = "將使用卡片上傳到你的私有 iCloud，讓 CodexBar iOS 應用程式顯示。預設關閉。";
 "show_provider_storage_usage_title" = "顯示提供者儲存使用量";
 "show_provider_storage_usage_subtitle" = "在選單中顯示本機磁碟使用量。會在背景掃描已知的提供者自有路徑。";
 "section_keychain_access" = "鑰匙圈存取";

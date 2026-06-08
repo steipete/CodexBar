@@ -521,6 +521,8 @@
 "weekly_limit_confetti_subtitle" = "Mostra confeti a pantalla completa quan es reinicia l'ús setmanal.";
 "hide_personal_info_title" = "Amaga la informació personal";
 "hide_personal_info_subtitle" = "Amaga les adreces de correu a la barra de menús i a la interfície del menú.";
+"companion_sync_title" = "Sincronitza amb l’app d’iOS (iCloud)";
+"companion_sync_subtitle" = "Penja les targetes d’ús al teu iCloud privat perquè l’app de CodexBar per a iOS les pugui mostrar. Desactivat per defecte.";
 "show_provider_storage_usage_title" = "Mostra l'ús d'emmagatzematge del proveïdor";
 "show_provider_storage_usage_subtitle" = "Mostra l'ús de disc local als menús. Analitza en segon pla els camins coneguts del proveïdor.";
 "section_keychain_access" = "Accés al Clauer";

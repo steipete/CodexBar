@@ -533,6 +533,8 @@
 "weekly_limit_confetti_subtitle" = "Jouez des confettis en plein écran lorsque l'utilisation hebdomadaire est réinitialisée.";
 "hide_personal_info_title" = "Masquer les informations personnelles";
 "hide_personal_info_subtitle" = "Adresses e-mail obscures dans la barre de menus et l'interface utilisateur du menu.";
+"companion_sync_title" = "Synchroniser avec l’app iOS (iCloud)";
+"companion_sync_subtitle" = "Téléverse les cartes d’utilisation vers votre iCloud privé pour que l’app iOS CodexBar puisse les afficher. Désactivé par défaut.";
 "show_provider_storage_usage_title" = "Afficher l'utilisation du stockage du fournisseur";
 "show_provider_storage_usage_subtitle" = "Afficher l'utilisation du disque local dans les menus. Analyse les chemins connus appartenant au fournisseur en arrière-plan.";
 "section_keychain_access" = "Accès au Trousseau";

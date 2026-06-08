@@ -532,6 +532,8 @@
 "weekly_limit_confetti_subtitle" = "Spela konfetti i helskärm när veckoförbrukningen återställs.";
 "hide_personal_info_title" = "Dölj personuppgifter";
 "hide_personal_info_subtitle" = "Maskera e-postadresser i menyraden och menygränssnittet.";
+"companion_sync_title" = "Synka till iOS-appen (iCloud)";
+"companion_sync_subtitle" = "Ladda upp användningskort till ditt privata iCloud så att CodexBar iOS-appen kan visa dem. Av som standard.";
 "show_provider_storage_usage_title" = "Visa leverantörers lagringsanvändning";
 "show_provider_storage_usage_subtitle" = "Visa lokal diskanvändning i menyer. Söker igenom kända leverantörsägda sökvägar i bakgrunden.";
 "section_keychain_access" = "Åtkomst till Nyckelring";

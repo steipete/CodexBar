@@ -61,4 +61,14 @@ struct CompanionSyncProofTests {
         #expect(placeholderOnly.hasDisplayableContent)
         #expect(emptyCard.hasDisplayableContent == false) // truly-empty card is still dropped
     }
+
+    @Test("Companion sync is opt-in — a fresh SettingsStore defaults to OFF")
+    @MainActor
+    func optInDefaultsOff() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "CompanionSyncProof-\(UUID().uuidString)"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(settings.companionSyncEnabled == false)
+    }
 }
