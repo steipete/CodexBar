@@ -376,6 +376,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.wireBindings()
         self.updateVisibility()
         self.updateIcons()
+        self.syncCompanion()
         self.scheduleStartupStatusItemVisibilityCheck()
         NotificationCenter.default.addObserver(
             self,
@@ -444,6 +445,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeStoreChanges()
+                self.syncCompanion()
                 self.invalidateMenus(
                     refreshOpenMenus: self.didMenuAdjunctReadinessChange(),
                     deferOpenParentMenuRebuild: true,

@@ -158,6 +158,12 @@ cat > "$APP_ENTITLEMENTS" <<PLIST
     <array>
         <string>${APP_GROUP_ID}</string>
     </array>
+    <key>com.apple.application-identifier</key>
+    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>${APP_TEAM_ID}</string>
+    <key>com.apple.developer.ubiquity-kvstore-identifier</key>
+    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
     $(if [[ "$ALLOW_LLDB" == "1" ]]; then echo "    <key>com.apple.security.get-task-allow</key><true/>"; fi)
 </dict>
 </plist>
@@ -429,6 +435,11 @@ if [[ ! -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" 
   echo "ERROR: Missing KeyboardShortcuts SwiftPM resource bundle (Settings → Keyboard shortcut will crash)." >&2
   echo "Expected: ${PREFERRED_BUILD_DIR}/KeyboardShortcuts_KeyboardShortcuts.bundle" >&2
   exit 1
+fi
+
+# Embed provisioning profile if it exists (for iCloud KVS)
+if [[ -f "$ROOT/codexbar-macos.provisionprofile" ]]; then
+  cp "$ROOT/codexbar-macos.provisionprofile" "$APP/Contents/embedded.provisionprofile"
 fi
 
 # Ensure contents are writable before stripping attributes and signing.

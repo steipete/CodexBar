@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import CodexBarCore
 import SwiftUI
 
@@ -344,9 +348,13 @@ private struct CopyIconButton: View {
     }
 
     private func copyToPasteboard() {
+        #if os(macOS)
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(self.copyText, forType: .string)
+        #elseif os(iOS)
+        UIPasteboard.general.string = self.copyText
+        #endif
     }
 }
 

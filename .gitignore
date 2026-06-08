@@ -5,9 +5,21 @@ xcuserdata/
 *.env
 *.local
 
+# Local signing assets (never commit)
+codexbar-macos.provisionprofile
+*.provisionprofile
+*.mobileprovision
+
+# Tooling
+.nott/
+
+# Commit message draft (not part of the project)
+COMMIT_MESSAGE.md
+
 # Build products
 .build/
 DerivedData
+CodexBarCompanion/build/
 
 # Bundles / artifacts
 # Main app bundle (any variation)

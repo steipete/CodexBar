@@ -1,0 +1,24 @@
+name: CodexBarCompanion
+options:
+  bundleIdPrefix: com.steipete
+  deploymentTarget:
+    iOS: 26.0
+targets:
+  CodexBarCompanion:
+    type: application
+    platform: iOS
+    sources:
+      - CodexBarCompanion
+    settings:
+      CODE_SIGN_STYLE: Automatic
+      DEVELOPMENT_TEAM: Y5PE65HELJ
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: CodexBarCompanion/Info.plist
+      properties:
+        CFBundleDisplayName: CodexBar
+        UILaunchScreen: {}
+    entitlements:
+      path: CodexBarCompanion/CodexBarCompanion.entitlements
+      properties:
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.steipete.codexbar
