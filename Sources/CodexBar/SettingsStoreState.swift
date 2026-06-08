@@ -32,6 +32,7 @@ struct SettingsDefaultsState {
     var costUsageEnabled: Bool
     var costUsageHistoryDays: Int
     var hidePersonalInfo: Bool
+    var companionSyncEnabled: Bool
     var randomBlinkEnabled: Bool
     var confettiOnWeeklyLimitResetsEnabled: Bool
     var menuBarShowsHighestUsage: Bool

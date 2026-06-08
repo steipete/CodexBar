@@ -313,6 +313,14 @@ extension SettingsStore {
         }
     }
 
+    var companionSyncEnabled: Bool {
+        get { self.defaultsState.companionSyncEnabled }
+        set {
+            self.defaultsState.companionSyncEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "companionSyncEnabled")
+        }
+    }
+
     var randomBlinkEnabled: Bool {
         get { self.defaultsState.randomBlinkEnabled }
         set {

@@ -34,6 +34,7 @@ extension SettingsStore {
         _ = self.costUsageHistoryDays
         _ = self.appLanguage
         _ = self.hidePersonalInfo
+        _ = self.companionSyncEnabled
         _ = self.randomBlinkEnabled
         _ = self.confettiOnWeeklyLimitResetsEnabled
         _ = self.claudeOAuthKeychainPromptMode

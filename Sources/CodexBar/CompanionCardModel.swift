@@ -55,6 +55,17 @@ public struct CompanionCardModel: Codable, Identifiable {
     public var progressColor: Color {
         Color(hex: progressColorHex) ?? .blue
     }
+
+    /// A card is worth showing if it carries any real content — not just non-empty
+    /// quota metrics. Cost-only, note-only, credits-only, or placeholder/error cards count.
+    public var hasDisplayableContent: Bool {
+        !metrics.isEmpty
+            || providerCost != nil
+            || tokenUsage != nil
+            || creditsText != nil
+            || !usageNotes.isEmpty
+            || placeholder != nil
+    }
 }
 
 extension Color {

@@ -532,6 +532,8 @@
 "weekly_limit_confetti_subtitle" = "Mostra confete em tela cheia quando o uso semanal for renovado.";
 "hide_personal_info_title" = "Ocultar informações pessoais";
 "hide_personal_info_subtitle" = "Oculta endereços de e-mail na barra de menus e na UI do menu.";
+"companion_sync_title" = "Sincronizar com o app iOS (iCloud)";
+"companion_sync_subtitle" = "Envia os cards de uso ao seu iCloud privado para o app CodexBar no iOS exibi-los. Desligado por padrão.";
 "show_provider_storage_usage_title" = "Mostrar uso de armazenamento dos provedores";
 "show_provider_storage_usage_subtitle" = "Mostra o uso de disco local nos menus. Verifica em segundo plano caminhos conhecidos pertencentes aos provedores.";
 "section_keychain_access" = "Acesso ao Keychain";

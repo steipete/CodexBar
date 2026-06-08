@@ -618,6 +618,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         if shouldRefreshOpenMenus {
             self.refreshOpenMenusForStructureChange()
         }
+        // Settings changes (hide personal info, provider visibility/order, opt-in toggle)
+        // change the rendered cards, so refresh the iOS companion payload too.
+        self.syncCompanion()
     }
 
     private func updateIcons() {

@@ -1,24 +1,37 @@
 import Foundation
 import CodexBarCore
+import os.log
 import SwiftUI
 
 extension StatusItemController {
     func syncCompanion() {
+        let kvStore = NSUbiquitousKeyValueStore.default
+        // Companion iCloud sync is opt-in and OFF by default. When disabled, proactively
+        // remove any previously-synced payload so upgrades never leave usage data in iCloud.
+        guard self.settings.companionSyncEnabled else {
+            kvStore.removeObject(forKey: "latestUsageSync")
+            kvStore.synchronize()
+            os_log("Companion sync OFF — cleared iCloud KVS payload", type: .info)
+            return
+        }
         let providers = self.store.enabledProvidersForDisplay()
         let models = providers.compactMap { self.menuCardModel(for: $0) }
         let companionModels = models.map { self.mapToCompanionModel($0) }
 
         // Sync to the iOS companion via iCloud Key-Value Store.
         if let encoded = try? JSONEncoder().encode(companionModels) {
-            NSUbiquitousKeyValueStore.default.set(encoded, forKey: "latestUsageSync")
-            NSUbiquitousKeyValueStore.default.synchronize()
+            kvStore.set(encoded, forKey: "latestUsageSync")
+            kvStore.synchronize()
+            os_log(
+                "Companion sync → iCloud KVS: %d providers, %d bytes",
+                type: .info, companionModels.count, encoded.count)
         }
     }
 
     private func mapToCompanionModel(_ model: UsageMenuCardView.Model) -> CompanionCardModel {
         return CompanionCardModel(
             providerName: model.providerName,
-            email: model.email,
+            email: self.settings.hidePersonalInfo ? "" : model.email,
             subtitleText: model.subtitleText,
             subtitleIsError: model.subtitleStyle == .error,
             planText: model.planText,

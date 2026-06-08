@@ -149,6 +149,19 @@ if [[ "$ALLOW_LLDB" == "1" && "$LOWER_CONF" != "debug" ]]; then
   echo "ERROR: CODEXBAR_ALLOW_LLDB requires debug configuration" >&2
   exit 1
 fi
+# iCloud companion-sync entitlements are opt-in: only injected when
+# CODEXBAR_ICLOUD_COMPANION=1, so default/local/adhoc/fork/release builds are unchanged
+# and do not require an Apple Developer iCloud App ID or provisioning profile.
+ICLOUD_COMPANION="${CODEXBAR_ICLOUD_COMPANION:-0}"
+ICLOUD_ENTITLEMENTS=""
+if [[ "$ICLOUD_COMPANION" == "1" ]]; then
+  ICLOUD_ENTITLEMENTS="    <key>com.apple.application-identifier</key>
+    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>${APP_TEAM_ID}</string>
+    <key>com.apple.developer.ubiquity-kvstore-identifier</key>
+    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>"
+fi
 cat > "$APP_ENTITLEMENTS" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -158,12 +171,7 @@ cat > "$APP_ENTITLEMENTS" <<PLIST
     <array>
         <string>${APP_GROUP_ID}</string>
     </array>
-    <key>com.apple.application-identifier</key>
-    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
-    <key>com.apple.developer.team-identifier</key>
-    <string>${APP_TEAM_ID}</string>
-    <key>com.apple.developer.ubiquity-kvstore-identifier</key>
-    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
+${ICLOUD_ENTITLEMENTS}
     $(if [[ "$ALLOW_LLDB" == "1" ]]; then echo "    <key>com.apple.security.get-task-allow</key><true/>"; fi)
 </dict>
 </plist>
@@ -437,8 +445,8 @@ if [[ ! -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" 
   exit 1
 fi
 
-# Embed provisioning profile if it exists (for iCloud KVS)
-if [[ -f "$ROOT/codexbar-macos.provisionprofile" ]]; then
+# Embed provisioning profile (iCloud KVS companion build only — opt-in via CODEXBAR_ICLOUD_COMPANION=1).
+if [[ "$ICLOUD_COMPANION" == "1" && -f "$ROOT/codexbar-macos.provisionprofile" ]]; then
   cp "$ROOT/codexbar-macos.provisionprofile" "$APP/Contents/embedded.provisionprofile"
 fi
 

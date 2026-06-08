@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os.log
 import SwiftUI
 
 struct ContentView: View {
@@ -190,8 +191,9 @@ struct ContentView: View {
         guard let data = store.data(forKey: "latestUsageSync"),
               let decoded = try? JSONDecoder().decode([CompanionCardModel].self, from: data)
         else { return }
-        self.models = decoded.filter { !$0.metrics.isEmpty }
+        self.models = decoded.filter { $0.hasDisplayableContent }
         self.lastSynced = Date()
+        os_log("Companion read ← iCloud KVS: %d cards", type: .info, self.models.count)
         if selectedProviderID == nil {
             selectedProviderID = "overview"
         }

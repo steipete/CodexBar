@@ -81,6 +81,10 @@ struct AdvancedPane: View {
                         title: L("show_provider_storage_usage_title"),
                         subtitle: L("show_provider_storage_usage_subtitle"),
                         binding: self.$settings.providerStorageFootprintsEnabled)
+                    PreferenceToggleRow(
+                        title: L("companion_sync_title"),
+                        subtitle: L("companion_sync_subtitle"),
+                        binding: self.$settings.companionSyncEnabled)
                 }
 
                 Divider()
