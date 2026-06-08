@@ -9,6 +9,7 @@ extension UsageStore {
     func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> UsagePace? {
         guard window.remainingPercent > 0 else { return nil }
         let resolved: UsagePace?
+        let workDays = self.settings.weeklyProgressWorkDays
         // Codex can refine pace with historical samples because its dashboard exposes enough weekly history to build
         // an account-scoped usage curve. Other providers should not need a hard-coded allowlist: if their RateWindow
         // includes a reset time and window duration, the generic linear pace calculation is already defensible.
@@ -22,14 +23,14 @@ extension UsageStore {
             {
                 resolved = historical
             } else {
-                resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
+                resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080, workDays: workDays)
             }
         } else {
             // Generic providers must carry an explicit window duration. Using the 10080-minute fallback for
             // windows without windowMinutes would fabricate a weekly pace for non-weekly windows
             // (e.g. Factory monthly with only resetsAt).
             guard window.windowMinutes != nil else { return nil }
-            resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
+            resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080, workDays: workDays)
         }
 
         guard let resolved else { return nil }

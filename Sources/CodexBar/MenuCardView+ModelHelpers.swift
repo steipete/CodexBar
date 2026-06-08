@@ -181,7 +181,7 @@ extension UsageMenuCardView.Model {
         guard input.provider == .cursor,
               window.windowMinutes != nil
         else { return nil }
-        let resolved = pace ?? UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080)
+        let resolved = pace ?? UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080, workDays: input.workDaysPerWeek)
         guard let resolved,
               resolved.expectedUsedPercent >= 3
         else { return nil }
@@ -285,7 +285,7 @@ extension UsageMenuCardView.Model {
                 now: input.now,
                 showUsed: input.usageBarsShowUsed)
         case 10080:
-            let pace = UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080)
+            let pace = UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080, workDays: input.workDaysPerWeek)
                 .flatMap { $0.expectedUsedPercent >= 3 ? $0 : nil }
             return Self.weeklyPaceDetail(
                 window: window,

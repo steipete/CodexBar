@@ -40,7 +40,8 @@ public struct UsagePace: Sendable {
     public static func weekly(
         window: RateWindow,
         now: Date = .init(),
-        defaultWindowMinutes: Int = 10080) -> UsagePace?
+        defaultWindowMinutes: Int = 10080,
+        workDays: Int? = nil) -> UsagePace?
     {
         guard let resetsAt = window.resetsAt else { return nil }
         let minutes = window.windowMinutes ?? defaultWindowMinutes
@@ -51,7 +52,13 @@ public struct UsagePace: Sendable {
         guard timeUntilReset > 0 else { return nil }
         guard timeUntilReset <= duration else { return nil }
         let elapsed = (duration - timeUntilReset).clamped(to: 0...duration)
-        let expected = ((elapsed / duration) * 100).clamped(to: 0...100)
+        let expected: Double
+        if let workDays, workDays >= 1, workDays < 7, minutes == 10080 {
+            expected = Self.workdayAwareExpected(
+                elapsed: elapsed, duration: duration, resetsAt: resetsAt, workDays: workDays)
+        } else {
+            expected = ((elapsed / duration) * 100).clamped(to: 0...100)
+        }
         let actual = window.usedPercent.clamped(to: 0...100)
         if elapsed == 0, actual > 0 {
             return nil
@@ -105,6 +112,52 @@ public struct UsagePace: Sendable {
             etaSeconds: etaSeconds,
             willLastToReset: willLastToReset,
             runOutProbability: runOutProbability)
+    }
+
+    /// Computes expected usage percent distributing 100% only across work days within a 7-day window.
+    /// Non-work days contribute zero expected usage, so the curve stays flat on weekends.
+    private static func workdayAwareExpected(
+        elapsed: TimeInterval,
+        duration: TimeInterval,
+        resetsAt: Date,
+        workDays: Int) -> Double
+    {
+        let windowStart = resetsAt.addingTimeInterval(-duration)
+        let now = windowStart.addingTimeInterval(elapsed)
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+
+        let daySeconds: TimeInterval = 24 * 60 * 60
+        var totalWorkSeconds: TimeInterval = 0
+        var elapsedWorkSeconds: TimeInterval = 0
+
+        // Walk each calendar day in the window and classify as work day or not.
+        // Work days are the first N days of the week starting from Monday.
+        // (workDays=5 → Mon-Fri are work days)
+        var dayCursor = windowStart
+        while dayCursor < resetsAt {
+            let dayEnd = min(dayCursor.addingTimeInterval(daySeconds), resetsAt)
+            let weekday = calendar.component(.weekday, from: dayCursor)
+            // Calendar weekday: 1=Sun, 2=Mon, ..., 7=Sat
+            // Convert to Mon=1..Sun=7
+            let isoWeekday = weekday == 1 ? 7 : weekday - 1
+            let isWorkDay = isoWeekday <= workDays
+
+            let dayDuration = dayEnd.timeIntervalSince(dayCursor)
+            if isWorkDay {
+                totalWorkSeconds += dayDuration
+                if now > dayCursor {
+                    elapsedWorkSeconds += min(now, dayEnd).timeIntervalSince(dayCursor)
+                }
+            }
+            dayCursor = dayEnd
+        }
+
+        guard totalWorkSeconds > 0 else {
+            return ((elapsed / duration) * 100).clamped(to: 0...100)
+        }
+        return ((elapsedWorkSeconds / totalWorkSeconds) * 100).clamped(to: 0...100)
     }
 
     private static func stage(for delta: Double) -> Stage {
