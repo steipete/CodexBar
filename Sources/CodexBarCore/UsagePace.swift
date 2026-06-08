@@ -116,6 +116,8 @@ public struct UsagePace: Sendable {
 
     /// Computes expected usage percent distributing 100% only across work days within a 7-day window.
     /// Non-work days contribute zero expected usage, so the curve stays flat on weekends.
+    /// Splits intervals at local calendar day boundaries so that a non-midnight reset time
+    /// does not shift the workday classification of adjacent days.
     private static func workdayAwareExpected(
         elapsed: TimeInterval,
         duration: TimeInterval,
@@ -128,30 +130,28 @@ public struct UsagePace: Sendable {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
 
-        let daySeconds: TimeInterval = 24 * 60 * 60
         var totalWorkSeconds: TimeInterval = 0
         var elapsedWorkSeconds: TimeInterval = 0
 
-        // Walk each calendar day in the window and classify as work day or not.
-        // Work days are the first N days of the week starting from Monday.
-        // (workDays=5 → Mon-Fri are work days)
-        var dayCursor = windowStart
-        while dayCursor < resetsAt {
-            let dayEnd = min(dayCursor.addingTimeInterval(daySeconds), resetsAt)
-            let weekday = calendar.component(.weekday, from: dayCursor)
-            // Calendar weekday: 1=Sun, 2=Mon, ..., 7=Sat
-            // Convert to Mon=1..Sun=7
+        // Walk the window splitting at local calendar day boundaries (midnight).
+        var cursor = windowStart
+        while cursor < resetsAt {
+            let startOfNextDay = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: cursor)!)
+            let sliceEnd = min(startOfNextDay, resetsAt)
+
+            let weekday = calendar.component(.weekday, from: cursor)
+            // Calendar weekday: 1=Sun, 2=Mon, ..., 7=Sat → convert to ISO: Mon=1..Sun=7
             let isoWeekday = weekday == 1 ? 7 : weekday - 1
             let isWorkDay = isoWeekday <= workDays
 
-            let dayDuration = dayEnd.timeIntervalSince(dayCursor)
+            let sliceDuration = sliceEnd.timeIntervalSince(cursor)
             if isWorkDay {
-                totalWorkSeconds += dayDuration
-                if now > dayCursor {
-                    elapsedWorkSeconds += min(now, dayEnd).timeIntervalSince(dayCursor)
+                totalWorkSeconds += sliceDuration
+                if now > cursor {
+                    elapsedWorkSeconds += min(now, sliceEnd).timeIntervalSince(cursor)
                 }
             }
-            dayCursor = dayEnd
+            cursor = sliceEnd
         }
 
         guard totalWorkSeconds > 0 else {
