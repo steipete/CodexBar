@@ -9,6 +9,7 @@ public enum UsageFormatter {
     private final class BundleToken {}
 
     private static let localizationLock = NSLock()
+    private static let formatterLock = NSLock()
     private nonisolated(unsafe) static var localizationProvider: (@Sendable (String) -> String)?
     private nonisolated(unsafe) static var localeProvider: (@Sendable () -> Locale)?
 
@@ -76,7 +77,7 @@ public enum UsageFormatter {
         return rel
     }()
 
-    private nonisolated(unsafe) static let creditsNumberFormatter: NumberFormatter = {
+    private static let creditsNumberFormatter: NumberFormatter = {
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
@@ -84,7 +85,7 @@ public enum UsageFormatter {
         return number
     }()
 
-    private nonisolated(unsafe) static let tokenCountNumberFormatter: NumberFormatter = {
+    private static let tokenCountNumberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.usesGroupingSeparator = true
@@ -92,13 +93,13 @@ public enum UsageFormatter {
         return formatter
     }()
 
-    private nonisolated(unsafe) static let mediumDateFormatter: DateFormatter = {
+    private static let mediumDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return formatter
     }()
 
-    private nonisolated(unsafe) static let compactDateFormatter: DateFormatter = {
+    private static let compactDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter
@@ -188,12 +189,12 @@ public enum UsageFormatter {
         }
         if let hours = Calendar.current.dateComponents([.hour], from: date, to: now).hour, hours < 24 {
             #if os(macOS)
-            self.localizationLock.lock()
-            let rel = self.relativeFormatter
-            rel.locale = self.currentLocale()
-            let result = self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
-            self.localizationLock.unlock()
-            return result
+            let locale = self.currentLocale()
+            self.formatterLock.lock()
+            self.relativeFormatter.locale = locale
+            let relativeString = self.relativeFormatter.localizedString(for: date, relativeTo: now)
+            self.formatterLock.unlock()
+            return self.localized("Updated %@", relativeString)
             #else
             let seconds = max(0, Int(now.timeIntervalSince(date)))
             if seconds < 3600 {
@@ -211,10 +212,10 @@ public enum UsageFormatter {
     }
 
     public static func creditsString(from value: Double) -> String {
-        self.localizationLock.lock()
+        self.formatterLock.lock()
         let number = self.creditsNumberFormatter
         let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
-        self.localizationLock.unlock()
+        self.formatterLock.unlock()
         return self.localized("%@ left", formatted)
     }
 
@@ -274,10 +275,10 @@ public enum UsageFormatter {
             return "\(sign)\(formatted)\(unit.suffix)"
         }
 
-        self.localizationLock.lock()
+        self.formatterLock.lock()
         let formatter = self.tokenCountNumberFormatter
         let result = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
-        self.localizationLock.unlock()
+        self.formatterLock.unlock()
         return result
     }
 
@@ -301,22 +302,22 @@ public enum UsageFormatter {
     }
 
     public static func creditEventSummary(_ event: CreditEvent) -> String {
-        self.localizationLock.lock()
+        self.formatterLock.lock()
         let formatter = self.mediumDateFormatter
         let number = self.creditsNumberFormatter
         let credits = number.string(from: NSNumber(value: event.creditsUsed)) ?? "0"
         let dateString = formatter.string(from: event.date)
-        self.localizationLock.unlock()
+        self.formatterLock.unlock()
         return "\(dateString) · \(event.service) · \(credits) credits"
     }
 
     public static func creditEventCompact(_ event: CreditEvent) -> String {
-        self.localizationLock.lock()
+        self.formatterLock.lock()
         let formatter = self.compactDateFormatter
         let number = self.creditsNumberFormatter
         let credits = number.string(from: NSNumber(value: event.creditsUsed)) ?? "0"
         let dateString = formatter.string(from: event.date)
-        self.localizationLock.unlock()
+        self.formatterLock.unlock()
         return "\(dateString) — \(event.service): \(credits)"
     }
 

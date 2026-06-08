@@ -61,7 +61,7 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
         }
         Self.cacheLock.unlock()
         var result: CFTypeRef?
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,
             kSecAttrAccount as String: self.account,
@@ -72,18 +72,21 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
         {
-            KeychainPromptHandler.handler?(KeychainPromptContext(
-                kind: self.promptKind,
-                service: self.service,
-                account: self.account))
+            Self.log.info("Keychain cookie read requires interaction; skipping password prompt")
+            return nil
         }
 
+        KeychainAccessPreflight.applyNoUI(to: &query)
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
             // Cache the nil result
             Self.cacheLock.lock()
             Self.cache[self.account] = CachedValue(value: nil, timestamp: Date())
             Self.cacheLock.unlock()
+            return nil
+        }
+        if status == errSecInteractionNotAllowed {
+            Self.log.info("Keychain cookie read requires interaction; skipping password prompt")
             return nil
         }
         guard status == errSecSuccess else {

@@ -50,7 +50,7 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
         }
         Self.cacheLock.unlock()
         var result: CFTypeRef?
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.service,
             kSecAttrAccount as String: self.account,
@@ -61,12 +61,11 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
         {
-            KeychainPromptHandler.handler?(KeychainPromptContext(
-                kind: .zaiToken,
-                service: self.service,
-                account: self.account))
+            Self.log.info("Keychain token read requires interaction; skipping password prompt")
+            return nil
         }
 
+        KeychainAccessPreflight.applyNoUI(to: &query)
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
             // Cache the nil result
@@ -74,6 +73,10 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
             Self.cachedToken = nil
             Self.cacheTimestamp = Date()
             Self.cacheLock.unlock()
+            return nil
+        }
+        if status == errSecInteractionNotAllowed {
+            Self.log.info("Keychain token read requires interaction; skipping password prompt")
             return nil
         }
         guard status == errSecSuccess else {

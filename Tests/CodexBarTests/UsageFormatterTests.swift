@@ -89,6 +89,30 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `relative updated string uses injected localization without deadlocking`() {
+        UsageFormatter.setLocalizationProvider { key in
+            switch key {
+            case "Updated %@":
+                "Updated local %@"
+            default:
+                key
+            }
+        }
+        UsageFormatter.setLocaleProvider { Locale(identifier: "en_US_POSIX") }
+        defer {
+            UsageFormatter.clearLocalizationProvider()
+            UsageFormatter.clearLocaleProvider()
+        }
+
+        let now = Date(timeIntervalSince1970: 1_710_048_000)
+        let old = now.addingTimeInterval(-(5 * 3600))
+        let output = UsageFormatter.updatedString(from: old, now: now)
+
+        #expect(output.hasPrefix("Updated local "))
+        #expect(output.contains("5"))
+    }
+
+    @Test
     func `clearing locale provider returns to stable default behavior`() {
         UsageFormatter.clearLocalizationProvider()
         UsageFormatter.clearLocaleProvider()

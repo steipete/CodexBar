@@ -234,7 +234,7 @@ extension StatusItemController {
             codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
             updateReady: self.updater.updateStatus.isUpdateReady,
             includeContextualActions: !isOverviewSelected)
-        
+
         let menuKey = ObjectIdentifier(menu)
         let menuWidth: CGFloat
         if let lastDescriptor = self.lastMenuDescriptors[menuKey],

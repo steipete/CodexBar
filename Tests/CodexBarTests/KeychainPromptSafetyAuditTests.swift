@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+@testable import CodexBar
+@testable import CodexBarCore
 
 struct KeychainPromptSafetyAuditTests {
     @Test
@@ -51,6 +53,44 @@ struct KeychainPromptSafetyAuditTests {
         }
 
         #expect(offenders.isEmpty, "Unexpected direct SecItemCopyMatching in tests: \(offenders.map(\.path))")
+    }
+
+    @Test
+    func `generic app keychain stores suppress interactive password prompts`() throws {
+        let cookieAccount = "test-cookie-\(UUID().uuidString)"
+        var promptCount = 0
+
+        try KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try KeychainPromptHandler.withHandlerForTesting({ _ in
+                promptCount += 1
+            }, operation: {
+                try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting({ _, _ in
+                    .interactionRequired
+                }, operation: {
+                    let cookieHeader = try KeychainCookieHeaderStore(
+                        account: cookieAccount,
+                        promptKind: .codexCookie).loadCookieHeader()
+                    let zaiToken = try KeychainZaiTokenStore().loadToken()
+                    let kimiToken = try KeychainKimiTokenStore().loadToken()
+                    let kimiK2Token = try KeychainKimiK2TokenStore().loadToken()
+                    let miniMaxToken = try KeychainMiniMaxAPITokenStore().loadToken()
+                    let miniMaxCookie = try KeychainMiniMaxCookieStore().loadCookieHeader()
+                    let copilotToken = try KeychainCopilotTokenStore().loadToken()
+                    let syntheticToken = try KeychainSyntheticTokenStore().loadToken()
+
+                    #expect(cookieHeader == nil)
+                    #expect(zaiToken == nil)
+                    #expect(kimiToken == nil)
+                    #expect(kimiK2Token == nil)
+                    #expect(miniMaxToken == nil)
+                    #expect(miniMaxCookie == nil)
+                    #expect(copilotToken == nil)
+                    #expect(syntheticToken == nil)
+                })
+            })
+        }
+
+        #expect(promptCount == 0)
     }
 
     private static func repoRoot() -> URL {

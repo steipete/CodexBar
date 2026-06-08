@@ -1110,7 +1110,7 @@ public struct UsageFetcher: Sendable {
         }
         guard let data = Data(base64Encoded: padded) else { return nil }
         guard let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) else { return nil }
-        
+
         self.jwtCache.setObject(json as NSDictionary, forKey: cacheKey)
         return json
     }

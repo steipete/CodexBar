@@ -164,6 +164,10 @@ public enum KeychainAccessPreflight {
     }
 
     #if os(macOS)
+    public static func applyNoUI(to query: inout [String: Any]) {
+        KeychainNoUIQuery.apply(to: &query)
+    }
+
     static func makeGenericPasswordPreflightQuery(service: String, account: String?) -> [String: Any] {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
