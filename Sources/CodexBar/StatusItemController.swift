@@ -835,9 +835,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             }
             self.statusItem.button?.target = self
             self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
+            // 右键也触发 action，使右键可弹出 popover
+            self.statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
             return
         }
         // ↓ original logic unchanged
+        // 从 popover 模式切回时清掉残留的 button target/action
+        self.statusItem.button?.target = nil
+        self.statusItem.button?.action = nil
         if self.mergedMenu == nil {
             self.mergedMenu = self.makeMenu()
         }

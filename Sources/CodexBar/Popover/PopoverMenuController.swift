@@ -3,6 +3,8 @@ import SwiftUI
 
 /// 用 NSPopover(.transient) 承载持久 SwiftUI 根视图，替代 statusItem.menu。
 /// 阶段 1.3：加入本地键盘 monitor，Esc 关闭面板；阶段 1.4 接入更多快捷键。
+/// 阶段 review：通过 PopoverCloseDelegate 桥接 NSPopoverDelegate，
+/// 处理 transient 自动关闭的状态同步与双触发防抖。
 @MainActor
 final class PopoverMenuController<Content: View> {
     private let viewModel: MenuViewModel
@@ -11,6 +13,13 @@ final class PopoverMenuController<Content: View> {
     // nonisolated(unsafe) 允许在 deinit（非 MainActor）中直接读写，
     // 实际写入只发生在 @MainActor 方法中，线程安全由调用方保证。
     nonisolated(unsafe) private var keyMonitor: Any?
+
+    /// 防止 transient 自动关闭后 button.action 立即重开的标志。
+    /// handleDidClose() 置 true，下一 runloop tick 异步清除。
+    private var suppressNextToggleOpen = false
+
+    /// NSPopoverDelegate 桥接对象（泛型类不能直接遵从 @objc 协议）。
+    private let closeDelegate: PopoverCloseDelegate
 
     // MARK: - 注入回调（Task 1.4）
 
@@ -29,6 +38,17 @@ final class PopoverMenuController<Content: View> {
         popover.animates = false
         popover.contentViewController = hosting
         self.popover = popover
+        // 桥接 delegate：接管关闭事件，同步 isVisible、移除 keyMonitor、防双触发
+        let delegate = PopoverCloseDelegate()
+        self.closeDelegate = delegate
+        popover.delegate = delegate
+        // 在 init 完成后，通过闭包把 handleDidClose 回调注入桥接对象
+        // （此处 self 已完全初始化，可安全捕获）
+        delegate.onDidClose = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleDidClose()
+            }
+        }
     }
 
     deinit {
@@ -48,14 +68,38 @@ final class PopoverMenuController<Content: View> {
         self.installKeyMonitor()
     }
 
+    /// 显式关闭：立即同步状态，再委托 performClose 触发 delegate（幂等安全）。
     func close() {
         self.removeKeyMonitor()
-        self.popover.performClose(nil)
         self.viewModel.setVisible(false)
+        self.popover.performClose(nil)
     }
 
     func toggle(relativeTo button: NSStatusBarButton) {
-        if self.popover.isShown { self.close() } else { self.show(relativeTo: button) }
+        if self.popover.isShown {
+            self.close()
+            return
+        }
+        // 刚因 transient 点击关闭时吞掉这次重开，避免闪烁
+        if self.suppressNextToggleOpen { return }
+        self.show(relativeTo: button)
+    }
+
+    // MARK: - 关闭统一清理（delegate 回调 + close() 共用）
+
+    /// 统一清理：同步 isVisible、移除 monitor、设置防双触发标志（一个 runloop tick 后清除）。
+    private func handleDidClose() {
+        self.removeKeyMonitor()
+        self.viewModel.setVisible(false)
+        self.suppressNextToggleOpen = true
+        DispatchQueue.main.async { [weak self] in
+            self?.suppressNextToggleOpen = false
+        }
+    }
+
+    /// 测试接缝：模拟 transient 外部点击关闭（驱动 handleDidClose），绕过真实 NSPopover。
+    func simulatePopoverDidCloseForTesting() {
+        self.handleDidClose()
     }
 
     // MARK: - 键盘 monitor
@@ -132,5 +176,18 @@ final class PopoverMenuController<Content: View> {
     @discardableResult
     func handleForTesting(characters: String?, modifiers: NSEvent.ModifierFlags) -> Bool {
         self.handle(characters: characters, keyCode: 0, modifiers: modifiers)
+    }
+}
+
+// MARK: - NSPopoverDelegate 桥接
+
+/// 非泛型 NSObject 子类，作为 NSPopoverDelegate 桥接对象。
+/// 泛型类（PopoverMenuController）无法直接遵从 @objc 协议，故独立出来。
+final class PopoverCloseDelegate: NSObject, NSPopoverDelegate {
+    /// 关闭时回调，由 PopoverMenuController 在 init 后注入。
+    var onDidClose: (() -> Void)?
+
+    func popoverDidClose(_ notification: Notification) {
+        onDidClose?()
     }
 }

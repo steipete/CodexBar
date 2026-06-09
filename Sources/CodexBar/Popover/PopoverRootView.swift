@@ -60,14 +60,13 @@ struct PopoverRootView: View {
         }
     }
 
-    /// 关键：在 body 中同步读取 store（makeCardModel 内部读 store.* 属性），
-    /// 以建立 @Observable 观察链——store 数据变化时 SwiftUI 自动重渲。
+    /// makeCardModel 内部读取 store 属性，在 body 同步求值以建立 @Observable 观察链；
+    /// store 数据变化时 SwiftUI 自动重渲而无需外部 bump。
     @ViewBuilder private func card(for provider: UsageProvider) -> some View {
         if let model = makeCardModel(provider) {
             UsageMenuCardView(model: model, width: Self.menuWidth)
         } else {
-            // store.snapshot 读取触发 @Observable 追踪，数据到达时自动更新
-            let _ = store.snapshot(for: provider)
+            // 防御性占位：makeCardModel 当前不返回 nil，保留以防签名变更
             Text("Loading…")
                 .foregroundStyle(.secondary)
                 .padding()

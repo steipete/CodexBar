@@ -306,7 +306,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         if self.shouldMergeIcons {
             if self.usePopoverMenu, let button = self.statusItem.button {
                 self.menuViewModel.providers = self.store.enabledProvidersForDisplay()
-                self.popoverMenuController?.show(relativeTo: button)
+                self.popoverMenuController?.toggle(relativeTo: button)
             } else {
                 self.statusItem.button?.performClick(nil)
             }

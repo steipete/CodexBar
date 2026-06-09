@@ -83,6 +83,22 @@ import SwiftUI
         let controller = PopoverMenuController(viewModel: MenuViewModel()) { EmptyContentProbe() }
         #expect(controller.handleForTesting(characters: "x", modifiers: .command) == false)
     }
+
+    // MARK: - #1 transient 双触发防抖
+
+    @Test func toggleAfterCloseIsSuppressedWithinSameRunloop() {
+        let vm = MenuViewModel()
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let button = statusItem.button!
+        let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
+        controller.show(relativeTo: button)
+        #expect(vm.isVisible == true)
+        controller.simulatePopoverDidCloseForTesting() // 模拟 transient 外部点击关闭
+        #expect(vm.isVisible == false)
+        controller.toggle(relativeTo: button)          // 紧随的 button.action：应被吞掉，不重开
+        #expect(vm.isVisible == false)
+        NSStatusBar.system.removeStatusItem(statusItem)
+    }
 }
 
 private struct EmptyContentProbe: View {
