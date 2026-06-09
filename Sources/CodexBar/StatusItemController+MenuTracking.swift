@@ -125,12 +125,39 @@ extension StatusItemController {
             self.deferMenuInteractionRefreshIfNeeded()
             return
         }
+        if self.canDeferStaleMenuRebuildUntilAfterDisplay(menu) {
+            #if DEBUG
+            self.menuLogger.debug(
+                "menu open deferred stale rebuild until after display",
+                metadata: [
+                    "items": "\(menu.items.count)",
+                    "provider": provider?.rawValue ?? "nil",
+                ])
+            #endif
+            self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: provider)
+            return
+        }
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
     }
 
     private func canPreserveStaleMenuContentDuringRefresh(_ menu: NSMenu) -> Bool {
         guard self.isMenuDataRefreshInFlight, !menu.items.isEmpty else { return false }
+        let key = ObjectIdentifier(menu)
+        guard let menuVersion = self.menuVersions[key] else { return false }
+        return menuVersion >= self.latestRequiredMenuRebuildVersion
+    }
+
+    /// Two-phase open: when the only pending invalidations are data-refresh ticks, the dropdown can
+    /// attach its existing content immediately and rebuild from current store data right after the
+    /// menu is on screen, instead of paying the full `populateMenu` (incl. SwiftUI hosting-view
+    /// layout) synchronously inside `menuWillOpen` on the click path (#1274, #1325). Structural,
+    /// privacy, or localization invalidations bump `latestRequiredMenuRebuildVersion` and still
+    /// rebuild synchronously before display.
+    private func canDeferStaleMenuRebuildUntilAfterDisplay(_ menu: NSMenu) -> Bool {
+        // Without open-menu tracking the post-display rebuild would never run, leaving stale content.
+        guard self.isMenuRefreshEnabled else { return false }
+        guard !menu.items.isEmpty else { return false }
         let key = ObjectIdentifier(menu)
         guard let menuVersion = self.menuVersions[key] else { return false }
         return menuVersion >= self.latestRequiredMenuRebuildVersion

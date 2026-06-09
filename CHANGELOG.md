@@ -4,6 +4,7 @@
 
 ### Fixed
 - Antigravity: exclude model quotas without a remaining fraction from family summaries so they no longer mask tracked usage in the automatic menu-bar metric (#1369). Thanks @Martin-Hausleitner!
+- Menu bar: open data-stale dropdowns in two phases — attach the existing content immediately on click and rebuild from current data right after display — so merged-menu opens no longer pay the full SwiftUI card rebuild before the menu appears (#1274, #1325).
 
 ## 0.32.5 — 2026-06-09
 
