@@ -150,6 +150,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var deferredOpenAIDashboardRefreshReason: String?
     var deferredMenuInteractionRefreshTask: Task<Void, Never>?
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
+    // MARK: - Popover menu (gated by settings.usePopoverMenu; inactive until wired in Task 1.1)
+    let menuViewModel = MenuViewModel()
+    var popoverMenuController: PopoverMenuController<PopoverRootView>?
+
+    var usePopoverMenu: Bool { self.settings.usePopoverMenu }
+
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
     var providerSwitcherPointerInteractionMenuID: ObjectIdentifier?
