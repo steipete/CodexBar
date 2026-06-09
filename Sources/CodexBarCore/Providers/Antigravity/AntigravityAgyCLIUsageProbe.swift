@@ -175,7 +175,7 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
         if lowered.contains("esc to cancel") || lowered.contains("ctrl+home") || lowered.contains("ctrl+end") {
             return true
         }
-        if line.contains(" of ") && line.contains(" lines") {
+        if line.contains(" of "), line.contains(" lines") {
             return true
         }
         if line.allSatisfy({ $0 == "█" || $0 == " " || $0 == "▌" || $0 == "▎" }) {
@@ -189,7 +189,7 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
         guard line.first?.isLetter == true || line.hasPrefix("GPT-") else { return false }
         if line.contains("██") { return false }
         if line.contains("Scroll") { return false }
-        if Self.extractTrailingPercent(from: line) != nil { return false }
+        if self.extractTrailingPercent(from: line) != nil { return false }
         return line.contains(where: \.isLetter)
     }
 
@@ -211,7 +211,7 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
     }
 
     private static func cleanLabel(_ line: String) -> String {
-        Self.stripANSI(line).trimmingCharacters(in: .whitespacesAndNewlines)
+        self.stripANSI(line).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func stripANSI(_ text: String) -> String {

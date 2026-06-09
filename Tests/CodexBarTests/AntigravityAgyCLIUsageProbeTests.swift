@@ -127,7 +127,8 @@ struct AntigravityAgyCLIUsageProbeTests {
         let merged = AntigravityAgyStatusProbe.mergeSnapshots(cli: cli, remote: remote, gemini: gemini)
 
         #expect(merged.modelQuotas.count == 2)
-        #expect(merged.modelQuotas.contains { $0.modelId == "claude-sonnet-4-6-thinking" && $0.remainingFraction == 0.8 })
+        #expect(merged.modelQuotas
+            .contains { $0.modelId == "claude-sonnet-4-6-thinking" && $0.remainingFraction == 0.8 })
         #expect(merged.modelQuotas.contains { $0.modelId == "gemini-2.5-pro" && $0.remainingFraction == 1.0 })
     }
 

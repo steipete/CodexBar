@@ -83,7 +83,7 @@ struct AntigravityAgyCredentialsTests {
     }
 
     @Test
-    func `agy fetch strategy falls back in auto mode`() async {
+    func `agy fetch strategy falls back in auto mode`() {
         let strategy = AntigravityAgyFetchStrategy()
         let context = ProviderFetchContext(
             runtime: .app,
@@ -103,7 +103,7 @@ struct AntigravityAgyCredentialsTests {
     }
 
     @Test
-    func `agy fetch strategy does not fall back in cli mode`() async {
+    func `agy fetch strategy does not fall back in cli mode`() {
         let strategy = AntigravityAgyFetchStrategy()
         let context = ProviderFetchContext(
             runtime: .app,
