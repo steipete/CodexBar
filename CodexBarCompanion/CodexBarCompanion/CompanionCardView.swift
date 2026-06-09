@@ -35,20 +35,12 @@ struct CompanionCardView: View {
                 Divider()
             }
 
-            if self.model.metrics.isEmpty {
-                if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                } else if let placeholder = self.model.placeholder {
-                    Text(placeholder)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .font(.subheadline)
-                }
-            } else {
-                let hasUsage = !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty
-                let hasCredits = self.model.creditsText != nil
-                let hasProviderCost = self.model.providerCost != nil
-                let hasCost = self.model.tokenUsage != nil || hasProviderCost
+            let hasUsage = !self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty
+            let hasCredits = self.model.creditsText != nil
+            let hasProviderCost = self.model.providerCost != nil
+            let hasCost = self.model.tokenUsage != nil || hasProviderCost
 
+            if hasUsage || hasCredits || hasCost {
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
                         VStack(alignment: .leading, spacing: 12) {
@@ -112,6 +104,10 @@ struct CompanionCardView: View {
                     }
                 }
                 .padding(.bottom, self.model.creditsText == nil ? 6 : 0)
+            } else if let placeholder = self.model.placeholder {
+                Text(placeholder)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .font(.subheadline)
             }
         }
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
@@ -131,7 +127,8 @@ struct CompanionCardView: View {
     private var hasDetails: Bool {
         (!self.model.metrics.isEmpty || !self.model.usageNotes.isEmpty) ||
             self.model.tokenUsage != nil ||
-            self.model.providerCost != nil
+            self.model.providerCost != nil ||
+            self.model.creditsText != nil
     }
 }
 
