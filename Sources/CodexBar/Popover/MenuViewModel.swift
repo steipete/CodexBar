@@ -28,4 +28,27 @@ final class MenuViewModel {
     func bumpContentVersion() { self.contentVersion &+= 1 }
 
     func setVisible(_ visible: Bool) { self.isVisible = visible }
+
+    // MARK: - 导航助手（Task 1.4）
+
+    /// 循环切换的停靠点：Overview + 各 provider（与 MP-16「←→ 循环含 Overview」一致）。
+    private var navigationStops: [ProviderSwitcherSelection] {
+        [.overview] + self.providers.map { .provider($0) }
+    }
+
+    func selectNext() { self.cycleSelection(by: 1) }
+    func selectPrevious() { self.cycleSelection(by: -1) }
+
+    private func cycleSelection(by delta: Int) {
+        let stops = self.navigationStops
+        guard !stops.isEmpty else { return }
+        let currentIndex = stops.firstIndex(of: self.selection) ?? 0
+        let nextIndex = ((currentIndex + delta) % stops.count + stops.count) % stops.count
+        self.select(stops[nextIndex])
+    }
+
+    func selectProvider(atIndex index: Int) {
+        guard self.providers.indices.contains(index) else { return }
+        self.select(.provider(self.providers[index]))
+    }
 }

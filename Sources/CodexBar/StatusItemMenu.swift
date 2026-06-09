@@ -1,6 +1,6 @@
 import AppKit
 
-enum StatusItemMenuProviderNavigationDirection {
+enum StatusItemMenuProviderNavigationDirection: Equatable {
     case previous
     case next
 }

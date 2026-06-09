@@ -811,6 +811,27 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                         store: store,
                         makeCardModel: { [weak self] provider in self?.menuCardModel(for: provider) })
                 }
+                // Task 1.4：接线快捷键回调（只在首次创建时设一次，弱引用防环）
+                self.popoverMenuController?.onRefresh = { [weak self] in
+                    self?.refreshNow()
+                    self?.popoverMenuController?.close()
+                }
+                self.popoverMenuController?.onSettings = { [weak self] in
+                    self?.showSettingsGeneral()
+                    self?.popoverMenuController?.close()
+                }
+                self.popoverMenuController?.onQuit = { [weak self] in
+                    self?.quit()
+                }
+                self.popoverMenuController?.onNavigate = { [weak self] direction in
+                    switch direction {
+                    case .next: self?.menuViewModel.selectNext()
+                    case .previous: self?.menuViewModel.selectPrevious()
+                    }
+                }
+                self.popoverMenuController?.onSelectIndex = { [weak self] index in
+                    self?.menuViewModel.selectProvider(atIndex: index)
+                }
             }
             self.statusItem.button?.target = self
             self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
