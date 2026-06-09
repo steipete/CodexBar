@@ -43,9 +43,12 @@ final class PopoverMenuController<Content: View> {
         self.closeDelegate = delegate
         popover.delegate = delegate
         // 在 init 完成后，通过闭包把 handleDidClose 回调注入桥接对象
-        // （此处 self 已完全初始化，可安全捕获）
+        // （此处 self 已完全初始化，可安全捕获）。
+        // NSPopoverDelegate 回调由 AppKit 在主线程同步触发，必须用 assumeIsolated
+        // 同步执行 handleDidClose——若用 Task 延迟，suppressNextToggleOpen 会在
+        // 紧随其后的 button.action(toggle) 之后才置位，导致防双触发失效、面板点不掉。
         delegate.onDidClose = { [weak self] in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 self?.handleDidClose()
             }
         }
