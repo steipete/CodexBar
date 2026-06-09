@@ -270,6 +270,12 @@ extension StatusMenuTests {
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
 
+        // Two-phase open: the stale content stays attached for immediate display, and the rebuild
+        // from current data runs right after display while the menu is open.
+        #expect(controller.menuVersions[key] == openedVersion)
+        for _ in 0..<40 where controller.menuVersions[key] != controller.menuContentVersion {
+            await Task.yield()
+        }
         #expect(controller.menuVersions[key] == controller.menuContentVersion)
     }
 
