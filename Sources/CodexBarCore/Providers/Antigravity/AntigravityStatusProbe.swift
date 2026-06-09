@@ -25,7 +25,7 @@ public struct AntigravityModelQuota: Sendable {
     }
 
     public var remainingPercent: Double {
-        guard let remainingFraction else { return 0 }
+        guard let remainingFraction else { return 100 }
         return max(0, min(100, remainingFraction * 100))
     }
 }
