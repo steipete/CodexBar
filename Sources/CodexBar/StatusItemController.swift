@@ -799,6 +799,19 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func attachMenus() {
+        if self.usePopoverMenu {
+            self.statusItem.menu = nil
+            if self.popoverMenuController == nil {
+                self.menuViewModel.providers = self.store.enabledProvidersForDisplay()
+                self.popoverMenuController = PopoverMenuController(viewModel: self.menuViewModel) {
+                    PopoverRootView(viewModel: self.menuViewModel)
+                }
+            }
+            self.statusItem.button?.target = self
+            self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
+            return
+        }
+        // ↓ original logic unchanged
         if self.mergedMenu == nil {
             self.mergedMenu = self.makeMenu()
         }

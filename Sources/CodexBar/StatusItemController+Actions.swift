@@ -304,7 +304,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
 
         if self.shouldMergeIcons {
-            self.statusItem.button?.performClick(nil)
+            if self.usePopoverMenu, let button = self.statusItem.button {
+                self.menuViewModel.providers = self.store.enabledProvidersForDisplay()
+                self.popoverMenuController?.show(relativeTo: button)
+            } else {
+                self.statusItem.button?.performClick(nil)
+            }
             return
         }
 
@@ -312,6 +317,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         // Use the lazy accessor to ensure the item exists
         let item = self.lazyStatusItem(for: provider)
         item.button?.performClick(nil)
+    }
+
+    @objc func handleStatusItemClick(_ sender: Any?) {
+        guard self.usePopoverMenu, let button = self.statusItem.button else { return }
+        self.menuViewModel.providers = self.store.enabledProvidersForDisplay()
+        self.popoverMenuController?.toggle(relativeTo: button)
     }
 
     @discardableResult
