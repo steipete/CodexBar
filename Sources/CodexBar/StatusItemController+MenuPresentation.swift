@@ -127,9 +127,9 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
-        let controller = NSHostingController(rootView: self.rootView)
-        let measured = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        return measured.height
+        self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
+        self.layoutSubtreeIfNeeded()
+        return self.fittingSize.height
     }
 
     func setHighlighted(_ highlighted: Bool) {

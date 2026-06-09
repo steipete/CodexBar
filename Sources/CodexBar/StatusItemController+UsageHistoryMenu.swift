@@ -68,9 +68,9 @@ extension StatusItemController {
             snapshot: snapshot,
             width: width)
         let hosting = UsageHistoryMenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(
+            origin: .zero,
+            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting

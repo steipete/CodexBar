@@ -2,7 +2,7 @@ import AppKit
 import CodexBarCore
 import QuartzCore
 
-enum ProviderSwitcherSelection: Equatable {
+enum ProviderSwitcherSelection: Hashable {
     case overview
     case provider(UsageProvider)
 }
@@ -40,6 +40,7 @@ final class ProviderSwitcherView: NSView {
     private var preferredWidth: CGFloat = 0
     private var hoveredButtonTag: Int?
     private var pressedButtonTag: Int?
+    private var selectedSegmentIndex: Int?
     private let lightModeOverlayLayer = CALayer()
     private static let quotaIndicatorHeight: CGFloat = 3
     private static let quotaIndicatorBottomInset: CGFloat = 2
@@ -190,6 +191,9 @@ final class ProviderSwitcherView: NSView {
             let button = makeButton(index: index, segment: segment)
             self.addSubview(button)
         }
+        self.selectedSegmentIndex = selected.flatMap { selected in
+            self.segments.firstIndex { $0.selection == selected }
+        }
 
         let uniformWidth: CGFloat
         if self.rowCount > 1 || !self.stackedIcons {
@@ -294,21 +298,52 @@ final class ProviderSwitcherView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        let location = self.convert(event.locationInWindow, from: nil)
-        self.pressedButtonTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag
+        _ = self.handleMenuTrackingMouseDown(event)
     }
 
     override func mouseUp(with event: NSEvent) {
-        defer { self.pressedButtonTag = nil }
-        guard let pressedTag = self.pressedButtonTag else { return }
-        let location = self.convert(event.locationInWindow, from: nil)
-        guard let releasedTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag,
-              releasedTag == pressedTag,
+        _ = self.handleMenuTrackingMouseUp(event)
+    }
+
+    @discardableResult
+    func handleMenuTrackingMouseDown(_ event: NSEvent) -> Bool {
+        guard event.type == .leftMouseDown else { return false }
+        let location = self.locationInView(for: event)
+        guard let pressedTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag,
               self.segments.indices.contains(pressedTag)
         else {
-            return
+            return false
         }
+        self.pressedButtonTag = pressedTag
+        return true
+    }
+
+    @discardableResult
+    func handleMenuTrackingMouseUp(_ event: NSEvent) -> Bool {
+        guard event.type == .leftMouseUp else { return false }
+        defer { self.pressedButtonTag = nil }
+        guard let pressedTag = self.pressedButtonTag else { return false }
+        let location = self.locationInView(for: event)
+        guard let releasedTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag,
+              releasedTag == pressedTag
+        else {
+            return true
+        }
+        // Commit only after the matching release. The controller schedules structural menu
+        // replacement after this callback returns so AppKit can finish the tracking transaction.
         self.applySelection(at: pressedTag)
+        return true
+    }
+
+    private func locationInView(for event: NSEvent) -> NSPoint {
+        guard let eventWindow = event.window,
+              let viewWindow = self.window,
+              eventWindow !== viewWindow
+        else {
+            return self.convert(event.locationInWindow, from: nil)
+        }
+        let screenLocation = eventWindow.convertPoint(toScreen: event.locationInWindow)
+        return self.convert(viewWindow.convertPoint(fromScreen: screenLocation), from: nil)
     }
 
     func handleKeyboardSelection(at index: Int) -> Bool {
@@ -319,21 +354,13 @@ final class ProviderSwitcherView: NSView {
 
     private func applySelection(at index: Int) {
         let selection = self.segments[index].selection
+        guard self.selectedSegmentIndex != index else {
+            self.updateSelection(selection)
+            return
+        }
         self.updateSelection(selection)
         self.onSelect(selection)
     }
-
-    #if DEBUG
-    /// Simulates the runtime click path (mouseDown → mouseUp on this view) that the menu uses
-    /// in production, bypassing `NSButton.performClick`. Tests use this to cover the path that
-    /// regressed in issue #867.
-    @discardableResult
-    func _test_simulateRuntimeClick(buttonTag: Int) -> Bool {
-        guard self.segments.indices.contains(buttonTag) else { return false }
-        self.applySelection(at: buttonTag)
-        return true
-    }
-    #endif
 
     private func applyLayout(
         outerPadding: CGFloat,
@@ -588,10 +615,15 @@ final class ProviderSwitcherView: NSView {
     }
 
     func updateSelection(_ selection: ProviderSwitcherSelection) {
+        var selectedIndex: Int?
         for (index, button) in self.buttons.enumerated() {
             let isSelected = self.segments.indices.contains(index) && self.segments[index].selection == selection
+            if isSelected {
+                selectedIndex = index
+            }
             button.state = isSelected ? .on : .off
         }
+        self.selectedSegmentIndex = selectedIndex
         self.updateButtonStyles()
     }
 
@@ -660,47 +692,6 @@ final class ProviderSwitcherView: NSView {
             (button as? InlineIconToggleButton)?.setContentTintColor(button.contentTintColor)
         }
     }
-
-    #if DEBUG
-    func _test_buttonFrames() -> [NSRect] {
-        self.buttons.map(\.frame)
-    }
-
-    func _test_buttonFittingSizes() -> [NSSize] {
-        self.buttons.map(\.fittingSize)
-    }
-
-    func _test_rowCount() -> Int {
-        self.rowCount
-    }
-
-    func _test_rowHeight() -> CGFloat {
-        self.rowHeight
-    }
-
-    func _test_setHoveredButtonTag(_ tag: Int?) {
-        self.hoveredButtonTag = tag
-        self.updateButtonStyles()
-    }
-
-    func _test_quotaIndicatorFillRatios() -> [CGFloat] {
-        self.buttons.compactMap { button in
-            self.quotaIndicators[ObjectIdentifier(button)]?.fillRatio
-        }
-    }
-
-    func _test_quotaIndicatorFillFrames() -> [NSRect] {
-        self.buttons.compactMap { button in
-            self.quotaIndicators[ObjectIdentifier(button)]?.fill.frame
-        }
-    }
-
-    func _test_quotaIndicatorConstraintIdentifiers() -> [ObjectIdentifier] {
-        self.buttons.compactMap { button in
-            self.quotaIndicators[ObjectIdentifier(button)].map { ObjectIdentifier($0.fillWidthConstraint) }
-        }
-    }
-    #endif
 
     private func isLightMode() -> Bool {
         self.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua
@@ -904,6 +895,97 @@ final class ProviderSwitcherView: NSView {
         ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
     }
 }
+
+#if DEBUG
+extension ProviderSwitcherView {
+    func _test_mouseDownEvent(buttonTag: Int) -> NSEvent? {
+        self._test_mouseEvent(buttonTag: buttonTag, type: .leftMouseDown)
+    }
+
+    func _test_mouseUpEvent(buttonTag: Int) -> NSEvent? {
+        self._test_mouseEvent(buttonTag: buttonTag, type: .leftMouseUp)
+    }
+
+    private func _test_mouseEvent(buttonTag: Int, type: NSEvent.EventType) -> NSEvent? {
+        guard let button = self.buttons.first(where: { $0.tag == buttonTag }) else { return nil }
+        self.updateConstraintsForSubtreeIfNeeded()
+        self.layoutSubtreeIfNeeded()
+        let point = self.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
+        return NSEvent.mouseEvent(
+            with: type,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: type == .leftMouseDown ? 1 : 2,
+            clickCount: 1,
+            pressure: type == .leftMouseDown ? 1 : 0)
+    }
+
+    @discardableResult
+    func _test_simulateMouseDown(buttonTag: Int) -> Bool {
+        guard let event = self._test_mouseDownEvent(buttonTag: buttonTag) else { return false }
+        return self.handleMenuTrackingMouseDown(event)
+    }
+
+    /// Simulates the parent-view event path used while NSMenu owns mouse tracking.
+    @discardableResult
+    func _test_simulateRuntimeClick(buttonTag: Int) -> Bool {
+        guard self._test_simulateMouseDown(buttonTag: buttonTag) else { return false }
+        guard let event = self._test_mouseUpEvent(buttonTag: buttonTag) else { return false }
+        guard self.handleMenuTrackingMouseUp(event) else { return false }
+        return self.selectedSegmentIndex == buttonTag
+    }
+
+    @discardableResult
+    func _test_simulateNativeAction(buttonTag: Int, state: NSControl.StateValue) -> Bool {
+        guard let button = self.buttons.first(where: { $0.tag == buttonTag }) else { return false }
+        button.state = state
+        self.handleSelection(button)
+        return true
+    }
+
+    func _test_buttonFrames() -> [NSRect] {
+        self.buttons.map(\.frame)
+    }
+
+    func _test_buttonFittingSizes() -> [NSSize] {
+        self.buttons.map(\.fittingSize)
+    }
+
+    func _test_rowCount() -> Int {
+        self.rowCount
+    }
+
+    func _test_rowHeight() -> CGFloat {
+        self.rowHeight
+    }
+
+    func _test_setHoveredButtonTag(_ tag: Int?) {
+        self.hoveredButtonTag = tag
+        self.updateButtonStyles()
+    }
+
+    func _test_quotaIndicatorFillRatios() -> [CGFloat] {
+        self.buttons.compactMap { button in
+            self.quotaIndicators[ObjectIdentifier(button)]?.fillRatio
+        }
+    }
+
+    func _test_quotaIndicatorFillFrames() -> [NSRect] {
+        self.buttons.compactMap { button in
+            self.quotaIndicators[ObjectIdentifier(button)]?.fill.frame
+        }
+    }
+
+    func _test_quotaIndicatorConstraintIdentifiers() -> [ObjectIdentifier] {
+        self.buttons.compactMap { button in
+            self.quotaIndicators[ObjectIdentifier(button)].map { ObjectIdentifier($0.fillWidthConstraint) }
+        }
+    }
+}
+#endif
 
 extension ProviderSwitcherView {
     private func addQuotaIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {

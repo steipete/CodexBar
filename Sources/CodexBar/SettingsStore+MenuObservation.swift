@@ -64,7 +64,6 @@ extension SettingsStore {
         _ = self.ollamaCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
-        _ = self.mergedMenuLastSelectedWasOverview
         _ = self.mergedOverviewSelectedProviders
         _ = self.zaiAPIToken
         _ = self.syntheticAPIToken
@@ -89,7 +88,6 @@ extension SettingsStore {
         _ = self.warpAPIToken
         _ = self.tokenAccountsByProvider
         _ = self.debugLoadingPattern
-        _ = self.selectedMenuProvider
         _ = self.configRevision
         return 0
     }

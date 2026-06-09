@@ -1,9 +1,35 @@
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 
 extension StatusMenuTests {
+    @Test
+    func `menu card sizing uses displayed hosting view`() throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+        }
+
+        let controller = self.makeHeightCacheController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let counter = MenuCardRepresentableCounter()
+        let item = controller.makeMenuCardItem(
+            CountingMenuCardRepresentable(counter: counter),
+            id: "countingCard-\(UUID().uuidString)",
+            width: 320,
+            heightCacheScope: "counting",
+            heightCacheFingerprint: "counting-\(UUID().uuidString)")
+        let view = try #require(item.view)
+
+        view.layoutSubtreeIfNeeded()
+
+        #expect(counter.makeViewCount == 1)
+    }
+
     @Test
     func `menu card height cache is reused for stable card content`() {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
@@ -43,6 +69,24 @@ extension StatusMenuTests {
 
         controller.invalidateMenus()
         #expect(Set(controller.menuCardHeightCache.keys) == firstKeys)
+    }
+
+    @Test
+    func `standard menu width cache is reused for stable action rows`() {
+        let controller = self.makeHeightCacheController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.populateMenu(menu, provider: .codex)
+        let firstCache = controller.measuredStandardMenuWidthCache
+
+        #expect(!firstCache.isEmpty)
+        #expect(firstCache.keys.allSatisfy {
+            $0.contains("font=\(StatusItemController.menuCardHeightTextScaleToken())")
+        })
+
+        controller.populateMenu(menu, provider: .codex)
+        #expect(controller.measuredStandardMenuWidthCache == firstCache)
     }
 
     @Test
@@ -235,5 +279,24 @@ extension StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+    }
+}
+
+@MainActor
+private final class MenuCardRepresentableCounter {
+    var makeViewCount = 0
+}
+
+private struct CountingMenuCardRepresentable: NSViewRepresentable {
+    let counter: MenuCardRepresentableCounter
+
+    func makeNSView(context: Context) -> NSTextField {
+        self.counter.makeViewCount += 1
+        return NSTextField(labelWithString: "Counted")
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        _ = nsView
+        _ = context
     }
 }

@@ -58,6 +58,64 @@ struct StatusItemControllerShutdownTests {
         #expect(controller.mergedMenu == nil)
     }
 
+    @Test
+    func `status menu quit defers shutdown until menu tracking can unwind`() {
+        let controller = self.makeController()
+        defer {
+            StatusItemController.menuCardRenderingEnabled = !SettingsStore.isRunningTests
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let key = ObjectIdentifier(menu)
+
+        var scheduledTermination: (@MainActor () -> Void)?
+        var didTerminate = false
+        controller.scheduleQuitTermination = { operation in
+            scheduledTermination = operation
+        }
+        controller.terminateApplicationForQuit = {
+            didTerminate = true
+        }
+
+        controller.quit()
+
+        #expect(scheduledTermination != nil)
+        #expect(!controller.hasPreparedForAppShutdown)
+        #expect(!didTerminate)
+        #expect(controller.openMenus[key] === menu)
+
+        scheduledTermination?()
+
+        #expect(controller.hasPreparedForAppShutdown)
+        #expect(controller.openMenus.isEmpty)
+        #expect(controller.statusItem.menu == nil)
+        #expect(didTerminate)
+    }
+
+    private func makeController() -> StatusItemController {
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        if let codexMetadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        return StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+    }
+
     private func makeSettings() -> SettingsStore {
         let suite = "StatusItemControllerShutdownTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

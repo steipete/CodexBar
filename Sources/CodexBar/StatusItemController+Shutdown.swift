@@ -52,6 +52,10 @@ extension StatusItemController {
         }
         self.openMenuInvalidationRetryTask?.cancel()
         self.openMenuInvalidationRetryTask = nil
+        self.providerSelectionUIRefreshTask?.cancel()
+        self.providerSelectionUIRefreshTask = nil
+        self.providerSwitcherPointerInteractionMenuID = nil
+        self.pendingProviderSwitcherPointerRebuild = nil
     }
 
     private func clearShutdownMenuState() {
@@ -67,6 +71,8 @@ extension StatusItemController {
         self.openMenus.removeAll(keepingCapacity: false)
         self.highlightedMenuItems.removeAll(keepingCapacity: false)
         self.menuCardHeightCache.removeAll(keepingCapacity: false)
+        self.measuredStandardMenuWidthCache.removeAll(keepingCapacity: false)
+        self.mergedSwitcherContentCaches.removeAll(keepingCapacity: false)
         self.menuProviders.removeAll(keepingCapacity: false)
         self.menuVersions.removeAll(keepingCapacity: false)
         self.providerMenus.removeAll(keepingCapacity: false)

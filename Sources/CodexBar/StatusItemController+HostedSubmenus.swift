@@ -186,9 +186,9 @@ extension StatusItemController {
 
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(
+            origin: .zero,
+            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
@@ -213,9 +213,9 @@ extension StatusItemController {
 
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(
+            origin: .zero,
+            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
@@ -252,9 +252,9 @@ extension StatusItemController {
             windowLabel: tokenSnapshot.historyLabel,
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(
+            origin: .zero,
+            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
@@ -288,9 +288,9 @@ extension StatusItemController {
         let maxHeight = self.storageBreakdownMenuMaxHeight()
         let view = StorageBreakdownMenuView(footprint: footprint, width: width, maxHeight: maxHeight)
         let hosting = MenuHostingView(rootView: view)
-        let controller = NSHostingController(rootView: view)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: maxHeight))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(
+            origin: .zero,
+            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
 
         let item = NSMenuItem()
         item.view = hosting
@@ -328,9 +328,9 @@ extension StatusItemController {
 
         let chartView = ZaiHourlyUsageChartMenuView(modelUsage: modelUsage, width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(
+            origin: .zero,
+            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting

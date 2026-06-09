@@ -171,6 +171,76 @@ struct StatusMenuHostedSubmenuRefreshTests {
             seed: Self.seedZaiHourlyUsage)
     }
 
+    @Test
+    func `hosted chart items size to the displayed view without a throwaway controller`() throws {
+        try self.assertHostedChartItemHeightMatchesRefresh(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .claude,
+            seed: Self.seedClaudeSnapshots)
+        { controller, submenu, width in
+            controller.appendCostHistoryChartItem(to: submenu, provider: .claude, width: width)
+        }
+        try self.assertHostedChartItemHeightMatchesRefresh(
+            chartID: StatusItemController.usageHistoryChartID,
+            provider: .claude,
+            seed: Self.seedPlanUtilizationHistory)
+        { controller, submenu, width in
+            controller.appendUsageHistoryChartItem(to: submenu, provider: .claude, width: width)
+        }
+        try self.assertHostedChartItemHeightMatchesRefresh(
+            chartID: StatusItemController.storageBreakdownID,
+            provider: .claude,
+            seed: Self.seedStorageFootprint)
+        { controller, submenu, width in
+            controller.appendStorageBreakdownItem(to: submenu, provider: .claude, width: width)
+        }
+    }
+
+    private func assertHostedChartItemHeightMatchesRefresh(
+        chartID: String,
+        provider: UsageProvider,
+        seed: (UsageStore) -> Void,
+        append: (StatusItemController, NSMenu, CGFloat) -> Bool) throws
+    {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.costUsageEnabled = true
+        settings.providerStorageFootprintsEnabled = true
+        Self.enableOnly(settings, provider: provider)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        seed(store)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let width = StatusItemController.menuCardBaseWidth
+        let submenu = NSMenu()
+        submenu.minimumWidth = width
+        #expect(append(controller, submenu, width))
+
+        let item = try #require(submenu.items.first)
+        let view = try #require(item.view)
+        let heightFromAppend = view.frame.height
+        // The height the append path assigns must match the authoritative re-measure pass; otherwise
+        // dropping the throwaway NSHostingController would have changed sizing behavior.
+        controller.refreshHostedSubviewHeights(in: submenu)
+        #expect(view.frame.height == heightFromAppend)
+        #expect(heightFromAppend > 1)
+    }
+
     private func assertHostedSubmenuPreservesIdentity(
         chartID: String,
         provider: UsageProvider,

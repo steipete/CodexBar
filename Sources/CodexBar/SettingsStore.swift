@@ -140,6 +140,8 @@ final class SettingsStore {
     @ObservationIgnored var tokenAccountsLoaded = false
     @ObservationIgnored var cachedCodexAccountReconciliationSnapshot:
         CachedCodexAccountReconciliationSnapshot?
+    @ObservationIgnored var mergedMenuLastSelectedWasOverviewStorage = false
+    @ObservationIgnored var selectedMenuProviderRawStorage: String?
     var defaultsState: SettingsDefaultsState
     var configRevision: Int = 0
     var providerOrder: [UsageProvider] = []
@@ -237,7 +239,10 @@ final class SettingsStore {
         self.configStore = configStore
         self.config = config
         self.configLoading = true
-        self.defaultsState = Self.loadDefaultsState(userDefaults: userDefaults)
+        let defaultsState = Self.loadDefaultsState(userDefaults: userDefaults)
+        self.defaultsState = defaultsState
+        self.mergedMenuLastSelectedWasOverviewStorage = defaultsState.mergedMenuLastSelectedWasOverview
+        self.selectedMenuProviderRawStorage = defaultsState.selectedMenuProviderRaw
         self.updateProviderState(config: config)
         self.configLoading = false
         CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)

@@ -401,6 +401,69 @@ struct ProviderStorageFootprintTests {
         #expect(store.storageRefreshGeneration == 41)
     }
 
+    @Test
+    @MainActor
+    func `scheduled storage refresh notices managed Codex home changes`() async throws {
+        let home = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let ambientHome = home.appendingPathComponent("ambient", isDirectory: true)
+        let firstManagedHome = home.appendingPathComponent("managed-a", isDirectory: true)
+        let secondManagedHome = home.appendingPathComponent("managed-b", isDirectory: true)
+        try FileManager.default.createDirectory(at: ambientHome, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: firstManagedHome, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondManagedHome, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 16).write(to: firstManagedHome.appendingPathComponent("session.jsonl"))
+        try Data(repeating: 2, count: 32).write(to: secondManagedHome.appendingPathComponent("session.jsonl"))
+
+        let suite = "ProviderStorageFootprintTests-managed-refresh-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        if let codexMetadata = ProviderDefaults.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            environmentBase: ["CODEX_HOME": ambientHome.path])
+        settings.providerStorageFootprintsEnabled = true
+        store.managedCodexAccountsForStorageOverride = [
+            Self.managedCodexAccount(homePath: firstManagedHome.path),
+        ]
+
+        store.scheduleStorageFootprintRefresh(for: [.codex])
+        for _ in 0..<100 where store.isStorageRefreshInFlight {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 16)
+
+        store.managedCodexAccountsForStorageOverride = [
+            Self.managedCodexAccount(homePath: secondManagedHome.path),
+        ]
+        store.scheduleStorageFootprintRefresh(for: [.codex])
+        for _ in 0..<100 where store.isStorageRefreshInFlight {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)
+    }
+
+    private static func managedCodexAccount(homePath: String) -> ManagedCodexAccount {
+        ManagedCodexAccount(
+            id: UUID(),
+            email: "storage@example.com",
+            managedHomePath: homePath,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: nil)
+    }
+
     private static func makeTemporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ProviderStorageFootprintTests-\(UUID().uuidString)", isDirectory: true)

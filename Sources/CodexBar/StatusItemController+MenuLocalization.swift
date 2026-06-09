@@ -25,6 +25,7 @@ extension StatusItemController {
         self.lastSwitcherProviders = providers
         self.lastSwitcherUsageBarsShowUsed = self.settings.usageBarsShowUsed
         self.lastMergedSwitcherSelection = selection
+        self.lastMergedMenuContentSelection = selection
         self.lastSwitcherIncludesOverview = includesOverview
         self.lastMenuLocalizationSignature = self.menuLocalizationSignature()
     }

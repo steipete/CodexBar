@@ -1,14 +1,18 @@
 import AppKit
 import CodexBarCore
 
+struct PendingProviderSwitcherRebuild {
+    let menu: NSMenu
+    let provider: UsageProvider?
+}
+
+@MainActor
 final class ProviderSwitcherShortcutEventMonitor {
-    private let events: NSEvent.EventTypeMask
     private let callback: @MainActor (NSEvent) -> Bool
     private let observer: CFRunLoopObserver
     private var isActive = false
 
     init(events: NSEvent.EventTypeMask, callback: @escaping @MainActor (NSEvent) -> Bool) {
-        self.events = events
         self.callback = callback
 
         self.observer = CFRunLoopObserverCreateWithHandler(
@@ -36,7 +40,9 @@ final class ProviderSwitcherShortcutEventMonitor {
     }
 
     deinit {
-        self.stop()
+        MainActor.assumeIsolated {
+            self.stop()
+        }
     }
 
     func start() {
@@ -68,7 +74,9 @@ extension StatusItemController {
         }
 
         self.removeProviderSwitcherShortcutMonitor()
-        let monitor = ProviderSwitcherShortcutEventMonitor(events: [.keyDown]) { [weak self, weak menu] event in
+        let monitor = ProviderSwitcherShortcutEventMonitor(
+            events: [.keyDown, .leftMouseDown, .leftMouseUp])
+        { [weak self, weak menu] event in
             guard let self,
                   let menu,
                   self.openMenus[ObjectIdentifier(menu)] != nil,
@@ -77,7 +85,7 @@ extension StatusItemController {
                 return false
             }
 
-            return self.handleProviderSwitcherShortcut(event, menu: menu)
+            return self.handleProviderSwitcherTrackingEvent(event, menu: menu)
         }
         monitor.start()
         self.providerSwitcherShortcutEventMonitor = monitor
@@ -88,6 +96,7 @@ extension StatusItemController {
         self.providerSwitcherShortcutEventMonitor?.stop()
         self.providerSwitcherShortcutEventMonitor = nil
         self.providerSwitcherShortcutMenuID = nil
+        self.clearProviderSwitcherPointerInteraction()
     }
 
     func providerSwitcherContentStartIndex(in menu: NSMenu) -> Int {
@@ -107,13 +116,83 @@ extension StatusItemController {
     }
 
     @discardableResult
+    func handleProviderSwitcherTrackingEvent(_ event: NSEvent, menu: NSMenu) -> Bool {
+        switch event.type {
+        case .keyDown:
+            return self.handleProviderSwitcherShortcut(event, menu: menu)
+        case .leftMouseDown:
+            guard let switcher = menu.items.first?.view as? ProviderSwitcherView else { return false }
+            self.beginProviderSwitcherPointerInteraction(in: menu)
+            let handled = switcher.handleMenuTrackingMouseDown(event)
+            if !handled {
+                self.clearProviderSwitcherPointerInteraction(in: menu)
+            }
+            return handled
+        case .leftMouseUp:
+            guard self.providerSwitcherPointerInteractionMenuID == ObjectIdentifier(menu) else {
+                return false
+            }
+            guard let switcher = menu.items.first?.view as? ProviderSwitcherView else {
+                self.clearProviderSwitcherPointerInteraction(in: menu)
+                return true
+            }
+            _ = switcher.handleMenuTrackingMouseUp(event)
+            self.finishProviderSwitcherPointerInteraction(in: menu)
+            return true
+        default:
+            return false
+        }
+    }
+
+    func requestProviderSwitcherMenuRebuild(_ menu: NSMenu, provider: UsageProvider?) {
+        guard self.providerSwitcherPointerInteractionMenuID == ObjectIdentifier(menu) else {
+            self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: provider)
+            return
+        }
+        self.pendingProviderSwitcherPointerRebuild = PendingProviderSwitcherRebuild(
+            menu: menu,
+            provider: provider)
+    }
+
+    private func beginProviderSwitcherPointerInteraction(in menu: NSMenu) {
+        let menuID = ObjectIdentifier(menu)
+        if self.providerSwitcherPointerInteractionMenuID != menuID {
+            self.pendingProviderSwitcherPointerRebuild = nil
+        }
+        self.providerSwitcherPointerInteractionMenuID = menuID
+    }
+
+    private func finishProviderSwitcherPointerInteraction(in menu: NSMenu) {
+        let menuID = ObjectIdentifier(menu)
+        guard self.providerSwitcherPointerInteractionMenuID == menuID else { return }
+        self.providerSwitcherPointerInteractionMenuID = nil
+        guard let pending = self.pendingProviderSwitcherPointerRebuild,
+              pending.menu === menu
+        else {
+            self.pendingProviderSwitcherPointerRebuild = nil
+            return
+        }
+        self.pendingProviderSwitcherPointerRebuild = nil
+        self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: pending.provider)
+    }
+
+    private func clearProviderSwitcherPointerInteraction(in menu: NSMenu? = nil) {
+        if let menu,
+           self.providerSwitcherPointerInteractionMenuID != ObjectIdentifier(menu)
+        {
+            return
+        }
+        self.providerSwitcherPointerInteractionMenuID = nil
+        self.pendingProviderSwitcherPointerRebuild = nil
+    }
+
+    @discardableResult
     private func selectProviderSwitcherSegment(at index: Int, menu: NSMenu) -> Bool {
         guard let switcherView = menu.items.first?.view as? ProviderSwitcherView,
               switcherView.handleKeyboardSelection(at: index)
         else {
             return false
         }
-        self.applyIcon(phase: nil)
         return true
     }
 }

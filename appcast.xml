@@ -3,6 +3,49 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.32.5</title>
+            <pubDate>Tue, 09 Jun 2026 08:30:33 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>80</sparkle:version>
+            <sparkle:shortVersionString>0.32.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.32.5</h2>
+<h3>Added</h3>
+<ul>
+<li>Localization: add French as a selectable app language (#1241). Thanks @Yuxin-Qiao!</li>
+<li>Localization: add Ukrainian as a selectable app language (#1250). Thanks @Yuxin-Qiao!</li>
+<li>Localization: add Dutch as a selectable app language (#1252). Thanks @Yuxin-Qiao!</li>
+<li>Localization: add Vietnamese as a selectable app language (#1247). Thanks @Yuxin-Qiao!</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Menu bar: keep provider switching inside AppKit&#x27;s menu-tracking transaction and defer structural dropdown rebuilds until mouse-up completes, preventing intermittent hangs when moving between providers and Overview.</li>
+<li>Localization: cache resolved localized bundles so repeated menu/status text lookups no longer hit disk on the main thread (#1355, fixes #1347). Thanks @Yuxin-Qiao!</li>
+<li>Menu bar: size hosted chart submenus directly instead of spinning up throwaway SwiftUI hosting controllers during menu layout (#1352). Thanks @Yuxin-Qiao!</li>
+<li>Menu bar: avoid recomputing expensive readiness signatures on closed-menu store ticks while preserving root-open refresh correctness for deferred observations (#1351). Thanks @Yuxin-Qiao!</li>
+<li>Menu bar: defer Quit from the status menu until AppKit menu tracking unwinds so shutdown does not wedge Dock autohide state (#1354, fixes #1353). Thanks @jskoiz!</li>
+<li>Claude: remove transient ClaudeProbe session artifacts after CLI usage polls so background refreshes no longer fill Claude Code project history with CodexBar <code>/usage</code> sessions (#1301). Thanks @LPFchan and @matthewod11-stack!</li>
+<li>Menu bar: keep z.ai overview rows with detail submenus in Overview so hovering quota details no longer recurses into a nested provider menu (#1279, fixes #1246). Thanks @RajvardhanPatil07!</li>
+<li>Codex: backfill visible-account reset timestamps and missing 5-hour/weekly window metadata from same-workspace plan history so segmented multi-account JSON keeps machine-readable reset data (#1283). Thanks @callmepopo!</li>
+<li>Antigravity: detect CLI local language-server processes and allow empty CSRF tokens only for explicit CLI matches so Antigravity CLI quota usage renders without weakening IDE CSRF detection (#1341). Thanks @oyaah!</li>
+<li>Menu bar: skip closed attached-menu rebuilds during stale background data-refresh ticks so closed dropdowns are not pre-warmed while the user is not interacting (#1291). Thanks @Nicolas0315!</li>
+<li>Cursor: show deficit and run-out pace details for 30-day Total, Auto, and API billing-cycle usage rows (#1336). Thanks @dhruv-anand-aintech!</li>
+<li>Codex: time out stalled managed <code>codex login</code> processes so account switches no longer stay stuck in progress after OAuth completes (#1330). Thanks @dhruv-anand-aintech!</li>
+<li>Codex Spark: show the same deficit and run-out pace details as the core Codex quota lanes for 5-hour and weekly model limits (#1335). Thanks @dhruv-anand-aintech!</li>
+<li>Antigravity: make the automatic menu-bar summary choose the most constrained family quota so an exhausted Gemini lane is no longer hidden by a full Claude lane (#1334). Thanks @dhruv-anand-aintech!</li>
+<li>Performance: memoize models.dev cost catalog load outcomes so large Codex history scans no longer re-read and decode the same cache file per row (#1322, refs #1311). Thanks @turbothad!</li>
+<li>Menu bar: compute Claude pace/reserve from the selected menu-bar metric window so Primary (Session) no longer pairs the session percentage with the weekly reserve (#1302). Thanks @outfoxer!</li>
+<li>Menu bar: defer merged-menu close rebuilds and cache repeated menu-card height measurements so dismissing or rapidly switching the merged dropdown avoids rebuilding SwiftUI-backed cards on the main thread (#1274, #1286, #1314). Thanks @hhh2210!</li>
+<li>Menu bar: keep merged provider tab selection from invalidating broad settings observers so switching providers no longer triggers background refresh and status-icon work.</li>
+<li>Menu bar: observe a compact icon-state signature so merged status icons no longer redraw for provider snapshot changes that cannot affect the visible icon (#1297). Thanks @hhh2210!</li>
+<li>Menu bar: keep provider-switcher quota bars from replacing Auto Layout constraints when the visible ratio is unchanged, making tab switches responsive with many providers enabled (#1303, #1315). Thanks @juanjoseluisgarcia!</li>
+<li>Kiro: retry login-shell PATH capture when CLI discovery races a slow cold shell startup, so <code>kiro-cli</code> is no longer stuck as missing for the whole app session (#1316). Thanks @bt-justtrack!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.32.5/CodexBar-macos-universal-0.32.5.zip" length="45863843" type="application/octet-stream" sparkle:edSignature="1D1Q/11zNLrSMAS64wcCE65DHov+x8I9YEnWsb9EPo35rAJ7VbPD+5zTrGmzTBWxBXUfqJNlYB3PUx+CENmSBA=="/>
+        </item>
+        <item>
             <title>0.32.4</title>
             <pubDate>Tue, 02 Jun 2026 15:43:46 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -37,27 +80,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.32.3/CodexBar-macos-universal-0.32.3.zip" length="45040320" type="application/octet-stream" sparkle:edSignature="ksjUSEuIpJ1LJH7JvPwU+5aKTj3NiUXiqIRIcWJUmKm/RJZFZXojCAZ/BSXGg+G9gbbNk/nR3MZHW7jy7FTEDg=="/>
-        </item>
-        <item>
-            <title>0.32.2</title>
-            <pubDate>Mon, 01 Jun 2026 04:43:41 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>77</sparkle:version>
-            <sparkle:shortVersionString>0.32.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.32.2</h2>
-<h3>Added</h3>
-<ul>
-<li>QA: document the live CodexBar e2e flow and add a redacted provider-matrix helper for packaged CLI smoke tests.</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Menu bar: add breathing room to compact Codex account rows so the provider, account, status, and plan labels no longer hug the row edges.</li>
-<li>Performance: make Codex token-cost scanning faster and more memory-efficient on large local session corpora.</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.32.2/CodexBar-macos-universal-0.32.2.zip" length="45070301" type="application/octet-stream" sparkle:edSignature="pvj2uObMV/TgTZFYmi6hGfRRZR5gcz/7cV68N3apvRy4CvZSekdF6ip7lZa6ZwDdS2XEy9X+jLt1j8fcuLzNCg=="/>
         </item>
         <item>
             <title>0.14.0</title>

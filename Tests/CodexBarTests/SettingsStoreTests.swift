@@ -1035,6 +1035,34 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `menu observation token ignores merged switcher selection churn`() async throws {
+        let suite = "SettingsStoreTests-observation-switcher-selection"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        let didChange = ObservationFlag()
+
+        withObservationTracking {
+            _ = store.menuObservationToken
+        } onChange: {
+            didChange.set()
+        }
+
+        store.selectedMenuProvider = .claude
+        store.mergedMenuLastSelectedWasOverview.toggle()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(didChange.get() == false)
+    }
+
+    @Test
     func `menu observation token updates on per-window quota threshold changes`() async throws {
         let suite = "SettingsStoreTests-observation-quota-threshold-windows"
         let defaults = try #require(UserDefaults(suiteName: suite))

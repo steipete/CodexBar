@@ -53,30 +53,7 @@ extension UsageStore {
 
     func observeSettingsChanges() {
         withObservationTracking {
-            _ = self.settings.refreshFrequency
-            _ = self.settings.statusChecksEnabled
-            _ = self.settings.sessionQuotaNotificationsEnabled
-            _ = self.settings.quotaWarningNotificationsEnabled
-            _ = self.settings.quotaWarningThresholds
-            _ = self.settings.quotaWarningThresholds(.session)
-            _ = self.settings.quotaWarningThresholds(.weekly)
-            _ = self.settings.quotaWarningSoundEnabled
-            _ = self.settings.usageBarsShowUsed
-            _ = self.settings.costUsageEnabled
-            _ = self.settings.costUsageHistoryDays
-            _ = self.settings.randomBlinkEnabled
-            _ = self.settings.configRevision
-            for implementation in ProviderCatalog.all {
-                implementation.observeSettings(self.settings)
-            }
-            _ = self.settings.multiAccountMenuLayout
-            _ = self.settings.tokenAccountsByProvider
-            _ = self.settings.mergeIcons
-            _ = self.settings.selectedMenuProvider
-            _ = self.settings.debugLoadingPattern
-            _ = self.settings.debugKeepCLISessionsAlive
-            _ = self.settings.historicalTrackingEnabled
-            _ = self.settings.providerStorageFootprintsEnabled
+            _ = self.backgroundWorkSettingsObservationToken
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -90,6 +67,33 @@ extension UsageStore {
                 await self.refresh()
             }
         }
+    }
+
+    var backgroundWorkSettingsObservationToken: Int {
+        _ = self.settings.refreshFrequency
+        _ = self.settings.statusChecksEnabled
+        _ = self.settings.sessionQuotaNotificationsEnabled
+        _ = self.settings.quotaWarningNotificationsEnabled
+        _ = self.settings.quotaWarningThresholds
+        _ = self.settings.quotaWarningThresholds(.session)
+        _ = self.settings.quotaWarningThresholds(.weekly)
+        _ = self.settings.quotaWarningSoundEnabled
+        _ = self.settings.usageBarsShowUsed
+        _ = self.settings.costUsageEnabled
+        _ = self.settings.costUsageHistoryDays
+        _ = self.settings.randomBlinkEnabled
+        _ = self.settings.configRevision
+        for implementation in ProviderCatalog.all {
+            implementation.observeSettings(self.settings)
+        }
+        _ = self.settings.multiAccountMenuLayout
+        _ = self.settings.tokenAccountsByProvider
+        _ = self.settings.mergeIcons
+        _ = self.settings.debugLoadingPattern
+        _ = self.settings.debugKeepCLISessionsAlive
+        _ = self.settings.historicalTrackingEnabled
+        _ = self.settings.providerStorageFootprintsEnabled
+        return 0
     }
 
     var attachedOpenAIDashboardSnapshot: OpenAIDashboardSnapshot? {
@@ -235,7 +239,9 @@ final class UsageStore {
     @ObservationIgnored var storageRefreshTask: Task<Void, Never>?
     @ObservationIgnored var storageRefreshGeneration: UInt64 = 0
     @ObservationIgnored var storageRefreshInFlightSignature: String?
+    @ObservationIgnored var storageRefreshInFlightRequestKey: String?
     @ObservationIgnored var lastStorageRefreshSignature: String?
+    @ObservationIgnored var lastStorageRefreshRequestKey: String?
     @ObservationIgnored var lastStorageRefreshAt: Date?
     @ObservationIgnored var managedCodexAccountsForStorageOverride: [ManagedCodexAccount]?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?

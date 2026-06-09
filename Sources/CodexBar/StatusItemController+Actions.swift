@@ -328,7 +328,16 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func quit() {
-        NSApp.terminate(nil)
+        let openMenus = Array(self.openMenus.values)
+        for menu in openMenus {
+            menu.cancelTrackingWithoutAnimation()
+        }
+
+        self.scheduleQuitTermination { [weak self] in
+            guard let self else { return }
+            self.prepareForAppShutdown()
+            self.terminateApplicationForQuit()
+        }
     }
 
     @objc func copyError(_ sender: NSMenuItem) {

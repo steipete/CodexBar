@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-struct MiniMaxSubscriptionMetadata: Sendable, Equatable {
+struct MiniMaxSubscriptionMetadata: Equatable {
     let planName: String?
     let subscriptionExpiresAt: Date?
     let subscriptionRenewsAt: Date?

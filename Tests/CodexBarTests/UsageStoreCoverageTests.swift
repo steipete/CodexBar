@@ -1,10 +1,28 @@
 import CodexBarCore
 import Foundation
+import Observation
 import Testing
 @testable import CodexBar
 
 @MainActor
 struct UsageStoreCoverageTests {
+    private final class ObservationFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+
+        func set() {
+            self.lock.lock()
+            self.value = true
+            self.lock.unlock()
+        }
+
+        func get() -> Bool {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.value
+        }
+    }
+
     @Test
     func `provider with highest usage and icon style`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-highest")
@@ -499,6 +517,38 @@ struct UsageStoreCoverageTests {
             NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)))
         #expect(!UsageStore.isPreservableNetworkTransportError(
             NSError(domain: NSCocoaErrorDomain, code: 0)))
+    }
+
+    @Test
+    func `background work settings observation ignores menu provider selection churn`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-switcher-selection-observation")
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        try Self.enableOnly(.codex, settings: settings)
+
+        let store = Self.makeUsageStore(settings: settings)
+        let didChange = ObservationFlag()
+
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            didChange.set()
+        }
+
+        settings.selectedMenuProvider = .codex
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(didChange.get() == false)
+
+        let refreshDidChange = ObservationFlag()
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            refreshDidChange.set()
+        }
+
+        settings.refreshFrequency = .oneMinute
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(refreshDidChange.get() == true)
     }
 
     @Test
