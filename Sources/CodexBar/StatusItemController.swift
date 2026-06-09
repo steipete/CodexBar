@@ -803,8 +803,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.statusItem.menu = nil
             if self.popoverMenuController == nil {
                 self.menuViewModel.providers = self.store.enabledProvidersForDisplay()
-                self.popoverMenuController = PopoverMenuController(viewModel: self.menuViewModel) {
-                    PopoverRootView(viewModel: self.menuViewModel)
+                let vm = self.menuViewModel
+                let store = self.store
+                self.popoverMenuController = PopoverMenuController(viewModel: vm) { [weak self] in
+                    PopoverRootView(
+                        viewModel: vm,
+                        store: store,
+                        makeCardModel: { [weak self] provider in self?.menuCardModel(for: provider) })
                 }
             }
             self.statusItem.button?.target = self
