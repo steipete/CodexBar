@@ -29,7 +29,7 @@ extension SettingsStore {
         let enableCodex = codexInstalled || noneInstalled
         let enableClaude = claudeInstalled
         let enableGemini = geminiInstalled && !agyInstalled
-        let enableAntigravity = antigravityRunning || antigravityLoggedIn || agyLoggedIn || agyInstalled
+        let enableAntigravity = agyLoggedIn || agyInstalled || antigravityLoggedIn
 
         logger.info(
             "Provider detection results",

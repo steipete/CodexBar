@@ -42,7 +42,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "antigravity-usage-source",
                 title: "Usage source",
-                subtitle: "Auto prefers the Antigravity CLI (`agy`) OAuth session, then the local IDE API, then CodexBar Google OAuth.",
+                subtitle: "Auto prefers the Antigravity CLI (`agy`) `/usage` panel, then CodexBar Google OAuth. The Antigravity IDE is no longer required.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,

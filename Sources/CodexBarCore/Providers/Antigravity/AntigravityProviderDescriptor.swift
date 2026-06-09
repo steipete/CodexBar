@@ -42,25 +42,19 @@ public enum AntigravityProviderDescriptor {
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
         let agy = AntigravityAgyFetchStrategy()
-        let local = AntigravityStatusFetchStrategy()
         let oauth = AntigravityOAuthFetchStrategy()
 
         switch context.sourceMode {
-        case .cli:
+        case .cli, .auto:
             if await agy.isAvailable(context) {
-                return [agy]
+                return [agy, oauth]
             }
-            return [local]
+            return [oauth]
         case .oauth:
             if await agy.isAvailable(context) {
                 return [agy, oauth]
             }
             return [oauth]
-        case .auto:
-            if await agy.isAvailable(context) {
-                return [agy, oauth]
-            }
-            return [local, oauth]
         case .web, .api:
             return []
         }
@@ -72,9 +66,7 @@ struct AntigravityAgyFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .cli
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        AntigravityAgyCredentials.isAvailable(
-            homeDirectory: NSHomeDirectory(),
-            env: context.env)
+        AntigravityAgyCredentials.isCLIInstalled(env: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

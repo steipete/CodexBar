@@ -13,7 +13,7 @@ public enum AntigravityUsageDataSource: String, CaseIterable, Identifiable, Send
         switch self {
         case .auto: "Auto"
         case .oauth: "Google OAuth"
-        case .cli: "Local IDE API"
+        case .cli: "agy CLI"
         }
     }
 
@@ -24,7 +24,7 @@ public enum AntigravityUsageDataSource: String, CaseIterable, Identifiable, Send
         case .oauth:
             "oauth"
         case .cli:
-            "local"
+            "agy"
         }
     }
 }
