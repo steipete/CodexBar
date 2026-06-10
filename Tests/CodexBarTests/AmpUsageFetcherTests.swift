@@ -4,6 +4,13 @@ import Testing
 
 struct AmpUsageFetcherTests {
     @Test
+    func `uses amp internal usage endpoint`() {
+        #expect(
+            AmpUsageFetcher.usageURL.absoluteString ==
+                "https://ampcode.com/api/internal?userDisplayBalanceInfo")
+    }
+
+    @Test
     func `attaches cookie for amp hosts`() {
         #expect(AmpUsageFetcher.shouldAttachCookie(to: URL(string: "https://ampcode.com/settings")))
         #expect(AmpUsageFetcher.shouldAttachCookie(to: URL(string: "https://www.ampcode.com")))
@@ -41,6 +48,10 @@ struct AmpUsageFetcherTests {
 
         let signin = try #require(URL(string: "https://www.ampcode.com/signin"))
         #expect(AmpUsageFetcher.isLoginRedirect(signin))
+
+        let hostedAuth = try #require(URL(
+            string: "https://auth.ampcode.com/?client_id=test&redirect_uri=https%3A%2F%2Fampcode.com%2Fauth%2Fcallback"))
+        #expect(AmpUsageFetcher.isLoginRedirect(hostedAuth))
     }
 
     @Test
