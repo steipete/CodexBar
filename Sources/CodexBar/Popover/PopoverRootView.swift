@@ -2,9 +2,16 @@ import CodexBarCore
 import SwiftUI
 
 /// 持久面板根视图。阶段 1：provider 切换器 + 当前 provider 用量卡片。
-/// 阶段 2：底部动作区（PopoverActionSectionsView）；完整卡片分流渲染（PopoverCardPlan）。
+/// 阶段 2：底部动作区（PopoverActionSectionsView）；完整卡片分流渲染（PopoverCardPlan）；
+///         账户切换器（PopoverAccountSwitcherView）。
 /// 整个 popover 生命周期只构造一次；切 provider 通过 viewModel.select(_:) 增量更新，不重建视图。
 struct PopoverRootView: View {
+    /// 账户切换器绑定：segments 数据 + onSelect 回调。由 makeAccountSwitcher 构造闭包返回。
+    struct AccountSwitcherBinding {
+        let segments: [PopoverAccountSwitcherView.Segment]
+        let onSelect: (String) -> Void
+    }
+
     @Bindable var viewModel: MenuViewModel
     /// 注入 UsageStore 引用，用于在 body 中建立 @Observable 观察链：
     /// store 数据变化时 SwiftUI 自动重渲而无需外部 bump。
@@ -12,6 +19,9 @@ struct PopoverRootView: View {
     /// 由 StatusItemController 注入的卡片计划构造闭包（self.popoverCardPlan(for:)）。
     /// 持有 weak self 引用，避免强引用环。
     let makeCardPlan: (UsageProvider) -> PopoverCardPlan
+    /// 账户切换器构造闭包：由 StatusItemController 注入，返回非 nil 时显示切换器。
+    /// 仅在单 provider 视图（非 overview）且 display.showSwitcher 时有值。
+    let makeAccountSwitcher: (UsageProvider) -> AccountSwitcherBinding?
     /// 返回底部动作区所需的 sections（与 NSMenu 路径共用 MenuDescriptor.build 数据源）。
     /// 在 body 中调用以建立 @Observable 观察链，store/settings 变化时自动重算。
     let makeSections: () -> [MenuDescriptor.Section]
@@ -67,10 +77,19 @@ struct PopoverRootView: View {
         switch self.viewModel.selection {
         case .overview:
             // Phase 1 最小：overview 展示首个 provider 卡片；完整 Overview 留 Phase 2
-            self.card(for: self.viewModel.providers.first ?? .codex)
+            self.providerContent(for: self.viewModel.providers.first ?? .codex)
         case let .provider(p):
-            self.card(for: p)
+            self.providerContent(for: p)
         }
+    }
+
+    /// 单 provider 视图：账户切换器（有时）+ 卡片内容。
+    @ViewBuilder private func providerContent(for provider: UsageProvider) -> some View {
+        if let switcher = self.makeAccountSwitcher(provider) {
+            PopoverAccountSwitcherView(segments: switcher.segments, onSelect: switcher.onSelect)
+            Divider()
+        }
+        self.card(for: provider)
     }
 
     /// makeCardPlan 内部读取 store 属性，在 body 同步求值以建立 @Observable 观察链；

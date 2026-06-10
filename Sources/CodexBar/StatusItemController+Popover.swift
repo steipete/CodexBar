@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import SwiftUI
 
 // MARK: - Popover 菜单接入（合并模式）
 
@@ -28,6 +29,13 @@ extension StatusItemController {
                     store: store,
                     makeCardPlan: { [weak self] provider in
                         self?.popoverCardPlan(for: provider) ?? PopoverCardPlan()
+                    },
+                    makeAccountSwitcher: { [weak self] provider in
+                        self?.popoverAccountSwitcherModel(for: provider).map { model in
+                            PopoverRootView.AccountSwitcherBinding(
+                                segments: model.segments,
+                                onSelect: model.onSelect)
+                        }
                     },
                     makeSections: { [weak self] in
                         guard let self else { return [] }
@@ -197,6 +205,85 @@ extension StatusItemController {
             for: provider,
             surface: .liveCard)
         return codexProjection?.canShowBuyCredits == true
+    }
+
+    // MARK: - 账户切换器模型
+
+    /// popover 账户切换器的数据模型：segments + onSelect 闭包。
+    struct PopoverAccountSwitcherModel {
+        let segments: [PopoverAccountSwitcherView.Segment]
+        let onSelect: (String) -> Void
+    }
+
+    /// 构造指定 provider 的 PopoverAccountSwitcherModel。
+    /// - .codex：codexAccountMenuDisplay 且 showSwitcher → Codex 路径。
+    /// - 其他：tokenAccountMenuDisplay 且 showSwitcher → Token 路径。
+    /// - 不满足或 display == nil → nil。
+    func popoverAccountSwitcherModel(for provider: UsageProvider) -> PopoverAccountSwitcherModel? {
+        if provider == .codex {
+            return self.codexAccountSwitcherModel()
+        }
+        return self.tokenAccountSwitcherModel(for: provider)
+    }
+
+    private func codexAccountSwitcherModel() -> PopoverAccountSwitcherModel? {
+        guard let display = self.codexAccountMenuDisplay(for: .codex),
+              display.showSwitcher
+        else { return nil }
+        let segments = PopoverAccountSwitcherView.Segment.make(
+            ids: display.accounts.map(\.id),
+            titles: display.accounts.map(\.menuDisplayName),
+            selectedID: display.activeVisibleAccountID)
+        return PopoverAccountSwitcherModel(
+            segments: segments,
+            onSelect: { [weak self] id in
+                guard let self else { return }
+                guard let account = display.accounts.first(where: { $0.id == id }) else { return }
+                self.handleCodexVisibleAccountSelectionFromPopover(account)
+            })
+    }
+
+    private func tokenAccountSwitcherModel(for provider: UsageProvider) -> PopoverAccountSwitcherModel? {
+        guard let display = self.tokenAccountMenuDisplay(for: provider),
+              display.showSwitcher
+        else { return nil }
+        let segments = PopoverAccountSwitcherView.Segment.make(
+            ids: display.accounts.indices.map { "\($0)" },
+            titles: display.accounts.map(\.displayName),
+            selectedID: "\(display.activeIndex)")
+        return PopoverAccountSwitcherModel(
+            segments: segments,
+            onSelect: { [weak self] idString in
+                guard let self, let index = Int(idString) else { return }
+                self.handleTokenAccountSelectionFromPopover(index: index, provider: provider)
+            })
+    }
+
+    /// Codex 账户选择处理：复刻 handleCodexVisibleAccountSelection 的逻辑，但不传 NSMenu。
+    private func handleCodexVisibleAccountSelectionFromPopover(_ account: CodexVisibleAccount) {
+        self.settings.selectDisplayedCodexVisibleAccount(account)
+        _ = self.store.prepareCodexAccountScopedRefreshIfNeeded()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refreshCodexAccountScopedState(
+                    allowDisabled: true,
+                    phaseDidChange: nil)
+            }
+        }
+    }
+
+    /// Token 账户选择处理：复刻 makeTokenAccountSwitcherItem 中 onSelect 闭包的逻辑，但不传 NSMenu。
+    @discardableResult
+    private func handleTokenAccountSelectionFromPopover(index: Int, provider: UsageProvider) -> Task<Void, Never> {
+        self.settings.setActiveTokenAccountIndex(index, for: provider)
+        self.applyIcon(phase: nil)
+        return Task { @MainActor [weak self] in
+            guard let self else { return }
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await self.store.refreshProvider(provider)
+            }
+        }
     }
 
     /// 接线 popover 的键盘快捷键回调（只在控制器首次创建时设一次，弱引用防环）。
