@@ -3,6 +3,12 @@ import CodexBarCore
 import SwiftUI
 
 extension StatusItemController {
+    private struct HostedSubviewIdentity {
+        let chartID: String
+        let provider: UsageProvider?
+        let providerRawValue: String?
+    }
+
     func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {
         let ids: Set = [
             Self.usageBreakdownChartID,
@@ -37,16 +43,21 @@ extension StatusItemController {
         return submenu
     }
 
-    func hydrateHostedSubviewMenuIfNeeded(_ menu: NSMenu, width requestedWidth: CGFloat? = nil) {
+    @discardableResult
+    func hydrateHostedSubviewMenuIfNeeded(_ menu: NSMenu, width requestedWidth: CGFloat? = nil) -> Bool {
         guard let placeholder = menu.items.first,
               menu.items.count == 1,
               placeholder.view == nil,
               let chartID = placeholder.representedObject as? String
         else {
-            return
+            return false
         }
 
         let width = requestedWidth ?? self.renderedMenuWidth(for: menu.supermenu ?? menu)
+        let identity = HostedSubviewIdentity(
+            chartID: chartID,
+            provider: placeholder.toolTip.flatMap(UsageProvider.init(rawValue:)),
+            providerRawValue: placeholder.toolTip)
         menu.removeAllItems()
 
         let didHydrate: Bool = switch chartID {
@@ -90,14 +101,27 @@ extension StatusItemController {
             false
         }
 
-        guard !didHydrate else { return }
-        self.appendHostedSubviewUnavailableItem(to: menu, chartID: chartID, providerRawValue: placeholder.toolTip)
+        if !didHydrate {
+            self.appendHostedSubviewUnavailableItem(
+                to: menu,
+                chartID: chartID,
+                providerRawValue: placeholder.toolTip)
+        }
+        self.recordHostedSubviewRenderSignature(for: menu, identity: identity, width: width)
+        return true
     }
 
     func refreshHostedSubviewMenu(_ menu: NSMenu) {
         let width = self.renderedMenuWidth(for: menu)
         guard let identity = self.hostedSubviewIdentity(for: menu) else {
             self.refreshHostedSubviewHeights(in: menu)
+            return
+        }
+        let signature = self.hostedSubviewRenderSignature(identity: identity, width: width)
+        if self.hostedSubviewRenderSignatures.object(forKey: menu) as String? == signature {
+            if identity.chartID == Self.zaiHourlyUsageChartID {
+                self.refreshHostedSubviewHeights(in: menu)
+            }
             return
         }
 
@@ -135,27 +159,137 @@ extension StatusItemController {
             false
         }
 
-        if didHydrate {
-            self.refreshHostedSubviewHeights(in: menu)
-        } else {
+        if !didHydrate {
             self.appendHostedSubviewUnavailableItem(
                 to: menu,
                 chartID: identity.chartID,
                 providerRawValue: identity.provider?.rawValue ?? identity.providerRawValue)
         }
+        self.hostedSubviewRenderSignatures.setObject(signature as NSString, forKey: menu)
     }
 
     private func hostedSubviewIdentity(for menu: NSMenu)
-    -> (chartID: String, provider: UsageProvider?, providerRawValue: String?)? {
+    -> HostedSubviewIdentity? {
         for item in menu.items {
             guard let chartID = item.representedObject as? String else { continue }
             let providerRawValue = item.toolTip
-            return (
+            return HostedSubviewIdentity(
                 chartID: chartID,
                 provider: providerRawValue.flatMap(UsageProvider.init(rawValue:)),
                 providerRawValue: providerRawValue)
         }
         return nil
+    }
+
+    private func recordHostedSubviewRenderSignature(
+        for menu: NSMenu,
+        identity: HostedSubviewIdentity,
+        width: CGFloat)
+    {
+        let signature = self.hostedSubviewRenderSignature(identity: identity, width: width)
+        self.hostedSubviewRenderSignatures.setObject(signature as NSString, forKey: menu)
+    }
+
+    private func hostedSubviewRenderSignature(
+        identity: HostedSubviewIdentity,
+        width: CGFloat) -> String
+    {
+        let contentSignature: String = switch identity.chartID {
+        case Self.usageBreakdownChartID:
+            Self.dashboardBreakdownReadinessSignature(
+                OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+                    from: self.store.openAIDashboard?.usageBreakdown ?? []))
+        case Self.creditsHistoryChartID:
+            Self.dashboardBreakdownReadinessSignature(self.store.openAIDashboard?.dailyBreakdown ?? [])
+        case Self.costHistoryChartID:
+            identity.provider.map(self.costHistoryRenderSignature(for:)) ?? "missing-provider"
+        case Self.usageHistoryChartID:
+            identity.provider.map(self.usageHistoryRenderSignature(for:)) ?? "missing-provider"
+        case Self.storageBreakdownID:
+            identity.provider.map(self.storageBreakdownRenderSignature(for:)) ?? "missing-provider"
+        case Self.zaiHourlyUsageChartID:
+            identity.provider.map(self.zaiHourlyUsageRenderSignature(for:)) ?? "missing-provider"
+        default:
+            "unknown"
+        }
+        return [
+            identity.chartID,
+            identity.providerRawValue ?? "",
+            String(Double(width).bitPattern, radix: 16),
+            contentSignature,
+        ].joined(separator: "|")
+    }
+
+    private func costHistoryRenderSignature(for provider: UsageProvider) -> String {
+        guard let snapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider) else { return "none" }
+        return [
+            snapshot.currencyCode,
+            "\(snapshot.historyDays)",
+            snapshot.historyLabel ?? "",
+            snapshot.last30DaysCostUSD.map { String($0.bitPattern, radix: 16) } ?? "nil",
+            String(reflecting: snapshot.daily),
+        ].joined(separator: "|")
+    }
+
+    private func usageHistoryRenderSignature(for provider: UsageProvider) -> String {
+        let snapshot = self.store.snapshot(for: provider)
+        let selection = self.store.planUtilizationHistorySelection(for: provider)
+        return [
+            "\(self.store.planUtilizationHistoryRevision)",
+            "\(Int(Date().timeIntervalSince1970 / 60))",
+            selection.accountKey ?? "unscoped",
+            snapshot?.primary == nil ? "0" : "1",
+            snapshot?.secondary == nil ? "0" : "1",
+            snapshot?.tertiary == nil ? "0" : "1",
+        ].joined(separator: "|")
+    }
+
+    private func storageBreakdownRenderSignature(for provider: UsageProvider) -> String {
+        guard let footprint = self.store.storageFootprint(for: provider) else { return "none" }
+        let components = footprint.components
+            .map { "\($0.path)=\($0.totalBytes)" }
+            .joined(separator: ";")
+        return [
+            "\(footprint.totalBytes)",
+            footprint.paths.joined(separator: ";"),
+            footprint.missingPaths.joined(separator: ";"),
+            footprint.unreadablePaths.joined(separator: ";"),
+            components,
+            String(Double(self.storageBreakdownMenuMaxHeight()).bitPattern, radix: 16),
+        ].joined(separator: "|")
+    }
+
+    private func zaiHourlyUsageRenderSignature(for provider: UsageProvider) -> String {
+        guard let modelUsage = self.store.snapshot(for: provider)?.zaiUsage?.modelUsage else { return "none" }
+        return Self.zaiHourlyUsageRenderSignature(modelUsage: modelUsage, now: Date())
+    }
+
+    static func zaiHourlyUsageRenderSignature(modelUsage: ZaiModelUsageData, now: Date) -> String {
+        let models = modelUsage.modelDataList
+            .map { model in
+                let usage = model.tokensUsage
+                    .map { $0.map(String.init) ?? "nil" }
+                    .joined(separator: ",")
+                return "\(model.modelName ?? "")=\(usage)"
+            }
+            .joined(separator: ";")
+        let ranges: [ZaiHourlyRange] = [.today(referenceDate: now), .last24h]
+        let visibleBars = ranges
+            .map { range in
+                ZaiHourlyBars.from(modelData: modelUsage, range: range, now: now)
+                    .map { bar in
+                        let segments = bar.segments
+                            .map { "\($0.model)=\($0.tokens)" }
+                            .joined(separator: ",")
+                        return "\(bar.label):\(segments)"
+                    }
+                    .joined(separator: ";")
+            }
+        return [
+            modelUsage.xTime.joined(separator: ","),
+            models,
+            visibleBars.joined(separator: "|"),
+        ].joined(separator: "|")
     }
 
     private func appendHostedSubviewUnavailableItem(

@@ -196,6 +196,81 @@ struct StatusMenuHostedSubmenuRefreshTests {
         }
     }
 
+    @Test
+    func `zai chart render signature follows time range boundaries`() throws {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let beforeMidnight = try #require(formatter.date(from: "2026-01-01 23:30"))
+        let afterMidnight = try #require(formatter.date(from: "2026-01-02 00:30"))
+        let modelUsage = ZaiModelUsageData(
+            xTime: ["2026-01-01 23:00"],
+            modelDataList: [
+                ZaiModelDataItem(modelName: "glm-4.5", tokensUsage: [100]),
+            ])
+
+        let before = StatusItemController.zaiHourlyUsageRenderSignature(
+            modelUsage: modelUsage,
+            now: beforeMidnight)
+        let after = StatusItemController.zaiHourlyUsageRenderSignature(
+            modelUsage: modelUsage,
+            now: afterMidnight)
+
+        #expect(before != after)
+    }
+
+    @Test
+    func `utilization chart invalidates when active account changes`() throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        Self.enableOnlyClaude(settings)
+        settings.addTokenAccount(provider: .claude, label: "Alice", token: "alice-token")
+        settings.addTokenAccount(provider: .claude, label: "Bob", token: "bob-token")
+        let accounts = settings.tokenAccounts(for: .claude)
+        let alice = try #require(accounts.first)
+        let bob = try #require(accounts.last)
+        let aliceKey = try #require(
+            UsageStore._planUtilizationTokenAccountKeyForTesting(provider: .claude, account: alice))
+        let bobKey = try #require(
+            UsageStore._planUtilizationTokenAccountKeyForTesting(provider: .claude, account: bob))
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        Self.seedClaudeSnapshots(in: store)
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(accounts: [
+            aliceKey: [Self.makePlanHistory(usedPercent: 20)],
+            bobKey: [Self.makePlanHistory(usedPercent: 50)],
+        ])
+        settings.setActiveTokenAccountIndex(0, for: .claude)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.usageHistoryChartID,
+            provider: .claude,
+            width: StatusItemController.menuCardBaseWidth)
+        controller.menuWillOpen(submenu)
+        let aliceView = try #require(submenu.items.first?.view)
+
+        settings.setActiveTokenAccountIndex(1, for: .claude)
+        controller.refreshHostedSubviewMenu(submenu)
+
+        let bobView = try #require(submenu.items.first?.view)
+        #expect(bobView !== aliceView)
+    }
+
     private func assertHostedChartItemHeightMatchesRefresh(
         chartID: String,
         provider: UsageProvider,
@@ -286,6 +361,14 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(hydratedItem.toolTip == provider.rawValue)
         #expect(hydratedItem.view != nil)
         #expect(hydratedItem.title != "No data available")
+        let hydratedView = hydratedItem.view
+        let inflatedHeight = hydratedView.map { view -> CGFloat in
+            let inflatedHeight = view.frame.height + 100
+            if chartID == StatusItemController.zaiHourlyUsageChartID {
+                view.frame.size.height = inflatedHeight
+            }
+            return inflatedHeight
+        }
 
         controller.refreshHostedSubviewMenu(submenu)
 
@@ -294,6 +377,19 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(refreshedItem.toolTip == provider.rawValue)
         #expect(refreshedItem.view != nil)
         #expect(refreshedItem.title != "No data available")
+        #expect(refreshedItem.view === hydratedView)
+        if chartID == StatusItemController.zaiHourlyUsageChartID {
+            #expect(refreshedItem.view?.frame.height != inflatedHeight)
+        }
+
+        if chartID == StatusItemController.costHistoryChartID, provider == .claude {
+            store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(dailyCost: 2.34), provider: .claude)
+            controller.refreshHostedSubviewMenu(submenu)
+
+            let changedItem = try #require(submenu.items.first)
+            #expect(changedItem.view != nil)
+            #expect(changedItem.view !== hydratedView)
+        }
     }
 
     private static func makeSettings() -> SettingsStore {
@@ -370,15 +466,19 @@ struct StatusMenuHostedSubmenuRefreshTests {
         self.seedClaudeSnapshots(in: store)
         store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(
             unscoped: [
-                PlanUtilizationSeriesHistory(
-                    name: .session,
-                    windowMinutes: 300,
-                    entries: [
-                        PlanUtilizationHistoryEntry(
-                            capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
-                            usedPercent: 24,
-                            resetsAt: Date(timeIntervalSince1970: 1_700_018_000)),
-                    ]),
+                self.makePlanHistory(usedPercent: 24),
+            ])
+    }
+
+    private static func makePlanHistory(usedPercent: Double) -> PlanUtilizationSeriesHistory {
+        PlanUtilizationSeriesHistory(
+            name: .session,
+            windowMinutes: 300,
+            entries: [
+                PlanUtilizationHistoryEntry(
+                    capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    usedPercent: usedPercent,
+                    resetsAt: Date(timeIntervalSince1970: 1_700_018_000)),
             ])
     }
 
@@ -419,19 +519,19 @@ struct StatusMenuHostedSubmenuRefreshTests {
         store._setSnapshotForTesting(snapshot, provider: .zai)
     }
 
-    private static func makeTokenSnapshot() -> CostUsageTokenSnapshot {
+    private static func makeTokenSnapshot(dailyCost: Double = 1.23) -> CostUsageTokenSnapshot {
         CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 0.12,
             last30DaysTokens: 123,
-            last30DaysCostUSD: 1.23,
+            last30DaysCostUSD: dailyCost,
             daily: [
                 CostUsageDailyReport.Entry(
                     date: "2025-12-23",
                     inputTokens: nil,
                     outputTokens: nil,
                     totalTokens: 123,
-                    costUSD: 1.23,
+                    costUSD: dailyCost,
                     modelsUsed: nil,
                     modelBreakdowns: nil),
             ],

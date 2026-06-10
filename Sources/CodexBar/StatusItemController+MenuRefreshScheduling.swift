@@ -127,7 +127,7 @@ extension StatusItemController {
         return parts.joined(separator: "|")
     }
 
-    private static func dashboardBreakdownReadinessSignature(
+    static func dashboardBreakdownReadinessSignature(
         _ breakdown: [OpenAIDashboardDailyBreakdown]) -> String
     {
         breakdown

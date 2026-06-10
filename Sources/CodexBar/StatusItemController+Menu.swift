@@ -84,8 +84,9 @@ extension StatusItemController {
         let menuTrackingWasIdle = self.openMenus.isEmpty
 
         if self.isHostedSubviewMenu(menu) {
-            self.hydrateHostedSubviewMenuIfNeeded(menu)
-            self.refreshHostedSubviewHeights(in: menu)
+            if !self.hydrateHostedSubviewMenuIfNeeded(menu) {
+                self.refreshHostedSubviewMenu(menu)
+            }
             if self.isMenuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
                 self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "submenu open")
             }

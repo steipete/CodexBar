@@ -118,6 +118,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var latestRequiredMenuRebuildVersion: Int = 0
     var menuVersions: [ObjectIdentifier: Int] = [:]
     var menuReadinessSignatures: [ObjectIdentifier: String] = [:]
+    let hostedSubviewRenderSignatures = NSMapTable<NSMenu, NSString>.weakToStrongObjects()
     var menuCardHeightCache: [MenuCardHeightCacheKey: CGFloat] = [:]
     var measuredStandardMenuWidthCache: [String: CGFloat] = [:]
     var lastMenuAdjunctReadinessSignature = ""

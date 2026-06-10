@@ -36,6 +36,12 @@ extension UsageStore {
     }
 
     func planUtilizationHistory(for provider: UsageProvider) -> [PlanUtilizationSeriesHistory] {
+        self.planUtilizationHistorySelection(for: provider).histories
+    }
+
+    func planUtilizationHistorySelection(for provider: UsageProvider)
+        -> (accountKey: String?, histories: [PlanUtilizationSeriesHistory])
+    {
         var providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
         let originalProviderBuckets = providerBuckets
         let accountKey = self.resolvePlanUtilizationAccountKey(
@@ -50,7 +56,7 @@ extension UsageStore {
                 await self.planUtilizationPersistenceCoordinator.enqueue(snapshotToPersist)
             }
         }
-        return providerBuckets.histories(for: accountKey)
+        return (accountKey, providerBuckets.histories(for: accountKey))
     }
 
     func codexPlanUtilizationHistories(forVisibleAccount account: CodexVisibleAccount)
