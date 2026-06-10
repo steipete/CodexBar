@@ -76,6 +76,15 @@ extension StatusItemController {
                         (self?.settings.switcherShowsIcons == true)
                             ? self?.popoverSwitcherIcon(for: provider)
                             : nil
+                    },
+                    makeChartEntries: { [weak self] provider in
+                        self?.popoverChartEntries(for: provider) ?? []
+                    },
+                    makeOverviewChart: { [weak self] row in
+                        self?.popoverOverviewChart(for: row.provider, model: row.model)
+                    },
+                    makeChartView: { [weak self] kind, width in
+                        self?.popoverChartView(for: kind, width: width)
                     })
             }
             self.wirePopoverShortcutCallbacks()

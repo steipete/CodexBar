@@ -5,6 +5,7 @@ import SwiftUI
 /// 持久面板根视图。阶段 1：provider 切换器 + 当前 provider 用量卡片。
 /// 阶段 2：底部动作区（PopoverActionSectionsView）；完整卡片分流渲染（PopoverCardPlan）；
 ///         账户切换器（PopoverAccountSwitcherView）。
+/// 阶段 3：图表二级 popover 下钻入口（PopoverChartKind）。
 /// 整个 popover 生命周期只构造一次；切 provider 通过 viewModel.select(_:) 增量更新，不重建视图。
 struct PopoverRootView: View {
     /// 账户切换器绑定：segments 数据 + onSelect 回调。由 makeAccountSwitcher 构造闭包返回。
@@ -37,6 +38,15 @@ struct PopoverRootView: View {
     /// provider 图标注入闭包：由 controller 按 switcherShowsIcons 设置返回 NSImage? 或 nil。
     /// nil 表示不显示图标（纯文字降级）。视图不读 settings，由闭包内部决定。
     let switcherIcon: (UsageProvider) -> NSImage?
+    /// 返回指定 provider 的下钻图表入口列表（Task 3.1）。
+    let makeChartEntries: (UsageProvider) -> [PopoverChartKind]
+    /// 返回 Overview 行对应的下钻图表（nil 表示该行无下钻）。
+    let makeOverviewChart: (StatusItemController.PopoverOverviewRow) -> PopoverChartKind?
+    /// 懒构造图表视图；数据缺失返回 nil。
+    let makeChartView: (PopoverChartKind, CGFloat) -> AnyView?
+
+    /// 当前呈现的二级图表；非 nil 时触发 .popover(item:) 弹出侧边浮层。
+    @State private var presentedChart: PopoverChartKind?
 
     private static let menuWidth: CGFloat = 310
 
@@ -55,6 +65,29 @@ struct PopoverRootView: View {
         }
         .frame(width: Self.menuWidth, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+        // 二级图表 popover：锚点用整体 bounds（实现最简单稳定，macOS 侧边弹出效果符合预期）
+        .popover(
+            item: self.$presentedChart,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .trailing)
+        { kind in
+            Group {
+                if let chart = self.makeChartView(kind, 360) {
+                    chart
+                } else {
+                    Text("No data available")
+                        .foregroundStyle(.secondary)
+                        .padding()
+                }
+            }
+            .frame(minWidth: 320)
+        }
+        // 切 provider 时关闭子 popover
+        .onChange(of: self.viewModel.selection) { _, _ in self.presentedChart = nil }
+        // popover 隐藏时关闭子 popover
+        .onChange(of: self.viewModel.isVisible) { _, isVisible in
+            if !isVisible { self.presentedChart = nil }
+        }
     }
 
     // MARK: - 切换器（Phase 2：Overview tab + provider 图标）
@@ -145,6 +178,9 @@ struct PopoverRootView: View {
     }
 
     /// Overview 内容区（Task 2.4）：多 provider 概览行，与 NSMenu addOverviewRows 等价。
+    /// Task 3.2：当 makeOverviewChart(row) 非 nil 时，在行尾添加 chevron 按钮触发二级图表 popover。
+    /// 布局：HStack { 行主体 Button（切 provider）; chevronButton（呈现子 popover）}
+    /// 两个 Button 互不干扰：行主体点击执行 viewModel.select；chevron 点击设置 presentedChart。
     @ViewBuilder private var overviewContent: some View {
         let rows = self.makeOverviewRows()
         if rows.isEmpty {
@@ -156,15 +192,32 @@ struct PopoverRootView: View {
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
-                    Button {
-                        self.viewModel.select(.provider(row.provider))
-                    } label: {
-                        OverviewMenuCardRowView(
-                            model: row.model,
-                            storageText: row.storageText,
-                            width: Self.menuWidth)
+                    let chart = self.makeOverviewChart(row)
+                    HStack(spacing: 0) {
+                        Button {
+                            self.viewModel.select(.provider(row.provider))
+                        } label: {
+                            OverviewMenuCardRowView(
+                                model: row.model,
+                                storageText: row.storageText,
+                                width: chart != nil
+                                    ? Self.menuWidth - Self.overviewChevronWidth
+                                    : Self.menuWidth)
+                        }
+                        .buttonStyle(.plain)
+                        if let chart {
+                            Button {
+                                self.presentedChart = chart
+                            } label: {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: Self.overviewChevronWidth, alignment: .center)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
                     if row.id != rows.last?.id {
                         Divider()
                     }
@@ -173,13 +226,17 @@ struct PopoverRootView: View {
         }
     }
 
-    /// 单 provider 视图：账户切换器（有时）+ 卡片内容。
+    /// Overview 行尾 chevron 占位宽（不影响 OverviewMenuCardRowView 布局计算）。
+    private static let overviewChevronWidth: CGFloat = 28
+
+    /// 单 provider 视图：账户切换器（有时）+ 卡片内容 + 图表下钻入口（有时）。
     @ViewBuilder private func providerContent(for provider: UsageProvider) -> some View {
         if let switcher = self.makeAccountSwitcher(provider) {
             PopoverAccountSwitcherView(segments: switcher.segments, onSelect: switcher.onSelect)
             Divider()
         }
         self.card(for: provider)
+        self.chartEntries(for: provider)
     }
 
     /// makeCardPlan 内部读取 store 属性，在 body 同步求值以建立 @Observable 观察链；
@@ -226,6 +283,33 @@ struct PopoverRootView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                 }
+            }
+        }
+    }
+
+    /// 单 provider 图表下钻入口行（Task 3.2）。
+    /// 出现在卡片区（含 storage/buyCredits）之后、动作区 Divider 之前。
+    /// entries 为空时不渲染（EmptyView）。
+    @ViewBuilder private func chartEntries(for provider: UsageProvider) -> some View {
+        let entries = self.makeChartEntries(provider)
+        if !entries.isEmpty {
+            Divider()
+            ForEach(entries) { kind in
+                Button {
+                    self.presentedChart = kind
+                } label: {
+                    HStack {
+                        Text(kind.title).font(.callout)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
             }
         }
     }
