@@ -207,6 +207,34 @@ struct OpenAIDashboardWebViewCacheTests {
     }
 
     @Test
+    func `Idle prune is scheduled without future cache activity`() async throws {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache()
+        cache.setIdleTimeoutForTesting(0.2)
+        let store = WKWebsiteDataStore.nonPersistent()
+        let url = try #require(URL(string: "about:blank"))
+
+        let lease = try await cache.acquire(
+            websiteDataStore: store,
+            usageURL: url,
+            logger: nil)
+        lease.release()
+
+        #expect(cache.hasCachedEntry(for: store), "WebView should remain cached right after release")
+
+        let deadline = Date().addingTimeInterval(5)
+        while cache.hasCachedEntry(for: store), Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        #expect(
+            !cache.hasCachedEntry(for: store),
+            "Expected the scheduled idle prune to evict the WebView without any further cache activity")
+
+        cache.clearAllForTesting()
+    }
+
+    @Test
     func `Reused page reset clears one shot scraper globals`() async throws {
         if self.shouldSkipOnCI() { return }
         let cache = OpenAIDashboardWebViewCache()
