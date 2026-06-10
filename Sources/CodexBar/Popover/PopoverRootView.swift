@@ -591,6 +591,9 @@ private struct ChartSectionContainer<Content: View>: View {
             } label: {
                 ZStack(alignment: .topTrailing) {
                     self.content()
+                        // 与 NSMenu 同机制：hover 时注入 menuItemHighlighted，
+                        // 段视图（MenuCardView 各 SectionView）自动切换高亮配色（文字变白等）。
+                            .environment(\.menuItemHighlighted, self.isHovered)
                     // 行尾 chevron（topTrailing，对齐 NSMenu MenuCardSectionContainerView 指示器）
                     Image(systemName: "chevron.right")
                         .font(.caption2)
