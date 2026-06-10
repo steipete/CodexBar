@@ -59,19 +59,38 @@ struct PopoverRootView: View {
 
     // MARK: - 切换器（Phase 2：Overview tab + provider 图标）
 
+    /// tab 多时（>4，与 NSView 版"均宽不足即换行"语义对齐）切换为自适应网格自动分行；
+    /// 少量 tab 保持紧凑单行 HStack。
     private var switcher: some View {
-        HStack(spacing: 4) {
-            if self.viewModel.includesOverview {
-                self.overviewTab
-            }
-            ForEach(self.viewModel.providers, id: \.self) { provider in
-                self.providerTab(provider)
+        let tabCount = self.viewModel.providers.count + (self.viewModel.includesOverview ? 1 : 0)
+        return Group {
+            if tabCount > 4 {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 64), spacing: 4)],
+                    alignment: .leading,
+                    spacing: 4)
+                {
+                    self.switcherTabs(fillWidth: true)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    self.switcherTabs(fillWidth: false)
+                }
             }
         }
         .padding(8)
     }
 
-    private var overviewTab: some View {
+    @ViewBuilder private func switcherTabs(fillWidth: Bool) -> some View {
+        if self.viewModel.includesOverview {
+            self.overviewTab(fillWidth: fillWidth)
+        }
+        ForEach(self.viewModel.providers, id: \.self) { provider in
+            self.providerTab(provider, fillWidth: fillWidth)
+        }
+    }
+
+    private func overviewTab(fillWidth: Bool) -> some View {
         let selected = self.viewModel.selection == .overview
         return Button {
             self.viewModel.select(.overview)
@@ -79,6 +98,7 @@ struct PopoverRootView: View {
             Image(systemName: "square.grid.2x2")
                 .font(.caption)
                 .fontWeight(selected ? .semibold : .regular)
+                .frame(maxWidth: fillWidth ? .infinity : nil)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 6)
@@ -87,25 +107,24 @@ struct PopoverRootView: View {
         .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
-    private func providerTab(_ provider: UsageProvider) -> some View {
+    private func providerTab(_ provider: UsageProvider, fillWidth: Bool) -> some View {
         let selected = self.isSelected(provider)
         return Button {
             self.viewModel.select(.provider(provider))
         } label: {
-            if let icon = self.switcherIcon(provider) {
-                HStack(spacing: 3) {
+            HStack(spacing: 3) {
+                if let icon = self.switcherIcon(provider) {
                     Image(nsImage: icon)
                         .resizable()
                         .frame(width: 14, height: 14)
-                    Text(provider.rawValue)
-                        .font(.caption)
-                        .fontWeight(selected ? .semibold : .regular)
                 }
-            } else {
                 Text(provider.rawValue)
                     .font(.caption)
                     .fontWeight(selected ? .semibold : .regular)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
+            .frame(maxWidth: fillWidth ? .infinity : nil)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 6)
