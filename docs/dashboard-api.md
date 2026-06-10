@@ -6,7 +6,63 @@
 GET /dashboard/v1/snapshot
 ```
 
-The endpoint is available from the foreground HTTP server started by `codexbar serve`. The default bind host remains `127.0.0.1`. Serving on a non-loopback host requires `--dashboard-token`, and data routes require `Authorization: Bearer YOUR_TOKEN` when a token is configured. `/health` remains unauthenticated.
+The endpoint is available from the foreground HTTP server started by `codexbar serve`. The default bind host remains `127.0.0.1`. Serving on a non-loopback host requires `--dashboard-token` or `--dashboard-pairing`, and data routes require `Authorization: Bearer YOUR_TOKEN` when a token is configured. `/health` remains unauthenticated.
+
+## Pairing
+
+For keyboard-limited dashboard clients, start the server with:
+
+```text
+codexbar serve --host 0.0.0.0 --dashboard-pairing
+```
+
+The server prints a one-time numeric pairing code (6 digits). The code itself is never sent over the network; clients only learn its length. Clients can discover the challenge with:
+
+```text
+GET /dashboard/v1/pairing
+```
+
+Example response:
+
+```json
+{
+  "schemaVersion": 1,
+  "service": "codexbar-dashboard",
+  "auth": {
+    "type": "code",
+    "pairingId": "9F7A...",
+    "codeLength": 6,
+    "expiresInSeconds": 0
+  }
+}
+```
+
+`expiresInSeconds: 0` means the pairing code does not expire on a timer; it stays valid until claimed, locked out, or the foreground `codexbar serve` process exits.
+
+The client prompts the user to enter the code shown next to the server (a numeric keypad is enough), then claims a generated bearer token. Separators in the code (spaces, dashes) are ignored:
+
+```text
+GET /dashboard/v1/pairing/claim?pairingId=9F7A...&code=481273
+```
+
+Successful claims return:
+
+```json
+{
+  "schemaVersion": 1,
+  "token": "generated-bearer-token",
+  "endpoint": "/dashboard/v1/snapshot"
+}
+```
+
+Persist the token client-side and use it as `Authorization: Bearer generated-bearer-token` for snapshot requests.
+
+Pairing is guarded against guessing:
+
+- The code has one million possible values and is only ever displayed on the server console, so a network observer learns nothing from discovery.
+- After 5 failed claims, pairing locks until the server restarts (worst-case online guess probability 5 in 1,000,000). Discovery and claim both return `404` while locked.
+- A successful claim closes pairing: discovery stops advertising, further claims return `404`, and only the claimed token authorizes data routes. Restart the server to pair another client.
+- Pairing tokens never authorize data routes before they are claimed.
 
 Identity exposure is controlled with:
 

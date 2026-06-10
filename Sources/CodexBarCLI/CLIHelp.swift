@@ -79,14 +79,18 @@ extension CodexBarCLI {
         Usage:
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                          [--request-timeout <seconds>]
-                         [--dashboard-token <token>] [--dashboard-identity none|redacted|full]
+                         [--dashboard-token <token>] [--dashboard-pairing]
+                         [--dashboard-identity none|redacted|full]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
         Description:
           Start a foreground HTTP server that exposes CLI JSON payloads and a stable dashboard snapshot.
           By default the server binds to 127.0.0.1 only. Non-loopback --host values require
-          --dashboard-token, and data routes require Authorization: Bearer YOUR_TOKEN when configured.
+          --dashboard-token or --dashboard-pairing. Data routes require Authorization: Bearer YOUR_TOKEN
+          when a token is configured. With --dashboard-pairing, enter the server-shown one-time code
+          on the client to receive a generated bearer token. Repeated failures lock pairing until
+          restart, and a successful claim closes pairing.
           Dashboard identity exposure defaults to redacted.
           Redacted identity keeps plan labels and email domains, but hides email local parts.
 
@@ -98,11 +102,14 @@ extension CodexBarCLI {
           GET /cost
           GET /cost?provider=codex
           GET /dashboard/v1/snapshot
+          GET /dashboard/v1/pairing
+          GET /dashboard/v1/pairing/claim?pairingId=<id>&code=<code>
 
         Examples:
           codexbar serve
           codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30
           codexbar serve --host 0.0.0.0 --port 8080 --dashboard-token "$CODEXBAR_DASHBOARD_TOKEN"
+          codexbar serve --host 0.0.0.0 --port 8080 --dashboard-pairing
           curl http://127.0.0.1:8080/usage?provider=all
           curl -H "Authorization: Bearer $CODEXBAR_DASHBOARD_TOKEN" \\
             http://127.0.0.1:8080/dashboard/v1/snapshot
@@ -219,7 +226,8 @@ extension CodexBarCLI {
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]
-                       [--dashboard-token <token>] [--dashboard-identity none|redacted|full]
+                       [--dashboard-token <token>] [--dashboard-pairing]
+                       [--dashboard-identity none|redacted|full]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
           codexbar config <validate|dump|providers> [--format text|json]
                                         [--json]

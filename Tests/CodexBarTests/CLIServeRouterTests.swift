@@ -72,6 +72,16 @@ struct CLIServeRouterTests {
                 method: "GET",
                 path: "/dashboard/v1/snapshot",
                 queryItems: [:]) == .dashboardSnapshot)
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/pairing",
+                queryItems: [:]) == .dashboardPairing)
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/pairing/claim",
+                queryItems: [:]) == .dashboardPairingClaim)
     }
 
     @Test
@@ -184,6 +194,14 @@ struct CLIServeRouterTests {
             positional: [],
             options: ["dashboardToken": [" "]],
             flags: [])) == nil)
+        #expect(!CodexBarCLI.decodeDashboardPairingEnabled(from: ParsedValues(
+            positional: [],
+            options: [:],
+            flags: [])))
+        #expect(CodexBarCLI.decodeDashboardPairingEnabled(from: ParsedValues(
+            positional: [],
+            options: [:],
+            flags: ["dashboardPairing"])))
         #expect(CodexBarCLI.decodeDashboardIdentity(from: ParsedValues(
             positional: [],
             options: [:],
@@ -248,6 +266,107 @@ struct CLIServeRouterTests {
             path: "/dashboard/v1/snapshot",
             queryItems: [:],
             headers: ["authorization": "Bearer wrong"])))
+    }
+
+    @Test
+    func `serve pairing keeps code off the wire and authorizes claimed token`() throws {
+        let pairing = CLIServePairing()
+
+        let discovery = try #require(pairing.discoveryPayload())
+        let code = try #require(pairing.currentCode())
+        #expect(discovery.service == "codexbar-dashboard")
+        #expect(discovery.auth.type == "code")
+        #expect(discovery.auth.codeLength == CLIServePairing.codeLength)
+        #expect(discovery.auth.expiresInSeconds == 0)
+        #expect(code.count == CLIServePairing.codeLength)
+        let codeIsNumeric = code.allSatisfy(\.isNumber)
+        #expect(codeIsNumeric)
+
+        let outcome = pairing.claim(pairingID: discovery.auth.pairingId, code: code)
+        guard case let .claimed(claim) = outcome else {
+            Issue.record("expected claim to succeed")
+            return
+        }
+        #expect(claim.endpoint == "/dashboard/v1/snapshot")
+        #expect(!claim.token.isEmpty)
+
+        let request = CLILocalHTTPRequest(
+            method: "GET",
+            target: "/dashboard/v1/snapshot",
+            host: "localhost",
+            path: "/dashboard/v1/snapshot",
+            queryItems: [:],
+            headers: ["authorization": "Bearer \(claim.token)"])
+        #expect(CLIServeAuth(dashboardToken: nil, pairing: pairing).authorizeDataRequest(request))
+    }
+
+    @Test
+    func `serve pairing token does not authorize before claim`() {
+        let pairing = CLIServePairing()
+        let request = CLILocalHTTPRequest(
+            method: "GET",
+            target: "/dashboard/v1/snapshot",
+            host: "localhost",
+            path: "/dashboard/v1/snapshot",
+            queryItems: [:],
+            headers: ["authorization": "Bearer anything"])
+        #expect(!CLIServeAuth(dashboardToken: nil, pairing: pairing).authorizeDataRequest(request))
+    }
+
+    @Test
+    func `serve pairing survives a mistyped code and accepts separators`() throws {
+        let pairing = CLIServePairing()
+
+        let discovery = try #require(pairing.discoveryPayload())
+        let code = try #require(pairing.currentCode())
+
+        // A wrong code counts an attempt but keeps the same challenge,
+        // so a user who mistypes can simply retry the displayed code.
+        let wrongCode = code == "000000" ? "000001" : "000000"
+        guard case .rejected = pairing.claim(pairingID: discovery.auth.pairingId, code: wrongCode) else {
+            Issue.record("expected wrong claim to be rejected")
+            return
+        }
+        #expect(pairing.currentCode() == code)
+
+        // Separators copied from grouped console output are ignored.
+        let middle = code.index(code.startIndex, offsetBy: 3)
+        let grouped = "\(code[..<middle]) \(code[middle...])"
+        guard case .claimed = pairing.claim(pairingID: discovery.auth.pairingId, code: grouped) else {
+            Issue.record("expected grouped-code claim to succeed")
+            return
+        }
+    }
+
+    @Test
+    func `serve pairing locks after repeated wrong claims and closes after success`() throws {
+        let pairing = CLIServePairing()
+        let discovery = try #require(pairing.discoveryPayload())
+        let code = try #require(pairing.currentCode())
+        let wrongCode = code == "000000" ? "000001" : "000000"
+        for _ in 0..<CLIServePairing.maxFailedAttempts {
+            _ = pairing.claim(pairingID: discovery.auth.pairingId, code: wrongCode)
+        }
+        #expect(pairing.discoveryPayload() == nil)
+        #expect(pairing.currentCode() == nil)
+        guard case .unavailable = pairing.claim(pairingID: discovery.auth.pairingId, code: code) else {
+            Issue.record("expected locked pairing to be unavailable")
+            return
+        }
+
+        let paired = CLIServePairing()
+        let pairedDiscovery = try #require(paired.discoveryPayload())
+        let pairedCode = try #require(paired.currentCode())
+        guard case .claimed = paired.claim(pairingID: pairedDiscovery.auth.pairingId, code: pairedCode) else {
+            Issue.record("expected claim to succeed")
+            return
+        }
+        #expect(paired.discoveryPayload() == nil)
+        guard case .unavailable = paired.claim(pairingID: pairedDiscovery.auth.pairingId, code: pairedCode)
+        else {
+            Issue.record("expected second claim to be unavailable")
+            return
+        }
     }
 
     @Test

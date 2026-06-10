@@ -29,6 +29,9 @@ struct ServeOptions: CommanderParsable {
     @Option(name: .long("dashboard-token"), help: "Bearer token for serve data routes")
     var dashboardToken: String?
 
+    @Flag(name: .long("dashboard-pairing"), help: "Enable short-code dashboard pairing")
+    var dashboardPairing: Bool = false
+
     @Option(name: .long("dashboard-identity"), help: "Dashboard identity exposure: none | redacted | full")
     var dashboardIdentity: String?
 }
@@ -38,6 +41,8 @@ enum CLIServeRoute: Equatable {
     case usage(provider: String?)
     case cost(provider: String?)
     case dashboardSnapshot
+    case dashboardPairing
+    case dashboardPairingClaim
 }
 
 enum CLIServeRouteError: Error, Equatable {
@@ -63,6 +68,10 @@ enum CLIServeRouter {
             return .cost(provider: normalizedProvider)
         case "/dashboard/v1/snapshot":
             return .dashboardSnapshot
+        case "/dashboard/v1/pairing":
+            return .dashboardPairing
+        case "/dashboard/v1/pairing/claim":
+            return .dashboardPairingClaim
         default:
             throw CLIServeRouteError.notFound
         }
@@ -271,6 +280,7 @@ extension CodexBarCLI {
         let refreshInterval = Self.decodeServeRefreshInterval(from: values)
         let requestTimeout = Self.decodeServeRequestTimeout(from: values)
         let dashboardToken = Self.decodeDashboardToken(from: values)
+        let dashboardPairingEnabled = Self.decodeDashboardPairingEnabled(from: values)
         let dashboardIdentity = Self.decodeDashboardIdentity(from: values)
 
         guard let port else {
@@ -313,7 +323,7 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
-        if CLIServeSecurity.requiresDashboardToken(host: host), dashboardToken == nil {
+        if CLIServeSecurity.requiresDashboardToken(host: host), dashboardToken == nil, !dashboardPairingEnabled {
             Self.exit(
                 code: .failure,
                 message: CLIServeArgumentError.missingDashboardToken(host).localizedDescription,
@@ -323,7 +333,8 @@ extension CodexBarCLI {
 
         let cache = CLIServeResponseCache()
         let dashboardCache = CLIServeDashboardSnapshotCache()
-        let auth = CLIServeAuth(dashboardToken: dashboardToken)
+        let pairing = dashboardPairingEnabled ? CLIServePairing(announce: { Self.writeStderr($0) }) : nil
+        let auth = CLIServeAuth(dashboardToken: dashboardToken, pairing: pairing)
         let bindHost = CLIServeSecurity.bindHost(host)
         let allowNonLoopbackHostHeaders = !CLIServeSecurity.isLoopbackHost(host)
         let server = CLILocalHTTPServer(
@@ -345,6 +356,9 @@ extension CodexBarCLI {
         do {
             try await server.run {
                 Self.writeStderr("CodexBar server listening on http://\(bindHost):\(port)\n")
+                if let pairing, let code = pairing.currentCode() {
+                    Self.writeStderr("Dashboard pairing code: \(code)\n")
+                }
             }
         } catch {
             Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .runtime)
@@ -406,6 +420,10 @@ extension CodexBarCLI {
         return token.isEmpty ? nil : token
     }
 
+    static func decodeDashboardPairingEnabled(from values: ParsedValues) -> Bool {
+        values.flags.contains("dashboardPairing")
+    }
+
     static func decodeDashboardIdentity(from values: ParsedValues) -> DashboardIdentityMode? {
         let raw = values.options["dashboardIdentity"]?.last ?? DashboardIdentityMode.redacted.rawValue
         return DashboardIdentityMode(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
@@ -437,6 +455,26 @@ extension CodexBarCLI {
         switch route {
         case .health:
             return Self.serveJSON(ServeHealthPayload(status: "ok"))
+        case .dashboardPairing:
+            guard let pairing = auth.pairing, let payload = pairing.discoveryPayload() else {
+                return Self.serveError(status: .notFound, message: "pairing unavailable")
+            }
+            return Self.serveJSON(payload)
+        case .dashboardPairingClaim:
+            guard let pairing = auth.pairing else {
+                return Self.serveError(status: .notFound, message: "pairing unavailable")
+            }
+            switch pairing.claim(
+                pairingID: request.queryItems["pairingId"],
+                code: request.queryItems["code"])
+            {
+            case let .claimed(payload):
+                return Self.serveJSON(payload)
+            case .rejected:
+                return Self.serveError(status: .unauthorized, message: "invalid pairing code")
+            case .unavailable:
+                return Self.serveError(status: .notFound, message: "pairing unavailable")
+            }
         case let .usage(provider):
             guard auth.authorizeDataRequest(request) else {
                 return Self.serveError(status: .unauthorized, message: "unauthorized")
