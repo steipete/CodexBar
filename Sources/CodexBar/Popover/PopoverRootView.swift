@@ -69,6 +69,9 @@ struct PopoverRootView: View {
         }
         .frame(width: Self.menuWidth, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+        // 无障碍：整个菜单根容器
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("CodexBar menu")
         // 二级图表 popover：锚点用整体 bounds（实现最简单稳定，macOS 侧边弹出效果符合预期）
         .popover(
             item: self.$presentedChart,
@@ -116,6 +119,8 @@ struct PopoverRootView: View {
             }
         }
         .padding(8)
+        // 无障碍：切换器容器
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder private func switcherTabs(fillWidth: Bool) -> some View {
@@ -142,6 +147,8 @@ struct PopoverRootView: View {
         .padding(.vertical, 3)
         .background(selected ? Color.accentColor.opacity(0.18) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 5))
+        // 无障碍
+        .accessibilityLabel("Overview")
     }
 
     private func providerTab(_ provider: UsageProvider, fillWidth: Bool) -> some View {
@@ -168,6 +175,8 @@ struct PopoverRootView: View {
         .padding(.vertical, 3)
         .background(selected ? Color.accentColor.opacity(0.18) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 5))
+        // 无障碍
+        .accessibilityLabel(provider.rawValue)
     }
 
     // MARK: - 内容区
@@ -197,31 +206,13 @@ struct PopoverRootView: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
                     let chart = self.makeOverviewChart(row)
-                    HStack(spacing: 0) {
-                        Button {
-                            self.viewModel.select(.provider(row.provider))
-                        } label: {
-                            OverviewMenuCardRowView(
-                                model: row.model,
-                                storageText: row.storageText,
-                                width: chart != nil
-                                    ? Self.menuWidth - Self.overviewChevronWidth
-                                    : Self.menuWidth)
-                        }
-                        .buttonStyle(.plain)
-                        if let chart {
-                            Button {
-                                self.presentedChart = chart
-                            } label: {
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: Self.overviewChevronWidth, alignment: .center)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    OverviewRowView(
+                        row: row,
+                        chart: chart,
+                        menuWidth: Self.menuWidth,
+                        overviewChevronWidth: Self.overviewChevronWidth,
+                        onSelectProvider: { self.viewModel.select(.provider(row.provider)) },
+                        onPresentChart: { self.presentedChart = chart })
                     if row.id != rows.last?.id {
                         Divider()
                     }
@@ -277,15 +268,7 @@ struct PopoverRootView: View {
                 }
                 if plan.showBuyCredits {
                     Divider()
-                    Button {
-                        self.onBuyCredits()
-                    } label: {
-                        Label(L("Buy Credits..."), systemImage: "plus.circle")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    BuyCreditsRowView(onBuyCredits: self.onBuyCredits)
                 }
             }
         }
@@ -299,21 +282,9 @@ struct PopoverRootView: View {
         if !entries.isEmpty {
             Divider()
             ForEach(entries) { kind in
-                Button {
+                ChartEntryRowView(kind: kind) {
                     self.presentedChart = kind
-                } label: {
-                    HStack {
-                        Text(kind.title).font(.callout)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
             }
         }
     }
@@ -323,5 +294,119 @@ struct PopoverRootView: View {
     private func isSelected(_ provider: UsageProvider) -> Bool {
         if case let .provider(p) = viewModel.selection { return p == provider }
         return false
+    }
+}
+
+// MARK: - OverviewRowView（独立视图，持有 isHovered @State）
+
+/// Overview 单行：行主体 Button（切 provider）+ 可选 chevron Button（呈现图表）。
+/// 抽出为独立 View 以便持有 @State private var isHovered。
+private struct OverviewRowView: View {
+    let row: StatusItemController.PopoverOverviewRow
+    let chart: PopoverChartKind?
+    let menuWidth: CGFloat
+    let overviewChevronWidth: CGFloat
+    let onSelectProvider: () -> Void
+    let onPresentChart: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button {
+                self.onSelectProvider()
+            } label: {
+                OverviewMenuCardRowView(
+                    model: self.row.model,
+                    storageText: self.row.storageText,
+                    width: self.chart != nil
+                        ? self.menuWidth - self.overviewChevronWidth
+                        : self.menuWidth)
+            }
+            .buttonStyle(.plain)
+            // 无障碍
+            .accessibilityLabel("\(self.row.provider.rawValue) overview")
+            .accessibilityHint("Show \(self.row.provider.rawValue) details")
+            if let chart = self.chart {
+                Button {
+                    self.onPresentChart()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(self.isHovered ? Color.white.opacity(0.75) : Color.secondary)
+                        .frame(width: self.overviewChevronWidth, alignment: .center)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                // 无障碍
+                .accessibilityLabel(chart.title)
+            }
+        }
+        .background(self.isHovered ? Color.accentColor : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .padding(.horizontal, 5)
+        .onHover { self.isHovered = $0 }
+    }
+}
+
+// MARK: - ChartEntryRowView（独立视图，持有 isHovered @State）
+
+/// 图表下钻入口行，持有自己的 hover 状态。
+private struct ChartEntryRowView: View {
+    let kind: PopoverChartKind
+    let onTap: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            self.onTap()
+        } label: {
+            HStack {
+                Text(self.kind.title).font(.callout)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(self.isHovered ? Color.white.opacity(0.75) : Color.secondary)
+            }
+            .padding(.horizontal, 17)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(self.isHovered ? Color.accentColor : Color.clear)
+        .foregroundStyle(self.isHovered ? Color.white : Color.primary)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .padding(.horizontal, 5)
+        .onHover { self.isHovered = $0 }
+        // 无障碍：Button 标题即 label，hint 说明用途
+        .accessibilityHint("Show chart")
+    }
+}
+
+// MARK: - BuyCreditsRowView（独立视图，持有 isHovered @State）
+
+/// Buy Credits 行，持有自己的 hover 状态。
+private struct BuyCreditsRowView: View {
+    let onBuyCredits: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            self.onBuyCredits()
+        } label: {
+            Label(L("Buy Credits..."), systemImage: "plus.circle")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 17)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(self.isHovered ? Color.accentColor : Color.clear)
+        .foregroundStyle(self.isHovered ? Color.white : Color.primary)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .padding(.horizontal, 5)
+        .onHover { self.isHovered = $0 }
     }
 }

@@ -76,5 +76,8 @@ struct PopoverAccountSwitcherView: View {
         .padding(.vertical, 3)
         .background(segment.isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 5))
+        // 无障碍：账户名作为标签，选中态加 isSelected trait
+        .accessibilityLabel(segment.title)
+        .accessibilityAddTraits(segment.isSelected ? .isSelected : [])
     }
 }

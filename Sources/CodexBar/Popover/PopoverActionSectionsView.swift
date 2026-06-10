@@ -1,5 +1,30 @@
 import SwiftUI
 
+// MARK: - 悬停高亮 ViewModifier
+
+/// 菜单行悬停高亮：复刻 NSMenu 行高亮观感（accent 背景 + 反白文字）。
+/// 应用到所有可点击菜单行（action、图表入口、Overview 行等）。
+struct MenuRowHoverHighlight: ViewModifier {
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(self.isHovered ? Color.accentColor : Color.clear)
+            .foregroundStyle(self.isHovered ? Color.white : Color.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .onHover { self.isHovered = $0 }
+    }
+}
+
+extension View {
+    /// 应用 NSMenu 风格行悬停高亮（accent 背景 + 反白文字）。
+    func menuRowHoverHighlight() -> some View {
+        modifier(MenuRowHoverHighlight())
+    }
+}
+
+// MARK: - PopoverActionSectionsView
+
 /// popover 底部动作区：把 MenuDescriptor.Section 列表渲染为 SwiftUI 视图。
 /// sections 来自 MenuDescriptor.build(...)，与 NSMenu 路径共用同一数据源。
 struct PopoverActionSectionsView: View {
@@ -74,31 +99,25 @@ struct PopoverActionSectionsView: View {
     @ViewBuilder
     private func actionButton(title: String, action: MenuDescriptor.MenuAction) -> some View {
         let subtitle = self.actionSubtitle?(action)
-        Button {
-            self.onAction(action)
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                if let label = Self.shortcutLabel(for: action) {
-                    Text(label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
+        let isDisabled = subtitle != nil
+        ActionRowButton(
+            title: title,
+            action: action,
+            subtitle: subtitle,
+            isDisabled: isDisabled,
+            onAction: self.onAction)
+    }
+
+    // MARK: - 快捷键 a11y hint 映射
+
+    /// 返回动作对应的无障碍 hint（供 VoiceOver 朗读快捷键）；nil 表示无快捷键。
+    static func shortcutHint(for action: MenuDescriptor.MenuAction) -> String? {
+        switch action {
+        case .refresh: "Command R"
+        case .settings: "Command Comma"
+        case .quit: "Command Q"
+        default: nil
         }
-        .buttonStyle(.plain)
-        .disabled(subtitle != nil)
     }
 
     // MARK: - Submenu
@@ -164,5 +183,62 @@ struct PopoverActionSectionsView: View {
         case .quit: "⌘Q"
         default: nil
         }
+    }
+}
+
+// MARK: - ActionRowButton（独立视图，持有 isHovered @State）
+
+/// 单个动作行，持有自己的 hover 状态。
+/// 抽出为独立 View 以便在 @ViewBuilder 外持有 @State private var isHovered。
+private struct ActionRowButton: View {
+    let title: String
+    let action: MenuDescriptor.MenuAction
+    let subtitle: String?
+    let isDisabled: Bool
+    let onAction: (MenuDescriptor.MenuAction) -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            self.onAction(self.action)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(self.title)
+                    if let subtitle = self.subtitle {
+                        Text(subtitle)
+                            .font(.caption2)
+                            .foregroundStyle(
+                                self.isHovered ? Color.white.opacity(0.75) : Color.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let label = PopoverActionSectionsView.shortcutLabel(for: self.action) {
+                    Text(label)
+                        .font(.caption)
+                        .foregroundStyle(
+                            self.isHovered ? Color.white.opacity(0.75) : Color.secondary)
+                }
+            }
+            .padding(.horizontal, 17)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(self.isDisabled)
+        // hover 高亮仅在可用时生效
+        .background(
+            (self.isHovered && !self.isDisabled) ? Color.accentColor : Color.clear)
+        .foregroundStyle(
+            (self.isHovered && !self.isDisabled) ? Color.white : Color.primary)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .padding(.horizontal, 5)
+        .onHover { hovering in
+            if !self.isDisabled { self.isHovered = hovering }
+        }
+        // 无障碍：Button 自带 button trait；为有快捷键的动作加 hint
+        .accessibilityHint(
+            PopoverActionSectionsView.shortcutHint(for: self.action) ?? "")
     }
 }
