@@ -29,6 +29,13 @@ extension UsageMenuCardView.Model {
             self.placeholder != nil
     }
 
+    var usesStackedDetailLayout: Bool {
+        !self.metrics.isEmpty ||
+            self.creditsText != nil ||
+            self.providerCost != nil ||
+            self.tokenUsage != nil
+    }
+
     static func progressColor(for provider: UsageProvider) -> Color {
         if provider == .elevenlabs {
             return Color(nsColor: .labelColor)
@@ -52,7 +59,7 @@ extension UsageMenuCardView.Model {
         }
 
         if input.snapshot == nil, !input.isRefreshing, input.lastError == nil {
-            return L("No usage yet")
+            return self.hasLocalCodexTokenUsage(input) ? nil : L("No usage yet")
         }
 
         return nil
@@ -68,6 +75,12 @@ extension UsageMenuCardView.Model {
             return nil
         }
         return lastError
+    }
+
+    private static func hasLocalCodexTokenUsage(_ input: Input) -> Bool {
+        input.provider == .codex &&
+            input.tokenCostUsageEnabled &&
+            self.tokenUsageSnapshot(input: input) != nil
     }
 
     private static func shouldShowRateLimitsUnavailablePlaceholder(input: Input, lastError: String? = nil) -> Bool {

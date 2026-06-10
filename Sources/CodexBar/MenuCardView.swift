@@ -143,7 +143,7 @@ struct UsageMenuCardView: View {
                 Divider()
             }
 
-            if self.model.metrics.isEmpty {
+            if !self.model.usesStackedDetailLayout {
                 if let dashboard = self.model.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
                 } else if !self.model.usageNotes.isEmpty {
@@ -172,6 +172,10 @@ struct UsageMenuCardView: View {
                                 InlineUsageDashboardContent(model: dashboard)
                             } else if !self.model.usageNotes.isEmpty {
                                 UsageNotesContent(notes: self.model.usageNotes)
+                            } else if let placeholder = self.model.placeholder {
+                                Text(placeholder)
+                                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                                    .font(.subheadline)
                             }
                         }
                     }
@@ -244,9 +248,7 @@ struct UsageMenuCardView: View {
     }
 
     private var hasDetails: Bool {
-        self.model.hasUsageContent ||
-            self.model.tokenUsage != nil ||
-            self.model.providerCost != nil
+        self.model.hasUsageContent || self.model.usesStackedDetailLayout
     }
 }
 
