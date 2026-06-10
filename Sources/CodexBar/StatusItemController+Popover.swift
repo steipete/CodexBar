@@ -20,7 +20,7 @@ extension StatusItemController {
     func attachMergedPopover() {
         self.statusItem.menu = nil
         if self.popoverMenuController == nil {
-            self.menuViewModel.providers = self.store.enabledProvidersForDisplay()
+            self.refreshPopoverViewModelInputs()
             let vm = self.menuViewModel
             let store = self.store
             self.popoverMenuController = PopoverMenuController(viewModel: vm) { [weak self] in
@@ -72,6 +72,11 @@ extension StatusItemController {
                     onBuyCredits: { [weak self] in
                         self?.openCreditsPurchase()
                         self?.popoverMenuController?.close()
+                    },
+                    switcherIcon: { [weak self] provider in
+                        (self?.settings.switcherShowsIcons == true)
+                            ? self?.popoverSwitcherIcon(for: provider)
+                            : nil
                     })
             }
             self.wirePopoverShortcutCallbacks()
@@ -80,6 +85,29 @@ extension StatusItemController {
         self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
         // 右键也触发 action，使右键可弹出 popover
         self.statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    // MARK: - ViewModel 输入刷新
+
+    /// 刷新 menuViewModel 的 providers 与 includesOverview，并在 overview 非法时纠正 selection。
+    /// 在 attach、click、shortcut 打开 popover 时统一调用，避免三处重复。
+    func refreshPopoverViewModelInputs() {
+        let enabledProviders = self.store.enabledProvidersForDisplay()
+        self.menuViewModel.providers = enabledProviders
+        let overviewProviders = self.settings.resolvedMergedOverviewProviders(
+            activeProviders: enabledProviders,
+            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+        self.menuViewModel.includesOverview = !overviewProviders.isEmpty
+        // 若 overview tab 已移除且当前选中 overview，纠正到第一个 provider
+        if !self.menuViewModel.includesOverview, self.menuViewModel.selection == .overview {
+            self.menuViewModel.select(.provider(enabledProviders.first ?? .codex))
+        }
+    }
+
+    /// 取 provider 品牌图标，供 switcherIcon 注入闭包使用。
+    /// 直接复用 ProviderBrandIcon（internal），不依赖 private switcherIcon(for:)。
+    func popoverSwitcherIcon(for provider: UsageProvider) -> NSImage? {
+        ProviderBrandIcon.image(for: provider)
     }
 
     // MARK: - popover 动作分发

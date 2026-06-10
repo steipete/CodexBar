@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import SwiftUI
 
@@ -33,12 +34,15 @@ struct PopoverRootView: View {
     let onAction: (MenuDescriptor.MenuAction) -> Void
     /// Buy Credits 动作回调；仅当 plan.showBuyCredits 为 true 时渲染对应按钮。
     let onBuyCredits: () -> Void
+    /// provider 图标注入闭包：由 controller 按 switcherShowsIcons 设置返回 NSImage? 或 nil。
+    /// nil 表示不显示图标（纯文字降级）。视图不读 settings，由闭包内部决定。
+    let switcherIcon: (UsageProvider) -> NSImage?
 
     private static let menuWidth: CGFloat = 310
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if self.viewModel.providers.count > 1 {
+            if self.viewModel.providers.count > 1 || self.viewModel.includesOverview {
                 self.switcher
                 Divider()
             }
@@ -53,26 +57,61 @@ struct PopoverRootView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    // MARK: - 最小 SwiftUI 切换器（Phase 1：纯文字按钮；图标/配额指示留 Phase 2）
+    // MARK: - 切换器（Phase 2：Overview tab + provider 图标）
 
     private var switcher: some View {
         HStack(spacing: 4) {
+            if self.viewModel.includesOverview {
+                self.overviewTab
+            }
             ForEach(self.viewModel.providers, id: \.self) { provider in
-                Button {
-                    self.viewModel.select(.provider(provider))
-                } label: {
-                    Text(provider.rawValue)
-                        .font(.caption)
-                        .fontWeight(self.isSelected(provider) ? .semibold : .regular)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(self.isSelected(provider) ? Color.accentColor.opacity(0.18) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
+                self.providerTab(provider)
             }
         }
         .padding(8)
+    }
+
+    private var overviewTab: some View {
+        let selected = self.viewModel.selection == .overview
+        return Button {
+            self.viewModel.select(.overview)
+        } label: {
+            Image(systemName: "square.grid.2x2")
+                .font(.caption)
+                .fontWeight(selected ? .semibold : .regular)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(selected ? Color.accentColor.opacity(0.18) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
+    private func providerTab(_ provider: UsageProvider) -> some View {
+        let selected = self.isSelected(provider)
+        return Button {
+            self.viewModel.select(.provider(provider))
+        } label: {
+            if let icon = self.switcherIcon(provider) {
+                HStack(spacing: 3) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 14, height: 14)
+                    Text(provider.rawValue)
+                        .font(.caption)
+                        .fontWeight(selected ? .semibold : .regular)
+                }
+            } else {
+                Text(provider.rawValue)
+                    .font(.caption)
+                    .fontWeight(selected ? .semibold : .regular)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(selected ? Color.accentColor.opacity(0.18) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
     // MARK: - 内容区

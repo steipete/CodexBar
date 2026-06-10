@@ -71,6 +71,7 @@ struct MenuViewModelOverviewSwitchTests {
     func `overview 状态下 selectNext 切到第一个 provider`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
+        vm.includesOverview = true // 导航停靠点含 overview
         #expect(vm.selection == .overview)
 
         vm.selectNext()
@@ -82,6 +83,7 @@ struct MenuViewModelOverviewSwitchTests {
     func `provider 状态 selectPrevious 可回到 overview`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
+        vm.includesOverview = true // 导航停靠点含 overview
         vm.select(.provider(.codex))
 
         vm.selectPrevious()

@@ -10,6 +10,8 @@ final class MenuViewModel {
     var selection: ProviderSwitcherSelection = .overview
     /// 当前可显示的 provider 列表（合并模式切换器用）。
     var providers: [UsageProvider] = []
+    /// 切换器是否含 Overview tab（由 controller 在 attach/打开时刷新）。
+    var includesOverview: Bool = false
     /// 内容版本号，选择/数据变化时自增，供 SwiftUI 视图 diff 参考（替代 menuContentVersion）。
     private(set) var contentVersion: Int = 0
     /// popover 是否可见（替代 openMenus 字典；后续图标动画据此冻结）。
@@ -35,9 +37,10 @@ final class MenuViewModel {
 
     // MARK: - 导航助手（Task 1.4）
 
-    /// 循环切换的停靠点：Overview + 各 provider（与 MP-16「←→ 循环含 Overview」一致）。
+    /// 循环切换的停靠点：includesOverview 为 true 时含 Overview，否则仅 providers。
     private var navigationStops: [ProviderSwitcherSelection] {
-        [.overview] + self.providers.map { .provider($0) }
+        let providerStops = self.providers.map { ProviderSwitcherSelection.provider($0) }
+        return self.includesOverview ? [.overview] + providerStops : providerStops
     }
 
     func selectNext() {
