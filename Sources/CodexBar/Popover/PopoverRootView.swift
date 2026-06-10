@@ -33,6 +33,9 @@ struct PopoverRootView: View {
     let overviewEmptyText: () -> String?
     /// 动作分发回调，由 StatusItemController.performMenuAction(_:) 实现。
     let onAction: (MenuDescriptor.MenuAction) -> Void
+    /// 返回 action 对应的禁用 subtitle（nil = 可用；非 nil = 禁用并显示 subtitle 小字）。
+    /// 对齐 NSMenu addActionableSections switchAccount/addCodexAccount disabled 逻辑。
+    var actionSubtitle: ((MenuDescriptor.MenuAction) -> String?)?
     /// Buy Credits 动作回调；仅当 plan.showBuyCredits 为 true 时渲染对应按钮。
     let onBuyCredits: () -> Void
     /// provider 图标注入闭包：由 controller 按 switcherShowsIcons 设置返回 NSImage? 或 nil。
@@ -60,7 +63,8 @@ struct PopoverRootView: View {
             Divider()
             PopoverActionSectionsView(
                 sections: self.makeSections(),
-                onAction: self.onAction)
+                onAction: self.onAction,
+                actionSubtitle: self.actionSubtitle)
                 .padding(.bottom, 6)
         }
         .frame(width: Self.menuWidth, alignment: .leading)

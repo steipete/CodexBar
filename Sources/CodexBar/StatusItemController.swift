@@ -707,11 +707,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.updateBlinkingState()
     }
 
-    var isMergedMenuOpen: Bool {
-        guard let mergedMenu else { return false }
-        return self.openMenus[ObjectIdentifier(mergedMenu)] != nil
-    }
-
     /// Lazily retrieves or creates a status item for the given provider
     func lazyStatusItem(for provider: UsageProvider) -> NSStatusItem {
         if let existing = self.statusItems[provider] {

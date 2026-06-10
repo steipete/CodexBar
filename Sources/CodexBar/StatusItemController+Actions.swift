@@ -307,6 +307,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             if self.usePopoverMenu, let button = self.statusItem.button {
                 self.refreshPopoverViewModelInputs()
                 self.popoverMenuController?.toggle(relativeTo: button)
+                if self.popoverMenuController?.isShown == true {
+                    self.schedulePopoverOpenRefresh(providers: self.menuViewModel.providers)
+                }
             } else {
                 self.statusItem.button?.performClick(nil)
             }
@@ -321,6 +324,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             self.ensureProviderPopover(for: provider)
             self.closeAllProviderPopovers(except: provider)
             self.providerPopoverControllers[provider]?.toggle(relativeTo: button)
+            if self.providerPopoverControllers[provider]?.isShown == true {
+                self.schedulePopoverOpenRefresh(providers: [provider])
+            }
         } else {
             item.button?.performClick(nil)
         }
@@ -330,6 +336,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         guard self.usePopoverMenu, let button = self.statusItem.button else { return }
         self.refreshPopoverViewModelInputs()
         self.popoverMenuController?.toggle(relativeTo: button)
+        if self.popoverMenuController?.isShown == true {
+            self.schedulePopoverOpenRefresh(providers: self.menuViewModel.providers)
+        }
     }
 
     /// 非合并模式 per-provider statusItem 按钮点击处理（popover 路径）。
@@ -339,6 +348,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         guard let provider = self.statusItems.first(where: { $0.value.button === button })?.key else { return }
         self.closeAllProviderPopovers(except: provider)
         self.providerPopoverControllers[provider]?.toggle(relativeTo: button)
+        if self.providerPopoverControllers[provider]?.isShown == true {
+            self.schedulePopoverOpenRefresh(providers: [provider])
+        }
     }
 
     @discardableResult

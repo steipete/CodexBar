@@ -9,6 +9,8 @@ enum PopoverChartKind: Identifiable, Equatable {
     case usageHistory(UsageProvider)
     case storageBreakdown(UsageProvider)
     case zaiHourly(UsageProvider)
+    /// Zai MCP 用量明细（纯只读列表，等价于 NSMenu makeZaiUsageDetailsSubmenu 内容）。
+    case zaiDetails(UsageProvider)
 
     /// 稳定的 Identifiable id 字符串（无 provider 关联时用种类名，有 provider 时拼接 rawValue）。
     var id: String {
@@ -25,6 +27,8 @@ enum PopoverChartKind: Identifiable, Equatable {
             "storageBreakdown-\(provider.rawValue)"
         case let .zaiHourly(provider):
             "zaiHourly-\(provider.rawValue)"
+        case let .zaiDetails(provider):
+            "zaiDetails-\(provider.rawValue)"
         }
     }
 
@@ -48,6 +52,8 @@ enum PopoverChartKind: Identifiable, Equatable {
             L("Storage")
         case .zaiHourly:
             L("Hourly Usage")
+        case .zaiDetails:
+            L("MCP details")
         }
     }
 
@@ -59,5 +65,11 @@ enum PopoverChartKind: Identifiable, Equatable {
             return L("Usage history (today)")
         }
         return String(format: L("Usage history (%d days)"), historyDays)
+    }
+
+    /// Zai details 入口可用的判定：provider == .zai 且 timeLimit 非空且 usageDetails 非空。
+    static func isZaiDetailsAvailable(snapshot: UsageSnapshot?) -> Bool {
+        guard let timeLimit = snapshot?.zaiUsage?.timeLimit else { return false }
+        return !timeLimit.usageDetails.isEmpty
     }
 }

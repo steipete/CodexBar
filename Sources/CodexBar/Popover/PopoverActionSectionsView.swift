@@ -5,6 +5,9 @@ import SwiftUI
 struct PopoverActionSectionsView: View {
     let sections: [MenuDescriptor.Section]
     let onAction: (MenuDescriptor.MenuAction) -> Void
+    /// 返回 action 对应的禁用 subtitle（nil = 可用；非 nil = 禁用并显示 subtitle 小字）。
+    /// 对齐 NSMenu addActionableSections switchAccount/addCodexAccount disabled 逻辑。
+    var actionSubtitle: ((MenuDescriptor.MenuAction) -> String?)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -68,12 +71,21 @@ struct PopoverActionSectionsView: View {
 
     // MARK: - Action Button
 
+    @ViewBuilder
     private func actionButton(title: String, action: MenuDescriptor.MenuAction) -> some View {
+        let subtitle = self.actionSubtitle?(action)
         Button {
             self.onAction(action)
         } label: {
             HStack {
-                Text(title)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Spacer()
                 if let label = Self.shortcutLabel(for: action) {
                     Text(label)
@@ -86,6 +98,7 @@ struct PopoverActionSectionsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(subtitle != nil)
     }
 
     // MARK: - Submenu

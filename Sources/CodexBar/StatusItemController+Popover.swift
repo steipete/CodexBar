@@ -218,6 +218,14 @@ extension StatusItemController {
                     self?.popoverOverviewEmptyText()
                 },
                 onAction: { [weak self] action in self?.performMenuAction(action) },
+                actionSubtitle: { [weak self] action in
+                    guard let self else { return nil }
+                    switch action {
+                    case let .switchAccount(provider): return self.switchAccountSubtitle(for: provider)
+                    case .addCodexAccount: return self.codexAddAccountSubtitle()
+                    default: return nil
+                    }
+                },
                 onBuyCredits: { [weak self] in
                     self?.openCreditsPurchase()
                     // 全关（含合并与全部 per-provider popover）：此闭包被两种模式复用
@@ -534,14 +542,18 @@ extension StatusItemController {
         let hasStorageBreakdown = self.store.storageFootprint(for: provider)?.components.isEmpty == false
         let hasZaiHourly = provider == .zai &&
             self.store.snapshot(for: provider)?.zaiUsage?.modelUsage != nil
+        let hasZaiDetails = PopoverChartKind.isZaiDetailsAvailable(snapshot: self.store.snapshot(for: provider))
 
         var entries: [PopoverChartKind] = []
 
         // ── usage ──
         // 与 makeUsageSubmenu 对齐：hasUsageBreakdown → .usageBreakdown；
+        //   zai + hasZaiDetails → .zaiDetails；
         //   否则 openai + hasOpenAIAPIUsageSubmenu → .costHistory(openai)（即 "API Usage" submenu）。
         if hasUsageBreakdown {
             entries.append(.usageBreakdown)
+        } else if provider == .zai, hasZaiDetails {
+            entries.append(.zaiDetails(provider))
         } else if provider == .openai,
                   self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
         {
@@ -578,7 +590,7 @@ extension StatusItemController {
     }
 
     /// Overview 行的下钻图表（无则 nil），对齐 makeOverviewRowSubmenu 逻辑：
-    ///   openai+hasAPIUsage → .costHistory；zai → nil（详情菜单阶段跳过）；
+    ///   openai+hasAPIUsage → .costHistory；zai+hasZaiDetails → .zaiDetails；
     ///   tokenUsage != nil → .costHistory；usageHistory 可用 → .usageHistory；
     ///   storage 非空 → .storageBreakdown；否则 nil。
     func popoverOverviewChart(for provider: UsageProvider, model: UsageMenuCardView.Model) -> PopoverChartKind? {
@@ -588,8 +600,12 @@ extension StatusItemController {
         {
             return .costHistory(provider)
         }
-        // zai：详情菜单本阶段跳过
+        // zai：有 usageDetails 时展示 MCP 明细；否则回退后续逻辑
         if provider == .zai {
+            let snapshot = self.store.snapshot(for: provider)
+            if PopoverChartKind.isZaiDetailsAvailable(snapshot: snapshot) {
+                return .zaiDetails(provider)
+            }
             return nil
         }
         // tokenUsage 不为 nil → costHistory
@@ -660,6 +676,53 @@ extension StatusItemController {
                   let snapshot = self.store.snapshot(for: provider),
                   let modelUsage = snapshot.zaiUsage?.modelUsage else { return nil }
             return AnyView(ZaiHourlyUsageChartMenuView(modelUsage: modelUsage, width: width))
+
+        case let .zaiDetails(provider):
+            guard provider == .zai,
+                  let snapshot = self.store.snapshot(for: provider),
+                  let timeLimit = snapshot.zaiUsage?.timeLimit,
+                  !timeLimit.usageDetails.isEmpty else { return nil }
+            return AnyView(ZaiMCPDetailsView(
+                timeLimit: timeLimit,
+                resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+                width: width))
+        }
+    }
+
+    // MARK: - 面板可见性（子任务 A，MP-23）
+
+    /// popover-aware 版本：popover 路径下通过 MenuViewModel.isVisible 判断；
+    /// NSMenu 路径下沿用旧 openMenus 字典。
+    /// 两处 guard !self.isMergedMenuOpen（updateIcons 686、refreshMenusForLoginStateChange 787）自动获益。
+    var isMergedMenuOpen: Bool {
+        if self.usePopoverMenu {
+            if self.menuViewModel.isVisible { return true }
+            return self.providerMenuViewModels.values.contains { $0.isVisible }
+        }
+        guard let mergedMenu else { return false }
+        return self.openMenus[ObjectIdentifier(mergedMenu)] != nil
+    }
+
+    // MARK: - 打开时刷新调度（子任务 B，MP-03/29）
+
+    /// popover 打开时的刷新调度：storage footprints + stale/missing provider 的后台刷新。
+    /// NSMenu 因模态须 defer 到关闭后；popover 非模态可在打开期间直接刷新（SwiftUI 自动更新 UI）。
+    func schedulePopoverOpenRefresh(providers: [UsageProvider]) {
+        if self.settings.providerStorageFootprintsEnabled {
+            self.store.refreshStorageFootprintsForOverview()
+        }
+        let stale = providers.filter { self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil }
+        guard !stale.isEmpty, !self.store.isRefreshing else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.2)) // 与 NSMenu menuOpenRefreshDelay 一致，避免打开瞬间抢资源
+            guard let self else { return }
+            guard self.isMergedMenuOpen else { return } // 已关则不刷（沿用 NSMenu"还开着才刷"语义）
+            guard !self.store.isRefreshing else { return }
+            for provider in stale
+                where self.store.isStale(provider: provider) || self.store.snapshot(for: provider) == nil
+            {
+                await self.store.refreshProvider(provider)
+            }
         }
     }
 
