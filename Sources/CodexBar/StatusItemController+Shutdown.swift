@@ -54,6 +54,7 @@ extension StatusItemController {
         self.openMenuInvalidationRetryTask = nil
         self.providerSelectionUIRefreshTask?.cancel()
         self.providerSelectionUIRefreshTask = nil
+        self.deferredMergedIconRenderAfterTracking = false
         self.providerSwitcherPointerInteractionMenuID = nil
         self.pendingProviderSwitcherPointerRebuild = nil
     }
