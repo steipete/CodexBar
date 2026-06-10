@@ -403,6 +403,7 @@
 "language_french" = "Français";
 "language_dutch" = "Нідерландська";
 "language_ukrainian" = "Українська";
+"language_japanese" = "Японська";
 "language_vietnamese" = "В'єтнамська";
 "start_at_login_title" = "Почніть із входу";
 "start_at_login_subtitle" = "Автоматично відкриває CodexBar під час запуску Mac.";
