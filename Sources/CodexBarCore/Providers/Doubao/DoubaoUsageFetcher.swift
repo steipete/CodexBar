@@ -232,6 +232,11 @@ public struct DoubaoUsageFetcher: Sendable {
         // 429 means the key is valid but rate-limited; treat it as valid so the UI
         // shows "Active" instead of "No usage data" when headers are absent.
         let keyValid = response.statusCode == 200 || response.statusCode == 429
+        // A request-limit header on 429 identifies request-bucket exhaustion even
+        // when Ark omits remaining. A bare 429 may describe another throttle.
+        let requestLimitsReliable = response.statusCode == 429
+            ? limit != nil
+            : limit != nil && remaining != nil
 
         let snapshot = DoubaoUsageSnapshot(
             remainingRequests: remaining ?? 0,
@@ -240,7 +245,7 @@ public struct DoubaoUsageFetcher: Sendable {
             updatedAt: Date(),
             apiKeyValid: keyValid,
             totalTokens: totalTokens,
-            requestLimitsReliable: limit != nil && remaining != nil)
+            requestLimitsReliable: requestLimitsReliable)
 
         Self.log.debug(
             """
