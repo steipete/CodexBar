@@ -94,6 +94,11 @@ extension UsageStore {
             && self.error(for: provider) == nil
     }
 
+    func shouldShowRefreshingMenuCardIndicator(for provider: UsageProvider) -> Bool {
+        let isRefreshing = self.isRefreshing || self.refreshingProviders.contains(provider)
+        return isRefreshing && self.error(for: provider) == nil
+    }
+
     func shouldHidePlanUtilizationMenuItem(for provider: UsageProvider) -> Bool {
         guard self.supportsPlanUtilizationHistory(for: provider) else { return true }
         return self.shouldShowRefreshingMenuCard(for: provider)

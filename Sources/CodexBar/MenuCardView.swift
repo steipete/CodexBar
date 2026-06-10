@@ -1047,7 +1047,7 @@ extension UsageMenuCardView.Model {
             return (lastError.trimmingCharacters(in: .whitespacesAndNewlines), .error)
         }
 
-        if isRefreshing, snapshot == nil {
+        if isRefreshing {
             return ("\(L("Refreshing"))…", .loading)
         }
 

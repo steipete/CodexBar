@@ -120,6 +120,7 @@ extension StatusItemController {
                 [
                     provider.rawValue,
                     "token=\(tokenSignature)",
+                    "refreshing=\(self.store.shouldShowRefreshingMenuCardIndicator(for: provider) ? "1" : "0")",
                     "usageHistory=\(usageHistoryVisible ? "1" : "0")",
                 ].joined(separator: ":"))
         }
@@ -214,6 +215,7 @@ extension StatusItemController {
         _ menu: NSMenu,
         provider: UsageProvider?,
         closeHostedSubviewMenusBeforeRebuild: Bool = false,
+        resyncReadinessBaselineAfterRebuild: Bool = false,
         debounceNanoseconds: UInt64 = 0,
         beforeRebuild: (@MainActor () -> Bool)? = nil)
     {
@@ -255,6 +257,9 @@ extension StatusItemController {
                 self.closeHostedSubviewMenusForParentSwitch()
             }
             self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
+            if resyncReadinessBaselineAfterRebuild, !self.menuNeedsRefresh(menu) {
+                self.resyncMenuAdjunctReadinessBaseline()
+            }
         }
     }
 

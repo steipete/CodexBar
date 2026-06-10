@@ -44,8 +44,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     func refreshOpenMenusAfterExplicitStoreAction() {
         self.invalidateMenus(
             refreshOpenMenus: true,
-            deferOpenParentMenuRebuild: true,
-            allowStaleContentDuringDataRefresh: true)
+            deferOpenParentMenuRebuild: true)
     }
 
     @objc func refreshNow() {

@@ -32,6 +32,9 @@ extension StatusMenuTests {
         defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
 
         controller.menuRefreshEnabledOverrideForTesting = true
+        for _ in 0..<20 {
+            await Task.yield()
+        }
         let menu = controller.makeMenu()
         // Simulate a closed menu that was attached by an icon update but has never been opened.
         controller.fallbackMenu = menu
@@ -80,6 +83,9 @@ extension StatusMenuTests {
         defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
 
         controller.menuRefreshEnabledOverrideForTesting = true
+        for _ in 0..<20 {
+            await Task.yield()
+        }
         let menu = controller.makeMenu()
         controller.fallbackMenu = menu
         controller.statusItem.menu = menu
@@ -101,6 +107,8 @@ extension StatusMenuTests {
         #expect(controller.menuVersions[key] == openedVersion)
 
         store.isRefreshing = false
+        controller.fallbackMenu = menu
+        controller.statusItem.menu = menu
         controller.invalidateMenus(allowStaleContentDuringDataRefresh: true)
         for _ in 0..<40 where controller.menuVersions[key] == openedVersion {
             await Task.yield()

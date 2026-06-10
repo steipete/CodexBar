@@ -58,9 +58,17 @@ extension StatusItemController {
             ])
     }
 
-    func deferMenuInteractionRefreshIfNeeded() {
+    func deferMenuInteractionRefreshIfNeeded(providers: [UsageProvider]) {
         guard !self.store.isRefreshing else { return }
-        self.deferredMenuInteractionRefreshPending = true
+        self.deferredMenuInteractionRefreshProviders.formUnion(providers)
+    }
+
+    func clearSatisfiedDeferredMenuInteractionRefreshes(for providers: [UsageProvider]) {
+        for provider in providers
+            where !self.store.isStale(provider: provider) && self.store.snapshot(for: provider) != nil
+        {
+            self.deferredMenuInteractionRefreshProviders.remove(provider)
+        }
     }
 
     func deferOpenAIDashboardRefreshUntilMenuCloses(reason: String) {
@@ -110,7 +118,7 @@ extension StatusItemController {
                 return
             }
             self.deferredMenuInteractionRefreshTask = nil
-            self.deferredMenuInteractionRefreshPending = false
+            self.deferredMenuInteractionRefreshProviders.removeAll()
             self.deferredOpenAIDashboardRefreshReason = nil
             #if DEBUG
             self.onDeferredMenuInteractionRefreshForTesting?()

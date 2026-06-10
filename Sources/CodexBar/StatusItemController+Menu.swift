@@ -1135,8 +1135,11 @@ extension StatusItemController {
         // provider fetch failed and needs a retry; periodic freshness is handled by the refresh timer.
         // AppKit menu tracking is modal, so starting provider refreshes while it is active can make the menu
         // feel frozen and can block keyboard focus from returning.
-        if self.menuNeedsDelayedRefreshRetry(for: menu) {
-            self.deferMenuInteractionRefreshIfNeeded()
+        let providersNeedingRetry = self.delayedRefreshRetryProviders(for: menu).filter {
+            self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+        }
+        if !providersNeedingRetry.isEmpty {
+            self.deferMenuInteractionRefreshIfNeeded(providers: providersNeedingRetry)
         }
         let key = ObjectIdentifier(menu)
         self.menuRefreshTasks[key]?.cancel()
@@ -1149,13 +1152,43 @@ extension StatusItemController {
             self.onDelayedMenuRefreshAttemptForTesting?()
             #endif
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
-            guard !self.store.isRefreshing else { return }
-            let retryProviders = self.delayedRefreshRetryProviders(for: menu)
-            let retryStaleProviderCount = retryProviders.count { self.store.isStale(provider: $0) }
-            let retryMissingSnapshotCount = retryProviders.count { self.store.snapshot(for: $0) == nil }
-            let willRetryRefresh = retryStaleProviderCount > 0 || retryMissingSnapshotCount > 0
-            guard willRetryRefresh else { return }
-            self.deferMenuInteractionRefreshIfNeeded()
+            let availableProviders = Set(self.store.enabledProvidersForBackgroundWork())
+            let retryProviders = self.delayedRefreshRetryProviders(for: menu).filter {
+                availableProviders.contains($0) &&
+                    (self.store.refreshingProviders.contains($0) ||
+                        self.store.isStale(provider: $0) ||
+                        self.store.snapshot(for: $0) == nil)
+            }
+            guard !retryProviders.isEmpty else {
+                self.clearSatisfiedDeferredMenuInteractionRefreshes(
+                    for: self.delayedRefreshRetryProviders(for: menu))
+                if self.menuNeedsRefresh(menu) {
+                    self.scheduleOpenMenuRebuildIfStillVisible(
+                        menu,
+                        provider: self.menuProvider(for: menu),
+                        resyncReadinessBaselineAfterRebuild: self.openMenus.count == 1)
+                }
+                return
+            }
+            self.deferMenuInteractionRefreshIfNeeded(providers: retryProviders)
+            await ProviderInteractionContext.$current.withValue(.background) {
+                for provider in retryProviders {
+                    guard !Task.isCancelled else { return }
+                    await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
+                }
+            }
+            let stillNeedsRetry = retryProviders.contains {
+                self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+            }
+            if !stillNeedsRetry {
+                self.clearSatisfiedDeferredMenuInteractionRefreshes(for: retryProviders)
+            }
+            guard !Task.isCancelled else { return }
+            guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+            self.invalidateMenus(
+                refreshOpenMenus: true,
+                deferOpenParentMenuRebuild: false,
+                allowStaleContentDuringDataRefresh: true)
         }
     }
 
@@ -1168,6 +1201,10 @@ extension StatusItemController {
     }
 
     private func delayedRefreshRetryProviders(for menu: NSMenu) -> [UsageProvider] {
+        self.renderedProviders(for: menu)
+    }
+
+    func renderedProviders(for menu: NSMenu) -> [UsageProvider] {
         let enabledProviders = self.store.enabledProvidersForDisplay()
         guard !enabledProviders.isEmpty else { return [] }
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)

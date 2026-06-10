@@ -2,6 +2,19 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    private struct ProviderRefreshOutcomeContext {
+        let generation: UInt64
+        let codexExpectedGuard: CodexAccountScopedRefreshGuard?
+        let claudeCredentialsChanged: Bool
+        let shouldConsumeClaudeKeychainFingerprint: Bool
+    }
+
+    func refreshForSettingsChange() async {
+        await self.runRefresh(
+            startupConnectivityRetryAttempt: nil,
+            coalesceProviderRefreshesOverride: false)
+    }
+
     func prepareRefreshState(for provider: UsageProvider? = nil) {
         guard provider == nil || provider == .codex else { return }
         _ = self.settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
@@ -20,9 +33,140 @@ extension UsageStore {
         return self.providerSpecs[provider]
     }
 
-    func refreshProvider(_ provider: UsageProvider, allowDisabled: Bool = false) async {
+    func refreshProvider(
+        _ provider: UsageProvider,
+        allowDisabled: Bool = false,
+        coalesceIfRefreshing: Bool = false) async
+    {
+        while coalesceIfRefreshing,
+              let states = self.providerRefreshTasks[provider],
+              let latestGeneration = self.latestProviderRefreshGenerations[provider],
+              let existingState = states.last(where: { $0.generation == latestGeneration })
+        {
+            await self.waitForProviderRefresh(provider, state: existingState)
+            if Task.isCancelled { return }
+            if existingState.shouldRetry {
+                self.removeProviderRefreshTask(provider, state: existingState)
+                continue
+            }
+            return
+        }
+
+        self.providerRefreshTaskGeneration &+= 1
+        let generation = self.providerRefreshTaskGeneration
+        let predecessorStates = self.providerRefreshTasks[provider] ?? []
+        for predecessorState in predecessorStates {
+            predecessorState.cancelTask()
+        }
+        self.latestProviderRefreshGenerations[provider] = generation
+        let state = ProviderRefreshTaskState(generation: generation)
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var snapshotUpdatedAtBeforeRefresh: Date?
+            var didStartRefresh = false
+            for predecessorState in predecessorStates {
+                await predecessorState.waitForTaskCompletion()
+            }
+            if !Task.isCancelled, self.isCurrentProviderRefreshGeneration(provider, generation: generation) {
+                snapshotUpdatedAtBeforeRefresh = self.snapshot(for: provider)?.updatedAt
+                didStartRefresh = true
+                await self.refreshProviderTracked(
+                    provider,
+                    allowDisabled: allowDisabled,
+                    generation: generation)
+            }
+            let publishedNewSnapshot = didStartRefresh &&
+                self.snapshot(for: provider)?.updatedAt != snapshotUpdatedAtBeforeRefresh
+            let retryRequired = Task.isCancelled && !publishedNewSnapshot
+            self.providerRefreshDidComplete(provider, state: state, retryRequired: retryRequired)
+        }
+        state.install(task: task)
+        self.providerRefreshTasks[provider, default: []].append(state)
+        await self.waitForProviderRefresh(provider, state: state)
+    }
+
+    private func waitForProviderRefresh(_ provider: UsageProvider, state: ProviderRefreshTaskState) async {
+        self.providerRefreshWaiterGeneration &+= 1
+        let waiterID = self.providerRefreshWaiterGeneration
+        guard let task = state.addWaiter(waiterID) else { return }
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            state.cancelWaiter(waiterID)
+        }
+        state.finishWaiter(waiterID)
+        if state.canRemove {
+            self.scheduleProviderRefreshTaskRemoval(provider, state: state)
+        }
+    }
+
+    private func providerRefreshDidComplete(
+        _ provider: UsageProvider,
+        state: ProviderRefreshTaskState,
+        retryRequired: Bool)
+    {
+        state.markCompleted(retryRequired: retryRequired)
+        self.scheduleProviderRefreshTaskRemoval(provider, state: state)
+    }
+
+    private func removeProviderRefreshTask(_ provider: UsageProvider, state: ProviderRefreshTaskState) {
+        guard var states = self.providerRefreshTasks[provider] else { return }
+        states.removeAll { $0 === state }
+        if states.isEmpty {
+            self.providerRefreshTasks.removeValue(forKey: provider)
+        } else {
+            self.providerRefreshTasks[provider] = states
+        }
+    }
+
+    private func scheduleProviderRefreshTaskRemoval(_ provider: UsageProvider, state: ProviderRefreshTaskState) {
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self,
+                  self.providerRefreshTasks[provider]?.contains(where: { $0 === state }) == true,
+                  state.canRemove
+            else {
+                return
+            }
+            self.removeProviderRefreshTask(provider, state: state)
+        }
+    }
+
+    func isCurrentProviderRefreshGeneration(_ provider: UsageProvider, generation: UInt64?) -> Bool {
+        guard let generation else { return true }
+        return self.latestProviderRefreshGenerations[provider] == generation
+    }
+
+    private func refreshProviderTracked(
+        _ provider: UsageProvider,
+        allowDisabled: Bool,
+        generation: UInt64) async
+    {
+        self.providerRefreshCounts[provider, default: 0] += 1
+        self.refreshingProviders.insert(provider)
+        defer {
+            let remaining = max(0, self.providerRefreshCounts[provider, default: 1] - 1)
+            if remaining == 0 {
+                self.providerRefreshCounts.removeValue(forKey: provider)
+                self.refreshingProviders.remove(provider)
+            } else {
+                self.providerRefreshCounts[provider] = remaining
+            }
+        }
+        await self.refreshProviderNow(
+            provider,
+            allowDisabled: allowDisabled,
+            generation: generation)
+    }
+
+    private func refreshProviderNow(
+        _ provider: UsageProvider,
+        allowDisabled: Bool,
+        generation: UInt64) async
+    {
         self.prepareRefreshState(for: provider)
         guard let spec = await self.providerRefreshSpec(provider) else { return }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
         let codexExpectedGuard = provider == .codex ? self.freshCodexAccountScopedRefreshGuard() : nil
 
         if !spec.isEnabled(), !allowDisabled {
@@ -30,18 +174,16 @@ extension UsageStore {
             return
         }
 
-        self.refreshingProviders.insert(provider)
-        defer { self.refreshingProviders.remove(provider) }
-
         if provider == .codex, self.shouldFetchAllCodexVisibleAccounts() {
-            await self.refreshCodexVisibleAccountsForMenu()
+            await self.refreshCodexVisibleAccountsForMenu(generation: generation)
             return
         } else if provider == .codex {
             self.codexAccountSnapshots = []
         }
 
         if provider == .kilo, self.shouldFanOutKiloScopes() {
-            await self.refreshKiloScopes()
+            await self.refreshKiloScopes(generation: generation)
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
             // Continue to also fetch the personal snapshot through the regular path
             // so the existing single-card render keeps working when only personal is shown.
             // The presence of multi-element kiloScopeSnapshots triggers stacked rendering.
@@ -51,7 +193,10 @@ extension UsageStore {
 
         let tokenAccounts = self.tokenAccounts(for: provider)
         if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts) {
-            await self.refreshTokenAccounts(provider: provider, accounts: tokenAccounts)
+            await self.refreshTokenAccounts(
+                provider: provider,
+                accounts: tokenAccounts,
+                generation: generation)
             return
         } else {
             _ = await MainActor.run {
@@ -62,7 +207,7 @@ extension UsageStore {
         let claudeAuthStateBeforeFetch = provider == .claude
             ? await Self.captureClaudeRefreshAuthState(invalidateCredentialsFile: true)
             : nil
-        let fetchContext = spec.makeFetchContext()
+        let fetchContext = self.makeFetchContext(provider: provider, override: nil)
         let descriptor = spec.descriptor
         // Keep provider fetch work off MainActor so slow keychain/process reads don't stall menu/UI responsiveness.
         let outcome = await withTaskGroup(
@@ -74,6 +219,7 @@ extension UsageStore {
             }
             return await group.next()!
         }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
         let claudeAuthFingerprintAfterFetch = provider == .claude
             ? await Self.captureClaudeAuthFingerprintToken()
             : nil
@@ -88,6 +234,22 @@ extension UsageStore {
         let shouldConsumeClaudeKeychainFingerprint = Self.shouldConsumeClaudeKeychainFingerprintChange(
             beforeFetch: claudeAuthStateBeforeFetch,
             changedDuringFetch: claudeAuthChangedDuringFetch)
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+        await self.applyProviderRefreshOutcome(
+            provider: provider,
+            outcome: outcome,
+            context: ProviderRefreshOutcomeContext(
+                generation: generation,
+                codexExpectedGuard: codexExpectedGuard,
+                claudeCredentialsChanged: claudeCredentialsChanged,
+                shouldConsumeClaudeKeychainFingerprint: shouldConsumeClaudeKeychainFingerprint))
+    }
+
+    private func applyProviderRefreshOutcome(
+        provider: UsageProvider,
+        outcome: ProviderFetchOutcome,
+        context: ProviderRefreshOutcomeContext) async
+    {
         await MainActor.run {
             self.lastFetchAttempts[provider] = outcome.attempts
         }
@@ -96,17 +258,20 @@ extension UsageStore {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
             if provider == .codex,
-               let codexExpectedGuard,
+               let codexExpectedGuard = context.codexExpectedGuard,
                !self.shouldApplyCodexUsageResult(expectedGuard: codexExpectedGuard, usage: scoped)
             {
                 return
             }
-            let backfilled = await MainActor.run {
-                if claudeCredentialsChanged {
+            let backfilled = await MainActor.run { () -> UsageSnapshot? in
+                guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else {
+                    return nil
+                }
+                if context.claudeCredentialsChanged {
                     self.clearClaudeCredentialDerivedStateForCredentialSwapNow()
                 }
                 let resetBackfillSource = provider == .codex
-                    ? self.codexLastKnownResetSnapshot(matching: codexExpectedGuard)
+                    ? self.codexLastKnownResetSnapshot(matching: context.codexExpectedGuard)
                     : self.lastKnownResetSnapshots[provider]
                 let backfilled = scoped.backfillingResetTimes(from: resetBackfillSource)
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
@@ -130,12 +295,14 @@ extension UsageStore {
                 }
                 return backfilled
             }
-            if shouldConsumeClaudeKeychainFingerprint {
+            guard let backfilled else { return }
+            if context.shouldConsumeClaudeKeychainFingerprint {
                 _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
             }
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
                 snapshot: backfilled)
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             if let runtime = self.providerRuntimes[provider] {
                 let context = ProviderRuntimeContext(
                     provider: provider, settings: self.settings, store: self)
@@ -146,19 +313,23 @@ extension UsageStore {
             }
         case let .failure(error):
             if provider == .codex,
-               let codexExpectedGuard,
+               let codexExpectedGuard = context.codexExpectedGuard,
                !self.shouldApplyCodexScopedFailure(expectedGuard: codexExpectedGuard)
             {
                 return
             }
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             self.recordStartupConnectivityRetryableFailure(error)
-            if claudeCredentialsChanged {
+            if context.claudeCredentialsChanged {
                 await self.clearClaudeCredentialDerivedStateForCredentialSwap()
             }
-            if shouldConsumeClaudeKeychainFingerprint {
+            if context.shouldConsumeClaudeKeychainFingerprint {
                 _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
             }
-            await self.handleProviderFetchFailure(provider: provider, error: error)
+            await self.handleProviderFetchFailure(
+                provider: provider,
+                error: error,
+                generation: context.generation)
         }
     }
 
@@ -293,9 +464,14 @@ extension UsageStore {
         self.lastTokenFetchAt.removeValue(forKey: .claude)
     }
 
-    private func handleProviderFetchFailure(provider: UsageProvider, error: Error) async {
+    private func handleProviderFetchFailure(
+        provider: UsageProvider,
+        error: Error,
+        generation: UInt64) async
+    {
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
             let hadPriorData = self.snapshots[provider] != nil
             let preservesPriorData = Self.shouldPreservePriorSnapshot(
                 after: error,
@@ -336,6 +512,7 @@ extension UsageStore {
                 self.postPermissionPromptNotificationIfNeeded(provider: provider, error: error)
             }
         }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
         if let runtime = self.providerRuntimes[provider] {
             let context = ProviderRuntimeContext(
                 provider: provider, settings: self.settings, store: self)

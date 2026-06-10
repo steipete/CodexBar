@@ -1,6 +1,78 @@
 import CodexBarCore
 import Foundation
 
+final class ProviderRefreshTaskState: @unchecked Sendable {
+    let generation: UInt64
+
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+    private var waiterIDs: Set<UInt64> = []
+    private var completed = false
+    private var retryRequired = false
+
+    init(generation: UInt64) {
+        self.generation = generation
+    }
+
+    func install(task: Task<Void, Never>) {
+        self.lock.withLock {
+            self.task = task
+        }
+    }
+
+    func addWaiter(_ waiterID: UInt64) -> Task<Void, Never>? {
+        self.lock.withLock {
+            self.waiterIDs.insert(waiterID)
+            return self.task
+        }
+    }
+
+    func cancelWaiter(_ waiterID: UInt64) {
+        let taskToCancel = self.lock.withLock {
+            guard self.waiterIDs.remove(waiterID) != nil else { return nil as Task<Void, Never>? }
+            return self.waiterIDs.isEmpty && !self.completed ? self.task : nil
+        }
+        taskToCancel?.cancel()
+    }
+
+    func finishWaiter(_ waiterID: UInt64) {
+        _ = self.lock.withLock {
+            self.waiterIDs.remove(waiterID)
+        }
+    }
+
+    func markCompleted(retryRequired: Bool) {
+        self.lock.withLock {
+            self.completed = true
+            self.retryRequired = retryRequired
+        }
+    }
+
+    func cancelTask() {
+        let task = self.lock.withLock {
+            self.completed ? nil : self.task
+        }
+        task?.cancel()
+    }
+
+    func waitForTaskCompletion() async {
+        let task = self.lock.withLock { self.task }
+        await task?.value
+    }
+
+    var isCompleted: Bool {
+        self.lock.withLock { self.completed }
+    }
+
+    var shouldRetry: Bool {
+        self.lock.withLock { self.retryRequired }
+    }
+
+    var canRemove: Bool {
+        self.lock.withLock { self.completed && self.waiterIDs.isEmpty }
+    }
+}
+
 enum ProviderStatusIndicator: String {
     case none
     case minor
