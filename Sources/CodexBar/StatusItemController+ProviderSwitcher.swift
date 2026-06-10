@@ -12,15 +12,48 @@ final class ProviderSwitcherShortcutEventMonitor {
     private let observer: CFRunLoopObserver
     private var isActive = false
 
+    /// Hardware-event counters for exactly the event types the monitor handles. The run-loop
+    /// observer fires on every cycle of the menu-tracking loop, and each `nextEvent` peek
+    /// re-enters the run loop; doing that continuously while the pointer moves multiplies
+    /// WindowServer traffic enough to overflow every other application's event buffers and
+    /// freeze the desktop system-wide (#1399). Peeking only when one of these counters has
+    /// changed keeps delivery semantics identical while reducing the pump from once per
+    /// run-loop cycle to once per actual click or key press.
+    private final class EventCounterGate: @unchecked Sendable {
+        private var lastCounts: (UInt32, UInt32, UInt32)?
+        private var lastCheckUptime: TimeInterval = 0
+
+        func hasNewMatchingEvent() -> Bool {
+            // Pure-userspace time bound so the counter queries themselves cannot run more than
+            // ~125 times per second no matter how hot the tracking loop spins.
+            let now = ProcessInfo.processInfo.systemUptime
+            guard now - self.lastCheckUptime >= 0.008 else { return false }
+            self.lastCheckUptime = now
+            let counts = (
+                CGEventSource.counterForEventType(.combinedSessionState, eventType: .leftMouseDown),
+                CGEventSource.counterForEventType(.combinedSessionState, eventType: .leftMouseUp),
+                CGEventSource.counterForEventType(.combinedSessionState, eventType: .keyDown))
+            guard let last = self.lastCounts else {
+                self.lastCounts = counts
+                return true
+            }
+            guard counts != last else { return false }
+            self.lastCounts = counts
+            return true
+        }
+    }
+
     init(events: NSEvent.EventTypeMask, callback: @escaping @MainActor (NSEvent) -> Bool) {
         self.callback = callback
 
+        let counterGate = EventCounterGate()
         self.observer = CFRunLoopObserverCreateWithHandler(
             nil,
             CFRunLoopActivity.beforeSources.rawValue,
             true,
             0)
         { [events, callback] _, _ in
+            guard counterGate.hasNewMatchingEvent() else { return }
             MainActor.assumeIsolated {
                 while let event = NSApp.nextEvent(
                     matching: events,

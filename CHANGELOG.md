@@ -7,6 +7,7 @@
 - Localization: add Japanese as a selectable app language (#1385). Thanks @naoterumaker!
 
 ### Fixed
+- Menu: gate the merged provider switcher's event monitor on hardware event counters so its run-loop pump no longer fires on every menu-tracking cycle, fixing dropped clicks and system-wide beachballs during long merged-menu sessions (#1399).
 - Cost history: keep all per-day model breakdown rows available in a bounded scrolling detail area instead of hiding models after the first four (#1370). Thanks @MoollaMore!
 - Copilot: keep explicitly unlimited chat quotas visible instead of dropping their zero-entitlement payload as unavailable (#1320). Thanks @soumikbhatta!
 - Security: block credentialed provider redirects that leave the original HTTPS origin while preserving same-origin redirects (#1237). Thanks @Hinotoi-agent!
