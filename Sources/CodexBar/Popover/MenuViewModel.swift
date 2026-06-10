@@ -18,6 +18,8 @@ final class MenuViewModel {
     private(set) var isVisible: Bool = false
     /// 当前高亮项 id（集中式高亮，替代 highlightedMenuItems 字典）。
     var highlightedItemID: String?
+    /// selection 变化时回调（controller 注入以持久化）。同值不触发。
+    var onSelectionChanged: ((ProviderSwitcherSelection) -> Void)?
 
     init() {}
 
@@ -25,6 +27,7 @@ final class MenuViewModel {
         guard newSelection != self.selection else { return }
         self.selection = newSelection
         self.contentVersion &+= 1
+        self.onSelectionChanged?(newSelection)
     }
 
     func bumpContentVersion() {

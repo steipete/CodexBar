@@ -59,6 +59,46 @@ import Testing
         #expect(vm.selection == .provider(.claude))
     }
 
+    // MARK: - Task 2.6 onSelectionChanged 回调
+
+    @Test func onSelectionChangedFiresOnActualChange() {
+        let vm = MenuViewModel()
+        vm.providers = [.codex, .claude]
+        var received: [ProviderSwitcherSelection] = []
+        vm.onSelectionChanged = { received.append($0) }
+
+        vm.select(.provider(.codex)) // 变更：overview → .provider(.codex)
+        vm.select(.provider(.codex)) // 同值：不触发
+        vm.select(.provider(.claude)) // 变更：.provider(.codex) → .provider(.claude)
+
+        #expect(received.count == 2)
+        #expect(received[0] == .provider(.codex))
+        #expect(received[1] == .provider(.claude))
+    }
+
+    @Test func onSelectionChangedValueMatchesSelection() {
+        let vm = MenuViewModel()
+        vm.providers = [.codex, .claude]
+        vm.includesOverview = true
+        var callbackValue: ProviderSwitcherSelection?
+        vm.onSelectionChanged = { callbackValue = $0 }
+
+        vm.select(.provider(.codex))
+        #expect(callbackValue == vm.selection)
+
+        vm.select(.overview)
+        #expect(callbackValue == vm.selection)
+    }
+
+    @Test func onSelectionChangedNotFiredForSameValue() {
+        let vm = MenuViewModel()
+        // 初始值 .overview，再次 select .overview 不应触发
+        var callCount = 0
+        vm.onSelectionChanged = { _ in callCount += 1 }
+        vm.select(.overview)
+        #expect(callCount == 0)
+    }
+
     // MARK: - Task 2.5 includesOverview
 
     @Test func includesOverviewFalseSkipsOverviewInNavigation() {

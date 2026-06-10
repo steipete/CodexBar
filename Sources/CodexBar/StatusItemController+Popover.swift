@@ -80,6 +80,16 @@ extension StatusItemController {
                     })
             }
             self.wirePopoverShortcutCallbacks()
+            vm.onSelectionChanged = { [weak self] selection in
+                guard let self else { return }
+                switch selection {
+                case .overview:
+                    self.settings.mergedMenuLastSelectedWasOverview = true
+                case let .provider(p):
+                    self.settings.selectedMenuProvider = p
+                    self.settings.mergedMenuLastSelectedWasOverview = false
+                }
+            }
         }
         self.statusItem.button?.target = self
         self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
@@ -89,7 +99,7 @@ extension StatusItemController {
 
     // MARK: - ViewModel 输入刷新
 
-    /// 刷新 menuViewModel 的 providers 与 includesOverview，并在 overview 非法时纠正 selection。
+    /// 刷新 menuViewModel 的 providers 与 includesOverview，并从 settings 恢复上次 selection。
     /// 在 attach、click、shortcut 打开 popover 时统一调用，避免三处重复。
     func refreshPopoverViewModelInputs() {
         let enabledProviders = self.store.enabledProvidersForDisplay()
@@ -98,9 +108,28 @@ extension StatusItemController {
             activeProviders: enabledProviders,
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
         self.menuViewModel.includesOverview = !overviewProviders.isEmpty
-        // 若 overview tab 已移除且当前选中 overview，纠正到第一个 provider
-        if !self.menuViewModel.includesOverview, self.menuViewModel.selection == .overview {
-            self.menuViewModel.select(.provider(enabledProviders.first ?? .codex))
+
+        // 从 settings 恢复上次选中项（等价于 NSMenu 的 resolvedSwitcherSelection 逻辑）：
+        //   includesOverview && mergedMenuLastSelectedWasOverview → .overview
+        //   否则 → .provider(selectedMenuProvider if enabled, else first available, else .codex)
+        // 此逻辑同时覆盖"overview tab 已移除但仍选中 overview"的纠正。
+        // 恢复时触发 onSelectionChanged 写回 settings 是幂等的，无需特殊处理。
+        let restoredProvider: UsageProvider = {
+            if let selected = self.settings.selectedMenuProvider,
+               enabledProviders.contains(selected)
+            {
+                return selected
+            }
+            return enabledProviders.first(where: { self.store.isProviderAvailable($0) })
+                ?? enabledProviders.first
+                ?? .codex
+        }()
+        let restored: ProviderSwitcherSelection =
+            (self.menuViewModel.includesOverview && self.settings.mergedMenuLastSelectedWasOverview)
+            ? .overview
+            : .provider(restoredProvider)
+        if self.menuViewModel.selection != restored {
+            self.menuViewModel.select(restored)
         }
     }
 
