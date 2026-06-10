@@ -1,10 +1,34 @@
 import Foundation
 
+public struct AmpWorkspaceBalance: Codable, Equatable, Sendable {
+    public let name: String
+    public let remaining: Double
+
+    public init(name: String, remaining: Double) {
+        self.name = name
+        self.remaining = remaining
+    }
+}
+
+public struct AmpUsageDetails: Codable, Equatable, Sendable {
+    public let individualCredits: Double?
+    public let workspaceBalances: [AmpWorkspaceBalance]
+
+    public init(individualCredits: Double?, workspaceBalances: [AmpWorkspaceBalance]) {
+        self.individualCredits = individualCredits
+        self.workspaceBalances = workspaceBalances
+    }
+}
+
 public struct AmpUsageSnapshot: Sendable {
     public let freeQuota: Double
     public let freeUsed: Double
     public let hourlyReplenishment: Double
     public let windowHours: Double?
+    public let individualCredits: Double?
+    public let workspaceBalances: [AmpWorkspaceBalance]
+    public let accountEmail: String?
+    public let accountOrganization: String?
     public let updatedAt: Date
 
     public init(
@@ -12,12 +36,20 @@ public struct AmpUsageSnapshot: Sendable {
         freeUsed: Double,
         hourlyReplenishment: Double,
         windowHours: Double?,
+        individualCredits: Double? = nil,
+        workspaceBalances: [AmpWorkspaceBalance] = [],
+        accountEmail: String? = nil,
+        accountOrganization: String? = nil,
         updatedAt: Date)
     {
         self.freeQuota = freeQuota
         self.freeUsed = freeUsed
         self.hourlyReplenishment = hourlyReplenishment
         self.windowHours = windowHours
+        self.individualCredits = individualCredits
+        self.workspaceBalances = workspaceBalances
+        self.accountEmail = accountEmail
+        self.accountOrganization = accountOrganization
         self.updatedAt = updatedAt
     }
 }
@@ -53,14 +85,23 @@ extension AmpUsageSnapshot {
 
         let identity = ProviderIdentitySnapshot(
             providerID: .amp,
-            accountEmail: nil,
-            accountOrganization: nil,
+            accountEmail: self.accountEmail,
+            accountOrganization: self.accountOrganization,
             loginMethod: "Amp Free")
+
+        let ampUsage: AmpUsageDetails? = if self.individualCredits != nil || !self.workspaceBalances.isEmpty {
+            AmpUsageDetails(
+                individualCredits: self.individualCredits,
+                workspaceBalances: self.workspaceBalances)
+        } else {
+            nil
+        }
 
         return UsageSnapshot(
             primary: primary,
             secondary: nil,
             tertiary: nil,
+            ampUsage: ampUsage,
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)

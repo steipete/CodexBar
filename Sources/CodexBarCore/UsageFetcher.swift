@@ -91,6 +91,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let extraRateWindows: [NamedRateWindow]?
     public let providerCost: ProviderCostSnapshot?
     public let kiroUsage: KiroUsageDetails?
+    public let ampUsage: AmpUsageDetails?
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let deepseekUsage: DeepSeekUsageSummary?
@@ -112,6 +113,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case extraRateWindows
         case providerCost
         case kiroUsage
+        case ampUsage
         case openRouterUsage
         case openAIAPIUsage
         case claudeAdminAPIUsage
@@ -132,6 +134,7 @@ public struct UsageSnapshot: Codable, Sendable {
         tertiary: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
         kiroUsage: KiroUsageDetails? = nil,
+        ampUsage: AmpUsageDetails? = nil,
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
@@ -152,6 +155,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = tertiary
         self.extraRateWindows = extraRateWindows
         self.kiroUsage = kiroUsage
+        self.ampUsage = ampUsage
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
@@ -176,6 +180,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.kiroUsage = try container.decodeIfPresent(KiroUsageDetails.self, forKey: .kiroUsage)
+        self.ampUsage = try container.decodeIfPresent(AmpUsageDetails.self, forKey: .ampUsage)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.deepseekUsage = nil // Not persisted, fetched fresh each time
@@ -217,6 +222,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.extraRateWindows, forKey: .extraRateWindows)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
         try container.encodeIfPresent(self.kiroUsage, forKey: .kiroUsage)
+        try container.encodeIfPresent(self.ampUsage, forKey: .ampUsage)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.claudeAdminAPIUsage, forKey: .claudeAdminAPIUsage)
@@ -317,6 +323,7 @@ public struct UsageSnapshot: Codable, Sendable {
             tertiary: self.tertiary,
             extraRateWindows: self.extraRateWindows,
             kiroUsage: self.kiroUsage,
+            ampUsage: self.ampUsage,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
@@ -355,6 +362,7 @@ public struct UsageSnapshot: Codable, Sendable {
             tertiary: tertiary,
             extraRateWindows: self.extraRateWindows,
             kiroUsage: self.kiroUsage,
+            ampUsage: self.ampUsage,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,

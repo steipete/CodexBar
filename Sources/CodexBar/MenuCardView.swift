@@ -792,7 +792,11 @@ extension UsageMenuCardView.Model {
         } else if input.codexProjection != nil, !input.showOptionalCreditsAndExtraUsage {
             nil
         } else {
-            Self.creditsLine(metadata: input.metadata, credits: input.credits, error: input.creditsError)
+            Self.creditsLine(
+                metadata: input.metadata,
+                snapshot: input.snapshot,
+                credits: input.credits,
+                error: input.creditsError)
         }
         let isClaudeAdminAPI = input.provider == .claude &&
             input.snapshot?.identity?.loginMethod == "Admin API"

@@ -154,6 +154,36 @@ public enum BinaryLocator {
             home: home)
     }
 
+    public static func resolveAmpBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "amp",
+            overrideKey: "AMP_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: self.ampWellKnownPaths(home: home),
+            fileManager: fileManager,
+            home: home)
+    }
+
+    static func ampWellKnownPaths(home: String) -> [String] {
+        [
+            "\(home)/.local/bin/amp",
+            "\(home)/.amp/bin/amp",
+            "/opt/homebrew/bin/amp",
+            "/usr/local/bin/amp",
+        ]
+    }
+
     /// Well-known install locations for the Grok Build CLI binary.
     /// Covers the installer's default (`~/.grok/bin/grok`) and the symlinks it sometimes
     /// creates into `~/.local/bin` and `/usr/local/bin`.

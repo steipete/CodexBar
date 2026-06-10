@@ -95,6 +95,7 @@ public enum AmpCookieImporter {
 
 public struct AmpUsageFetcher: Sendable {
     private static let settingsURL = URL(string: "https://ampcode.com/settings")!
+    static let usageURL = URL(string: "https://ampcode.com/api/internal?userDisplayBalanceInfo")!
     @MainActor private static var recentDumps: [String] = []
 
     public let browserDetection: BrowserDetection
@@ -118,28 +119,25 @@ public struct AmpUsageFetcher: Sendable {
             }
             let diagnostics = RedirectDiagnostics(cookieHeader: cookieHeader, logger: logger)
             do {
-                let (html, responseInfo) = try await self.fetchHTMLWithDiagnostics(
+                let (snapshot, responseInfo) = try await self.fetchWithDiagnostics(
                     cookieHeader: cookieHeader,
-                    diagnostics: diagnostics)
+                    diagnostics: diagnostics,
+                    now: now)
                 self.logDiagnostics(responseInfo: responseInfo, diagnostics: diagnostics, logger: logger)
-                do {
-                    return try AmpUsageParser.parse(html: html, now: now)
-                } catch {
-                    logger("[amp] Parse failed: \(error.localizedDescription)")
-                    self.logHTMLHints(html: html, logger: logger)
-                    throw error
-                }
+                return snapshot
             } catch {
                 self.logDiagnostics(responseInfo: nil, diagnostics: diagnostics, logger: logger)
+                logger("[amp] Fetch failed: \(error.localizedDescription)")
                 throw error
             }
         }
 
         let diagnostics = RedirectDiagnostics(cookieHeader: cookieHeader, logger: nil)
-        let (html, _) = try await self.fetchHTMLWithDiagnostics(
+        let (snapshot, _) = try await self.fetchWithDiagnostics(
             cookieHeader: cookieHeader,
-            diagnostics: diagnostics)
-        return try AmpUsageParser.parse(html: html, now: now)
+            diagnostics: diagnostics,
+            now: now)
+        return snapshot
     }
 
     public func debugRawProbe(cookieHeaderOverride: String? = nil) async -> String {
@@ -178,6 +176,10 @@ public struct AmpUsageFetcher: Sendable {
             lines.append("  used=\(snapshot.freeUsed)")
             lines.append("  hourlyReplenishment=\(snapshot.hourlyReplenishment)")
             lines.append("  windowHours=\(snapshot.windowHours?.description ?? "nil")")
+            lines.append("  individualCredits=\(snapshot.individualCredits?.description ?? "nil")")
+            for workspace in snapshot.workspaceBalances {
+                lines.append("  workspace[\(workspace.name)]=\(workspace.remaining)")
+            }
 
             let output = lines.joined(separator: "\n")
             Task { @MainActor in Self.recordDump(output) }
@@ -223,14 +225,49 @@ public struct AmpUsageFetcher: Sendable {
         diagnostics: RedirectDiagnostics,
         now: Date = Date()) async throws -> (AmpUsageSnapshot, ResponseInfo)
     {
-        let (html, responseInfo) = try await self.fetchHTMLWithDiagnostics(
-            cookieHeader: cookieHeader,
-            diagnostics: diagnostics)
-        let snapshot = try AmpUsageParser.parse(html: html, now: now)
-        return (snapshot, responseInfo)
+        do {
+            return try await self.fetchUsageAPIWithDiagnostics(
+                cookieHeader: cookieHeader,
+                diagnostics: diagnostics,
+                now: now)
+        } catch {
+            if diagnostics.detectedLoginRedirect {
+                throw AmpUsageError.invalidCredentials
+            }
+            guard Self.shouldTryLegacyFallback(after: error) else { throw error }
+            let (html, responseInfo) = try await self.fetchLegacyHTMLWithDiagnostics(
+                cookieHeader: cookieHeader,
+                diagnostics: diagnostics)
+            return try (AmpUsageParser.parse(html: html, now: now), responseInfo)
+        }
     }
 
-    private func fetchHTMLWithDiagnostics(
+    private func fetchUsageAPIWithDiagnostics(
+        cookieHeader: String,
+        diagnostics: RedirectDiagnostics,
+        now: Date) async throws -> (AmpUsageSnapshot, ResponseInfo)
+    {
+        var request = URLRequest(url: Self.usageURL)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "method": "userDisplayBalanceInfo",
+            "params": [:],
+        ])
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "accept")
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        self.applyBrowserHeaders(to: &request)
+
+        let session = URLSession(configuration: .ephemeral, delegate: diagnostics, delegateQueue: nil)
+        let httpResponse = try await session.response(for: request)
+        let responseInfo = ResponseInfo(
+            statusCode: httpResponse.statusCode,
+            url: httpResponse.response.url?.absoluteString ?? "unknown")
+        try self.validate(response: httpResponse, diagnostics: diagnostics)
+        return try (Self.parseUsageAPIResponse(httpResponse.data, now: now), responseInfo)
+    }
+
+    private func fetchLegacyHTMLWithDiagnostics(
         cookieHeader: String,
         diagnostics: RedirectDiagnostics) async throws -> (String, ResponseInfo)
     {
@@ -240,6 +277,50 @@ public struct AmpUsageFetcher: Sendable {
         request.setValue(
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             forHTTPHeaderField: "accept")
+        self.applyBrowserHeaders(to: &request)
+
+        let session = URLSession(configuration: .ephemeral, delegate: diagnostics, delegateQueue: nil)
+        let httpResponse = try await session.response(for: request)
+        let responseInfo = ResponseInfo(
+            statusCode: httpResponse.statusCode,
+            url: httpResponse.response.url?.absoluteString ?? "unknown")
+        try self.validate(response: httpResponse, diagnostics: diagnostics)
+
+        let html = String(data: httpResponse.data, encoding: .utf8) ?? ""
+        return (html, responseInfo)
+    }
+
+    static func parseUsageAPIResponse(_ data: Data, now: Date = Date()) throws -> AmpUsageSnapshot {
+        let response: UsageAPIResponse
+        do {
+            response = try JSONDecoder().decode(UsageAPIResponse.self, from: data)
+        } catch {
+            throw AmpUsageError.parseFailed("Invalid Amp usage API response.")
+        }
+
+        guard response.ok else {
+            if response.error?.code == "auth-required" {
+                throw AmpUsageError.invalidCredentials
+            }
+            throw AmpUsageError.networkError(response.error?.message ?? "Amp usage API returned an error.")
+        }
+        guard let displayText = response.result?.displayText, !displayText.isEmpty else {
+            throw AmpUsageError.parseFailed("Missing Amp usage display text.")
+        }
+        return try AmpUsageParser.parse(displayText: displayText, now: now)
+    }
+
+    private static func shouldTryLegacyFallback(after error: Error) -> Bool {
+        guard let ampError = error as? AmpUsageError else { return true }
+        switch ampError {
+        case .networkError, .parseFailed:
+            return true
+        case .notLoggedIn, .invalidCredentials, .noSessionCookie:
+            return false
+        }
+    }
+
+    private func applyBrowserHeaders(to request: inout URLRequest) {
         request.setValue(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
@@ -247,25 +328,18 @@ public struct AmpUsageFetcher: Sendable {
         request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "accept-language")
         request.setValue("https://ampcode.com", forHTTPHeaderField: "origin")
         request.setValue(Self.settingsURL.absoluteString, forHTTPHeaderField: "referer")
+    }
 
-        let session = URLSession(configuration: .ephemeral, delegate: diagnostics, delegateQueue: nil)
-        let httpResponse = try await session.response(for: request)
-        let responseInfo = ResponseInfo(
-            statusCode: httpResponse.statusCode,
-            url: httpResponse.response.url?.absoluteString ?? "unknown")
-
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+    private func validate(
+        response: ProviderHTTPResponse,
+        diagnostics: RedirectDiagnostics) throws
+    {
+        guard response.statusCode == 200 else {
+            if response.statusCode == 401 || response.statusCode == 403 || diagnostics.detectedLoginRedirect {
                 throw AmpUsageError.invalidCredentials
             }
-            if diagnostics.detectedLoginRedirect {
-                throw AmpUsageError.invalidCredentials
-            }
-            throw AmpUsageError.networkError("HTTP \(httpResponse.statusCode)")
+            throw AmpUsageError.networkError("HTTP \(response.statusCode)")
         }
-
-        let html = String(data: httpResponse.data, encoding: .utf8) ?? ""
-        return (html, responseInfo)
     }
 
     @MainActor private static func recordDump(_ text: String) {
@@ -325,6 +399,21 @@ public struct AmpUsageFetcher: Sendable {
         let url: String
     }
 
+    private struct UsageAPIResponse: Decodable {
+        let ok: Bool
+        let result: Result?
+        let error: APIError?
+
+        struct Result: Decodable {
+            let displayText: String
+        }
+
+        struct APIError: Decodable {
+            let code: String?
+            let message: String?
+        }
+    }
+
     private func logDiagnostics(
         responseInfo: ResponseInfo?,
         diagnostics: RedirectDiagnostics,
@@ -339,19 +428,6 @@ public struct AmpUsageFetcher: Sendable {
                 logger("[amp]   \(entry)")
             }
         }
-    }
-
-    private func logHTMLHints(html: String, logger: (String) -> Void) {
-        let trimmed = html
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "\t", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            let snippet = trimmed.prefix(240)
-            logger("[amp] HTML snippet: \(snippet)")
-        }
-        logger("[amp] Contains freeTierUsage: \(html.contains("freeTierUsage"))")
-        logger("[amp] Contains getFreeTierUsage: \(html.contains("getFreeTierUsage"))")
     }
 
     private func cookieNames(from header: String) -> [String] {
@@ -383,6 +459,7 @@ public struct AmpUsageFetcher: Sendable {
 
     static func isLoginRedirect(_ url: URL) -> Bool {
         guard self.isAmpHost(url) else { return false }
+        if url.host?.lowercased() == "auth.ampcode.com" { return true }
 
         let path = url.path.lowercased()
         let components = path.split(separator: "/").map(String.init)
