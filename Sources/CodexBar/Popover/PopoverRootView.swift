@@ -319,11 +319,15 @@ struct PopoverRootView: View {
     /// store 数据变化时 SwiftUI 自动重渲而无需外部 bump。
     @ViewBuilder private func card(for provider: UsageProvider) -> some View {
         let plan = self.makeCardPlan(provider)
-        if plan.cards.isEmpty {
+        if let sectioned = plan.sectioned {
+            // 拆段模式（对齐 NSMenu addMenuCardSections）
+            self.sectionedCard(sectioned)
+        } else if plan.cards.isEmpty {
             Text(plan.emptyText ?? "Loading…")
                 .foregroundStyle(.secondary)
                 .padding()
         } else {
+            // 整卡模式（stacked / 无 webItems provider）
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(plan.cards) { card in
                     if let header = card.workspaceHeader {
@@ -355,9 +359,110 @@ struct PopoverRootView: View {
         }
     }
 
+    /// 拆段渲染（对齐 NSMenu addMenuCardSections 顺序与 Divider 规律）。
+    @ViewBuilder private func sectionedCard(_ s: PopoverCardPlan.SectionedCard) -> some View {
+        let bottomPadding = CGFloat(s.hasCredits ? 4 : 6)
+        let sectionSpacing = CGFloat(6)
+        let width = Self.menuWidth
+
+        VStack(alignment: .leading, spacing: 0) {
+            // ── 1. Header + Usage 段 ──
+            if s.hasUsageBlock {
+                ChartSectionContainer(
+                    chart: s.usageChart,
+                    onPresentChart: { self.presentedChart = $0 },
+                    content: {
+                        UsageMenuCardHeaderAndUsageSectionView(
+                            model: s.model,
+                            bottomPadding: bottomPadding,
+                            width: width)
+                    })
+            } else {
+                // 无 usage 内容：仅 Header（无 chevron）
+                UsageMenuCardHeaderSectionView(
+                    model: s.model,
+                    showDivider: false,
+                    width: width)
+            }
+
+            // ── Divider 规律（对齐 1283-1291）──
+            if s.hasStorage || s.hasCredits || s.hasExtraUsage || s.hasCost {
+                Divider()
+            }
+
+            // ── 2. Storage 段 ──
+            if let storageText = s.storageText {
+                ChartSectionContainer(
+                    chart: s.storageChart,
+                    onPresentChart: { self.presentedChart = $0 },
+                    content: {
+                        StorageMenuCardSectionView(
+                            storageText: storageText,
+                            topPadding: 6,
+                            bottomPadding: 6,
+                            width: width)
+                    })
+                // storage 后若还有 credits/extraUsage/cost，加 Divider（对齐 1287-1291）
+                if s.hasCredits || s.hasExtraUsage || s.hasCost {
+                    Divider()
+                }
+            }
+
+            // ── 3. Credits 段 ──
+            if s.hasCredits {
+                // credits 在 storage 之后；storage 已在上方加了 Divider，
+                // 此处无需重复。
+                ChartSectionContainer(
+                    chart: s.creditsChart,
+                    onPresentChart: { self.presentedChart = $0 },
+                    content: {
+                        UsageMenuCardCreditsSectionView(
+                            model: s.model,
+                            showBottomDivider: false,
+                            topPadding: sectionSpacing,
+                            bottomPadding: bottomPadding,
+                            width: width)
+                    })
+                if s.showBuyCredits {
+                    BuyCreditsRowView(onBuyCredits: self.onBuyCredits)
+                }
+                // credits → extraUsage / cost 间的 separator（对齐 1316: if hasCredits）
+                if s.hasExtraUsage || s.hasCost {
+                    Divider()
+                }
+            }
+
+            // ── 4. Extra Usage 段 ──
+            if s.hasExtraUsage {
+                ChartSectionContainer(
+                    chart: s.extraUsageChart,
+                    onPresentChart: { self.presentedChart = $0 },
+                    content: {
+                        UsageMenuCardExtraUsageSectionView(
+                            model: s.model,
+                            topPadding: sectionSpacing,
+                            bottomPadding: bottomPadding,
+                            width: width)
+                    })
+                // extraUsage → cost 间的 separator（对齐 1334: if hasCredits || hasExtraUsage）
+                if s.hasCost {
+                    Divider()
+                }
+            }
+
+            // ── 5. Cost 紧凑行 ──
+            if s.hasCost {
+                ChartSectionContainer(
+                    chart: s.costChart,
+                    onPresentChart: { self.presentedChart = $0 },
+                    content: { PopoverCostCompactRow(model: s.model) })
+            }
+        }
+    }
+
     /// 单 provider 图表下钻入口行（Task 3.2）。
-    /// 出现在卡片区（含 storage/buyCredits）之后、动作区 Divider 之前。
-    /// entries 为空时不渲染（EmptyView）。
+    /// 拆段模式下只显示 usageHistory 与 zaiHourly（原版仅有的两个独立行）；
+    /// 整卡模式下同样只显示这两个入口（对齐原版整卡 provider 没有别的入口的语义）。
     @ViewBuilder private func chartEntries(for provider: UsageProvider) -> some View {
         let entries = self.makeChartEntries(provider)
         if !entries.isEmpty {
@@ -465,6 +570,71 @@ private struct ChartEntryRowView: View {
         .focusEffectDisabled()
         // 无障碍：Button 标题即 label，hint 说明用途
         .accessibilityHint("Show chart")
+    }
+}
+
+// MARK: - ChartSectionContainer（段容器：可选 chevron + hover 高亮 + 点击呈现图表）
+
+/// 可复用段容器：wrap 任意段内容，chart 非 nil 时显示行尾 chevron + hover 高亮 + 点击触发图表 popover。
+/// chart 为 nil 时纯展示，无任何交互修饰。
+private struct ChartSectionContainer<Content: View>: View {
+    let chart: PopoverChartKind?
+    let onPresentChart: (PopoverChartKind) -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var isHovered = false
+
+    var body: some View {
+        if let chart {
+            Button {
+                self.onPresentChart(chart)
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    self.content()
+                    // 行尾 chevron（topTrailing，对齐 NSMenu MenuCardSectionContainerView 指示器）
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(self.isHovered ? Color.white.opacity(0.75) : Color.secondary)
+                        .padding(.top, 8)
+                        .padding(.trailing, 8)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(self.isHovered ? Color.accentColor : Color.clear)
+            .foregroundStyle(self.isHovered ? Color.white : Color.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .padding(.horizontal, 5)
+            .onHover { self.isHovered = $0 }
+            .focusEffectDisabled()
+            .accessibilityLabel(chart.title)
+            .accessibilityHint("Show chart")
+        } else {
+            self.content()
+        }
+    }
+}
+
+// MARK: - PopoverCostCompactRow（Cost 紧凑行，对齐 NSMenuItem title+subtitle 观感）
+
+/// Cost 紧凑行：标题 "Cost" + subtitle 详情行（对齐 NSMenu makeCostMenuCardItem）。
+private struct PopoverCostCompactRow: View {
+    let model: UsageMenuCardView.Model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(StatusItemController.costMenuTitle)
+                .font(.callout)
+            let lines = StatusItemController.costMenuVisibleDetailLines(tokenUsage: self.model.tokenUsage)
+            ForEach(lines, id: \.self) { line in
+                Text(line)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

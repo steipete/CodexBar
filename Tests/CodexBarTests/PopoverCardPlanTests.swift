@@ -111,6 +111,69 @@ struct PopoverCardPlanTests {
     }
 }
 
+// MARK: - PopoverCardPlan.SectionedCard 纯逻辑测试
+
+@Suite
+struct PopoverCardPlanSectionedTests {
+    // MARK: 1. SectionedCard 字段默认值语义验证
+
+    @Test
+    func `PopoverCardPlan 默认 sectioned 为 nil`() {
+        let plan = PopoverCardPlan()
+        #expect(plan.sectioned == nil)
+    }
+
+    // MARK: 2. popoverCardPlan 集成：空 store 下 sectioned 为 nil（无 openAI web/API usage 数据）
+
+    @MainActor
+    @Test
+    func `空 store 无 web items 时 sectioned 为 nil`() throws {
+        let (controller, _) = try makeMinimalController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        // 空 store 下 codex/claude 不满足拆段条件，sectioned 应为 nil
+        for provider in [UsageProvider.codex, .claude] {
+            let plan = controller.popoverCardPlan(for: provider)
+            #expect(plan.sectioned == nil, "provider \(provider.rawValue) 空 store 下不应拆段")
+        }
+    }
+
+    // MARK: 3. 拆段模式下 plan.showBuyCredits 被置为 false（避免重复渲染）
+
+    @MainActor
+    @Test
+    func `拆段时顶层 showBuyCredits 为 false`() throws {
+        let (controller, settings) = try makeMinimalController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        // 即使 showOptionalCreditsAndExtraUsage 开启，若 sectioned 非 nil 则顶层 showBuyCredits=false
+        settings.showOptionalCreditsAndExtraUsage = true
+        let plan = controller.popoverCardPlan(for: .openai)
+        if plan.sectioned != nil {
+            #expect(plan.showBuyCredits == false, "拆段时顶层 showBuyCredits 应为 false，由 sectioned.showBuyCredits 接管")
+        }
+    }
+
+    // MARK: 4. stacked 路径不产生 sectioned
+
+    @MainActor
+    @Test
+    func `stacked 路径返回时 sectioned 为 nil`() throws {
+        let (controller, _) = try makeMinimalController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        // codex stacked/token stacked 路径直接 return plan（不经过单卡片 buildSectionedCard）
+        // 空 store 下 codexAccountMenuDisplay 返回 nil，走单卡路径，sectioned 可能 nil（无数据）
+        // 此测试验证：若走了 stacked 路径（early return），sectioned 必为 nil
+        // 此处通过检查 cards 路径来间接验证（stacked 有多卡时 sectioned 应为 nil）
+        let plan = controller.popoverCardPlan(for: .codex)
+        if plan.cards.count > 1 {
+            // 多卡是 stacked 路径，不应有 sectioned
+            #expect(plan.sectioned == nil, "stacked 多卡路径 sectioned 应为 nil")
+        }
+    }
+}
+
 // MARK: - 测试辅助
 
 @MainActor

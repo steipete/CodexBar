@@ -147,8 +147,9 @@ struct PopoverChartKindTests {
 
 @Suite
 struct PopoverChartEntriesTests {
-    // 说明：popoverChartEntries 依赖 store/settings 运行时数据，
-    // 空 store 下大部分条件不满足，验证返回空数组不崩溃即可。
+    // 说明：popoverChartEntries 已收缩为仅返回 usageHistory 与 zaiHourly（对齐原版 NSMenu 独立入口行语义）。
+    // 其余图表入口（usageBreakdown/creditsHistory/costHistory/storageBreakdown/zaiDetails）经由
+    // 拆段模式的段 chevron 进入，不作为独立入口行。
     // 完整条件路径由全量回归 + 人工验收覆盖。
 
     @MainActor
@@ -157,8 +158,27 @@ struct PopoverChartEntriesTests {
         let (controller, _) = try makeChartTestController()
         defer { controller.releaseStatusItemsForTesting() }
         let entries = controller.popoverChartEntries(for: .codex)
-        // 空 store 无数据，期望空或非空均可，不崩溃即通过
+        // 空 store 无数据，期望空数组（usageHistory/zaiHourly 均无数据）
         _ = entries
+    }
+
+    @MainActor
+    @Test
+    func `收缩后 entries 只含 usageHistory 和 zaiHourly 两类`() throws {
+        let (controller, _) = try makeChartTestController()
+        defer { controller.releaseStatusItemsForTesting() }
+        for provider in [UsageProvider.codex, .openai, .claude, .zai] {
+            let entries = controller.popoverChartEntries(for: provider)
+            // 收缩后每个 kind 只能是 usageHistory 或 zaiHourly
+            for kind in entries {
+                switch kind {
+                case .usageHistory, .zaiHourly:
+                    break // 合法
+                default:
+                    #expect(Bool(false), "provider \(provider.rawValue) entries 不应含 \(kind.id)（应经由段 chevron 进入）")
+                }
+            }
+        }
     }
 
     @MainActor

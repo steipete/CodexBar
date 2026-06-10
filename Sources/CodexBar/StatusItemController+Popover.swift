@@ -387,12 +387,99 @@ extension StatusItemController {
         // ── 4. 单卡片 ──
         if let model = self.menuCardModel(for: provider) {
             plan.cards = [PopoverCardPlan.Card(id: "single", model: model, workspaceHeader: nil)]
+            plan.sectioned = self.buildSectionedCard(model: model, provider: provider)
+            // 拆段模式下顶层 showBuyCredits 由 sectioned.showBuyCredits 接管，避免重复渲染
+            if plan.sectioned != nil {
+                plan.showBuyCredits = false
+            } else {
+                plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+            }
         } else {
             plan.emptyText = "Loading…"
         }
         plan.storageText = self.store.storageFootprintText(for: provider)
-        plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
         return plan
+    }
+
+    /// 构造拆段渲染计划（对齐 NSMenu addMenuCardSections 的判定与各段 chevron 条件）。
+    /// 仅当 openAIWebContext.hasOpenAIWebMenuItems 或 hasOpenAIAPIUsageSubmenu 为 true 时返回非 nil。
+    private func buildSectionedCard(
+        model: UsageMenuCardView.Model,
+        provider: UsageProvider)
+        -> PopoverCardPlan.SectionedCard?
+    {
+        // ── 与 NSMenu addMenuCards:677-693 一致的拆段触发判定 ──
+        // openAIWebContext 中 showAllAccounts=false（单卡路径无 stacked）
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .liveCard)
+        let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
+        let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
+        let hasCostHistory = self.settings.isCostUsageEffectivelyEnabled(for: provider) &&
+            (self.store.tokenSnapshot(for: provider)?.daily.isEmpty == false)
+        let hasOpenAIWebMenuItems = hasCreditsHistory || hasUsageBreakdown || hasCostHistory
+        // hasOpenAIAPIUsageSubmenu：provider == .openai && costHistory daily 非空（见 Menu.swift:1573-1575）
+        let hasOpenAIAPIUsageSubmenu = provider == .openai &&
+            self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
+
+        guard hasOpenAIWebMenuItems || hasOpenAIAPIUsageSubmenu else { return nil }
+
+        // ── 段存在性 ──
+        let hasUsageBlock = model.hasUsageContent
+        let hasCredits = model.creditsText != nil
+        let hasExtraUsage = model.providerCost != nil
+        let hasCost = model.tokenUsage != nil
+        let storageText = self.store.storageFootprintText(for: provider)
+        let hasStorage = storageText != nil
+        let canShowBuyCredits = self.settings.showOptionalCreditsAndExtraUsage &&
+            codexProjection?.canShowBuyCredits == true
+
+        // ── usageChart：对齐 makeUsageSubmenu（Menu.swift:1471-1487）──
+        let usageChart: PopoverChartKind?
+        if hasUsageBreakdown {
+            usageChart = .usageBreakdown
+        } else if provider == .openai {
+            // openai → API Usage submenu（= costHistory）
+            usageChart = hasOpenAIAPIUsageSubmenu ? .costHistory(provider) : nil
+        } else if provider == .zai {
+            let snapshot = self.store.snapshot(for: provider)
+            usageChart = PopoverChartKind.isZaiDetailsAvailable(snapshot: snapshot)
+                ? .zaiDetails(provider)
+                : nil
+        } else {
+            usageChart = nil
+        }
+
+        // ── storageChart ──
+        let storageChart: PopoverChartKind? =
+            self.store.storageFootprint(for: provider)?.components.isEmpty == false
+                ? .storageBreakdown(provider)
+                : nil
+
+        // ── creditsChart ──
+        let creditsChart: PopoverChartKind? = hasCreditsHistory ? .creditsHistory : nil
+
+        // ── extraUsageChart（Extra Usage 段用 OpenAI API usage submenu）──
+        let extraUsageChart: PopoverChartKind? =
+            provider == .openai && hasOpenAIAPIUsageSubmenu ? .costHistory(provider) : nil
+
+        // ── costChart ──
+        let costChart: PopoverChartKind? = hasCostHistory ? .costHistory(provider) : nil
+
+        return PopoverCardPlan.SectionedCard(
+            model: model,
+            hasUsageBlock: hasUsageBlock,
+            hasCredits: hasCredits,
+            hasExtraUsage: hasExtraUsage,
+            hasCost: hasCost,
+            hasStorage: hasStorage,
+            storageText: storageText,
+            usageChart: usageChart,
+            storageChart: storageChart,
+            creditsChart: creditsChart,
+            showBuyCredits: canShowBuyCredits,
+            extraUsageChart: extraUsageChart,
+            costChart: costChart)
     }
 
     /// stacked 路径空 cards 时的 fallback：尝试构造单卡片，否则显示"Loading…"。
@@ -542,63 +629,24 @@ extension StatusItemController {
 
     // MARK: - 图表下钻入口（Task 3.1）
 
-    /// 该 provider 卡片下方应显示的图表下钻入口，顺序对齐 NSMenu：
-    ///   usage(breakdown/openAIAPI) → credits → cost → usageHistory → storage → zaiHourly。
+    /// 该 provider 卡片下方应显示的图表下钻入口。
+    /// 对齐原版 NSMenu：单 provider 卡片下方独立入口行**只有** usageHistory 与 zaiHourly。
+    /// 其余图表（usageBreakdown/creditsHistory/costHistory/storageBreakdown/zaiDetails）
+    /// 经由拆段模式的段 chevron 进入，不作为独立入口行重复显示。
+    /// 整卡模式（非拆段 provider）同样只显示这两个入口，对齐原版整卡 provider 语义。
     func popoverChartEntries(for provider: UsageProvider) -> [PopoverChartKind] {
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
-            for: provider,
-            surface: .liveCard)
-        let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
-        let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
-        // cost：tokenSnapshotForCostHistorySubmenu 与 appendCostHistoryChartItem 完全对齐
-        let tokenSnap = self.tokenSnapshotForCostHistorySubmenu(provider: provider)
-        let hasCostHistory = self.settings.isCostUsageEffectivelyEnabled(for: provider) &&
-            tokenSnap?.daily.isEmpty == false
-        let hasUsageHistory = self.store.supportsPlanUtilizationHistory(for: provider) &&
-            !self.store.shouldHidePlanUtilizationMenuItem(for: provider)
-        let hasStorageBreakdown = self.store.storageFootprint(for: provider)?.components.isEmpty == false
-        let hasZaiHourly = provider == .zai &&
-            self.store.snapshot(for: provider)?.zaiUsage?.modelUsage != nil
-        let hasZaiDetails = PopoverChartKind.isZaiDetailsAvailable(snapshot: self.store.snapshot(for: provider))
-
         var entries: [PopoverChartKind] = []
 
-        // ── usage ──
-        // 与 makeUsageSubmenu 对齐：hasUsageBreakdown → .usageBreakdown；
-        //   zai + hasZaiDetails → .zaiDetails；
-        //   否则 openai + hasOpenAIAPIUsageSubmenu → .costHistory(openai)（即 "API Usage" submenu）。
-        if hasUsageBreakdown {
-            entries.append(.usageBreakdown)
-        } else if provider == .zai, hasZaiDetails {
-            entries.append(.zaiDetails(provider))
-        } else if provider == .openai,
-                  self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
-        {
-            // openAI "API Usage" 子菜单等价于 costHistory；在此插入，后面 cost 入口去重跳过
-            entries.append(.costHistory(provider))
-        }
-
-        // ── credits ──
-        if hasCreditsHistory {
-            entries.append(.creditsHistory)
-        }
-
-        // ── cost（去重：usage 入口若已插入 costHistory(provider) 则跳过）──
-        if hasCostHistory, !entries.contains(.costHistory(provider)) {
-            entries.append(.costHistory(provider))
-        }
-
-        // ── usageHistory ──
+        // ── usageHistory（Subscription Utilization）──
+        let hasUsageHistory = self.store.supportsPlanUtilizationHistory(for: provider) &&
+            !self.store.shouldHidePlanUtilizationMenuItem(for: provider)
         if hasUsageHistory {
             entries.append(.usageHistory(provider))
         }
 
-        // ── storage ──
-        if hasStorageBreakdown {
-            entries.append(.storageBreakdown(provider))
-        }
-
-        // ── zaiHourly ──
+        // ── zaiHourly（Hourly Usage，仅 zai）──
+        let hasZaiHourly = provider == .zai &&
+            self.store.snapshot(for: provider)?.zaiUsage?.modelUsage != nil
         if hasZaiHourly {
             entries.append(.zaiHourly(provider))
         }
