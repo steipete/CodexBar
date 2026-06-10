@@ -322,17 +322,7 @@ private struct CopyIconButton: View {
 
     var body: some View {
         Button {
-            self.copyToPasteboard()
-            withAnimation(.easeOut(duration: 0.12)) {
-                self.didCopy = true
-            }
-            self.resetTask?.cancel()
-            self.resetTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.9))
-                withAnimation(.easeOut(duration: 0.2)) {
-                    self.didCopy = false
-                }
-            }
+            self.handleCopy()
         } label: {
             Image(systemName: self.didCopy ? "checkmark" : "doc.on.doc")
                 .font(.caption2.weight(.semibold))
@@ -343,10 +333,27 @@ private struct CopyIconButton: View {
         .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy error"))
     }
 
-    private func copyToPasteboard() {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(self.copyText, forType: .string)
+    /// Handle the click without doing any work synchronously inside the NSMenu
+    /// tracking event loop. On macOS 26 a SwiftUI `Button` action running
+    /// `withAnimation { ... }` while the menu is tracking forces a hosted
+    /// view rebuild on the main thread mid-tracking and beachballs the system
+    /// for several seconds. Defer the pasteboard write and state mutation to
+    /// the next main-loop tick (outside the tracking dispatch), and use plain
+    /// state mutation rather than `withAnimation` so a synchronous SwiftUI
+    /// layout pass cannot re-enter the menu engine.
+    private func handleCopy() {
+        let text = self.copyText
+        self.resetTask?.cancel()
+        DispatchQueue.main.async {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setString(text, forType: .string)
+            self.didCopy = true
+            self.resetTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.9))
+                self.didCopy = false
+            }
+        }
     }
 }
 
