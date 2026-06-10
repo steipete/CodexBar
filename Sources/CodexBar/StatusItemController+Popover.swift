@@ -241,6 +241,18 @@ extension StatusItemController {
                         ? self?.popoverSwitcherIcon(for: provider)
                         : nil
                 },
+                switcherIndicator: { [weak self] provider in
+                    guard let self else { return nil }
+                    guard let remainingPercent = self.switcherWeeklyRemaining(for: provider) else { return nil }
+                    let fraction = max(0, min(1, remainingPercent / 100))
+                    let brandColor = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+                    let nsColor = NSColor(
+                        deviceRed: brandColor.red,
+                        green: brandColor.green,
+                        blue: brandColor.blue,
+                        alpha: 1)
+                    return (fraction: fraction, color: nsColor)
+                },
                 makeChartEntries: { [weak self] provider in
                     self?.popoverChartEntries(for: provider) ?? []
                 },

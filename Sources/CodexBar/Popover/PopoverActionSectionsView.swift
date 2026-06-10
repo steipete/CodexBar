@@ -36,8 +36,16 @@ struct PopoverActionSectionsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            let nonEmpty = self.sections.filter { !$0.entries.isEmpty }
-            ForEach(Array(nonEmpty.enumerated()), id: \.offset) { idx, section in
+            // 与 NSMenu addActionableSections 过滤逻辑完全对齐：
+            // 只保留含 action 或 submenu 的 section，纯文本 section（usage/account 信息行）不渲染。
+            let actionable = self.sections.filter { section in
+                section.entries.contains { entry in
+                    if case .action = entry { return true }
+                    if case .submenu = entry { return true }
+                    return false
+                }
+            }
+            ForEach(Array(actionable.enumerated()), id: \.offset) { idx, section in
                 if idx > 0 {
                     Divider()
                 }
@@ -237,6 +245,8 @@ private struct ActionRowButton: View {
         .onHover { hovering in
             if !self.isDisabled { self.isHovered = hovering }
         }
+        // 禁用 popover 内的键盘 focus 框（macOS 14+）
+        .focusEffectDisabled()
         // 无障碍：Button 自带 button trait；为有快捷键的动作加 hint
         .accessibilityHint(
             PopoverActionSectionsView.shortcutHint(for: self.action) ?? "")

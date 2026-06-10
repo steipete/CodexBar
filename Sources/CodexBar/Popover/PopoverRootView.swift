@@ -2,6 +2,101 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
+// MARK: - ProviderSwitcherTabView（独立 view，持有 isHovered @State）
+
+/// 单个切换器 tab——垂直布局（图标在上、标题在下），与 NSView 版 StackedToggleButton 外观对齐。
+/// - 选中态：实心 accentColor 圆角胶囊 + 白色图标/文字（NSView 版 controlAccentColor 背景）
+/// - 未选中态：透明底 + secondary 文字
+/// - 底部用量条：高 3pt 圆角小条，背景灰 track + provider 品牌色 fill（仅未选中时显示）
+private struct ProviderSwitcherTabView: View {
+    let icon: NSImage?
+    let title: String
+    /// 用量指示条数据：(fraction 0-1, color)；nil 表示无数据不显示条。
+    let indicator: (fraction: Double, color: NSColor)?
+    let selected: Bool
+    let onTap: () -> Void
+
+    @State private var isHovered = false
+
+    // 对齐 NSView 版常量
+    private static let indicatorHeight: CGFloat = 3
+    private static let indicatorBottomInset: CGFloat = 2
+    private static let indicatorHorizontalInset: CGFloat = 8
+
+    var body: some View {
+        Button(action: self.onTap) {
+            VStack(spacing: 3) {
+                // 图标（约 18pt），与 NSView StackedToggleButton 图标区域对齐
+                Group {
+                    if let nsImage = self.icon {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        Image(systemName: "square.fill")
+                            .resizable()
+                            .scaledToFit()
+                    }
+                }
+                .frame(width: 18, height: 18)
+                // 标题（.caption2 大小，lineLimit 1 + 截断）
+                Text(self.title)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                // 用量指示条（仅在未选中时可见，选中时隐藏，与 NSView 版行为一致）
+                if let indicator = self.indicator {
+                    self.indicatorBar(fraction: indicator.fraction, color: indicator.color)
+                        .opacity(self.selected ? 0 : 1)
+                } else {
+                    // 无数据时保留等高占位，避免 tab 高度抖动
+                    Color.clear
+                        .frame(height: Self.indicatorHeight + Self.indicatorBottomInset)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(self.selected ? Color.accentColor : (self.isHovered ? self.hoverColor : Color.clear))
+        .foregroundStyle(self.selected ? Color.white : Color.secondary)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .focusEffectDisabled()
+        .onHover { self.isHovered = $0 }
+        // 无障碍
+        .accessibilityLabel(self.title)
+        .accessibilityAddTraits(self.selected ? [.isSelected] : [])
+    }
+
+    private func indicatorBar(fraction: Double, color: NSColor) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                // 灰色 track
+                RoundedRectangle(cornerRadius: Self.indicatorHeight / 2)
+                    .fill(Color(nsColor: .tertiaryLabelColor).opacity(0.22))
+                    .frame(height: Self.indicatorHeight)
+                // 品牌色 fill
+                if fraction > 0 {
+                    RoundedRectangle(cornerRadius: Self.indicatorHeight / 2)
+                        .fill(Color(nsColor: color))
+                        .frame(
+                            width: max(0, (geo.size.width - Self.indicatorHorizontalInset * 2) * CGFloat(fraction)),
+                            height: Self.indicatorHeight)
+                        .offset(x: Self.indicatorHorizontalInset)
+                }
+            }
+        }
+        .frame(height: Self.indicatorHeight + Self.indicatorBottomInset)
+        .padding(.horizontal, Self.indicatorHorizontalInset)
+    }
+
+    private var hoverColor: Color {
+        // 对齐 NSView 版 hoverPlateColor（不区分深浅模式，让 Color 自适应）
+        Color.primary.opacity(0.07)
+    }
+}
+
 /// 持久面板根视图。阶段 1：provider 切换器 + 当前 provider 用量卡片。
 /// 阶段 2：底部动作区（PopoverActionSectionsView）；完整卡片分流渲染（PopoverCardPlan）；
 ///         账户切换器（PopoverAccountSwitcherView）。
@@ -41,6 +136,9 @@ struct PopoverRootView: View {
     /// provider 图标注入闭包：由 controller 按 switcherShowsIcons 设置返回 NSImage? 或 nil。
     /// nil 表示不显示图标（纯文字降级）。视图不读 settings，由闭包内部决定。
     let switcherIcon: (UsageProvider) -> NSImage?
+    /// 用量指示条数据：返回 (fraction 0-1, color)；nil 表示该 provider 无数据不显示条。
+    /// 由 StatusItemController 注入，调用 switcherWeeklyRemaining + branding.color 计算。
+    let switcherIndicator: (UsageProvider) -> (fraction: Double, color: NSColor)?
     /// 返回指定 provider 的下钻图表入口列表（Task 3.1）。
     let makeChartEntries: (UsageProvider) -> [PopoverChartKind]
     /// 返回 Overview 行对应的下钻图表（nil 表示该行无下钻）。
@@ -97,24 +195,24 @@ struct PopoverRootView: View {
         }
     }
 
-    // MARK: - 切换器（Phase 2：Overview tab + provider 图标）
+    // MARK: - 切换器（垂直布局，对齐 NSView ProviderSwitcherView stackedIcons 模式）
 
-    /// tab 多时（>4，与 NSView 版"均宽不足即换行"语义对齐）切换为自适应网格自动分行；
-    /// 少量 tab 保持紧凑单行 HStack。
+    /// 固定 3 列网格布局，与 NSView 版 stackedIcons 行为对齐。
+    /// tab ≤ 3 时 HStack 等分；> 3 时 3 列网格自动换行。
     private var switcher: some View {
         let tabCount = self.viewModel.providers.count + (self.viewModel.includesOverview ? 1 : 0)
         return Group {
-            if tabCount > 4 {
+            if tabCount > 3 {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 64), spacing: 4)],
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3),
                     alignment: .leading,
                     spacing: 4)
                 {
-                    self.switcherTabs(fillWidth: true)
+                    self.switcherTabs
                 }
             } else {
                 HStack(spacing: 4) {
-                    self.switcherTabs(fillWidth: false)
+                    self.switcherTabs
                 }
             }
         }
@@ -123,61 +221,44 @@ struct PopoverRootView: View {
         .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder private func switcherTabs(fillWidth: Bool) -> some View {
+    @ViewBuilder private var switcherTabs: some View {
         if self.viewModel.includesOverview {
-            self.overviewTab(fillWidth: fillWidth)
+            self.overviewTab
         }
         ForEach(self.viewModel.providers, id: \.self) { provider in
-            self.providerTab(provider, fillWidth: fillWidth)
+            self.providerTab(provider)
         }
     }
 
-    private func overviewTab(fillWidth: Bool) -> some View {
+    private var overviewTab: some View {
         let selected = self.viewModel.selection == .overview
-        return Button {
-            self.viewModel.select(.overview)
-        } label: {
-            Image(systemName: "square.grid.2x2")
-                .font(.caption)
-                .fontWeight(selected ? .semibold : .regular)
-                .frame(maxWidth: fillWidth ? .infinity : nil)
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(selected ? Color.accentColor.opacity(0.18) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 5))
-        // 无障碍
-        .accessibilityLabel("Overview")
+        return ProviderSwitcherTabView(
+            icon: Self.overviewNSImage,
+            title: L("Overview"),
+            indicator: nil,
+            selected: selected,
+            onTap: { self.viewModel.select(.overview) })
     }
 
-    private func providerTab(_ provider: UsageProvider, fillWidth: Bool) -> some View {
+    private func providerTab(_ provider: UsageProvider) -> some View {
         let selected = self.isSelected(provider)
-        return Button {
-            self.viewModel.select(.provider(provider))
-        } label: {
-            HStack(spacing: 3) {
-                if let icon = self.switcherIcon(provider) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 14, height: 14)
-                }
-                Text(provider.rawValue)
-                    .font(.caption)
-                    .fontWeight(selected ? .semibold : .regular)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .frame(maxWidth: fillWidth ? .infinity : nil)
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(selected ? Color.accentColor.opacity(0.18) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 5))
-        // 无障碍
-        .accessibilityLabel(provider.rawValue)
+        let title = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        let icon = self.switcherIcon(provider)
+        let indicator = self.switcherIndicator(provider)
+        return ProviderSwitcherTabView(
+            icon: icon,
+            title: title,
+            indicator: indicator,
+            selected: selected,
+            onTap: { self.viewModel.select(.provider(provider)) })
     }
+
+    /// Overview tab 图标（对齐 NSView 版 overviewIcon()）。
+    private static let overviewNSImage: NSImage? = {
+        let img = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
+        img?.isTemplate = true
+        return img
+    }()
 
     // MARK: - 内容区
 
@@ -324,6 +405,7 @@ private struct OverviewRowView: View {
                         : self.menuWidth)
             }
             .buttonStyle(.plain)
+            .focusEffectDisabled()
             // 无障碍
             .accessibilityLabel("\(self.row.provider.rawValue) overview")
             .accessibilityHint("Show \(self.row.provider.rawValue) details")
@@ -338,6 +420,7 @@ private struct OverviewRowView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .focusEffectDisabled()
                 // 无障碍
                 .accessibilityLabel(chart.title)
             }
@@ -379,6 +462,7 @@ private struct ChartEntryRowView: View {
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .padding(.horizontal, 5)
         .onHover { self.isHovered = $0 }
+        .focusEffectDisabled()
         // 无障碍：Button 标题即 label，hint 说明用途
         .accessibilityHint("Show chart")
     }
@@ -408,5 +492,6 @@ private struct BuyCreditsRowView: View {
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .padding(.horizontal, 5)
         .onHover { self.isHovered = $0 }
+        .focusEffectDisabled()
     }
 }
