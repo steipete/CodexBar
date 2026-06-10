@@ -26,7 +26,9 @@ extension StatusItemController {
                 PopoverRootView(
                     viewModel: vm,
                     store: store,
-                    makeCardModel: { [weak self] provider in self?.menuCardModel(for: provider) },
+                    makeCardPlan: { [weak self] provider in
+                        self?.popoverCardPlan(for: provider) ?? PopoverCardPlan()
+                    },
                     makeSections: { [weak self] in
                         guard let self else { return [] }
                         let provider: UsageProvider? = {
@@ -43,7 +45,11 @@ extension StatusItemController {
                             updateReady: self.updater.updateStatus.isUpdateReady,
                             includeContextualActions: true).sections
                     },
-                    onAction: { [weak self] action in self?.performMenuAction(action) })
+                    onAction: { [weak self] action in self?.performMenuAction(action) },
+                    onBuyCredits: { [weak self] in
+                        self?.openCreditsPurchase()
+                        self?.popoverMenuController?.close()
+                    })
             }
             self.wirePopoverShortcutCallbacks()
         }
@@ -78,6 +84,119 @@ extension StatusItemController {
         } else {
             _ = self.perform(sel)
         }
+    }
+
+    // MARK: - 卡片计划（复刻 addMenuCards 分流逻辑，纯数据）
+
+    /// 构造当前 provider 的卡片渲染计划，供 PopoverRootView 纯渲染消费。
+    /// 分流次序与 addMenuCards 保持一致：
+    ///   1. Codex 多账户 stacked → 按 workspace section 展开 cards
+    ///   2. Token 多账户 stacked → snapshot compactMap
+    ///   3. Kilo 多 scope → kiloScopeSnapshots compactMap
+    ///   4. 单卡片 / 占位
+    ///   + storageText / showBuyCredits
+    func popoverCardPlan(for provider: UsageProvider) -> PopoverCardPlan {
+        var plan = PopoverCardPlan()
+
+        // ── 1. Codex stacked ──
+        if let codexDisplay = self.codexAccountMenuDisplay(for: provider), codexDisplay.showAll {
+            let snapshotsByAccountID = Dictionary(
+                uniqueKeysWithValues: codexDisplay.snapshots.map { ($0.account.id, $0) })
+            let sections = codexDisplay.showsWorkspaceGroups
+                ? codexDisplay.workspaceSections
+                : [CodexAccountWorkspaceSection(title: "", accounts: codexDisplay.accounts)]
+
+            for section in sections {
+                var isFirstInSection = true
+                for account in section.accounts {
+                    let accountSnapshot = snapshotsByAccountID[account.id]
+                    let health = CodexAccountHealth.status(for: account, error: accountSnapshot?.error)
+                    guard let model = self.menuCardModel(
+                        for: .codex,
+                        snapshotOverride: accountSnapshot?.snapshot,
+                        errorOverride: health.label,
+                        forceOverrideCard: accountSnapshot == nil,
+                        accountOverride: self.accountInfo(for: account))
+                    else { continue }
+                    let header: String? = (codexDisplay.showsWorkspaceGroups && isFirstInSection)
+                        ? section.title
+                        : nil
+                    plan.cards.append(PopoverCardPlan.Card(
+                        id: account.id,
+                        model: model,
+                        workspaceHeader: header))
+                    isFirstInSection = false
+                }
+            }
+            plan.storageText = self.store.storageFootprintText(for: provider)
+            plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+            return plan
+        }
+
+        // ── 2. Token stacked ──
+        if let tokenDisplay = self.tokenAccountMenuDisplay(for: provider), tokenDisplay.showAll {
+            let cards = tokenDisplay.snapshots.compactMap { accountSnapshot in
+                self.menuCardModel(
+                    for: provider,
+                    snapshotOverride: accountSnapshot.snapshot,
+                    errorOverride: accountSnapshot.error)
+                    .map { model in
+                        PopoverCardPlan.Card(
+                            id: accountSnapshot.account.id.uuidString,
+                            model: model,
+                            workspaceHeader: nil)
+                    }
+            }
+            plan.cards = cards
+            if plan.cards.isEmpty {
+                plan.emptyText = "Loading…"
+            }
+            plan.storageText = self.store.storageFootprintText(for: provider)
+            plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+            return plan
+        }
+
+        // ── 3. Kilo multi-scope ──
+        if provider == .kilo, self.store.kiloScopeSnapshots.count > 1 {
+            let cards = self.store.kiloScopeSnapshots.compactMap { scope in
+                self.menuCardModel(
+                    for: .kilo,
+                    snapshotOverride: scope.snapshot,
+                    errorOverride: scope.errorMessage,
+                    forceOverrideCard: scope.snapshot == nil)
+                    .map { model in
+                        PopoverCardPlan.Card(id: scope.id, model: model, workspaceHeader: nil)
+                    }
+            }
+            plan.cards = cards
+            if plan.cards.isEmpty {
+                plan.emptyText = "Loading…"
+            }
+            plan.storageText = self.store.storageFootprintText(for: provider)
+            plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+            return plan
+        }
+
+        // ── 4. 单卡片 ──
+        if let model = self.menuCardModel(for: provider) {
+            plan.cards = [PopoverCardPlan.Card(id: "single", model: model, workspaceHeader: nil)]
+        } else {
+            plan.emptyText = "Loading…"
+        }
+        plan.storageText = self.store.storageFootprintText(for: provider)
+        plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+        return plan
+    }
+
+    /// 计算 Buy Credits 是否可显示。
+    /// 复刻 openAIWebContext 中的 canShowBuyCredits 逻辑（showAllAccounts 时不显示 Buy Credits
+    /// 对 popover 单账户路径无影响；多账户 stacked 时与 NSMenu 行为一致：不显示）。
+    private func popoverCanShowBuyCredits(for provider: UsageProvider) -> Bool {
+        guard self.settings.showOptionalCreditsAndExtraUsage else { return false }
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .liveCard)
+        return codexProjection?.canShowBuyCredits == true
     }
 
     /// 接线 popover 的键盘快捷键回调（只在控制器首次创建时设一次，弱引用防环）。

@@ -2,21 +2,23 @@ import CodexBarCore
 import SwiftUI
 
 /// 持久面板根视图。阶段 1：provider 切换器 + 当前 provider 用量卡片。
-/// 阶段 2：底部动作区（PopoverActionSectionsView）。
+/// 阶段 2：底部动作区（PopoverActionSectionsView）；完整卡片分流渲染（PopoverCardPlan）。
 /// 整个 popover 生命周期只构造一次；切 provider 通过 viewModel.select(_:) 增量更新，不重建视图。
 struct PopoverRootView: View {
     @Bindable var viewModel: MenuViewModel
     /// 注入 UsageStore 引用，用于在 body 中建立 @Observable 观察链：
     /// store 数据变化时 SwiftUI 自动重渲而无需外部 bump。
     let store: UsageStore
-    /// 由 StatusItemController 注入的卡片 model 构造闭包（self.menuCardModel(for:)）。
+    /// 由 StatusItemController 注入的卡片计划构造闭包（self.popoverCardPlan(for:)）。
     /// 持有 weak self 引用，避免强引用环。
-    let makeCardModel: (UsageProvider) -> UsageMenuCardView.Model?
+    let makeCardPlan: (UsageProvider) -> PopoverCardPlan
     /// 返回底部动作区所需的 sections（与 NSMenu 路径共用 MenuDescriptor.build 数据源）。
     /// 在 body 中调用以建立 @Observable 观察链，store/settings 变化时自动重算。
     let makeSections: () -> [MenuDescriptor.Section]
     /// 动作分发回调，由 StatusItemController.performMenuAction(_:) 实现。
     let onAction: (MenuDescriptor.MenuAction) -> Void
+    /// Buy Credits 动作回调；仅当 plan.showBuyCredits 为 true 时渲染对应按钮。
+    let onBuyCredits: () -> Void
 
     private static let menuWidth: CGFloat = 310
 
@@ -71,16 +73,51 @@ struct PopoverRootView: View {
         }
     }
 
-    /// makeCardModel 内部读取 store 属性，在 body 同步求值以建立 @Observable 观察链；
+    /// makeCardPlan 内部读取 store 属性，在 body 同步求值以建立 @Observable 观察链；
     /// store 数据变化时 SwiftUI 自动重渲而无需外部 bump。
     @ViewBuilder private func card(for provider: UsageProvider) -> some View {
-        if let model = makeCardModel(provider) {
-            UsageMenuCardView(model: model, width: Self.menuWidth)
-        } else {
-            // 防御性占位：makeCardModel 当前不返回 nil，保留以防签名变更
-            Text("Loading…")
+        let plan = self.makeCardPlan(provider)
+        if plan.cards.isEmpty {
+            Text(plan.emptyText ?? "Loading…")
                 .foregroundStyle(.secondary)
                 .padding()
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(plan.cards) { card in
+                    if let header = card.workspaceHeader {
+                        Text(header)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 6)
+                            .padding(.bottom, 2)
+                    }
+                    UsageMenuCardView(model: card.model, width: Self.menuWidth)
+                    if card.id != plan.cards.last?.id {
+                        Divider()
+                    }
+                }
+                if let storageText = plan.storageText {
+                    Divider()
+                    StorageMenuCardSectionView(
+                        storageText: storageText,
+                        topPadding: 6,
+                        bottomPadding: 6,
+                        width: Self.menuWidth)
+                }
+                if plan.showBuyCredits {
+                    Divider()
+                    Button {
+                        self.onBuyCredits()
+                    } label: {
+                        Label(L("Buy Credits..."), systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
+            }
         }
     }
 
