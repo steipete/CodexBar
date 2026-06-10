@@ -156,34 +156,42 @@ struct ProviderHTTPClientTests {
     }
 
     @Test
-    func `redirect guard strips sensitive headers on same origin redirects`() throws {
+    func `redirect guard blocks redirects without an original URL`() throws {
+        let redirectRequest = try URLRequest(url: #require(URL(string: "https://provider.example/usage/next")))
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: nil,
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard blocks port changes`() throws {
+        let redirectRequest = try URLRequest(url: #require(URL(string: "https://provider.example:8443/usage")))
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard preserves same origin HTTPS requests`() throws {
         var redirectRequest = try URLRequest(url: #require(URL(string: "https://provider.example/usage/next")))
         redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Cookie")
         redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Authorization")
-        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "api-key")
         redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-api-key")
-        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "xi-api-key")
-        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "X-DashScope-API-Key")
-        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Oasis-Token")
-        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "X-Amz-Security-Token")
-        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-devin-session-token")
-        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-devin-auth1-token")
         redirectRequest.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let guarded = try #require(ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
             originalURL: URL(string: "https://provider.example/usage"),
             redirectRequest: redirectRequest))
 
-        #expect(guarded.value(forHTTPHeaderField: "Cookie") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "Authorization") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "api-key") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "x-api-key") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "xi-api-key") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "X-DashScope-API-Key") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "Oasis-Token") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "X-Amz-Security-Token") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "x-devin-session-token") == nil)
-        #expect(guarded.value(forHTTPHeaderField: "x-devin-auth1-token") == nil)
+        #expect(guarded.value(forHTTPHeaderField: "Cookie") == "[REDACTED]")
+        #expect(guarded.value(forHTTPHeaderField: "Authorization") == "[REDACTED]")
+        #expect(guarded.value(forHTTPHeaderField: "x-api-key") == "[REDACTED]")
         #expect(guarded.value(forHTTPHeaderField: "Accept") == "application/json")
     }
 }

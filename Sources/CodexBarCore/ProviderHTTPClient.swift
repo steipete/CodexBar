@@ -171,7 +171,7 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
     private let session: URLSession
 
     public init(session: URLSession? = nil) {
-        self.session = session ?? URLSession(configuration: Self.defaultConfiguration())
+        self.session = session ?? Self.redirectGuardedSession()
     }
 
     static func defaultConfiguration() -> URLSessionConfiguration {
@@ -218,24 +218,6 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
 }
 
 final class ProviderHTTPRedirectGuardDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    private static let sensitiveHeaderNames = Set([
-        "authorization",
-        "cookie",
-        "proxy-authorization",
-        "api-key",
-        "x-api-key",
-        "x-api-token",
-        "x-auth-token",
-        "oasis-token",
-        "x-amz-security-token",
-        "x-csrf-token",
-        "x-dashscope-api-key",
-        "x-devin-auth1-token",
-        "x-devin-session-token",
-        "x-xsrf-token",
-        "xi-api-key",
-    ])
-
     func urlSession(
         _: URLSession,
         task: URLSessionTask,
@@ -247,14 +229,11 @@ final class ProviderHTTPRedirectGuardDelegate: NSObject, URLSessionTaskDelegate,
     }
 
     static func guardedRedirectRequest(originalURL: URL?, redirectRequest request: URLRequest) -> URLRequest? {
-        guard let redirectedURL = request.url else { return nil }
+        guard let originalURL, let redirectedURL = request.url else { return nil }
+        guard originalURL.scheme?.caseInsensitiveCompare("https") == .orderedSame else { return nil }
         guard redirectedURL.scheme?.caseInsensitiveCompare("https") == .orderedSame else { return nil }
-
-        if let originalURL, !self.isSameOrigin(originalURL, redirectedURL) {
-            return nil
-        }
-
-        return self.removingSensitiveHeaders(from: request)
+        guard self.isSameOrigin(originalURL, redirectedURL) else { return nil }
+        return request
     }
 
     private static func isSameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
@@ -270,15 +249,5 @@ final class ProviderHTTPRedirectGuardDelegate: NSObject, URLSessionTaskDelegate,
         case "https": return 443
         default: return nil
         }
-    }
-
-    private static func removingSensitiveHeaders(from request: URLRequest) -> URLRequest {
-        var sanitized = request
-        for headerName in Array(request.allHTTPHeaderFields?.keys ?? [:].keys)
-            where self.sensitiveHeaderNames.contains(headerName.lowercased())
-        {
-            sanitized.setValue(nil, forHTTPHeaderField: headerName)
-        }
-        return sanitized
     }
 }
