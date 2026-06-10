@@ -154,30 +154,39 @@ extension UsageMenuCardView.Model {
 
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
-        var metrics = [
-            Self.antigravityMetric(
-                id: "primary",
-                title: L(input.metadata.sessionLabel),
-                window: snapshot.primary,
-                input: input,
-                percentStyle: percentStyle),
-            Self.antigravityMetric(
-                id: "secondary",
-                title: L(input.metadata.weeklyLabel),
-                window: snapshot.secondary,
-                input: input,
-                percentStyle: percentStyle),
-            Self.antigravityMetric(
-                id: "tertiary",
-                title: input.metadata.opusLabel.map(L) ?? L("Gemini Flash"),
-                window: snapshot.tertiary,
-                input: input,
-                percentStyle: percentStyle),
-        ]
-        metrics.append(contentsOf: Self.extraRateWindowMetrics(
+        let extraMetrics = Self.extraRateWindowMetrics(
             snapshot: snapshot,
             input: input,
-            percentStyle: percentStyle))
+            percentStyle: percentStyle)
+        if !extraMetrics.isEmpty {
+            return extraMetrics
+        }
+
+        var metrics: [Metric] = []
+        if let primary = snapshot.primary {
+            metrics.append(Self.antigravityMetric(
+                id: "primary",
+                title: L(input.metadata.sessionLabel),
+                window: primary,
+                input: input,
+                percentStyle: percentStyle))
+        }
+        if let secondary = snapshot.secondary {
+            metrics.append(Self.antigravityMetric(
+                id: "secondary",
+                title: L(input.metadata.weeklyLabel),
+                window: secondary,
+                input: input,
+                percentStyle: percentStyle))
+        }
+        if let tertiary = snapshot.tertiary {
+            metrics.append(Self.antigravityMetric(
+                id: "tertiary",
+                title: input.metadata.opusLabel.map(L) ?? L("Gemini Flash"),
+                window: tertiary,
+                input: input,
+                percentStyle: percentStyle))
+        }
         return metrics
     }
 
@@ -247,25 +256,10 @@ extension UsageMenuCardView.Model {
     static func antigravityMetric(
         id: String,
         title: String,
-        window: RateWindow?,
+        window: RateWindow,
         input: Input,
         percentStyle: PercentStyle) -> Metric
     {
-        guard let window else {
-            let placeholderPercent = input.usageBarsShowUsed ? 100.0 : 0.0
-            return Metric(
-                id: id,
-                title: title,
-                percent: placeholderPercent,
-                percentStyle: percentStyle,
-                statusText: nil,
-                resetText: nil,
-                detailText: nil,
-                detailLeftText: nil,
-                detailRightText: nil,
-                pacePercent: nil,
-                paceOnTop: true)
-        }
         let percent = input.usageBarsShowUsed ? window.usedPercent : window.remainingPercent
         return Metric(
             id: id,

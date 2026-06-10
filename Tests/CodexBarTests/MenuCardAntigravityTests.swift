@@ -5,7 +5,7 @@ import Testing
 
 struct MenuCardAntigravityTests {
     @Test
-    func `antigravity metrics show zero percent for missing families`() throws {
+    func `antigravity metrics omit missing families instead of showing zero percent`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
@@ -44,20 +44,14 @@ struct MenuCardAntigravityTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.count == 3)
-        #expect(model.metrics.map(\.title) == ["Claude", "Gemini Pro", "Gemini Flash"])
-        #expect(model.metrics[1].percent == 0)
-        #expect(model.metrics[1].percentLabel == "0% left")
-        #expect(model.metrics[1].statusText == nil)
-        #expect(model.metrics[1].detailText == nil)
-        #expect(model.metrics[2].percent == 0)
-        #expect(model.metrics[2].percentLabel == "0% left")
-        #expect(model.metrics[2].statusText == nil)
-        #expect(model.metrics[2].detailText == nil)
+        #expect(model.metrics.count == 1)
+        #expect(model.metrics.map(\.title) == ["Claude"])
+        #expect(model.metrics[0].percent == 95)
+        #expect(model.metrics[0].percentLabel == "95% left")
     }
 
     @Test
-    func `antigravity zero percent metric still shows reset text`() throws {
+    func `antigravity exhausted real model still shows reset text`() throws {
         let now = Date(timeIntervalSince1970: 1_735_000_000)
         let resetTime = now.addingTimeInterval(3600)
         let antigravitySnapshot = AntigravityStatusSnapshot(
@@ -71,7 +65,7 @@ struct MenuCardAntigravityTests {
                 AntigravityModelQuota(
                     label: "Gemini 3.1 Pro (Low)",
                     modelId: "MODEL_PLACEHOLDER_M36",
-                    remainingFraction: nil,
+                    remainingFraction: 0,
                     resetTime: resetTime,
                     resetDescription: nil),
                 AntigravityModelQuota(
@@ -106,9 +100,10 @@ struct MenuCardAntigravityTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics[1].percent == 0)
-        #expect(model.metrics[1].percentLabel == "0% left")
-        #expect(model.metrics[1].resetText != nil)
+        let exhausted = try #require(model.metrics.first { $0.title == "Gemini 3.1 Pro (Low)" })
+        #expect(exhausted.percent == 0)
+        #expect(exhausted.percentLabel == "0% left")
+        #expect(exhausted.resetText != nil)
     }
 
     @Test
@@ -169,15 +164,12 @@ struct MenuCardAntigravityTests {
             now: now))
 
         #expect(model.metrics.map(\.title) == [
-            "Claude",
-            "Gemini Pro",
-            "Gemini Flash",
             "Claude Opus 4.6 (Thinking)",
             "Gemini 3 Pro (High)",
             "Gemini 3 Pro (Low)",
             "GPT-OSS 120B (Medium)",
         ])
-        #expect(model.metrics.suffix(4).map(\.percentLabel) == [
+        #expect(model.metrics.map(\.percentLabel) == [
             "75% left",
             "100% left",
             "50% left",
@@ -237,7 +229,7 @@ struct MenuCardAntigravityTests {
     }
 
     @Test
-    func `antigravity missing families show full usage in used mode`() throws {
+    func `antigravity missing families stay omitted in used mode`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
@@ -276,9 +268,9 @@ struct MenuCardAntigravityTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics[1].percent == 100)
-        #expect(model.metrics[1].percentLabel == "100% used")
-        #expect(model.metrics[2].percent == 100)
-        #expect(model.metrics[2].percentLabel == "100% used")
+        #expect(model.metrics.count == 1)
+        #expect(model.metrics.map(\.title) == ["Claude"])
+        #expect(model.metrics[0].percent == 5)
+        #expect(model.metrics[0].percentLabel == "5% used")
     }
 }
