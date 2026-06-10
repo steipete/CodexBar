@@ -3,6 +3,7 @@
 ## 0.32.6 — Unreleased
 
 ### Fixed
+- Doubao: stop misreading unreliable Volcano Ark rate-limit headers as 100% used; the card now falls back to the existing "Active — check dashboard for details" hint when HTTP 200 is returned with `x-ratelimit-limit-requests > 0` and `x-ratelimit-remaining-requests = 0`, which is the unreliable-headers pattern Volcano returns on some account tiers rather than a real throttle (#1382). Thanks @foobra!
 - Antigravity: exclude model quotas without a remaining fraction from family summaries so they no longer mask tracked usage in the automatic menu-bar metric (#1369). Thanks @Martin-Hausleitner!
 - Claude: add bundled Fable 5 pricing, account for native 1-hour cache-write usage, and refresh Sonnet 4.6 full-context rates (#1368). Thanks @MoollaMore!
 - Claude: show a direct claude.ai re-login action when a configured web session expires or becomes invalid (#1377). Thanks @LeoLin990405!

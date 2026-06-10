@@ -30,7 +30,14 @@ public struct DoubaoUsageSnapshot: Sendable {
         let usedPercent: Double
         let resetDescription: String
 
-        if self.limitRequests > 0 {
+        // Volcano Ark can return 200 with `x-ratelimit-limit-requests > 0` and
+        // `x-ratelimit-remaining-requests == 0` on some account tiers (notably
+        // unverified personal keys) without actually rate-limiting the
+        // request — a real throttle would return 429. Trust the header pair
+        // only when both values are present and the remaining bucket is non-empty;
+        // otherwise treat the headers as unreliable and surface a dashboard hint
+        // instead of misreporting 100% used.
+        if self.limitRequests > 0, self.remainingRequests > 0 {
             let used = max(0, self.limitRequests - self.remainingRequests)
             usedPercent = min(100, max(0, Double(used) / Double(self.limitRequests) * 100))
             resetDescription = "\(used)/\(self.limitRequests) requests"
@@ -177,6 +184,19 @@ public struct DoubaoUsageFetcher: Sendable {
             Doubao usage parsed remaining=\(snapshot.remainingRequests) \
             limit=\(snapshot.limitRequests) valid=\(snapshot.apiKeyValid)
             """)
+
+        // Diagnose unreliable-headers scenario: 200 status with a non-empty limit
+        // and zero remaining is not a real throttle (Volcano would have returned
+        // 429). Surface it in logs so users hitting "always 100%" reports can
+        // confirm the misread and attach evidence.
+        if response.statusCode == 200, (limit ?? 0) > 0, (remaining ?? 0) == 0 {
+            Self.log.warning(
+                """
+                Doubao Ark returned limit=\(limit ?? 0) remaining=0 with HTTP 200 \
+                (not a real throttle). Treating headers as unreliable and falling \
+                back to dashboard hint instead of reporting 100% used.
+                """)
+        }
 
         return snapshot
     }
