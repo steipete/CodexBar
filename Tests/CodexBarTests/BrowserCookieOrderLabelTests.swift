@@ -42,5 +42,17 @@ struct BrowserCookieOrderStatusStringTests {
     func `opencode automatic cookies keep chrome only default`() {
         #expect(OpenCodeWebCookieSupport.automaticImportOrder(provider: .opencode) == [.chrome])
     }
+
+    @Test
+    func `mimo cookie import order supports safari firefox and edge`() {
+        let order = ProviderDefaults.metadata[.mimo]?.browserCookieOrder ?? Browser.defaultImportOrder
+        #expect(order == ProviderBrowserCookieDefaults.mimoCookieImportOrder)
+        #expect(order == [.safari, .chrome, .chromeBeta, .chromeCanary, .firefox, .edge])
+        #expect(order.first == .safari)
+        #expect(order.contains(.firefox))
+        #expect(order.contains(.edge))
+        #expect(!order.contains(.arc))
+    }
+
     #endif
 }

@@ -1045,7 +1045,7 @@
 "stale data" = "inaktuella data";
 "Quota" = "Kvot";
 "Auth source" = "Autentiseringskälla";
-"Automatic imports Chrome browser cookies from Xiaomi MiMo." = "Importerar Chrome-cookies från Xiaomi MiMo automatiskt.";
+"Automatic imports browser cookies from Xiaomi MiMo." = "Importerar webbläsarcookies från Xiaomi MiMo automatiskt.";
 "No usage configured." = "Ingen användning konfigurerad.";
 "Extra usage" = "Extra användning";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "Kontot finns inte längre i CodexBar. Uppdatera kontolistan och försök igen.";

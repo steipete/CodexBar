@@ -909,7 +909,7 @@
 "Antigravity login failed" = "La connexion antigravité a échoué";
 "Antigravity login timed out" = "La connexion antigravité a expiré";
 "Auth source" = "Source d'authentification";
-"Automatic imports Chrome browser cookies from Xiaomi MiMo." = "Importe automatiquement les cookies du navigateur Chrome de Xiaomi MiMo.";
+"Automatic imports browser cookies from Xiaomi MiMo." = "Importe automatiquement les cookies du navigateur de Xiaomi MiMo.";
 "Automatic imports Windsurf session data from Chromium browser localStorage." = "Importe automatiquement les données de session Windsurf à partir du navigateur Chromium localStorage.";
 "Automatic imports browser cookies from Bailian." = "Importe automatiquement les cookies du navigateur depuis Bailian.";
 "Automatically imports browser cookies." = "Importe automatiquement les cookies du navigateur.";

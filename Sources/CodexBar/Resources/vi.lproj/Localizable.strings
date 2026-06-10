@@ -908,7 +908,7 @@
 "Antigravity login failed" = "Đăng nhập chống trọng lực không thành công";
 "Antigravity login timed out" = "Đã hết thời gian đăng nhập chống trọng lực";
 "Auth source" = "Nguồn xác thực";
-"Automatic imports Chrome browser cookies from Xiaomi MiMo." = "Tự động nhập cookie trình duyệt Chrome từ Xiaomi MiMo.";
+"Automatic imports browser cookies from Xiaomi MiMo." = "Tự động nhập cookie trình duyệt từ Xiaomi MiMo.";
 "Automatic imports Windsurf session data from Chromium browser localStorage." = "Tự động nhập dữ liệu phiên Windsurf từ localStorage của trình duyệt Chrome.";
 "Automatic imports browser cookies from Bailian." = "Tự động nhập cookie trình duyệt từ Bailian.";
 "Automatically imports browser cookies." = "Tự động nhập cookie trình duyệt.";

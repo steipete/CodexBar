@@ -3,14 +3,19 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public enum MiMoSettingsError: LocalizedError, Sendable {
-    case missingCookie
+public enum MiMoSettingsError: LocalizedError, Sendable, Equatable {
+    case missingCookie(details: String? = nil)
     case invalidCookie
 
     public var errorDescription: String? {
         switch self {
-        case .missingCookie:
-            "No Xiaomi MiMo browser session found. Log in at platform.xiaomimimo.com first."
+        case let .missingCookie(details):
+            [
+                "No Xiaomi MiMo browser session found. Log in at platform.xiaomimimo.com first.",
+                details,
+            ]
+                .compactMap(\.self)
+                .joined(separator: " ")
         case .invalidCookie:
             "Xiaomi MiMo requires the api-platform_serviceToken and userId cookies."
         }

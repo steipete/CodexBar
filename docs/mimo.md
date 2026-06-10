@@ -22,6 +22,10 @@ The Xiaomi MiMo provider tracks your current balance from the Xiaomi MiMo consol
 2. Enable **Xiaomi MiMo**
 3. Leave **Cookie source** on **Auto** (recommended)
 
+CodexBar imports cookies from these browsers in order: **Safari**, **Chrome** / **Chrome Beta** / **Chrome Canary**, **Firefox**, and **Microsoft Edge**. Switch to **Manual** and paste a `Cookie:` header if your active MiMo session lives in Arc, Brave, or another browser profile CodexBar does not auto-detect.
+
+Safari cookie import may require granting CodexBar Full Disk Access in **System Settings → Privacy & Security**.
+
 ### Manual cookie import (optional)
 
 1. Open `https://platform.xiaomimimo.com/#/console/balance`
@@ -39,12 +43,13 @@ The Xiaomi MiMo provider tracks your current balance from the Xiaomi MiMo consol
 
 - MiMo currently exposes **balance only**
 - Token cost, status polling, debug log output, and widgets are not supported yet
+- Auto import covers Safari, Chrome variants, Firefox, and Edge only; other browsers use **Manual** mode
 
 ## Troubleshooting
 
 ### “No Xiaomi MiMo browser session found”
 
-Log in at `https://platform.xiaomimimo.com/#/console/balance` in Chrome, then refresh CodexBar.
+Log in at `https://platform.xiaomimimo.com/#/console/balance` in Safari, Chrome, Firefox, or Edge, then refresh CodexBar. If your session lives in another browser, switch the MiMo provider to **Cookie source → Manual** and paste the `Cookie:` header instead.
 
 ### “Xiaomi MiMo requires the api-platform_serviceToken and userId cookies”
 

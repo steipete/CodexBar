@@ -489,6 +489,29 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `mimo cookie importer surfaces safari access denial`() throws {
+        let detection = BrowserDetection(
+            homeDirectory: "/tmp/codexbar-mimo-browser-test",
+            cacheTTL: 0,
+            fileExists: { _ in false },
+            directoryContents: { _ in nil })
+
+        do {
+            _ = try MiMoCookieImporter.importSessions(
+                browserDetection: detection,
+                loadRecords: { browser, _, _ in
+                    throw BrowserCookieError.accessDenied(
+                        browser: browser,
+                        details: "Grant CodexBar Full Disk Access to read Safari cookies.")
+                })
+            Issue.record("Expected Safari access denial")
+        } catch let error as MiMoSettingsError {
+            #expect(error.localizedDescription.contains("Full Disk Access"))
+            #expect(error.localizedDescription.contains("Safari"))
+        }
+    }
+
+    @Test
     func `mimo web strategy retries imported sessions after decode failure`() async throws {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }

@@ -778,7 +778,7 @@
 "Antigravity login failed" = "Antigravity 登入失敗";
 "Antigravity login timed out" = "Antigravity 登入逾時";
 "Auth source" = "認證來源";
-"Automatic imports Chrome browser cookies from Xiaomi MiMo." = "自動匯入 Xiaomi MiMo 的 Chrome 瀏覽器 Cookie。";
+"Automatic imports browser cookies from Xiaomi MiMo." = "自動匯入 Xiaomi MiMo 的瀏覽器 Cookie。";
 "Automatic imports Windsurf session data from Chromium browser localStorage." = "自動從 Chromium 瀏覽器 localStorage 匯入 Windsurf 工作階段資料。";
 "Automatic imports browser cookies from Bailian." = "自動匯入 Bailian 的瀏覽器 Cookie。";
 "Automatically imports browser cookies." = "自動匯入瀏覽器 Cookie。";

@@ -1,25 +1,11 @@
 import CodexBarMacroSupport
 import Foundation
 
-#if os(macOS)
-import SweetCookieKit
-#endif
-
 @ProviderDescriptorRegistration
 @ProviderDescriptorDefinition
 public enum MiMoProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
-        #if os(macOS)
-        let browserOrder: BrowserCookieImportOrder = [
-            .chrome,
-            .chromeBeta,
-            .chromeCanary,
-        ]
-        #else
-        let browserOrder: BrowserCookieImportOrder? = nil
-        #endif
-
-        return ProviderDescriptor(
+        ProviderDescriptor(
             id: .mimo,
             metadata: ProviderMetadata(
                 id: .mimo,
@@ -35,7 +21,7 @@ public enum MiMoProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: browserOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.mimoCookieImportOrder,
                 dashboardURL: "https://platform.xiaomimimo.com/#/console/balance",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -64,25 +50,13 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         if context.settings?.mimo?.cookieSource == .manual {
             return Self.resolveManualCookieHeader(context: context) != nil
         }
-        if Self.resolveManualCookieHeader(context: context) != nil {
-            return true
-        }
-
-        #if os(macOS)
-        if let cached = CookieHeaderCache.load(provider: .mimo),
-           MiMoCookieHeader.normalizedHeader(from: cached.cookieHeader) != nil
-        {
-            return true
-        }
-        return MiMoCookieImporter.hasSession(browserDetection: context.browserDetection)
-        #else
-        return false
-        #endif
+        // Fetch resolves the session so missing-cookie and browser-permission errors stay actionable.
+        return true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard context.settings?.mimo?.cookieSource != .off else {
-            throw MiMoSettingsError.missingCookie
+            throw MiMoSettingsError.missingCookie()
         }
         if context.settings?.mimo?.cookieSource == .manual {
             guard let manualCookie = Self.resolveManualCookieHeader(context: context) else {
@@ -123,7 +97,7 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         let sessions = try MiMoCookieImporter.importSessions(browserDetection: context.browserDetection)
         guard !sessions.isEmpty else {
             if let lastError { throw lastError }
-            throw MiMoSettingsError.missingCookie
+            throw MiMoSettingsError.missingCookie()
         }
 
         for session in sessions {
@@ -146,9 +120,9 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         }
 
         if let lastError { throw lastError }
-        throw MiMoSettingsError.missingCookie
+        throw MiMoSettingsError.missingCookie()
         #else
-        throw MiMoSettingsError.missingCookie
+        throw MiMoSettingsError.missingCookie()
         #endif
     }
 
