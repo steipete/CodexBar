@@ -3,10 +3,13 @@
 ## 0.32.6 — Unreleased
 
 ### Added
+- Amp: add local `amp usage` support, including Amp Free usage, account identity, and individual and workspace credit balances.
 - Settings: choose Terminal.app or iTerm for Open Terminal actions, including Vertex AI login commands (#1225, fixes #1147). Thanks @Yuxin-Qiao!
 - Localization: add Japanese as a selectable app language (#1385). Thanks @naoterumaker!
 
 ### Fixed
+- Amp: replace the broken settings-page payload scrape with the current `userDisplayBalanceInfo` endpoint and retain the legacy HTML path as a fallback.
+- Amp: show the fetched individual credit balance in menu and settings cards.
 - Copilot: keep explicitly unlimited chat quotas visible instead of dropping their zero-entitlement payload as unavailable (#1320). Thanks @soumikbhatta!
 - Security: block credentialed provider redirects that leave the original HTTPS origin while preserving same-origin redirects (#1237). Thanks @Hinotoi-agent!
 - Codex: keep local token and cost history visible when remote quota data is unavailable (#1390). Thanks @vaibhavarora14!
