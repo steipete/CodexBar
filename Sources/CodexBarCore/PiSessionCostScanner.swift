@@ -384,6 +384,7 @@ enum PiSessionCostScanner {
                             provider: identity.provider,
                             modelName: identity.modelName,
                             message: message,
+                            pricingDate: date,
                             pricingContext: pricingContext)
                         add(provider: identity.provider, dayKey: dayKey, modelName: identity.modelName, usage: usage)
                     }
@@ -524,6 +525,7 @@ enum PiSessionCostScanner {
         provider: UsageProvider,
         modelName: String,
         message: [String: Any],
+        pricingDate: Date? = nil,
         pricingContext: ModelsDevPricingContext? = nil) -> PiPackedUsage
     {
         let usage = (message["usage"] as? [String: Any]) ?? [:]
@@ -571,10 +573,12 @@ enum PiSessionCostScanner {
             cacheWriteTokens: cacheWrite,
             outputTokens: output,
             totalTokens: totalTokens)
+        // Pi JSONL does not record Anthropic cache retention, so use Pi's persisted default tariff.
         let costUSD = self.computedCostUSD(
             provider: provider,
             modelName: modelName,
             usage: rawUsage,
+            pricingDate: pricingDate,
             pricingContext: pricingContext)
         let costNanos = costUSD.map { Int64(($0 * self.costScale).rounded()) } ?? 0
 
@@ -593,6 +597,7 @@ enum PiSessionCostScanner {
         provider: UsageProvider,
         modelName: String,
         usage: PiPackedUsage,
+        pricingDate: Date? = nil,
         pricingContext: ModelsDevPricingContext? = nil) -> Double?
     {
         switch provider {
@@ -611,6 +616,7 @@ enum PiSessionCostScanner {
                 cacheReadInputTokens: usage.cacheReadTokens,
                 cacheCreationInputTokens: usage.cacheWriteTokens,
                 outputTokens: usage.outputTokens,
+                pricingDate: pricingDate,
                 modelsDevCatalog: pricingContext?.catalog,
                 modelsDevCacheRoot: pricingContext?.cacheRoot)
         default:
@@ -634,7 +640,9 @@ enum PiSessionCostScanner {
         }
         return 0
     }
+}
 
+extension PiSessionCostScanner {
     private static func mappedProvider(fromPiProvider provider: String) -> UsageProvider? {
         switch provider.lowercased() {
         case "openai-codex":

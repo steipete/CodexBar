@@ -377,6 +377,153 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `claude cost supports fable5 bundled fallback`() throws {
+        let emptyCacheRoot = try Self.cacheRoot()
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-fable-5",
+            inputTokens: 100,
+            cacheReadInputTokens: 20,
+            cacheCreationInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: emptyCacheRoot)
+        let expected = (100.0 * 1e-5) + (20.0 * 1e-6) + (10.0 * 1.25e-5) + (5.0 * 5e-5)
+        #expect(cost == expected)
+    }
+
+    @Test
+    func `claude cost preserves historical sonnet46 long context pricing`() throws {
+        let emptyCacheRoot = try Self.cacheRoot()
+        let historical = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-6",
+            inputTokens: 240_000,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 0,
+            pricingDate: Date(timeIntervalSince1970: 1_773_359_999),
+            modelsDevCacheRoot: emptyCacheRoot)
+        let current = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-6",
+            inputTokens: 240_000,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 0,
+            pricingDate: Date(timeIntervalSince1970: 1_773_360_000),
+            modelsDevCacheRoot: emptyCacheRoot)
+
+        #expect(historical == 1.44)
+        #expect(current == 0.72)
+    }
+
+    @Test
+    func `claude cost ignores stale sonnet46 threshold catalog after cutover`() throws {
+        let cacheRoot = try Self.seedModelsDevCache("""
+        {
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": {
+                  "input": 3,
+                  "output": 15,
+                  "cache_read": 0.3,
+                  "cache_write": 3.75,
+                  "context_over_200k": {
+                    "input": 6,
+                    "output": 22.5,
+                    "cache_read": 0.6,
+                    "cache_write": 7.5
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-6",
+            inputTokens: 240_000,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 0,
+            pricingDate: Date(timeIntervalSince1970: 1_773_360_000),
+            modelsDevCacheRoot: cacheRoot)
+
+        #expect(cost == 0.72)
+    }
+
+    @Test
+    func `claude cost prices one hour cache writes separately`() throws {
+        let emptyCacheRoot = try Self.cacheRoot()
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-fable-5",
+            inputTokens: 100,
+            cacheReadInputTokens: 20,
+            cacheCreationInputTokens: 30,
+            cacheCreationInputTokens1h: 20,
+            outputTokens: 5,
+            modelsDevCacheRoot: emptyCacheRoot)
+        let expected = (100.0 * 1e-5)
+            + (20.0 * 1e-6)
+            + (10.0 * 1.25e-5)
+            + (20.0 * 2e-5)
+            + (5.0 * 5e-5)
+        #expect(cost == expected)
+    }
+
+    @Test
+    func `claude cost applies long context rates across cache write durations`() throws {
+        let cacheRoot = try Self.seedModelsDevCache("""
+        {
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-threshold-model": {
+                "id": "claude-threshold-model",
+                "cost": {
+                  "input": 3,
+                  "output": 15,
+                  "cache_read": 0.3,
+                  "cache_write": 3.75,
+                  "context_over_200k": {
+                    "input": 6,
+                    "output": 22.5,
+                    "cache_read": 0.6,
+                    "cache_write": 7.5
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-threshold-model",
+            inputTokens: 0,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 240_000,
+            cacheCreationInputTokens1h: 120_000,
+            outputTokens: 0,
+            modelsDevCacheRoot: cacheRoot)
+        let expected = (120_000.0 * 12e-6)
+            + (120_000.0 * 7.5e-6)
+        #expect(cost == expected)
+    }
+
+    @Test
+    func `claude sonnet46 uses standard pricing across full context`() throws {
+        let emptyCacheRoot = try Self.cacheRoot()
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-6",
+            inputTokens: 0,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 240_000,
+            outputTokens: 0,
+            modelsDevCacheRoot: emptyCacheRoot)
+        #expect(cost == 240_000.0 * 3.75e-6)
+    }
+
+    @Test
     func `claude cost returns nil for unknown models`() {
         let cost = CostUsagePricing.claudeCostUSD(
             model: "glm-4.6",
@@ -422,11 +569,10 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (200_000.0 * 3e-6)
-            + (10.0 * 6e-6)
-            + (5.0 * 0.3e-6)
-            + (5.0 * 3.75e-6)
-            + (5.0 * 15e-6)
+        let expected = (200_010.0 * 6e-6)
+            + (5.0 * 0.6e-6)
+            + (5.0 * 7.5e-6)
+            + (5.0 * 22.5e-6)
         #expect(cost == expected)
     }
 

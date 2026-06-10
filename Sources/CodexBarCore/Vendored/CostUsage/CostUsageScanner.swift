@@ -381,11 +381,13 @@ enum CostUsageScanner {
         let sessionId: String?
         let messageId: String?
         let requestId: String?
+        let timestampUnixMs: Int64?
         let isSidechain: Bool
         let pathRole: ClaudePathRole
         let input: Int
         let cacheRead: Int
         let cacheCreate: Int
+        let cacheCreate1h: Int?
         let output: Int
         let costNanos: Int
         let costPriced: Bool?

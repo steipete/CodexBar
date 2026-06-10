@@ -158,7 +158,7 @@ struct CostUsageScannerTests {
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 9)
         let first = env.isoString(for: day)
         let second = env.isoString(for: day.addingTimeInterval(1))
-        let model = "claude-sonnet-4-6"
+        let model = "claude-sonnet-4-5"
         let firstEntry: [String: Any] = [
             "type": "assistant",
             "timestamp": first,
