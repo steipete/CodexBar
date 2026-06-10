@@ -494,20 +494,37 @@ struct StatusMenuSwitcherClickTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        controller.menuRefreshEnabledOverrideForTesting = true
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = try #require(controller.makeMenu() as? StatusItemMenu)
         controller.menuWillOpen(menu)
         #expect(menu.items.first?.view is ProviderSwitcherView)
+        store.tokenRefreshInFlight.insert(.codex)
+        defer { store.tokenRefreshInFlight.remove(.codex) }
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
 
         #expect(try menu.performKeyEquivalent(with: Self.arrowKeyEvent(keyCode: 124)) == true)
-        await Task.yield()
+        for _ in 0..<100 where rebuildCount == 0 {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
+        }
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
         #expect(settings.selectedMenuProvider == .claude)
+        #expect(rebuildCount == 1)
 
         #expect(try menu.performKeyEquivalent(with: Self.arrowKeyEvent(keyCode: 123)) == true)
-        await Task.yield()
+        for _ in 0..<100 where rebuildCount == 1 {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
+        }
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
         #expect(settings.selectedMenuProvider == .codex)
+        #expect(rebuildCount == 2)
     }
 
     @Test

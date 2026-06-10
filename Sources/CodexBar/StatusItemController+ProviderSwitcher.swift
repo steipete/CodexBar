@@ -109,7 +109,7 @@ extension StatusItemController {
             return self.selectProviderSwitcherSegment(at: index, menu: menu)
         }
         if let direction = StatusItemMenu.providerNavigationDirection(for: event) {
-            self.navigateProviderSwitcher(direction)
+            self.navigateProviderSwitcher(direction, menu: menu)
             return true
         }
         return false

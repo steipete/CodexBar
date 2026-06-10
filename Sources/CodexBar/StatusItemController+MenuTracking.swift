@@ -240,14 +240,25 @@ extension StatusItemController {
     }
 
     func refreshOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
-        self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: provider)
+        let key = ObjectIdentifier(menu)
+        guard self.openMenus[key] != nil else { return }
+        if self.isHostedSubviewMenu(menu) {
+            self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: provider)
+            return
+        }
+        self.invalidateMenus(
+            refreshOpenMenus: true,
+            deferOpenParentMenuRebuild: true,
+            allowStaleContentDuringDataRefresh: true)
     }
 
     func rebuildOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
-        guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+        let key = ObjectIdentifier(menu)
+        guard self.openMenus[key] != nil else { return }
         guard self.isHostedSubviewMenu(menu) || !self.hasOpenHostedSubviewMenu() else { return }
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
+        self.parentMenuRebuildsDeferredDuringTracking.remove(key)
         self.applyIcon(phase: nil)
         #if DEBUG
         self._test_openMenuRebuildObserver?(menu)

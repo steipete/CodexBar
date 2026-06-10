@@ -629,7 +629,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `explicit store actions refresh a visible open menu`() async {
+    func `explicit store actions defer visible parent menu rebuild`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -660,17 +660,18 @@ extension StatusMenuTests {
         defer { controller._test_openMenuRebuildObserver = nil }
 
         controller.refreshOpenMenusAfterExplicitStoreAction()
-        for _ in 0..<20 where rebuildCount == 0 {
+        for _ in 0..<20 {
             await Task.yield()
         }
 
         #expect(controller.menuContentVersion != openedVersion)
-        #expect(rebuildCount == 1)
-        #expect(controller.menuVersions[key] != openedVersion)
+        #expect(rebuildCount == 0)
+        #expect(controller.menuVersions[key] == openedVersion)
+        #expect(controller.parentMenuRebuildsDeferredDuringTracking.contains(key))
     }
 
     @Test
-    func `repeated explicit store actions coalesce to one open menu rebuild`() async {
+    func `repeated explicit store actions keep parent rebuild deferred`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -703,16 +704,17 @@ extension StatusMenuTests {
         controller.refreshOpenMenusAfterExplicitStoreAction()
         controller.refreshOpenMenusAfterExplicitStoreAction()
 
-        for _ in 0..<20 where rebuildCount == 0 {
+        for _ in 0..<20 {
             await Task.yield()
         }
 
-        #expect(rebuildCount == 1)
-        #expect(controller.menuVersions[key] == controller.menuContentVersion)
+        #expect(rebuildCount == 0)
+        #expect(controller.menuVersions[key] != controller.menuContentVersion)
+        #expect(controller.parentMenuRebuildsDeferredDuringTracking.contains(key))
     }
 
     @Test
-    func `explicit refresh rebuilds stale parent after hosted submenu closes`() async {
+    func `explicit refresh keeps stale parent deferred after hosted submenu closes`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -755,13 +757,14 @@ extension StatusMenuTests {
         #expect(controller.menuVersions[menuKey] == openedVersion)
 
         controller.menuDidClose(submenu)
-        for _ in 0..<20 where rebuildCount == 0 {
+        for _ in 0..<20 {
             await Task.yield()
         }
 
         #expect(controller.openMenus[submenuKey] == nil)
-        #expect(rebuildCount == 1)
-        #expect(controller.menuVersions[menuKey] == controller.menuContentVersion)
+        #expect(rebuildCount == 0)
+        #expect(controller.menuVersions[menuKey] == openedVersion)
+        #expect(controller.parentMenuRebuildsDeferredDuringTracking.contains(menuKey))
     }
 
     @Test
