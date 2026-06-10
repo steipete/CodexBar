@@ -333,27 +333,16 @@ private struct CopyIconButton: View {
         .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy error"))
     }
 
-    /// Handle the click without doing any work synchronously inside the NSMenu
-    /// tracking event loop. On macOS 26 a SwiftUI `Button` action running
-    /// `withAnimation { ... }` while the menu is tracking forces a hosted
-    /// view rebuild on the main thread mid-tracking and beachballs the system
-    /// for several seconds. Defer the pasteboard write and state mutation to
-    /// the next main-loop tick (outside the tracking dispatch), and use plain
-    /// state mutation rather than `withAnimation` so a synchronous SwiftUI
-    /// layout pass cannot re-enter the menu engine.
     private func handleCopy() {
         let text = self.copyText
         self.resetTask?.cancel()
-        DispatchQueue.main.async {
-            let pb = NSPasteboard.general
-            pb.clearContents()
-            pb.setString(text, forType: .string)
+        MenuPasteboardCopy.perform(text, completion: {
             self.didCopy = true
             self.resetTask = Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.9))
                 self.didCopy = false
             }
-        }
+        })
     }
 }
 

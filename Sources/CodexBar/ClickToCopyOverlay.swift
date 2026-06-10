@@ -1,6 +1,35 @@
 import AppKit
 import SwiftUI
 
+@MainActor
+enum MenuPasteboardCopy {
+    typealias DeferredAction = @MainActor @Sendable () -> Void
+    typealias Scheduler = @MainActor @Sendable (@escaping DeferredAction) -> Void
+    typealias Writer = @MainActor @Sendable (String) -> Void
+
+    static func perform(
+        _ text: String,
+        scheduler: Scheduler = Self.schedule,
+        writer: @escaping Writer = Self.write,
+        completion: @escaping DeferredAction = {})
+    {
+        scheduler {
+            writer(text)
+            completion()
+        }
+    }
+
+    private static func schedule(_ action: @escaping DeferredAction) {
+        DispatchQueue.main.async(execute: action)
+    }
+
+    private static func write(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+}
+
 struct ClickToCopyOverlay: NSViewRepresentable {
     let copyText: String
 
@@ -20,9 +49,14 @@ struct ClickToCopyOverlay: NSViewRepresentable {
 
 final class ClickToCopyView: NSView {
     var copyText: String
+    private let copyAction: (String) -> Void
 
-    init(copyText: String) {
+    init(
+        copyText: String,
+        copyAction: @escaping (String) -> Void = { MenuPasteboardCopy.perform($0) })
+    {
         self.copyText = copyText
+        self.copyAction = copyAction
         super.init(frame: .zero)
         self.wantsLayer = false
     }
@@ -38,18 +72,6 @@ final class ClickToCopyView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         _ = event
-        // Defer the pasteboard write to the next main-loop tick so it does not
-        // run synchronously inside the active NSMenu tracking event loop. On
-        // macOS 26, NSPasteboard.setString triggers distributed notifications
-        // whose synchronous watchers can re-enter menu tracking and freeze the
-        // system (visible as a multi-second beachball after the click).
-        // Capturing copyText locally is intentional — the NSView may be
-        // updated by SwiftUI before the async block runs.
-        let text = self.copyText
-        DispatchQueue.main.async {
-            let pb = NSPasteboard.general
-            pb.clearContents()
-            pb.setString(text, forType: .string)
-        }
+        self.copyAction(self.copyText)
     }
 }

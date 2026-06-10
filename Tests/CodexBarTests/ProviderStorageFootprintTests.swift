@@ -274,15 +274,6 @@ struct ProviderStorageFootprintTests {
 
     @Test
     @MainActor
-    func `storage path copy button writes exact path to pasteboard`() {
-        let path = "/Users/test/.claude/projects/example"
-        StoragePathCopyButton.copyToPasteboard(path)
-
-        #expect(NSPasteboard.general.string(forType: .string) == path)
-    }
-
-    @Test
-    @MainActor
     func `manual storage refresh updates deleted provider data`() async throws {
         let home = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: home) }

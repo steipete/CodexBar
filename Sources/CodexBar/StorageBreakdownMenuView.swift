@@ -191,17 +191,14 @@ struct StoragePathCopyButton: View {
 
     var body: some View {
         Button {
-            Self.copyToPasteboard(self.path)
-            withAnimation(.easeOut(duration: 0.12)) {
-                self.didCopy = true
-            }
             self.resetTask?.cancel()
-            self.resetTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.9))
-                withAnimation(.easeOut(duration: 0.2)) {
+            MenuPasteboardCopy.perform(self.path, completion: {
+                self.didCopy = true
+                self.resetTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(0.9))
                     self.didCopy = false
                 }
-            }
+            })
         } label: {
             Image(systemName: self.didCopy ? "checkmark" : "doc.on.doc")
                 .font(.caption2.weight(.semibold))
@@ -212,11 +209,5 @@ struct StoragePathCopyButton: View {
         .buttonStyle(.plain)
         .help(self.didCopy ? L("Copied") : L("Copy path"))
         .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy path"))
-    }
-
-    static func copyToPasteboard(_ path: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(path, forType: .string)
     }
 }
