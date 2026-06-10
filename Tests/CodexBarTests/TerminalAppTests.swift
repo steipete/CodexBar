@@ -72,4 +72,23 @@ struct TerminalAppTests {
             #expect(TerminalApp(rawValue: app.rawValue) == app)
         }
     }
+
+    @Test
+    func `escapes commands embedded in AppleScript strings`() {
+        let escaped = TerminalApp.escapeForAppleScript(#"echo "C:\tmp""#)
+
+        #expect(escaped == #"echo \"C:\\tmp\""#)
+    }
+
+    @Test
+    func `builds terminal-specific launch scripts`() {
+        let command = #"echo "hello""#
+        let terminalScript = TerminalApp.terminal.appleScript(command: command)
+        let iTermScript = TerminalApp.iTerm.appleScript(command: command)
+
+        #expect(terminalScript.contains(#"tell application "Terminal""#))
+        #expect(terminalScript.contains(#"do script "echo \"hello\"""#))
+        #expect(iTermScript.contains(#"tell application "iTerm""#))
+        #expect(iTermScript.contains(#"write text "echo \"hello\"""#))
+    }
 }

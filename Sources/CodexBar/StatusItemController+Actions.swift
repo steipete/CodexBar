@@ -353,54 +353,28 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func openTerminal(command: String) {
         let terminal = self.settings.terminalApp
-        let escaped = command
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
 
         if terminal == .iTerm, !terminal.isInstalled {
             CodexBarLog.logger(LogCategories.terminal).warning(
                 "iTerm is not installed, falling back to Terminal.app",
                 metadata: ["terminal": terminal.rawValue])
-            Self.openTerminalInDefaultTerminal(escaped: escaped)
+            Self.openTerminalInDefaultTerminal(command: command)
             return
         }
 
-        let script = switch terminal {
-        case .terminal:
-            """
-            tell application "Terminal"
-                activate
-                do script "\(escaped)"
-            end tell
-            """
-        case .iTerm:
-            """
-            tell application "iTerm"
-                activate
-                set newWindow to (create window with default profile)
-                tell current session of newWindow
-                    write text "\(escaped)"
-                end tell
-            end tell
-            """
+        if Self.executeAppleScript(terminal.appleScript(command: command)) {
+            return
         }
+        guard terminal != .terminal else { return }
 
-        if !Self.executeAppleScript(script) {
-            CodexBarLog.logger(LogCategories.terminal).warning(
-                "\(terminal.label) AppleScript failed, falling back to Terminal.app",
-                metadata: ["terminal": terminal.rawValue])
-            Self.openTerminalInDefaultTerminal(escaped: escaped)
-        }
+        CodexBarLog.logger(LogCategories.terminal).warning(
+            "\(terminal.label) AppleScript failed, falling back to Terminal.app",
+            metadata: ["terminal": terminal.rawValue])
+        Self.openTerminalInDefaultTerminal(command: command)
     }
 
-    private static func openTerminalInDefaultTerminal(escaped: String) {
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "\(escaped)"
-        end tell
-        """
-        Self.executeAppleScript(script)
+    private static func openTerminalInDefaultTerminal(command: String) {
+        self.executeAppleScript(TerminalApp.terminal.appleScript(command: command))
     }
 
     /// Executes an AppleScript and returns `true` on success, `false` on failure.
@@ -417,6 +391,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             }
             return true
         }
+        CodexBarLog.logger(LogCategories.terminal).error("Failed to compile AppleScript")
         return false
     }
 
