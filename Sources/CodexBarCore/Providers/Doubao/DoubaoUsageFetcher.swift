@@ -126,7 +126,7 @@ public struct DoubaoUsageFetcher: Sendable {
                     return result.snapshot
                 }
 
-                return await self.confirmAmbiguousZeroRemaining(
+                return try await self.confirmAmbiguousZeroRemaining(
                     initial: result,
                     apiKey: apiKey,
                     model: model,
@@ -147,10 +147,13 @@ public struct DoubaoUsageFetcher: Sendable {
         initial: ProbeResult,
         apiKey: String,
         model: String,
-        transport: any ProviderHTTPTransport) async -> DoubaoUsageSnapshot
+        transport: any ProviderHTTPTransport) async throws -> DoubaoUsageSnapshot
     {
         do {
             let confirmation = try await self.probe(apiKey: apiKey, model: model, transport: transport)
+            if confirmation.statusCode == 429, confirmation.snapshot.limitRequests == 0 {
+                return initial.snapshot
+            }
             guard confirmation.hasAmbiguousZeroRemaining else {
                 return confirmation.snapshot
             }
@@ -169,6 +172,9 @@ public struct DoubaoUsageFetcher: Sendable {
                 totalTokens: confirmation.snapshot.totalTokens,
                 requestLimitsReliable: false)
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                throw error
+            }
             self.log.warning(
                 """
                 Doubao zero-remaining confirmation failed; preserving the initial exhausted state: \

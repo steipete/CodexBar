@@ -128,6 +128,21 @@ struct DoubaoUsageFetcherTests {
     }
 
     @Test
+    func `headerless rate limit confirmation preserves exhausted quota`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .response(statusCode: 200, limit: 1000, remaining: 0),
+            .response(statusCode: 429, limit: nil, remaining: nil),
+        ])
+
+        let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.primary?.resetDescription == "1000/1000 requests")
+        #expect(await transport.requestCount() == 2)
+    }
+
+    @Test
     func `failed zero remaining confirmation preserves exhausted quota`() async throws {
         let transport = DoubaoScriptedTransport(results: [
             .response(statusCode: 200, limit: 1000, remaining: 0),
@@ -141,12 +156,41 @@ struct DoubaoUsageFetcherTests {
         #expect(usage.primary?.resetDescription == "1000/1000 requests")
         #expect(await transport.requestCount() == 2)
     }
+
+    @Test
+    func `task cancellation during confirmation propagates`() async {
+        let transport = DoubaoScriptedTransport(results: [
+            .response(statusCode: 200, limit: 1000, remaining: 0),
+            .cancellation,
+        ])
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
+        }
+        #expect(await transport.requestCount() == 2)
+    }
+
+    @Test
+    func `url cancellation during confirmation propagates`() async {
+        let transport = DoubaoScriptedTransport(results: [
+            .response(statusCode: 200, limit: 1000, remaining: 0),
+            .failure(URLError(.cancelled)),
+        ])
+
+        await #expect {
+            _ = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
+        } throws: { error in
+            (error as? URLError)?.code == .cancelled
+        }
+        #expect(await transport.requestCount() == 2)
+    }
 }
 
 private actor DoubaoScriptedTransport: ProviderHTTPTransport {
     enum Result {
-        case response(statusCode: Int, limit: Int, remaining: Int)
+        case response(statusCode: Int, limit: Int?, remaining: Int?)
         case failure(URLError)
+        case cancellation
     }
 
     private var results: [Result]
@@ -165,17 +209,23 @@ private actor DoubaoScriptedTransport: ProviderHTTPTransport {
         let result = self.results.removeFirst()
         switch result {
         case let .response(statusCode, limit, remaining):
+            var headers: [String: String] = [:]
+            if let limit {
+                headers["x-ratelimit-limit-requests"] = String(limit)
+            }
+            if let remaining {
+                headers["x-ratelimit-remaining-requests"] = String(remaining)
+            }
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: statusCode,
                 httpVersion: "HTTP/1.1",
-                headerFields: [
-                    "x-ratelimit-limit-requests": String(limit),
-                    "x-ratelimit-remaining-requests": String(remaining),
-                ])!
+                headerFields: headers)!
             return (Data(#"{"usage":{"total_tokens":1}}"#.utf8), response)
         case let .failure(error):
             throw error
+        case .cancellation:
+            throw CancellationError()
         }
     }
 }
