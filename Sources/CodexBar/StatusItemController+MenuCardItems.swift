@@ -20,8 +20,8 @@ extension StatusItemController {
         }
     }
 
-    func makeMenuCardItem(
-        _ view: some View,
+    func makeMenuCardItem<CardContent: View>(
+        _ view: CardContent,
         id: String,
         width: CGFloat,
         heightCacheScope: String? = nil,
@@ -43,16 +43,33 @@ extension StatusItemController {
             return item
         }
 
-        let highlightState = MenuCardHighlightState()
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: highlightState,
-            showsSubmenuIndicator: submenu != nil,
-            submenuIndicatorAlignment: submenuIndicatorAlignment,
-            submenuIndicatorTopPadding: submenuIndicatorTopPadding)
+        let hosting: MenuCardItemHostingView<MenuCardSectionContainerView<CardContent>>
+        if let recycled = self.takeRecyclableMenuCardView(
+            for: id,
+            as: MenuCardItemHostingView<MenuCardSectionContainerView<CardContent>>.self)
         {
-            view
+            let wrapped = MenuCardSectionContainerView(
+                highlightState: recycled.highlightState,
+                showsSubmenuIndicator: submenu != nil,
+                submenuIndicatorAlignment: submenuIndicatorAlignment,
+                submenuIndicatorTopPadding: submenuIndicatorTopPadding)
+            {
+                view
+            }
+            recycled.prepareForReuse(rootView: wrapped, onClick: onClick)
+            hosting = recycled
+        } else {
+            let highlightState = MenuCardHighlightState()
+            let wrapped = MenuCardSectionContainerView(
+                highlightState: highlightState,
+                showsSubmenuIndicator: submenu != nil,
+                submenuIndicatorAlignment: submenuIndicatorAlignment,
+                submenuIndicatorTopPadding: submenuIndicatorTopPadding)
+            {
+                view
+            }
+            hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState, onClick: onClick)
         }
-        let hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState, onClick: onClick)
         let height = self.cachedMenuCardHeight(
             for: id,
             scope: heightCacheScope ?? id,

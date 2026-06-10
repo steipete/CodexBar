@@ -65,6 +65,32 @@ extension StatusItemController {
         self.mergedSwitcherContentCaches[ObjectIdentifier(menu), default: [:]][selection] = entry
     }
 
+    /// Non-consuming variant of `addCachedMergedSwitcherContent`'s lookup: reports whether a
+    /// reusable entry exists (evicting it when stale) without attaching anything, so callers
+    /// can choose between reattaching cached content and recycling the outgoing views.
+    func hasReusableMergedSwitcherContent(
+        for selection: ProviderSwitcherSelection,
+        in menu: NSMenu,
+        menuWidth: CGFloat,
+        codexAccountDisplay: CodexAccountMenuDisplay?,
+        tokenAccountDisplay: TokenAccountMenuDisplay?)
+        -> Bool
+    {
+        let key = ObjectIdentifier(menu)
+        guard let entry = self.mergedSwitcherContentCaches[key]?[selection] else { return false }
+        guard entry.matches(
+            requiredMenuContentVersion: self.latestRequiredMenuRebuildVersion,
+            menuWidth: menuWidth,
+            codexAccountDisplay: codexAccountDisplay,
+            tokenAccountDisplay: tokenAccountDisplay,
+            localizationSignature: self.menuLocalizationSignature())
+        else {
+            self.mergedSwitcherContentCaches[key]?.removeValue(forKey: selection)
+            return false
+        }
+        return true
+    }
+
     func addCachedMergedSwitcherContent(
         for selection: ProviderSwitcherSelection,
         to menu: NSMenu,
