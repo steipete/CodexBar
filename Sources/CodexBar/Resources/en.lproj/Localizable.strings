@@ -1008,6 +1008,7 @@
 "Personal account" = "Personal account";
 "Project ID" = "Project ID";
 "Re-auth" = "Re-auth";
+"Re-login at claude.ai" = "Re-login at claude.ai";
 "Re-authenticating…" = "Re-authenticating…";
 "Refresh Session" = "Refresh Session";
 "Refresh organizations" = "Refresh organizations";

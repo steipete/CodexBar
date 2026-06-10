@@ -865,6 +865,7 @@
 "Personal account" = "Cuenta personal";
 "Project ID" = "ID de proyecto";
 "Re-auth" = "Reautenticar";
+"Re-login at claude.ai" = "Volver a iniciar sesión en claude.ai";
 "Re-authenticating…" = "Reautenticando…";
 "Refresh Session" = "Actualizar sesión";
 "Refresh organizations" = "Actualizar organizaciones";

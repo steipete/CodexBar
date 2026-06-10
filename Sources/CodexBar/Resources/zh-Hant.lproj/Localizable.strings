@@ -878,6 +878,7 @@
 "Personal account" = "個人帳號";
 "Project ID" = "專案 ID";
 "Re-auth" = "重新認證";
+"Re-login at claude.ai" = "重新登入 claude.ai";
 "Re-authenticating…" = "正在重新認證…";
 "Refresh Session" = "重新整理工作階段";
 "Refresh organizations" = "重新整理組織";

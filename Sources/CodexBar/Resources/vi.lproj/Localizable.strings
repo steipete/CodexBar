@@ -1008,6 +1008,7 @@
 "Personal account" = "Tài khoản cá nhân";
 "Project ID" = "ID dự án";
 "Re-auth" = "Xác thực lại";
+"Re-login at claude.ai" = "Đăng nhập lại vào claude.ai";
 "Re-authenticating…" = "Xác thực lại…";
 "Refresh Session" = "Làm mới phiên";
 "Refresh organizations" = "Làm mới tổ chức";

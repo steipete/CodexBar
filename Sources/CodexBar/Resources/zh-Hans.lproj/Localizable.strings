@@ -982,6 +982,7 @@
 "Personal account" = "个人账号";
 "Project ID" = "项目 ID";
 "Re-auth" = "重新认证";
+"Re-login at claude.ai" = "重新登录 claude.ai";
 "Re-authenticating…" = "正在重新认证…";
 "Refresh Session" = "刷新会话";
 "Refresh organizations" = "刷新组织";

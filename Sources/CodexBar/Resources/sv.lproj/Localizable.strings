@@ -1004,6 +1004,7 @@
 "Credits used" = "Använda krediter";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din OpenAI-cookie-header så att extra Codex-översiktsdata kan hämtas. Klicka på OK för att fortsätta.";
 "Re-auth" = "Autentisera igen";
+"Re-login at claude.ai" = "Logga in igen på claude.ai";
 "cache-miss input" = "cachemiss-indata";
 "Day" = "Dag";
 "Optional. Applies to the configured Admin API key; selected token accounts do not inherit OPENAI_PROJECT_ID." = "Valfritt. Gäller den konfigurerade Admin API-nyckeln. Valda tokenkonton ärver inte OPENAI_PROJECT_ID.";
