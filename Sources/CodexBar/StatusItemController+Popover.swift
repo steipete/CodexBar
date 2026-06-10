@@ -421,6 +421,154 @@ extension StatusItemController {
         return rows.isEmpty ? L("No overview data available.") : nil
     }
 
+    // MARK: - 图表下钻入口（Task 3.1）
+
+    /// 该 provider 卡片下方应显示的图表下钻入口，顺序对齐 NSMenu：
+    ///   usage(breakdown/openAIAPI) → credits → cost → usageHistory → storage → zaiHourly。
+    func popoverChartEntries(for provider: UsageProvider) -> [PopoverChartKind] {
+        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .liveCard)
+        let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
+        let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
+        // cost：tokenSnapshotForCostHistorySubmenu 与 appendCostHistoryChartItem 完全对齐
+        let tokenSnap = self.tokenSnapshotForCostHistorySubmenu(provider: provider)
+        let hasCostHistory = self.settings.isCostUsageEffectivelyEnabled(for: provider) &&
+            tokenSnap?.daily.isEmpty == false
+        let hasUsageHistory = self.store.supportsPlanUtilizationHistory(for: provider) &&
+            !self.store.shouldHidePlanUtilizationMenuItem(for: provider)
+        let hasStorageBreakdown = self.store.storageFootprint(for: provider)?.components.isEmpty == false
+        let hasZaiHourly = provider == .zai &&
+            self.store.snapshot(for: provider)?.zaiUsage?.modelUsage != nil
+
+        var entries: [PopoverChartKind] = []
+
+        // ── usage ──
+        // 与 makeUsageSubmenu 对齐：hasUsageBreakdown → .usageBreakdown；
+        //   否则 openai + hasOpenAIAPIUsageSubmenu → .costHistory(openai)（即 "API Usage" submenu）。
+        if hasUsageBreakdown {
+            entries.append(.usageBreakdown)
+        } else if provider == .openai,
+                  self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
+        {
+            // openAI "API Usage" 子菜单等价于 costHistory；在此插入，后面 cost 入口去重跳过
+            entries.append(.costHistory(provider))
+        }
+
+        // ── credits ──
+        if hasCreditsHistory {
+            entries.append(.creditsHistory)
+        }
+
+        // ── cost（去重：usage 入口若已插入 costHistory(provider) 则跳过）──
+        if hasCostHistory, !entries.contains(.costHistory(provider)) {
+            entries.append(.costHistory(provider))
+        }
+
+        // ── usageHistory ──
+        if hasUsageHistory {
+            entries.append(.usageHistory(provider))
+        }
+
+        // ── storage ──
+        if hasStorageBreakdown {
+            entries.append(.storageBreakdown(provider))
+        }
+
+        // ── zaiHourly ──
+        if hasZaiHourly {
+            entries.append(.zaiHourly(provider))
+        }
+
+        return entries
+    }
+
+    /// Overview 行的下钻图表（无则 nil），对齐 makeOverviewRowSubmenu 逻辑：
+    ///   openai+hasAPIUsage → .costHistory；zai → nil（详情菜单阶段跳过）；
+    ///   tokenUsage != nil → .costHistory；usageHistory 可用 → .usageHistory；
+    ///   storage 非空 → .storageBreakdown；否则 nil。
+    func popoverOverviewChart(for provider: UsageProvider, model: UsageMenuCardView.Model) -> PopoverChartKind? {
+        // openai：API Usage submenu（=costHistory）
+        if provider == .openai,
+           self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
+        {
+            return .costHistory(provider)
+        }
+        // zai：详情菜单本阶段跳过
+        if provider == .zai {
+            return nil
+        }
+        // tokenUsage 不为 nil → costHistory
+        if model.tokenUsage != nil,
+           self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
+        {
+            return .costHistory(provider)
+        }
+        // usageHistory
+        if self.store.supportsPlanUtilizationHistory(for: provider),
+           !self.store.shouldHidePlanUtilizationMenuItem(for: provider)
+        {
+            return .usageHistory(provider)
+        }
+        // storageBreakdown
+        if self.store.storageFootprint(for: provider)?.components.isEmpty == false {
+            return .storageBreakdown(provider)
+        }
+        return nil
+    }
+
+    /// 懒构造图表视图；数据缺失返回 nil。width 为图表渲染宽度。
+    /// 数据获取与 +HostedSubmenus.swift 对应 append* 方法完全一致。
+    @MainActor
+    func popoverChartView(for kind: PopoverChartKind, width: CGFloat) -> AnyView? {
+        switch kind {
+        case .usageBreakdown:
+            let breakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+                from: self.store.openAIDashboard?.usageBreakdown ?? [])
+            guard !breakdown.isEmpty else { return nil }
+            return AnyView(UsageBreakdownChartMenuView(breakdown: breakdown, width: width))
+
+        case .creditsHistory:
+            let breakdown = self.store.openAIDashboard?.dailyBreakdown ?? []
+            guard !breakdown.isEmpty else { return nil }
+            return AnyView(CreditsHistoryChartMenuView(breakdown: breakdown, width: width))
+
+        case let .costHistory(provider):
+            guard let tokenSnapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider) else { return nil }
+            guard !tokenSnapshot.daily.isEmpty else { return nil }
+            return AnyView(CostHistoryChartMenuView(
+                provider: provider,
+                daily: tokenSnapshot.daily,
+                totalCostUSD: tokenSnapshot.last30DaysCostUSD,
+                currencyCode: tokenSnapshot.currencyCode,
+                historyDays: tokenSnapshot.historyDays,
+                windowLabel: tokenSnapshot.historyLabel,
+                width: width))
+
+        case let .usageHistory(provider):
+            let histories = self.store.planUtilizationHistory(for: provider)
+            let snapshot = self.store.snapshot(for: provider)
+            return AnyView(PlanUtilizationHistoryChartMenuView(
+                provider: provider,
+                histories: histories,
+                snapshot: snapshot,
+                width: width))
+
+        case let .storageBreakdown(provider):
+            guard let footprint = self.store.storageFootprint(for: provider),
+                  !footprint.components.isEmpty else { return nil }
+            let visibleHeight = NSScreen.main?.visibleFrame.height ?? 900
+            let maxHeight = min(620, max(360, floor(visibleHeight * 0.72)))
+            return AnyView(StorageBreakdownMenuView(footprint: footprint, width: width, maxHeight: maxHeight))
+
+        case let .zaiHourly(provider):
+            guard provider == .zai,
+                  let snapshot = self.store.snapshot(for: provider),
+                  let modelUsage = snapshot.zaiUsage?.modelUsage else { return nil }
+            return AnyView(ZaiHourlyUsageChartMenuView(modelUsage: modelUsage, width: width))
+        }
+    }
+
     /// 接线 popover 的键盘快捷键回调（只在控制器首次创建时设一次，弱引用防环）。
     private func wirePopoverShortcutCallbacks() {
         self.popoverMenuController?.onRefresh = { [weak self] in
