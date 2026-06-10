@@ -128,7 +128,7 @@ struct DoubaoUsageFetcherTests {
     }
 
     @Test
-    func `headerless rate limit confirmation preserves exhausted quota`() async throws {
+    func `headerless rate limit confirmation uses active fallback`() async throws {
         let transport = DoubaoScriptedTransport(results: [
             .response(statusCode: 200, limit: 1000, remaining: 0),
             .response(statusCode: 429, limit: nil, remaining: nil),
@@ -137,9 +137,23 @@ struct DoubaoUsageFetcherTests {
         let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.primary?.usedPercent == 100)
-        #expect(usage.primary?.resetDescription == "1000/1000 requests")
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
         #expect(await transport.requestCount() == 2)
+    }
+
+    @Test
+    func `partial rate limit headers use active fallback`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .response(statusCode: 429, limit: 1000, remaining: nil),
+        ])
+
+        let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+        #expect(await transport.requestCount() == 1)
     }
 
     @Test

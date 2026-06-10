@@ -105,6 +105,7 @@ public struct DoubaoUsageFetcher: Sendable {
 
         var hasAmbiguousZeroRemaining: Bool {
             self.statusCode == 200
+                && self.snapshot.requestLimitsReliable
                 && self.snapshot.limitRequests > 0
                 && self.snapshot.remainingRequests == 0
         }
@@ -151,9 +152,6 @@ public struct DoubaoUsageFetcher: Sendable {
     {
         do {
             let confirmation = try await self.probe(apiKey: apiKey, model: model, transport: transport)
-            if confirmation.statusCode == 429, confirmation.snapshot.limitRequests == 0 {
-                return initial.snapshot
-            }
             guard confirmation.hasAmbiguousZeroRemaining else {
                 return confirmation.snapshot
             }
@@ -241,7 +239,8 @@ public struct DoubaoUsageFetcher: Sendable {
             resetTime: resetTime,
             updatedAt: Date(),
             apiKeyValid: keyValid,
-            totalTokens: totalTokens)
+            totalTokens: totalTokens,
+            requestLimitsReliable: limit != nil && remaining != nil)
 
         Self.log.debug(
             """
