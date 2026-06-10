@@ -10,7 +10,7 @@ public struct DoubaoUsageSnapshot: Sendable {
     public let updatedAt: Date
     public let apiKeyValid: Bool
     public let totalTokens: Int?
-    public let isRateLimited: Bool
+    public let requestLimitsReliable: Bool
     public init(
         remainingRequests: Int,
         limitRequests: Int,
@@ -18,7 +18,7 @@ public struct DoubaoUsageSnapshot: Sendable {
         updatedAt: Date,
         apiKeyValid: Bool = false,
         totalTokens: Int? = nil,
-        isRateLimited: Bool = false)
+        requestLimitsReliable: Bool = true)
     {
         self.remainingRequests = remainingRequests
         self.limitRequests = limitRequests
@@ -26,16 +26,14 @@ public struct DoubaoUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
         self.apiKeyValid = apiKeyValid
         self.totalTokens = totalTokens
-        self.isRateLimited = isRateLimited
+        self.requestLimitsReliable = requestLimitsReliable
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
         let usedPercent: Double
         let resetDescription: String
 
-        // Some successful Ark responses report a positive limit with zero remaining
-        // even though later requests still succeed. Trust zero only after an explicit 429.
-        if self.limitRequests > 0, self.remainingRequests > 0 || self.isRateLimited {
+        if self.limitRequests > 0, self.requestLimitsReliable {
             let used = max(0, self.limitRequests - self.remainingRequests)
             usedPercent = min(100, max(0, Double(used) / Double(self.limitRequests) * 100))
             resetDescription = "\(used)/\(self.limitRequests) requests"
@@ -101,7 +99,21 @@ public struct DoubaoUsageFetcher: Sendable {
         "doubao-lite-32k",
     ]
 
-    public static func fetchUsage(apiKey: String) async throws -> DoubaoUsageSnapshot {
+    private struct ProbeResult {
+        let snapshot: DoubaoUsageSnapshot
+        let statusCode: Int
+
+        var hasAmbiguousZeroRemaining: Bool {
+            self.statusCode == 200
+                && self.snapshot.limitRequests > 0
+                && self.snapshot.remainingRequests == 0
+        }
+    }
+
+    public static func fetchUsage(
+        apiKey: String,
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> DoubaoUsageSnapshot
+    {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw DoubaoUsageError.missingCredentials
         }
@@ -109,7 +121,16 @@ public struct DoubaoUsageFetcher: Sendable {
         var lastError: Error?
         for model in self.probeModels {
             do {
-                return try await self.probe(apiKey: apiKey, model: model)
+                let result = try await self.probe(apiKey: apiKey, model: model, transport: transport)
+                guard result.hasAmbiguousZeroRemaining else {
+                    return result.snapshot
+                }
+
+                return await self.confirmAmbiguousZeroRemaining(
+                    initial: result,
+                    apiKey: apiKey,
+                    model: model,
+                    transport: transport)
             } catch let error as DoubaoUsageError {
                 if case let .apiError(code, _) = error, code == 404 || code == 403 {
                     Self.log.debug("Doubao probe model \(model) unavailable (\(code)), trying next")
@@ -122,7 +143,46 @@ public struct DoubaoUsageFetcher: Sendable {
         throw lastError ?? DoubaoUsageError.apiError(0, "All probe models failed")
     }
 
-    private static func probe(apiKey: String, model: String) async throws -> DoubaoUsageSnapshot {
+    private static func confirmAmbiguousZeroRemaining(
+        initial: ProbeResult,
+        apiKey: String,
+        model: String,
+        transport: any ProviderHTTPTransport) async -> DoubaoUsageSnapshot
+    {
+        do {
+            let confirmation = try await self.probe(apiKey: apiKey, model: model, transport: transport)
+            guard confirmation.hasAmbiguousZeroRemaining else {
+                return confirmation.snapshot
+            }
+
+            Self.log.warning(
+                """
+                Doubao Ark returned limit=\(confirmation.snapshot.limitRequests) remaining=0 \
+                with HTTP 200 twice; treating request-limit headers as unreliable.
+                """)
+            return DoubaoUsageSnapshot(
+                remainingRequests: confirmation.snapshot.remainingRequests,
+                limitRequests: confirmation.snapshot.limitRequests,
+                resetTime: confirmation.snapshot.resetTime,
+                updatedAt: confirmation.snapshot.updatedAt,
+                apiKeyValid: confirmation.snapshot.apiKeyValid,
+                totalTokens: confirmation.snapshot.totalTokens,
+                requestLimitsReliable: false)
+        } catch {
+            self.log.warning(
+                """
+                Doubao zero-remaining confirmation failed; preserving the initial exhausted state: \
+                \(error.localizedDescription)
+                """)
+            return initial.snapshot
+        }
+    }
+
+    private static func probe(
+        apiKey: String,
+        model: String,
+        transport: any ProviderHTTPTransport) async throws -> ProbeResult
+    {
         var request = URLRequest(url: self.apiURL)
         request.httpMethod = "POST"
         request.timeoutInterval = 15
@@ -140,7 +200,7 @@ public struct DoubaoUsageFetcher: Sendable {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
 
         // Accept both 200 (success) and 429 (rate limited) – both carry rate limit headers.
@@ -175,8 +235,7 @@ public struct DoubaoUsageFetcher: Sendable {
             resetTime: resetTime,
             updatedAt: Date(),
             apiKeyValid: keyValid,
-            totalTokens: totalTokens,
-            isRateLimited: response.statusCode == 429)
+            totalTokens: totalTokens)
 
         Self.log.debug(
             """
@@ -184,15 +243,7 @@ public struct DoubaoUsageFetcher: Sendable {
             limit=\(snapshot.limitRequests) valid=\(snapshot.apiKeyValid)
             """)
 
-        if response.statusCode == 200, (limit ?? 0) > 0, (remaining ?? 0) == 0 {
-            Self.log.warning(
-                """
-                Doubao Ark returned limit=\(limit ?? 0) remaining=0 with HTTP 200; \
-                treating request-limit headers as unreliable.
-                """)
-        }
-
-        return snapshot
+        return ProbeResult(snapshot: snapshot, statusCode: response.statusCode)
     }
 
     private static func stringHeader(_ headers: [AnyHashable: Any], _ name: String) -> String? {

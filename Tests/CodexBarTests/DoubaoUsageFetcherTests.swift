@@ -36,7 +36,8 @@ struct DoubaoUsageSnapshotTests {
             limitRequests: 1000,
             resetTime: nil,
             updatedAt: Date(),
-            apiKeyValid: true)
+            apiKeyValid: true,
+            requestLimitsReliable: false)
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 0)
         #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
@@ -49,8 +50,7 @@ struct DoubaoUsageSnapshotTests {
             limitRequests: 1000,
             resetTime: nil,
             updatedAt: Date(),
-            apiKeyValid: true,
-            isRateLimited: true)
+            apiKeyValid: true)
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 100)
         #expect(usage.primary?.resetDescription == "1000/1000 requests")
@@ -93,5 +93,89 @@ struct DoubaoUsageSnapshotTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.identity?.providerID == .doubao)
         #expect(usage.identity?.accountEmail == nil)
+    }
+}
+
+struct DoubaoUsageFetcherTests {
+    @Test
+    func `repeated successful zero remaining responses use active fallback`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .response(statusCode: 200, limit: 1000, remaining: 0),
+            .response(statusCode: 200, limit: 1000, remaining: 0),
+        ])
+
+        let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+        #expect(await transport.requestCount() == 2)
+    }
+
+    @Test
+    func `successful final request followed by rate limit reports exhausted quota`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .response(statusCode: 200, limit: 1000, remaining: 0),
+            .response(statusCode: 429, limit: 1000, remaining: 0),
+        ])
+
+        let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.primary?.resetDescription == "1000/1000 requests")
+        #expect(await transport.requestCount() == 2)
+    }
+
+    @Test
+    func `failed zero remaining confirmation preserves exhausted quota`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .response(statusCode: 200, limit: 1000, remaining: 0),
+            .failure(URLError(.timedOut)),
+        ])
+
+        let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.primary?.resetDescription == "1000/1000 requests")
+        #expect(await transport.requestCount() == 2)
+    }
+}
+
+private actor DoubaoScriptedTransport: ProviderHTTPTransport {
+    enum Result {
+        case response(statusCode: Int, limit: Int, remaining: Int)
+        case failure(URLError)
+    }
+
+    private var results: [Result]
+    private var requests = 0
+
+    init(results: [Result]) {
+        self.results = results
+    }
+
+    func requestCount() -> Int {
+        self.requests
+    }
+
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        self.requests += 1
+        let result = self.results.removeFirst()
+        switch result {
+        case let .response(statusCode, limit, remaining):
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: [
+                    "x-ratelimit-limit-requests": String(limit),
+                    "x-ratelimit-remaining-requests": String(remaining),
+                ])!
+            return (Data(#"{"usage":{"total_tokens":1}}"#.utf8), response)
+        case let .failure(error):
+            throw error
+        }
     }
 }

@@ -3,7 +3,7 @@
 ## 0.32.6 — Unreleased
 
 ### Fixed
-- Doubao: stop misreading unreliable HTTP 200 request-limit headers as 100% used while preserving explicit HTTP 429 exhaustion (#1383). Thanks @LeoLin990405 and @foobra!
+- Doubao: confirm zero-remaining HTTP 200 request limits before falling back, preserving genuine exhaustion and avoiding false 100% usage (#1383). Thanks @LeoLin990405 and @foobra!
 - Antigravity: exclude model quotas without a remaining fraction from family summaries so they no longer mask tracked usage in the automatic menu-bar metric (#1369). Thanks @Martin-Hausleitner!
 - Claude: add bundled Fable 5 pricing, account for native 1-hour cache-write usage, and refresh Sonnet 4.6 full-context rates (#1368). Thanks @MoollaMore!
 - Claude: show a direct claude.ai re-login action when a configured web session expires or becomes invalid (#1377). Thanks @LeoLin990405!
