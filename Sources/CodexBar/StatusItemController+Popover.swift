@@ -20,7 +20,6 @@ extension StatusItemController {
     func attachMergedPopover() {
         self.statusItem.menu = nil
         if self.popoverMenuController == nil {
-            self.refreshPopoverViewModelInputs()
             let vm = self.menuViewModel
             let store = self.store
             self.popoverMenuController = PopoverMenuController(viewModel: vm) { [weak self] in
@@ -80,6 +79,8 @@ extension StatusItemController {
                     })
             }
             self.wirePopoverShortcutCallbacks()
+            // onSelectionChanged 必须在 refreshPopoverViewModelInputs() 之前注册，
+            // 确保首次 restore（select(restored)）触发时回调已就位，不会静默丢失写回 settings 的副作用。
             vm.onSelectionChanged = { [weak self] selection in
                 guard let self else { return }
                 switch selection {
@@ -90,6 +91,8 @@ extension StatusItemController {
                     self.settings.mergedMenuLastSelectedWasOverview = false
                 }
             }
+            // 在控制器创建与回调注册完成后再 refresh，保证首次 selection restore 的写回不丢失。
+            self.refreshPopoverViewModelInputs()
         }
         self.statusItem.button?.target = self
         self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
@@ -107,7 +110,9 @@ extension StatusItemController {
         let overviewProviders = self.settings.resolvedMergedOverviewProviders(
             activeProviders: enabledProviders,
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
-        self.menuViewModel.includesOverview = !overviewProviders.isEmpty
+        // 与 NSMenu 对齐：只有多个 provider 时才显示切换器（含 overview tab）；
+        // 单 provider 时即使 overviewProviders 非空也不展示，避免多余的切换器。
+        self.menuViewModel.includesOverview = !overviewProviders.isEmpty && enabledProviders.count > 1
 
         // 从 settings 恢复上次选中项（等价于 NSMenu 的 resolvedSwitcherSelection 逻辑）：
         //   includesOverview && mergedMenuLastSelectedWasOverview → .overview
@@ -152,18 +157,15 @@ extension StatusItemController {
     }
 
     /// 通过已有的 selector(for:) 映射分发动作，复用 NSMenu 路径全部逻辑。
-    /// - 有 payload（带参 selector）：构造临时 NSMenuItem 传递 representedObject，
-    ///   调用 perform(_:with:)——AppKit 约定 with: 参数传给 @objc 方法的 sender 参数。
-    /// - 无 payload（无参 selector）：调用 perform(_:)，避免向无参方法传入多余参数。
+    /// 始终构造临时 NSMenuItem 并调用 perform(_:with:)：
+    ///   - 带 payload 的方法：representedObject 设为 payload，方法正常读取。
+    ///   - 无 payload（无参签名）的方法：representedObject 为 nil，ObjC 消息派发下多余实参被忽略，安全。
+    /// 消除了两路分支与 addCodexAccount（payload=nil 但方法带 NSMenuItem 参数）的 ABI 歧义。
     private func performLegacyMenuAction(_ action: MenuDescriptor.MenuAction) {
         let (sel, payload) = self.selector(for: action)
-        if let payload {
-            let item = NSMenuItem()
-            item.representedObject = payload
-            _ = self.perform(sel, with: item)
-        } else {
-            _ = self.perform(sel)
-        }
+        let item = NSMenuItem()
+        item.representedObject = payload
+        _ = self.perform(sel, with: item)
     }
 
     // MARK: - 卡片计划（复刻 addMenuCards 分流逻辑，纯数据）
@@ -174,7 +176,10 @@ extension StatusItemController {
     ///   2. Token 多账户 stacked → snapshot compactMap
     ///   3. Kilo 多 scope → kiloScopeSnapshots compactMap
     ///   4. 单卡片 / 占位
-    ///   + storageText / showBuyCredits
+    ///   + storageText
+    ///   stacked 路径强制 showBuyCredits = false（与 NSMenu addStackedMenuCards 一致，
+    ///   NSMenu stacked 分支 return false 早退，不经过单卡片 canShowBuyCredits 路径）；
+    ///   仅单卡片路径（分支 4）保留 popoverCanShowBuyCredits 计算。
     func popoverCardPlan(for provider: UsageProvider) -> PopoverCardPlan {
         var plan = PopoverCardPlan()
 
@@ -208,8 +213,11 @@ extension StatusItemController {
                     isFirstInSection = false
                 }
             }
+            // stacked 路径：cards 为空时 fallback 到单卡片，与 NSMenu addStackedCodexMenuCards:49-56 对齐
+            self.applyStackedFallback(to: &plan, provider: provider)
             plan.storageText = self.store.storageFootprintText(for: provider)
-            plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+            // stacked 路径不显示 Buy Credits，与 NSMenu stacked 路径 return false 早退一致
+            plan.showBuyCredits = false
             return plan
         }
 
@@ -228,11 +236,11 @@ extension StatusItemController {
                     }
             }
             plan.cards = cards
-            if plan.cards.isEmpty {
-                plan.emptyText = "Loading…"
-            }
+            // stacked 路径：cards 为空时 fallback 到单卡片，与 NSMenu addStackedMenuCards:716-722 对齐
+            self.applyStackedFallback(to: &plan, provider: provider)
             plan.storageText = self.store.storageFootprintText(for: provider)
-            plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+            // stacked 路径不显示 Buy Credits，与 NSMenu stacked 路径 return false 早退一致
+            plan.showBuyCredits = false
             return plan
         }
 
@@ -249,11 +257,11 @@ extension StatusItemController {
                     }
             }
             plan.cards = cards
-            if plan.cards.isEmpty {
-                plan.emptyText = "Loading…"
-            }
+            // stacked 路径：cards 为空时 fallback 到单卡片，与 NSMenu addStackedMenuCards:716-722 对齐
+            self.applyStackedFallback(to: &plan, provider: provider)
             plan.storageText = self.store.storageFootprintText(for: provider)
-            plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
+            // stacked 路径不显示 Buy Credits，与 NSMenu stacked 路径 return false 早退一致
+            plan.showBuyCredits = false
             return plan
         }
 
@@ -266,6 +274,17 @@ extension StatusItemController {
         plan.storageText = self.store.storageFootprintText(for: provider)
         plan.showBuyCredits = self.popoverCanShowBuyCredits(for: provider)
         return plan
+    }
+
+    /// stacked 路径空 cards 时的 fallback：尝试构造单卡片，否则显示"Loading…"。
+    /// 与 NSMenu addStackedCodexMenuCards:49-56 / addStackedMenuCards:716-722 语义对齐。
+    private func applyStackedFallback(to plan: inout PopoverCardPlan, provider: UsageProvider) {
+        guard plan.cards.isEmpty else { return }
+        if let model = self.menuCardModel(for: provider) {
+            plan.cards = [PopoverCardPlan.Card(id: "single", model: model, workspaceHeader: nil)]
+        } else {
+            plan.emptyText = "Loading…"
+        }
     }
 
     /// 计算 Buy Credits 是否可显示。

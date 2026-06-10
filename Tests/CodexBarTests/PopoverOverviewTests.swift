@@ -8,13 +8,37 @@ import Testing
 struct PopoverOverviewRowTests {
     // MARK: 1. id 稳定性
 
+    /// 通过实际构造 PopoverOverviewRow 验证 id 计算属性等于 provider.rawValue。
     @Test
-    func `PopoverOverviewRow id 等于 provider rawValue`() {
-        // id 应稳定地映射为 provider.rawValue，与 NSMenu overviewRowIdentifier 保持一致
+    func `PopoverOverviewRow id 等于 provider rawValue`() throws {
+        // 构造最简 UsageMenuCardView.Model（snapshot=nil、account 填占位值）
         let providers: [UsageProvider] = [.codex, .claude, .cursor]
         for provider in providers {
-            // 通过符合稳定约定来验证：rawValue 是 string 常量
-            #expect(provider.rawValue == provider.rawValue, "id 应稳定：同一 provider 两次求值相等")
+            let metadata = try #require(ProviderDefaults.metadata[provider])
+            let model = UsageMenuCardView.Model.make(.init(
+                provider: provider,
+                metadata: metadata,
+                snapshot: nil,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: false,
+                hidePersonalInfo: false,
+                now: Date()))
+            let row = StatusItemController.PopoverOverviewRow(
+                provider: provider,
+                model: model,
+                storageText: nil)
+            #expect(row.id == provider.rawValue, "id 应等于 provider.rawValue（provider: \(provider.rawValue)）")
         }
     }
 
