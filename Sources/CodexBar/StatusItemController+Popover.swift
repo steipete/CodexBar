@@ -11,8 +11,13 @@ import SwiftUI
 
 extension StatusItemController {
     /// 特性开关：是否启用 NSPopover 菜单（替代 NSMenu）。
+    /// dev 辅助：环境变量 CODEXBAR_FORCE_POPOVER=0/1 可覆盖设置值，
+    /// 用于同机双实例并排对比新旧菜单（两实例共享 UserDefaults 域，只能靠 env 区分）。
     var usePopoverMenu: Bool {
-        self.settings.usePopoverMenu
+        if let forced = ProcessInfo.processInfo.environment["CODEXBAR_FORCE_POPOVER"] {
+            return forced == "1"
+        }
+        return self.settings.usePopoverMenu
     }
 
     /// 合并模式下安装 popover：清掉 statusItem.menu，懒创建 PopoverMenuController 并接线快捷键回调，
