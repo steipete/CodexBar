@@ -57,7 +57,7 @@ struct MenuCardAntigravityTests {
     }
 
     @Test
-    func `antigravity zero percent metric still shows reset text`() throws {
+    func `antigravity untracked metric stays out of family summary`() throws {
         let now = Date(timeIntervalSince1970: 1_735_000_000)
         let resetTime = now.addingTimeInterval(3600)
         let antigravitySnapshot = AntigravityStatusSnapshot(
@@ -108,7 +108,7 @@ struct MenuCardAntigravityTests {
 
         #expect(model.metrics[1].percent == 0)
         #expect(model.metrics[1].percentLabel == "0% left")
-        #expect(model.metrics[1].resetText != nil)
+        #expect(model.metrics[1].resetText == nil)
     }
 
     @Test

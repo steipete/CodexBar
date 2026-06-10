@@ -57,6 +57,41 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
+    func `automatic metric ignores untracked antigravity family lane`() throws {
+        let untrackedReset = Date(timeIntervalSince1970: 1000)
+        let exhaustedReset = Date(timeIntervalSince1970: 2000)
+        let antigravitySnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Claude Sonnet 4.6",
+                    modelId: "claude-sonnet-4-6",
+                    remainingFraction: nil,
+                    resetTime: untrackedReset,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro",
+                    modelId: "gemini-3-1-pro",
+                    remainingFraction: 0,
+                    resetTime: exhaustedReset,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local)
+        let snapshot = try antigravitySnapshot.toUsageSnapshot()
+        #expect(snapshot.primary == nil)
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.usedPercent == 100)
+        #expect(window?.resetsAt == exhaustedReset)
+    }
+
+    @Test
     func `explicit antigravity metric keeps requested family lane`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: "Claude"),

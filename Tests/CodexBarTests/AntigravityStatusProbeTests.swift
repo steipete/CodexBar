@@ -977,7 +977,7 @@ extension AntigravityStatusProbeTests {
     }
 
     @Test
-    func `model without remaining fraction keeps reset time`() throws {
+    func `model without remaining fraction stays out of family summary and preserves reset metadata`() throws {
         let resetTime = Date(timeIntervalSince1970: 1_735_000_000)
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
@@ -998,9 +998,12 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.secondary?.remainingPercent.rounded() == 0)
-        #expect(usage.secondary?.resetsAt == resetTime)
+        #expect(usage.secondary == nil)
         #expect(usage.tertiary?.remainingPercent.rounded() == 100)
+        let modelWindow = try #require(usage.extraRateWindows?.first {
+            $0.id == "MODEL_PLACEHOLDER_M36"
+        })
+        #expect(modelWindow.window.resetsAt == resetTime)
     }
 
     @Test

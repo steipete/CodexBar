@@ -2,6 +2,9 @@
 
 ## 0.32.6 — Unreleased
 
+### Fixed
+- Antigravity: exclude model quotas without a remaining fraction from family summaries so they no longer mask tracked usage in the automatic menu-bar metric (#1369). Thanks @Martin-Hausleitner!
+
 ## 0.32.5 — 2026-06-09
 
 ### Added
