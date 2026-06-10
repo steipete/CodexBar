@@ -155,6 +155,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     let menuViewModel = MenuViewModel()
     var popoverMenuController: PopoverMenuController<PopoverRootView>?
+    // per-provider popover（非合并模式；keyed by UsageProvider）
+    var providerPopoverControllers: [UsageProvider: PopoverMenuController<PopoverRootView>] = [:]
+    var providerMenuViewModels: [UsageProvider: MenuViewModel] = [:]
 
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
@@ -804,9 +807,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             return
         }
         // ↓ original logic unchanged
-        // 从 popover 模式切回时清掉残留的 button target/action
-        self.statusItem.button?.target = nil
-        self.statusItem.button?.action = nil
+        self.clearPopoverButtonActions()
         if self.mergedMenu == nil {
             self.mergedMenu = self.makeMenu()
         }
@@ -817,6 +818,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func attachMenus(fallback: UsageProvider? = nil) {
+        if self.usePopoverMenu {
+            self.attachProviderPopovers(fallback: fallback)
+            return
+        }
+        self.clearPopoverButtonActions()
         for provider in UsageProvider.allCases {
             // Only access/create the status item if it's actually needed
             let shouldHaveItem = self.isEnabled(provider) || fallback == provider

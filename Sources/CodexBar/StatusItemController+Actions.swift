@@ -316,13 +316,29 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let provider = self.resolvedShortcutProvider()
         // Use the lazy accessor to ensure the item exists
         let item = self.lazyStatusItem(for: provider)
-        item.button?.performClick(nil)
+        if self.usePopoverMenu, let button = item.button {
+            // 确保 popover controller 已创建（快捷键可能先于 attachProviderPopovers 触发）
+            self.ensureProviderPopover(for: provider)
+            self.closeAllProviderPopovers(except: provider)
+            self.providerPopoverControllers[provider]?.toggle(relativeTo: button)
+        } else {
+            item.button?.performClick(nil)
+        }
     }
 
     @objc func handleStatusItemClick(_ sender: Any?) {
         guard self.usePopoverMenu, let button = self.statusItem.button else { return }
         self.refreshPopoverViewModelInputs()
         self.popoverMenuController?.toggle(relativeTo: button)
+    }
+
+    /// 非合并模式 per-provider statusItem 按钮点击处理（popover 路径）。
+    /// sender 即 NSStatusBarButton；通过恒等比较反查 provider。
+    @objc func handleProviderStatusItemClick(_ sender: Any?) {
+        guard self.usePopoverMenu, let button = sender as? NSStatusBarButton else { return }
+        guard let provider = self.statusItems.first(where: { $0.value.button === button })?.key else { return }
+        self.closeAllProviderPopovers(except: provider)
+        self.providerPopoverControllers[provider]?.toggle(relativeTo: button)
     }
 
     @discardableResult

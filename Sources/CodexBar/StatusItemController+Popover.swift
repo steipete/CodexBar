@@ -21,72 +21,12 @@ extension StatusItemController {
         self.statusItem.menu = nil
         if self.popoverMenuController == nil {
             let vm = self.menuViewModel
-            let store = self.store
-            self.popoverMenuController = PopoverMenuController(viewModel: vm) { [weak self] in
-                PopoverRootView(
-                    viewModel: vm,
-                    store: store,
-                    makeCardPlan: { [weak self] provider in
-                        self?.popoverCardPlan(for: provider) ?? PopoverCardPlan()
-                    },
-                    makeAccountSwitcher: { [weak self] provider in
-                        self?.popoverAccountSwitcherModel(for: provider).map { model in
-                            PopoverRootView.AccountSwitcherBinding(
-                                segments: model.segments,
-                                onSelect: model.onSelect)
-                        }
-                    },
-                    makeSections: { [weak self] in
-                        guard let self else { return [] }
-                        let isOverview = vm.selection == .overview
-                        // overview 时取 resolvedMenuProvider 等价逻辑（与 populateMenu:224-228 对齐）：
-                        // 优先选已启用且可用的 provider，不传切换器选择，等价于 NSMenu overview 路径。
-                        let provider: UsageProvider? = {
-                            if isOverview {
-                                let enabled = vm.providers
-                                if enabled.isEmpty { return UsageProvider.codex }
-                                return enabled.first(where: { self.store.isProviderAvailable($0) })
-                                    ?? enabled.first
-                            }
-                            if case let .provider(p) = vm.selection { return p }
-                            return vm.providers.first
-                        }()
-                        return MenuDescriptor.build(
-                            provider: provider,
-                            store: store,
-                            settings: self.settings,
-                            account: self.account,
-                            managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
-                            codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
-                            updateReady: self.updater.updateStatus.isUpdateReady,
-                            includeContextualActions: !isOverview).sections
-                    },
-                    makeOverviewRows: { [weak self] in
-                        self?.popoverOverviewRows() ?? []
-                    },
-                    overviewEmptyText: { [weak self] in
-                        self?.popoverOverviewEmptyText()
-                    },
-                    onAction: { [weak self] action in self?.performMenuAction(action) },
-                    onBuyCredits: { [weak self] in
-                        self?.openCreditsPurchase()
-                        self?.popoverMenuController?.close()
-                    },
-                    switcherIcon: { [weak self] provider in
-                        (self?.settings.switcherShowsIcons == true)
-                            ? self?.popoverSwitcherIcon(for: provider)
-                            : nil
-                    },
-                    makeChartEntries: { [weak self] provider in
-                        self?.popoverChartEntries(for: provider) ?? []
-                    },
-                    makeOverviewChart: { [weak self] row in
-                        self?.popoverOverviewChart(for: row.provider, model: row.model)
-                    },
-                    makeChartView: { [weak self] kind, width in
-                        self?.popoverChartView(for: kind, width: width)
-                    })
-            }
+            self.popoverMenuController = self.makePopoverController(
+                viewModel: vm,
+                makeOverviewRows: { [weak self] in self?.popoverOverviewRows() ?? [] },
+                makeOverviewChart: { [weak self] row in
+                    self?.popoverOverviewChart(for: row.provider, model: row.model)
+                })
             self.wirePopoverShortcutCallbacks()
             // onSelectionChanged 必须在 refreshPopoverViewModelInputs() 之前注册，
             // 确保首次 restore（select(restored)）触发时回调已就位，不会静默丢失写回 settings 的副作用。
@@ -151,6 +91,151 @@ extension StatusItemController {
     /// 直接复用 ProviderBrandIcon（internal），不依赖 private switcherIcon(for:)。
     func popoverSwitcherIcon(for provider: UsageProvider) -> NSImage? {
         ProviderBrandIcon.image(for: provider)
+    }
+
+    /// NSMenu 路径兜底：从 popover 模式切回时清掉合并与 per-provider statusItem 按钮上的残留 target/action。
+    /// 在两个 attachMenus 的 NSMenu 分支开头调用。
+    func clearPopoverButtonActions() {
+        self.statusItem.button?.target = nil
+        self.statusItem.button?.action = nil
+        for item in self.statusItems.values {
+            item.button?.target = nil
+            item.button?.action = nil
+        }
+    }
+
+    // MARK: - Per-provider popover（非合并模式）
+
+    /// 关闭除指定 provider 外的所有 per-provider popover（及合并 popover）。
+    /// NSPopover(.transient) 大多自动关，但点击另一 statusItem 不一定触发 transient 关闭，
+    /// 显式关闭保证互斥。
+    func closeAllProviderPopovers(except provider: UsageProvider? = nil) {
+        for (p, ctrl) in self.providerPopoverControllers where p != provider {
+            ctrl.close()
+        }
+        // 合并 popover 也一并关闭（模式切换时兜底）
+        self.popoverMenuController?.close()
+    }
+
+    /// 懒创建指定 provider 的 MenuViewModel + PopoverMenuController（首次调用后缓存）。
+    func ensureProviderPopover(for provider: UsageProvider) {
+        if self.providerPopoverControllers[provider] != nil { return }
+        let vm = MenuViewModel.singleProvider(provider)
+        self.providerMenuViewModels[provider] = vm
+        let ctrl = self.makePopoverController(
+            viewModel: vm,
+            makeOverviewRows: { [] },
+            makeOverviewChart: { _ in nil })
+        // per-provider 快捷键回调：onRefresh/onSettings/onQuit 照旧；
+        // onNavigate/onSelectIndex 单 provider 下 no-op（不设）。
+        ctrl.onRefresh = { [weak self] in
+            self?.refreshNow()
+            self?.providerPopoverControllers[provider]?.close()
+        }
+        ctrl.onSettings = { [weak self] in
+            self?.showSettingsGeneral()
+            self?.providerPopoverControllers[provider]?.close()
+        }
+        ctrl.onQuit = { [weak self] in
+            self?.quit()
+        }
+        // onNavigate/onSelectIndex 留为 nil（单 provider 无切换器，不处理方向键/数字键）
+        self.providerPopoverControllers[provider] = ctrl
+    }
+
+    /// 非合并模式下为每个 enabled/fallback provider 安装 per-provider popover，复刻 attachMenus(fallback:) 遍历结构。
+    func attachProviderPopovers(fallback: UsageProvider?) {
+        for provider in UsageProvider.allCases {
+            let shouldHaveItem = self.isEnabled(provider) || fallback == provider
+            if shouldHaveItem {
+                let item = self.lazyStatusItem(for: provider)
+                item.menu = nil // 清掉残留 NSMenu
+                self.ensureProviderPopover(for: provider)
+                item.button?.target = self
+                item.button?.action = #selector(self.handleProviderStatusItemClick(_:))
+                item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            } else if let item = self.statusItems[provider] {
+                item.menu = nil
+                item.button?.target = nil
+                item.button?.action = nil
+            }
+        }
+    }
+
+    // MARK: - Popover controller 工厂（合并模式和 per-provider 复用）
+
+    /// 构造一个 PopoverMenuController，注入所有 make* 闭包。
+    /// vm 参数化：不同 controller 的闭包各自捕获自己的 vm，selection 语义自动正确。
+    /// - makeOverviewRows：合并模式传 { self.popoverOverviewRows() }；per-provider 传 { [] }。
+    /// - makeOverviewChart：合并模式传真实实现；per-provider 传 { _ in nil }
+    ///   （PopoverRootView 要求 non-optional 闭包，单 provider 无 overview chart）。
+    private func makePopoverController(
+        viewModel vm: MenuViewModel,
+        makeOverviewRows: @escaping () -> [PopoverOverviewRow],
+        makeOverviewChart: @escaping (PopoverOverviewRow) -> PopoverChartKind?)
+        -> PopoverMenuController<PopoverRootView>
+    {
+        let store = self.store
+        return PopoverMenuController(viewModel: vm) { [weak self] in
+            PopoverRootView(
+                viewModel: vm,
+                store: store,
+                makeCardPlan: { [weak self] provider in
+                    self?.popoverCardPlan(for: provider) ?? PopoverCardPlan()
+                },
+                makeAccountSwitcher: { [weak self] provider in
+                    self?.popoverAccountSwitcherModel(for: provider).map { model in
+                        PopoverRootView.AccountSwitcherBinding(
+                            segments: model.segments,
+                            onSelect: model.onSelect)
+                    }
+                },
+                makeSections: { [weak self] in
+                    guard let self else { return [] }
+                    let isOverview = vm.selection == .overview
+                    let provider: UsageProvider? = {
+                        if isOverview {
+                            let enabled = vm.providers
+                            if enabled.isEmpty { return UsageProvider.codex }
+                            return enabled.first(where: { self.store.isProviderAvailable($0) })
+                                ?? enabled.first
+                        }
+                        if case let .provider(p) = vm.selection { return p }
+                        return vm.providers.first
+                    }()
+                    return MenuDescriptor.build(
+                        provider: provider,
+                        store: store,
+                        settings: self.settings,
+                        account: self.account,
+                        managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+                        codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
+                        updateReady: self.updater.updateStatus.isUpdateReady,
+                        includeContextualActions: !isOverview).sections
+                },
+                makeOverviewRows: makeOverviewRows,
+                overviewEmptyText: { [weak self] in
+                    self?.popoverOverviewEmptyText()
+                },
+                onAction: { [weak self] action in self?.performMenuAction(action) },
+                onBuyCredits: { [weak self] in
+                    self?.openCreditsPurchase()
+                    // 全关（含合并与全部 per-provider popover）：此闭包被两种模式复用
+                    self?.closeAllProviderPopovers()
+                },
+                switcherIcon: { [weak self] provider in
+                    (self?.settings.switcherShowsIcons == true)
+                        ? self?.popoverSwitcherIcon(for: provider)
+                        : nil
+                },
+                makeChartEntries: { [weak self] provider in
+                    self?.popoverChartEntries(for: provider) ?? []
+                },
+                makeOverviewChart: makeOverviewChart,
+                makeChartView: { [weak self] kind, width in
+                    self?.popoverChartView(for: kind, width: width)
+                })
+        }
     }
 
     // MARK: - popover 动作分发

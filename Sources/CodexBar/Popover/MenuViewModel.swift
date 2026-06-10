@@ -23,7 +23,8 @@ final class MenuViewModel {
 
     init() {}
 
-    /// 单 provider 模式便利工厂：providers=[provider]、includesOverview=false、selection=.provider(provider)、不设 onSelectionChanged。
+    /// 单 provider 模式便利工厂：providers=[provider]、includesOverview=false、selection=.provider(provider)、不设
+    /// onSelectionChanged。
     /// 供非合并模式 per-provider popover 和测试使用。
     static func singleProvider(_ provider: UsageProvider) -> MenuViewModel {
         let vm = MenuViewModel()
