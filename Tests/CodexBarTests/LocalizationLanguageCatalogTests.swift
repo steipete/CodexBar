@@ -69,4 +69,23 @@ struct LocalizationLanguageCatalogTests {
             #expect(contents.contains(key), "Missing localization key: \(key)")
         }
     }
+
+    @Test
+    func `japanese usage chart accessibility text preserves argument meanings`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let jaURL = root.appendingPathComponent("Sources/CodexBar/Resources/ja.lproj/Localizable.strings")
+        let catalog = try #require(NSDictionary(contentsOf: jaURL) as? [String: String])
+        let format = try #require(catalog["%d days of usage data across %d services"])
+
+        let rendered = String(
+            format: format,
+            locale: Locale(identifier: "ja_JP"),
+            arguments: [7, 3])
+
+        #expect(rendered.contains("7日間"))
+        #expect(rendered.contains("3サービス"))
+    }
 }

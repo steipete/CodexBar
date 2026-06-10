@@ -805,7 +805,7 @@
 "Credits history chart" = "クレジット履歴チャート";
 "%d days of credits data" = "%d日間のクレジットデータ";
 "Usage breakdown chart" = "使用状況の内訳チャート";
-"%d days of usage data across %d services" = "%dサービスにわたる%d日間の使用状況データ";
+"%d days of usage data across %d services" = "%2$dサービスにわたる%1$d日間の使用状況データ";
 "Cost history chart" = "コスト履歴チャート";
 "%d days of cost data" = "%d日間のコストデータ";
 "Plan utilization chart" = "プラン使用率チャート";
