@@ -10,9 +10,9 @@ final class PopoverMenuController<Content: View> {
     private let viewModel: MenuViewModel
     private let popover: NSPopover
     private let hostingController: NSHostingController<Content>
-    // nonisolated(unsafe) 允许在 deinit（非 MainActor）中直接读写，
-    // 实际写入只发生在 @MainActor 方法中，线程安全由调用方保证。
-    nonisolated(unsafe) private var keyMonitor: Any?
+    /// nonisolated(unsafe) 允许在 deinit（非 MainActor）中直接读写，
+    /// 实际写入只发生在 @MainActor 方法中，线程安全由调用方保证。
+    private nonisolated(unsafe) var keyMonitor: Any?
 
     /// 防止 transient 自动关闭后 button.action 立即重开的标志。
     /// handleDidClose() 置 true，下一 runloop tick 异步清除。
@@ -61,7 +61,9 @@ final class PopoverMenuController<Content: View> {
         }
     }
 
-    var isShown: Bool { self.popover.isShown }
+    var isShown: Bool {
+        self.popover.isShown
+    }
 
     func show(relativeTo button: NSStatusBarButton) {
         guard !self.popover.isShown else { return }
@@ -114,8 +116,8 @@ final class PopoverMenuController<Content: View> {
             if self.handle(
                 characters: event.charactersIgnoringModifiers,
                 keyCode: event.keyCode,
-                modifiers: event.modifierFlags
-            ) {
+                modifiers: event.modifierFlags)
+            {
                 return nil // 吞掉已处理事件
             }
             return event
@@ -154,7 +156,7 @@ final class PopoverMenuController<Content: View> {
         }
         // 非修饰键（按 keyCode）
         switch keyCode {
-        case 53:  // Esc
+        case 53: // Esc
             self.close()
             return true
         case 123: // ←
@@ -191,6 +193,6 @@ final class PopoverCloseDelegate: NSObject, NSPopoverDelegate {
     var onDidClose: (() -> Void)?
 
     func popoverDidClose(_ notification: Notification) {
-        onDidClose?()
+        self.onDidClose?()
     }
 }

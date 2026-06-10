@@ -1,13 +1,13 @@
-import Testing
 import AppKit
 import SwiftUI
+import Testing
 @testable import CodexBar
 
 @MainActor @Suite struct PopoverMenuControllerTests {
-    @Test func showAndCloseUpdatesViewModelVisibility() {
+    @Test func showAndCloseUpdatesViewModelVisibility() throws {
         let vm = MenuViewModel()
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let button = statusItem.button!
+        let button = try #require(statusItem.button)
         let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
         controller.show(relativeTo: button)
         #expect(vm.isVisible == true)
@@ -16,10 +16,10 @@ import SwiftUI
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 
-    @Test func escapeKeyClosesPopover() {
+    @Test func escapeKeyClosesPopover() throws {
         let vm = MenuViewModel()
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let button = statusItem.button!
+        let button = try #require(statusItem.button)
         let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
         controller.show(relativeTo: button)
         let handled = controller.handleKeyDownForTesting(keyCode: 53) // Esc
@@ -86,21 +86,23 @@ import SwiftUI
 
     // MARK: - #1 transient 双触发防抖
 
-    @Test func toggleAfterCloseIsSuppressedWithinSameRunloop() {
+    @Test func toggleAfterCloseIsSuppressedWithinSameRunloop() throws {
         let vm = MenuViewModel()
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let button = statusItem.button!
+        let button = try #require(statusItem.button)
         let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
         controller.show(relativeTo: button)
         #expect(vm.isVisible == true)
         controller.simulatePopoverDidCloseForTesting() // 模拟 transient 外部点击关闭
         #expect(vm.isVisible == false)
-        controller.toggle(relativeTo: button)          // 紧随的 button.action：应被吞掉，不重开
+        controller.toggle(relativeTo: button) // 紧随的 button.action：应被吞掉，不重开
         #expect(vm.isVisible == false)
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 }
 
 private struct EmptyContentProbe: View {
-    var body: some View { Color.clear.frame(width: 1, height: 1) }
+    var body: some View {
+        Color.clear.frame(width: 1, height: 1)
+    }
 }

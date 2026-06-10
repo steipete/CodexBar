@@ -1,5 +1,5 @@
-import SwiftUI
 import CodexBarCore
+import SwiftUI
 
 /// 持久面板根视图。阶段 1：provider 切换器 + 当前 provider 用量卡片。
 /// 整个 popover 生命周期只构造一次；切 provider 通过 viewModel.select(_:) 增量更新，不重建视图。
@@ -16,11 +16,11 @@ struct PopoverRootView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if viewModel.providers.count > 1 {
-                switcher
+            if self.viewModel.providers.count > 1 {
+                self.switcher
                 Divider()
             }
-            content
+            self.content
         }
         .frame(width: Self.menuWidth, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -30,18 +30,18 @@ struct PopoverRootView: View {
 
     private var switcher: some View {
         HStack(spacing: 4) {
-            ForEach(viewModel.providers, id: \.self) { provider in
+            ForEach(self.viewModel.providers, id: \.self) { provider in
                 Button {
-                    viewModel.select(.provider(provider))
+                    self.viewModel.select(.provider(provider))
                 } label: {
                     Text(provider.rawValue)
                         .font(.caption)
-                        .fontWeight(isSelected(provider) ? .semibold : .regular)
+                        .fontWeight(self.isSelected(provider) ? .semibold : .regular)
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(isSelected(provider) ? Color.accentColor.opacity(0.18) : Color.clear)
+                .background(self.isSelected(provider) ? Color.accentColor.opacity(0.18) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
             }
         }
@@ -51,12 +51,12 @@ struct PopoverRootView: View {
     // MARK: - 内容区
 
     @ViewBuilder private var content: some View {
-        switch viewModel.selection {
+        switch self.viewModel.selection {
         case .overview:
             // Phase 1 最小：overview 展示首个 provider 卡片；完整 Overview 留 Phase 2
-            card(for: viewModel.providers.first ?? .codex)
+            self.card(for: self.viewModel.providers.first ?? .codex)
         case let .provider(p):
-            card(for: p)
+            self.card(for: p)
         }
     }
 

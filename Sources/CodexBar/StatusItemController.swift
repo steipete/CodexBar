@@ -150,11 +150,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var deferredOpenAIDashboardRefreshReason: String?
     var deferredMenuInteractionRefreshTask: Task<Void, Never>?
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
-    // MARK: - Popover menu (gated by settings.usePopoverMenu; inactive until wired in Task 1.1)
+
+    // MARK: - Popover menu (gated by settings.usePopoverMenu; see StatusItemController+Popover)
+
     let menuViewModel = MenuViewModel()
     var popoverMenuController: PopoverMenuController<PopoverRootView>?
-
-    var usePopoverMenu: Bool { self.settings.usePopoverMenu }
 
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
@@ -800,43 +800,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     private func attachMenus() {
         if self.usePopoverMenu {
-            self.statusItem.menu = nil
-            if self.popoverMenuController == nil {
-                self.menuViewModel.providers = self.store.enabledProvidersForDisplay()
-                let vm = self.menuViewModel
-                let store = self.store
-                self.popoverMenuController = PopoverMenuController(viewModel: vm) { [weak self] in
-                    PopoverRootView(
-                        viewModel: vm,
-                        store: store,
-                        makeCardModel: { [weak self] provider in self?.menuCardModel(for: provider) })
-                }
-                // Task 1.4：接线快捷键回调（只在首次创建时设一次，弱引用防环）
-                self.popoverMenuController?.onRefresh = { [weak self] in
-                    self?.refreshNow()
-                    self?.popoverMenuController?.close()
-                }
-                self.popoverMenuController?.onSettings = { [weak self] in
-                    self?.showSettingsGeneral()
-                    self?.popoverMenuController?.close()
-                }
-                self.popoverMenuController?.onQuit = { [weak self] in
-                    self?.quit()
-                }
-                self.popoverMenuController?.onNavigate = { [weak self] direction in
-                    switch direction {
-                    case .next: self?.menuViewModel.selectNext()
-                    case .previous: self?.menuViewModel.selectPrevious()
-                    }
-                }
-                self.popoverMenuController?.onSelectIndex = { [weak self] index in
-                    self?.menuViewModel.selectProvider(atIndex: index)
-                }
-            }
-            self.statusItem.button?.target = self
-            self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
-            // 右键也触发 action，使右键可弹出 popover
-            self.statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            self.attachMergedPopover()
             return
         }
         // ↓ original logic unchanged

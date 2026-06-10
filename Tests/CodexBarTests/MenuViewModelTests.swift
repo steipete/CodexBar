@@ -19,7 +19,7 @@ import Testing
 
     @Test func selectingSameValueDoesNotBump() {
         let vm = MenuViewModel()
-        vm.select(.overview)            // already .overview
+        vm.select(.overview) // already .overview
         #expect(vm.contentVersion == 0) // no change → no bump
     }
 

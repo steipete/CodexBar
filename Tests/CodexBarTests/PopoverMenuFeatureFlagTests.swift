@@ -5,9 +5,9 @@ import Testing
 
 @MainActor
 @Suite struct PopoverMenuFeatureFlagTests {
-    @Test func usePopoverMenuDefaultsToFalse() {
+    @Test func usePopoverMenuDefaultsToFalse() throws {
         let suite = "test.popover.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(
@@ -31,9 +31,9 @@ import Testing
         #expect(settings.usePopoverMenu == false)
     }
 
-    @Test func usePopoverMenuPersists() {
+    @Test func usePopoverMenuPersists() throws {
         let suite = "test.popover.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let settings = SettingsStore(

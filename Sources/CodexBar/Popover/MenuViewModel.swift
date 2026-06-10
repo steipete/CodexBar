@@ -1,5 +1,5 @@
-import Observation
 import CodexBarCore
+import Observation
 
 /// 面板内容的单一可观察状态源。替代旧架构中以 ObjectIdentifier(NSMenu) 为 key 的
 /// openMenus / menuVersions / highlightedMenuItems 等字典追踪。
@@ -25,9 +25,13 @@ final class MenuViewModel {
         self.contentVersion &+= 1
     }
 
-    func bumpContentVersion() { self.contentVersion &+= 1 }
+    func bumpContentVersion() {
+        self.contentVersion &+= 1
+    }
 
-    func setVisible(_ visible: Bool) { self.isVisible = visible }
+    func setVisible(_ visible: Bool) {
+        self.isVisible = visible
+    }
 
     // MARK: - 导航助手（Task 1.4）
 
@@ -36,8 +40,13 @@ final class MenuViewModel {
         [.overview] + self.providers.map { .provider($0) }
     }
 
-    func selectNext() { self.cycleSelection(by: 1) }
-    func selectPrevious() { self.cycleSelection(by: -1) }
+    func selectNext() {
+        self.cycleSelection(by: 1)
+    }
+
+    func selectPrevious() {
+        self.cycleSelection(by: -1)
+    }
 
     private func cycleSelection(by delta: Int) {
         let stops = self.navigationStops
