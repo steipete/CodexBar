@@ -23,6 +23,17 @@ final class MenuViewModel {
 
     init() {}
 
+    /// 单 provider 模式便利工厂：providers=[provider]、includesOverview=false、selection=.provider(provider)、不设 onSelectionChanged。
+    /// 供非合并模式 per-provider popover 和测试使用。
+    static func singleProvider(_ provider: UsageProvider) -> MenuViewModel {
+        let vm = MenuViewModel()
+        vm.providers = [provider]
+        vm.includesOverview = false
+        // 直接赋值而非调用 select()，避免触发 onSelectionChanged（此时尚未注册，且单 provider 不需持久化）
+        vm.selection = .provider(provider)
+        return vm
+    }
+
     func select(_ newSelection: ProviderSwitcherSelection) {
         guard newSelection != self.selection else { return }
         self.selection = newSelection
