@@ -77,6 +77,13 @@ struct PreferencesPaneSmokeTests {
         #expect(L("tab_general") == "通用")
         #expect(L("quota_warning_notifications_title") == "配额预警通知")
         #expect(L("show_provider_storage_usage_title") == "显示提供商存储用量")
+
+        settings.appLanguage = "ja"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "ja")
+        #expect(L("language_title") == "言語")
+        #expect(L("start_at_login_title") == "ログイン時に起動")
+        #expect(L("quit_app") == "CodexBar を終了")
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {

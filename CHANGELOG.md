@@ -4,6 +4,7 @@
 
 ### Added
 - Settings: choose Terminal.app or iTerm for Open Terminal actions, including Vertex AI login commands (#1225, fixes #1147). Thanks @Yuxin-Qiao!
+- Localization: add Japanese as a selectable app language (#1385). Thanks @naoterumaker!
 
 ### Fixed
 - Copilot: keep explicitly unlimited chat quotas visible instead of dropping their zero-entitlement payload as unavailable (#1320). Thanks @soumikbhatta!
