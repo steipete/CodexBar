@@ -9,6 +9,7 @@
 - Localization: add Vietnamese as a selectable app language (#1247). Thanks @Yuxin-Qiao!
 
 ### Fixed
+- Antigravity: stop the local desktop probe from attaching to `agy` CLI processes, keep the warm managed `agy` session alive across `codexbar serve` refreshes (with teardown on SIGINT/SIGTERM), and serve the last good usage payload for transient refresh failures so external bar integrations (SketchyBar/Zellij) no longer flicker between data and errors.
 - Claude: remove transient ClaudeProbe session artifacts after CLI usage polls so background refreshes no longer fill Claude Code project history with CodexBar `/usage` sessions (#1301). Thanks @LPFchan and @matthewod11-stack!
 - Menu bar: keep z.ai overview rows with detail submenus in Overview so hovering quota details no longer recurses into a nested provider menu (#1279, fixes #1246). Thanks @RajvardhanPatil07!
 - Codex: backfill visible-account reset timestamps and missing 5-hour/weekly window metadata from same-workspace plan history so segmented multi-account JSON keeps machine-readable reset data (#1283). Thanks @callmepopo!

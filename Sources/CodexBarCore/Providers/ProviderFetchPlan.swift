@@ -37,6 +37,10 @@ public struct ProviderFetchContext: Sendable {
     public let tokenAccountTokenUpdater: TokenAccountTokenUpdater?
     public let providerManualTokenUpdater: ProviderManualTokenUpdater?
     public let costUsageHistoryDays: Int
+    /// Whether warm CLI helper sessions (for example the managed `agy`
+    /// process) may outlive a single fetch. True for long-lived processes
+    /// (the app, `codexbar serve`); false for one-shot CLI invocations.
+    public let persistsCLISessions: Bool
 
     public init(
         runtime: ProviderRuntime,
@@ -54,7 +58,8 @@ public struct ProviderFetchContext: Sendable {
         selectedTokenAccountID: UUID? = nil,
         tokenAccountTokenUpdater: TokenAccountTokenUpdater? = nil,
         providerManualTokenUpdater: ProviderManualTokenUpdater? = nil,
-        costUsageHistoryDays: Int = 30)
+        costUsageHistoryDays: Int = 30,
+        persistsCLISessions: Bool? = nil)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -72,6 +77,7 @@ public struct ProviderFetchContext: Sendable {
         self.tokenAccountTokenUpdater = tokenAccountTokenUpdater
         self.providerManualTokenUpdater = providerManualTokenUpdater
         self.costUsageHistoryDays = max(1, min(365, costUsageHistoryDays))
+        self.persistsCLISessions = persistsCLISessions ?? (runtime == .app)
     }
 }
 

@@ -65,7 +65,10 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let probe = AntigravityStatusProbe()
+        // IDE-only: `agy` processes belong to AntigravityCLIHTTPSFetchStrategy,
+        // which owns their lifecycle and waits for real API readiness. Probing
+        // a stale/half-warm `agy` here burns the whole timeout on dead ports.
+        let probe = AntigravityStatusProbe(processScope: .ideOnly)
         let snap = try await probe.fetch()
         let usage = try snap.toUsageSnapshot()
         try AntigravitySelectedAccountGuard.validate(usage, context: context)
@@ -115,7 +118,11 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     private func fetchUsingWarmSession(binary: String, resetAfterFetch: Bool) async throws -> ProviderFetchResult {
         let session = AntigravityCLISession.shared
         let pid = try await session.beginProbe(binary: binary)
-        let deadline = Date().addingTimeInterval(5.0)
+        // A cold `agy` needs ~8-10s before `GetUserStatus` answers. One-shot
+        // CLI invocations stay snappy at 5s; long-lived runtimes (app, serve)
+        // wait longer once so the first poll succeeds instead of flashing an
+        // error before the warm session takes over.
+        let deadline = Date().addingTimeInterval(resetAfterFetch ? 5.0 : 15.0)
         let snap: AntigravityStatusSnapshot
         let usage: UsageSnapshot
         do {
@@ -148,7 +155,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     }
 
     static func shouldResetSessionAfterFetch(_ context: ProviderFetchContext) -> Bool {
-        context.runtime == .cli
+        !context.persistsCLISessions
     }
 
     /// Waits for real API readiness, not just socket readiness. Fresh ``agy``

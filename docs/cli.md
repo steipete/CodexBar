@@ -48,6 +48,8 @@ See `docs/configuration.md` for the schema.
   - `--port <port>` defaults to `8080`.
   - `--refresh-interval <seconds>` defaults to `60` and controls the in-memory response cache TTL.
   - `--request-timeout <seconds>` defaults to `30` and bounds each request before returning `504 Gateway Timeout`; use `0` to keep waiting indefinitely.
+  - Transient refresh failures fall back to the last good response for up to ten refresh intervals (minimum five minutes) so polling bar integrations do not flicker; disabled when `--refresh-interval 0`.
+  - Warm provider helper sessions (such as the managed Antigravity `agy` process) stay alive between refreshes and are torn down on SIGINT/SIGTERM.
   - v1 binds to `127.0.0.1` only and rejects non-loopback `Host` headers. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
   - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`.
   - Codex usage responses include every visible Codex account, matching the menu bar switcher.

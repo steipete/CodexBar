@@ -271,6 +271,64 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `serve cache serves last good payload when refresh fails`() async {
+        let cache = CLIServeResponseCache()
+        let counter = ServeTestCounter()
+
+        let first = await CodexBarCLI.cachedServeResponse(
+            key: "usage:antigravity",
+            cache: cache,
+            refreshInterval: 0.05,
+            requestTimeout: 1)
+        {
+            let call = await counter.increment()
+            return Self.response("[{\"provider\":\"antigravity\",\"call\":\(call)}]")
+        }
+        #expect(first.status == .ok)
+
+        // Let the fresh cache entry expire so the next request re-fetches.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let failed = await CodexBarCLI.cachedServeResponse(
+            key: "usage:antigravity",
+            cache: cache,
+            refreshInterval: 0.05,
+            requestTimeout: 1)
+        {
+            _ = await counter.increment()
+            return Self.response(
+                "[{\"provider\":\"antigravity\",\"error\":{\"message\":\"transient\"}}]")
+        }
+
+        // Transient failure is masked by the last good payload.
+        #expect(failed.status == .ok)
+        #expect(Self.bodyString(failed) == Self.bodyString(first))
+        #expect(await counter.current() == 2)
+
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let recovered = await CodexBarCLI.cachedServeResponse(
+            key: "usage:antigravity",
+            cache: cache,
+            refreshInterval: 0.05,
+            requestTimeout: 1)
+        {
+            let call = await counter.increment()
+            return Self.response("[{\"provider\":\"antigravity\",\"call\":\(call)}]")
+        }
+
+        #expect(recovered.status == .ok)
+        #expect(Self.bodyString(recovered).contains("\"call\":3"))
+    }
+
+    @Test
+    func `serve stale ttl is bounded and disabled without caching`() {
+        #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 0) == 0)
+        #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 1) == 300)
+        #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 60) == 600)
+    }
+
+    @Test
     func `serve request timeout zero disables the deadline`() async {
         let cache = CLIServeResponseCache()
 

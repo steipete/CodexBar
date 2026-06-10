@@ -18,6 +18,10 @@ struct UsageCommandContext {
     let fetcher: UsageFetcher
     let claudeFetcher: ClaudeUsageFetcher
     let browserDetection: BrowserDetection
+    /// True when running inside a long-lived process (`codexbar serve`):
+    /// warm provider helper sessions (such as the managed Antigravity `agy`
+    /// process) are kept alive between fetches instead of torn down.
+    var persistCLISessions: Bool = false
 }
 
 struct UsageCommandOutput {
@@ -291,7 +295,8 @@ extension CodexBarCLI {
             browserDetection: command.browserDetection,
             selectedTokenAccountID: account?.id,
             tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
-            providerManualTokenUpdater: tokenContext.manualTokenUpdater())
+            providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
+            persistsCLISessions: command.persistCLISessions ? true : nil)
         let outcome = await Self.fetchProviderUsage(
             provider: provider,
             context: fetchContext)

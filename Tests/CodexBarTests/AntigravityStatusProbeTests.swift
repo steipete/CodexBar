@@ -177,6 +177,28 @@ struct AntigravityStatusProbeTests {
         #expect(result.csrfToken.isEmpty)
         #expect(result.commandLine == "/Users/test/.local/bin/agy -p hello")
     }
+
+    @Test
+    func `ideOnly scope skips cli processes and reports not running`() {
+        let output = "  200 /Users/test/.local/bin/agy -p hello"
+
+        #expect(throws: AntigravityStatusProbeError.notRunning) {
+            try AntigravityStatusProbe.processInfo(fromProcessListOutput: output, scope: .ideOnly)
+        }
+    }
+
+    @Test
+    func `ideOnly scope still matches ide server listed after cli process`() throws {
+        let cli = "  200 /Users/test/.local/bin/agy -p hello"
+        let ide = "  101 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+            "--csrf_token ide-token --app_data_dir antigravity"
+        let output = [cli, ide].joined(separator: "\n")
+
+        let result = try AntigravityStatusProbe.processInfo(fromProcessListOutput: output, scope: .ideOnly)
+
+        #expect(result.pid == 101)
+        #expect(result.csrfToken == "ide-token")
+    }
 }
 
 extension AntigravityStatusProbeTests {

@@ -231,6 +231,12 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
+    func `cli HTTPS keeps warm session when CLI runtime persists sessions`() {
+        let serveLike = self.makeFetchContext(runtime: .cli, persistsCLISessions: true)
+        #expect(!AntigravityCLIHTTPSFetchStrategy.shouldResetSessionAfterFetch(serveLike))
+    }
+
+    @Test
     func `cli HTTPS reports public source as cli`() {
         #expect(AntigravityCLIHTTPSFetchStrategy.sourceLabel == "cli")
     }
@@ -579,7 +585,8 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         runtime: ProviderRuntime = .app,
         sourceMode: ProviderSourceMode = .auto,
         selectedTokenAccountID: UUID? = nil,
-        env: [String: String] = [:]) -> ProviderFetchContext
+        env: [String: String] = [:],
+        persistsCLISessions: Bool? = nil) -> ProviderFetchContext
     {
         ProviderFetchContext(
             runtime: runtime,
@@ -593,7 +600,8 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             fetcher: UsageFetcher(environment: env),
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
-            selectedTokenAccountID: selectedTokenAccountID)
+            selectedTokenAccountID: selectedTokenAccountID,
+            persistsCLISessions: persistsCLISessions)
     }
 
     private func makeUsage(accountEmail: String?) -> UsageSnapshot {
