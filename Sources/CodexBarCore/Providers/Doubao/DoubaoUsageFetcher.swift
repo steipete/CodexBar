@@ -152,6 +152,14 @@ public struct DoubaoUsageFetcher: Sendable {
     {
         do {
             let confirmation = try await self.probe(apiKey: apiKey, model: model, transport: transport)
+            // This path starts only after a complete HTTP 200 request-limit pair
+            // reported zero. An immediate 429 confirms that exhausted state even
+            // when Ark omits the headers from the throttle response.
+            if confirmation.statusCode == 429 {
+                return confirmation.snapshot.requestLimitsReliable
+                    ? confirmation.snapshot
+                    : initial.snapshot
+            }
             guard confirmation.hasAmbiguousZeroRemaining else {
                 return confirmation.snapshot
             }
