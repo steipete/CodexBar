@@ -104,6 +104,11 @@ This script:
 5. Launches `CodexBar.app`
 6. Verifies it stays running
 
+Launching an unbundled `CodexBar` executable, including SwiftPM builds using `.build` or a custom scratch path, disables
+Keychain access for that process to avoid repeated password prompts. Use the packaged `CodexBar.app` when local
+validation needs browser cookies or stored credentials; packaged app bundles keep their normal Keychain behavior
+regardless of signing mode.
+
 When the script falls back to ad-hoc signing, it preserves CodexBar-owned keychain state by default.
 That means you may still see keychain prompts for existing CodexBar cache entries, but allowing those prompts keeps the
 cached browser/OAuth state available across normal rebuilds.

@@ -63,11 +63,11 @@ struct ClaudeOAuthKeychainAccessGateTests {
         KeychainAccessGate.resetOverrideForTesting()
         defer { KeychainAccessGate.resetOverrideForTesting() }
 
-        KeychainAccessGate.forceDisabledForProcess(reason: "ad-hoc-dev-build")
+        KeychainAccessGate.forceDisabledForProcess(reason: "unbundled-executable")
         KeychainAccessGate.isDisabled = false
 
         #expect(KeychainAccessGate.isDisabled)
-        #expect(KeychainAccessGate.processDisableReason == "ad-hoc-dev-build")
+        #expect(KeychainAccessGate.processDisableReason == "unbundled-executable")
     }
 
     @Test

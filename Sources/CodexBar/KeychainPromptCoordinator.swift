@@ -1,6 +1,5 @@
 import AppKit
 import CodexBarCore
-import Security
 import SweetCookieKit
 
 private enum KeychainPromptMessage {
@@ -66,92 +65,34 @@ enum KeychainPromptCoordinator {
         BrowserCookieKeychainPromptHandler.handler = { context in
             self.presentBrowserCookiePrompt(context)
         }
-        self.logAdHocDevBuildHintIfNeeded()
+        self.disableKeychainForUnbundledExecutableIfNeeded()
     }
 
-    // MARK: - Dev-build self-diagnosis
+    private static let unbundledExecutableCheckLock = NSLock()
+    private nonisolated(unsafe) static var didCheckUnbundledExecutable = false
 
-    // One-shot guard. Safe to mutate from any context because
-    // `install()` is the only writer (called once from `CodexbarApp.init` on
-    // the main thread at app launch), and the read-modify-write is gated by
-    // `adHocDevBuildHintLock`.
-    private static let adHocDevBuildHintLock = NSLock()
-    private nonisolated(unsafe) static var hasLoggedAdHocDevBuildHint = false
-
-    /// Emit a one-shot log hint when CodexBar detects it is running from a
-    /// SwiftPM dev build (`.build/<config>/debug/<Bundle>`) or with an
-    /// ad-hoc signing identity. This is the common case that causes macOS
-    /// to repeatedly prompt for "CodexBar wants to use your confidential
-    /// information stored in 'CodexBarCache' in your keychain." — see
-    /// `docs/LOCAL_DEV_BUILD.md`.
-    ///
-    /// Properly-signed release builds (Developer ID, installed in
-    /// `/Applications`) do not match either condition and will not see the hint.
-    static func logAdHocDevBuildHintIfNeeded() {
-        self.adHocDevBuildHintLock.lock()
-        if self.hasLoggedAdHocDevBuildHint {
-            self.adHocDevBuildHintLock.unlock()
+    static func disableKeychainForUnbundledExecutableIfNeeded() {
+        self.unbundledExecutableCheckLock.lock()
+        guard !self.didCheckUnbundledExecutable else {
+            self.unbundledExecutableCheckLock.unlock()
             return
         }
-        self.hasLoggedAdHocDevBuildHint = true
-        self.adHocDevBuildHintLock.unlock()
+        self.didCheckUnbundledExecutable = true
+        self.unbundledExecutableCheckLock.unlock()
 
-        // For SwiftPM executables, `Bundle.main.bundleURL` is the *directory*
-        // containing the binary, not the binary itself. `SecStaticCodeCreateWithPath`
-        // on a directory URL does not surface the inner executable's code-signing
-        // identity the way `codesign -dvvv` does, so the directory URL would
-        // produce a wrong (false) result here. Pass the executable URL — that
-        // path is what `codesign -dvvv` reads, and what a properly-signed
-        // `.app` bundle's `Contents/MacOS/<binary>` is.
-        let codeURL = Bundle.main.executableURL ?? Bundle.main.bundleURL
-        let isAdHoc = Self.isAdHocSigned(bundleURL: codeURL)
-        guard let message = Self.adHocDevBuildHint(
-            bundlePath: Bundle.main.bundleURL.path,
-            executablePath: Bundle.main.executableURL?.path ?? "<unknown>",
-            isAdHocSigned: isAdHoc) else { return }
-        KeychainAccessGate.forceDisabledForProcess(reason: "ad-hoc-dev-build")
+        let executablePath = Bundle.main.executableURL?.path ?? ""
+        guard Self.isUnbundledCodexBarExecutable(executablePath) else { return }
+        KeychainAccessGate.forceDisabledForProcess(reason: "unbundled-executable")
         Self.log.warning(
-            "Ad-hoc dev build detected — disabling keychain access to avoid CodexBarCache prompts",
-            metadata: [
-                "bundlePath": Bundle.main.bundleURL.path,
-                "adHocSigned": isAdHoc ? "true" : "false",
-                "doc": "docs/LOCAL_DEV_BUILD.md",
-            ])
-        Self.log.info(message)
+            "Unbundled CodexBar executable detected; disabling keychain access to avoid repeated prompts",
+            metadata: ["doc": "docs/DEVELOPMENT_SETUP.md"])
     }
 
-    /// Pure: returns the warning message string when the given bundle path
-    /// + signing state indicates an ad-hoc dev build, otherwise `nil`.
-    /// Exposed for unit testing.
-    static func adHocDevBuildHint(
-        bundlePath: String,
-        executablePath: String,
-        isAdHocSigned: Bool) -> String?
-    {
-        let isSwiftPMDevBuild = bundlePath.contains("/.build/") && bundlePath.contains("/debug/")
-        guard isSwiftPMDevBuild || isAdHocSigned else { return nil }
-        return "CodexBar is running from a SwiftPM dev build or an ad-hoc-signed bundle " +
-            "(bundle=\(bundlePath), exec=\(executablePath), adHoc=\(isAdHocSigned)). " +
-            "This commonly causes macOS to repeatedly prompt for 'CodexBar wants to use your " +
-            "confidential information stored in CodexBarCache in your keychain.' " +
-            "CodexBar has disabled keychain access for this process to avoid the prompt loop. " +
-            "Use /Applications/CodexBar.app for normal use, or run via ./Scripts/compile_and_run.sh. " +
-            "See docs/LOCAL_DEV_BUILD.md."
-    }
-
-    /// True if the bundle at `bundleURL` is ad-hoc signed (no cert chain).
-    /// Stable self-signed dev certificates may not have an Apple Team ID, but
-    /// they still provide a certificate-backed identity and should not be
-    /// treated as ad-hoc here.
-    private static func isAdHocSigned(bundleURL: URL) -> Bool {
-        var staticCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(bundleURL as CFURL, SecCSFlags(), &staticCode) == errSecSuccess,
-              let code = staticCode else { return false }
-        var infoCF: CFDictionary?
-        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &infoCF) ==
-            errSecSuccess,
-            let info = infoCF as? [String: Any] else { return false }
-        return (info[kSecCodeInfoCertificates as String] as? [SecCertificate])?.isEmpty ?? true
+    static func isUnbundledCodexBarExecutable(_ executablePath: String) -> Bool {
+        guard executablePath.hasPrefix("/") else { return false }
+        let executableURL = URL(fileURLWithPath: executablePath).standardizedFileURL
+        return executableURL.lastPathComponent == "CodexBar"
+            && !executableURL.pathComponents.contains(where: { $0.hasSuffix(".app") })
     }
 
     private static func presentKeychainPrompt(_ context: KeychainPromptContext) {
