@@ -209,16 +209,16 @@ struct OpenAIDashboardWebViewCacheTests {
     @Test
     func `Idle prune is scheduled without future cache activity`() async throws {
         if self.shouldSkipOnCI() { return }
-        let cache = OpenAIDashboardWebViewCache()
-        cache.setIdleTimeoutForTesting(0.2)
+        let cache = OpenAIDashboardWebViewCache(idleTimeout: 0.2)
         let store = WKWebsiteDataStore.nonPersistent()
         let url = try #require(URL(string: "about:blank"))
 
-        let lease = try await cache.acquire(
+        var lease: OpenAIDashboardWebViewLease? = try await cache.acquire(
             websiteDataStore: store,
             usageURL: url,
             logger: nil)
-        lease.release()
+        lease?.release()
+        lease = nil
 
         #expect(cache.hasCachedEntry(for: store), "WebView should remain cached right after release")
 
@@ -231,6 +231,45 @@ struct OpenAIDashboardWebViewCacheTests {
             !cache.hasCachedEntry(for: store),
             "Expected the scheduled idle prune to evict the WebView without any further cache activity")
 
+        cache.clearAllForTesting()
+    }
+
+    @Test
+    func `Later release does not postpone an older idle entry`() async throws {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache(idleTimeout: 0.5)
+        let firstStore = WKWebsiteDataStore.nonPersistent()
+        let secondStore = WKWebsiteDataStore.nonPersistent()
+        let url = try #require(URL(string: "about:blank"))
+
+        let firstLease = try await cache.acquire(
+            websiteDataStore: firstStore,
+            usageURL: url,
+            logger: nil)
+        firstLease.release()
+
+        try await Task.sleep(for: .milliseconds(250))
+
+        let secondLease = try await cache.acquire(
+            websiteDataStore: secondStore,
+            usageURL: url,
+            logger: nil)
+        secondLease.release()
+
+        let firstDeadline = Date().addingTimeInterval(1.5)
+        while cache.hasCachedEntry(for: firstStore), Date() < firstDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        #expect(!cache.hasCachedEntry(for: firstStore), "Expected the oldest idle entry to be pruned first")
+        #expect(cache.hasCachedEntry(for: secondStore), "A later release should keep its own idle window")
+
+        let secondDeadline = Date().addingTimeInterval(1)
+        while cache.hasCachedEntry(for: secondStore), Date() < secondDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        #expect(!cache.hasCachedEntry(for: secondStore), "Expected the next idle deadline to be scheduled")
         cache.clearAllForTesting()
     }
 
