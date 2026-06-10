@@ -31,9 +31,6 @@ struct DoubaoUsageSnapshotTests {
 
     @Test
     func `unreliable headers limit positive remaining zero falls back to Active hint`() {
-        // Volcano Ark returns this combination on unverified / personal account
-        // tiers without actually rate-limiting the request. Previously the math
-        // computed 100% used; the fix treats the pair as unreliable.
         let snapshot = DoubaoUsageSnapshot(
             remainingRequests: 0,
             limitRequests: 1000,
@@ -43,6 +40,20 @@ struct DoubaoUsageSnapshotTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 0)
         #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+    }
+
+    @Test
+    func `explicit rate limit with zero remaining reports exhausted quota`() {
+        let snapshot = DoubaoUsageSnapshot(
+            remainingRequests: 0,
+            limitRequests: 1000,
+            resetTime: nil,
+            updatedAt: Date(),
+            apiKeyValid: true,
+            isRateLimited: true)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.primary?.resetDescription == "1000/1000 requests")
     }
 
     @Test
