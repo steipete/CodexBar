@@ -131,47 +131,68 @@ struct CostHistoryChartMenuView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                    ForEach(detail.rows) { row in
-                        HStack(alignment: .top, spacing: 8) {
-                            Rectangle()
-                                .fill(row.accentColor)
-                                .frame(
-                                    width: 2,
-                                    height: Self.accentHeight(for: row))
-                                .padding(.top, 1)
+                    if model.maxRenderedBreakdownRows > 0 {
+                        ScrollView(.vertical) {
+                            VStack(alignment: .leading, spacing: Self.detailSpacing) {
+                                ForEach(detail.rows) { row in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Rectangle()
+                                            .fill(row.accentColor)
+                                            .frame(
+                                                width: 2,
+                                                height: Self.accentHeight(for: row))
+                                            .padding(.top, 1)
 
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(row.title)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .frame(height: Self.detailTitleLineHeight, alignment: .leading)
-                                if let subtitle = row.subtitle {
-                                    Text(subtitle)
-                                        .font(.caption2)
-                                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .frame(height: Self.detailSubtitleLineHeight, alignment: .leading)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(row.title)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                                .frame(height: Self.detailTitleLineHeight, alignment: .leading)
+                                            if let subtitle = row.subtitle {
+                                                Text(subtitle)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                                    .lineLimit(1)
+                                                    .truncationMode(.tail)
+                                                    .frame(
+                                                        height: Self.detailSubtitleLineHeight,
+                                                        alignment: .leading)
+                                            }
+                                            if let modeSubtitle = row.modeSubtitle {
+                                                Text(modeSubtitle)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                                    .lineLimit(1)
+                                                    .truncationMode(.tail)
+                                                    .frame(
+                                                        height: Self.detailSubtitleLineHeight,
+                                                        alignment: .leading)
+                                            }
+                                        }
+                                    }
+                                    .frame(height: Self.detailRowHeight(for: row), alignment: .leading)
                                 }
-                                if let modeSubtitle = row.modeSubtitle {
-                                    Text(modeSubtitle)
-                                        .font(.caption2)
-                                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .frame(height: Self.detailSubtitleLineHeight, alignment: .leading)
+                                ForEach(
+                                    0..<max(model.maxRenderedBreakdownRows - detail.rows.count, 0),
+                                    id: \.self)
+                                { _ in
+                                    Text(" ")
+                                        .font(.caption)
+                                        .frame(height: Self.compactDetailRowHeight, alignment: .leading)
+                                        .opacity(0)
                                 }
                             }
                         }
-                        .frame(height: Self.detailRowHeight(for: row), alignment: .leading)
-                    }
-                    ForEach(0..<max(model.maxRenderedBreakdownRows - detail.rows.count, 0), id: \.self) { _ in
-                        Text(" ")
-                            .font(.caption)
-                            .frame(height: Self.compactDetailRowHeight, alignment: .leading)
-                            .opacity(0)
+                        .scrollIndicators(
+                            Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
+                        .frame(
+                            height: Self.detailRowsViewportHeight(
+                                maxBreakdownRows: model.maxRenderedBreakdownRows,
+                                maxRowsHeight: model.maxDetailRowsHeight),
+                            alignment: .topLeading)
+                        .id(self.selectedDateKey)
                     }
                 }
                 .frame(
@@ -211,7 +232,7 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
-    private static let maxVisibleDetailLines = 4
+    static let maxVisibleDetailLines = 4
     private static let detailPrimaryLineHeight: CGFloat = 16
     private static let detailTitleLineHeight: CGFloat = 16
     private static let detailSubtitleLineHeight: CGFloat = 13
@@ -338,8 +359,8 @@ struct CostHistoryChartMenuView: View {
     private static func renderedBreakdownRowsMetric(for entry: DailyEntry) -> (count: Int, height: CGFloat) {
         guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return (0, 0) }
         let renderedRows = Array(
-            self.sortedBreakdown(breakdown)
-                .prefix(self.maxVisibleDetailLines))
+            self.orderedBreakdownItems(breakdown)
+                .prefix(self.detailViewportRowCount(itemCount: breakdown.count)))
         let height = renderedRows.reduce(CGFloat(0)) { total, item in
             total + self.detailRowHeight(hasModeSubtitle: Self.hasModeSubtitle(item))
         }
@@ -353,8 +374,18 @@ struct CostHistoryChartMenuView: View {
     private static func detailBlockHeight(maxBreakdownRows: Int, maxRowsHeight: CGFloat) -> CGFloat {
         guard maxBreakdownRows > 0 else { return self.detailPrimaryLineHeight }
         return self.detailPrimaryLineHeight +
-            maxRowsHeight +
-            (CGFloat(maxBreakdownRows) * self.detailSpacing)
+            self.detailRowsViewportHeight(
+                maxBreakdownRows: maxBreakdownRows,
+                maxRowsHeight: maxRowsHeight) +
+            self.detailSpacing
+    }
+
+    private static func detailRowsViewportHeight(
+        maxBreakdownRows: Int,
+        maxRowsHeight: CGFloat) -> CGFloat
+    {
+        guard maxBreakdownRows > 0 else { return 0 }
+        return maxRowsHeight + (CGFloat(maxBreakdownRows - 1) * self.detailSpacing)
     }
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
@@ -400,10 +431,9 @@ struct CostHistoryChartMenuView: View {
         proxy: ChartProxy,
         geo: GeometryProxy)
     {
-        guard let location else {
-            if self.selectedDateKey != nil { self.selectedDateKey = nil }
-            return
-        }
+        // Keep the last hovered day selected when the pointer leaves the chart so the adjacent
+        // model-breakdown scroller remains interactive. The selection resets with the menu view.
+        guard let location else { return }
 
         guard let plotAnchor = proxy.plotFrame else { return }
         let plotFrame = geo[plotAnchor]
@@ -457,8 +487,7 @@ struct CostHistoryChartMenuView: View {
         guard let entry = model.entriesByDateKey[key] else { return [] }
         guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return [] }
 
-        return Self.sortedBreakdown(breakdown)
-            .prefix(Self.maxVisibleDetailLines)
+        return Self.orderedBreakdownItems(breakdown)
             .enumerated()
             .map { index, item in
                 DetailRow(
@@ -470,7 +499,7 @@ struct CostHistoryChartMenuView: View {
             }
     }
 
-    private static func sortedBreakdown(
+    static func orderedBreakdownItems(
         _ breakdown: [CostUsageDailyReport.ModelBreakdown]) -> [CostUsageDailyReport.ModelBreakdown]
     {
         breakdown.sorted { lhs, rhs in
@@ -484,6 +513,14 @@ struct CostHistoryChartMenuView: View {
 
             return lhs.modelName > rhs.modelName
         }
+    }
+
+    static func detailViewportRowCount(itemCount: Int) -> Int {
+        min(max(itemCount, 0), self.maxVisibleDetailLines)
+    }
+
+    static func detailRowsNeedScrolling(itemCount: Int) -> Bool {
+        itemCount > self.maxVisibleDetailLines
     }
 
     private func modelBreakdownTotalSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
