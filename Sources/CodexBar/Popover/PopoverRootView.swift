@@ -2,6 +2,7 @@ import CodexBarCore
 import SwiftUI
 
 /// 持久面板根视图。阶段 1：provider 切换器 + 当前 provider 用量卡片。
+/// 阶段 2：底部动作区（PopoverActionSectionsView）。
 /// 整个 popover 生命周期只构造一次；切 provider 通过 viewModel.select(_:) 增量更新，不重建视图。
 struct PopoverRootView: View {
     @Bindable var viewModel: MenuViewModel
@@ -11,6 +12,11 @@ struct PopoverRootView: View {
     /// 由 StatusItemController 注入的卡片 model 构造闭包（self.menuCardModel(for:)）。
     /// 持有 weak self 引用，避免强引用环。
     let makeCardModel: (UsageProvider) -> UsageMenuCardView.Model?
+    /// 返回底部动作区所需的 sections（与 NSMenu 路径共用 MenuDescriptor.build 数据源）。
+    /// 在 body 中调用以建立 @Observable 观察链，store/settings 变化时自动重算。
+    let makeSections: () -> [MenuDescriptor.Section]
+    /// 动作分发回调，由 StatusItemController.performMenuAction(_:) 实现。
+    let onAction: (MenuDescriptor.MenuAction) -> Void
 
     private static let menuWidth: CGFloat = 310
 
@@ -21,6 +27,11 @@ struct PopoverRootView: View {
                 Divider()
             }
             self.content
+            Divider()
+            PopoverActionSectionsView(
+                sections: self.makeSections(),
+                onAction: self.onAction)
+                .padding(.bottom, 6)
         }
         .frame(width: Self.menuWidth, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
