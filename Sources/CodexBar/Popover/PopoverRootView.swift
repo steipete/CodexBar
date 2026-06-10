@@ -25,6 +25,10 @@ struct PopoverRootView: View {
     /// 返回底部动作区所需的 sections（与 NSMenu 路径共用 MenuDescriptor.build 数据源）。
     /// 在 body 中调用以建立 @Observable 观察链，store/settings 变化时自动重算。
     let makeSections: () -> [MenuDescriptor.Section]
+    /// Overview 行数据构造闭包（Task 2.4）：与 NSMenu addOverviewRows 同源。
+    let makeOverviewRows: () -> [StatusItemController.PopoverOverviewRow]
+    /// Overview 空态文案：nil 表示有内容行；否则返回本地化文案。
+    let overviewEmptyText: () -> String?
     /// 动作分发回调，由 StatusItemController.performMenuAction(_:) 实现。
     let onAction: (MenuDescriptor.MenuAction) -> Void
     /// Buy Credits 动作回调；仅当 plan.showBuyCredits 为 true 时渲染对应按钮。
@@ -76,10 +80,38 @@ struct PopoverRootView: View {
     @ViewBuilder private var content: some View {
         switch self.viewModel.selection {
         case .overview:
-            // Phase 1 最小：overview 展示首个 provider 卡片；完整 Overview 留 Phase 2
-            self.providerContent(for: self.viewModel.providers.first ?? .codex)
+            self.overviewContent
         case let .provider(p):
             self.providerContent(for: p)
+        }
+    }
+
+    /// Overview 内容区（Task 2.4）：多 provider 概览行，与 NSMenu addOverviewRows 等价。
+    @ViewBuilder private var overviewContent: some View {
+        let rows = self.makeOverviewRows()
+        if rows.isEmpty {
+            let emptyText = self.overviewEmptyText() ?? L("No overview data available.")
+            Text(emptyText)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding()
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(rows) { row in
+                    Button {
+                        self.viewModel.select(.provider(row.provider))
+                    } label: {
+                        OverviewMenuCardRowView(
+                            model: row.model,
+                            storageText: row.storageText,
+                            width: Self.menuWidth)
+                    }
+                    .buttonStyle(.plain)
+                    if row.id != rows.last?.id {
+                        Divider()
+                    }
+                }
+            }
         }
     }
 

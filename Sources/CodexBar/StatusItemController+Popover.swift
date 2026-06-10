@@ -39,7 +39,16 @@ extension StatusItemController {
                     },
                     makeSections: { [weak self] in
                         guard let self else { return [] }
+                        let isOverview = vm.selection == .overview
+                        // overview 时取 resolvedMenuProvider 等价逻辑（与 populateMenu:224-228 对齐）：
+                        // 优先选已启用且可用的 provider，不传切换器选择，等价于 NSMenu overview 路径。
                         let provider: UsageProvider? = {
+                            if isOverview {
+                                let enabled = vm.providers
+                                if enabled.isEmpty { return UsageProvider.codex }
+                                return enabled.first(where: { self.store.isProviderAvailable($0) })
+                                    ?? enabled.first
+                            }
                             if case let .provider(p) = vm.selection { return p }
                             return vm.providers.first
                         }()
@@ -51,7 +60,13 @@ extension StatusItemController {
                             managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
                             codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
                             updateReady: self.updater.updateStatus.isUpdateReady,
-                            includeContextualActions: true).sections
+                            includeContextualActions: !isOverview).sections
+                    },
+                    makeOverviewRows: { [weak self] in
+                        self?.popoverOverviewRows() ?? []
+                    },
+                    overviewEmptyText: { [weak self] in
+                        self?.popoverOverviewEmptyText()
                     },
                     onAction: { [weak self] action in self?.performMenuAction(action) },
                     onBuyCredits: { [weak self] in
@@ -284,6 +299,50 @@ extension StatusItemController {
                 await self.store.refreshProvider(provider)
             }
         }
+    }
+
+    // MARK: - Overview 行数据（Task 2.4）
+
+    /// Overview 模式下单行数据：与 NSMenu addOverviewRows 同源构造。
+    struct PopoverOverviewRow: Identifiable {
+        let provider: UsageProvider
+        let model: UsageMenuCardView.Model
+        let storageText: String?
+        var id: String {
+            self.provider.rawValue
+        }
+    }
+
+    /// 构造 overview 行数据列表，与 addOverviewRows 同源逻辑：
+    ///   1. reconcileMergedOverviewSelectedProviders 解析已选 providers；
+    ///   2. compactMap menuCardModel，跳过 nil 与 isOverviewErrorOnly；
+    ///   3. 每行附带 storageFootprintText。
+    func popoverOverviewRows() -> [PopoverOverviewRow] {
+        let enabledProviders = self.store.enabledProvidersForDisplay()
+        let overviewProviders = self.settings.reconcileMergedOverviewSelectedProviders(
+            activeProviders: enabledProviders)
+        return overviewProviders.compactMap { provider in
+            guard let model = self.menuCardModel(for: provider) else { return nil }
+            guard !model.isOverviewErrorOnly else { return nil }
+            let storageText = self.store.storageFootprintText(for: provider)
+            return PopoverOverviewRow(provider: provider, model: model, storageText: storageText)
+        }
+    }
+
+    /// Overview 空态文案：nil 表示有内容（rows 非空），否则返回与 NSMenu 一致的本地化文案。
+    ///   - resolvedProviders 为空 → "No providers selected for Overview."
+    ///   - resolvedProviders 非空但行数据为空 → "No overview data available."
+    func popoverOverviewEmptyText() -> String? {
+        let enabledProviders = self.store.enabledProvidersForDisplay()
+        let resolvedProviders = self.settings.resolvedMergedOverviewProviders(
+            activeProviders: enabledProviders,
+            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+        if resolvedProviders.isEmpty {
+            return L("No providers selected for Overview.")
+        }
+        // rows 非空时返回 nil（有内容，不需要空态）
+        let rows = self.popoverOverviewRows()
+        return rows.isEmpty ? L("No overview data available.") : nil
     }
 
     /// 接线 popover 的键盘快捷键回调（只在控制器首次创建时设一次，弱引用防环）。
