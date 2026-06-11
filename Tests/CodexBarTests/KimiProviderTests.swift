@@ -292,6 +292,14 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
+    func `does not duplicate coding path prefix`() throws {
+        let baseURL = try #require(URL(string: "https://proxy.example.com/kimi/coding/"))
+        let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)
+
+        #expect(endpoint.absoluteString == "https://proxy.example.com/kimi/coding/v1/usages")
+    }
+
+    @Test
     func `rejects insecure code API base URL before sending bearer token`() async throws {
         let baseURL = try #require(URL(string: "http://proxy.example.com/kimi"))
 

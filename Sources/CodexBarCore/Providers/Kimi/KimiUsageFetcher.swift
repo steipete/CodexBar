@@ -130,8 +130,13 @@ public struct KimiUsageFetcher: Sendable {
 
     private static func codeAPIUsageEndpoint(baseURL: URL) -> URL {
         let normalizedPath = baseURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if normalizedPath.hasSuffix("coding/v1") {
+        if normalizedPath == "coding/v1" || normalizedPath.hasSuffix("/coding/v1") {
             return baseURL.appendingPathComponent("usages")
+        }
+        if normalizedPath == "coding" || normalizedPath.hasSuffix("/coding") {
+            return baseURL
+                .appendingPathComponent("v1")
+                .appendingPathComponent("usages")
         }
 
         return baseURL
