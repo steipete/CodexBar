@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct MergedMenuPositioningTests {
     @Test
-    func `popup point anchors menu center to status item trailing edge`() {
+    func `popup point anchors menu trailing edge to status item trailing edge`() {
         let menuWidth: CGFloat = 620
         let compact = NSRect(x: 0, y: 0, width: 44, height: 22)
         let expanded = NSRect(x: -92, y: 0, width: 136, height: 22)
@@ -20,8 +20,8 @@ struct MergedMenuPositioningTests {
             menuWidth: menuWidth)
 
         #expect(compactPoint.x == expandedPoint.x)
-        #expect(compactPoint.x + ceil(menuWidth / 2) == compact.maxX)
-        #expect(expandedPoint.x + ceil(menuWidth / 2) == expanded.maxX)
+        #expect(compactPoint.x + ceil(menuWidth) == compact.maxX)
+        #expect(expandedPoint.x + ceil(menuWidth) == expanded.maxX)
         #expect(compactPoint.y == compact.maxY + 8)
         #expect(expandedPoint.y == expanded.maxY + 8)
     }

@@ -34,7 +34,7 @@ extension StatusItemController {
             statusButtonBounds.minY - self.mergedMenuVerticalClearance
         }
         return NSPoint(
-            x: statusButtonBounds.maxX - ceil(menuWidth / 2),
+            x: statusButtonBounds.maxX - ceil(menuWidth),
             y: popupY)
     }
 }
