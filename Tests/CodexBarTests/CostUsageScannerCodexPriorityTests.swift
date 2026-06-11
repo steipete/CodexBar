@@ -9,13 +9,14 @@ struct CostUsageScannerCodexPriorityTests {
     func `parses priority turn metadata without exposing request body`() {
         let body = "INFO thread_id=11111111-1111-1111-1111-111111111111 "
             + "turn.id=22222222-2222-2222-2222-222222222222 websocket request: "
-            + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority","instructions":"secret prompt"}"#
+            + #"{"type":"response.create","model":"request-model","service_tier":"priority","#
+            + #""instructions":"secret prompt"}"#
 
         let parsed = CostUsageScanner.parseCodexPriorityTraceRow(timestamp: "2026-05-10T12:00:00Z", body: body)
 
         #expect(parsed?.threadID == "11111111-1111-1111-1111-111111111111")
         #expect(parsed?.turnID == "22222222-2222-2222-2222-222222222222")
-        #expect(parsed?.model == "gpt-5.5")
+        #expect(parsed?.model == "request-model")
         #expect(parsed?.timestamp == "2026-05-10T12:00:00Z")
     }
 
@@ -40,12 +41,12 @@ struct CostUsageScannerCodexPriorityTests {
     @Test
     func `parses completed response model without exposing response body`() {
         let body = "INFO thread_id=thread turn.id=turn websocket event: "
-            + #"{"type":"response.completed","response":{"model":"gpt-5.4","output":[{"content":"private"}]}}"#
+            + #"{"type":"response.completed","response":{"model":"completed-model","output":[{"content":"private"}]}}"#
 
         let parsed = CostUsageScanner.parseCodexCompletedTraceRow(body: body)
 
         #expect(parsed?.turnID == "turn")
-        #expect(parsed?.model == "gpt-5.4")
+        #expect(parsed?.model == "completed-model")
     }
 
     @Test
@@ -58,19 +59,19 @@ struct CostUsageScannerCodexPriorityTests {
             dbURL: dbURL,
             timestamp: "2026-05-10T12:00:00Z",
             body: "thread_id=thread-a turn.id=turn-a websocket request: "
-                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority","input":"private"}"#)
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority","input":"private"}"#)
         try Self.insertTestLog(
             dbURL: dbURL,
             timestamp: "2026-05-10T12:01:00Z",
             body: """
-            thread_id=thread-b turn.id=turn-b websocket request: {"type":"response.create","model":"gpt-5.5"}
+            thread_id=thread-b turn.id=turn-b websocket request: {"type":"response.create","model":"request-model"}
             """)
 
         let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
 
         #expect(turns.keys.sorted() == ["turn-a"])
         #expect(turns["turn-a"]?.threadID == "thread-a")
-        #expect(turns["turn-a"]?.model == "gpt-5.5")
+        #expect(turns["turn-a"]?.model == "request-model")
     }
 
     @Test
@@ -83,16 +84,16 @@ struct CostUsageScannerCodexPriorityTests {
             dbURL: dbURL,
             timestamp: "2026-05-10T12:00:00Z",
             body: "thread_id=thread turn.id=turn websocket request: "
-                + #"{"type":"response.create","model":"codex-auto-review","service_tier":"priority"}"#)
+                + #"{"type":"response.create","model":"request-alias","service_tier":"priority"}"#)
         try Self.insertTestLog(
             dbURL: dbURL,
             timestamp: "2026-05-10T12:00:01Z",
             body: "thread_id=thread turn.id=turn websocket event: "
-                + #"{"type":"response.completed","response":{"model":"gpt-5.4","input":"private"}}"#)
+                + #"{"type":"response.completed","response":{"model":"completed-model","input":"private"}}"#)
 
         let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
 
-        #expect(turns["turn"]?.model == "gpt-5.4")
+        #expect(turns["turn"]?.model == "completed-model")
     }
 
     @Test
@@ -105,16 +106,16 @@ struct CostUsageScannerCodexPriorityTests {
             dbURL: dbURL,
             timestamp: "2026-05-10T12:00:00Z",
             body: "thread_id=thread turn.id=turn websocket request: "
-                + #"{"type":"response.create","model":"codex-auto-review","service_tier":"priority"}"#)
+                + #"{"type":"response.create","model":"request-alias","service_tier":"priority"}"#)
         try Self.insertTestLog(
             dbURL: dbURL,
             timestamp: "2026-05-10T12:00:01Z",
             body: "thread_id=thread turn.id=turn websocket event: "
-                + #"{"type": "response.completed", "response": {"model": "gpt-5.4"}}"#)
+                + #"{"type": "response.completed", "response": {"model": "completed-model"}}"#)
 
         let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
 
-        #expect(turns["turn"]?.model == "gpt-5.4")
+        #expect(turns["turn"]?.model == "completed-model")
     }
 
     @Test
@@ -130,12 +131,12 @@ struct CostUsageScannerCodexPriorityTests {
             dbURL: dbURL,
             timestamp: env.isoString(for: previousDay),
             body: "thread_id=thread-old turn.id=turn-old websocket request: "
-                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
         try Self.insertTestLog(
             dbURL: dbURL,
             timestamp: env.isoString(for: day),
             body: "thread_id=thread-new turn.id=turn-new websocket request: "
-                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
 
         let turns = CostUsageScanner.codexPriorityTurns(
             databaseURL: dbURL,
@@ -166,12 +167,12 @@ struct CostUsageScannerCodexPriorityTests {
             dbURL: dbURL,
             epochSeconds: Int64(previousSecond.timeIntervalSince1970),
             body: "thread_id=thread-before turn.id=turn-before websocket request: "
-                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
         try Self.insertTestLog(
             dbURL: dbURL,
             epochSeconds: Int64(nextSecond.timeIntervalSince1970),
             body: "thread_id=thread-after turn.id=turn-after websocket request: "
-                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
 
         let turns = CostUsageScanner.codexPriorityTurns(
             databaseURL: dbURL,
@@ -181,11 +182,394 @@ struct CostUsageScannerCodexPriorityTests {
         #expect(turns.keys.sorted() == ["turn-after"])
     }
 
+    @Test
+    func `incremental memo picks up rows appended after the first query`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+
+        #expect(CostUsageScanner.codexPriorityTurns(databaseURL: dbURL).keys.sorted() == ["turn-a"])
+
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:05:00Z",
+            body: "thread_id=thread-b turn.id=turn-b websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:05:01Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket event: "
+                + #"{"type":"response.completed","response":{"model":"resolved-model"}}"#)
+
+        let merged = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(merged.keys.sorted() == ["turn-a", "turn-b"])
+        // A completed event appended later still upgrades the model of a turn accumulated earlier.
+        #expect(merged["turn-a"]?.model == "resolved-model")
+    }
+
+    @Test
+    func `memo drops pruned requests while ids keep increasing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:01:00Z",
+            body: "thread_id=thread-b turn.id=turn-b websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        #expect(CostUsageScanner.codexPriorityTurns(databaseURL: dbURL).keys.sorted() == ["turn-a", "turn-b"])
+
+        try Self.execDatabase(dbURL: dbURL, sql: "delete from logs where rowid = 1")
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:02:00Z",
+            body: "thread_id=thread-c turn.id=turn-c websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+
+        let rebuilt = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(rebuilt.keys.sorted() == ["turn-b", "turn-c"])
+    }
+
+    @Test
+    func `memo drops a pruned completion model without losing its request`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-alias","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:01Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket event: "
+                + #"{"type":"response.completed","response":{"model":"resolved-model"}}"#)
+        #expect(CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)["turn-a"]?.model == "resolved-model")
+
+        try Self.execDatabase(dbURL: dbURL, sql: "delete from logs where rowid = 2")
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:01:00Z",
+            body: "thread_id=thread-b turn.id=turn-b websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+
+        let pruned = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(pruned["turn-a"]?.model == "request-alias")
+        #expect(pruned["turn-b"]?.model == "request-model")
+    }
+
+    @Test
+    func `memo falls back to retained duplicate request and completion rows`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-old turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-old","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:01Z",
+            body: "thread_id=thread-new turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-new","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:02Z",
+            body: "thread_id=thread-old turn.id=turn-a websocket event: "
+                + #"{"type":"response.completed","response":{"model":"completed-old"}}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:03Z",
+            body: "thread_id=thread-new turn.id=turn-a websocket event: "
+                + #"{"type":"response.completed","response":{"model":"completed-new"}}"#)
+
+        let initial = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(initial["turn-a"]?.threadID == "thread-new")
+        #expect(initial["turn-a"]?.model == "completed-new")
+
+        try Self.execDatabase(dbURL: dbURL, sql: "delete from logs where rowid in (2, 4)")
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:01:00Z",
+            body: "thread_id=thread-b turn.id=turn-b websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+
+        let pruned = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(pruned["turn-a"]?.threadID == "thread-old")
+        #expect(pruned["turn-a"]?.model == "completed-old")
+        #expect(pruned["turn-b"]?.model == "request-model")
+    }
+
+    @Test
+    func `failed incremental scan does not report completion`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            throw SQLiteTestError.open
+        }
+        defer { sqlite3_close(db) }
+        sqlite3_progress_handler(db, 1, { _ in 1 }, nil)
+
+        var state = CostUsageScanner.CodexPriorityTurnsMemoState(
+            observationID: 1,
+            coverageSinceEpoch: 0,
+            lastRowID: 0,
+            fileIdentity: nil,
+            turns: [:],
+            requestSourcesByTurnID: [:],
+            priorityCompletedModelsByTurnID: [:],
+            completedModelsByTurnID: [:],
+            completedTurnIDInsertionOrder: [])
+
+        #expect(!CostUsageScanner._test_accumulateCodexPriorityTurns(db, into: &state))
+    }
+
+    @Test
+    func `memo rescans when requested window expands earlier than accumulated coverage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        // Live refreshes always query through today, which is the memoized path.
+        let today = Date()
+        let yesterday = try #require(Calendar.current.date(byAdding: .day, value: -1, to: today))
+        let todayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: today)
+        let yesterdayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: yesterday)
+        let formatter = ISO8601DateFormatter()
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: formatter.string(from: yesterday),
+            body: "thread_id=thread-old turn.id=turn-old websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: formatter.string(from: today),
+            body: "thread_id=thread-new turn.id=turn-new websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+
+        let narrow = CostUsageScanner.codexPriorityTurns(
+            databaseURL: dbURL,
+            sinceDayKey: todayKey,
+            untilDayKey: todayKey)
+        #expect(narrow.keys.sorted() == ["turn-new"])
+
+        let expanded = CostUsageScanner.codexPriorityTurns(
+            databaseURL: dbURL,
+            sinceDayKey: yesterdayKey,
+            untilDayKey: todayKey)
+        #expect(expanded.keys.sorted() == ["turn-new", "turn-old"])
+    }
+
+    @Test
+    func `memo rescans when the database shrinks or is replaced`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:01:00Z",
+            body: "thread_id=thread-b turn.id=turn-b websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        #expect(CostUsageScanner.codexPriorityTurns(databaseURL: dbURL).count == 2)
+
+        try FileManager.default.removeItem(at: dbURL)
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-11T09:00:00Z",
+            body: "thread_id=thread-c turn.id=turn-c websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+
+        let replaced = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(replaced.keys.sorted() == ["turn-c"])
+    }
+
+    @Test
+    func `database replacement during open is rejected`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        let oldURL = env.root.appendingPathComponent("logs-old.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        var replacementError: Error?
+
+        let opened = CostUsageScanner.openCodexPriorityDatabase(at: dbURL) {
+            do {
+                try FileManager.default.moveItem(at: dbURL, to: oldURL)
+                try Self.createTestLogsDatabase(at: dbURL)
+            } catch {
+                replacementError = error
+            }
+        }
+        if let opened {
+            sqlite3_close(opened.db)
+        }
+
+        #expect(replacementError == nil)
+        #expect(opened == nil)
+    }
+
+    @Test
+    func `overlapping refresh writeback cannot replace newer memo state`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:01:00Z",
+            body: "thread_id=thread-b turn.id=turn-b websocket request: "
+                + #"{"type":"response.create","model":"request-model","service_tier":"priority"}"#)
+        #expect(CostUsageScanner.codexPriorityTurns(databaseURL: dbURL).count == 2)
+        let stored = try #require(CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path))
+
+        // A slower overlapping refresh writes back a snapshot read before the second row was
+        // appended: an older cursor that only observed the first turn. It must not win.
+        var stale = stored
+        stale.lastRowID -= 1
+        stale.turns = stored.turns.filter { $0.key == "turn-a" }
+        CostUsageScanner.storeCodexPriorityTurnsMemoIfNewer(stale, forPath: dbURL.path)
+
+        let retained = try #require(CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path))
+        #expect(retained.lastRowID == stored.lastRowID)
+        #expect(retained.turns.keys.sorted() == ["turn-a", "turn-b"])
+
+        // A snapshot with a newer cursor still replaces the stored state.
+        var newer = stored
+        newer.lastRowID += 1
+        CostUsageScanner.storeCodexPriorityTurnsMemoIfNewer(newer, forPath: dbURL.path)
+        #expect(
+            CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path)?
+                .lastRowID == stored.lastRowID + 1)
+
+        // A full rescan that expanded coverage earlier than the stored window also replaces,
+        // even when its cursor is not ahead, so broader history is never discarded.
+        var broader = stored
+        broader.coverageSinceEpoch -= 1
+        CostUsageScanner.storeCodexPriorityTurnsMemoIfNewer(broader, forPath: dbURL.path)
+        #expect(
+            CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path)?
+                .coverageSinceEpoch == broader.coverageSinceEpoch)
+    }
+
+    @Test
+    func `memo bounds retained completion metadata for non-priority turns`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        let limit = CostUsageScanner.codexPriorityCompletedModelRetentionLimit
+        let overflow = 8
+        let epoch = Self.epochSeconds("2026-05-10T12:00:00Z")
+
+        // A known priority turn keeps its resolved completion outside the bounded pending
+        // cache while thousands of unrelated completions flow through the process.
+        var rows = [
+            (
+                epochSeconds: epoch,
+                body: "thread_id=priority turn.id=priority websocket request: "
+                    + #"{"type":"response.create","model":"priority-alias","service_tier":"priority"}"#),
+            (
+                epochSeconds: epoch,
+                body: "thread_id=priority turn.id=priority websocket event: "
+                    + #"{"type":"response.completed","response":{"model":"resolved-model"}}"#),
+        ]
+        rows.append(contentsOf: (0..<(limit + overflow)).map { index in
+            (
+                epochSeconds: epoch,
+                body: "thread_id=thread-\(index) turn.id=turn-\(index) websocket event: "
+                    + #"{"type":"response.completed","response":{"model":"completed-model"}}"#)
+        })
+        rows.append((
+            epochSeconds: epoch,
+            body: "thread_id=thread-0 turn.id=turn-0 websocket request: "
+                + #"{"type":"response.create","model":"alias-evicted","service_tier":"priority"}"#))
+        let newest = limit + overflow - 1
+        rows.append((
+            epochSeconds: epoch,
+            body: "thread_id=thread-\(newest) turn.id=turn-\(newest) "
+                + "websocket request: "
+                + #"{"type":"response.create","model":"alias-retained","service_tier":"priority"}"#))
+        try Self.insertTestLogs(dbURL: dbURL, rows: rows)
+
+        let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+
+        let memo = try #require(CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path))
+        #expect(memo.completedModelsByTurnID.count == limit - 1)
+        #expect(memo.completedTurnIDInsertionOrder.count == limit - 1)
+        #expect(memo.priorityCompletedModelsByTurnID.count == 2)
+        // The oldest completions were evicted, so the early request keeps its alias; the
+        // recent completion is still retained and upgrades its request.
+        #expect(turns["priority"]?.model == "resolved-model")
+        #expect(turns["turn-0"]?.model == "alias-evicted")
+        #expect(turns["turn-\(newest)"]?.model == "completed-model")
+    }
+
+    static func insertTestLogs(dbURL: URL, rows: [(epochSeconds: Int64, body: String)]) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open(dbURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+        defer { sqlite3_close(db) }
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "insert into logs (ts, feedback_log_body) values (?, ?)", -1, &stmt, nil)
+            == SQLITE_OK
+        else { throw SQLiteTestError.prepare }
+        defer { sqlite3_finalize(stmt) }
+
+        try self.exec(db, "begin transaction")
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for row in rows {
+            sqlite3_bind_int64(stmt, 1, row.epochSeconds)
+            sqlite3_bind_text(stmt, 2, row.body, -1, transient)
+            guard sqlite3_step(stmt) == SQLITE_DONE else { throw SQLiteTestError.step }
+            sqlite3_reset(stmt)
+        }
+        try self.exec(db, "commit")
+    }
+
     static func createTestLogsDatabase(at dbURL: URL) throws {
         var db: OpaquePointer?
         guard sqlite3_open(dbURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
         defer { sqlite3_close(db) }
-        try self.exec(db, "create table logs (ts integer not null, feedback_log_body text)")
+        try self.exec(
+            db,
+            "create table logs (id integer primary key autoincrement, ts integer not null, feedback_log_body text)")
     }
 
     static func insertTestLog(dbURL: URL, timestamp: String, body: String) throws {
@@ -207,6 +591,13 @@ struct CostUsageScannerCodexPriorityTests {
         sqlite3_bind_int64(stmt, 1, epochSeconds)
         sqlite3_bind_text(stmt, 2, body, -1, transient)
         guard sqlite3_step(stmt) == SQLITE_DONE else { throw SQLiteTestError.step }
+    }
+
+    private static func execDatabase(dbURL: URL, sql: String) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open(dbURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+        defer { sqlite3_close(db) }
+        try self.exec(db, sql)
     }
 
     private static func epochSeconds(_ timestamp: String) -> Int64 {
