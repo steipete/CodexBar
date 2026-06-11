@@ -96,7 +96,7 @@ enum PoeLoginRunner {
         } catch PoeLoginError.timedOut {
             server.stop()
             return Result(outcome: .timedOut)
-        } catch PoeLoginError.launchFailed(let message) {
+        } catch let PoeLoginError.launchFailed(message) {
             server.stop()
             return Result(outcome: .launchFailed(message))
         } catch {
@@ -388,13 +388,12 @@ private final class PoeLoopbackServer: @unchecked Sendable {
     }
 
     private func httpResponse(for callback: PoeOAuthCallback) -> Data {
-        let message: String
-        if callback.error == nil, callback.code?.isEmpty == false {
-            message = "Poe login complete. You can return to CodexBar."
+        let message = if callback.error == nil, callback.code?.isEmpty == false {
+            "Poe login complete. You can return to CodexBar."
         } else if let error = callback.errorDescription, !error.isEmpty {
-            message = "Poe login failed: \(error)"
+            "Poe login failed: \(error)"
         } else {
-            message = "Poe login failed."
+            "Poe login failed."
         }
         let body = """
         <html><body style=\"font-family:-apple-system,Segoe UI,sans-serif;padding:24px;\">
@@ -499,8 +498,8 @@ private final class PoeLoopbackServer: @unchecked Sendable {
     }
 }
 
-private extension CharacterSet {
-    static let urlQueryValueAllowed: CharacterSet = {
+extension CharacterSet {
+    fileprivate static let urlQueryValueAllowed: CharacterSet = {
         var set = CharacterSet.urlQueryAllowed
         set.remove(charactersIn: "&+=?")
         return set

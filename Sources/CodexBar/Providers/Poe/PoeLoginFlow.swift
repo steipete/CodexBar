@@ -20,7 +20,9 @@ extension StatusItemController {
                 self.settings.updateProviderConfig(provider: .poe) { entry in
                     entry.secretKey = token.apiKey
                     if let expiresIn = token.expiresInSeconds {
-                        entry.workspaceID = String(Date().addingTimeInterval(TimeInterval(expiresIn)).timeIntervalSince1970)
+                        entry
+                            .workspaceID = String(Date().addingTimeInterval(TimeInterval(expiresIn))
+                                .timeIntervalSince1970)
                     } else {
                         entry.workspaceID = nil
                     }

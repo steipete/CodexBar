@@ -77,14 +77,14 @@ struct MenuDescriptorPoeTests {
             entries: [
                 .init(
                     id: "a",
-                    createdAt: now.addingTimeInterval(-1_000),
+                    createdAt: now.addingTimeInterval(-1000),
                     model: "GPT-4o",
                     usageType: "chat",
                     points: 100,
                     costUSD: nil),
                 .init(
                     id: "b",
-                    createdAt: now.addingTimeInterval(-86_000),
+                    createdAt: now.addingTimeInterval(-86000),
                     model: "Claude-3.7-Sonnet",
                     usageType: "chat",
                     points: 200,

@@ -29,7 +29,7 @@ struct PoeProviderImplementation: ProviderImplementation {
         let config = context.settings.providerConfig(for: .poe)
         let hasConnectedOAuth = !(config?.sanitizedSecretKey?.isEmpty ?? true)
         let expiryState = self.oauthExpiryState(config: config)
-        let subtitle: String = switch expiryState {
+        let subtitle = switch expiryState {
         case .connectedNoExpiry:
             "Connected via Poe OAuth. OAuth key is preferred over manual API key."
         case let .connected(expiresIn):
@@ -106,7 +106,7 @@ struct PoeProviderImplementation: ProviderImplementation {
         }
         let secondsLeft = Int(expiryTs - Date().timeIntervalSince1970)
         if secondsLeft <= 0 { return .expired }
-        if secondsLeft <= 86_400 {
+        if secondsLeft <= 86400 {
             return .expiringSoon(expiresIn: Self.relativeDuration(secondsLeft))
         }
         return .connected(expiresIn: Self.relativeDuration(secondsLeft))
@@ -114,7 +114,7 @@ struct PoeProviderImplementation: ProviderImplementation {
 
     private static func relativeDuration(_ seconds: Int) -> String {
         if seconds < 3600 { return "\(max(1, seconds / 60))m" }
-        if seconds < 86_400 { return "\(seconds / 3600)h" }
-        return "\(seconds / 86_400)d"
+        if seconds < 86400 { return "\(seconds / 3600)h" }
+        return "\(seconds / 86400)d"
     }
 }

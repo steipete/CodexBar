@@ -63,7 +63,8 @@ public struct PoeUsageFetcher: Sendable {
         try self.parseHistoryPage(data: data)
     }
 
-    static func _buildDailyBucketsForTesting(entries: [PoeUsageHistorySnapshot.Entry]) -> [PoeUsageHistorySnapshot.DailyBucket] {
+    static func _buildDailyBucketsForTesting(entries: [PoeUsageHistorySnapshot.Entry])
+    -> [PoeUsageHistorySnapshot.DailyBucket] {
         self.buildDailyBuckets(entries: entries)
     }
 
@@ -119,7 +120,8 @@ public struct PoeUsageFetcher: Sendable {
         return PoeUsageHistorySnapshot(entries: filtered, daily: daily, updatedAt: Date())
     }
 
-    private static func buildDailyBuckets(entries: [PoeUsageHistorySnapshot.Entry]) -> [PoeUsageHistorySnapshot.DailyBucket] {
+    private static func buildDailyBuckets(entries: [PoeUsageHistorySnapshot.Entry])
+    -> [PoeUsageHistorySnapshot.DailyBucket] {
         var acc: [String: (points: Double, requests: Int, costUSD: Double)] = [:]
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -161,7 +163,9 @@ public struct PoeUsageFetcher: Sendable {
         }
 
         let entries = rawEntries.compactMap { row -> PoeUsageHistorySnapshot.Entry? in
-            guard let createdAt = self.date(fromHistoryValue: row["creation_time"] ?? row["timestamp"] ?? row["created_at"]) else {
+            guard let createdAt = self
+                .date(fromHistoryValue: row["creation_time"] ?? row["timestamp"] ?? row["created_at"])
+            else {
                 return nil
             }
             let model = (row["bot_name"] as? String)?
