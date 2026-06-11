@@ -50,7 +50,7 @@ public struct CostUsageFetcher: Sendable {
         historyDays: Int = 30,
         refreshPricingInBackground: Bool = true) async throws -> CostUsageTokenSnapshot
     {
-        try await Self.loadTokenSnapshot(
+        let snapshot = try await Self.loadTokenSnapshot(
             provider: provider,
             environment: environment,
             now: now,
@@ -60,6 +60,12 @@ public struct CostUsageFetcher: Sendable {
             historyDays: historyDays,
             refreshPricingInBackground: refreshPricingInBackground,
             scannerOptions: self.scannerOptionsOverride())
+        // Demo / "troll" mode: inflate the real on-disk Claude cost estimate so the
+        // 30-day API-usage panel matches the spoofed provider card. Off by default.
+        if provider == .claude, let multiplier = ClaudeDemoUsage.activeMultiplier(environment: environment) {
+            return ClaudeDemoUsage.scaled(snapshot, by: multiplier)
+        }
+        return snapshot
     }
 
     @available(*, deprecated, message: "Codex token-cost scans are uncapped; this limit is ignored.")

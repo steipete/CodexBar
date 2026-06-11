@@ -155,6 +155,58 @@ public enum ClaudeDemoUsage {
         }
     }
 
+    /// Scales a real on-disk cost-usage snapshot (from ``CostUsageScanner``) by
+    /// `multiplier`, preserving the genuine chart shape, dates and model mix but
+    /// inflating every dollar / token / request magnitude. Used so the "API usage"
+    /// 30-day cost-history panel matches the inflated provider card during a demo.
+    public static func scaled(
+        _ snapshot: CostUsageTokenSnapshot,
+        by multiplier: Double) -> CostUsageTokenSnapshot
+    {
+        func scaleInt(_ value: Int?) -> Int? {
+            value.map { Int((Double($0) * multiplier).rounded()) }
+        }
+        func scaleDouble(_ value: Double?) -> Double? {
+            value.map { $0 * multiplier }
+        }
+        func scaleModel(_ model: CostUsageDailyReport.ModelBreakdown) -> CostUsageDailyReport.ModelBreakdown {
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: model.modelName,
+                costUSD: scaleDouble(model.costUSD),
+                totalTokens: scaleInt(model.totalTokens),
+                requestCount: scaleInt(model.requestCount),
+                standardCostUSD: scaleDouble(model.standardCostUSD),
+                priorityCostUSD: scaleDouble(model.priorityCostUSD),
+                standardTokens: scaleInt(model.standardTokens),
+                priorityTokens: scaleInt(model.priorityTokens))
+        }
+        func scaleEntry(_ entry: CostUsageDailyReport.Entry) -> CostUsageDailyReport.Entry {
+            CostUsageDailyReport.Entry(
+                date: entry.date,
+                inputTokens: scaleInt(entry.inputTokens),
+                outputTokens: scaleInt(entry.outputTokens),
+                cacheReadTokens: scaleInt(entry.cacheReadTokens),
+                cacheCreationTokens: scaleInt(entry.cacheCreationTokens),
+                totalTokens: scaleInt(entry.totalTokens),
+                requestCount: scaleInt(entry.requestCount),
+                costUSD: scaleDouble(entry.costUSD),
+                modelsUsed: entry.modelsUsed,
+                modelBreakdowns: entry.modelBreakdowns?.map(scaleModel))
+        }
+        return CostUsageTokenSnapshot(
+            sessionTokens: scaleInt(snapshot.sessionTokens),
+            sessionCostUSD: scaleDouble(snapshot.sessionCostUSD),
+            sessionRequests: scaleInt(snapshot.sessionRequests),
+            last30DaysTokens: scaleInt(snapshot.last30DaysTokens),
+            last30DaysCostUSD: scaleDouble(snapshot.last30DaysCostUSD),
+            last30DaysRequests: scaleInt(snapshot.last30DaysRequests),
+            currencyCode: snapshot.currencyCode,
+            historyDays: snapshot.historyDays,
+            historyLabel: snapshot.historyLabel,
+            daily: snapshot.daily.map(scaleEntry),
+            updatedAt: snapshot.updatedAt)
+    }
+
     private static func dayKey(from date: Date, calendar: Calendar) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
