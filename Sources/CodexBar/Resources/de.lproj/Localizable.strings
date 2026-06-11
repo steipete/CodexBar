@@ -87,9 +87,9 @@
 "Cookie header" = "Cookie-Header";
 "Cookie source" = "Cookie-Quelle";
 "Cookie: ..." = "Keks: ...";
-"Cookie: \\u{2026}\\\n\\\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: \\\\u{2026}\\\\\\n\\\\\\noder fügen Sie eine cURL-Erfassung aus dem Abacus AI-Dashboard ein";
-"Cookie: \\u{2026}\\\n\\\nor paste the __Secure-next-auth.session-token value" = "Cookie: \\\\u{2026}\\\\\\n\\\\\\noder fügen Sie den __Secure-next-auth.session-token-Wert ein";
-"Cookie: \\u{2026}\\\n\\\nor paste the kimi-auth token value" = "Cookie: \\\\u{2026}\\\\\\n\\\\\\noder fügen Sie den Kimi-Auth-Token-Wert ein";
+"Cookie: \\u{2026}\\\n\\\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: \\u{2026}\\\n\\\noder fügen Sie eine cURL-Erfassung aus dem Abacus AI-Dashboard ein";
+"Cookie: \\u{2026}\\\n\\\nor paste the __Secure-next-auth.session-token value" = "Cookie: \\u{2026}\\\n\\\noder fügen Sie den __Secure-next-auth.session-token-Wert ein";
+"Cookie: \\u{2026}\\\n\\\nor paste the kimi-auth token value" = "Cookie: \\u{2026}\\\n\\\noder fügen Sie den Kimi-Auth-Token-Wert ein";
 "Cookie: …" = "Keks: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Kosten";
@@ -353,10 +353,10 @@
 "available again." = "wieder verfügbar.";
 "built_format" = "Gebaut %@";
 "copilot_complete_in_browser" = "Melden Sie sich vollständig in Ihrem Browser an.";
-"copilot_device_code" = "Gerätecode in die Zwischenablage kopiert: %1$@\\n\\nÜberprüfen unter: %2$@";
+"copilot_device_code" = "Gerätecode in die Zwischenablage kopiert: %1$@\n\nÜberprüfen unter: %2$@";
 "copilot_device_code_copied" = "Gerätecode kopiert.";
 "copilot_verify_at" = "Überprüfen Sie um %@";
-"copilot_waiting_text" = "Schließen Sie die Anmeldung in Ihrem Browser ab.\\nDieses Fenster wird automatisch geschlossen, wenn die Anmeldung abgeschlossen ist.";
+"copilot_waiting_text" = "Schließen Sie die Anmeldung in Ihrem Browser ab.\nDieses Fenster wird automatisch geschlossen, wenn die Anmeldung abgeschlossen ist.";
 "copilot_window_closes_auto" = "Dieses Fenster wird automatisch geschlossen, wenn die Anmeldung abgeschlossen ist.";
 "cost_status_error" = "%1$@: %2$@";
 "cost_status_fetching" = "%1$@: Abrufen… %2$@";
@@ -384,7 +384,7 @@
 "overview_choose_providers" = "Wählen Sie bis zu %@ Anbieter aus";
 "remove_account_message" = "%@ aus CodexBar entfernen? Das verwaltete Codex-Heim wird gelöscht.";
 "version_format" = "Version %@";
-"vertex_ai_login_instructions" = "Um die Vertex AI-Nutzung zu verfolgen, authentifizieren Sie sich bei Google Cloud.\\n\\n1. Öffnen Sie Terminal\\n2. Führen Sie Folgendes aus: gcloud auth application-default login\\n3. Befolgen Sie die Anweisungen des Browsers, um sich anzumelden\\n4. Legen Sie Ihr Projekt fest: gcloud config set project PROJECT_ID\\n\\nTerminal jetzt öffnen?";
+"vertex_ai_login_instructions" = "Um die Vertex AI-Nutzung zu verfolgen, authentifizieren Sie sich bei Google Cloud.\n\n1. Öffnen Sie Terminal\n2. Führen Sie Folgendes aus: gcloud auth application-default login\n3. Befolgen Sie die Anweisungen des Browsers, um sich anzumelden\n4. Legen Sie Ihr Projekt fest: gcloud config set project PROJECT_ID\n\nTerminal jetzt öffnen?";
 "workspaceID is set but only opencode, opencodego, and deepgram support workspaceID." = "Die Arbeitsbereichs-ID ist festgelegt, aber nur Opencode, Opencodego und Deepgram unterstützen die Arbeitsbereichs-ID.";
 "© 2026 Peter Steinberger. MIT License." = "© 2026 Peter Steinberger. MIT-Lizenz.";
 
@@ -985,7 +985,7 @@
 "Open Volcengine Ark Console" = "Öffnen Sie die Volcengine Ark-Konsole";
 "Open legacy provider docs" = "Öffnen Sie die Dokumente älterer Anbieter";
 "Open projects" = "Offene Projekte";
-"Open this URL manually to continue login:\n\n%@" = "Öffnen Sie diese URL manuell, um mit der Anmeldung fortzufahren:\\n\\n%@";
+"Open this URL manually to continue login:\n\n%@" = "Öffnen Sie diese URL manuell, um mit der Anmeldung fortzufahren:\n\n%@";
 "Optional organization ID for accounts linked to multiple Anthropic organizations." = "Optionale Organisations-ID für Konten, die mit mehreren Anthropic-Organisationen verknüpft sind.";
 "Optional. Applies to the configured Admin API key; selected token accounts do not inherit OPENAI_PROJECT_ID." = "Optional. Gilt für den konfigurierten Admin-API-Schlüssel; Ausgewählte Token-Konten erben OPENAI_PROJECT_ID nicht.";
 "Optional. Enter your GitHub Enterprise host, for example octocorp.ghe.com. Leave blank for github.com." = "Optional. Geben Sie Ihren GitHub Enterprise-Host ein, zum Beispiel octocorp.ghe.com. Für github.com leer lassen.";
@@ -1062,10 +1062,10 @@
 "Your StepFun platform password. Used to login and obtain a session token." = "Ihr Passwort für die StepFun-Plattform. Wird verwendet, um sich anzumelden und ein Sitzungstoken zu erhalten.";
 "claude /login exited with status %d." = "Claude /login wurde mit dem Status %d beendet.";
 "codex login exited with status %d." = "Codex-Anmeldung mit Status %d beendet.";
-"Cookie: …\n\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: …\\n\\noder fügen Sie eine cURL-Erfassung aus dem Abacus AI-Dashboard ein";
-"Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\\n\\noder fügen Sie den Wert __Secure-next-auth.session-token ein";
-"Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\\n\\noder fügen Sie den Kimi-Auth-Token-Wert ein";
-"session_id=...\n\nor paste just the session_id value" = "session_id=...\\n\\noder fügen Sie nur den session_id-Wert ein";
+"Cookie: …\n\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: …\n\noder fügen Sie eine cURL-Erfassung aus dem Abacus AI-Dashboard ein";
+"Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\noder fügen Sie den Wert __Secure-next-auth.session-token ein";
+"Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\noder fügen Sie den Kimi-Auth-Token-Wert ein";
+"session_id=...\n\nor paste just the session_id value" = "session_id=...\n\noder fügen Sie nur den session_id-Wert ein";
 "Clear" = "Klar";
 "No matching providers" = "Keine passenden Anbieter";
 "Search providers" = "Suchanbieter";
