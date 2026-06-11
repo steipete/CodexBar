@@ -124,6 +124,71 @@ struct BedrockUsageStatsTests {
     }
 
     @Test
+    func `cost explorer data unavailable response returns zero usage`() async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(BedrockStubURLProtocol.self)
+            }
+            BedrockStubURLProtocol.handler = nil
+        }
+
+        BedrockStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return Self.makeResponse(
+                url: url,
+                body: #"{"__type":"com.amazonaws.ce#DataUnavailableException","message":"Data is not ready"}"#,
+                statusCode: 400)
+        }
+
+        let credentials = BedrockAWSSigner.Credentials(
+            accessKeyID: "AKIATEST",
+            secretAccessKey: "testSecret",
+            sessionToken: nil)
+
+        let usage = try await BedrockUsageFetcher.fetchUsage(
+            credentials: credentials,
+            region: "us-east-1",
+            budget: 100,
+            environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"])
+
+        #expect(usage.monthlySpend == 0)
+        #expect(usage.monthlyBudget == 100)
+    }
+
+    @Test
+    func `cost explorer unrelated bad request remains an API error`() async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(BedrockStubURLProtocol.self)
+            }
+            BedrockStubURLProtocol.handler = nil
+        }
+
+        BedrockStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return Self.makeResponse(
+                url: url,
+                body: #"{"__type":"ValidationException","message":"Invalid request"}"#,
+                statusCode: 400)
+        }
+
+        let credentials = BedrockAWSSigner.Credentials(
+            accessKeyID: "AKIATEST",
+            secretAccessKey: "testSecret",
+            sessionToken: nil)
+
+        await #expect(throws: BedrockUsageError.apiError("HTTP 400")) {
+            try await BedrockUsageFetcher.fetchUsage(
+                credentials: credentials,
+                region: "us-east-1",
+                budget: nil,
+                environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"])
+        }
+    }
+
+    @Test
     func `cost explorer pagination aggregates monthly total`() async throws {
         let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
         defer {

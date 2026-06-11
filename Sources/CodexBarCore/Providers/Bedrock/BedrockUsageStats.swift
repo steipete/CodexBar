@@ -248,6 +248,10 @@ enum BedrockUsageFetcher {
 
         let response = try await ProviderHTTPClient.shared.response(for: request)
         guard response.statusCode == 200 else {
+            if Self.isDataUnavailableResponse(statusCode: response.statusCode, data: response.data) {
+                Self.log.info("AWS Cost Explorer data unavailable, assuming zero usage.")
+                return Data(#"{"ResultsByTime":[]}"#.utf8)
+            }
             let summary = Self.sanitizedResponseBody(response.data)
             Self.log.error("AWS Cost Explorer returned \(response.statusCode): \(summary)")
             throw BedrockUsageError.apiError("HTTP \(response.statusCode)")
@@ -392,6 +396,25 @@ enum BedrockUsageFetcher {
         let startOfToday = calendar.startOfDay(for: now)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday)!
         return (formatter.string(from: startOfMonth), formatter.string(from: tomorrow))
+    }
+
+    private static func isDataUnavailableResponse(statusCode: Int, data: Data) -> Bool {
+        guard statusCode == 400,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return false
+        }
+
+        let nestedError = json["Error"] as? [String: Any]
+        let candidates = [
+            json["__type"],
+            json["code"],
+            json["Code"],
+            nestedError?["Code"],
+        ]
+        return candidates.compactMap { $0 as? String }.contains { rawCode in
+            rawCode.split(separator: "#").last == "DataUnavailableException"
+        }
     }
 
     private static func sanitizedResponseBody(_ data: Data) -> String {
