@@ -93,7 +93,7 @@ actor AntigravityCLISession {
     static let shared = AntigravityCLISession()
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
 
-    private struct LaunchOutcome: Sendable {
+    private struct LaunchOutcome {
         let pid: pid_t
         let rejectedProcess: (any AntigravityCLIProcessHandle)?
         let rejectionMessage: String?
@@ -695,11 +695,12 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
         posix_spawn_file_actions_addclose(&fileActions, primaryFD)
         posix_spawn_file_actions_addclose(&fileActions, secondaryFD)
 
-        #if canImport(Darwin)
         let homeDirectory = NSHomeDirectory()
         _ = homeDirectory.withCString { path in
             posix_spawn_file_actions_addchdir_np(&fileActions, path)
         }
+        #if !canImport(Darwin)
+        posix_spawn_file_actions_addclosefrom_np(&fileActions, 3)
         #endif
 
         #if canImport(Darwin)
@@ -715,7 +716,12 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
         defer { posix_spawnattr_destroy(&attr) }
         var defaultSignals = Self.defaultSignalsForSpawn()
         posix_spawnattr_setsigdefault(&attr, &defaultSignals)
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF))
+        #if canImport(Darwin)
+        let spawnFlags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_CLOEXEC_DEFAULT
+        #else
+        let spawnFlags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF
+        #endif
+        posix_spawnattr_setflags(&attr, Int16(spawnFlags))
         posix_spawnattr_setpgroup(&attr, 0)
 
         var env = TTYCommandRunner.enrichedEnvironment()

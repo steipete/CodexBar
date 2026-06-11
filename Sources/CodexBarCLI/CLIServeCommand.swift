@@ -554,12 +554,12 @@ extension CodexBarCLI {
     }
 
     /// How long a last-good response may be served in place of a failed
-    /// refresh. Bounded so consumers never see hours-stale data: ten refresh
-    /// intervals, with a five-minute floor for short intervals. Zero (stale
-    /// fallback disabled) when response caching is disabled.
+    /// refresh. Ten refresh intervals, with a five-minute floor and one-hour
+    /// ceiling. Zero (stale fallback disabled) when response caching is disabled.
     static func serveStaleTTL(refreshInterval: TimeInterval) -> TimeInterval {
         guard refreshInterval > 0 else { return 0 }
-        return max(refreshInterval * 10, 300)
+        guard refreshInterval.isFinite else { return 3600 }
+        return min(max(refreshInterval * 10, 300), 3600)
     }
 
     static func serveCLISessionIdleWindow(refreshInterval: TimeInterval) -> TimeInterval {

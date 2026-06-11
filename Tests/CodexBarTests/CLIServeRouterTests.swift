@@ -387,6 +387,9 @@ struct CLIServeRouterTests {
         #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 0) == 0)
         #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 1) == 300)
         #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 60) == 600)
+        #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 1800) == 3600)
+        #expect(CodexBarCLI.serveStaleTTL(refreshInterval: 86401) == 3600)
+        #expect(CodexBarCLI.serveStaleTTL(refreshInterval: .infinity) == 3600)
     }
 
     @Test
