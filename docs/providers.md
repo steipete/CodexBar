@@ -37,7 +37,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | z.ai | API token from config/env → quota API (`api`). |
 | Manus | Browser `session_id` cookie (auto/manual/env) → credits API (`web`). |
 | MiniMax | Manual/browser session via Coding Plan web path (`web`), or Coding Plan API token (`api`). |
-| Kimi | Auth token from `kimi-auth` cookie/manual token/env → usage API (`web`). |
+| Kimi | Kimi Code API key (`api`), then `kimi-auth` cookie/manual token/env fallback (`web`). |
 | Kilo | API token from config/env → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | Device-flow/env/config token → `copilot_internal` API (`api`). |
 | Kimi K2 (unofficial) | API key from config/env → legacy credit endpoint (`api`). |
@@ -129,7 +129,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Details: `docs/minimax.md`.
 
 ## Kimi
-- Auth token (JWT from `kimi-auth` cookie) via manual entry or `KIMI_AUTH_TOKEN` env var.
+- Kimi Code API key via `~/.codexbar/config.json`, `KIMI_API_KEY`, or `KIMI_CODE_API_KEY`.
+- Web fallback uses the JWT from `kimi-auth` cookie via manual entry or `KIMI_AUTH_TOKEN` env var.
 - Shows weekly quota and 5-hour rate limit (300 minutes).
 - Status: none yet.
 - Details: `docs/kimi.md`.

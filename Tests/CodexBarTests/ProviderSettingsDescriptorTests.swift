@@ -181,6 +181,21 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `kimi exposes usage source picker plus api and cookie fields`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi")
+        let context = fixture.settingsContext(provider: .kimi)
+
+        let implementation = KimiProviderImplementation()
+        let pickers = implementation.settingsPickers(context: context)
+        let fields = implementation.settingsFields(context: context)
+
+        #expect(pickers.contains(where: { $0.id == "kimi-usage-source" }))
+        #expect(pickers.contains(where: { $0.id == "kimi-cookie-source" }))
+        #expect(fields.contains(where: { $0.id == "kimi-api-key" }))
+        #expect(fields.contains(where: { $0.id == "kimi-cookie" }))
+    }
+
+    @Test
     func `deepgram exposes api key and project id fields`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepgram")
         let context = fixture.settingsContext(provider: .deepgram)

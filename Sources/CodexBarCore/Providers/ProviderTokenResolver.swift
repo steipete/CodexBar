@@ -68,6 +68,10 @@ public enum ProviderTokenResolver {
         self.kimiAuthResolution(environment: environment)?.token
     }
 
+    public static func kimiAPIToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.kimiAPIResolution(environment: environment)?.token
+    }
+
     public static func kimiK2Token(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.kimiK2Resolution(environment: environment)?.token
     }
@@ -269,6 +273,12 @@ public enum ProviderTokenResolver {
         }
         #endif
         return nil
+    }
+
+    public static func kimiAPIResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(KimiSettingsReader.apiKey(environment: environment))
     }
 
     public static func kimiK2Resolution(

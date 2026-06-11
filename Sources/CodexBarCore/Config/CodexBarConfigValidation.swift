@@ -159,7 +159,8 @@ public enum CodexBarConfigValidator {
                 provider: provider,
                 field: "enterpriseHost",
                 code: "enterprise_host_unused",
-                message: "enterpriseHost is set but only azureopenai, copilot, and llmproxy support enterpriseHost."))
+                message: "enterpriseHost is set but only azureopenai, copilot, kimi, " +
+                    "and llmproxy support enterpriseHost."))
         }
 
         if let tokenAccounts = entry.tokenAccounts, !tokenAccounts.accounts.isEmpty,
@@ -207,7 +208,7 @@ public enum CodexBarConfigValidator {
 
     private static func providerSupportsEnterpriseHost(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .azureopenai, .copilot, .llmproxy:
+        case .azureopenai, .copilot, .kimi, .llmproxy:
             true
         default:
             false

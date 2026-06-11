@@ -228,6 +228,8 @@ extension CodexBarCLI {
         environment: [String: String]) -> Bool
     {
         switch provider {
+        case .kimi:
+            KimiSettingsReader.apiKey(environment: environment) != nil
         case .kimik2:
             KimiK2SettingsReader.apiKey(environment: environment) != nil
         case .llmproxy:

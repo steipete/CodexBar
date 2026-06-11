@@ -4,6 +4,11 @@ struct KimiUsageResponse: Codable {
     let usages: [KimiUsage]
 }
 
+struct KimiCodeAPIUsageResponse: Codable {
+    let usage: KimiUsageDetail
+    let limits: [KimiRateLimit]?
+}
+
 struct KimiUsage: Codable {
     let scope: String
     let detail: KimiUsageDetail

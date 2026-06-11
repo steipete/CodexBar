@@ -11,6 +11,34 @@ struct KimiSettingsReaderTests {
     }
 
     @Test
+    func `reads API key from preferred environment variable`() {
+        let env = ["KIMI_API_KEY": "kimi-api-token"]
+        let token = KimiSettingsReader.apiKey(environment: env)
+        #expect(token == "kimi-api-token")
+    }
+
+    @Test
+    func `reads API key from code specific environment variable`() {
+        let env = ["KIMI_CODE_API_KEY": "'kimi-code-token'"]
+        let token = KimiSettingsReader.apiKey(environment: env)
+        #expect(token == "kimi-code-token")
+    }
+
+    @Test
+    func `uses custom code API base URL when valid`() {
+        let env = ["KIMI_CODE_BASE_URL": "https://proxy.example.com/kimi"]
+        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
+        #expect(url.absoluteString == "https://proxy.example.com/kimi")
+    }
+
+    @Test
+    func `falls back to default code API base URL when invalid`() {
+        let env = ["KIMI_CODE_BASE_URL": "not a url"]
+        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
+        #expect(url == KimiSettingsReader.defaultCodeAPIBaseURL)
+    }
+
+    @Test
     func `normalizes quoted token`() {
         let env = ["KIMI_AUTH_TOKEN": "\"test.jwt.token\""]
         let token = KimiSettingsReader.authToken(environment: env)
@@ -133,6 +161,40 @@ struct KimiUsageResponseParsingTests {
 
         let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
         #expect(response.usages.first?.limits == nil)
+    }
+
+    @Test
+    func `parses code API usage response`() throws {
+        let json = """
+        {
+          "usage": {
+            "limit": "2048",
+            "used": "375",
+            "remaining": "1673",
+            "resetTime": "2026-01-09T15:23:13.373329235Z"
+          },
+          "limits": [
+            {
+              "window": {
+                "duration": 300,
+                "timeUnit": "TIME_UNIT_MINUTE"
+              },
+              "detail": {
+                "limit": "200",
+                "used": "19",
+                "remaining": "181",
+                "resetTime": "2026-01-06T15:05:24.374187075Z"
+              }
+            }
+          ]
+        }
+        """
+
+        let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8))
+        #expect(snapshot.weekly.limit == "2048")
+        #expect(snapshot.weekly.used == "375")
+        #expect(snapshot.rateLimit?.limit == "200")
+        #expect(snapshot.rateLimit?.used == "19")
     }
 
     @Test

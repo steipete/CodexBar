@@ -9,6 +9,43 @@ public struct KimiUsageFetcher: Sendable {
     private static let usageURL =
         URL(string: "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages")!
 
+    public static func fetchCodeAPIUsage(
+        apiKey: String,
+        baseURL: URL = KimiSettingsReader.defaultCodeAPIBaseURL,
+        now: Date = Date()) async throws -> KimiUsageSnapshot
+    {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw KimiAPIError.missingToken
+        }
+
+        let endpoint = baseURL.appendingPathComponent("coding/v1/usages")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let data = response.data
+        guard response.statusCode == 200 else {
+            let responseBody = String(data: data, encoding: .utf8) ?? "<binary data>"
+            Self.log.error("Kimi Code API returned \(response.statusCode): \(responseBody)")
+
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw KimiAPIError.invalidToken
+            }
+            if response.statusCode == 400 {
+                throw KimiAPIError.invalidRequest("Bad request")
+            }
+            throw KimiAPIError.apiError("HTTP \(response.statusCode)")
+        }
+
+        return try self.parseCodeAPIUsage(from: data, now: now)
+    }
+
+    static func _parseCodeAPIUsageForTesting(_ data: Data, now: Date = Date()) throws -> KimiUsageSnapshot {
+        try self.parseCodeAPIUsage(from: data, now: now)
+    }
+
     public static func fetchUsage(authToken: String, now: Date = Date()) async throws -> KimiUsageSnapshot {
         // Decode JWT to get session info
         let sessionInfo = self.decodeSessionInfo(from: authToken)
@@ -72,6 +109,14 @@ public struct KimiUsageFetcher: Sendable {
         return KimiUsageSnapshot(
             weekly: codingUsage.detail,
             rateLimit: codingUsage.limits?.first?.detail,
+            updatedAt: now)
+    }
+
+    private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {
+        let response = try JSONDecoder().decode(KimiCodeAPIUsageResponse.self, from: data)
+        return KimiUsageSnapshot(
+            weekly: response.usage,
+            rateLimit: response.limits?.first?.detail,
             updatedAt: now)
     }
 

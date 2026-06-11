@@ -21,6 +21,9 @@ public enum ProviderConfigEnvironment {
         if provider == .azureopenai {
             return self.applyAzureOpenAIOverrides(base: base, config: config)
         }
+        if provider == .kimi {
+            return self.applyKimiOverrides(base: base, config: config)
+        }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
         if let key = self.directAPIKeyEnvironmentKey(for: provider) {
@@ -100,6 +103,8 @@ public enum ProviderConfigEnvironment {
             ElevenLabsSettingsReader.apiKeyEnvironmentKey
         case .moonshot:
             MoonshotSettingsReader.apiKeyEnvironmentKeys.first
+        case .kimi:
+            KimiSettingsReader.apiKeyEnvironmentKeys.first
         case .ollama:
             OllamaAPISettingsReader.apiKeyEnvironmentKeys.first
         case .venice:
@@ -216,6 +221,23 @@ public enum ProviderConfigEnvironment {
         }
         if let baseURL = config?.sanitizedEnterpriseHost {
             env[LLMProxySettingsReader.baseURLEnvironmentKey] = baseURL
+        }
+        return env
+    }
+
+    private static func applyKimiOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let apiKey = config.sanitizedAPIKey,
+           let key = KimiSettingsReader.apiKeyEnvironmentKeys.first
+        {
+            env[key] = apiKey
+        }
+        if let baseURL = config.sanitizedEnterpriseHost {
+            env[KimiSettingsReader.codeAPIBaseURLEnvironmentKey] = baseURL
         }
         return env
     }

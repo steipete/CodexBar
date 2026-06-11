@@ -1,9 +1,36 @@
 import Foundation
 
 public enum KimiSettingsReader {
+    public static let apiKeyEnvironmentKeys = [
+        "KIMI_API_KEY",
+        "KIMI_CODE_API_KEY",
+    ]
+    public static let codeAPIBaseURLEnvironmentKey = "KIMI_CODE_BASE_URL"
+    public static let defaultCodeAPIBaseURL = URL(string: "https://api.kimi.com")!
+
     public static func authToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         let raw = environment["KIMI_AUTH_TOKEN"] ?? environment["kimi_auth_token"]
         return self.cleaned(raw)
+    }
+
+    public static func apiKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        for key in self.apiKeyEnvironmentKeys {
+            if let value = self.cleaned(environment[key]) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    public static func codeAPIBaseURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        guard let raw = self.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]),
+              let url = URL(string: raw),
+              url.scheme != nil,
+              url.host != nil
+        else {
+            return self.defaultCodeAPIBaseURL
+        }
+        return url
     }
 
     private static func cleaned(_ raw: String?) -> String? {

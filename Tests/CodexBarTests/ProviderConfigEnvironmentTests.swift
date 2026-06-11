@@ -78,6 +78,23 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies Kimi API key and base URL config overrides`() {
+        let config = ProviderConfig(
+            id: .kimi,
+            apiKey: "kimi-api-token",
+            enterpriseHost: "https://proxy.example.com/kimi")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .kimi,
+            config: config)
+
+        #expect(env[KimiSettingsReader.apiKeyEnvironmentKeys[0]] == "kimi-api-token")
+        #expect(env[KimiSettingsReader.codeAPIBaseURLEnvironmentKey] == "https://proxy.example.com/kimi")
+        #expect(ProviderTokenResolver.kimiAPIToken(environment: env) == "kimi-api-token")
+        #expect(KimiSettingsReader.codeAPIBaseURL(environment: env).absoluteString == "https://proxy.example.com/kimi")
+    }
+
+    @Test
     func `applies API key override for elevenlabs`() {
         let config = ProviderConfig(id: .elevenlabs, apiKey: "xi-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
