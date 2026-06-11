@@ -108,6 +108,13 @@ extension CostUsageScanner {
     {
         self.accumulateCodexPriorityTurns(db, into: &state)
     }
+
+    static func _test_codexPriorityAccumulationQuery(
+        _ db: OpaquePointer?,
+        lastRowID: Int64) -> String
+    {
+        self.codexPriorityAccumulationQuery(db, lastRowID: lastRowID)
+    }
     #endif
 
     /// Resolves priority turn metadata from the codex CLI trace database. The full-table
@@ -438,19 +445,16 @@ extension CostUsageScanner {
         _ db: OpaquePointer?,
         into state: inout CodexPriorityTurnsMemoState) -> Bool
     {
-        let query = """
-        select rowid, ts, feedback_log_body
-        from logs
-        where rowid > ? and ts >= ?
-          and (feedback_log_body like '%websocket request:%'
-               or feedback_log_body like '%response.completed%')
-        order by rowid
-        """
+        let query = self.codexPriorityAccumulationQuery(db, lastRowID: state.lastRowID)
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_int64(stmt, 1, state.lastRowID)
-        sqlite3_bind_int64(stmt, 2, state.coverageSinceEpoch)
+        if state.lastRowID == 0, self.hasCodexLogsTimestampIndex(db) {
+            sqlite3_bind_int64(stmt, 1, state.coverageSinceEpoch)
+        } else {
+            sqlite3_bind_int64(stmt, 1, state.lastRowID)
+            sqlite3_bind_int64(stmt, 2, state.coverageSinceEpoch)
+        }
 
         while true {
             let stepResult = sqlite3_step(stmt)
@@ -479,6 +483,43 @@ extension CostUsageScanner {
                 state.priorityCompletedModelsByTurnID[parsed.turnID] = completedModels
             }
         }
+    }
+
+    private static func codexPriorityAccumulationQuery(
+        _ db: OpaquePointer?,
+        lastRowID: Int64) -> String
+    {
+        if lastRowID == 0, self.hasCodexLogsTimestampIndex(db) {
+            return """
+            select rowid, ts, feedback_log_body
+            from logs indexed by idx_logs_ts
+            where ts >= ?
+              and (feedback_log_body like '%websocket request:%'
+                   or feedback_log_body like '%response.completed%')
+            order by rowid
+            """
+        }
+        return """
+        select rowid, ts, feedback_log_body
+        from logs
+        where rowid > ? and ts >= ?
+          and (feedback_log_body like '%websocket request:%'
+               or feedback_log_body like '%response.completed%')
+        order by rowid
+        """
+    }
+
+    private static func hasCodexLogsTimestampIndex(_ db: OpaquePointer?) -> Bool {
+        var stmt: OpaquePointer?
+        let query = """
+        select 1
+        from sqlite_master
+        where type = 'index' and tbl_name = 'logs' and name = 'idx_logs_ts'
+        limit 1
+        """
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(stmt) }
+        return sqlite3_step(stmt) == SQLITE_ROW
     }
     #endif
 

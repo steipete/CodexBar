@@ -75,6 +75,28 @@ struct CostUsageScannerCodexPriorityTests {
     }
 
     @Test
+    func `cold scan uses timestamp index and warm scan uses rowid cursor`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            throw SQLiteTestError.open
+        }
+        defer { sqlite3_close(db) }
+
+        let coldQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(db, lastRowID: 0)
+        let coldPlan = try Self.queryPlan(db: db, query: coldQuery, bindings: [0])
+        #expect(coldPlan.contains { $0.contains("USING INDEX idx_logs_ts") })
+
+        let warmQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(db, lastRowID: 1)
+        let warmPlan = try Self.queryPlan(db: db, query: warmQuery, bindings: [1, 0])
+        #expect(warmPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
+    }
+
+    @Test
     func `sqlite scan upgrades priority request alias with completed response model`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -574,6 +596,30 @@ struct CostUsageScannerCodexPriorityTests {
         try self.exec(
             db,
             "create table logs (id integer primary key autoincrement, ts integer not null, feedback_log_body text)")
+        try self.exec(db, "create index idx_logs_ts on logs(ts desc, id desc)")
+    }
+
+    static func queryPlan(
+        db: OpaquePointer?,
+        query: String,
+        bindings: [Int64]) throws -> [String]
+    {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "explain query plan \(query)", -1, &stmt, nil) == SQLITE_OK else {
+            throw SQLiteTestError.prepare
+        }
+        defer { sqlite3_finalize(stmt) }
+        for (offset, value) in bindings.enumerated() {
+            sqlite3_bind_int64(stmt, Int32(offset + 1), value)
+        }
+
+        var details: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let detail = sqlite3_column_text(stmt, 3) {
+                details.append(String(cString: detail))
+            }
+        }
+        return details
     }
 
     static func insertTestLog(dbURL: URL, timestamp: String, body: String) throws {
