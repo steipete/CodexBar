@@ -157,6 +157,8 @@ extension InlineUsageDashboardModel.ValueStyle {
             "currency:\(symbol)"
         case .tokens:
             "tokens"
+        case .points:
+            "points"
         }
     }
 }
