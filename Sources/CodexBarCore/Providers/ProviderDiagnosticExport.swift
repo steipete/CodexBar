@@ -177,6 +177,9 @@ public struct ProviderDiagnosticFetchAttempt: Codable, Sendable {
 
     public static func errorCategoryLabel(_ description: String?) -> String {
         guard let desc = description?.lowercased() else { return "unknown" }
+        if desc.contains("endpoint override") {
+            return "configuration"
+        }
         if desc.contains("network") || desc.contains("timeout") || desc.contains("connection") {
             return "network"
         }

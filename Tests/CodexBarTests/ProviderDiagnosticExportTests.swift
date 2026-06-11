@@ -110,6 +110,22 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
+    func `endpoint override fetch attempt stays in configuration category`() {
+        let error = MiniMaxUsageError.invalidEndpointOverride("MINIMAX_HOST")
+        let attempt = ProviderFetchAttempt(
+            strategyID: "minimax.web",
+            kind: .web,
+            wasAvailable: true,
+            errorDescription: error.localizedDescription)
+
+        let diagError = ProviderDiagnosticError(from: error, authConfigured: true)
+        let diagAttempt = ProviderDiagnosticFetchAttempt(from: attempt)
+
+        #expect(diagError.category == "configuration")
+        #expect(diagAttempt.errorCategory == "configuration")
+    }
+
+    @Test
     func `no available strategy maps missing auth to auth category`() {
         let error = ProviderFetchError.noAvailableStrategy(.minimax)
         let diag = ProviderDiagnosticError(from: error, authConfigured: false)
