@@ -400,6 +400,10 @@
 "language_chinese_traditional" = "한국어";
 "language_portuguese_brazilian" = "(브라질)";
 "language_swedish" = "Svenska";
+"language_french" = "프랑스어";
+"language_dutch" = "Nederlands";
+"language_ukrainian" = "Українська";
+"language_vietnamese" = "베트남어";
 "language_korean" = "한국어";
 "start_at_login_title" = "로그인 시 시작";
 "start_at_login_subtitle" = "Mac을 시작하면 CodexBar를 자동으로 엽니다.";

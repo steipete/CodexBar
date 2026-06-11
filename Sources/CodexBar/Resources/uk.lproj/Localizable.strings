@@ -405,6 +405,7 @@
 "language_ukrainian" = "Українська";
 "language_japanese" = "Японська";
 "language_vietnamese" = "В'єтнамська";
+"language_korean" = "한국어";
 "start_at_login_title" = "Почніть із входу";
 "start_at_login_subtitle" = "Автоматично відкриває CodexBar під час запуску Mac.";
 "show_cost_summary" = "Показати підсумок витрат";
