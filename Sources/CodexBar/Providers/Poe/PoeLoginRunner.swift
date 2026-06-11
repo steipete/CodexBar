@@ -367,7 +367,20 @@ private final class PoeLoopbackServer: @unchecked Sendable {
                 errorDescription: "Invalid callback URL.")
         }
 
-        let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        let queryItems = components.queryItems ?? []
+        let trackedNames: Set<String> = ["code", "state", "error", "error_description"]
+        var query: [String: String] = [:]
+        for item in queryItems where trackedNames.contains(item.name) {
+            if query[item.name] != nil {
+                return PoeOAuthCallback(
+                    code: nil,
+                    returnedState: nil,
+                    error: "invalid_request",
+                    errorDescription: "Duplicate callback parameter.")
+            }
+            query[item.name] = item.value ?? ""
+        }
+
         let code = query["code"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let returnedState = query["state"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let error = query["error"]?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -495,6 +508,23 @@ private final class PoeLoopbackServer: @unchecked Sendable {
         }
 
         return UInt16(bigEndian: address.sin_port)
+    }
+}
+
+extension PoeLoginRunner {
+    static func _parseCallbackForTesting(_ request: String, expectedState: String) -> (
+        code: String?,
+        returnedState: String?,
+        error: String?,
+        errorDescription: String?)
+    {
+        let callback = PoeLoopbackServer(expectedState: expectedState)
+            .parseCallback(from: Data(request.utf8))
+        return (
+            code: callback.code,
+            returnedState: callback.returnedState,
+            error: callback.error,
+            errorDescription: callback.errorDescription)
     }
 }
 
