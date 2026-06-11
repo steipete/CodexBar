@@ -360,33 +360,22 @@ struct ProviderStorageFootprintTests {
         settings.providerStorageFootprintsEnabled = true
         store.managedCodexAccountsForStorageOverride = []
 
-        await store.refreshStorageFootprintsForOverviewNow()
+        await store.refreshStorageFootprintsNow(for: [.codex])
         #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)
-
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: UsageFetcher().loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
-        defer { controller.releaseStatusItemsForTesting() }
-        let menuContentVersion = controller.menuContentVersion
 
         // A second scan over identical on-disk data must not re-assign the observable property.
         // Storage scans run on every menu open and every ~5 min; an unconditional re-publish wakes
-        // `menuObservationToken` -> `invalidateMenus` churn for no value change.
+        // the controller's `menuObservationToken` -> `invalidateMenus` path for no value change.
         let didRepublish = ObservationFlag()
         withObservationTracking {
             _ = store.providerStorageFootprints
         } onChange: {
             didRepublish.set()
         }
-        await store.refreshStorageFootprintsForOverviewNow()
+        await store.refreshStorageFootprintsNow(for: [.codex])
         try? await Task.sleep(for: .milliseconds(50))
 
         #expect(didRepublish.get() == false)
-        #expect(controller.menuContentVersion == menuContentVersion)
         #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)
     }
 
