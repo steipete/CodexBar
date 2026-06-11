@@ -542,6 +542,9 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
     case parseFailed(String)
     case noSessionCookie
 
+    static let safariFullDiskAccessHint =
+        "If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security."
+
     public var errorDescription: String? {
         switch self {
         case .notLoggedIn:
@@ -551,8 +554,8 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
         case let .parseFailed(msg):
             "Could not parse Cursor usage: \(msg)"
         case .noSessionCookie:
-            "No Cursor session found. Please log in to cursor.com in \(cursorCookieImportOrder.loginHint). "
-                + "If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security. "
+            "No Cursor session found. \(Self.safariFullDiskAccessHint) "
+                + "Please log in to cursor.com in \(cursorCookieImportOrder.loginHint). "
                 + "You can also sign in to Cursor from the CodexBar menu (Add / switch account)."
         }
     }
