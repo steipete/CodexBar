@@ -502,7 +502,7 @@
 "show_quota_warning_markers_title" = "顯示配額提醒標記";
 "show_quota_warning_markers_subtitle" = "設定配額提醒後，在使用量條上繪製門檻刻度標記。";
 "weekly_progress_work_days_title" = "每週進度工作日標記";
-"weekly_progress_work_days_subtitle" = "在每週使用量條上繪製日期邊界刻度標記。";
+"weekly_progress_work_days_subtitle" = "設定用於每週用量條刻度與進度計算的工作日。";
 "show_reset_time_as_clock_title" = "以時鐘時間顯示重置時間";
 "show_reset_time_as_clock_subtitle" = "將重置時間顯示為絕對時鐘值，而不是倒數計時。";
 "show_provider_changelog_links_title" = "顯示提供者版本資訊連結";

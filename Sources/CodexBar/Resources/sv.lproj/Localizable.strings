@@ -502,7 +502,7 @@
 "show_quota_warning_markers_title" = "Visa kvotvarningsmarkörer";
 "show_quota_warning_markers_subtitle" = "Rita tröskelmarkeringar på användningsstaplar när kvotvarningar är konfigurerade.";
 "weekly_progress_work_days_title" = "Arbetsdagar i veckoförlopp";
-"weekly_progress_work_days_subtitle" = "Rita dagsgränsmarkeringar på veckostaplar.";
+"weekly_progress_work_days_subtitle" = "Ställ in arbetsdagar för markeringar i veckostaplar och tempoberäkningar.";
 "show_reset_time_as_clock_title" = "Visa återställningstid som klockslag";
 "show_reset_time_as_clock_subtitle" = "Visa återställningstider som klockslag i stället för nedräkningar.";
 "show_provider_changelog_links_title" = "Visa länkar till leverantörers ändringsloggar";

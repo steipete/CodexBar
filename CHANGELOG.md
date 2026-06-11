@@ -50,6 +50,7 @@
 - AWS Bedrock: treat Cost Explorer's temporary data-unavailable response as zero usage instead of an HTTP 400 error (#1324). Thanks @enesteve0!
 - Provider switcher: inset quota bars inside fixed-height segments so icons, labels, and selected pills remain vertically centered.
 - Doubao: show an unavailable quota state when Ark omits trustworthy request-limit data instead of reporting 100% left.
+- Weekly pace: use configured work days for standard weekly pace calculations while leaving historical Codex pacing unchanged (#1357, fixes #1356). Thanks @pstanton237!
 - Menu bar: anchor merged provider dropdowns to the status item's trailing edge without marking preserved in-flight refresh content fresh, preventing horizontal drift while keeping deferred updates visible (#1288). Thanks @Yuxin-Qiao!
 - Antigravity: fall back to the CLI usage server when the desktop app is closed, keep helper sessions owned and bounded without hidden sign-in flows, and show model rows with missing usage as unavailable instead of exhausted (#1313). Thanks @enieuwy!
 - Cost usage: replace repeated Foundation metadata/root checks with one portable file-stat pass so expired Codex history refreshes stay responsive on very large session archives (#1392). Thanks @TheAngryPit and @ProspectOre!
