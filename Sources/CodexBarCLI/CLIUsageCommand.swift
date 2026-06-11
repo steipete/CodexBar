@@ -469,7 +469,7 @@ extension CodexBarCLI {
     }
 
     static func usageCacheAccountKey(
-        provider: UsageProvider,
+        provider _: UsageProvider,
         account: ProviderTokenAccount?,
         codexVisibleAccount: CodexVisibleAccount?) -> String?
     {
@@ -495,7 +495,7 @@ extension CodexBarCLI {
             }
             return nil
         }
-        return "default:\(provider.rawValue)"
+        return nil
     }
 
     static func sourceModeRequiresWebSupport(

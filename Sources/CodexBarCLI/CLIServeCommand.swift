@@ -220,14 +220,11 @@ actor CLIServeResponseCache {
 
     private struct UsageMergeResult {
         let response: CLILocalHTTPResponse
-        let hasFreshSuccess: Bool
-        let fallbackRecordedAt: Date?
     }
 
     private var entries: [String: Entry] = [:]
     private var lastGood: [String: LastGoodEntry] = [:]
     private var lastGoodUsageItems: [String: [UsageItemKey: LastGoodUsageItem]] = [:]
-    private var lastGoodUsageOrder: [String: [UsageItemKey]] = [:]
     private var inFlightKeys: Set<String> = []
     private var waiters: [String: [CheckedContinuation<CLIServeCacheLookup, Never>]] = [:]
 
@@ -257,10 +254,9 @@ actor CLIServeResponseCache {
     }
 
     /// Completes an in-flight fetch and returns the response delivered to
-    /// waiters. Successful responses are cached normally. Failed fetches
-    /// fall back to the last good response when one was recorded within
-    /// `staleTTL`, so transient provider errors do not blank out consumers
-    /// that poll this endpoint (status bars hide items on error payloads).
+    /// waiters. Successful responses are cached normally. Failed non-usage
+    /// fetches may use a whole-response fallback within `staleTTL`; usage
+    /// responses only replace keyed error rows from the same identified account.
     func completeFetch(
         _ response: CLILocalHTTPResponse,
         for key: String,
@@ -278,15 +274,15 @@ actor CLIServeResponseCache {
             replaceCachedItems: shouldCache)
         if shouldCache {
             self.store(response, for: key, ttl: policy.ttl, now: now)
-            self.lastGood[key] = LastGoodEntry(recordedAt: now, response: response)
+            if key.hasPrefix("usage:") {
+                self.lastGood[key] = nil
+            } else {
+                self.lastGood[key] = LastGoodEntry(recordedAt: now, response: response)
+            }
             delivered = response
         } else if let usageMerge {
             delivered = usageMerge.response
-            if let recordedAt = usageMerge.fallbackRecordedAt {
-                self.lastGood[key] = LastGoodEntry(recordedAt: recordedAt, response: delivered)
-            } else if !usageMerge.hasFreshSuccess {
-                self.lastGood[key] = nil
-            }
+            self.lastGood[key] = nil
         } else {
             delivered = staleResponse ?? response
         }
@@ -304,6 +300,10 @@ actor CLIServeResponseCache {
         now: Date) -> CLILocalHTTPResponse?
     {
         guard staleTTL > 0 else { return nil }
+        // A timeout cannot prove which usage account is currently active.
+        if key.hasPrefix("usage:") {
+            return nil
+        }
         if let entry = self.lastGood[key],
            now.timeIntervalSince(entry.recordedAt) <= staleTTL
         {
@@ -312,7 +312,7 @@ actor CLIServeResponseCache {
         if self.lastGood[key] != nil {
             self.lastGood[key] = nil
         }
-        return self.staleUsageResponse(for: key, staleTTL: staleTTL, now: now)
+        return nil
     }
 
     private func mergeLastGoodUsageItems(
@@ -343,12 +343,9 @@ actor CLIServeResponseCache {
             Dictionary(grouping: itemKeys, by: { $0 })
                 .filter { $0.value.count > 1 }
                 .map(\.key))
-        self.lastGoodUsageOrder[key] = itemKeys.filter { !duplicateKeys.contains($0) }
         for duplicateKey in duplicateKeys {
             cachedItems[duplicateKey] = nil
         }
-        var hasFreshSuccess = false
-        var fallbackRecordedAt: Date?
         var replacedError = false
 
         for index in items.indices {
@@ -357,32 +354,20 @@ actor CLIServeResponseCache {
                 item,
                 accountID: Self.cacheAccountKey(at: index, in: response.usageCacheKeys))
             else {
-                if !Self.hasError(item) {
-                    hasFreshSuccess = true
-                    fallbackRecordedAt = Self.earlier(fallbackRecordedAt, now)
-                }
                 continue
             }
             guard !duplicateKeys.contains(itemKey) else {
-                if !Self.hasError(item) {
-                    hasFreshSuccess = true
-                    fallbackRecordedAt = Self.earlier(fallbackRecordedAt, now)
-                }
                 continue
             }
 
             if Self.hasError(item) {
-                guard let cached = cachedItems[itemKey],
-                      let cachedItem = try? JSONSerialization.jsonObject(with: cached.data) as? [String: Any]
-                else {
-                    continue
+                if let cached = cachedItems[itemKey],
+                   let cachedItem = try? JSONSerialization.jsonObject(with: cached.data) as? [String: Any]
+                {
+                    items[index] = cachedItem
+                    replacedError = true
                 }
-                items[index] = cachedItem
-                fallbackRecordedAt = Self.earlier(fallbackRecordedAt, cached.recordedAt)
-                replacedError = true
             } else {
-                hasFreshSuccess = true
-                fallbackRecordedAt = Self.earlier(fallbackRecordedAt, now)
                 if let data = try? JSONSerialization.data(withJSONObject: item, options: [.sortedKeys]) {
                     cachedItems[itemKey] = LastGoodUsageItem(recordedAt: now, data: data)
                 }
@@ -393,50 +378,14 @@ actor CLIServeResponseCache {
         guard replacedError,
               let body = try? JSONSerialization.data(withJSONObject: items, options: [.sortedKeys])
         else {
-            return UsageMergeResult(
-                response: response,
-                hasFreshSuccess: hasFreshSuccess,
-                fallbackRecordedAt: fallbackRecordedAt)
+            return UsageMergeResult(response: response)
         }
         return UsageMergeResult(
             response: CLILocalHTTPResponse(
                 status: response.status,
                 body: body,
                 contentType: response.contentType,
-                usageCacheKeys: response.usageCacheKeys),
-            hasFreshSuccess: hasFreshSuccess,
-            fallbackRecordedAt: fallbackRecordedAt)
-    }
-
-    private static func earlier(_ lhs: Date?, _ rhs: Date) -> Date {
-        lhs.map { min($0, rhs) } ?? rhs
-    }
-
-    private func staleUsageResponse(
-        for key: String,
-        staleTTL: TimeInterval,
-        now: Date) -> CLILocalHTTPResponse?
-    {
-        guard key.hasPrefix("usage:"),
-              let order = self.lastGoodUsageOrder[key],
-              !order.isEmpty
-        else {
-            return nil
-        }
-
-        var cachedItems = self.lastGoodUsageItems[key] ?? [:]
-        cachedItems = cachedItems.filter { now.timeIntervalSince($0.value.recordedAt) <= staleTTL }
-        self.lastGoodUsageItems[key] = cachedItems
-        let items = order.compactMap { itemKey -> [String: Any]? in
-            guard let data = cachedItems[itemKey]?.data else { return nil }
-            return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        }
-        guard !items.isEmpty,
-              let body = try? JSONSerialization.data(withJSONObject: items, options: [.sortedKeys])
-        else {
-            return nil
-        }
-        return CLILocalHTTPResponse(status: .ok, body: body)
+                usageCacheKeys: response.usageCacheKeys))
     }
 
     private static func usageItemKey(_ item: [String: Any], accountID: String?) -> UsageItemKey? {

@@ -270,7 +270,7 @@ struct CLIServeRouterTests {
         #expect(CodexBarCLI.usageCacheAccountKey(
             provider: .antigravity,
             account: nil,
-            codexVisibleAccount: nil) == "default:antigravity")
+            codexVisibleAccount: nil) == nil)
     }
 
     @Test
@@ -562,7 +562,7 @@ struct CLIServeRouterTests {
     }
 
     @Test
-    func `serve cache retains merged rows across a later timeout`() async throws {
+    func `serve cache fails closed on timeout after merged rows`() async {
         let cache = CLIServeResponseCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
@@ -604,14 +604,13 @@ struct CLIServeRouterTests {
             try? await Task.sleep(nanoseconds: 200_000_000)
             return Self.response("[]")
         }
-        let rows = try Self.jsonRows(timedOut)
-
-        #expect(Self.row(rows, provider: "codex")?["call"] as? Int == 2)
-        #expect(Self.row(rows, provider: "antigravity")?["call"] as? Int == 1)
+        #expect(timedOut.status == .gatewayTimeout)
+        #expect(!Self.bodyString(timedOut).contains("\"call\":1"))
+        #expect(!Self.bodyString(timedOut).contains("\"call\":2"))
     }
 
     @Test
-    func `serve cache retains partial fresh rows across a later timeout`() async throws {
+    func `serve cache fails closed on timeout after a partial refresh`() async {
         let cache = CLIServeResponseCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
@@ -648,14 +647,13 @@ struct CLIServeRouterTests {
             try? await Task.sleep(nanoseconds: 200_000_000)
             return Self.response("[]")
         }
-        let rows = try Self.jsonRows(timedOut)
-
-        #expect(Self.row(rows, provider: "codex")?["call"] as? Int == 2)
-        #expect(Self.row(rows, provider: "antigravity")?["error"] != nil)
+        #expect(timedOut.status == .gatewayTimeout)
+        #expect(!Self.bodyString(timedOut).contains("\"call\":2"))
+        #expect(!Self.bodyString(timedOut).contains("antigravity"))
     }
 
     @Test
-    func `serve cache keeps newer rows after an older merged row expires`() async throws {
+    func `serve cache does not reconstruct usage rows after timeout`() async {
         let cache = CLIServeResponseCache()
         let policy = CLIServeResponseCache.CachePolicy(ttl: 0, staleTTL: 10)
         let startedAt = Date(timeIntervalSince1970: 1000)
@@ -696,10 +694,9 @@ struct CLIServeRouterTests {
             policy: policy,
             now: timeoutAt,
             shouldCache: false)
-        let rows = try Self.jsonRows(timedOut)
-
-        #expect(rows.count == 1)
-        #expect(Self.row(rows, provider: "codex")?["call"] as? Int == 2)
+        #expect(timedOut.status == .gatewayTimeout)
+        #expect(Self.bodyString(timedOut).contains("request timed out"))
+        #expect(!Self.bodyString(timedOut).contains("\"call\":2"))
     }
 
     @Test
@@ -1042,6 +1039,74 @@ struct CLIServeRouterTests {
         #expect(rows.count == 3)
         #expect(rows.allSatisfy { $0["call"] == nil })
         #expect(rows.allSatisfy { $0["error"] != nil })
+    }
+
+    @Test
+    func `serve cache does not whole-fallback ambiguous usage after timeout`() async {
+        let cache = CLIServeResponseCache()
+
+        _ = await CodexBarCLI.cachedServeResponse(
+            key: "usage:",
+            cache: cache,
+            refreshInterval: 0.05,
+            requestTimeout: 1)
+        {
+            Self.response(
+                #"[{"provider":"antigravity","account":"first@example.com","call":1}]"#,
+                usageCacheKeys: [nil])
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let timedOut = await CodexBarCLI.cachedServeResponse(
+            key: "usage:",
+            cache: cache,
+            refreshInterval: 0.05,
+            requestTimeout: 0.01)
+        {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            return Self.response(
+                #"[{"provider":"antigravity","account":"second@example.com","call":2}]"#,
+                usageCacheKeys: [nil])
+        }
+
+        #expect(timedOut.status == .gatewayTimeout)
+        #expect(!Self.bodyString(timedOut).contains("first@example.com"))
+        #expect(!Self.bodyString(timedOut).contains("\"call\":1"))
+    }
+
+    @Test
+    func `serve cache mixed identities do not enable timeout fallback`() async {
+        let cache = CLIServeResponseCache()
+
+        _ = await CodexBarCLI.cachedServeResponse(
+            key: "usage:",
+            cache: cache,
+            refreshInterval: 0.05,
+            requestTimeout: 1)
+        {
+            Self.response(
+                """
+                [
+                  {"provider":"codex","account":"stable@example.com","call":1},
+                  {"provider":"antigravity","account":"ambient@example.com","call":1}
+                ]
+                """,
+                usageCacheKeys: ["account-1", nil])
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let timedOut = await CodexBarCLI.cachedServeResponse(
+            key: "usage:",
+            cache: cache,
+            refreshInterval: 0.05,
+            requestTimeout: 0.01)
+        {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            return Self.response("[]", usageCacheKeys: [])
+        }
+        #expect(timedOut.status == .gatewayTimeout)
+        #expect(!Self.bodyString(timedOut).contains("stable@example.com"))
+        #expect(!Self.bodyString(timedOut).contains("ambient@example.com"))
     }
 
     @Test
