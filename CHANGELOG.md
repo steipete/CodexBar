@@ -7,6 +7,7 @@
 
 ### Fixed
 - Cursor: show the Safari Full Disk Access recovery hint before the long browser login list so permission guidance remains visible when menu errors truncate (#1419, fixes #1417). Thanks @hhh2210!
+- Cursor: present legacy request-based plans as one Requests quota with the raw used/limit count instead of unrelated token-based Auto/API bars (#1420, fixes #1418). Thanks @hhh2210!
 
 ## 0.33.0 — 2026-06-11
 
