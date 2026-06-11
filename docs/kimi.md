@@ -37,7 +37,7 @@ export KIMI_API_KEY="kimi-api-key-here"
 ```
 
 CodexBar calls `GET https://api.kimi.com/coding/v1/usages` with the API key. Set
-`KIMI_CODE_BASE_URL` only when testing a compatible proxy or alternate host.
+`KIMI_CODE_BASE_URL` only when testing a compatible HTTPS proxy or alternate host.
 
 ### Method 2: Automatic Browser Import
 

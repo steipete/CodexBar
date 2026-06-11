@@ -24,9 +24,8 @@ public enum KimiSettingsReader {
 
     public static func codeAPIBaseURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
         guard let raw = self.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]),
-              let url = URL(string: raw),
-              url.scheme != nil,
-              url.host != nil
+              URL(string: raw)?.scheme != nil,
+              let url = ProviderEndpointOverrideValidator().validatedURL(raw)
         else {
             return self.defaultCodeAPIBaseURL
         }

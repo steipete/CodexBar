@@ -69,6 +69,20 @@ struct KimiSettingsReaderTests {
     }
 
     @Test
+    func `falls back to default code API base URL when insecure`() {
+        let env = ["KIMI_CODE_BASE_URL": "http://proxy.example.com/kimi"]
+        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
+        #expect(url == KimiSettingsReader.defaultCodeAPIBaseURL)
+    }
+
+    @Test
+    func `falls back to default code API base URL when URL contains user info`() {
+        let env = ["KIMI_CODE_BASE_URL": "https://api.kimi.com@proxy.example.com/kimi"]
+        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
+        #expect(url == KimiSettingsReader.defaultCodeAPIBaseURL)
+    }
+
+    @Test
     func `normalizes quoted token`() {
         let env = ["KIMI_AUTH_TOKEN": "\"test.jwt.token\""]
         let token = KimiSettingsReader.authToken(environment: env)
@@ -275,6 +289,17 @@ struct KimiUsageResponseParsingTests {
         let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)
 
         #expect(endpoint.absoluteString == "https://proxy.example.com/kimi/coding/v1/usages")
+    }
+
+    @Test
+    func `rejects insecure code API base URL before sending bearer token`() async throws {
+        let baseURL = try #require(URL(string: "http://proxy.example.com/kimi"))
+
+        await #expect(throws: KimiAPIError.invalidRequest(
+            "Kimi Code API base URL must use HTTPS without user info"))
+        {
+            _ = try await KimiUsageFetcher.fetchCodeAPIUsage(apiKey: "secret-token", baseURL: baseURL)
+        }
     }
 
     @Test

@@ -18,7 +18,11 @@ public struct KimiUsageFetcher: Sendable {
             throw KimiAPIError.missingToken
         }
 
-        let endpoint = self.codeAPIUsageEndpoint(baseURL: baseURL)
+        guard let validatedBaseURL = ProviderEndpointOverrideValidator().validatedURL(baseURL.absoluteString) else {
+            throw KimiAPIError.invalidRequest("Kimi Code API base URL must use HTTPS without user info")
+        }
+
+        let endpoint = self.codeAPIUsageEndpoint(baseURL: validatedBaseURL)
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
