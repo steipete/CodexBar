@@ -117,10 +117,16 @@ extension UsageMenuCardView.Model {
         let todayUSD = today.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
         let weekUSD = week.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
         let monthUSD = month.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
+        let todayLine = "Today: \(Self.pointsSummary(today.points)) · " +
+            "\(UsageFormatter.tokenCountString(today.requests)) \(L("requests"))\(todayUSD)"
+        let weekLine = "7d: \(Self.pointsSummary(week.points)) · " +
+            "\(UsageFormatter.tokenCountString(week.requests)) \(L("requests"))\(weekUSD)"
+        let monthLine = "30d: \(Self.pointsSummary(month.points)) · " +
+            "\(UsageFormatter.tokenCountString(month.requests)) \(L("requests"))\(monthUSD)"
         var notes = [
-            "Today: \(Self.pointsSummary(today.points)) · \(UsageFormatter.tokenCountString(today.requests)) \(L("requests"))\(todayUSD)",
-            "7d: \(Self.pointsSummary(week.points)) · \(UsageFormatter.tokenCountString(week.requests)) \(L("requests"))\(weekUSD)",
-            "30d: \(Self.pointsSummary(month.points)) · \(UsageFormatter.tokenCountString(month.requests)) \(L("requests"))\(monthUSD)",
+            todayLine,
+            weekLine,
+            monthLine,
         ]
         if let topModel = usage.topModels.first {
             notes.append("\(L("Top model")): \(topModel.name) (\(Self.pointsSummary(topModel.points)))")
