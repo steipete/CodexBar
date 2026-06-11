@@ -108,6 +108,13 @@ extension CostUsageScanner {
         self.codexPriorityTurnsMemo.withLock { $0[path] = nil }
     }
 
+    static func invalidateCodexPriorityTurnsMemo(forPath path: String) {
+        let removed = self.codexPriorityTurnsMemo.withLock {
+            $0.removeValue(forKey: path) != nil
+        }
+        if removed { self.markCodexPriorityTurnsMemoDirty() }
+    }
+
     static func _test_accumulateCodexPriorityTurns(
         _ db: OpaquePointer?,
         into state: inout CodexPriorityTurnsMemoState) -> Bool

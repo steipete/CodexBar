@@ -2192,6 +2192,10 @@ enum CostUsageScanner {
             || nowMs - cache.lastScanUnixMs > refreshMs
         if shouldInspectPriorityTurns {
             Self.loadCodexPriorityTurnsMemoFromDiskIfNeeded(cacheRoot: options.cacheRoot)
+            if options.forceRescan {
+                let databaseURL = options.codexTraceDatabaseURL ?? Self.defaultCodexPriorityDatabaseURL()
+                Self.invalidateCodexPriorityTurnsMemo(forPath: databaseURL.path)
+            }
         }
         let priorityTurns = shouldInspectPriorityTurns ? Self.codexPriorityTurns(
             databaseURL: options.codexTraceDatabaseURL,

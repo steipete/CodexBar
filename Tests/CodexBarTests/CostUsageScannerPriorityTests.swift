@@ -1,9 +1,59 @@
 import Foundation
 #if canImport(SQLite3)
+import SQLite3
 import Testing
 @testable import CodexBarCore
 
 struct CostUsageScannerPriorityTests {
+    private enum SQLiteMutationError: Error {
+        case open
+        case prepare
+        case step
+    }
+
+    @Test
+    func `forced codex rescan discards the priority memo cursor`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let entries: [[String: Any]] = [
+            ["type": "turn_context", "timestamp": iso0, "payload": ["model": "gpt-5.5"]],
+            ["type": "event_msg", "timestamp": iso1, "payload": ["type": "task_started", "turn_id": "priority-turn"]],
+            self.tokenCount(timestamp: iso1, input: 100, cached: 20, output: 10),
+        ]
+        _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
+
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
+        try CostUsageScannerCodexPriorityTests.insertTestLog(
+            dbURL: dbURL,
+            timestamp: iso1,
+            body: "thread_id=thread turn.id=priority-turn websocket request: "
+                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"default"}"#)
+        #expect(CostUsageScanner.codexPriorityTurns(databaseURL: dbURL).isEmpty)
+
+        try self.replaceOnlyTraceBodyWithPriority(dbURL: dbURL)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: dbURL,
+            forceRescan: true)
+        options.refreshMinIntervalSeconds = 0
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let priorityCost = (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
+
+        #expect(report.summary?.totalCostUSD == priorityCost)
+    }
+
     @Test
     func `codex daily report applies gpt55 priority rates`() throws {
         let env = try CostUsageTestEnvironment()
@@ -675,6 +725,23 @@ struct CostUsageScannerPriorityTests {
             timestamp: timestamp,
             body: "thread_id=thread turn.id=priority-turn websocket request: "
                 + #"{"type":"response.create","model":""# + model + #"","service_tier":"priority"}"#)
+    }
+
+    private func replaceOnlyTraceBodyWithPriority(dbURL: URL) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open(dbURL.path, &db) == SQLITE_OK else { throw SQLiteMutationError.open }
+        defer { sqlite3_close(db) }
+
+        let body = "thread_id=thread turn.id=priority-turn websocket request: "
+            + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "update logs set feedback_log_body = ? where id = 1", -1, &statement, nil)
+            == SQLITE_OK
+        else { throw SQLiteMutationError.prepare }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, body, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw SQLiteMutationError.step }
     }
 }
 #endif
