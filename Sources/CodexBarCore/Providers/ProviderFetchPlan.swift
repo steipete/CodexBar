@@ -42,6 +42,10 @@ public struct ProviderFetchContext: Sendable {
     /// `codexbar serve`); false for one-shot CLI invocations that should reset
     /// the session after each fetch.
     public let persistsCLISessions: Bool
+    /// Minimum idle lifetime for persistent CLI helper sessions. Long-lived
+    /// hosts set this beyond their refresh cadence so a slow cold start can
+    /// recover on the next refresh.
+    public let persistentCLISessionIdleWindow: TimeInterval?
 
     public init(
         runtime: ProviderRuntime,
@@ -60,7 +64,8 @@ public struct ProviderFetchContext: Sendable {
         tokenAccountTokenUpdater: TokenAccountTokenUpdater? = nil,
         providerManualTokenUpdater: ProviderManualTokenUpdater? = nil,
         costUsageHistoryDays: Int = 30,
-        persistsCLISessions: Bool = false)
+        persistsCLISessions: Bool = false,
+        persistentCLISessionIdleWindow: TimeInterval? = nil)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -79,6 +84,13 @@ public struct ProviderFetchContext: Sendable {
         self.providerManualTokenUpdater = providerManualTokenUpdater
         self.costUsageHistoryDays = max(1, min(365, costUsageHistoryDays))
         self.persistsCLISessions = persistsCLISessions
+        self.persistentCLISessionIdleWindow = persistentCLISessionIdleWindow
+    }
+}
+
+public enum ProviderCLISessionLifecycle {
+    public static func shutdownPersistentSessions() async {
+        await AntigravityCLISession.shared.reset()
     }
 }
 

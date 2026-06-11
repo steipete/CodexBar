@@ -27,7 +27,7 @@ protocol AntigravityCLIProcessLaunching: Sendable {
     func launch(binary: String) throws -> any AntigravityCLIProcessHandle
 }
 
-struct AntigravityCLIProcessIdentity: Equatable, Sendable {
+struct AntigravityCLIProcessIdentity: Equatable {
     let executablePath: String
     let startEpoch: TimeInterval
 }
@@ -36,7 +36,7 @@ protocol AntigravityCLIProcessIdentityProviding: Sendable {
     func identity(for pid: pid_t) -> AntigravityCLIProcessIdentity?
 }
 
-struct AntigravityCLISessionRecord: Codable, Equatable, Sendable {
+struct AntigravityCLISessionRecord: Codable, Equatable {
     let pid: pid_t
     let requestedBinaryPath: String
     let executablePath: String
@@ -68,9 +68,13 @@ struct AntigravityCLISessionRecord: Codable, Equatable, Sendable {
 }
 
 protocol AntigravityCLISessionRecordStoring: Sendable {
-    func load() throws -> AntigravityCLISessionRecord?
+    func load() throws -> [AntigravityCLISessionRecord]
     func save(_ record: AntigravityCLISessionRecord) throws
-    func remove() throws
+    func remove(_ record: AntigravityCLISessionRecord) throws
+}
+
+protocol AntigravityCLISessionLaunchLocking: Sendable {
+    func withLock<T>(_ operation: () throws -> T) throws -> T
 }
 
 // MARK: - AntigravityCLISession
@@ -89,10 +93,17 @@ actor AntigravityCLISession {
     static let shared = AntigravityCLISession()
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
 
-    struct Dependencies: Sendable {
+    private struct LaunchOutcome: Sendable {
+        let pid: pid_t
+        let rejectedProcess: (any AntigravityCLIProcessHandle)?
+        let rejectionMessage: String?
+    }
+
+    struct Dependencies {
         var launcher: any AntigravityCLIProcessLaunching
         var identityProvider: any AntigravityCLIProcessIdentityProviding
         var recordStore: any AntigravityCLISessionRecordStoring
+        var launchLock: any AntigravityCLISessionLaunchLocking
         var registerForAppShutdown: @Sendable (pid_t, String) -> Bool
         var updateAppShutdownProcessGroup: @Sendable (pid_t, pid_t?) -> Void
         var unregisterForAppShutdown: @Sendable (pid_t) -> Void
@@ -108,8 +119,9 @@ actor AntigravityCLISession {
         static func live() -> Self {
             Self(
                 launcher: AntigravityPTYProcessLauncher(),
-                identityProvider: AntigravityDarwinProcessIdentityProvider(),
+                identityProvider: AntigravityProcessIdentityProvider(),
                 recordStore: AntigravityFileCLISessionRecordStore(),
+                launchLock: AntigravityFileCLISessionLaunchLock(),
                 registerForAppShutdown: { pid, binary in
                     TTYCommandRunner.registerActiveProcessForAppShutdown(pid: pid, binary: binary)
                 },
@@ -145,6 +157,7 @@ actor AntigravityCLISession {
     private let dependencies: Dependencies
     private var process: (any AntigravityCLIProcessHandle)?
     private var binaryPath: String?
+    private var sessionIdleWindow: TimeInterval
     private var activeProbeCount = 0
     private var activeSessionProbeCount = 0
     private var resetRequestedWhenIdle = false
@@ -158,6 +171,7 @@ actor AntigravityCLISession {
 
     init(dependencies: Dependencies = .live()) {
         self.dependencies = dependencies
+        self.sessionIdleWindow = dependencies.idleWindow
     }
 
     /// The pid of the running ``agy`` process, exposed so callers can discover
@@ -177,6 +191,10 @@ actor AntigravityCLISession {
         self.consecutiveProbeFailures
     }
 
+    var idleWindowForTesting: TimeInterval {
+        self.sessionIdleWindow
+    }
+
     // MARK: Lifecycle
 
     /// Mark a probe as active and ensure a warm ``agy`` is running on the given binary path.
@@ -185,8 +203,11 @@ actor AntigravityCLISession {
     /// idle/reset cleanup cannot kill the process while its ports are being probed.
     /// If previous probes repeatedly failed while the process stayed alive, this
     /// force-relaunches instead of reusing a wedged HTTPS server forever.
-    func beginProbe(binary: String) async throws -> pid_t {
+    func beginProbe(binary: String, idleWindow: TimeInterval? = nil) async throws -> pid_t {
         self.activeProbeCount += 1
+        if let idleWindow, idleWindow > 0 {
+            self.sessionIdleWindow = max(self.dependencies.idleWindow, idleWindow)
+        }
         self.cancelIdleTimer()
         do {
             return try await self.withLifecycleOperation {
@@ -353,14 +374,15 @@ actor AntigravityCLISession {
 
     private func ensureStartedLocked(binary: String) async throws -> pid_t {
         while true {
-            let canPersistRecord = self.canPersistRecordForLaunch()
-
             if let proc = self.process,
                proc.isRunning,
                self.binaryPath == binary,
                self.consecutiveProbeFailures < max(1, self.dependencies.failureRelaunchThreshold)
             {
-                self.persistCurrentRecordIfNeeded(proc, binary: binary, canPersistRecord: canPersistRecord)
+                try? self.dependencies.launchLock.withLock {
+                    self.reapRecordedSessionsIfNeeded()
+                }
+                self.persistCurrentRecordIfNeeded(proc, binary: binary)
                 Self.log.debug("Antigravity CLI session reused", metadata: ["pid": "\(proc.pid)"])
                 return proc.pid
             }
@@ -377,49 +399,82 @@ actor AntigravityCLISession {
                 await self.stopCurrentSessionLocked(reason: reason, clearRecord: true)
             }
 
-            let launched = try self.dependencies.launcher.launch(binary: binary)
-            let launchedPID = launched.pid
             let binaryName = URL(fileURLWithPath: binary).lastPathComponent
-            guard self.dependencies.registerForAppShutdown(launchedPID, binaryName) else {
-                await self.terminateLaunchedProcess(launched)
-                throw SessionError.launchFailed("App shutdown in progress")
+            let launch: (Bool) throws -> LaunchOutcome = { canPersistRecord in
+                if canPersistRecord {
+                    self.prepareRecordStoreForLaunch()
+                }
+                let launched = try self.dependencies.launcher.launch(binary: binary)
+                let launchedPID = launched.pid
+                guard self.dependencies.registerForAppShutdown(launchedPID, binaryName) else {
+                    return LaunchOutcome(
+                        pid: launchedPID,
+                        rejectedProcess: launched,
+                        rejectionMessage: "App shutdown in progress")
+                }
+
+                let processGroup = launched.processGroup ?? launched.assignProcessGroup()
+                self.dependencies.updateAppShutdownProcessGroup(launchedPID, processGroup)
+
+                self.process = launched
+                self.binaryPath = binary
+                self.consecutiveProbeFailures = 0
+                self.sessionGeneration &+= 1
+                if canPersistRecord {
+                    _ = self.persistRecord(pid: launchedPID, binary: binary, processGroup: processGroup)
+                } else {
+                    self.persistedProcessIdentity = nil
+                }
+                return LaunchOutcome(pid: launchedPID, rejectedProcess: nil, rejectionMessage: nil)
             }
 
-            let processGroup = launched.processGroup ?? launched.assignProcessGroup()
-            self.dependencies.updateAppShutdownProcessGroup(launchedPID, processGroup)
+            var lockedLaunch: Result<LaunchOutcome, Error>?
+            var lockFailure: Error?
+            do {
+                try self.dependencies.launchLock.withLock {
+                    lockedLaunch = Result { try launch(true) }
+                }
+            } catch {
+                lockFailure = error
+            }
 
-            self.process = launched
-            self.binaryPath = binary
-            self.consecutiveProbeFailures = 0
-            self.sessionGeneration &+= 1
-            if canPersistRecord {
-                self.persistRecord(pid: launchedPID, binary: binary, processGroup: processGroup)
+            let outcome: LaunchOutcome
+            if let lockFailure {
+                Self.log.warning(
+                    "Antigravity CLI session coordination unavailable",
+                    metadata: ["error": lockFailure.localizedDescription])
+                outcome = try launch(false)
+            } else if let lockedLaunch {
+                outcome = try lockedLaunch.get()
             } else {
-                self.persistedProcessIdentity = nil
+                throw SessionError.launchFailed("CLI session launch did not complete")
+            }
+            if let rejectedProcess = outcome.rejectedProcess {
+                await self.terminateLaunchedProcess(rejectedProcess)
+                throw SessionError.launchFailed(outcome.rejectionMessage ?? "App shutdown in progress")
             }
 
             Self.log.debug(
                 "Antigravity CLI session started",
                 metadata: [
                     "binary": binaryName,
-                    "pid": "\(launchedPID)",
+                    "pid": "\(outcome.pid)",
                 ])
-            return launchedPID
+            return outcome.pid
         }
     }
 
-    private func canPersistRecordForLaunch() -> Bool {
-        guard self.process == nil || self.persistedProcessIdentity == nil else { return true }
-        return self.reapRecordedSessionIfNeeded()
+    private func prepareRecordStoreForLaunch() {
+        guard self.process == nil || self.persistedProcessIdentity == nil else { return }
+        self.reapRecordedSessionsIfNeeded()
     }
 
-    private func persistCurrentRecordIfNeeded(
-        _ proc: any AntigravityCLIProcessHandle,
-        binary: String,
-        canPersistRecord: Bool)
-    {
-        guard canPersistRecord, self.persistedProcessIdentity == nil else { return }
-        self.persistRecord(pid: proc.pid, binary: binary, processGroup: proc.processGroup)
+    private func persistCurrentRecordIfNeeded(_ proc: any AntigravityCLIProcessHandle, binary: String) {
+        guard self.persistedProcessIdentity == nil else { return }
+        try? self.dependencies.launchLock.withLock {
+            self.prepareRecordStoreForLaunch()
+            _ = self.persistRecord(pid: proc.pid, binary: binary, processGroup: proc.processGroup)
+        }
     }
 
     private func cancelIdleTimer() {
@@ -428,10 +483,10 @@ actor AntigravityCLISession {
     }
 
     private func armIdleTimer() {
-        guard self.process != nil, self.dependencies.idleWindow > 0 else { return }
+        guard self.process != nil, self.sessionIdleWindow > 0 else { return }
         self.cancelIdleTimer()
         let generation = self.sessionGeneration
-        let nanoseconds = Self.nanoseconds(from: self.dependencies.idleWindow)
+        let nanoseconds = Self.nanoseconds(from: self.sessionIdleWindow)
         let sleep = self.dependencies.sleep
         self.idleTask = Task { [weak self] in
             do {
@@ -458,8 +513,11 @@ actor AntigravityCLISession {
         self.cancelIdleTimer()
         guard let proc = self.process else {
             if clearRecord {
-                _ = self.reapRecordedSessionIfNeeded()
+                try? self.dependencies.launchLock.withLock {
+                    self.reapRecordedSessionsIfNeeded()
+                }
             }
+            self.sessionIdleWindow = self.dependencies.idleWindow
             return
         }
 
@@ -470,6 +528,7 @@ actor AntigravityCLISession {
         self.process = nil
         self.binaryPath = nil
         self.persistedProcessIdentity = nil
+        self.sessionIdleWindow = self.dependencies.idleWindow
         self.sessionGeneration &+= 1
 
         await self.terminateLaunchedProcess(proc)
@@ -513,10 +572,11 @@ actor AntigravityCLISession {
         _ = proc.isRunning
     }
 
-    private func persistRecord(pid: pid_t, binary: String, processGroup: pid_t?) {
+    @discardableResult
+    private func persistRecord(pid: pid_t, binary: String, processGroup: pid_t?) -> Bool {
         guard let identity = self.dependencies.identityProvider.identity(for: pid) else {
             self.persistedProcessIdentity = nil
-            return
+            return false
         }
         let ownerPID = self.dependencies.currentProcessID()
         let ownerIdentity = self.dependencies.identityProvider.identity(for: ownerPID)
@@ -532,68 +592,79 @@ actor AntigravityCLISession {
         do {
             try self.dependencies.recordStore.save(record)
             self.persistedProcessIdentity = identity
+            return true
         } catch {
-            self.persistedProcessIdentity = nil
-        }
-    }
-
-    @discardableResult
-    private func reapRecordedSessionIfNeeded() -> Bool {
-        guard let record = try? self.dependencies.recordStore.load() else { return true }
-        guard let liveIdentity = self.dependencies.identityProvider.identity(for: record.pid) else {
-            try? self.dependencies.recordStore.remove()
-            return true
-        }
-        guard liveIdentity.executablePath == record.executablePath,
-              abs(liveIdentity.startEpoch - record.startEpoch) < 0.001
-        else {
-            try? self.dependencies.recordStore.remove()
-            return true
-        }
-        if let ownerPID = record.ownerPID,
-           ownerPID != self.dependencies.currentProcessID(),
-           let ownerExecutablePath = record.ownerExecutablePath,
-           let ownerStartEpoch = record.ownerStartEpoch,
-           let liveOwnerIdentity = self.dependencies.identityProvider.identity(for: ownerPID),
-           liveOwnerIdentity.executablePath == ownerExecutablePath,
-           abs(liveOwnerIdentity.startEpoch - ownerStartEpoch) < 0.001
-        {
-            Self.log.debug("Antigravity CLI session still owned by live process", metadata: [
-                "pid": "\(record.pid)",
-                "ownerPID": "\(ownerPID)",
-            ])
             self.persistedProcessIdentity = nil
             return false
         }
+    }
 
-        let knownDescendants = self.dependencies.descendantPIDs(record.pid)
-        Self.log.debug("Reaping stale Antigravity CLI session", metadata: ["pid": "\(record.pid)"])
-        self.dependencies.terminateProcessTree(record.pid, record.processGroup, SIGTERM, knownDescendants)
-        self.dependencies.terminateProcessTree(record.pid, record.processGroup, SIGKILL, knownDescendants)
-        try? self.dependencies.recordStore.remove()
-        return true
+    private func reapRecordedSessionsIfNeeded() {
+        guard let records = try? self.dependencies.recordStore.load() else { return }
+        for record in records {
+            guard let liveIdentity = self.dependencies.identityProvider.identity(for: record.pid),
+                  liveIdentity.executablePath == record.executablePath,
+                  abs(liveIdentity.startEpoch - record.startEpoch) < 0.001
+            else {
+                try? self.dependencies.recordStore.remove(record)
+                continue
+            }
+            if let proc = self.process, proc.pid == record.pid {
+                self.persistedProcessIdentity = liveIdentity
+                continue
+            }
+            if let ownerPID = record.ownerPID,
+               ownerPID != self.dependencies.currentProcessID(),
+               let ownerExecutablePath = record.ownerExecutablePath,
+               let ownerStartEpoch = record.ownerStartEpoch,
+               let liveOwnerIdentity = self.dependencies.identityProvider.identity(for: ownerPID),
+               liveOwnerIdentity.executablePath == ownerExecutablePath,
+               abs(liveOwnerIdentity.startEpoch - ownerStartEpoch) < 0.001
+            {
+                continue
+            }
+
+            let knownDescendants = self.dependencies.descendantPIDs(record.pid)
+            Self.log.debug("Reaping stale Antigravity CLI session", metadata: ["pid": "\(record.pid)"])
+            self.dependencies.terminateProcessTree(record.pid, record.processGroup, SIGTERM, knownDescendants)
+            self.dependencies.terminateProcessTree(record.pid, record.processGroup, SIGKILL, knownDescendants)
+            try? self.dependencies.recordStore.remove(record)
+        }
     }
 
     private func removeRecordIfMatches(pid: pid_t, identity: AntigravityCLIProcessIdentity?) {
-        guard let identity,
-              let record = try? self.dependencies.recordStore.load(),
-              record.pid == pid,
-              record.executablePath == identity.executablePath,
-              abs(record.startEpoch - identity.startEpoch) < 0.001
-        else { return }
-        try? self.dependencies.recordStore.remove()
+        try? self.dependencies.launchLock.withLock {
+            guard let identity, let records = try? self.dependencies.recordStore.load() else { return }
+            for record in records
+                where record.pid == pid &&
+                record.executablePath == identity.executablePath &&
+                abs(record.startEpoch - identity.startEpoch) < 0.001
+            {
+                try? self.dependencies.recordStore.remove(record)
+            }
+        }
     }
 
     private static func nanoseconds(from interval: TimeInterval) -> UInt64 {
         guard interval > 0 else { return 0 }
-        let capped = min(interval, TimeInterval(UInt64.max) / 1_000_000_000)
-        return UInt64(capped * 1_000_000_000)
+        guard interval.isFinite else { return UInt64.max }
+        let nanoseconds = interval * 1_000_000_000
+        guard nanoseconds < TimeInterval(UInt64.max) else { return UInt64.max }
+        return UInt64(nanoseconds)
     }
 }
 
 // MARK: - Production Process Implementation
 
 struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
+    static func defaultSignalsForSpawn() -> sigset_t {
+        var signals = sigset_t()
+        sigemptyset(&signals)
+        sigaddset(&signals, SIGINT)
+        sigaddset(&signals, SIGTERM)
+        return signals
+    }
+
     func launch(binary: String) throws -> any AntigravityCLIProcessHandle {
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
@@ -642,7 +713,9 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
             throw AntigravityCLISession.SessionError.launchFailed("posix_spawnattr_init failed")
         }
         defer { posix_spawnattr_destroy(&attr) }
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
+        var defaultSignals = Self.defaultSignalsForSpawn()
+        posix_spawnattr_setsigdefault(&attr, &defaultSignals)
+        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF))
         posix_spawnattr_setpgroup(&attr, 0)
 
         var env = TTYCommandRunner.enrichedEnvironment()
@@ -824,7 +897,7 @@ final class AntigravitySpawnedPTYProcessHandle: AntigravityCLIProcessHandle, @un
 
 // MARK: - Production Stale Session Identity + Storage
 
-struct AntigravityDarwinProcessIdentityProvider: AntigravityCLIProcessIdentityProviding {
+struct AntigravityProcessIdentityProvider: AntigravityCLIProcessIdentityProviding {
     func identity(for pid: pid_t) -> AntigravityCLIProcessIdentity? {
         #if canImport(Darwin)
         var pathBuffer = [CChar](repeating: 0, count: 4096)
@@ -847,7 +920,33 @@ struct AntigravityDarwinProcessIdentityProvider: AntigravityCLIProcessIdentityPr
         let startEpoch = TimeInterval(info.pbi_start_tvsec) + (TimeInterval(info.pbi_start_tvusec) / 1_000_000)
         return AntigravityCLIProcessIdentity(executablePath: executablePath, startEpoch: startEpoch)
         #else
-        return nil
+        let procDirectory = "/proc/\(pid)"
+        guard let executablePath = try? FileManager.default.destinationOfSymbolicLink(
+            atPath: "\(procDirectory)/exe"),
+            let stat = try? String(contentsOfFile: "\(procDirectory)/stat", encoding: .utf8),
+            let closeParen = stat.lastIndex(of: ")")
+        else {
+            return nil
+        }
+        let fields = stat[stat.index(after: closeParen)...].split(whereSeparator: \.isWhitespace)
+        let clockTicksPerSecond = sysconf(Int32(_SC_CLK_TCK))
+        let systemStat = try? String(contentsOfFile: "/proc/stat", encoding: .utf8)
+        let bootEpoch = systemStat?
+            .split(separator: "\n")
+            .first { $0.hasPrefix("btime ") }?
+            .split(whereSeparator: \.isWhitespace)
+            .dropFirst()
+            .first
+            .flatMap { TimeInterval($0) }
+        guard fields.count > 19,
+              let startTicks = TimeInterval(fields[19]),
+              clockTicksPerSecond > 0,
+              let bootEpoch
+        else {
+            return nil
+        }
+        let startEpoch = bootEpoch + (startTicks / TimeInterval(clockTicksPerSecond))
+        return AntigravityCLIProcessIdentity(executablePath: executablePath, startEpoch: startEpoch)
         #endif
     }
 }
@@ -867,21 +966,98 @@ final class AntigravityFileCLISessionRecordStore: AntigravityCLISessionRecordSto
         self.fileManager = fileManager
     }
 
-    func load() throws -> AntigravityCLISessionRecord? {
-        guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return nil }
+    func load() throws -> [AntigravityCLISessionRecord] {
+        guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return [] }
         let data = try Data(contentsOf: self.fileURL)
-        return try JSONDecoder().decode(AntigravityCLISessionRecord.self, from: data)
+        let decoder = JSONDecoder()
+        if let records = try? decoder.decode([AntigravityCLISessionRecord].self, from: data) {
+            return records
+        }
+        return try [decoder.decode(AntigravityCLISessionRecord.self, from: data)]
     }
 
     func save(_ record: AntigravityCLISessionRecord) throws {
+        var records = (try? self.load()) ?? []
+        records.removeAll { Self.sameOwner($0, record) }
+        records.append(record)
+        try self.write(records)
+    }
+
+    func remove(_ record: AntigravityCLISessionRecord) throws {
+        var records = try self.load()
+        records.removeAll {
+            $0.pid == record.pid &&
+                $0.executablePath == record.executablePath &&
+                abs($0.startEpoch - record.startEpoch) < 0.001
+        }
+        if records.isEmpty {
+            guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return }
+            try self.fileManager.removeItem(at: self.fileURL)
+        } else {
+            try self.write(records)
+        }
+    }
+
+    private func write(_ records: [AntigravityCLISessionRecord]) throws {
         let directory = self.fileURL.deletingLastPathComponent()
         try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let data = try JSONEncoder().encode(record)
+        let data = try JSONEncoder().encode(records)
         try data.write(to: self.fileURL, options: [.atomic])
     }
 
-    func remove() throws {
-        guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return }
-        try self.fileManager.removeItem(at: self.fileURL)
+    private static func sameOwner(
+        _ lhs: AntigravityCLISessionRecord,
+        _ rhs: AntigravityCLISessionRecord) -> Bool
+    {
+        if let lhsOwnerPID = lhs.ownerPID,
+           let rhsOwnerPID = rhs.ownerPID,
+           let lhsOwnerPath = lhs.ownerExecutablePath,
+           let rhsOwnerPath = rhs.ownerExecutablePath,
+           let lhsOwnerStart = lhs.ownerStartEpoch,
+           let rhsOwnerStart = rhs.ownerStartEpoch
+        {
+            return lhsOwnerPID == rhsOwnerPID &&
+                lhsOwnerPath == rhsOwnerPath &&
+                abs(lhsOwnerStart - rhsOwnerStart) < 0.001
+        }
+        return lhs.pid == rhs.pid &&
+            lhs.executablePath == rhs.executablePath &&
+            abs(lhs.startEpoch - rhs.startEpoch) < 0.001
+    }
+}
+
+final class AntigravityFileCLISessionLaunchLock: AntigravityCLISessionLaunchLocking, @unchecked Sendable {
+    private let fileURL: URL
+    private let fileManager: FileManager
+
+    init(
+        fileURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".codexbar", isDirectory: true)
+            .appendingPathComponent("antigravity", isDirectory: true)
+            .appendingPathComponent("agy-session.lock"),
+        fileManager: FileManager = .default)
+    {
+        self.fileURL = fileURL
+        self.fileManager = fileManager
+    }
+
+    func withLock<T>(_ operation: () throws -> T) throws -> T {
+        let directory = self.fileURL.deletingLastPathComponent()
+        try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fd = open(self.fileURL.path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        defer {
+            _ = flock(fd, LOCK_UN)
+            close(fd)
+        }
+
+        while flock(fd, LOCK_EX) != 0 {
+            guard errno == EINTR else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+        }
+        return try operation()
     }
 }

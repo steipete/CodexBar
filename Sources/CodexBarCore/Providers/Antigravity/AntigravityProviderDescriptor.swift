@@ -95,7 +95,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .cli
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
 
-    struct SnapshotWaitDependencies: Sendable {
+    struct SnapshotWaitDependencies {
         let pollIntervalNanoseconds: UInt64
         let listeningPorts: @Sendable (Int, TimeInterval) async throws -> [Int]
         let drainOutput: @Sendable () async -> Void
@@ -112,14 +112,19 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         }
         let result = try await self.fetchUsingWarmSession(
             binary: binary,
+            idleWindow: context.persistentCLISessionIdleWindow,
             resetAfterFetch: Self.shouldResetSessionAfterFetch(context))
         try AntigravitySelectedAccountGuard.validate(result.usage, context: context)
         return result
     }
 
-    private func fetchUsingWarmSession(binary: String, resetAfterFetch: Bool) async throws -> ProviderFetchResult {
+    private func fetchUsingWarmSession(
+        binary: String,
+        idleWindow: TimeInterval?,
+        resetAfterFetch: Bool) async throws -> ProviderFetchResult
+    {
         let session = AntigravityCLISession.shared
-        let pid = try await session.beginProbe(binary: binary)
+        let pid = try await session.beginProbe(binary: binary, idleWindow: idleWindow)
         let deadline = Date().addingTimeInterval(5.0)
         let snap: AntigravityStatusSnapshot
         let usage: UsageSnapshot

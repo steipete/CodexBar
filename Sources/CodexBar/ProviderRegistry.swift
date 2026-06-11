@@ -81,12 +81,19 @@ struct ProviderRegistry {
                                 }
                             }
                         },
-                        costUsageHistoryDays: settings.costUsageHistoryDays)
+                        costUsageHistoryDays: settings.costUsageHistoryDays,
+                        persistsCLISessions: true,
+                        persistentCLISessionIdleWindow: Self.persistentCLISessionIdleWindow(
+                            refreshInterval: settings.refreshFrequency.seconds))
                 })
             specs[provider] = spec
         }
 
         return specs
+    }
+
+    static func persistentCLISessionIdleWindow(refreshInterval: TimeInterval?) -> TimeInterval {
+        max(180, (refreshInterval ?? 120) + 60)
     }
 
     @MainActor

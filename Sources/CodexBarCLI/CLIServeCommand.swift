@@ -1,6 +1,12 @@
 import CodexBarCore
 import Commander
+import Dispatch
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 struct ServeOptions: CommanderParsable {
     @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
@@ -33,6 +39,55 @@ enum CLIServeRoute: Equatable {
 enum CLIServeRouteError: Error, Equatable {
     case methodNotAllowed
     case notFound
+}
+
+private func handleCLIServeTerminationSignal(_: Int32) {}
+
+final class CLIServeSignalMonitor: @unchecked Sendable {
+    private let lock = NSLock()
+    private let signals: [Int32]
+    private let sources: [DispatchSourceSignal]
+    private var isCancelled = false
+
+    init(onSignal: @escaping @Sendable () -> Void) {
+        self.signals = [SIGINT, SIGTERM]
+        self.sources = self.signals.map { signalNumber in
+            #if canImport(Darwin)
+            _ = Darwin.signal(signalNumber, handleCLIServeTerminationSignal)
+            #else
+            _ = Glibc.signal(signalNumber, handleCLIServeTerminationSignal)
+            #endif
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .global(qos: .utility))
+            source.setEventHandler(handler: onSignal)
+            source.resume()
+            return source
+        }
+    }
+
+    func cancel() {
+        self.lock.lock()
+        guard !self.isCancelled else {
+            self.lock.unlock()
+            return
+        }
+        self.isCancelled = true
+        self.lock.unlock()
+
+        for source in self.sources {
+            source.cancel()
+        }
+        for signalNumber in self.signals {
+            #if canImport(Darwin)
+            _ = Darwin.signal(signalNumber, SIG_DFL)
+            #else
+            _ = Glibc.signal(signalNumber, SIG_DFL)
+            #endif
+        }
+    }
+
+    deinit {
+        self.cancel()
+    }
 }
 
 enum CLIServeRouter {
@@ -297,14 +352,25 @@ extension CodexBarCLI {
                 refreshInterval: refreshInterval,
                 requestTimeout: requestTimeout)
         }
+        let signalMonitor = CLIServeSignalMonitor {
+            server.stop()
+        }
+        defer { signalMonitor.cancel() }
 
         do {
             try await server.run {
                 Self.writeStderr("CodexBar server listening on http://127.0.0.1:\(port)\n")
             }
         } catch {
+            await Self.shutdownServeSessions()
             Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .runtime)
         }
+        await Self.shutdownServeSessions()
+    }
+
+    private static func shutdownServeSessions() async {
+        await ProviderCLISessionLifecycle.shutdownPersistentSessions()
+        TTYCommandRunner.terminateActiveProcessesForAppShutdown()
     }
 
     static func decodeServePort(from values: ParsedValues) -> UInt16? {
@@ -329,7 +395,7 @@ extension CodexBarCLI {
         } else {
             parsed = 60
         }
-        guard parsed >= 0 else { return nil }
+        guard parsed.isFinite, parsed >= 0 else { return nil }
         return parsed
     }
 
@@ -381,7 +447,10 @@ extension CodexBarCLI {
                 refreshInterval: refreshInterval,
                 requestTimeout: requestTimeout)
             {
-                await Self.serveUsage(provider: provider, config: snapshot.config)
+                await Self.serveUsage(
+                    provider: provider,
+                    config: snapshot.config,
+                    refreshInterval: refreshInterval)
             }
         case let .cost(provider):
             let snapshot: CLIServeConfigSnapshot
@@ -493,6 +562,10 @@ extension CodexBarCLI {
         return max(refreshInterval * 10, 300)
     }
 
+    static func serveCLISessionIdleWindow(refreshInterval: TimeInterval) -> TimeInterval {
+        max(180, refreshInterval + 60)
+    }
+
     static func shouldCacheServeResponse(_ response: CLILocalHTTPResponse) -> Bool {
         guard response.status == .ok else { return false }
         guard let payload = try? JSONSerialization.jsonObject(with: response.body) as? [[String: Any]] else {
@@ -506,7 +579,8 @@ extension CodexBarCLI {
 
     private static func serveUsage(
         provider rawProvider: String?,
-        config: CodexBarConfig) async -> CLILocalHTTPResponse
+        config: CodexBarConfig,
+        refreshInterval: TimeInterval) async -> CLILocalHTTPResponse
     {
         let selection: ProviderSelection
         do {
@@ -542,7 +616,8 @@ extension CodexBarCLI {
             fetcher: UsageFetcher(),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection,
-            persistCLISessions: true)
+            persistCLISessions: true,
+            persistentCLISessionIdleWindow: Self.serveCLISessionIdleWindow(refreshInterval: refreshInterval))
 
         var output = UsageCommandOutput()
         for provider in selection.asList {

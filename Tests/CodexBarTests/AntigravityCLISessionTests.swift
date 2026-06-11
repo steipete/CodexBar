@@ -190,38 +190,71 @@ private final class FakeAntigravityIdentityProvider: AntigravityCLIProcessIdenti
 
 private final class MemoryAntigravitySessionRecordStore: AntigravityCLISessionRecordStoring, @unchecked Sendable {
     private let lock = NSLock()
-    private var record: AntigravityCLISessionRecord?
+    private var records: [AntigravityCLISessionRecord]
+    private let failSaves: Bool
     private var saves = 0
     private var removes = 0
 
-    init(record: AntigravityCLISessionRecord? = nil) {
-        self.record = record
+    init(record: AntigravityCLISessionRecord? = nil, failSaves: Bool = false) {
+        self.records = record.map { [$0] } ?? []
+        self.failSaves = failSaves
     }
 
-    func load() throws -> AntigravityCLISessionRecord? {
+    func load() throws -> [AntigravityCLISessionRecord] {
         self.lock.lock()
-        let value = self.record
+        let value = self.records
         self.lock.unlock()
         return value
     }
 
     func save(_ record: AntigravityCLISessionRecord) throws {
         self.lock.lock()
-        self.record = record
+        guard !self.failSaves else {
+            self.lock.unlock()
+            throw CocoaError(.fileWriteNoPermission)
+        }
+        self.records.removeAll { existing in
+            if let existingOwnerPID = existing.ownerPID,
+               let recordOwnerPID = record.ownerPID,
+               let existingOwnerPath = existing.ownerExecutablePath,
+               let recordOwnerPath = record.ownerExecutablePath,
+               let existingOwnerStart = existing.ownerStartEpoch,
+               let recordOwnerStart = record.ownerStartEpoch
+            {
+                return existingOwnerPID == recordOwnerPID &&
+                    existingOwnerPath == recordOwnerPath &&
+                    abs(existingOwnerStart - recordOwnerStart) < 0.001
+            }
+            return existing.pid == record.pid &&
+                existing.executablePath == record.executablePath &&
+                abs(existing.startEpoch - record.startEpoch) < 0.001
+        }
+        self.records.append(record)
         self.saves += 1
         self.lock.unlock()
     }
 
-    func remove() throws {
+    func remove(_ record: AntigravityCLISessionRecord) throws {
         self.lock.lock()
-        self.record = nil
+        self.records.removeAll {
+            $0.pid == record.pid &&
+                $0.executablePath == record.executablePath &&
+                abs($0.startEpoch - record.startEpoch) < 0.001
+        }
         self.removes += 1
         self.lock.unlock()
     }
 
     func snapshot() -> AntigravityCLISessionRecord? {
         self.lock.lock()
-        let value = self.record
+        let value = self.records.first
+        self.lock.unlock()
+        return value
+    }
+
+    func snapshots() -> [AntigravityCLISessionRecord] {
+        self.lock.lock()
+        let value = self.records
         self.lock.unlock()
         return value
     }
@@ -238,6 +271,22 @@ private final class MemoryAntigravitySessionRecordStore: AntigravityCLISessionRe
         let value = self.removes
         self.lock.unlock()
         return value
+    }
+}
+
+private final class MemoryAntigravitySessionLaunchLock: AntigravityCLISessionLaunchLocking, @unchecked Sendable {
+    private let lock = NSLock()
+
+    func withLock<T>(_ operation: () throws -> T) throws -> T {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return try operation()
+    }
+}
+
+private struct FailingAntigravitySessionLaunchLock: AntigravityCLISessionLaunchLocking {
+    func withLock<T>(_: () throws -> T) throws -> T {
+        throw CocoaError(.fileWriteNoPermission)
     }
 }
 
@@ -505,6 +554,14 @@ struct AntigravityCLISessionTests {
     }
 
     @Test
+    func `pty launcher resets termination signals for child process`() {
+        var signals = AntigravityPTYProcessLauncher.defaultSignalsForSpawn()
+
+        #expect(sigismember(&signals, SIGINT) == 1)
+        #expect(sigismember(&signals, SIGTERM) == 1)
+    }
+
+    @Test
     func `spawned PTY drain is bounded per call`() throws {
         let temp = FileManager.default.temporaryDirectory
             .appendingPathComponent("antigravity-drain-\(UUID().uuidString)")
@@ -550,6 +607,31 @@ struct AntigravityCLISessionTests {
     }
 
     @Test
+    func `launch remains usable when coordination lock is unavailable`() async throws {
+        let fixture = self.makeFixture(launchLock: FailingAntigravitySessionLaunchLock())
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        let pid = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
+
+        #expect(pid == 10)
+        #expect(fixture.store.snapshot() == nil)
+    }
+
+    @Test
+    func `launch remains usable when ownership record cannot be saved`() async throws {
+        let store = MemoryAntigravitySessionRecordStore(failSaves: true)
+        let fixture = self.makeFixture(store: store)
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        let pid = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
+
+        #expect(pid == 10)
+        #expect(store.snapshot() == nil)
+    }
+
+    @Test
     func `idle window tears down warm process`() async throws {
         let fixture = self.makeFixture(idleWindow: 0.05, manualSleep: true)
         fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
@@ -563,6 +645,17 @@ struct AntigravityCLISessionTests {
         #expect(await fixture.session.isRunning == false)
         #expect(fixture.registry.unregisteredSnapshot() == [10])
         #expect(fixture.store.snapshot() == nil)
+    }
+
+    @Test
+    func `host idle window extends the default session lifetime`() async throws {
+        let fixture = self.makeFixture(idleWindow: 180)
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy", idleWindow: 360)
+        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
+
+        #expect(await fixture.session.idleWindowForTesting == 360)
     }
 
     @Test
@@ -643,7 +736,7 @@ struct AntigravityCLISessionTests {
     }
 
     @Test
-    func `launch preserves persisted session owned by another live process`() async throws {
+    func `launch tracks an independent session while another process is live`() async throws {
         let protectedRecord = AntigravityCLISessionRecord(
             pid: 777,
             requestedBinaryPath: "/bin/agy",
@@ -661,49 +754,167 @@ struct AntigravityCLISessionTests {
             executablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
             startEpoch: 10)
         fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
-
-        let pid = try await fixture.session.beginProbe(binary: "/bin/agy")
-        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
-
-        #expect(pid == 10)
-        #expect(fixture.terminations.snapshot().isEmpty)
-        #expect(fixture.store.saveCount == 0)
-        #expect(fixture.store.snapshot() == protectedRecord)
-    }
-
-    @Test
-    func `binary-change relaunch preserves persisted session owned by another live process`() async throws {
-        let protectedRecord = AntigravityCLISessionRecord(
-            pid: 777,
-            requestedBinaryPath: "/bin/agy",
-            executablePath: "/bin/agy",
-            startEpoch: 42,
-            processGroup: 777,
-            ownerPID: 900,
-            ownerExecutablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
-            ownerStartEpoch: 10)
-        let store = MemoryAntigravitySessionRecordStore(record: protectedRecord)
-        let fixture = self.makeFixture(store: store, currentProcessID: 901)
-        fixture.identity.setIdentity(pid: 777, executablePath: "/bin/agy", startEpoch: 42)
-        fixture.identity.setIdentity(
-            pid: 900,
-            executablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
-            startEpoch: 10)
-        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
-        fixture.identity.setIdentity(pid: 11, executablePath: "/new/agy", startEpoch: 101)
+        fixture.identity.setIdentity(pid: 901, executablePath: "/app/codexbar", startEpoch: 20)
 
         _ = try await fixture.session.beginProbe(binary: "/bin/agy")
-        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
-        let relaunchedPID = try await fixture.session.beginProbe(binary: "/new/agy")
-        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
 
-        #expect(relaunchedPID == 11)
-        #expect(fixture.store.saveCount == 0)
+        #expect(fixture.launcher.launchedBinarySnapshot() == ["/bin/agy"])
+        #expect(fixture.terminations.snapshot().isEmpty)
+        #expect(fixture.store.saveCount == 1)
+        #expect(Set(fixture.store.snapshots().map(\.pid)) == [10, 777])
+
+        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
         #expect(fixture.store.snapshot() == protectedRecord)
     }
 
     @Test
-    func `reused unrecorded session is persisted after protected owner exits`() async throws {
+    func `different binary tracks an independent session while another process is live`() async throws {
+        let protectedRecord = AntigravityCLISessionRecord(
+            pid: 777,
+            requestedBinaryPath: "/bin/agy",
+            executablePath: "/bin/agy",
+            startEpoch: 42,
+            processGroup: 777,
+            ownerPID: 900,
+            ownerExecutablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
+            ownerStartEpoch: 10)
+        let store = MemoryAntigravitySessionRecordStore(record: protectedRecord)
+        let fixture = self.makeFixture(store: store, currentProcessID: 901)
+        fixture.identity.setIdentity(pid: 777, executablePath: "/bin/agy", startEpoch: 42)
+        fixture.identity.setIdentity(
+            pid: 900,
+            executablePath: "/Applications/CodexBar.app/Contents/MacOS/CodexBar",
+            startEpoch: 10)
+        fixture.identity.setIdentity(pid: 10, executablePath: "/new/agy", startEpoch: 100)
+        fixture.identity.setIdentity(pid: 901, executablePath: "/app/codexbar", startEpoch: 20)
+
+        _ = try await fixture.session.beginProbe(binary: "/new/agy")
+
+        #expect(fixture.launcher.launchedBinarySnapshot() == ["/new/agy"])
+        #expect(fixture.store.saveCount == 1)
+        #expect(Set(fixture.store.snapshots().map(\.pid)) == [10, 777])
+
+        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
+        #expect(fixture.store.snapshot() == protectedRecord)
+    }
+
+    @Test
+    func `concurrent hosts atomically track independent sessions`() async {
+        let store = MemoryAntigravitySessionRecordStore()
+        let launchLock = MemoryAntigravitySessionLaunchLock()
+        let identity = FakeAntigravityIdentityProvider()
+        let firstLauncher = FakeAntigravityProcessLauncher(nextPID: 10)
+        let secondLauncher = FakeAntigravityProcessLauncher(nextPID: 20)
+        identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+        identity.setIdentity(pid: 20, executablePath: "/bin/agy", startEpoch: 200)
+        identity.setIdentity(pid: 900, executablePath: "/app/CodexBar", startEpoch: 1)
+        identity.setIdentity(pid: 901, executablePath: "/app/codexbar", startEpoch: 2)
+        let first = self.makeFixture(
+            launcher: firstLauncher,
+            identity: identity,
+            store: store,
+            launchLock: launchLock,
+            currentProcessID: 900)
+        let second = self.makeFixture(
+            launcher: secondLauncher,
+            identity: identity,
+            store: store,
+            launchLock: launchLock,
+            currentProcessID: 901)
+
+        async let firstStarted = Self.beginPersistentSession(first.session)
+        async let secondStarted = Self.beginPersistentSession(second.session)
+        let results = await [firstStarted, secondStarted]
+
+        #expect(!results.contains(false))
+        #expect(firstLauncher.launchedBinarySnapshot().count + secondLauncher.launchedBinarySnapshot().count == 2)
+        #expect(Set(store.snapshots().map(\.pid)) == [10, 20])
+
+        await first.session.reset()
+        await second.session.reset()
+        #expect(store.snapshots().isEmpty)
+    }
+
+    @Test
+    func `warm reuse reaps a crashed peer session`() async throws {
+        let store = MemoryAntigravitySessionRecordStore()
+        let launchLock = MemoryAntigravitySessionLaunchLock()
+        let identity = FakeAntigravityIdentityProvider()
+        let firstLauncher = FakeAntigravityProcessLauncher(nextPID: 10)
+        let secondLauncher = FakeAntigravityProcessLauncher(nextPID: 20)
+        identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+        identity.setIdentity(pid: 20, executablePath: "/bin/agy", startEpoch: 200)
+        identity.setIdentity(pid: 900, executablePath: "/app/CodexBar", startEpoch: 1)
+        identity.setIdentity(pid: 901, executablePath: "/app/codexbar", startEpoch: 2)
+        let first = self.makeFixture(
+            launcher: firstLauncher,
+            identity: identity,
+            store: store,
+            launchLock: launchLock,
+            currentProcessID: 900)
+        let second = self.makeFixture(
+            launcher: secondLauncher,
+            identity: identity,
+            store: store,
+            launchLock: launchLock,
+            currentProcessID: 901)
+        #expect(await Self.beginPersistentSession(first.session))
+        #expect(await Self.beginPersistentSession(second.session))
+
+        identity.removeIdentity(pid: 901)
+        _ = try await first.session.beginProbe(binary: "/bin/agy")
+        await first.session.finishProbe(success: true, resetAfterFetch: false)
+
+        #expect(first.terminations.snapshot().map(\.pid) == [20, 20])
+        #expect(store.snapshots().map(\.pid) == [10])
+
+        await first.session.reset()
+        await second.session.reset()
+    }
+
+    @Test
+    func `file store migrates legacy record and preserves independent owners`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBarAntigravitySessionTests-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = directory.appendingPathComponent("agy-session.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let legacy = AntigravityCLISessionRecord(
+            pid: 10,
+            requestedBinaryPath: "/bin/agy",
+            executablePath: "/bin/agy",
+            startEpoch: 100,
+            processGroup: 10,
+            ownerPID: 900,
+            ownerExecutablePath: "/app/CodexBar",
+            ownerStartEpoch: 1)
+        try JSONEncoder().encode(legacy).write(to: fileURL)
+        let store = AntigravityFileCLISessionRecordStore(fileURL: fileURL)
+        #expect(try store.load() == [legacy])
+
+        let second = AntigravityCLISessionRecord(
+            pid: 20,
+            requestedBinaryPath: "/bin/agy",
+            executablePath: "/bin/agy",
+            startEpoch: 200,
+            processGroup: 20,
+            ownerPID: 901,
+            ownerExecutablePath: "/app/codexbar",
+            ownerStartEpoch: 2)
+        try store.save(second)
+        #expect(try Set(store.load().map(\.pid)) == [10, 20])
+
+        try store.remove(legacy)
+        #expect(try store.load() == [second])
+
+        try Data("{".utf8).write(to: fileURL)
+        try store.save(legacy)
+        #expect(try store.load() == [legacy])
+    }
+
+    @Test
+    func `session reaps stale owner before launch`() async throws {
         let protectedRecord = AntigravityCLISessionRecord(
             pid: 777,
             requestedBinaryPath: "/bin/agy",
@@ -726,13 +937,10 @@ struct AntigravityCLISessionTests {
             startEpoch: 20)
         fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
 
-        let firstPID = try await fixture.session.beginProbe(binary: "/bin/agy")
-        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
         fixture.identity.removeIdentity(pid: 900)
         let secondPID = try await fixture.session.beginProbe(binary: "/bin/agy")
         let record = fixture.store.snapshot()
         await fixture.session.finishProbe(success: true, resetAfterFetch: true)
-        #expect(firstPID == 10)
         #expect(secondPID == 10)
         #expect(fixture.launcher.launchedBinarySnapshot() == ["/bin/agy"])
         #expect(fixture.terminations.snapshot().map(\.pid) == [777, 777])
@@ -942,6 +1150,16 @@ struct AntigravityCLISessionTests {
         Issue.record("Timed out waiting for Antigravity CLI session to stop")
     }
 
+    private static func beginPersistentSession(_ session: AntigravityCLISession) async -> Bool {
+        do {
+            _ = try await session.beginProbe(binary: "/bin/agy")
+            await session.finishProbe(success: true, resetAfterFetch: false)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private struct Fixture {
         let session: AntigravityCLISession
         let launcher: FakeAntigravityProcessLauncher
@@ -953,7 +1171,10 @@ struct AntigravityCLISessionTests {
     }
 
     private func makeFixture(
+        launcher suppliedLauncher: FakeAntigravityProcessLauncher? = nil,
+        identity suppliedIdentity: FakeAntigravityIdentityProvider? = nil,
         store: MemoryAntigravitySessionRecordStore = MemoryAntigravitySessionRecordStore(),
+        launchLock: any AntigravityCLISessionLaunchLocking = MemoryAntigravitySessionLaunchLock(),
         idleWindow: TimeInterval = 3600,
         failureRelaunchThreshold: Int = 2,
         manualSleep: Bool = false,
@@ -961,9 +1182,9 @@ struct AntigravityCLISessionTests {
         terminateRootStopsProcess: Bool = true,
         currentProcessID: pid_t = 900) -> Fixture
     {
-        let launcher = FakeAntigravityProcessLauncher(nextPID: 10)
+        let launcher = suppliedLauncher ?? FakeAntigravityProcessLauncher(nextPID: 10)
         launcher.setTerminateRootStopsProcess(terminateRootStopsProcess)
-        let identity = FakeAntigravityIdentityProvider()
+        let identity = suppliedIdentity ?? FakeAntigravityIdentityProvider()
         let terminations = AntigravitySessionTerminationRecorder()
         let registry = AntigravityRegistryRecorder()
         let sleeper = manualSleep ? AntigravityManualSleeper() : nil
@@ -971,6 +1192,7 @@ struct AntigravityCLISessionTests {
             launcher: launcher,
             identityProvider: identity,
             recordStore: store,
+            launchLock: launchLock,
             registerForAppShutdown: { pid, binary in registry.register(pid: pid, binary) },
             updateAppShutdownProcessGroup: { pid, group in registry.update(pid: pid, group: group) },
             unregisterForAppShutdown: { pid in registry.unregister(pid: pid) },

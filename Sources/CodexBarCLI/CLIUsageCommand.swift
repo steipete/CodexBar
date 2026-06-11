@@ -22,6 +22,7 @@ struct UsageCommandContext {
     /// helper sessions (such as the managed Antigravity `agy` process) alive
     /// between fetches instead of resetting after each one-shot fetch.
     var persistCLISessions: Bool = false
+    var persistentCLISessionIdleWindow: TimeInterval?
 }
 
 struct UsageCommandOutput {
@@ -296,7 +297,8 @@ extension CodexBarCLI {
             selectedTokenAccountID: account?.id,
             tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
             providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
-            persistsCLISessions: command.persistCLISessions)
+            persistsCLISessions: command.persistCLISessions,
+            persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow)
         let outcome = await Self.fetchProviderUsage(
             provider: provider,
             context: fetchContext)

@@ -104,6 +104,18 @@ struct CLIServeRouterTests {
             flags: [])) == nil)
         #expect(CodexBarCLI.decodeServeRefreshInterval(from: ParsedValues(
             positional: [],
+            options: ["refreshInterval": ["inf"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServeRefreshInterval(from: ParsedValues(
+            positional: [],
+            options: ["refreshInterval": ["86401"]],
+            flags: [])) == 86401)
+        #expect(CodexBarCLI.decodeServeRefreshInterval(from: ParsedValues(
+            positional: [],
+            options: ["refreshInterval": ["86400"]],
+            flags: [])) == 86400)
+        #expect(CodexBarCLI.decodeServeRefreshInterval(from: ParsedValues(
+            positional: [],
             options: [:],
             flags: [])) == 60)
 
@@ -378,6 +390,30 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `serve helper idle window outlives the refresh cadence`() {
+        #expect(CodexBarCLI.serveCLISessionIdleWindow(refreshInterval: 0) == 180)
+        #expect(CodexBarCLI.serveCLISessionIdleWindow(refreshInterval: 60) == 180)
+        #expect(CodexBarCLI.serveCLISessionIdleWindow(refreshInterval: 300) == 360)
+    }
+
+    @Test
+    func `local HTTP server stops its accept loop`() async throws {
+        let listening = ServeListeningSignal()
+        let server = CLILocalHTTPServer(host: "127.0.0.1", port: 0) { _ in
+            Self.response(#"{"status":"ok"}"#)
+        }
+        let task = Task {
+            try await server.run {
+                listening.signal()
+            }
+        }
+
+        await listening.wait()
+        server.stop()
+        try await task.value
+    }
+
+    @Test
     func `serve request timeout zero disables the deadline`() async {
         let cache = CLIServeResponseCache()
 
@@ -428,5 +464,33 @@ private actor ServeTestCounter {
 
     func current() -> Int {
         self.value
+    }
+}
+
+private final class ServeListeningSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isSignaled = false
+
+    func signal() {
+        let continuation = self.lock.withLock {
+            self.isSignaled = true
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.resume()
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let shouldResume = self.lock.withLock {
+                guard !self.isSignaled else { return true }
+                self.continuation = continuation
+                return false
+            }
+            if shouldResume {
+                continuation.resume()
+            }
+        }
     }
 }
