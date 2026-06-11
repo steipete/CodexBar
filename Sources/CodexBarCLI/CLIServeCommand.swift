@@ -145,17 +145,18 @@ actor CLIServeResponseCache {
     private var inFlightKeys: Set<String> = []
     private var waiters: [String: [CheckedContinuation<CLIServeCacheLookup, Never>]] = [:]
 
-    private func response(for key: String, now: Date) -> CLILocalHTTPResponse? {
+    private func pruneExpiredEntries(now: Date) {
+        self.entries = self.entries.filter { $0.value.expiresAt > now }
+    }
+
+    private func response(for key: String) -> CLILocalHTTPResponse? {
         guard let entry = self.entries[key] else { return nil }
-        guard entry.expiresAt > now else {
-            self.entries[key] = nil
-            return nil
-        }
         return entry.response
     }
 
     fileprivate func responseOrStartFetch(for key: String, now: Date) async -> CLIServeCacheLookup {
-        if let cached = self.response(for: key, now: now) {
+        self.pruneExpiredEntries(now: now)
+        if let cached = self.response(for: key) {
             return .response(cached)
         }
 
@@ -189,6 +190,10 @@ actor CLIServeResponseCache {
     private func store(_ response: CLILocalHTTPResponse, for key: String, ttl: TimeInterval, now: Date) {
         guard ttl > 0, response.status == .ok else { return }
         self.entries[key] = Entry(expiresAt: now.addingTimeInterval(ttl), response: response)
+    }
+
+    func cachedEntryCount() -> Int {
+        self.entries.count
     }
 }
 

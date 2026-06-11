@@ -214,6 +214,31 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `serve cache prunes expired config token entries`() async throws {
+        let cache = CLIServeResponseCache()
+
+        _ = await CodexBarCLI.cachedServeResponse(
+            key: "usage::old-config",
+            cache: cache,
+            refreshInterval: 0.001)
+        {
+            Self.response(#"[{"provider":"codex","config":"old"}]"#)
+        }
+        #expect(await cache.cachedEntryCount() == 1)
+
+        try await Task.sleep(nanoseconds: 20_000_000)
+        _ = await CodexBarCLI.cachedServeResponse(
+            key: "usage::new-config",
+            cache: cache,
+            refreshInterval: 60)
+        {
+            Self.response(#"[{"provider":"codex","config":"new"}]"#)
+        }
+
+        #expect(await cache.cachedEntryCount() == 1)
+    }
+
+    @Test
     func `serve cache does not cache timeouts and recovers on next success`() async {
         let cache = CLIServeResponseCache()
         let counter = ServeTestCounter()
