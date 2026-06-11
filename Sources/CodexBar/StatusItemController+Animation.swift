@@ -726,6 +726,7 @@ extension StatusItemController {
         }
         if mode != .resetTime,
            self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .extraUsage,
+           provider != .cursor || mode == .pace,
            let spend = Self.extraUsageSpendDisplayText(snapshot: snapshot)
         {
             return spend
