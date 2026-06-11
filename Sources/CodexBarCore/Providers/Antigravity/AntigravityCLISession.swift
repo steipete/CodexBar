@@ -124,6 +124,7 @@ actor AntigravityCLISession {
         let pid: pid_t
         let rejectedProcess: (any AntigravityCLIProcessHandle)?
         let rejectionMessage: String?
+        let holdsLaunchReservation: Bool
     }
 
     struct Dependencies {
@@ -131,6 +132,8 @@ actor AntigravityCLISession {
         var identityProvider: any AntigravityCLIProcessIdentityProviding
         var recordStore: any AntigravityCLISessionRecordStoring
         var launchLock: any AntigravityCLISessionLaunchLocking
+        var beginAppShutdownTrackedLaunch: @Sendable () -> Bool
+        var endAppShutdownTrackedLaunch: @Sendable () -> Void
         var registerForAppShutdown: @Sendable (pid_t, String) -> Bool
         var updateAppShutdownProcessGroup: @Sendable (pid_t, pid_t?) -> Void
         var unregisterForAppShutdown: @Sendable (pid_t) -> Void
@@ -149,6 +152,12 @@ actor AntigravityCLISession {
                 identityProvider: AntigravityProcessIdentityProvider(),
                 recordStore: AntigravityFileCLISessionRecordStore(),
                 launchLock: AntigravityFileCLISessionLaunchLock(),
+                beginAppShutdownTrackedLaunch: {
+                    TTYCommandRunner.beginActiveProcessLaunchForAppShutdown()
+                },
+                endAppShutdownTrackedLaunch: {
+                    TTYCommandRunner.endActiveProcessLaunchForAppShutdown()
+                },
                 registerForAppShutdown: { pid, binary in
                     TTYCommandRunner.registerActiveProcessForAppShutdown(pid: pid, binary: binary)
                 },
@@ -511,13 +520,23 @@ actor AntigravityCLISession {
                 if canPersistRecord {
                     self.prepareRecordStoreForLaunch()
                 }
-                let launched = try self.dependencies.launcher.launch(binary: binary)
+                guard self.dependencies.beginAppShutdownTrackedLaunch() else {
+                    throw SessionError.launchFailed("App shutdown in progress")
+                }
+                let launched: any AntigravityCLIProcessHandle
+                do {
+                    launched = try self.dependencies.launcher.launch(binary: binary)
+                } catch {
+                    self.dependencies.endAppShutdownTrackedLaunch()
+                    throw error
+                }
                 let launchedPID = launched.pid
                 guard self.dependencies.registerForAppShutdown(launchedPID, binaryName) else {
                     return LaunchOutcome(
                         pid: launchedPID,
                         rejectedProcess: launched,
-                        rejectionMessage: "App shutdown in progress")
+                        rejectionMessage: "App shutdown in progress",
+                        holdsLaunchReservation: true)
                 }
 
                 let processGroup = launched.processGroup ?? launched.assignProcessGroup()
@@ -534,7 +553,12 @@ actor AntigravityCLISession {
                 } else {
                     self.persistedProcessIdentity = nil
                 }
-                return LaunchOutcome(pid: launchedPID, rejectedProcess: nil, rejectionMessage: nil)
+                self.dependencies.endAppShutdownTrackedLaunch()
+                return LaunchOutcome(
+                    pid: launchedPID,
+                    rejectedProcess: nil,
+                    rejectionMessage: nil,
+                    holdsLaunchReservation: false)
             }
 
             var lockedLaunch: Result<LaunchOutcome, Error>?
@@ -560,6 +584,9 @@ actor AntigravityCLISession {
             }
             if let rejectedProcess = outcome.rejectedProcess {
                 await self.terminateLaunchedProcess(rejectedProcess, graceful: false)
+                if outcome.holdsLaunchReservation {
+                    self.dependencies.endAppShutdownTrackedLaunch()
+                }
                 throw SessionError.launchFailed(outcome.rejectionMessage ?? "App shutdown in progress")
             }
 
@@ -789,6 +816,7 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
         sigemptyset(&signals)
         sigaddset(&signals, SIGINT)
         sigaddset(&signals, SIGTERM)
+        sigaddset(&signals, SIGHUP)
         return signals
     }
 

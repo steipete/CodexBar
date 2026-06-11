@@ -73,6 +73,28 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
+    func `shutdown waits for launch cleanup before draining`() {
+        TTYCommandRunner._test_resetTrackedProcesses()
+        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+
+        #expect(TTYCommandRunner._test_beginTrackedProcessLaunch())
+        let fenceSet = DispatchSemaphore(value: 0)
+        let completed = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            _ = TTYCommandRunner._test_drainTrackedProcessesForShutdown {
+                fenceSet.signal()
+            }
+            completed.signal()
+        }
+
+        #expect(fenceSet.wait(timeout: .now() + 1) == .success)
+        #expect(completed.wait(timeout: .now() + 0.05) == .timedOut)
+        #expect(!TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex"))
+        TTYCommandRunner._test_endTrackedProcessLaunch()
+        #expect(completed.wait(timeout: .now() + 1) == .success)
+    }
+
+    @Test
     func `shutdown resolver skips host process group fallback`() {
         let hostGroup: pid_t = 4242
         let targets: [(pid: pid_t, binary: String, processGroup: pid_t?)] = [

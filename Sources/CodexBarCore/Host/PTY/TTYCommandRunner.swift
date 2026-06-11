@@ -6,9 +6,10 @@ import Glibc
 import Foundation
 
 private enum TTYCommandRunnerActiveProcessRegistry {
-    private static let lock = NSLock()
+    private static let condition = NSCondition()
     private nonisolated(unsafe) static var processes: [pid_t: ProcessInfo] = [:]
     private nonisolated(unsafe) static var isShuttingDown = false
+    private nonisolated(unsafe) static var launchesInProgress = 0
 
     private struct ProcessInfo {
         let binary: String
@@ -18,62 +19,88 @@ private enum TTYCommandRunnerActiveProcessRegistry {
     @discardableResult
     static func register(pid: pid_t, binary: String) -> Bool {
         guard pid > 0 else { return false }
-        self.lock.lock()
-        defer { self.lock.unlock() }
+        self.condition.lock()
+        defer { self.condition.unlock() }
         guard !self.isShuttingDown else { return false }
         self.processes[pid] = ProcessInfo(binary: binary, processGroup: nil)
         return true
     }
 
+    static func beginLaunch() -> Bool {
+        self.condition.lock()
+        defer { self.condition.unlock() }
+        guard !self.isShuttingDown else { return false }
+        self.launchesInProgress += 1
+        return true
+    }
+
+    static func endLaunch() {
+        self.condition.lock()
+        self.launchesInProgress = max(0, self.launchesInProgress - 1)
+        if self.launchesInProgress == 0 {
+            self.condition.broadcast()
+        }
+        self.condition.unlock()
+    }
+
     static func updateProcessGroup(pid: pid_t, processGroup: pid_t?) {
         guard pid > 0 else { return }
-        self.lock.lock()
+        self.condition.lock()
         guard var existing = self.processes[pid] else {
-            self.lock.unlock()
+            self.condition.unlock()
             return
         }
         existing.processGroup = processGroup
         self.processes[pid] = existing
-        self.lock.unlock()
+        self.condition.unlock()
     }
 
     static func unregister(pid: pid_t) {
         guard pid > 0 else { return }
-        self.lock.lock()
+        self.condition.lock()
         self.processes.removeValue(forKey: pid)
-        self.lock.unlock()
+        self.condition.unlock()
     }
 
-    static func drainForShutdown() -> [(pid: pid_t, binary: String, processGroup: pid_t?)] {
-        self.lock.lock()
+    static func drainForShutdown(
+        onFenceSet: (() -> Void)? = nil)
+        -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        self.condition.lock()
         self.isShuttingDown = true
+        onFenceSet?()
+        while self.launchesInProgress > 0 {
+            self.condition.wait()
+        }
         let drained = self.processes.map {
             (pid: $0.key, binary: $0.value.binary, processGroup: $0.value.processGroup)
         }
         self.processes.removeAll()
-        self.lock.unlock()
+        self.condition.unlock()
         return drained
     }
 
     static func reset() {
-        self.lock.lock()
+        self.condition.lock()
         self.processes.removeAll()
         self.isShuttingDown = false
-        self.lock.unlock()
+        self.launchesInProgress = 0
+        self.condition.broadcast()
+        self.condition.unlock()
     }
 
     static func count() -> Int {
-        self.lock.lock()
+        self.condition.lock()
         let count = self.processes.count
-        self.lock.unlock()
+        self.condition.unlock()
         return count
     }
 
     static func testTrackProcess(pid: pid_t, binary: String, processGroup: pid_t?) {
         guard pid > 0 else { return }
-        self.lock.lock()
+        self.condition.lock()
         self.processes[pid] = ProcessInfo(binary: binary, processGroup: processGroup)
-        self.lock.unlock()
+        self.condition.unlock()
     }
 }
 
@@ -240,6 +267,14 @@ public struct TTYCommandRunner {
     @discardableResult
     static func registerActiveProcessForAppShutdown(pid: pid_t, binary: String) -> Bool {
         TTYCommandRunnerActiveProcessRegistry.register(pid: pid, binary: binary)
+    }
+
+    static func beginActiveProcessLaunchForAppShutdown() -> Bool {
+        TTYCommandRunnerActiveProcessRegistry.beginLaunch()
+    }
+
+    static func endActiveProcessLaunchForAppShutdown() {
+        TTYCommandRunnerActiveProcessRegistry.endLaunch()
     }
 
     static func updateActiveProcessGroupForAppShutdown(pid: pid_t, processGroup: pid_t?) {
@@ -562,6 +597,17 @@ public struct TTYCommandRunner {
             }
         }
 
+        guard TTYCommandRunnerActiveProcessRegistry.beginLaunch() else {
+            cleanup()
+            throw Error.launchFailed("App shutdown in progress")
+        }
+        var launchReservationHeld = true
+        defer {
+            if launchReservationHeld {
+                TTYCommandRunnerActiveProcessRegistry.endLaunch()
+            }
+        }
+
         // Ensure the PTY process is always torn down, even when we throw early (e.g. login prompt).
         defer { cleanup() }
 
@@ -589,6 +635,8 @@ public struct TTYCommandRunner {
         if let processGroup {
             TTYCommandRunnerActiveProcessRegistry.updateProcessGroup(pid: pid, processGroup: processGroup)
         }
+        TTYCommandRunnerActiveProcessRegistry.endLaunch()
+        launchReservationHeld = false
         Self.log.debug("PTY launched", metadata: ["binary": binaryName])
 
         func send(_ text: String) throws {
@@ -1057,8 +1105,19 @@ extension TTYCommandRunner {
         TTYCommandRunnerActiveProcessRegistry.count()
     }
 
-    static func _test_drainTrackedProcessesForShutdown() -> [(pid: pid_t, binary: String, processGroup: pid_t?)] {
-        TTYCommandRunnerActiveProcessRegistry.drainForShutdown()
+    static func _test_beginTrackedProcessLaunch() -> Bool {
+        TTYCommandRunnerActiveProcessRegistry.beginLaunch()
+    }
+
+    static func _test_endTrackedProcessLaunch() {
+        TTYCommandRunnerActiveProcessRegistry.endLaunch()
+    }
+
+    static func _test_drainTrackedProcessesForShutdown(
+        onFenceSet: (() -> Void)? = nil)
+        -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        TTYCommandRunnerActiveProcessRegistry.drainForShutdown(onFenceSet: onFenceSet)
     }
 
     static func _test_resolveShutdownTargets(

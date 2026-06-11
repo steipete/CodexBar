@@ -300,6 +300,13 @@ actor CodexCLISession {
             home: options.environment["HOME"] ?? NSHomeDirectory())
         proc.environment = env
 
+        guard TTYCommandRunner.beginActiveProcessLaunchForAppShutdown() else {
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+            throw SessionError.launchFailed("App shutdown in progress")
+        }
+        defer { TTYCommandRunner.endActiveProcessLaunchForAppShutdown() }
+
         do {
             try proc.run()
         } catch {

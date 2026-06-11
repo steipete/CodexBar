@@ -1,12 +1,6 @@
 import CodexBarCore
 import Commander
-import Dispatch
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#else
-import Glibc
-#endif
 
 struct ServeOptions: CommanderParsable {
     @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
@@ -39,55 +33,6 @@ enum CLIServeRoute: Equatable {
 enum CLIServeRouteError: Error, Equatable {
     case methodNotAllowed
     case notFound
-}
-
-private func handleCLIServeTerminationSignal(_: Int32) {}
-
-final class CLIServeSignalMonitor: @unchecked Sendable {
-    private let lock = NSLock()
-    private let signals: [Int32]
-    private let sources: [DispatchSourceSignal]
-    private var isCancelled = false
-
-    init(onSignal: @escaping @Sendable () -> Void) {
-        self.signals = [SIGINT, SIGTERM]
-        self.sources = self.signals.map { signalNumber in
-            #if canImport(Darwin)
-            _ = Darwin.signal(signalNumber, handleCLIServeTerminationSignal)
-            #else
-            _ = Glibc.signal(signalNumber, handleCLIServeTerminationSignal)
-            #endif
-            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .global(qos: .utility))
-            source.setEventHandler(handler: onSignal)
-            source.resume()
-            return source
-        }
-    }
-
-    func cancel() {
-        self.lock.lock()
-        guard !self.isCancelled else {
-            self.lock.unlock()
-            return
-        }
-        self.isCancelled = true
-        self.lock.unlock()
-
-        for source in self.sources {
-            source.cancel()
-        }
-        for signalNumber in self.signals {
-            #if canImport(Darwin)
-            _ = Darwin.signal(signalNumber, SIG_DFL)
-            #else
-            _ = Glibc.signal(signalNumber, SIG_DFL)
-            #endif
-        }
-    }
-
-    deinit {
-        self.cancel()
-    }
 }
 
 enum CLIServeRouter {
@@ -497,7 +442,8 @@ extension CodexBarCLI {
                 refreshInterval: refreshInterval,
                 requestTimeout: requestTimeout)
         }
-        let signalMonitor = CLIServeSignalMonitor {
+        let signalMonitor = CLITerminationSignalMonitor { _ in
+            TTYCommandRunner.terminateActiveProcessesForAppShutdown()
             server.stop()
         }
         defer { signalMonitor.cancel() }

@@ -1,12 +1,22 @@
 import Commander
 import Foundation
 import Testing
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 @testable import CodexBarCLI
 @testable import CodexBarCore
 
 // Cache state-machine coverage is intentionally kept together for sequence readability.
 // swiftlint:disable:next type_body_length
 struct CLIServeRouterTests {
+    @Test
+    func `termination monitor handles interactive and hangup signals`() {
+        #expect(CLITerminationSignalMonitor.signalNumbers == [SIGINT, SIGTERM, SIGHUP])
+    }
+
     @Test
     func `local http parser accepts only loopback host headers`() throws {
         let allowedHosts = [

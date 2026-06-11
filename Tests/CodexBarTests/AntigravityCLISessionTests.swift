@@ -367,6 +367,32 @@ private final class AntigravityRegistryRecorder: @unchecked Sendable {
     }
 }
 
+private final class AntigravityLaunchReservationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var beginCount = 0
+    private var endCount = 0
+
+    func begin() -> Bool {
+        self.lock.lock()
+        self.beginCount += 1
+        self.lock.unlock()
+        return true
+    }
+
+    func end() {
+        self.lock.lock()
+        self.endCount += 1
+        self.lock.unlock()
+    }
+
+    func counts() -> (begin: Int, end: Int) {
+        self.lock.lock()
+        let counts = (begin: self.beginCount, end: self.endCount)
+        self.lock.unlock()
+        return counts
+    }
+}
+
 private final class AntigravityManualSleeper: @unchecked Sendable {
     private let lock = NSLock()
     private var continuations: [CheckedContinuation<Void, Error>] = []
@@ -420,6 +446,8 @@ struct AntigravityCLISessionTests {
         #expect(firstPID == 10)
         #expect(secondPID == 10)
         #expect(fixture.launcher.launchedBinarySnapshot() == ["/bin/agy"])
+        #expect(fixture.launchReservations.counts().begin == 1)
+        #expect(fixture.launchReservations.counts().end == 1)
     }
 
     @Test
@@ -596,6 +624,7 @@ struct AntigravityCLISessionTests {
 
         #expect(sigismember(&signals, SIGINT) == 1)
         #expect(sigismember(&signals, SIGTERM) == 1)
+        #expect(sigismember(&signals, SIGHUP) == 1)
     }
 
     @Test
@@ -1411,6 +1440,7 @@ extension AntigravityCLISessionTests {
         let store: MemoryAntigravitySessionRecordStore
         let terminations: AntigravitySessionTerminationRecorder
         let registry: AntigravityRegistryRecorder
+        let launchReservations: AntigravityLaunchReservationRecorder
         let sleeper: AntigravityManualSleeper?
     }
 
@@ -1431,12 +1461,15 @@ extension AntigravityCLISessionTests {
         let identity = suppliedIdentity ?? FakeAntigravityIdentityProvider()
         let terminations = AntigravitySessionTerminationRecorder()
         let registry = AntigravityRegistryRecorder()
+        let launchReservations = AntigravityLaunchReservationRecorder()
         let sleeper = manualSleep ? AntigravityManualSleeper() : nil
         let session = AntigravityCLISession(dependencies: AntigravityCLISession.Dependencies(
             launcher: launcher,
             identityProvider: identity,
             recordStore: store,
             launchLock: launchLock,
+            beginAppShutdownTrackedLaunch: { launchReservations.begin() },
+            endAppShutdownTrackedLaunch: { launchReservations.end() },
             registerForAppShutdown: { pid, binary in registry.register(pid: pid, binary) },
             updateAppShutdownProcessGroup: { pid, group in registry.update(pid: pid, group: group) },
             unregisterForAppShutdown: { pid in registry.unregister(pid: pid) },
@@ -1463,6 +1496,7 @@ extension AntigravityCLISessionTests {
             store: store,
             terminations: terminations,
             registry: registry,
+            launchReservations: launchReservations,
             sleeper: sleeper)
     }
 }

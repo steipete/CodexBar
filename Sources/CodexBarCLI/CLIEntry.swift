@@ -33,6 +33,10 @@ enum CodexBarCLI {
             Self.bootstrapLogging(path: invocation.path, values: invocation.parsedValues)
             switch invocation.path {
             case ["usage"]:
+                let signalMonitor = CLITerminationSignalMonitor { signalNumber in
+                    CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signalNumber)
+                }
+                defer { signalMonitor.cancel() }
                 await self.runUsage(invocation.parsedValues)
             case ["cost"]:
                 await self.runCost(invocation.parsedValues)
@@ -53,6 +57,10 @@ enum CodexBarCLI {
             case ["cache", "clear"]:
                 self.runCacheClear(invocation.parsedValues)
             case ["diagnose"]:
+                let signalMonitor = CLITerminationSignalMonitor { signalNumber in
+                    CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signalNumber)
+                }
+                defer { signalMonitor.cancel() }
                 await self.runDiagnose(invocation.parsedValues)
             default:
                 Self.exit(
