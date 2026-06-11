@@ -60,10 +60,10 @@ public struct CostUsageFetcher: Sendable {
             historyDays: historyDays,
             refreshPricingInBackground: refreshPricingInBackground,
             scannerOptions: self.scannerOptionsOverride())
-        // Demo / "troll" mode: inflate the real on-disk Claude cost estimate so the
-        // 30-day API-usage panel matches the spoofed provider card. Off by default.
+        // Demo / "troll" mode: inflate the real on-disk Claude cost estimate so its
+        // 30-day totals match the spoofed provider card exactly. Off by default.
         if provider == .claude, let multiplier = ClaudeDemoUsage.activeMultiplier(environment: environment) {
-            return ClaudeDemoUsage.scaled(snapshot, by: multiplier)
+            return ClaudeDemoUsage.scaledToMatchCard(snapshot, multiplier: multiplier)
         }
         return snapshot
     }

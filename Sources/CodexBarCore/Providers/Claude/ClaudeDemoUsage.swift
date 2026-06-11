@@ -155,19 +155,44 @@ public enum ClaudeDemoUsage {
         }
     }
 
-    /// Scales a real on-disk cost-usage snapshot (from ``CostUsageScanner``) by
-    /// `multiplier`, preserving the genuine chart shape, dates and model mix but
-    /// inflating every dollar / token / request magnitude. Used so the "API usage"
-    /// 30-day cost-history panel matches the inflated provider card during a demo.
+    /// Scales a real on-disk cost-usage snapshot (from ``CostUsageScanner``) so its
+    /// 30-day totals match the spoofed provider card exactly (same dollars and same
+    /// tokens as ``makeSnapshot(multiplier:now:calendar:)``), while preserving the
+    /// genuine chart shape, dates and real model mix (e.g. claude-fable-5).
+    ///
+    /// Cost and token magnitudes use independent factors so BOTH the "30d spend"
+    /// and the "30d tokens" lines line up with the card instead of just one of them.
+    public static func scaledToMatchCard(
+        _ snapshot: CostUsageTokenSnapshot,
+        multiplier: Double) -> CostUsageTokenSnapshot
+    {
+        let targetCost = self.baselineLast30 * multiplier
+        let targetTokens = self.baselineTokens30 * multiplier
+        let costFactor: Double = if let real = snapshot.last30DaysCostUSD, real > 0 {
+            targetCost / real
+        } else {
+            multiplier
+        }
+        let tokenFactor: Double = if let real = snapshot.last30DaysTokens, real > 0 {
+            targetTokens / Double(real)
+        } else {
+            multiplier
+        }
+        return self.scaled(snapshot, costFactor: costFactor, tokenFactor: tokenFactor)
+    }
+
+    /// Applies independent multiplicative factors to the dollar fields (`costFactor`)
+    /// and the token / request fields (`tokenFactor`) of a cost-usage snapshot.
     public static func scaled(
         _ snapshot: CostUsageTokenSnapshot,
-        by multiplier: Double) -> CostUsageTokenSnapshot
+        costFactor: Double,
+        tokenFactor: Double) -> CostUsageTokenSnapshot
     {
         func scaleInt(_ value: Int?) -> Int? {
-            value.map { Int((Double($0) * multiplier).rounded()) }
+            value.map { Int((Double($0) * tokenFactor).rounded()) }
         }
         func scaleDouble(_ value: Double?) -> Double? {
-            value.map { $0 * multiplier }
+            value.map { $0 * costFactor }
         }
         func scaleModel(_ model: CostUsageDailyReport.ModelBreakdown) -> CostUsageDailyReport.ModelBreakdown {
             CostUsageDailyReport.ModelBreakdown(
