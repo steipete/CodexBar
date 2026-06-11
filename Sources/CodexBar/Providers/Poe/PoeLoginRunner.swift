@@ -344,7 +344,7 @@ private final class PoeLoopbackServer: @unchecked Sendable {
         }
     }
 
-    private func parseCallback(from data: Data) -> PoeOAuthCallback {
+    fileprivate func parseCallback(from data: Data) -> PoeOAuthCallback {
         guard let request = String(data: data, encoding: .utf8),
               let line = request.components(separatedBy: "\r\n").first
         else {
