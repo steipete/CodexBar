@@ -400,14 +400,19 @@ private final class PoeLoopbackServer: @unchecked Sendable {
             errorDescription: errorDescription)
     }
 
-    private func httpResponse(for callback: PoeOAuthCallback) -> Data {
-        let message = if callback.error == nil, callback.code?.isEmpty == false {
+    fileprivate func httpResponse(for callback: PoeOAuthCallback) -> Data {
+        let rawMessage = if callback.error == nil, callback.code?.isEmpty == false {
             "Poe login complete. You can return to CodexBar."
         } else if let error = callback.errorDescription, !error.isEmpty {
             "Poe login failed: \(error)"
         } else {
             "Poe login failed."
         }
+        // `errorDescription` is attacker-controlled (OAuth provider error
+        // response); HTML-escape before embedding it in the response body so
+        // a malicious provider cannot inject markup into the localhost
+        // landing page.
+        let message = Self.htmlEscape(rawMessage)
         let body = """
         <html><body style=\"font-family:-apple-system,Segoe UI,sans-serif;padding:24px;\">
         <h2>CodexBar</h2><p>\(message)</p></body></html>
@@ -525,6 +530,60 @@ extension PoeLoginRunner {
             returnedState: callback.returnedState,
             error: callback.error,
             errorDescription: callback.errorDescription)
+    }
+
+    static func _httpResponseForTesting(
+        code: String?,
+        returnedState: String?,
+        error: String?,
+        errorDescription: String?) -> String
+    {
+        let callback = PoeOAuthCallback(
+            code: code,
+            returnedState: returnedState,
+            error: error,
+            errorDescription: errorDescription)
+        let data = PoeLoopbackServer(expectedState: "ignored").httpResponse(for: callback)
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    static func _makeCodeChallengeForTesting(verifier: String) -> String {
+        self.makeCodeChallenge(from: verifier)
+    }
+
+    static func _makeAuthorizationURLForTesting(
+        clientID: String,
+        redirectURL: URL,
+        state: String,
+        codeChallenge: String) throws -> URL
+    {
+        try self.makeAuthorizationURL(
+            clientID: clientID,
+            redirectURL: redirectURL,
+            state: state,
+            codeChallenge: codeChallenge)
+    }
+
+    static func _oauthClientIDForTesting(environment: [String: String]) -> String? {
+        self.oauthClientID(environment: environment)
+    }
+}
+
+extension PoeLoopbackServer {
+    fileprivate static func htmlEscape(_ text: String) -> String {
+        var escaped = ""
+        escaped.reserveCapacity(text.count)
+        for char in text {
+            switch char {
+            case "&": escaped += "&amp;"
+            case "<": escaped += "&lt;"
+            case ">": escaped += "&gt;"
+            case "\"": escaped += "&quot;"
+            case "'": escaped += "&#39;"
+            default: escaped.append(char)
+            }
+        }
+        return escaped
     }
 }
 
