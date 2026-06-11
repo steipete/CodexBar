@@ -53,7 +53,7 @@ public struct UsagePace: Sendable {
         guard timeUntilReset <= duration else { return nil }
         let elapsed = (duration - timeUntilReset).clamped(to: 0...duration)
         let expected: Double
-        if let workDays, workDays >= 1, workDays < 7, minutes == 10080 {
+        if let workDays, workDays >= 2, workDays < 7, minutes == 10080 {
             expected = Self.workdayAwareExpected(
                 elapsed: elapsed, duration: duration, resetsAt: resetsAt, workDays: workDays)
         } else {

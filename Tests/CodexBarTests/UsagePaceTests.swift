@@ -212,4 +212,22 @@ struct UsagePaceTests {
         #expect(pace.stage == .behind)
         #expect(pace.willLastToReset == true)
     }
+
+    @Test
+    func testWorkDaysOneFallsBackToLinear() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+            resetDescription: nil)
+
+        let paceOne = UsagePace.weekly(window: window, now: now, workDays: 1)
+        let paceNil = UsagePace.weekly(window: window, now: now)
+
+        #expect(paceOne != nil)
+        #expect(paceNil != nil)
+        // workDays == 1 should fall back to linear pace, identical to workDays: nil
+        #expect(abs(paceOne!.expectedUsedPercent - paceNil!.expectedUsedPercent) < 0.01)
+    }
 }
