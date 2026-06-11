@@ -421,16 +421,17 @@ public struct CursorStatusSnapshot: Sendable {
 
     /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary: For legacy request-based plans, use request usage; otherwise use plan percentage
-        let primaryUsedPercent: Double = if self.isLegacyRequestPlan,
-                                            let used = self.requestsUsed,
-                                            let limit = self.requestsLimit,
-                                            limit > 0
+        let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
+                                                     let limit = self.requestsLimit,
+                                                     limit > 0
         {
-            (Double(used) / Double(limit)) * 100
+            CursorRequestUsage(used: used, limit: limit)
         } else {
-            self.planPercentUsed
+            nil
         }
+
+        // Primary: For usable legacy request quotas, use request usage; otherwise preserve plan percentage.
+        let primaryUsedPercent = cursorRequests?.usedPercent ?? self.planPercentUsed
 
         let billingCycleWindowMinutes = Self.billingCycleWindowMinutes(
             start: self.billingCycleStart,
@@ -445,7 +446,7 @@ public struct CursorStatusSnapshot: Sendable {
         // Secondary: Auto + Composer usage (shown as its own bar below Total).
         // Legacy request-based plans don't have the token-based Auto/API breakdown — those percentages
         // come from the new usage-based pricing and are meaningless next to a request quota, so hide them.
-        let secondary: RateWindow? = self.isLegacyRequestPlan ? nil : self.autoPercentUsed.map { pct in
+        let secondary: RateWindow? = cursorRequests != nil ? nil : self.autoPercentUsed.map { pct in
             RateWindow(
                 usedPercent: pct,
                 windowMinutes: billingCycleWindowMinutes,
@@ -454,7 +455,7 @@ public struct CursorStatusSnapshot: Sendable {
         }
 
         // Tertiary: API (named model) usage — hidden for legacy request-based plans (see above).
-        let tertiary: RateWindow? = self.isLegacyRequestPlan ? nil : self.apiPercentUsed.map { pct in
+        let tertiary: RateWindow? = cursorRequests != nil ? nil : self.apiPercentUsed.map { pct in
             RateWindow(
                 usedPercent: pct,
                 windowMinutes: billingCycleWindowMinutes,
@@ -477,15 +478,6 @@ public struct CursorStatusSnapshot: Sendable {
                 period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 updatedAt: Date())
-        } else {
-            nil
-        }
-
-        // Legacy plan request usage (when maxRequestUsage is set)
-        let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
-                                                     let limit = self.requestsLimit
-        {
-            CursorRequestUsage(used: used, limit: limit)
         } else {
             nil
         }

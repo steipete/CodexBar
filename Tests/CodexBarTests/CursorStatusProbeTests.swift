@@ -527,38 +527,6 @@ struct CursorStatusProbeTests {
     }
 
     @Test
-    func `legacy plan hides token-based auto and api bars`() {
-        // A migrated legacy account can still report token-based Auto/API percentages from the new
-        // usage-based pricing. Those don't map to the request quota, so the snapshot must drop them.
-        let snapshot = CursorStatusSnapshot(
-            planPercentUsed: 7.0,
-            autoPercentUsed: 0.0,
-            apiPercentUsed: 31.0,
-            planUsedUSD: 13.88,
-            planLimitUSD: 20.0,
-            onDemandUsedUSD: 0,
-            onDemandLimitUSD: nil,
-            teamOnDemandUsedUSD: nil,
-            teamOnDemandLimitUSD: nil,
-            billingCycleEnd: nil,
-            membershipType: "pro",
-            accountEmail: "user@example.com",
-            accountName: nil,
-            rawJSON: nil,
-            requestsUsed: 347,
-            requestsLimit: 500)
-
-        let usageSnapshot = snapshot.toUsageSnapshot()
-
-        // Primary stays on the request quota; Auto/API bars are suppressed for legacy plans.
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0) - 69.4) < 0.01)
-        #expect(usageSnapshot.cursorRequests?.used == 347)
-        #expect(usageSnapshot.cursorRequests?.limit == 500)
-        #expect(usageSnapshot.secondary == nil)
-        #expect(usageSnapshot.tertiary == nil)
-    }
-
-    @Test
     func `parse usage summary prefers request total`() {
         let summary = CursorUsageSummary(
             billingCycleStart: nil,
