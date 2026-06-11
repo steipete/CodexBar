@@ -17,6 +17,7 @@
 - Cost usage: memoize Codex priority-turn trace metadata incrementally so warm refreshes scan only appended rows instead of rescanning large trace databases (#1404). Thanks @ProspectOre!
 - Security: reject insecure or malformed MiniMax and Alibaba endpoint overrides while preserving valid custom HTTPS deployments (#1269). Thanks @Hinotoi-agent!
 - Security: reject insecure or malformed OpenRouter, Codebuff, Groq, and ElevenLabs endpoint overrides before sending provider credentials (#1256). Thanks @Hinotoi-agent!
+- Menu bar: avoid invalidating menu content when repeated provider storage scans return unchanged values (#1416). Thanks @soohanpark!
 
 ## 0.33.0 — 2026-06-11
 
