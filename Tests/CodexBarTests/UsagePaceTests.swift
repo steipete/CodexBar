@@ -154,6 +154,36 @@ struct UsagePaceTests {
     }
 
     @Test
+    func `workday aware eta excludes non workday elapsed time`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 14)))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 8,
+            hour: 12)))
+        let window = RateWindow(
+            usedPercent: 20,
+            windowMinutes: 10080,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+
+        let pace = try #require(UsagePace.weekly(window: window, now: now, workDays: 5))
+
+        #expect(pace.willLastToReset == false)
+        #expect(abs((pace.etaSeconds ?? 0) - (48 * 3600)) < 1)
+    }
+
+    @Test
     func `workday aware pace splits a non midnight reset at local day boundaries`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
