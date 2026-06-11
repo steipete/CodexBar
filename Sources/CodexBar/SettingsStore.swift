@@ -327,20 +327,7 @@ extension SettingsStore {
         }
         let launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false
         let debugMenuEnabled = userDefaults.object(forKey: "debugMenuEnabled") as? Bool ?? false
-        let debugDisableKeychainAccess: Bool = {
-            if let stored = userDefaults.object(forKey: "debugDisableKeychainAccess") as? Bool {
-                return stored
-            }
-            if Self.shouldBridgeSharedDefaults(for: userDefaults),
-               let shared = Self.sharedDefaults?.object(forKey: "debugDisableKeychainAccess") as? Bool
-            {
-                if Self.isRunningTests {
-                    userDefaults.set(shared, forKey: "debugDisableKeychainAccess")
-                }
-                return shared
-            }
-            return false
-        }()
+        let debugDisableKeychainAccess = Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
         let debugFileLoggingEnabled = userDefaults.object(forKey: "debugFileLoggingEnabled") as? Bool ?? false
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
         if Self.isRunningTests, userDefaults.string(forKey: "debugLogLevel") == nil {
@@ -493,6 +480,21 @@ extension SettingsStore {
 
     private static func loadCopilotIconSecondaryWindowIDRaw(userDefaults: UserDefaults) -> String {
         userDefaults.string(forKey: "copilotIconSecondaryWindowID") ?? CopilotIconSecondaryWindowSelection.chat
+    }
+
+    private static func loadDebugDisableKeychainAccess(userDefaults: UserDefaults) -> Bool {
+        if let stored = userDefaults.object(forKey: "debugDisableKeychainAccess") as? Bool {
+            return stored
+        }
+        if Self.shouldBridgeSharedDefaults(for: userDefaults),
+           let shared = Self.sharedDefaults?.object(forKey: "debugDisableKeychainAccess") as? Bool
+        {
+            if Self.isRunningTests {
+                userDefaults.set(shared, forKey: "debugDisableKeychainAccess")
+            }
+            return shared
+        }
+        return false
     }
 
     private struct LoadedQuotaWarningDefaults {
