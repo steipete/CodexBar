@@ -198,16 +198,7 @@ extension StatusItemController {
                 makeSections: { [weak self] in
                     guard let self else { return [] }
                     let isOverview = vm.selection == .overview
-                    let provider: UsageProvider? = {
-                        if isOverview {
-                            let enabled = vm.providers
-                            if enabled.isEmpty { return UsageProvider.codex }
-                            return enabled.first(where: { self.store.isProviderAvailable($0) })
-                                ?? enabled.first
-                        }
-                        if case let .provider(p) = vm.selection { return p }
-                        return vm.providers.first
-                    }()
+                    let provider = self.popoverActionProvider(for: vm)
                     return MenuDescriptor.build(
                         provider: provider,
                         store: store,
@@ -222,7 +213,14 @@ extension StatusItemController {
                 overviewEmptyText: { [weak self] in
                     self?.popoverOverviewEmptyText()
                 },
-                onAction: { [weak self] action in self?.performMenuAction(action) },
+                onAction: { [weak self] action in
+                    guard let self else { return }
+                    // dashboard/statusPage/changelog 等动作不携带 provider payload，
+                    // 其 selector 经 lastMenuProvider 解析目标——与 NSMenu menuWillOpen
+                    // 写入该字段的语义对齐，分发前先写入当前面板的 provider 上下文。
+                    self.lastMenuProvider = self.popoverActionProvider(for: vm)
+                    self.performMenuAction(action)
+                },
                 actionSubtitle: { [weak self] action in
                     guard let self else { return nil }
                     switch action {
@@ -232,9 +230,11 @@ extension StatusItemController {
                     }
                 },
                 onBuyCredits: { [weak self] in
-                    self?.openCreditsPurchase()
+                    guard let self else { return }
+                    self.lastMenuProvider = self.popoverActionProvider(for: vm)
+                    self.openCreditsPurchase()
                     // 全关（含合并与全部 per-provider popover）：此闭包被两种模式复用
-                    self?.closeAllProviderPopovers()
+                    self.closeAllProviderPopovers()
                 },
                 switcherIcon: { [weak self] provider in
                     (self?.settings.switcherShowsIcons == true)
@@ -266,12 +266,25 @@ extension StatusItemController {
     // MARK: - popover 动作分发
 
     /// popover 动作分发：通过 selector(for:) 复用 NSMenu 路径的全部逻辑，
+    /// 解析当前面板动作应使用的 provider 上下文（与 NSMenu menuWillOpen 写入 lastMenuProvider
+    /// 的语义对齐）：选中具体 provider 时取之；Overview 时取第一个可用 provider；兜底 .codex。
+    /// makeSections 与动作分发共用，保证菜单内容与动作目标一致。
+    func popoverActionProvider(for vm: MenuViewModel) -> UsageProvider {
+        if case let .provider(p) = vm.selection { return p }
+        let enabled = vm.providers
+        return enabled.first(where: { self.store.isProviderAvailable($0) })
+            ?? enabled.first
+            ?? .codex
+    }
+
     /// 统一构造一个临时 NSMenuItem 传递 representedObject，再对无参/带参 selector 分别分发。
     /// quit 不关闭 popover（应用即将退出）；其余动作执行后关闭。
     func performMenuAction(_ action: MenuDescriptor.MenuAction) {
         self.performLegacyMenuAction(action)
         if action != .quit {
-            self.popoverMenuController?.close()
+            // 与 NSMenu 选中动作后菜单关闭对齐：合并与全部 per-provider popover 一并关闭，
+            // 避免 split 模式下动作执行后面板滞留。
+            self.closeAllProviderPopovers()
         }
     }
 
