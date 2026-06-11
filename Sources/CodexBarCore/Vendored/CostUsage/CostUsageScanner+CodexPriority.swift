@@ -27,7 +27,7 @@ extension CostUsageScanner {
     /// append-only log with an `INTEGER PRIMARY KEY AUTOINCREMENT` id, so rowids are
     /// monotonic and never reused: rows at or below `lastRowID` have already been examined
     /// and only newer rows need scanning on subsequent refreshes.
-    struct CodexPriorityTurnsMemoState {
+    struct CodexPriorityTurnsMemoState: Codable {
         var coverageSinceEpoch: Int64
         var lastRowID: Int64
         var fileIdentity: UInt64?
@@ -45,7 +45,7 @@ extension CostUsageScanner {
     /// model upgrades within the retention window.
     static let codexPriorityCompletedModelRetentionLimit = 4096
 
-    private static let codexPriorityTurnsMemo =
+    static let codexPriorityTurnsMemo =
         OSAllocatedUnfairLock<[String: CodexPriorityTurnsMemoState]>(initialState: [:])
 
     /// Scans run outside the lock, so two overlapping refreshes can both read the same memo,
@@ -59,16 +59,18 @@ extension CostUsageScanner {
         _ updated: CodexPriorityTurnsMemoState,
         forPath path: String)
     {
-        self.codexPriorityTurnsMemo.withLock { memo in
+        let stored = self.codexPriorityTurnsMemo.withLock { memo in
             if let existing = memo[path],
                existing.fileIdentity == updated.fileIdentity,
                existing.coverageSinceEpoch <= updated.coverageSinceEpoch,
                existing.lastRowID >= updated.lastRowID
             {
-                return
+                return false
             }
             memo[path] = updated
+            return true
         }
+        if stored { self.markCodexPriorityTurnsMemoDirty() }
     }
 
     static func _test_resetCodexPriorityTurnsMemo() {
@@ -77,6 +79,10 @@ extension CostUsageScanner {
 
     static func _test_codexPriorityTurnsMemoState(forPath path: String) -> CodexPriorityTurnsMemoState? {
         self.codexPriorityTurnsMemo.withLock { $0[path] }
+    }
+
+    static func _test_removeCodexPriorityTurnsMemoState(forPath path: String) {
+        self.codexPriorityTurnsMemo.withLock { $0[path] = nil }
     }
     #endif
 
