@@ -15,6 +15,7 @@ private final class FakeAntigravityProcessHandle: AntigravityCLIProcessHandle, @
     private let terminateRootStopsProcess: Bool
     private var assignedProcessGroup: pid_t?
     private var events: [String] = []
+    private var drainOutputChunks: [Data] = []
 
     init(pid: pid_t, running: Bool = true, descendants: [pid_t] = [], terminateRootStopsProcess: Bool = true) {
         self.pid = pid
@@ -91,8 +92,18 @@ private final class FakeAntigravityProcessHandle: AntigravityCLIProcessHandle, @
         self.append("killDescendants:\(descendants.map(String.init).joined(separator: ","))")
     }
 
-    func drainOutput() {
-        self.append("drainOutput")
+    func drainOutput() -> Data {
+        self.lock.lock()
+        self.events.append("drainOutput")
+        let output = self.drainOutputChunks.isEmpty ? Data() : self.drainOutputChunks.removeFirst()
+        self.lock.unlock()
+        return output
+    }
+
+    func enqueueDrainOutput(_ output: Data) {
+        self.lock.lock()
+        self.drainOutputChunks.append(output)
+        self.lock.unlock()
     }
 
     func snapshotEvents() -> [String] {
@@ -489,6 +500,31 @@ struct AntigravityCLISessionTests {
     }
 
     @Test
+    func `queued replacement hard stops a signed out process`() async throws {
+        let fixture = self.makeFixture()
+        fixture.identity.setIdentity(pid: 10, executablePath: "/old/agy", startEpoch: 100)
+        fixture.identity.setIdentity(pid: 11, executablePath: "/new/agy", startEpoch: 101)
+
+        _ = try await fixture.session.beginProbe(binary: "/old/agy")
+        let replacement = Task {
+            try await fixture.session.beginProbe(binary: "/new/agy")
+        }
+        for _ in 0..<100 where await fixture.session.activeProbeCountForTesting < 2 {
+            await Task.yield()
+        }
+        #expect(await fixture.session.activeProbeCountForTesting == 2)
+
+        await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
+        let replacementPID = try await replacement.value
+        let oldEvents = try #require(fixture.launcher.handleSnapshot().first).snapshotEvents()
+        await fixture.session.finishProbe(success: true, resetAfterFetch: true)
+
+        #expect(replacementPID == 11)
+        #expect(!oldEvents.contains("sendExit"))
+        #expect(oldEvents.contains("terminateRoot"))
+    }
+
+    @Test
     func `replacement ignores queued starters while waiting for active probe`() async throws {
         let fixture = self.makeFixture()
         fixture.identity.setIdentity(pid: 10, executablePath: "/old/agy", startEpoch: 100)
@@ -636,9 +672,53 @@ struct AntigravityCLISessionTests {
             secondaryHandle: FileHandle(fileDescriptor: secondaryFD, closeOnDealloc: true))
         defer { handle.closePTY() }
 
-        handle.drainOutput()
+        let output = handle.drainOutput()
 
         #expect(lseek(primaryFD, 0, SEEK_CUR) == off_t(8192 * 64))
+        #expect(output.count == 8192 * 64)
+    }
+
+    @Test
+    func `session keeps one rolling PTY buffer across concurrent probes`() async throws {
+        let fixture = self.makeFixture()
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        let handle = try #require(fixture.launcher.handleSnapshot().first)
+        handle.enqueueDrainOutput(Data([0xE2, 0x96]))
+        let first = await fixture.session.drainOutput()
+        handle.enqueueDrainOutput(Data([0x84]) + Data("You are currently not signed in".utf8))
+        let second = await fixture.session.drainOutput()
+        let third = await fixture.session.drainOutput()
+
+        #expect(first == Data([0xE2, 0x96]))
+        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(second))
+        #expect(third == second)
+
+        await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
+        await fixture.session.finishProbe(success: false, resetAfterFetch: false)
+    }
+
+    @Test
+    func `session returns complete new output before retaining only its tail`() async throws {
+        let fixture = self.makeFixture()
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        let handle = try #require(fixture.launcher.handleSnapshot().first)
+        let prompt = Data("You are currently not signed in".utf8)
+        let oversizedRedraw = prompt + Data(repeating: 0x20, count: 8192)
+        handle.enqueueDrainOutput(oversizedRedraw)
+
+        let searchableOutput = await fixture.session.drainOutput()
+        let retainedTail = await fixture.session.drainOutput()
+
+        #expect(searchableOutput == oversizedRedraw)
+        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(searchableOutput))
+        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(retainedTail))
+
+        await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
     }
 
     @Test
@@ -652,7 +732,9 @@ struct AntigravityCLISessionTests {
 
         let handle = fixture.launcher.handleSnapshot().first
         #expect(handle?.isRunning == false)
+        #expect(handle?.snapshotEvents().contains("sendExit") == false)
         #expect(handle?.snapshotEvents().contains("closePTY") == true)
+        #expect(handle?.snapshotEvents().contains("terminateRoot") == true)
         #expect(fixture.registry.registeredSnapshot().isEmpty)
     }
 
@@ -884,7 +966,9 @@ struct AntigravityCLISessionTests {
         await second.session.reset()
         #expect(store.snapshots().isEmpty)
     }
+}
 
+extension AntigravityCLISessionTests {
     @Test
     func `warm reuse reaps a crashed peer session`() async throws {
         let store = MemoryAntigravitySessionRecordStore()
@@ -1089,6 +1173,69 @@ struct AntigravityCLISessionTests {
 
         #expect(await fixture.session.isRunning == false)
         #expect(fixture.registry.unregisteredSnapshot() == [10])
+    }
+
+    @Test
+    func `authentication reset never writes interactive exit input`() async throws {
+        let fixture = self.makeFixture()
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
+
+        let events = try #require(fixture.launcher.handleSnapshot().first).snapshotEvents()
+        #expect(!events.contains("sendExit"))
+        #expect(events.contains("closePTY"))
+        #expect(events.contains("terminateRoot"))
+        #expect(await fixture.session.isRunning == false)
+    }
+
+    @Test
+    func `failed reset never writes interactive exit input`() async throws {
+        let fixture = self.makeFixture()
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: false, resetAfterFetch: true)
+
+        let events = try #require(fixture.launcher.handleSnapshot().first).snapshotEvents()
+        #expect(!events.contains("sendExit"))
+        #expect(events.contains("terminateRoot"))
+        #expect(await fixture.session.isRunning == false)
+    }
+
+    @Test
+    func `concurrent success preserves a failed probes deferred hard reset`() async throws {
+        let fixture = self.makeFixture()
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: false, resetAfterFetch: true)
+        #expect(await fixture.session.isRunning)
+
+        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
+
+        let events = try #require(fixture.launcher.handleSnapshot().first).snapshotEvents()
+        #expect(!events.contains("sendExit"))
+        #expect(events.contains("terminateRoot"))
+        #expect(await fixture.session.isRunning == false)
+    }
+
+    @Test
+    func `idle timeout hard stops a previously failed process`() async throws {
+        let fixture = self.makeFixture(idleWindow: 0.05, manualSleep: true)
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: false, resetAfterFetch: false)
+        await fixture.sleeper?.waitForSleeps(1)
+        fixture.sleeper?.resumeAll()
+        await self.waitUntilStopped(fixture.session)
+
+        let events = try #require(fixture.launcher.handleSnapshot().first).snapshotEvents()
+        #expect(!events.contains("sendExit"))
+        #expect(events.contains("terminateRoot"))
     }
 
     @Test

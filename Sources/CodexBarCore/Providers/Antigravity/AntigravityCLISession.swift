@@ -20,11 +20,22 @@ protocol AntigravityCLIProcessHandle: AnyObject, Sendable {
     func descendantPIDs() -> [pid_t]
     func terminateTree(signal: Int32, knownDescendants: [pid_t])
     func killDescendants(_ descendants: [pid_t])
-    func drainOutput()
+    func drainOutput() -> Data
 }
 
 protocol AntigravityCLIProcessLaunching: Sendable {
     func launch(binary: String) throws -> any AntigravityCLIProcessHandle
+}
+
+enum AntigravityCLIAuthenticationPrompt {
+    static let evidence = Data("You are currently not signed in".utf8)
+
+    static func contains(_ output: Data) -> Bool {
+        [
+            self.evidence,
+            Data("Select login method:".utf8),
+        ].contains { output.range(of: $0) != nil }
+    }
 }
 
 struct AntigravityCLIProcessIdentity: Equatable {
@@ -161,10 +172,13 @@ actor AntigravityCLISession {
     private var activeProbeCount = 0
     private var activeSessionProbeCount = 0
     private var resetRequestedWhenIdle = false
+    private var hardResetRequestedWhenIdle = false
     private var idleTask: Task<Void, Never>?
     private var sessionGeneration: UInt64 = 0
     private var consecutiveProbeFailures = 0
     private var persistedProcessIdentity: AntigravityCLIProcessIdentity?
+    private var recentOutput = Data()
+    private var authenticationPromptObserved = false
     private var lifecycleOperationInProgress = false
     private var lifecycleWaiters: [CheckedContinuation<Void, Never>] = []
     private var exclusiveProbeWaiters: [CheckedContinuation<Void, Never>] = []
@@ -193,6 +207,10 @@ actor AntigravityCLISession {
 
     var idleWindowForTesting: TimeInterval {
         self.sessionIdleWindow
+    }
+
+    var activeProbeCountForTesting: Int {
+        self.activeProbeCount
     }
 
     // MARK: Lifecycle
@@ -224,7 +242,13 @@ actor AntigravityCLISession {
                         self.resetRequestedWhenIdle = true
                         return
                     }
-                    await self.stopCurrentSessionLocked(reason: "deferred reset after failed begin", clearRecord: true)
+                    let forceTerminate = self.hardResetRequestedWhenIdle || self.consecutiveProbeFailures > 0
+                    self.resetRequestedWhenIdle = false
+                    self.hardResetRequestedWhenIdle = false
+                    await self.stopCurrentSessionLocked(
+                        reason: "deferred reset after failed begin",
+                        clearRecord: true,
+                        graceful: !forceTerminate)
                 }
             }
             throw error
@@ -233,7 +257,7 @@ actor AntigravityCLISession {
 
     /// Record probe completion and either keep the session warm for the bounded
     /// idle window or tear it down immediately for one-shot CLI invocations.
-    func finishProbe(success: Bool, resetAfterFetch: Bool) async {
+    func finishProbe(success: Bool, resetAfterFetch: Bool, forceTerminate: Bool = false) async {
         if success {
             self.consecutiveProbeFailures = 0
         } else {
@@ -245,18 +269,24 @@ actor AntigravityCLISession {
         self.notifyExclusiveProbeWaitersIfNeeded()
         let shouldForceStopUnhealthy = !success &&
             self.consecutiveProbeFailures >= max(1, self.dependencies.failureRelaunchThreshold)
-        let shouldReset = resetAfterFetch || self.resetRequestedWhenIdle || shouldForceStopUnhealthy
+        let shouldReset = forceTerminate || resetAfterFetch || self.resetRequestedWhenIdle || shouldForceStopUnhealthy
 
         guard self.activeProbeCount == 0 else {
             if shouldReset {
                 self.resetRequestedWhenIdle = true
             }
+            if shouldReset, !success || forceTerminate {
+                self.hardResetRequestedWhenIdle = true
+            }
             return
         }
 
         if shouldReset {
+            let shouldForceTerminate = !success || forceTerminate || self.hardResetRequestedWhenIdle
             let reason =
-                if resetAfterFetch {
+                if shouldForceTerminate {
+                    "authentication required"
+                } else if resetAfterFetch {
                     "one-shot CLI fetch"
                 } else if shouldForceStopUnhealthy {
                     "unhealthy CLI HTTPS session"
@@ -266,10 +296,17 @@ actor AntigravityCLISession {
             await self.withLifecycleOperation {
                 guard self.activeProbeCount == 0 else {
                     self.resetRequestedWhenIdle = true
+                    if shouldForceTerminate {
+                        self.hardResetRequestedWhenIdle = true
+                    }
                     return
                 }
                 self.resetRequestedWhenIdle = false
-                await self.stopCurrentSessionLocked(reason: reason, clearRecord: true)
+                self.hardResetRequestedWhenIdle = false
+                await self.stopCurrentSessionLocked(
+                    reason: reason,
+                    clearRecord: true,
+                    graceful: !shouldForceTerminate)
             }
         } else {
             self.armIdleTimer()
@@ -301,13 +338,34 @@ actor AntigravityCLISession {
                 return
             }
             self.resetRequestedWhenIdle = false
-            await self.stopCurrentSessionLocked(reason: "manual reset", clearRecord: true)
+            let forceTerminate = self.hardResetRequestedWhenIdle || self.consecutiveProbeFailures > 0
+            self.hardResetRequestedWhenIdle = false
+            await self.stopCurrentSessionLocked(
+                reason: "manual reset",
+                clearRecord: true,
+                graceful: !forceTerminate)
         }
     }
 
-    /// Drain PTY output so the write side doesn't block.
-    func drainOutput() {
-        self.process?.drainOutput()
+    /// Drain PTY output into one rolling buffer shared by concurrent probes.
+    func drainOutput() -> Data {
+        var searchableOutput = self.recentOutput
+        if let output = self.process?.drainOutput(), !output.isEmpty {
+            searchableOutput.append(output)
+            self.recentOutput = Data(searchableOutput.suffix(4096))
+        }
+
+        if !self.authenticationPromptObserved,
+           AntigravityCLIAuthenticationPrompt.contains(searchableOutput)
+        {
+            self.authenticationPromptObserved = true
+        }
+        if self.authenticationPromptObserved,
+           !AntigravityCLIAuthenticationPrompt.contains(searchableOutput)
+        {
+            searchableOutput.append(AntigravityCLIAuthenticationPrompt.evidence)
+        }
+        return searchableOutput
     }
 
     // MARK: Errors
@@ -377,6 +435,8 @@ actor AntigravityCLISession {
             if let proc = self.process,
                proc.isRunning,
                self.binaryPath == binary,
+               !self.resetRequestedWhenIdle,
+               !self.hardResetRequestedWhenIdle,
                self.consecutiveProbeFailures < max(1, self.dependencies.failureRelaunchThreshold)
             {
                 try? self.dependencies.launchLock.withLock {
@@ -396,7 +456,13 @@ actor AntigravityCLISession {
                 let reason = self.consecutiveProbeFailures >= max(1, self.dependencies.failureRelaunchThreshold)
                     ? "relaunching unhealthy session"
                     : "replacing stale session"
-                await self.stopCurrentSessionLocked(reason: reason, clearRecord: true)
+                let forceTerminate = self.hardResetRequestedWhenIdle || self.consecutiveProbeFailures > 0
+                self.resetRequestedWhenIdle = false
+                self.hardResetRequestedWhenIdle = false
+                await self.stopCurrentSessionLocked(
+                    reason: reason,
+                    clearRecord: true,
+                    graceful: !forceTerminate)
             }
 
             let binaryName = URL(fileURLWithPath: binary).lastPathComponent
@@ -418,6 +484,8 @@ actor AntigravityCLISession {
 
                 self.process = launched
                 self.binaryPath = binary
+                self.recentOutput.removeAll(keepingCapacity: true)
+                self.authenticationPromptObserved = false
                 self.consecutiveProbeFailures = 0
                 self.sessionGeneration &+= 1
                 if canPersistRecord {
@@ -450,7 +518,7 @@ actor AntigravityCLISession {
                 throw SessionError.launchFailed("CLI session launch did not complete")
             }
             if let rejectedProcess = outcome.rejectedProcess {
-                await self.terminateLaunchedProcess(rejectedProcess)
+                await self.terminateLaunchedProcess(rejectedProcess, graceful: false)
                 throw SessionError.launchFailed(outcome.rejectionMessage ?? "App shutdown in progress")
             }
 
@@ -505,11 +573,17 @@ actor AntigravityCLISession {
                 self.armIdleTimer()
                 return
             }
-            await self.stopCurrentSessionLocked(reason: "idle timeout", clearRecord: true)
+            let forceTerminate = self.hardResetRequestedWhenIdle || self.consecutiveProbeFailures > 0
+            self.resetRequestedWhenIdle = false
+            self.hardResetRequestedWhenIdle = false
+            await self.stopCurrentSessionLocked(
+                reason: "idle timeout",
+                clearRecord: true,
+                graceful: !forceTerminate)
         }
     }
 
-    private func stopCurrentSessionLocked(reason: String, clearRecord: Bool) async {
+    private func stopCurrentSessionLocked(reason: String, clearRecord: Bool, graceful: Bool = true) async {
         self.cancelIdleTimer()
         guard let proc = self.process else {
             if clearRecord {
@@ -518,6 +592,8 @@ actor AntigravityCLISession {
                 }
             }
             self.sessionIdleWindow = self.dependencies.idleWindow
+            self.recentOutput.removeAll(keepingCapacity: true)
+            self.authenticationPromptObserved = false
             return
         }
 
@@ -529,17 +605,24 @@ actor AntigravityCLISession {
         self.binaryPath = nil
         self.persistedProcessIdentity = nil
         self.sessionIdleWindow = self.dependencies.idleWindow
+        self.recentOutput.removeAll(keepingCapacity: true)
+        self.authenticationPromptObserved = false
         self.sessionGeneration &+= 1
 
-        await self.terminateLaunchedProcess(proc)
+        await self.terminateLaunchedProcess(proc, graceful: graceful)
         self.dependencies.unregisterForAppShutdown(pid)
         if clearRecord {
             self.removeRecordIfMatches(pid: pid, identity: identity)
         }
     }
 
-    private func terminateLaunchedProcess(_ proc: any AntigravityCLIProcessHandle) async {
-        try? proc.sendExit()
+    private func terminateLaunchedProcess(
+        _ proc: any AntigravityCLIProcessHandle,
+        graceful: Bool = true) async
+    {
+        if graceful {
+            try? proc.sendExit()
+        }
         proc.closePTY()
 
         let descendants = proc.descendantPIDs()
@@ -865,13 +948,18 @@ final class AntigravitySpawnedPTYProcessHandle: AntigravityCLIProcessHandle, @un
         }
     }
 
-    func drainOutput() {
+    func drainOutput() -> Data {
         var tmp = [UInt8](repeating: 0, count: 8192)
+        var output: [UInt8] = []
         for _ in 0..<64 {
             let n = read(self.primaryFD, &tmp, tmp.count)
-            if n > 0 { continue }
+            if n > 0 {
+                output.append(contentsOf: tmp.prefix(n))
+                continue
+            }
             break
         }
+        return Data(output)
     }
 
     private func writeAllToPrimary(_ data: Data) throws {

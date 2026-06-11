@@ -357,6 +357,7 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
     case apiError(String)
     case parseFailed(String)
     case timedOut
+    case authenticationRequired
     case accountMismatch(expected: String?, found: String?)
 
     public var errorDescription: String? {
@@ -373,6 +374,8 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
             "Could not parse Antigravity quota: \(message)"
         case .timedOut:
             "Antigravity quota request timed out."
+        case .authenticationRequired:
+            "Antigravity CLI is signed out. Run agy in a terminal to sign in, then retry."
         case let .accountMismatch(expected, found):
             Self.accountMismatchDescription(expected: expected, found: found)
         }

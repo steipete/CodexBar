@@ -59,6 +59,22 @@ private final class AntigravityCLITimeoutRecorder: @unchecked Sendable {
     }
 }
 
+private final class AntigravityCLIOutputSequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [Data]
+
+    init(_ values: [Data]) {
+        self.values = values
+    }
+
+    func next() -> Data {
+        self.lock.lock()
+        let value = self.values.isEmpty ? Data() : self.values.removeFirst()
+        self.lock.unlock()
+        return value
+    }
+}
+
 struct AntigravityCLIHTTPSFetchStrategyTests {
     @Test
     func `local strategy falls back to cli HTTPS in cli source mode`() {
@@ -293,6 +309,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
                 listeningPorts: { _, _ in [50080, 50081] },
                 drainOutput: {
                     drainAttempts.increment()
+                    return Data()
                 },
                 fetchSnapshot: { ports in
                     fetchedPorts.append(ports)
@@ -316,7 +333,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         #expect(snapshot.accountEmail == "user@example.com")
         #expect(fetchAttempts.value == 2)
         #expect(fetchedPorts.snapshot() == [[50080, 50081], [50080, 50081]])
-        #expect(drainAttempts.value == 2)
+        #expect(drainAttempts.value == 4)
     }
 
     @Test
@@ -329,7 +346,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
                 pollIntervalNanoseconds: 0,
                 listeningPorts: { _, _ in [50080] },
-                drainOutput: {},
+                drainOutput: { Data() },
                 fetchSnapshot: { _ in
                     if fetchAttempts.increment() == 1 {
                         return AntigravityStatusSnapshot(
@@ -370,6 +387,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
                 },
                 drainOutput: {
                     drainAttempts.increment()
+                    return Data()
                 },
                 fetchSnapshot: { _ in
                     AntigravityStatusSnapshot(
@@ -388,7 +406,83 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
 
         #expect(snapshot.accountEmail == "user@example.com")
         #expect(portPolls.value == 2)
-        #expect(drainAttempts.value == 2)
+        #expect(drainAttempts.value == 3)
+    }
+
+    @Test
+    func `cli HTTPS stops before probing when signed out prompt spans output chunks`() async {
+        let output = AntigravityCLIOutputSequence([
+            Data("Welcome. You are currently ".utf8),
+            Data("Welcome. You are currently not signed in.\nSelect login method:".utf8),
+        ])
+        let portPolls = AntigravityCLICounter()
+
+        do {
+            _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+                pid: 123,
+                deadline: Date().addingTimeInterval(2),
+                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                    pollIntervalNanoseconds: 0,
+                    listeningPorts: { _, _ in
+                        portPolls.increment()
+                        return []
+                    },
+                    drainOutput: {
+                        output.next()
+                    },
+                    fetchSnapshot: { _ in
+                        Issue.record("Signed-out helper should not fetch a snapshot")
+                        return AntigravityStatusSnapshot(
+                            modelQuotas: [],
+                            accountEmail: nil,
+                            accountPlan: nil,
+                            source: .local)
+                    }))
+            Issue.record("Expected authentication failure")
+        } catch AntigravityStatusProbeError.authenticationRequired {
+            #expect(portPolls.value == 1)
+        } catch {
+            Issue.record("Expected authenticationRequired, got \(error)")
+        }
+    }
+
+    @Test
+    func `cli HTTPS rechecks signed out prompt after snapshot readiness`() async {
+        let output = AntigravityCLIOutputSequence([
+            Data(),
+            Data("You are currently not signed in.\nSelect login method:".utf8),
+        ])
+
+        do {
+            _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+                pid: 123,
+                deadline: Date().addingTimeInterval(2),
+                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                    pollIntervalNanoseconds: 0,
+                    listeningPorts: { _, _ in [50080] },
+                    drainOutput: {
+                        output.next()
+                    },
+                    fetchSnapshot: { _ in
+                        AntigravityStatusSnapshot(
+                            modelQuotas: [
+                                AntigravityModelQuota(
+                                    label: "Claude Sonnet",
+                                    modelId: "claude-sonnet",
+                                    remainingFraction: 1,
+                                    resetTime: nil,
+                                    resetDescription: nil),
+                            ],
+                            accountEmail: "user@example.com",
+                            accountPlan: "Pro",
+                            source: .local)
+                    }))
+            Issue.record("Expected authentication failure")
+        } catch AntigravityStatusProbeError.authenticationRequired {
+            // Expected: the late prompt wins over the apparently ready API.
+        } catch {
+            Issue.record("Expected authenticationRequired, got \(error)")
+        }
     }
 
     @Test
@@ -405,7 +499,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
                     }
                     return [50080]
                 },
-                drainOutput: {},
+                drainOutput: { Data() },
                 fetchSnapshot: { _ in
                     AntigravityStatusSnapshot(
                         modelQuotas: [
@@ -508,7 +602,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
                 dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
                     pollIntervalNanoseconds: 10_000_000,
                     listeningPorts: { _, _ in [50080] },
-                    drainOutput: {},
+                    drainOutput: { Data() },
                     fetchSnapshot: { _ in
                         let attempt = fetchAttempts.increment()
                         throw AntigravityStatusProbeError.apiError("HTTP 500: warming attempt \(attempt)")
@@ -533,7 +627,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
                     listeningPorts: { _, _ in
                         throw AntigravityStatusProbeError.portDetectionFailed("lsof not available")
                     },
-                    drainOutput: {},
+                    drainOutput: { Data() },
                     fetchSnapshot: { _ in
                         Issue.record("Port detection failure should not fetch a snapshot")
                         return AntigravityStatusSnapshot(

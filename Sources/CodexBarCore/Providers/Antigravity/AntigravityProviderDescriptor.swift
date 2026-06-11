@@ -98,7 +98,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     struct SnapshotWaitDependencies {
         let pollIntervalNanoseconds: UInt64
         let listeningPorts: @Sendable (Int, TimeInterval) async throws -> [Int]
-        let drainOutput: @Sendable () async -> Void
+        let drainOutput: @Sendable () async -> Data
         let fetchSnapshot: @Sendable ([Int]) async throws -> AntigravityStatusSnapshot
     }
 
@@ -148,7 +148,11 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             usage = try snap.toUsageSnapshot()
             await session.finishProbe(success: true, resetAfterFetch: resetAfterFetch)
         } catch {
-            await session.finishProbe(success: false, resetAfterFetch: resetAfterFetch)
+            let authenticationRequired = (error as? AntigravityStatusProbeError) == .authenticationRequired
+            await session.finishProbe(
+                success: false,
+                resetAfterFetch: resetAfterFetch || authenticationRequired,
+                forceTerminate: authenticationRequired)
             throw error
         }
 
@@ -173,7 +177,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     {
         var lastFetchError: Error?
         while Date() < deadline {
-            await dependencies.drainOutput()
+            try await Self.checkAuthenticationPrompt(dependencies)
             let remaining = deadline.timeIntervalSinceNow
             let portProbeTimeout = min(2.0, max(0.2, remaining))
             let ports: [Int]
@@ -181,22 +185,29 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                 ports = try await dependencies.listeningPorts(Int(pid), portProbeTimeout)
             } catch {
                 guard Self.isNoListeningPortsError(error) else {
+                    try await Self.checkAuthenticationPrompt(dependencies)
                     throw error
                 }
                 ports = []
             }
             if !ports.isEmpty {
+                var readySnapshot: AntigravityStatusSnapshot?
                 do {
                     let snapshot = try await dependencies.fetchSnapshot(ports)
                     _ = try snapshot.toUsageSnapshot()
-                    return snapshot
+                    readySnapshot = snapshot
                 } catch {
+                    try await Self.checkAuthenticationPrompt(dependencies)
                     lastFetchError = error
                     Self.log.debug("Antigravity CLI HTTPS endpoint not ready", metadata: [
                         "pid": "\(pid)",
                         "ports": ports.map(String.init).joined(separator: ","),
                         "error": error.localizedDescription,
                     ])
+                }
+                if let readySnapshot {
+                    try await Self.checkAuthenticationPrompt(dependencies)
+                    return readySnapshot
                 }
             }
 
@@ -205,12 +216,24 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             try await Task.sleep(nanoseconds: min(dependencies.pollIntervalNanoseconds, remainingNanoseconds))
         }
 
+        try await Self.checkAuthenticationPrompt(dependencies)
         if let lastFetchError {
             throw lastFetchError
         }
         Self.log.warning("Antigravity CLI HTTPS: no ports found for pid \(pid)")
         throw AntigravityStatusProbeError.portDetectionFailed(
             "Antigravity CLI started but no listening ports found")
+    }
+
+    static func containsAuthenticationPrompt(_ output: Data) -> Bool {
+        AntigravityCLIAuthenticationPrompt.contains(output)
+    }
+
+    private static func checkAuthenticationPrompt(_ dependencies: SnapshotWaitDependencies) async throws {
+        let terminalOutput = await dependencies.drainOutput()
+        if Self.containsAuthenticationPrompt(terminalOutput) {
+            throw AntigravityStatusProbeError.authenticationRequired
+        }
     }
 
     private static func isNoListeningPortsError(_ error: Error) -> Bool {
