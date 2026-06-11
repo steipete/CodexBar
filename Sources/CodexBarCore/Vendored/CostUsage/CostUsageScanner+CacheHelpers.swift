@@ -1,4 +1,9 @@
 import Foundation
+#if os(Linux)
+import Glibc
+#else
+import Darwin
+#endif
 
 extension CostUsageScanner {
     static func codexRowsByDayModel(
@@ -617,14 +622,22 @@ extension CostUsageScanner {
 
     static func codexFileMetadata(fileURL: URL) -> CodexFileMetadata {
         let path = fileURL.path
-        let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
-        let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        var info = stat()
+        guard path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else {
+            return CodexFileMetadata(path: path, mtimeUnixMs: 0, size: 0, fileId: nil)
+        }
+        #if os(Linux)
+        let modifiedSeconds = Int64(info.st_mtim.tv_sec)
+        let modifiedNanoseconds = Int64(info.st_mtim.tv_nsec)
+        #else
+        let modifiedSeconds = Int64(info.st_mtimespec.tv_sec)
+        let modifiedNanoseconds = Int64(info.st_mtimespec.tv_nsec)
+        #endif
         return CodexFileMetadata(
             path: path,
-            mtimeUnixMs: Int64(mtime * 1000),
-            size: size,
-            fileId: Self.fileIdentityString(fileURL: fileURL))
+            mtimeUnixMs: modifiedSeconds * 1000 + modifiedNanoseconds / 1_000_000,
+            size: Int64(info.st_size),
+            fileId: "\(info.st_dev):\(info.st_ino)")
     }
 
     static func dropCachedCodexFile(

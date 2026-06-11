@@ -81,6 +81,26 @@ struct CostUsageCacheTests {
     }
 
     @Test
+    func `current codex cache accepts parser compatible 0_33 producer`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var cache = CostUsageCache()
+        cache.lastScanUnixMs = 123
+        cache.days = ["2026-05-18": ["gpt-5.5": [1, 2, 3]]]
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: "codex:cu:p3c27f997569eb3c5")
+
+        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+
+        #expect(loaded.lastScanUnixMs == 123)
+        #expect(loaded.days["2026-05-18"]?["gpt-5.5"] == [1, 2, 3])
+    }
+
+    @Test
     func `non codex cache does not require producer key`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }

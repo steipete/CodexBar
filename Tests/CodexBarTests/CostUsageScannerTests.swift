@@ -4,6 +4,46 @@ import Testing
 
 struct CostUsageScannerTests {
     @Test
+    func `codex file metadata detects append truncation and replacement`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-codex-metadata-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fileURL = root.appendingPathComponent("session.jsonl")
+        try Data("abc".utf8).write(to: fileURL)
+
+        let initial = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(initial.size == 3)
+        #expect(initial.fileId != nil)
+        let linkURL = root.appendingPathComponent("linked-session.jsonl")
+        try FileManager.default.createSymbolicLink(at: linkURL, withDestinationURL: fileURL)
+        let linked = CostUsageScanner.codexFileMetadata(fileURL: linkURL)
+        #expect(linked.size == initial.size)
+        #expect(linked.fileId == initial.fileId)
+
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data("def".utf8))
+        try handle.close()
+        let appended = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(appended.size == 6)
+        #expect(appended.fileId == initial.fileId)
+
+        let truncateHandle = try FileHandle(forWritingTo: fileURL)
+        try truncateHandle.truncate(atOffset: 2)
+        try truncateHandle.close()
+        let truncated = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(truncated.size == 2)
+        #expect(truncated.fileId == initial.fileId)
+
+        try FileManager.default.removeItem(at: fileURL)
+        try Data("replacement".utf8).write(to: fileURL)
+        let replaced = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(replaced.size == 11)
+        #expect(replaced.fileId != initial.fileId)
+    }
+
+    @Test
     func `vertex daily report filters claude logs`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

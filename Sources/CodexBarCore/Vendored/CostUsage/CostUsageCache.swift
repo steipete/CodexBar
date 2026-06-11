@@ -1,6 +1,10 @@
 import Foundation
 
 enum CostUsageCacheIO {
+    private static let compatibleCodexProducerKeys: Set<String> = [
+        "codex:cu:p3c27f997569eb3c5",
+    ]
+
     private static func artifactVersion(for provider: UsageProvider) -> Int {
         switch provider {
         case .codex:
@@ -32,17 +36,32 @@ enum CostUsageCacheIO {
     {
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
         let expectedProducerKey = producerKey ?? self.currentProducerKey(provider: provider)
-        if let decoded = self.loadCache(at: url, expectedProducerKey: expectedProducerKey) { return decoded }
+        let compatibleProducerKeys = producerKey == nil && provider == .codex
+            ? self.compatibleCodexProducerKeys
+            : []
+        if let decoded = self.loadCache(
+            at: url,
+            expectedProducerKey: expectedProducerKey,
+            compatibleProducerKeys: compatibleProducerKeys)
+        {
+            return decoded
+        }
         return CostUsageCache()
     }
 
-    private static func loadCache(at url: URL, expectedProducerKey: String?) -> CostUsageCache? {
+    private static func loadCache(
+        at url: URL,
+        expectedProducerKey: String?,
+        compatibleProducerKeys: Set<String>) -> CostUsageCache?
+    {
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let decoded = try? JSONDecoder().decode(CostUsageCache.self, from: data)
         else { return nil }
         guard decoded.version == 1 else { return nil }
         if let expectedProducerKey {
-            guard decoded.producerKey == expectedProducerKey else { return nil }
+            guard decoded.producerKey == expectedProducerKey
+                || decoded.producerKey.map(compatibleProducerKeys.contains) == true
+            else { return nil }
         }
         return decoded
     }
