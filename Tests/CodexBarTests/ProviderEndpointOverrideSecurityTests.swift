@@ -6,36 +6,91 @@ struct ProviderEndpointOverrideSecurityTests {
     @Test
     func `sibling endpoint overrides reject userinfo and encoded host delimiters`() {
         let userInfoURL = "https://user:pass@proxy.test/v1"
-        let encodedHostURL = "https://proxy.test%2f.attacker.test/v1"
+        let malformedHostURLs = [
+            "https://proxy.test%2f.attacker.test/v1",
+            "https://bad host/v1",
+            "https://bad%20host/v1",
+            "https://bad%09host/v1",
+        ]
 
         #expect(OpenRouterSettingsReader.apiURL(
             environment: ["OPENROUTER_API_URL": userInfoURL]).host == "openrouter.ai")
-        #expect(throws: OpenRouterSettingsError.invalidEndpointOverride("OPENROUTER_API_URL")) {
-            try OpenRouterSettingsReader.validateEndpointOverrides(
-                environment: ["OPENROUTER_API_URL": encodedHostURL])
+        for malformedHostURL in malformedHostURLs {
+            #expect(throws: OpenRouterSettingsError.invalidEndpointOverride("OPENROUTER_API_URL")) {
+                try OpenRouterSettingsReader.validateEndpointOverrides(
+                    environment: ["OPENROUTER_API_URL": malformedHostURL])
+            }
         }
 
         #expect(CodebuffSettingsReader.apiURL(
             environment: ["CODEBUFF_API_URL": userInfoURL]).host == "www.codebuff.com")
-        #expect(throws: CodebuffSettingsError.invalidEndpointOverride("CODEBUFF_API_URL")) {
-            try CodebuffSettingsReader.validateEndpointOverrides(
-                environment: ["CODEBUFF_API_URL": encodedHostURL])
+        for malformedHostURL in malformedHostURLs {
+            #expect(throws: CodebuffSettingsError.invalidEndpointOverride("CODEBUFF_API_URL")) {
+                try CodebuffSettingsReader.validateEndpointOverrides(
+                    environment: ["CODEBUFF_API_URL": malformedHostURL])
+            }
         }
 
         #expect(GroqSettingsReader.apiURL(
             environment: [GroqSettingsReader.apiURLEnvironmentKey: userInfoURL]).host == "api.groq.com")
-        #expect(throws: GroqSettingsError.invalidEndpointOverride(GroqSettingsReader.apiURLEnvironmentKey)) {
-            try GroqSettingsReader.validateEndpointOverrides(
-                environment: [GroqSettingsReader.apiURLEnvironmentKey: encodedHostURL])
+        for malformedHostURL in malformedHostURLs {
+            #expect(throws: GroqSettingsError.invalidEndpointOverride(GroqSettingsReader.apiURLEnvironmentKey)) {
+                try GroqSettingsReader.validateEndpointOverrides(
+                    environment: [GroqSettingsReader.apiURLEnvironmentKey: malformedHostURL])
+            }
         }
 
         #expect(ElevenLabsSettingsReader.apiURL(
             environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: userInfoURL]).host == "api.elevenlabs.io")
-        #expect(throws: ElevenLabsSettingsError.invalidEndpointOverride(
-            ElevenLabsSettingsReader.apiURLEnvironmentKey))
-        {
-            try ElevenLabsSettingsReader.validateEndpointOverrides(
-                environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: encodedHostURL])
+        for malformedHostURL in malformedHostURLs {
+            #expect(throws: ElevenLabsSettingsError.invalidEndpointOverride(
+                ElevenLabsSettingsReader.apiURLEnvironmentKey))
+            {
+                try ElevenLabsSettingsReader.validateEndpointOverrides(
+                    environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: malformedHostURL])
+            }
+        }
+    }
+
+    @Test
+    func `credentialed fetchers reject insecure overrides before sending requests`() async {
+        let insecureURL = "http://attacker.test/v1"
+
+        do {
+            _ = try await OpenRouterUsageFetcher.fetchUsage(
+                apiKey: "openrouter-test",
+                environment: ["OPENROUTER_API_URL": insecureURL])
+            Issue.record("Expected OpenRouterSettingsError.invalidEndpointOverride")
+        } catch {
+            #expect(error as? OpenRouterSettingsError == .invalidEndpointOverride("OPENROUTER_API_URL"))
+        }
+
+        do {
+            _ = try await CodebuffUsageFetcher.fetchUsage(
+                apiKey: "codebuff-test",
+                environment: ["CODEBUFF_API_URL": insecureURL])
+            Issue.record("Expected CodebuffSettingsError.invalidEndpointOverride")
+        } catch {
+            #expect(error as? CodebuffSettingsError == .invalidEndpointOverride("CODEBUFF_API_URL"))
+        }
+
+        do {
+            _ = try await GroqUsageFetcher.fetchUsage(
+                apiKey: "groq-test",
+                environment: [GroqSettingsReader.apiURLEnvironmentKey: insecureURL])
+            Issue.record("Expected GroqSettingsError.invalidEndpointOverride")
+        } catch {
+            #expect(error as? GroqSettingsError == .invalidEndpointOverride(GroqSettingsReader.apiURLEnvironmentKey))
+        }
+
+        do {
+            _ = try await ElevenLabsUsageFetcher.fetchUsage(
+                apiKey: "elevenlabs-test",
+                environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: insecureURL])
+            Issue.record("Expected ElevenLabsSettingsError.invalidEndpointOverride")
+        } catch {
+            #expect(error as? ElevenLabsSettingsError == .invalidEndpointOverride(
+                ElevenLabsSettingsReader.apiURLEnvironmentKey))
         }
     }
 

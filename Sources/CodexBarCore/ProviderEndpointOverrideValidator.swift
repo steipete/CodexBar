@@ -61,6 +61,8 @@ struct ProviderEndpointOverrideValidator: Sendable {
         guard let decodedHost = url.host(percentEncoded: false)?.lowercased(),
               !decodedHost.isEmpty,
               !decodedHost.contains("%"),
+              decodedHost.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              decodedHost.rangeOfCharacter(from: .controlCharacters) == nil,
               let encodedHost = url.host(percentEncoded: true)?.lowercased(),
               Self.hostHasNoEncodedDelimiters(encodedHost, decodedHost: decodedHost, url: url)
         else { return nil }
