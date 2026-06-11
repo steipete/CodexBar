@@ -34,6 +34,7 @@ extension CostUsageScanner {
         var priorityCompletedModelsByTurnID: [String: [Int64: String]]
         var completedModelsByTurnID: [String: [Int64: String]]
         var completedTurnIDInsertionOrder: [String]
+        var completedTurnIDInsertionOrderStartIndex: Int
     }
 
     /// Completion models for known priority turns are retained with those turns. Completions
@@ -165,7 +166,8 @@ extension CostUsageScanner {
             requestSourcesByTurnID: [:],
             priorityCompletedModelsByTurnID: [:],
             completedModelsByTurnID: [:],
-            completedTurnIDInsertionOrder: [])
+            completedTurnIDInsertionOrder: [],
+            completedTurnIDInsertionOrderStartIndex: 0)
         resolved.observationID = observationID
 
         var prunedDeletedSources = false
@@ -347,6 +349,7 @@ extension CostUsageScanner {
         didPrune = self.pruneDeletedCodexCompletedModels(
             retainedRowIDs: retainedRowIDs,
             from: &state.completedModelsByTurnID) || didPrune
+        self.compactCodexPendingCompletionOrderPrefix(in: &state)
         state.completedTurnIDInsertionOrder.removeAll { state.completedModelsByTurnID[$0] == nil }
         return didPrune
     }
@@ -405,12 +408,30 @@ extension CostUsageScanner {
     {
         if state.completedModelsByTurnID[turnID] == nil {
             state.completedTurnIDInsertionOrder.append(turnID)
-            if state.completedTurnIDInsertionOrder.count > self.codexPriorityCompletedModelRetentionLimit {
-                let evicted = state.completedTurnIDInsertionOrder.removeFirst()
+            let retainedCount = state.completedTurnIDInsertionOrder.count
+                - state.completedTurnIDInsertionOrderStartIndex
+            if retainedCount > self.codexPriorityCompletedModelRetentionLimit {
+                let evicted = state.completedTurnIDInsertionOrder[
+                    state.completedTurnIDInsertionOrderStartIndex,
+                ]
+                state.completedTurnIDInsertionOrderStartIndex += 1
                 state.completedModelsByTurnID.removeValue(forKey: evicted)
+                if state.completedTurnIDInsertionOrderStartIndex
+                    >= self.codexPriorityCompletedModelRetentionLimit
+                {
+                    self.compactCodexPendingCompletionOrderPrefix(in: &state)
+                }
             }
         }
         state.completedModelsByTurnID[turnID, default: [:]].merge(completedModels) { _, new in new }
+    }
+
+    private static func compactCodexPendingCompletionOrderPrefix(
+        in state: inout CodexPriorityTurnsMemoState)
+    {
+        guard state.completedTurnIDInsertionOrderStartIndex > 0 else { return }
+        state.completedTurnIDInsertionOrder.removeFirst(state.completedTurnIDInsertionOrderStartIndex)
+        state.completedTurnIDInsertionOrderStartIndex = 0
     }
 
     private static func accumulateCodexPriorityTurns(
@@ -453,6 +474,7 @@ extension CostUsageScanner {
             state.turns[parsed.turnID] = parsed
             state.requestSourcesByTurnID[parsed.turnID, default: [:]][rowID] = parsed
             if let completedModels = state.completedModelsByTurnID.removeValue(forKey: parsed.turnID) {
+                self.compactCodexPendingCompletionOrderPrefix(in: &state)
                 state.completedTurnIDInsertionOrder.removeAll { $0 == parsed.turnID }
                 state.priorityCompletedModelsByTurnID[parsed.turnID] = completedModels
             }
