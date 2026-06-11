@@ -1,7 +1,4 @@
 import Foundation
-#if canImport(os)
-import os
-#endif
 
 #if canImport(SQLite3)
 /// On-disk snapshot of the per-database priority-turns memos. The memo is what lets live
@@ -76,8 +73,23 @@ enum CodexPriorityTurnsMemoIO {
 }
 
 extension CostUsageScanner {
+    private final class CodexPriorityDiskLockedState<State>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var state: State
+
+        init(_ state: State) {
+            self.state = state
+        }
+
+        func withLock<Result>(_ body: (inout State) throws -> Result) rethrows -> Result {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return try body(&self.state)
+        }
+    }
+
     private static let codexPriorityTurnsMemoDiskState =
-        OSAllocatedUnfairLock<(loaded: Bool, dirty: Bool)>(initialState: (loaded: false, dirty: false))
+        CodexPriorityDiskLockedState<(loaded: Bool, dirty: Bool)>((loaded: false, dirty: false))
 
     /// Seeds the in-process memo from the persisted artifact once per process, before the
     /// first priority-turns scan. Seeding goes through the monotonic store, so a scan that
