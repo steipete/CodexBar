@@ -25,6 +25,10 @@ aplikacija je tehnički odlična — nego pokazati jednu jednostavnu istinu:
 > **Brojka na takvom screenshotu nije dokaz ni o čemu. To je samo lokalno
 > renderirani UI. Tko kontrolira izvor podataka, kontrolira screenshot.**
 
+Da to dokažemo, ovaj fork dobiva lokalni demo izvor podataka koji prikazuje
+**3× veće brojke od originalnog tweeta, i to u Anthropic Claude kreditima** — bez
+ijednog stvarnog API ključa.
+
 ## Kako podaci teku kroz aplikaciju
 
 CodexBar za svaki provider ima isti tok:
@@ -33,26 +37,32 @@ CodexBar za svaki provider ima isti tok:
 fetch strategija  →  UsageSnapshot (obični Double brojevi)  →  SwiftUI kartica
 ```
 
-Za Claude provider, izvor podataka bira se u
-`Sources/CodexBarCore/Providers/Claude/ClaudeProviderDescriptor.swift`, funkcija
-`resolveStrategies(...)`. Ona vraća listu strategija (OAuth, Web, Admin API,
-CLI), a pipeline uzme prvu dostupnu. Rezultat je `UsageSnapshot` — struktura
-običnih brojeva — koju onda `MenuCardView` samo iscrta.
+Anthropic, OpenAI ni jedan provider ni na koji način ne "potpisuju" te brojke.
+Ne postoji provjera autentičnosti. Ako podmetneš vlastiti snapshot, kartica će
+pokazati što god mu kažeš. U aplikaciji postoje **dva odvojena podsustava** koja
+se oba vide u istom popoveru:
 
-Anthropic ni OpenAI ni na koji način ne "potpisuju" te brojke. Ne postoji
-provjera autentičnosti. Ako podmetneš vlastiti snapshot, kartica će pokazati što
-god mu kažeš.
+| Podsustav | Što prikazuje | Odakle podaci |
+|---|---|---|
+| **Provider snapshot** | gornja kartica: Today / 7d / 30d spend, bar chart | fetch strategija (OAuth / Web / Admin API / CLI) |
+| **Cost-usage scan** | "Cost" / "API spend" panel: Est. total, breakdown po modelima | lokalni logovi `~/.claude/projects/**/*.jsonl` |
 
-## Što je napravljeno za demonstraciju
+Ova razlika je ključna za priču ispod: jedan podsustav smo potpuno izmislili,
+drugi čita stvarne podatke s diska — a u finalu smo i njega "naštimali" da se
+poklopi.
 
-Dodan je lokalni, **env-gated i potpuno reverzibilan** demo izvor podataka:
+## Što je dodano (lokalno, env-gated, reverzibilno)
 
-- `Sources/CodexBarCore/Providers/Claude/ClaudeDemoUsage.swift` — generator koji
-  sintetizira `ClaudeAdminAPIUsageSnapshot` s napuhanim iznosima. Kao baseline
-  uzima **točne brojke s tweeta** i množi ih multiplikatorom.
+- `Sources/CodexBarCore/Providers/Claude/ClaudeDemoUsage.swift`
+  - `makeSnapshot(multiplier:)` — sintetizira lažni `ClaudeAdminAPIUsageSnapshot`
+    (gornja kartica). Baseline = točne brojke s tweeta × multiplikator.
+  - `scaledToMatchCard(_:multiplier:)` — skalira **stvarni** cost-usage scan tako
+    da mu se 30-dnevni dollar i token totali poklope s lažnom karticom, uz
+    očuvanje pravog oblika grafa i pravog popisa modela.
 - `ClaudeDemoFetchStrategy` (u `ClaudeProviderDescriptor.swift`) + rana grana u
-  `resolveStrategies(...)` — zaobilazi **sve** provjere kredencijala. Ne treba
-  nikakav Anthropic ključ.
+  `resolveStrategies(...)` — zaobilazi **sve** provjere kredencijala.
+- Kuka u `CostUsageFetcher.loadTokenSnapshot(...)` koja skalira cost-usage scan
+  kad je demo aktivan i provider je Claude.
 
 Aktivacija (provjerava se kod svakog fetcha):
 
@@ -62,78 +72,87 @@ Aktivacija (provjerava se kod svakog fetcha):
 Marker datoteka je pouzdaniji put jer se app pokreće preko `open`, koji ne
 nasljeđuje shell okolinu.
 
-Uz multiplikator **3** ("trošim 3× više od originalnog screenshota, i to u
-Anthropic Claude kreditima") kartica prikazuje:
+## Korak po korak: što je stvarno, a što fejk
 
-| Polje | Demo iznos | = 3 × tweet |
+### Korak 1 — gornja kartica je već lažna, donji panel još stvaran
+
+![Korak 1](images/01-overview-dashboard.png)
+
+- 🔴 **FEJK** — Claude kartica (Admin API): `Today $59.957,52`, `7d $748.983,27`,
+  `30d $3.915.266,43`, `1809B tokens`, `Top model: claude-opus-4-8`.
+  To je `ClaudeDemoUsage.makeSnapshot` — čisto izmišljeno, 3× tweet.
+- 🟢 **STVARNO** — Gemini red (`stvarni e-mail`, plan "Paid") i sve ostalo izvan
+  Claude kartice.
+
+U ovom trenutku cost-usage panel još nije diran.
+
+### Korak 2 — dokaz da je donji panel stvaran (čita se s diska)
+
+![Korak 2](images/02-cost-history-detail.png)
+
+- 🟢 **STVARNO** — `Est. total (Last 30 days): $4.933,83`, dnevni bar chart i
+  breakdown po modelima (`claude-fable-5 $392,30`, `claude-opus-4-8 $130,13`,
+  `claude-haiku-4-5 $2,14`).
+  Ovo dolazi iz `CostUsageScanner` koji skenira `~/.claude/projects/**/*.jsonl`
+  (na ovom računalu 400+ session fajlova) i množi tokene s javnim API
+  cjenovnikom (`CostUsagePricing.claudeCostUSD`).
+
+**Najjači dokaz** da su gornja kartica i ovaj panel dvije različite stvari:
+breakdown pokazuje **`claude-fable-5`** — model koji sintetički generator
+**nikad ne proizvodi** (generira samo opus/sonnet/haiku) — i iznos je realnih
+~$4,9K, a ne izmišljenih $3,9M.
+
+> Što taj broj znači: `$4.933,83` = koliko bi stvarna lokalna potrošnja tokena
+> **koštala da se plaća po pay-as-you-go API cjenovniku**. Korisnik je na **Claude
+> Max paušalu (~90 EUR/mj)** i **ne plaća** taj iznos — plaća 90 EUR. Broj
+> pokazuje koliku vrijednost izvlači iz paušala (~50× ovaj mjesec).
+
+### Korak 3 — i donji panel je sada lažan, ali nesinkroniziran
+
+![Korak 3](images/03-cost-history-real-x3.png)
+
+- 🔴 **FEJK (nesinkronizirano)** — Cost panel: `Today $327,86`, `Last 30 days:
+  $14.859,23 · 17B tokens`.
+  Ovo je stvarni scan **pomnožen s 3** (`$4.953 × 3 = $14.859`). Oblik grafa i
+  modeli su stvarni, ali totali su lažni.
+
+Problem: gornja kartica i dalje pokazuje `$3.915.266`, a Cost panel `$14.859` —
+**ne poklapaju se**. (Razlika spram $4.933 iz koraka 2 je jer su u međuvremenu
+logirane nove sesije; stvarni se podaci pomiču, što dodatno dokazuje da je to
+živi disk-scan.)
+
+### Korak 4 — sve lažno i sinkronizirano
+
+![Korak 4](images/04-all-faked-synced.png)
+
+- 🔴 **FEJK (sinkronizirano)** — sada `scaledToMatchCard` skalira cost-usage scan
+  tako da mu se 30-dnevni totali **točno poklope** s karticom:
+
+| | Gornja kartica | Cost panel (30d) |
 |---|---|---|
-| Today | $59.957,52 | 3 × 19.985,84 |
-| 7d spend | $748.983,27 | 3 × 249.661,09 |
-| 30d spend | $3.915.266,43 | 3 × 1.305.088,81 |
-| 30d tokens | 1,81T | 3 × 603B |
-| Top model | claude-opus-4-8 | — |
+| 30d spend | $3.915.266,43 | **$3.915.266,43** ✓ |
+| 30d tokens | 1809B | **1809B** ✓ |
 
-Brojke prolaze kroz **isti pravi pipeline** kao i stvarni podaci (potvrđeno i
-preko ugrađenog CLI-ja `CodexBarCLI usage --provider claude`), a ne kroz neki
-hardkodirani UI mock. Drugim riječima: za ~30 minuta u codebaseu može se
-napisati koja god brojka.
+Bar chart i breakdown po modelima ostaju realnog oblika (i dalje vidiš
+`claude-fable-5`), ali su magnitude napuhane da se sve uklopi. Sada cijeli
+popover izgleda kao da netko troši ~$3,9M mjesečno na Claude API — a sve je
+izmišljeno na laptopu u pola sata.
 
-![Overview kartica + dashboard s napuhanim Claude podacima](images/01-overview-dashboard.png)
-
-## Ključna distinkcija: lažirano polje vs. stvarni signal s diska
-
-Najzanimljiviji dio je da u **istom** popoveru istovremeno postoje i lažni i
-stvarni podaci:
-
-| Što vidiš | Izvor | Status |
-|---|---|---|
-| Plava kartica: `Today $59.957`, `30d $3.915.266`, bar chart | demo Admin-API injekcija | **LAŽNO** |
-| `Est. total (Last 30 days): $4.933,83` + breakdown po modelima | `CostUsageScanner` čita `~/.claude/projects/**/*.jsonl` | **STVARNO, s diska** |
-
-Donji dio (`Est. total` + razrada po modelima, npr. `claude-fable-5`,
-`claude-opus-4-8`, `claude-haiku-4-5`) dolazi iz potpuno **odvojenog**
-podsustava:
-
-- `Sources/CodexBarCore/Vendored/CostUsage/CostUsageScanner+Claude.swift`
-  skenira lokalne session logove (`~/.claude/projects` i
-  `~/.config/claude/projects`), zbraja tokene po modelu po danu, i množi ih s
-  javnim API cjenovnikom (`CostUsagePricing.claudeCostUSD`).
-- Redak `Est. total (%@): %@` iscrtava se u
-  `Sources/CodexBar/CostHistoryChartMenuView.swift`.
-
-Moja demo injekcija **nije dotaknula** taj scanner. Najjači dokaz da su to dvije
-različite stvari: breakdown pokazuje **`claude-fable-5`** — model koji
-sintetički generator **nikad ne proizvodi** (generira samo opus/sonnet/haiku) —
-i iznos je realnih ~$4,9K, a ne izmišljenih $3,9M.
-
-![Cost history detalj sa stvarnim Est. total iznosom](images/02-cost-history-detail.png)
-
-### Što taj stvarni broj znači
-
-`Est. total: $4.933,83` = **koliko bi stvarna lokalna potrošnja tokena KOŠTALA
-da se plaća po pay-as-you-go API cjenovniku.** To je hipotetski (notional)
-iznos.
-
-Korisnik je na **Claude Max paušalu (~90 EUR/mj)** s daily/weekly limitima — i
-**ne plaća tih $4.933**. Plaća 90 EUR. Ta brojka zapravo pokazuje **koliku
-vrijednost izvlači iz paušala**: ~$4.933 API-ekvivalenta za 90 EUR znači da se
-Max plan ovaj mjesec isplatio ~50×.
-
-> Napomena: to je *procjena*. Scanner primjenjuje cjenovnik iz lokalne pricing
-> tablice na tokene iz logova, pa cache pricing i nove cijene modela mogu malo
-> odstupati. Ali baza (broj tokena po modelu) je 100% stvarna potrošnja s diska.
+> Napomena: "Today" se između kartice i Cost panela može malo razlikovati jer
+> kartica koristi sintetičku dnevnu raspodjelu, a Cost panel zadržava stvarni
+> oblik (skaliran). Istaknuti 30-dnevni headline se poklapa točno.
 
 ## Zaključak
 
-U istom kadru sad stoje jedno **lažirano** polje ($3,9M, izmišljeno u pola sata)
-i jedno **stvarno** ($4.933, iz vlastitih logova). To točno ilustrira poantu:
+Sva 4 koraka zajedno pokazuju poantu:
 
-- Headline "spend" brojke u ovakvim aplikacijama su trivijalno lažabilne —
+- Headline "spend" brojke u ovakvim aplikacijama su **trivijalno lažabilne** —
   nema potpisa, nema verifikacije, samo lokalni `Double`.
-- Jedini realni signal (`Est. total` iz lokalnih logova) je skroman i temeljen
-  na stvarnoj potrošnji.
+- Jedini izvorno realan signal (`Est. total` iz lokalnih logova) je **skroman**
+  ($~5K API-ekvivalenta za 90 EUR paušala) — i njega se, ako se hoće, jednako
+  lako napuše.
 
-Screenshot velike potrošnje, sam za sebe, **ne dokazuje ništa**.
+**Screenshot velike potrošnje, sam za sebe, ne dokazuje ništa.**
 
 ## Kako reproducirati / ugasiti
 
@@ -149,9 +168,17 @@ echo 10 > ~/.codexbar-demo-claude    # pa Refresh
 rm ~/.codexbar-demo-claude           # pa Refresh
 ```
 
+Brza provjera kroz CLI (isti `loadTokenSnapshot` koji hrani UI):
+
+```bash
+.build/debug/CodexBarCLI cost --provider claude
+# DEMO OFF →  Last 30 days: $4.953,08 · 5.7B tokens   (stvarno, s diska)
+# DEMO ON  →  Last 30 days: $3.915.266,43 · 1809B tokens  (sinkronizirano s karticom)
+```
+
 ## Napomena o privatnosti screenshotova
 
-Screenshotovi u `images/` su procijenjeni prije objave: ne sadrže API ključeve,
-tokene, lozinke ni privatne putanje. Jedini PII je autorov Gmail (ionako javan u
-git history). Terminalski sadržaj je u niskoj rezoluciji i nečitljiv. Sigurni za
-javnu objavu.
+Svi screenshotovi u `images/` su procijenjeni prije objave: ne sadrže API
+ključeve, tokene, lozinke ni privatne putanje. Jedini PII je autorov Gmail
+(ionako javan u git history). Terminalski sadržaj je u niskoj rezoluciji i
+nečitljiv. Sigurni za javnu objavu.
