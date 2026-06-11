@@ -163,7 +163,7 @@ struct MiniMaxEndpointOverrideSettingsTests {
 
     @Test
     func `explicit endpoint override rejects invalid scheme before network`() async {
-        await #expect(throws: MiniMaxUsageError.invalidEndpointOverride(MiniMaxSettingsReader.codingPlanURLKey)) {
+        await #expect(throws: ProviderEndpointOverrideError.minimax(MiniMaxSettingsReader.codingPlanURLKey)) {
             _ = try await MiniMaxUsageFetcher.fetchUsage(
                 cookieHeader: "session=abc123",
                 environment: [MiniMaxSettingsReader.codingPlanURLKey: "http://platform.minimax.io/coding-plan"],

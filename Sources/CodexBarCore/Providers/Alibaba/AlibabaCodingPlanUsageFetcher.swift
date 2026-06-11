@@ -30,7 +30,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             throw AlibabaCodingPlanUsageError.invalidCredentials
         }
         if let rejectedKey = AlibabaCodingPlanSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
-            throw AlibabaCodingPlanUsageError.invalidEndpointOverride(rejectedKey)
+            throw ProviderEndpointOverrideError.alibabaCodingPlan(rejectedKey)
         }
 
         if region != .international {
@@ -72,7 +72,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             throw AlibabaCodingPlanSettingsError.invalidCookie
         }
         if let rejectedKey = AlibabaCodingPlanSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
-            throw AlibabaCodingPlanUsageError.invalidEndpointOverride(rejectedKey)
+            throw ProviderEndpointOverrideError.alibabaCodingPlan(rejectedKey)
         }
 
         if region != .international {
@@ -1079,7 +1079,6 @@ public enum AlibabaCodingPlanUsageError: LocalizedError, Sendable, Equatable {
     case apiError(String)
     case parseFailed(String)
     case apiKeyUnavailableInRegion
-    case invalidEndpointOverride(String)
 
     var shouldRetryOnAlternateRegion: Bool {
         switch self {
@@ -1094,8 +1093,6 @@ public enum AlibabaCodingPlanUsageError: LocalizedError, Sendable, Equatable {
         case let .parseFailed(message):
             message.contains("Missing coding plan quota data") || message.contains("No quota windows found")
         case .networkError:
-            false
-        case .invalidEndpointOverride:
             false
         }
     }
@@ -1117,11 +1114,6 @@ public enum AlibabaCodingPlanUsageError: LocalizedError, Sendable, Equatable {
             "Alibaba Coding Plan API error: \(message)"
         case let .parseFailed(message):
             "Failed to parse Alibaba Coding Plan response: \(message)"
-        case let .invalidEndpointOverride(key):
-            "Alibaba Coding Plan endpoint override \(key) is not allowed. " +
-                "Use an HTTPS endpoint without user info or encoded host tricks. " +
-                "If ALIBABA_CODING_PLAN_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true is set, " +
-                "the endpoint must also be Alibaba-owned."
         }
     }
 }

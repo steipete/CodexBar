@@ -581,7 +581,7 @@ struct MiniMaxTokenPlanChangeTests {
                 contentType: "application/json")
         }
 
-        await #expect(throws: MiniMaxUsageError.self) {
+        await #expect(throws: ProviderEndpointOverrideError.minimax(MiniMaxSettingsReader.hostKey)) {
             try await MiniMaxSubscriptionMetadataFetcher.fetch(
                 cookieHeader: "_token=secret",
                 groupID: "2013894056999916075",
@@ -604,7 +604,7 @@ struct MiniMaxTokenPlanChangeTests {
                 contentType: "application/json")
         }
 
-        await #expect(throws: MiniMaxUsageError.self) {
+        await #expect(throws: ProviderEndpointOverrideError.minimax(MiniMaxSettingsReader.hostKey)) {
             try await MiniMaxSubscriptionMetadataFetcher.fetch(
                 cookieHeader: "_token=secret",
                 groupID: "2013894056999916075",

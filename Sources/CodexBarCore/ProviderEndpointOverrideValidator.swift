@@ -1,5 +1,24 @@
 import Foundation
 
+enum ProviderEndpointOverrideError: LocalizedError, Sendable, Equatable {
+    case minimax(String)
+    case alibabaCodingPlan(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .minimax(key):
+            "MiniMax endpoint override \(key) is not allowed. " +
+                "Use an HTTPS endpoint without user info or encoded host tricks. " +
+                "If MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true is set, the endpoint must also be MiniMax-owned."
+        case let .alibabaCodingPlan(key):
+            "Alibaba Coding Plan endpoint override \(key) is not allowed. " +
+                "Use an HTTPS endpoint without user info or encoded host tricks. " +
+                "If ALIBABA_CODING_PLAN_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true is set, " +
+                "the endpoint must also be Alibaba-owned."
+        }
+    }
+}
+
 struct ProviderEndpointOverrideValidator: Sendable {
     enum HostPolicy: Sendable {
         case allowAnyHTTPSHost

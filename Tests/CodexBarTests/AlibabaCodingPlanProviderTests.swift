@@ -786,7 +786,7 @@ struct AlibabaCodingPlanRegionTests {
 
     @Test
     func `explicit endpoint override rejects invalid api scheme before network`() async {
-        await #expect(throws: AlibabaCodingPlanUsageError.invalidEndpointOverride(
+        await #expect(throws: ProviderEndpointOverrideError.alibabaCodingPlan(
             AlibabaCodingPlanSettingsReader.quotaURLKey))
         {
             _ = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
@@ -798,7 +798,7 @@ struct AlibabaCodingPlanRegionTests {
 
     @Test
     func `explicit endpoint override rejects invalid cookie scheme before network`() async {
-        await #expect(throws: AlibabaCodingPlanUsageError.invalidEndpointOverride(
+        await #expect(throws: ProviderEndpointOverrideError.alibabaCodingPlan(
             AlibabaCodingPlanSettingsReader.quotaURLKey))
         {
             _ = try await AlibabaCodingPlanUsageFetcher.fetchUsage(

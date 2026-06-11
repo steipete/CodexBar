@@ -102,7 +102,7 @@ struct ProviderDiagnosticExportTests {
 
     @Test
     func `diagnostic error maps Alibaba invalid endpoint override to configuration`() {
-        let error = AlibabaCodingPlanUsageError.invalidEndpointOverride("ALIBABA_CODING_PLAN_QUOTA_URL")
+        let error = ProviderEndpointOverrideError.alibabaCodingPlan("ALIBABA_CODING_PLAN_QUOTA_URL")
         let diag = ProviderDiagnosticError(from: error, authConfigured: true)
 
         #expect(diag.category == "configuration")
@@ -111,7 +111,7 @@ struct ProviderDiagnosticExportTests {
 
     @Test
     func `endpoint override fetch attempt stays in configuration category`() {
-        let error = MiniMaxUsageError.invalidEndpointOverride("MINIMAX_HOST")
+        let error = ProviderEndpointOverrideError.minimax("MINIMAX_HOST")
         let attempt = ProviderFetchAttempt(
             strategyID: "minimax.web",
             kind: .web,

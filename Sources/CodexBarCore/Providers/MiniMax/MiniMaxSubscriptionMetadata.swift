@@ -60,7 +60,7 @@ enum MiniMaxSubscriptionMetadataFetcher {
 
     static func resolveComboURL(region: MiniMaxAPIRegion, environment: [String: String]) throws -> URL {
         if let rejectedKey = MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
-            throw MiniMaxUsageError.invalidEndpointOverride(rejectedKey)
+            throw ProviderEndpointOverrideError.minimax(rejectedKey)
         }
         let baseURL = MiniMaxSettingsReader.hostOverride(environment: environment)
             .map { "https://\($0)" } ?? self.defaultWebHost(region: region)

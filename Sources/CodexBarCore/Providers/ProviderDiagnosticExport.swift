@@ -219,13 +219,15 @@ public struct ProviderDiagnosticError: Codable, Sendable {
         if case ProviderFetchError.noAvailableStrategy = error {
             return authConfigured ? "configuration" : "auth"
         }
+        if error is ProviderEndpointOverrideError {
+            return "configuration"
+        }
         if let minimaxError = error as? MiniMaxUsageError {
             switch minimaxError {
             case .networkError: return "network"
             case .invalidCredentials: return "auth"
             case .apiError: return "api"
             case .parseFailed: return "parse"
-            case .invalidEndpointOverride: return "configuration"
             }
         }
         if let alibabaError = error as? AlibabaCodingPlanUsageError {
@@ -234,7 +236,6 @@ public struct ProviderDiagnosticError: Codable, Sendable {
             case .loginRequired, .invalidCredentials: return "auth"
             case .apiError, .apiKeyUnavailableInRegion: return "api"
             case .parseFailed: return "parse"
-            case .invalidEndpointOverride: return "configuration"
             }
         }
         if error is MiniMaxSettingsError || error is MiniMaxAPISettingsError { return "auth" }

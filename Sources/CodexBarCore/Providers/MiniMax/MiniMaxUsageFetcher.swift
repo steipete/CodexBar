@@ -38,7 +38,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             throw MiniMaxUsageError.invalidCredentials
         }
         if let rejectedKey = MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
-            throw MiniMaxUsageError.invalidEndpointOverride(rejectedKey)
+            throw ProviderEndpointOverrideError.minimax(rejectedKey)
         }
 
         let context = WebFetchContext(
@@ -195,8 +195,6 @@ public struct MiniMaxUsageFetcher: Sendable {
             message.contains("HTTP 404") || message.contains("HTTP 405")
         case .networkError, .parseFailed:
             true
-        case .invalidEndpointOverride:
-            false
         }
     }
 
@@ -365,8 +363,6 @@ public struct MiniMaxUsageFetcher: Sendable {
             message.contains("HTTP 404") || message.contains("HTTP 405")
         case .networkError, .parseFailed:
             true
-        case .invalidEndpointOverride:
-            false
         }
     }
 
