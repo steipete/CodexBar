@@ -320,5 +320,9 @@ final class CLIEntryTests: XCTestCase {
             provider: .ollama,
             settings: ProviderSettingsSnapshot.make(
                 ollama: .init(cookieSource: .off, manualCookieHeader: nil))))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .kimi,
+            environment: ["KIMI_API_KEY": "kimi-test"]))
     }
 }

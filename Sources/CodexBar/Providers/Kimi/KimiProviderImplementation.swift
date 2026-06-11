@@ -10,7 +10,9 @@ struct KimiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        ProviderPresentation { context in
+            context.store.sourceLabel(for: context.provider)
+        }
     }
 
     @MainActor

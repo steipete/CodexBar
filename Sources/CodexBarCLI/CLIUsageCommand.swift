@@ -558,6 +558,12 @@ extension CodexBarCLI {
                 return false
             }
         }
+        if provider == .kimi,
+           sourceMode == .auto,
+           environment.map({ ProviderTokenResolver.kimiAPIToken(environment: $0) != nil }) == true
+        {
+            return false
+        }
         return switch sourceMode {
         case .web:
             true

@@ -196,6 +196,20 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `kimi presentation follows selected source label`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi-presentation")
+        fixture.settings.kimiUsageDataSource = .api
+        let metadata = try #require(ProviderDescriptorRegistry.metadata[.kimi])
+        let context = fixture.presentationContext(provider: .kimi, metadata: metadata)
+
+        let detailLine = KimiProviderImplementation()
+            .presentation(context: context)
+            .detailLine(context)
+
+        #expect(detailLine == "api")
+    }
+
+    @Test
     func `deepgram exposes api key and project id fields`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepgram")
         let context = fixture.settingsContext(provider: .deepgram)
