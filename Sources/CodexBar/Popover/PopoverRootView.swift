@@ -502,24 +502,17 @@ private struct OverviewRowView: View {
                 .focusEffectDisabled()
                 // 无障碍
                 .accessibilityLabel(chart.title)
-                .popover(isPresented: self.$isPresentingChart, arrowEdge: .trailing) {
-                    Group {
-                        if let chartView = self.makeChartView(chart, 360) {
-                            chartView
-                        } else {
-                            Text("No data available")
-                                .foregroundStyle(.secondary)
-                                .padding()
-                        }
-                    }
-                    .frame(minWidth: 320)
-                }
             }
         }
         .background(self.isHovered ? Color.accentColor : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .padding(.horizontal, 5)
         .onHover { self.isHovered = $0 }
+        // hover 触发整行；点击 chevron 仍直接置 true
+        .modifier(HoverChartPopover(
+            chart: self.chart,
+            makeChartView: self.makeChartView,
+            isPresented: self.$isPresentingChart))
     }
 }
 
@@ -558,18 +551,10 @@ private struct ChartEntryRowView: View {
         .focusEffectDisabled()
         // 无障碍：Button 标题即 label，hint 说明用途
         .accessibilityHint("Show chart")
-        .popover(isPresented: self.$isPresentingChart, arrowEdge: .trailing) {
-            Group {
-                if let chartView = self.makeChartView(self.kind, 360) {
-                    chartView
-                } else {
-                    Text("No data available")
-                        .foregroundStyle(.secondary)
-                        .padding()
-                }
-            }
-            .frame(minWidth: 320)
-        }
+        .modifier(HoverChartPopover(
+            chart: self.kind,
+            makeChartView: self.makeChartView,
+            isPresented: self.$isPresentingChart))
     }
 }
 
@@ -587,7 +572,7 @@ private struct ChartSectionContainer<Content: View>: View {
     @State private var isPresentingChart = false
 
     var body: some View {
-        if let chart {
+        if self.chart != nil {
             Button {
                 self.isPresentingChart = true
             } label: {
@@ -612,20 +597,12 @@ private struct ChartSectionContainer<Content: View>: View {
             .padding(.horizontal, 5)
             .onHover { self.isHovered = $0 }
             .focusEffectDisabled()
-            .accessibilityLabel(chart.title)
+            .accessibilityLabel(self.chart?.title ?? "")
             .accessibilityHint("Show chart")
-            .popover(isPresented: self.$isPresentingChart, arrowEdge: .trailing) {
-                Group {
-                    if let chartView = self.makeChartView(chart, 360) {
-                        chartView
-                    } else {
-                        Text("No data available")
-                            .foregroundStyle(.secondary)
-                            .padding()
-                    }
-                }
-                .frame(minWidth: 320)
-            }
+            .modifier(HoverChartPopover(
+                chart: self.chart,
+                makeChartView: self.makeChartView,
+                isPresented: self.$isPresentingChart))
         } else {
             self.content()
         }
