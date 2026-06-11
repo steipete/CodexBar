@@ -601,9 +601,11 @@
 "display_mode_percent" = "百分比";
 "display_mode_pace" = "进度";
 "display_mode_both" = "两者";
+"display_mode_reset_time" = "重置时间";
 "display_mode_percent_desc" = "显示剩余/已使用百分比（例如 45%）";
 "display_mode_pace_desc" = "显示进度指示器（例如 +5%）";
 "display_mode_both_desc" = "同时显示百分比和进度（例如 45% · +5%）";
+"display_mode_reset_time_desc" = "显示所选指标的重置时间（例如 ↻ 3:56 PM）";
 "status_operational" = "正常运行";
 "status_partial_outage" = "部分中断";
 "status_major_outage" = "重大中断";

@@ -20,7 +20,9 @@ enum MenuBarDisplayText {
         mode: MenuBarDisplayMode,
         percentWindow: RateWindow?,
         pace: UsagePace? = nil,
-        showUsed: Bool) -> String?
+        showUsed: Bool,
+        resetTimeDisplayStyle: ResetTimeDisplayStyle = .countdown,
+        now: Date = .init()) -> String?
     {
         switch mode {
         case .percent:
@@ -32,6 +34,39 @@ enum MenuBarDisplayText {
             // Fall back to percent-only when pace is unavailable (e.g. Copilot)
             guard let paceText = Self.paceText(pace: pace) else { return percent }
             return "\(percent) · \(paceText)"
+        case .resetTime:
+            guard let percentWindow else { return nil }
+            if let resetsAt = percentWindow.resetsAt {
+                let description = switch resetTimeDisplayStyle {
+                case .countdown:
+                    UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+                case .absolute:
+                    UsageFormatter.resetDescription(from: resetsAt, now: now)
+                }
+                return "↻ \(description)"
+            }
+            if let resetDescription = self.resetMetadataText(percentWindow.resetDescription) {
+                return "↻ \(resetDescription)"
+            }
+            return self.percentText(window: percentWindow, showUsed: showUsed)
         }
+    }
+
+    private static func resetMetadataText(_ description: String?) -> String? {
+        guard let description else { return nil }
+        let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        // RateWindow.resetDescription predates provider-specific detail fields and is also used for
+        // request/token summaries. Only trust phrases that explicitly describe reset timing.
+        let normalized = trimmed.lowercased()
+        let resetPrefixes = [
+            "reset ", "resets ", "in ", "today ", "today,", "tomorrow ", "tomorrow,", "next ",
+            "expire ", "expires ", "refill ", "refills ",
+        ]
+        let exactResetDescriptions = ["today", "tomorrow", "expired", "now", "soon"]
+        return exactResetDescriptions.contains(normalized) || resetPrefixes.contains(where: normalized.hasPrefix)
+            ? trimmed
+            : nil
     }
 }

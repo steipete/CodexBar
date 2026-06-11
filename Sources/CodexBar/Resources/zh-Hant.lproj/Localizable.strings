@@ -612,9 +612,11 @@
 "display_mode_percent" = "百分比";
 "display_mode_pace" = "進度";
 "display_mode_both" = "兩者";
+"display_mode_reset_time" = "重置時間";
 "display_mode_percent_desc" = "顯示剩餘/已使用百分比（例如 45%）";
 "display_mode_pace_desc" = "顯示進度指示器（例如 +5%）";
 "display_mode_both_desc" = "同時顯示百分比和進度（例如 45% · +5%）";
+"display_mode_reset_time_desc" = "顯示所選指標的重置時間（例如 ↻ 3:56 PM）";
 "status_operational" = "運作正常";
 "status_partial_outage" = "部分服務中斷";
 "status_major_outage" = "重大服務中斷";

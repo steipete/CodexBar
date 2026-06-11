@@ -623,9 +623,11 @@
 "display_mode_percent" = "Pourcentage";
 "display_mode_pace" = "Rythme";
 "display_mode_both" = "Les deux";
+"display_mode_reset_time" = "Heure de réinitialisation";
 "display_mode_percent_desc" = "Afficher le pourcentage restant/utilisé (par exemple 45 %)";
 "display_mode_pace_desc" = "Afficher l'indicateur d'allure (par exemple +5 %)";
 "display_mode_both_desc" = "Afficher à la fois le pourcentage et le rythme (par exemple 45 % · +5 %)";
+"display_mode_reset_time_desc" = "Afficher l'heure de réinitialisation de la métrique sélectionnée (par exemple ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Opérationnel";

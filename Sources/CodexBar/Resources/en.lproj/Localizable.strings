@@ -624,9 +624,11 @@
 "display_mode_percent" = "Percent";
 "display_mode_pace" = "Pace";
 "display_mode_both" = "Both";
+"display_mode_reset_time" = "Reset time";
 "display_mode_percent_desc" = "Show remaining/used percentage (e.g. 45%)";
 "display_mode_pace_desc" = "Show pace indicator (e.g. +5%)";
 "display_mode_both_desc" = "Show both percentage and pace (e.g. 45% · +5%)";
+"display_mode_reset_time_desc" = "Show the reset time for the selected metric (e.g. ↻ 3:56 PM)";
 
 /* Provider status */
 "status_operational" = "Operational";

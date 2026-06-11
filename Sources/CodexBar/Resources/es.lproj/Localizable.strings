@@ -611,9 +611,11 @@
 "display_mode_percent" = "Porcentaje";
 "display_mode_pace" = "Ritmo";
 "display_mode_both" = "Ambos";
+"display_mode_reset_time" = "Tiempo de restablecimiento";
 "display_mode_percent_desc" = "Mostrar el porcentaje restante/usado (p. ej. 45 %)";
 "display_mode_pace_desc" = "Mostrar el indicador de ritmo (p. ej. +5 %)";
 "display_mode_both_desc" = "Mostrar porcentaje y ritmo (p. ej. 45 % · +5 %)";
+"display_mode_reset_time_desc" = "Mostrar el tiempo de restablecimiento de la métrica seleccionada (p. ej. ↻ 3:56 PM)";
 
 /* Provider status */
 "status_operational" = "Operativo";

@@ -622,9 +622,11 @@
 "display_mode_percent" = "パーセント";
 "display_mode_pace" = "ペース";
 "display_mode_both" = "両方";
+"display_mode_reset_time" = "リセット時刻";
 "display_mode_percent_desc" = "残り/使用済みのパーセンテージを表示（例: 45%）";
 "display_mode_pace_desc" = "ペースインジケータを表示（例: +5%）";
 "display_mode_both_desc" = "パーセンテージとペースの両方を表示（例: 45% · +5%）";
+"display_mode_reset_time_desc" = "選択した指標のリセット時刻を表示（例: ↻ 15:56）";
 
 /* Provider status */
 "status_operational" = "正常稼働中";

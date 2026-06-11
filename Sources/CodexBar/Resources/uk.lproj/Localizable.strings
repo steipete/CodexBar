@@ -623,9 +623,11 @@
 "display_mode_percent" = "Відсоток";
 "display_mode_pace" = "Темп";
 "display_mode_both" = "Обидва";
+"display_mode_reset_time" = "Час скидання";
 "display_mode_percent_desc" = "Показати залишок/використаний відсоток (наприклад, 45%)";
 "display_mode_pace_desc" = "Показати індикатор темпу (наприклад, +5%)";
 "display_mode_both_desc" = "Показати відсоток і темп (наприклад, 45% · +5%)";
+"display_mode_reset_time_desc" = "Показувати час скидання для вибраного показника (наприклад, ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Працює";

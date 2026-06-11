@@ -623,9 +623,11 @@
 "display_mode_percent" = "Procent";
 "display_mode_pace" = "Tempo";
 "display_mode_both" = "Beide";
+"display_mode_reset_time" = "Resettijd";
 "display_mode_percent_desc" = "Toon resterend/gebruikt percentage (bijvoorbeeld 45%)";
 "display_mode_pace_desc" = "Toon tempo-indicator (bijv. +5%)";
 "display_mode_both_desc" = "Toon zowel percentage als tempo (bijvoorbeeld 45% · +5%)";
+"display_mode_reset_time_desc" = "Toon de resettijd voor de geselecteerde metriek (bijvoorbeeld ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Operationeel";

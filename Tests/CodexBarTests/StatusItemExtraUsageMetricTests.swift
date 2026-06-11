@@ -125,11 +125,45 @@ struct StatusItemExtraUsageMetricTests {
         #expect(displayText == "72%")
     }
 
+    @Test
+    func `reset time mode uses extra usage reset instead of spend`() {
+        let resetsAt = Date().addingTimeInterval(2 * 24 * 3600)
+        let (store, controller) = self.makeController(
+            suiteName: "StatusItemExtraUsageMetricTests-reset-time",
+            provider: .cursor,
+            displayMode: .resetTime,
+            resetTimesShowAbsolute: true)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 12.34,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Monthly",
+                resetsAt: resetsAt,
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let displayText = controller.menuBarDisplayText(for: .cursor, snapshot: snapshot)
+
+        #expect(displayText == "↻ \(UsageFormatter.resetDescription(from: resetsAt))")
+    }
+
     private func makeCursorController(suiteName: String) -> (UsageStore, StatusItemController) {
         self.makeController(suiteName: suiteName, provider: .cursor)
     }
 
-    private func makeController(suiteName: String, provider: UsageProvider) -> (UsageStore, StatusItemController) {
+    private func makeController(
+        suiteName: String,
+        provider: UsageProvider,
+        displayMode: MenuBarDisplayMode = .percent,
+        resetTimesShowAbsolute: Bool = false) -> (UsageStore, StatusItemController)
+    {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: suiteName),
             zaiTokenStore: NoopZaiTokenStore())
@@ -137,7 +171,8 @@ struct StatusItemExtraUsageMetricTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = provider
-        settings.menuBarDisplayMode = .percent
+        settings.menuBarDisplayMode = displayMode
+        settings.resetTimesShowAbsolute = resetTimesShowAbsolute
         settings.usageBarsShowUsed = true
         settings.setMenuBarMetricPreference(.extraUsage, for: provider)
 

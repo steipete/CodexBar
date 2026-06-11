@@ -691,6 +691,7 @@ extension StatusItemController {
     }
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        let mode = self.settings.menuBarDisplayMode
         if provider == .openrouter,
            self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic,
            let balance = snapshot?.openRouterUsage?.balance
@@ -723,14 +724,14 @@ extension StatusItemController {
                 mode: self.settings.kiroMenuBarDisplayMode,
                 showUsed: self.settings.usageBarsShowUsed)
         }
-        if self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .extraUsage,
+        if mode != .resetTime,
+           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .extraUsage,
            let spend = Self.extraUsageSpendDisplayText(snapshot: snapshot)
         {
             return spend
         }
 
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
-        let mode = self.settings.menuBarDisplayMode
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: provider,
@@ -753,6 +754,13 @@ extension StatusItemController {
             pace = paceWindow.flatMap { window in
                 self.store.weeklyPace(provider: provider, window: window, now: now)
             }
+        case .resetTime:
+            return MenuBarDisplayText.displayText(
+                mode: mode,
+                percentWindow: percentWindow,
+                showUsed: self.settings.usageBarsShowUsed,
+                resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+                now: now)
         }
         let displayText = MenuBarDisplayText.displayText(
             mode: mode,

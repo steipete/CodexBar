@@ -622,9 +622,11 @@
 "display_mode_percent" = "Phần trăm";
 "display_mode_pace" = "Tốc độ";
 "display_mode_both" = "Cả hai";
+"display_mode_reset_time" = "Thời gian đặt lại";
 "display_mode_percent_desc" = "Hiển thị phần trăm còn lại/đã sử dụng (ví dụ: 45%)";
 "display_mode_pace_desc" = "Hiển thị chỉ báo tốc độ (ví dụ: +5%)";
 "display_mode_both_desc" = "Hiển thị cả phần trăm và tốc độ (ví dụ: 45% · +5%)";
+"display_mode_reset_time_desc" = "Hiển thị thời gian đặt lại của chỉ số đã chọn (ví dụ: ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Hoạt động";
