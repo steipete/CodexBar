@@ -18,7 +18,7 @@ public struct KimiUsageFetcher: Sendable {
             throw KimiAPIError.missingToken
         }
 
-        let endpoint = baseURL.appendingPathComponent("coding/v1/usages")
+        let endpoint = self.codeAPIUsageEndpoint(baseURL: baseURL)
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -44,6 +44,10 @@ public struct KimiUsageFetcher: Sendable {
 
     static func _parseCodeAPIUsageForTesting(_ data: Data, now: Date = Date()) throws -> KimiUsageSnapshot {
         try self.parseCodeAPIUsage(from: data, now: now)
+    }
+
+    static func _codeAPIUsageEndpointForTesting(baseURL: URL) -> URL {
+        self.codeAPIUsageEndpoint(baseURL: baseURL)
     }
 
     public static func fetchUsage(authToken: String, now: Date = Date()) async throws -> KimiUsageSnapshot {
@@ -118,6 +122,18 @@ public struct KimiUsageFetcher: Sendable {
             weekly: response.usage,
             rateLimit: response.limits?.first?.detail,
             updatedAt: now)
+    }
+
+    private static func codeAPIUsageEndpoint(baseURL: URL) -> URL {
+        let normalizedPath = baseURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalizedPath.hasSuffix("coding/v1") {
+            return baseURL.appendingPathComponent("usages")
+        }
+
+        return baseURL
+            .appendingPathComponent("coding")
+            .appendingPathComponent("v1")
+            .appendingPathComponent("usages")
     }
 
     private static func decodeSessionInfo(from jwt: String) -> SessionInfo? {

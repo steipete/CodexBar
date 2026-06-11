@@ -2,6 +2,36 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private struct KimiStubClaudeFetcher: ClaudeUsageFetching {
+    func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+        throw ClaudeUsageError.parseFailed("stub")
+    }
+
+    func debugRawProbe(model _: String) async -> String {
+        "stub"
+    }
+
+    func detectVersion() -> String? {
+        nil
+    }
+}
+
+private func makeKimiFetchContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
+    let env: [String: String] = [:]
+    return ProviderFetchContext(
+        runtime: .app,
+        sourceMode: sourceMode,
+        includeCredits: false,
+        webTimeout: 1,
+        webDebugDumpHTML: false,
+        verbose: false,
+        env: env,
+        settings: nil,
+        fetcher: UsageFetcher(environment: env),
+        claudeFetcher: KimiStubClaudeFetcher(),
+        browserDetection: BrowserDetection(cacheTTL: 0))
+}
+
 struct KimiSettingsReaderTests {
     @Test
     func `reads token from environment variable`() {
@@ -64,6 +94,24 @@ struct KimiSettingsReaderTests {
         let env = ["kimi_auth_token": "test.jwt.token"]
         let token = KimiSettingsReader.authToken(environment: env)
         #expect(token == "test.jwt.token")
+    }
+}
+
+struct KimiAPIFetchStrategyTests {
+    @Test
+    func `auto mode falls back from invalid API key to web cookies`() {
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(sourceMode: .auto)
+
+        #expect(strategy.shouldFallback(on: KimiAPIError.invalidToken, context: context))
+    }
+
+    @Test
+    func `explicit API mode does not fall back from invalid API key`() {
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(sourceMode: .api)
+
+        #expect(strategy.shouldFallback(on: KimiAPIError.invalidToken, context: context) == false)
     }
 }
 
@@ -195,6 +243,38 @@ struct KimiUsageResponseParsingTests {
         #expect(snapshot.weekly.used == "375")
         #expect(snapshot.rateLimit?.limit == "200")
         #expect(snapshot.rateLimit?.used == "19")
+    }
+
+    @Test
+    func `builds default code API usage endpoint`() throws {
+        let baseURL = try #require(URL(string: "https://api.kimi.com"))
+        let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)
+
+        #expect(endpoint.absoluteString == "https://api.kimi.com/coding/v1/usages")
+    }
+
+    @Test
+    func `appends code API path to custom proxy root`() throws {
+        let baseURL = try #require(URL(string: "https://proxy.example.com/kimi"))
+        let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)
+
+        #expect(endpoint.absoluteString == "https://proxy.example.com/kimi/coding/v1/usages")
+    }
+
+    @Test
+    func `does not duplicate code API path when base URL already includes it`() throws {
+        let baseURL = try #require(URL(string: "https://api.kimi.com/coding/v1"))
+        let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)
+
+        #expect(endpoint.absoluteString == "https://api.kimi.com/coding/v1/usages")
+    }
+
+    @Test
+    func `does not duplicate code API path with trailing slash`() throws {
+        let baseURL = try #require(URL(string: "https://proxy.example.com/kimi/coding/v1/"))
+        let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)
+
+        #expect(endpoint.absoluteString == "https://proxy.example.com/kimi/coding/v1/usages")
     }
 
     @Test
