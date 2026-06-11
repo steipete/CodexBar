@@ -190,7 +190,7 @@ struct AlibabaCodingPlanWebFetchStrategy: ProviderFetchStrategy {
             return message.contains("HTTP 404") || message.contains("HTTP 403")
         case .networkError:
             return true
-        case .parseFailed:
+        case .parseFailed, .invalidEndpointOverride:
             return false
         }
     }

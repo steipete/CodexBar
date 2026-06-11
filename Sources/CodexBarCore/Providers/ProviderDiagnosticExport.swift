@@ -222,6 +222,16 @@ public struct ProviderDiagnosticError: Codable, Sendable {
             case .invalidCredentials: return "auth"
             case .apiError: return "api"
             case .parseFailed: return "parse"
+            case .invalidEndpointOverride: return "configuration"
+            }
+        }
+        if let alibabaError = error as? AlibabaCodingPlanUsageError {
+            switch alibabaError {
+            case .networkError: return "network"
+            case .loginRequired, .invalidCredentials: return "auth"
+            case .apiError, .apiKeyUnavailableInRegion: return "api"
+            case .parseFailed: return "parse"
+            case .invalidEndpointOverride: return "configuration"
             }
         }
         if error is MiniMaxSettingsError || error is MiniMaxAPISettingsError { return "auth" }

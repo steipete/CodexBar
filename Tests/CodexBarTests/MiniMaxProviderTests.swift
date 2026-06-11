@@ -25,6 +25,153 @@ struct MiniMaxAPISettingsReaderTests {
     }
 }
 
+struct MiniMaxEndpointOverrideSettingsTests {
+    @Test
+    func `strict endpoint overrides reject non MiniMax hosts`() {
+        let env = [
+            MiniMaxSettingsReader.requireProviderEndpointOverridesKey: "true",
+            MiniMaxSettingsReader.hostKey: "https://attacker.example",
+            MiniMaxSettingsReader.codingPlanURLKey: "https://attacker.example/coding-plan",
+            MiniMaxSettingsReader.remainsURLKey: "https://attacker.example/remains",
+            MiniMaxSettingsReader.billingHistoryURLKey: "https://attacker.example/account/amount",
+        ]
+
+        #expect(MiniMaxSettingsReader.hostOverride(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.codingPlanURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.remainsURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.billingHistoryURL(environment: env) == nil)
+    }
+
+    @Test
+    func `endpoint overrides reject encoded host delimiters before suffix matching`() {
+        let encodedSlash = "https://attacker.example%2f.platform.minimax.io"
+        let doubleEncodedSlash = "https://attacker.example%252f.platform.minimax.io"
+        let env = [
+            MiniMaxSettingsReader.hostKey: encodedSlash,
+            MiniMaxSettingsReader.codingPlanURLKey: "\(encodedSlash)/coding-plan",
+            MiniMaxSettingsReader.remainsURLKey: "\(encodedSlash)/remains",
+            MiniMaxSettingsReader.billingHistoryURLKey: "\(encodedSlash)/account/amount",
+        ]
+
+        #expect(MiniMaxSettingsReader.hostOverride(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.codingPlanURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.remainsURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.billingHistoryURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.hostOverride(environment: [
+            MiniMaxSettingsReader.hostKey: doubleEncodedSlash,
+        ]) == nil)
+    }
+
+    @Test
+    func `endpoint overrides require https and no userinfo`() {
+        #expect(MiniMaxSettingsReader.hostOverride(environment: [
+            MiniMaxSettingsReader.hostKey: "http://platform.minimax.io",
+        ]) == nil)
+        #expect(MiniMaxSettingsReader.remainsURL(environment: [
+            MiniMaxSettingsReader.remainsURLKey: "https://user:pass@platform.minimax.io/remains",
+        ]) == nil)
+        #expect(MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: [
+            MiniMaxSettingsReader.hostKey: ":443",
+        ]) == MiniMaxSettingsReader.hostKey)
+    }
+
+    @Test
+    func `endpoint overrides allow MiniMax and custom https hosts`() {
+        let env = [
+            MiniMaxSettingsReader.hostKey: "platform.minimaxi.com",
+            MiniMaxSettingsReader.remainsURLKey: "https://platform.minimax.io/custom/remains",
+        ]
+
+        #expect(MiniMaxSettingsReader.hostOverride(environment: env) == "platform.minimaxi.com")
+        #expect(MiniMaxSettingsReader.remainsURL(environment: env)?.host == "platform.minimax.io")
+
+        let customEnv = [
+            MiniMaxSettingsReader.hostKey: "proxy.example.test",
+            MiniMaxSettingsReader.remainsURLKey: "https://proxy.example.test/custom/remains",
+        ]
+        #expect(MiniMaxSettingsReader.hostOverride(environment: customEnv) == "proxy.example.test")
+        #expect(MiniMaxSettingsReader.remainsURL(environment: customEnv)?.host == "proxy.example.test")
+        #expect(MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: customEnv) == nil)
+    }
+
+    @Test
+    func `host endpoint overrides preserve explicit port`() {
+        let env = [MiniMaxSettingsReader.hostKey: "proxy.example.test:8443"]
+
+        #expect(MiniMaxSettingsReader.hostOverride(environment: env) == "proxy.example.test:8443")
+        #expect(
+            MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env).absoluteString ==
+                "https://proxy.example.test:8443/user-center/payment/coding-plan?cycle_type=3")
+        #expect(
+            MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env).absoluteString ==
+                "https://proxy.example.test:8443/v1/api/openplatform/coding_plan/remains")
+    }
+
+    @Test
+    func `subscription metadata accepts host names beginning with http`() throws {
+        let url = try MiniMaxSubscriptionMetadataFetcher.resolveComboURL(
+            region: .global,
+            environment: [MiniMaxSettingsReader.hostKey: "https://http-proxy.example.test"])
+
+        #expect(url.host == "http-proxy.example.test")
+        #expect(url.scheme == "https")
+    }
+
+    @Test
+    func `scheme less endpoint preserves colon in path`() {
+        let env = [MiniMaxSettingsReader.remainsURLKey: "proxy.example.test/api:v1"]
+
+        #expect(
+            MiniMaxSettingsReader.remainsURL(environment: env)?.absoluteString ==
+                "https://proxy.example.test/api:v1")
+    }
+
+    @Test
+    func `custom https endpoints allow bracketed IPv6 literals`() {
+        let env = [
+            MiniMaxSettingsReader.hostKey: "[::1]:8443",
+            MiniMaxSettingsReader.remainsURLKey: "https://[::1]:8443/remains",
+        ]
+
+        #expect(MiniMaxSettingsReader.hostOverride(environment: env) == "[::1]:8443")
+        #expect(MiniMaxSettingsReader.remainsURL(environment: env)?.host == "::1")
+        #expect(MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: env) == nil)
+    }
+
+    @Test
+    func `strict provider endpoint mode rejects custom hosts`() {
+        let env = [
+            MiniMaxSettingsReader.requireProviderEndpointOverridesKey: "true",
+            MiniMaxSettingsReader.hostKey: "proxy.example.test",
+            MiniMaxSettingsReader.remainsURLKey: "https://proxy.example.test/custom/remains",
+        ]
+
+        #expect(MiniMaxSettingsReader.hostOverride(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.remainsURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: env) == MiniMaxSettingsReader.hostKey)
+    }
+
+    @Test
+    func `custom https compatibility mode still rejects http and userinfo`() {
+        #expect(MiniMaxSettingsReader.hostOverride(environment: [
+            MiniMaxSettingsReader.hostKey: "http://proxy.example.test",
+        ]) == nil)
+        #expect(MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: [
+            MiniMaxSettingsReader.remainsURLKey: "https://user:pass@proxy.example.test/remains",
+        ]) == MiniMaxSettingsReader.remainsURLKey)
+    }
+
+    @Test
+    func `explicit endpoint override rejects invalid scheme before network`() async {
+        await #expect(throws: MiniMaxUsageError.invalidEndpointOverride(MiniMaxSettingsReader.codingPlanURLKey)) {
+            _ = try await MiniMaxUsageFetcher.fetchUsage(
+                cookieHeader: "session=abc123",
+                environment: [MiniMaxSettingsReader.codingPlanURLKey: "http://platform.minimax.io/coding-plan"],
+                includeBillingHistory: false)
+        }
+    }
+}
+
 struct MiniMaxProviderStrategyTests {
     private struct StubClaudeFetcher: ClaudeUsageFetching {
         func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {

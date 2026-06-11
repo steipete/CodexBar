@@ -100,7 +100,7 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
             return true
         case let .apiError(message):
             return message.contains("HTTP 404")
-        case .networkError, .parseFailed:
+        case .networkError, .parseFailed, .invalidEndpointOverride:
             return false
         }
     }

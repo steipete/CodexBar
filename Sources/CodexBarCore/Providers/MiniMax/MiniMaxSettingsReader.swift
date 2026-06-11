@@ -1,6 +1,9 @@
 import Foundation
 
 public struct MiniMaxSettingsReader: Sendable {
+    private static let endpointValidator = ProviderEndpointOverrideValidator(
+        allowedDomainSuffixes: ["minimax.io", "minimaxi.com"])
+
     public static let cookieHeaderKeys = [
         "MINIMAX_COOKIE",
         "MINIMAX_COOKIE_HEADER",
@@ -9,6 +12,13 @@ public struct MiniMaxSettingsReader: Sendable {
     public static let codingPlanURLKey = "MINIMAX_CODING_PLAN_URL"
     public static let remainsURLKey = "MINIMAX_REMAINS_URL"
     public static let billingHistoryURLKey = "MINIMAX_BILLING_HISTORY_URL"
+    public static let requireProviderEndpointOverridesKey = "MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES"
+    private static let endpointOverrideKeys = [
+        Self.hostKey,
+        Self.codingPlanURLKey,
+        Self.remainsURLKey,
+        Self.billingHistoryURLKey,
+    ]
 
     public static func cookieHeader(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
@@ -27,25 +37,54 @@ public struct MiniMaxSettingsReader: Sendable {
     }
 
     public static func hostOverride(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.cleaned(environment[self.hostKey])
+        self.endpointValidator.validatedHost(
+            self.cleaned(environment[self.hostKey]),
+            policy: self.endpointOverrideHostPolicy(environment: environment))
+    }
+
+    public static func rejectedEndpointOverrideKey(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        let policy = self.endpointOverrideHostPolicy(environment: environment)
+        return self.endpointOverrideKeys.first { key in
+            guard let value = self.cleaned(environment[key]) else { return false }
+            if key == Self.hostKey {
+                return self.endpointValidator.validatedHost(value, policy: policy) == nil
+            }
+            return self.endpointValidator.validatedURL(value, policy: policy) == nil
+        }
     }
 
     public static func codingPlanURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        self.url(from: environment[self.codingPlanURLKey])
+        self.endpointValidator.validatedURL(
+            self.cleaned(environment[self.codingPlanURLKey]),
+            policy: self.endpointOverrideHostPolicy(environment: environment))
     }
 
     public static func remainsURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        self.url(from: environment[self.remainsURLKey])
+        self.endpointValidator.validatedURL(
+            self.cleaned(environment[self.remainsURLKey]),
+            policy: self.endpointOverrideHostPolicy(environment: environment))
     }
 
     public static func billingHistoryURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        self.url(from: environment[self.billingHistoryURLKey])
+        self.endpointValidator.validatedURL(
+            self.cleaned(environment[self.billingHistoryURLKey]),
+            policy: self.endpointOverrideHostPolicy(environment: environment))
+    }
+
+    static func endpointOverrideHostPolicy(environment: [String: String]) -> ProviderEndpointOverrideValidator
+    .HostPolicy {
+        guard let value = self.cleaned(environment[self.requireProviderEndpointOverridesKey])?.lowercased(),
+              ["1", "true", "yes", "on"].contains(value)
+        else { return .allowAnyHTTPSHost }
+        return .providerOwnedOnly
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -61,14 +100,6 @@ public struct MiniMaxSettingsReader: Sendable {
 
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
-    }
-
-    private static func url(from raw: String?) -> URL? {
-        guard let cleaned = self.cleaned(raw) else { return nil }
-        if let url = URL(string: cleaned), url.scheme != nil {
-            return url
-        }
-        return URL(string: "https://\(cleaned)")
     }
 }
 
