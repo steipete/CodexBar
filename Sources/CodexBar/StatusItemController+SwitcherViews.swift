@@ -42,12 +42,12 @@ final class ProviderSwitcherView: NSView {
     private var pressedButtonTag: Int?
     private var selectedSegmentIndex: Int?
     private let lightModeOverlayLayer = CALayer()
-    private static let quotaIndicatorHeight: CGFloat = 3
-    private static let quotaIndicatorBottomInset: CGFloat = 2
+    private static let quotaIndicatorHeight: CGFloat = 2
+    private static let quotaIndicatorBottomInset: CGFloat = 1
     private static let quotaIndicatorHorizontalInset: CGFloat = 8
-    private static let quotaIndicatorContentGap: CGFloat = 3
-    private static var quotaIndicatorReservedHeight: CGFloat {
-        quotaIndicatorContentGap + quotaIndicatorHeight + quotaIndicatorBottomInset
+    private static let quotaIndicatorContentGap: CGFloat = 2
+    private static var quotaIndicatorGutterHeight: CGFloat {
+        self.quotaIndicatorContentGap + self.quotaIndicatorHeight + self.quotaIndicatorBottomInset
     }
 
     init(
@@ -103,7 +103,8 @@ final class ProviderSwitcherView: NSView {
             maxAllowedSegmentWidth: initialMaxAllowedSegmentWidth,
             stackedIcons: self.stackedIcons)
         self.rowSpacing = self.stackedIcons ? 4 : 2
-        self.rowHeight = Self.switcherRowHeight(stackedIcons: self.stackedIcons)
+        self.rowHeight = Self.switcherButtonHeight(stackedIcons: self.stackedIcons, rowCount: self.rowCount)
+            + Self.quotaIndicatorGutterHeight
         let height: CGFloat = self.rowHeight * CGFloat(self.rowCount)
             + self.rowSpacing * CGFloat(max(0, self.rowCount - 1))
         self.preferredWidth = width
@@ -164,14 +165,6 @@ final class ProviderSwitcherView: NSView {
                 button.imagePosition = .noImage
             }
 
-            let remaining: Double? = switch segment.selection {
-            case let .provider(provider):
-                self.weeklyRemainingProvider(provider)
-            case .overview:
-                nil
-            }
-            Self.applyQuotaBarContentInset(to: button)
-            self.addQuotaIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
             button.bezelStyle = .regularSquare
             button.isBordered = false
             button.controlSize = .small
@@ -184,6 +177,8 @@ final class ProviderSwitcherView: NSView {
             button.state = (selected == segment.selection) ? .on : .off
             button.toolTip = nil
             button.translatesAutoresizingMaskIntoConstraints = false
+            button.heightAnchor.constraint(
+                equalToConstant: self.rowHeight - Self.quotaIndicatorGutterHeight).isActive = true
             self.buttons.append(button)
             return button
         }
@@ -191,6 +186,10 @@ final class ProviderSwitcherView: NSView {
         for (index, segment) in self.segments.enumerated() {
             let button = makeButton(index: index, segment: segment)
             self.addSubview(button)
+            self.addQuotaIndicator(
+                to: button,
+                selection: segment.selection,
+                remainingPercent: self.remainingPercent(for: segment.selection))
         }
         self.selectedSegmentIndex = selected.flatMap { selected in
             self.segments.firstIndex { $0.selection == selected }
@@ -266,7 +265,7 @@ final class ProviderSwitcherView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let location = self.convert(event.locationInWindow, from: nil)
-        let hoveredTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag
+        let hoveredTag = self.button(at: location)?.tag
         guard hoveredTag != self.hoveredButtonTag else { return }
         self.hoveredButtonTag = hoveredTag
         self.updateButtonStyles()
@@ -310,7 +309,7 @@ final class ProviderSwitcherView: NSView {
     func handleMenuTrackingMouseDown(_ event: NSEvent) -> Bool {
         guard event.type == .leftMouseDown else { return false }
         let location = self.locationInView(for: event)
-        guard let pressedTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag,
+        guard let pressedTag = self.button(at: location)?.tag,
               self.segments.indices.contains(pressedTag)
         else {
             return false
@@ -325,7 +324,7 @@ final class ProviderSwitcherView: NSView {
         defer { self.pressedButtonTag = nil }
         guard let pressedTag = self.pressedButtonTag else { return false }
         let location = self.locationInView(for: event)
-        guard let releasedTag = self.buttons.first(where: { $0.frame.contains(location) })?.tag,
+        guard let releasedTag = self.button(at: location)?.tag,
               releasedTag == pressedTag
         else {
             return true
@@ -384,9 +383,13 @@ final class ProviderSwitcherView: NSView {
             gap.priority = .defaultHigh
             NSLayoutConstraint.activate([
                 left.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: outerPadding),
-                left.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+                left.centerYAnchor.constraint(
+                    equalTo: self.centerYAnchor,
+                    constant: -Self.quotaIndicatorGutterHeight / 2),
                 right.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -outerPadding),
-                right.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+                right.centerYAnchor.constraint(
+                    equalTo: self.centerYAnchor,
+                    constant: -Self.quotaIndicatorGutterHeight / 2),
                 gap,
             ])
             return
@@ -406,11 +409,17 @@ final class ProviderSwitcherView: NSView {
 
             NSLayoutConstraint.activate([
                 left.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: outerPadding),
-                left.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+                left.centerYAnchor.constraint(
+                    equalTo: self.centerYAnchor,
+                    constant: -Self.quotaIndicatorGutterHeight / 2),
                 mid.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                mid.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+                mid.centerYAnchor.constraint(
+                    equalTo: self.centerYAnchor,
+                    constant: -Self.quotaIndicatorGutterHeight / 2),
                 right.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -outerPadding),
-                right.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+                right.centerYAnchor.constraint(
+                    equalTo: self.centerYAnchor,
+                    constant: -Self.quotaIndicatorGutterHeight / 2),
                 leftGap,
                 rightGap,
             ])
@@ -449,7 +458,9 @@ final class ProviderSwitcherView: NSView {
                 } else {
                     NSLayoutConstraint.activate([
                         button.leadingAnchor.constraint(equalTo: rowContainer.leadingAnchor, constant: xOffset),
-                        button.centerYAnchor.constraint(equalTo: rowContainer.centerYAnchor),
+                        button.centerYAnchor.constraint(
+                            equalTo: rowContainer.centerYAnchor,
+                            constant: -Self.quotaIndicatorGutterHeight / 2),
                     ])
                 }
                 xOffset += width + computedGap
@@ -460,7 +471,9 @@ final class ProviderSwitcherView: NSView {
         if let first = self.buttons.first {
             NSLayoutConstraint.activate([
                 first.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                first.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+                first.centerYAnchor.constraint(
+                    equalTo: self.centerYAnchor,
+                    constant: -Self.quotaIndicatorGutterHeight / 2),
             ])
         }
     }
@@ -524,7 +537,9 @@ final class ProviderSwitcherView: NSView {
                 let xOffset = CGFloat(columnIndex) * (uniformWidth + computedGap)
                 NSLayoutConstraint.activate([
                     button.leadingAnchor.constraint(equalTo: gridContainer.leadingAnchor, constant: xOffset),
-                    button.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+                    button.centerYAnchor.constraint(
+                        equalTo: rowView.centerYAnchor,
+                        constant: -Self.quotaIndicatorGutterHeight / 2),
                 ])
             }
         }
@@ -581,9 +596,9 @@ final class ProviderSwitcherView: NSView {
         return rows
     }
 
-    private static func switcherRowHeight(stackedIcons: Bool) -> CGFloat {
-        let baseRowHeight: CGFloat = stackedIcons ? 36 : 30
-        return baseRowHeight + self.quotaIndicatorReservedHeight
+    private static func switcherButtonHeight(stackedIcons: Bool, rowCount: Int) -> CGFloat {
+        guard stackedIcons else { return 30 }
+        return rowCount >= 3 ? 39 : 36
     }
 
     private static func switcherOuterPadding(for width: CGFloat, count: Int, minimumGap: CGFloat) -> CGFloat {
@@ -636,12 +651,7 @@ final class ProviderSwitcherView: NSView {
         for (index, button) in self.buttons.enumerated() {
             guard self.segments.indices.contains(index) else { continue }
             let segment = self.segments[index]
-            let remaining: Double? = switch segment.selection {
-            case let .provider(provider):
-                self.weeklyRemainingProvider(provider)
-            case .overview:
-                nil
-            }
+            let remaining = self.remainingPercent(for: segment.selection)
 
             let key = ObjectIdentifier(button)
             if let remaining {
@@ -662,6 +672,15 @@ final class ProviderSwitcherView: NSView {
                 continue
             }
             self.updateQuotaIndicatorVisibility(for: button)
+        }
+    }
+
+    private func remainingPercent(for selection: ProviderSwitcherSelection) -> Double? {
+        switch selection {
+        case let .provider(provider):
+            self.weeklyRemainingProvider(provider)
+        case .overview:
+            nil
         }
     }
 
@@ -896,6 +915,17 @@ final class ProviderSwitcherView: NSView {
     }
 }
 
+extension ProviderSwitcherView {
+    fileprivate func button(at location: NSPoint) -> NSButton? {
+        self.buttons.first { button in
+            var hitFrame = button.frame
+            hitFrame.origin.y -= Self.quotaIndicatorGutterHeight
+            hitFrame.size.height += Self.quotaIndicatorGutterHeight
+            return hitFrame.contains(location)
+        }
+    }
+}
+
 #if DEBUG
 extension ProviderSwitcherView {
     func _test_mouseDownEvent(buttonTag: Int) -> NSEvent? {
@@ -906,12 +936,28 @@ extension ProviderSwitcherView {
         self._test_mouseEvent(buttonTag: buttonTag, type: .leftMouseUp)
     }
 
+    func _test_quotaIndicatorMouseEvent(buttonTag: Int, type: NSEvent.EventType) -> NSEvent? {
+        guard let button = self.buttons.first(where: { $0.tag == buttonTag }),
+              let track = self.quotaIndicators[ObjectIdentifier(button)]?.track
+        else {
+            return nil
+        }
+        self.updateConstraintsForSubtreeIfNeeded()
+        self.layoutSubtreeIfNeeded()
+        let point = self.convert(NSPoint(x: track.bounds.midX, y: track.bounds.midY), from: track)
+        return self._test_mouseEvent(at: point, type: type)
+    }
+
     private func _test_mouseEvent(buttonTag: Int, type: NSEvent.EventType) -> NSEvent? {
         guard let button = self.buttons.first(where: { $0.tag == buttonTag }) else { return nil }
         self.updateConstraintsForSubtreeIfNeeded()
         self.layoutSubtreeIfNeeded()
         let point = self.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
-        return NSEvent.mouseEvent(
+        return self._test_mouseEvent(at: point, type: type)
+    }
+
+    private func _test_mouseEvent(at point: NSPoint, type: NSEvent.EventType) -> NSEvent? {
+        NSEvent.mouseEvent(
             with: type,
             location: point,
             modifierFlags: [],
@@ -939,6 +985,18 @@ extension ProviderSwitcherView {
     }
 
     @discardableResult
+    func _test_simulateRuntimeClickOnQuotaIndicator(buttonTag: Int) -> Bool {
+        guard let mouseDown = self._test_quotaIndicatorMouseEvent(buttonTag: buttonTag, type: .leftMouseDown),
+              self.handleMenuTrackingMouseDown(mouseDown),
+              let mouseUp = self._test_quotaIndicatorMouseEvent(buttonTag: buttonTag, type: .leftMouseUp),
+              self.handleMenuTrackingMouseUp(mouseUp)
+        else {
+            return false
+        }
+        return self.selectedSegmentIndex == buttonTag
+    }
+
+    @discardableResult
     func _test_simulateNativeAction(buttonTag: Int, state: NSControl.StateValue) -> Bool {
         guard let button = self.buttons.first(where: { $0.tag == buttonTag }) else { return false }
         button.state = state
@@ -952,6 +1010,12 @@ extension ProviderSwitcherView {
 
     func _test_buttonFittingSizes() -> [NSSize] {
         self.buttons.map(\.fittingSize)
+    }
+
+    func _test_buttonContentFrames() -> [NSRect?] {
+        self.buttons.map { button in
+            button.subviews.first(where: { $0 is NSStackView })?.frame
+        }
     }
 
     func _test_rowCount() -> Int {
@@ -979,6 +1043,13 @@ extension ProviderSwitcherView {
         }
     }
 
+    func _test_quotaIndicatorTrackFrames() -> [NSRect] {
+        self.buttons.compactMap { button in
+            guard let track = self.quotaIndicators[ObjectIdentifier(button)]?.track else { return nil }
+            return self.convert(track.bounds, from: track)
+        }
+    }
+
     func _test_quotaIndicatorConstraintIdentifiers() -> [ObjectIdentifier] {
         self.buttons.compactMap { button in
             self.quotaIndicators[ObjectIdentifier(button)].map { ObjectIdentifier($0.fillWidthConstraint) }
@@ -990,7 +1061,6 @@ extension ProviderSwitcherView {
 extension ProviderSwitcherView {
     private func addQuotaIndicator(to view: NSView, selection: ProviderSwitcherSelection, remainingPercent: Double?) {
         guard let remainingPercent else { return }
-        Self.applyQuotaBarContentInset(to: view)
 
         let track = NSView()
         track.wantsLayer = true
@@ -998,7 +1068,7 @@ extension ProviderSwitcherView {
         track.layer?.cornerRadius = Self.quotaIndicatorHeight / 2
         track.layer?.masksToBounds = true
         track.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(track)
+        self.addSubview(track)
 
         let fill = NSView()
         fill.wantsLayer = true
@@ -1020,9 +1090,9 @@ extension ProviderSwitcherView {
             track.trailingAnchor.constraint(
                 equalTo: view.trailingAnchor,
                 constant: -Self.quotaIndicatorHorizontalInset),
-            track.bottomAnchor.constraint(
+            track.topAnchor.constraint(
                 equalTo: view.bottomAnchor,
-                constant: -Self.quotaIndicatorBottomInset),
+                constant: Self.quotaIndicatorContentGap),
             track.heightAnchor.constraint(equalToConstant: Self.quotaIndicatorHeight),
             fill.leadingAnchor.constraint(equalTo: track.leadingAnchor),
             fill.topAnchor.constraint(equalTo: track.topAnchor),
@@ -1036,13 +1106,6 @@ extension ProviderSwitcherView {
             fillWidthConstraint: fillWidthConstraint,
             fillRatio: ratio)
         self.updateQuotaIndicatorVisibility(for: view)
-    }
-
-    fileprivate static func applyQuotaBarContentInset(
-        to view: NSView,
-        height: CGFloat = quotaIndicatorReservedHeight)
-    {
-        (view as? ProviderSwitcherToggleButton)?.setQuotaBarReservedHeight(height)
     }
 
     private func updateQuotaIndicatorVisibility(for view: NSView) {
