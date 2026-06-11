@@ -5,6 +5,9 @@
 ### Added
 - Devin: add daily and weekly quota tracking from the signed-in Chrome session or a manual Bearer token (#1264, fixes #800). Thanks @coygeek!
 
+### Fixed
+- Cursor: show the Safari Full Disk Access recovery hint before the long browser login list so permission guidance remains visible when menu errors truncate (#1419, fixes #1417). Thanks @hhh2210!
+
 ## 0.33.0 — 2026-06-11
 
 ### Added
