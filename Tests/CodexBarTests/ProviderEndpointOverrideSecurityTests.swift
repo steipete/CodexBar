@@ -4,6 +4,31 @@ import Testing
 
 struct ProviderEndpointOverrideSecurityTests {
     @Test
+    func `sibling endpoint overrides allow bracketed IPv6 literals`() throws {
+        let endpoint = "https://[::1]:8443/v1"
+
+        try OpenRouterSettingsReader.validateEndpointOverrides(
+            environment: ["OPENROUTER_API_URL": endpoint])
+        #expect(OpenRouterSettingsReader.apiURL(
+            environment: ["OPENROUTER_API_URL": endpoint]).absoluteString == endpoint)
+
+        try CodebuffSettingsReader.validateEndpointOverrides(
+            environment: ["CODEBUFF_API_URL": endpoint])
+        #expect(CodebuffSettingsReader.apiURL(
+            environment: ["CODEBUFF_API_URL": endpoint]).absoluteString == endpoint)
+
+        try GroqSettingsReader.validateEndpointOverrides(
+            environment: [GroqSettingsReader.apiURLEnvironmentKey: endpoint])
+        #expect(GroqSettingsReader.apiURL(
+            environment: [GroqSettingsReader.apiURLEnvironmentKey: endpoint]).absoluteString == endpoint)
+
+        try ElevenLabsSettingsReader.validateEndpointOverrides(
+            environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: endpoint])
+        #expect(ElevenLabsSettingsReader.apiURL(
+            environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: endpoint]).absoluteString == endpoint)
+    }
+
+    @Test
     func `sibling endpoint overrides reject userinfo and encoded host delimiters`() {
         let userInfoURL = "https://user:pass@proxy.test/v1"
         let malformedHostURLs = [
