@@ -124,7 +124,11 @@ public struct AntigravityStatusSnapshot: Sendable {
         let extraWindows = shownModels
             .sorted(by: Self.modelOrderPrecedes)
             .map { m in
-                NamedRateWindow(id: m.quota.modelId, title: m.quota.label, window: Self.rateWindow(for: m.quota))
+                NamedRateWindow(
+                    id: m.quota.modelId,
+                    title: m.quota.label,
+                    window: Self.rateWindow(for: m.quota),
+                    usageKnown: m.quota.remainingFraction != nil)
             }
 
         let identity = ProviderIdentitySnapshot(

@@ -151,6 +151,9 @@ When source mode is `oauth`, only OAuth is used.
   GPT-OSS. In automatic menu-bar/highest-usage selection, CodexBar treats the provider as exhausted only when the
   displayed Claude/Gemini summary lanes are exhausted; additional model windows remain visible in detailed usage
   breakdowns.
+- Some Antigravity local/CLI model config entries include reset metadata but omit `remainingFraction`. Those windows stay
+  in `extraRateWindows` for reset context and are marked with `usageKnown: false`; clients should not render their
+  `usedPercent` as a real exhausted quota.
 
 ## Constraints
 - Internal protocol; fields may change.

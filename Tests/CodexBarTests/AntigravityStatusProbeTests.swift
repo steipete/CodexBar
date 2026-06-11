@@ -1026,6 +1026,32 @@ extension AntigravityStatusProbeTests {
             $0.id == "MODEL_PLACEHOLDER_M36"
         })
         #expect(modelWindow.window.resetsAt == resetTime)
+        #expect(modelWindow.usageKnown == false)
+        let knownModelWindow = try #require(usage.extraRateWindows?.first {
+            $0.id == "MODEL_PLACEHOLDER_M47"
+        })
+        #expect(knownModelWindow.usageKnown)
+    }
+
+    @Test
+    func `named rate windows default legacy payloads to known usage`() throws {
+        let json = """
+        {
+          "id": "legacy-window",
+          "title": "Legacy Window",
+          "window": {
+            "usedPercent": 42,
+            "windowMinutes": null,
+            "resetsAt": null,
+            "resetDescription": null,
+            "nextRegenPercent": null
+          }
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(NamedRateWindow.self, from: Data(json.utf8))
+
+        #expect(decoded.usageKnown)
     }
 
     @Test
