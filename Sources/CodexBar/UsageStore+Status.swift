@@ -44,6 +44,7 @@ extension UsageStore {
     /// Status feeds decode off the main actor: the Google Workspace incidents payload alone
     /// can be hundreds of kilobytes and cost 150-340ms to decode (#1399), and these helpers
     /// touch no store state.
+    @concurrent
     nonisolated static func fetchStatus(
         from baseURL: URL,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
@@ -84,9 +85,11 @@ extension UsageStore {
             updatedAt: response.page?.updatedAt)
     }
 
+    @concurrent
     nonisolated static func fetchWorkspaceStatus(
         productID: String,
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        beforeDecoding: (@Sendable () -> Void)? = nil)
         async throws -> ProviderStatus
     {
         guard let url = URL(string: "https://www.google.com/appsstatus/dashboard/incidents.json") else {
@@ -95,6 +98,7 @@ extension UsageStore {
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
         let (data, _) = try await transport.data(for: request)
+        beforeDecoding?()
         return try Self.parseGoogleWorkspaceStatus(data: data, productID: productID)
     }
 

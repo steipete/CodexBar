@@ -44,12 +44,11 @@ struct GoogleWorkspaceStatusNetworkTests {
     }
 
     @Test
-    func `fetchWorkspaceStatus stays off the main thread when called from the main actor`() async throws {
+    func `fetchWorkspaceStatus decodes off the main thread when called from the main actor`() async throws {
         // The incidents feed can run to hundreds of kilobytes; decoding it on the main
         // actor stalls the UI for 150-340ms per Google-status provider per refresh (#1399).
-        let fetchedOffMainThread = OSAllocatedUnfairLock(initialState: false)
+        let decodedOffMainThread = OSAllocatedUnfairLock(initialState: false)
         let transport = ProviderHTTPTransportStub { request in
-            fetchedOffMainThread.withLock { $0 = !Thread.isMainThread }
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -60,9 +59,12 @@ struct GoogleWorkspaceStatusNetworkTests {
 
         let status = try await UsageStore.fetchWorkspaceStatus(
             productID: "npdyhgECDJ6tB66MxXyo",
-            transport: transport)
+            transport: transport,
+            beforeDecoding: {
+                decodedOffMainThread.withLock { $0 = !Thread.isMainThread }
+            })
 
         #expect(status.indicator == .none)
-        #expect(fetchedOffMainThread.withLock { $0 })
+        #expect(decodedOffMainThread.withLock { $0 })
     }
 }
