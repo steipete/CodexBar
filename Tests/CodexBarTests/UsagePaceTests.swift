@@ -184,6 +184,37 @@ struct UsagePaceTests {
     }
 
     @Test
+    func `workday aware pace does not declare zero usage safe before first workday`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 14)))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 7,
+            hour: 12)))
+        let window = RateWindow(
+            usedPercent: 0,
+            windowMinutes: 10080,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+
+        let pace = try #require(UsagePace.weekly(window: window, now: now, workDays: 5))
+
+        #expect(pace.expectedUsedPercent == 0)
+        #expect(pace.willLastToReset == false)
+        #expect(pace.etaSeconds == nil)
+    }
+
+    @Test
     func `workday aware pace splits a non midnight reset at local day boundaries`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
