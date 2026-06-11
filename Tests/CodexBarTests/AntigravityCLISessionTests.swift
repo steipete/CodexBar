@@ -517,6 +517,7 @@ struct AntigravityCLISessionTests {
         await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
         let replacementPID = try await replacement.value
         let oldEvents = try #require(fixture.launcher.handleSnapshot().first).snapshotEvents()
+        #expect(await fixture.session.lastStopReasonForTesting == "authentication required")
         await fixture.session.finishProbe(success: true, resetAfterFetch: true)
 
         #expect(replacementPID == 11)
@@ -1254,6 +1255,52 @@ extension AntigravityCLISessionTests {
         #expect(relaunchedPID == 11)
         #expect(fixture.launcher.launchedBinarySnapshot() == ["/bin/agy", "/bin/agy"])
         #expect(await fixture.session.failureCountForTesting == 0)
+    }
+
+    @Test
+    func `session reset reasons distinguish authentication from unhealthy probes`() {
+        #expect(AntigravityCLISession.resetCause(
+            authenticationRequired: true,
+            resetAfterFetch: true,
+            shouldForceStopUnhealthy: true).message == "authentication required")
+        #expect(AntigravityCLISession.resetCause(
+            authenticationRequired: false,
+            resetAfterFetch: true,
+            shouldForceStopUnhealthy: true).message == "unhealthy CLI HTTPS session")
+        #expect(AntigravityCLISession.resetCause(
+            authenticationRequired: false,
+            resetAfterFetch: true,
+            shouldForceStopUnhealthy: false).message == "one-shot CLI fetch")
+        #expect(AntigravityCLISession.resetCause(
+            authenticationRequired: false,
+            resetAfterFetch: false,
+            shouldForceStopUnhealthy: false).message == "deferred reset")
+    }
+
+    @Test
+    func `deferred unhealthy reset preserves its cause after a concurrent success`() async throws {
+        let fixture = self.makeFixture(failureRelaunchThreshold: 1)
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: false, resetAfterFetch: false)
+        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
+
+        #expect(await fixture.session.lastStopReasonForTesting == "unhealthy CLI HTTPS session")
+    }
+
+    @Test
+    func `deferred authentication reset preserves its cause after a concurrent success`() async throws {
+        let fixture = self.makeFixture()
+        fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
+
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        _ = try await fixture.session.beginProbe(binary: "/bin/agy")
+        await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
+        await fixture.session.finishProbe(success: true, resetAfterFetch: false)
+
+        #expect(await fixture.session.lastStopReasonForTesting == "authentication required")
     }
 
     @Test

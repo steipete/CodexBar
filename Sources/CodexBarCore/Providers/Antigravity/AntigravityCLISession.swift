@@ -104,6 +104,22 @@ actor AntigravityCLISession {
     static let shared = AntigravityCLISession()
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
 
+    enum ResetCause: Int {
+        case deferred
+        case oneShotCLI
+        case unhealthy
+        case authentication
+
+        var message: String {
+            switch self {
+            case .deferred: "deferred reset"
+            case .oneShotCLI: "one-shot CLI fetch"
+            case .unhealthy: "unhealthy CLI HTTPS session"
+            case .authentication: "authentication required"
+            }
+        }
+    }
+
     private struct LaunchOutcome {
         let pid: pid_t
         let rejectedProcess: (any AntigravityCLIProcessHandle)?
@@ -173,12 +189,14 @@ actor AntigravityCLISession {
     private var activeSessionProbeCount = 0
     private var resetRequestedWhenIdle = false
     private var hardResetRequestedWhenIdle = false
+    private var pendingResetCause: ResetCause?
     private var idleTask: Task<Void, Never>?
     private var sessionGeneration: UInt64 = 0
     private var consecutiveProbeFailures = 0
     private var persistedProcessIdentity: AntigravityCLIProcessIdentity?
     private var recentOutput = Data()
     private var authenticationPromptObserved = false
+    private var lastStopReason: String?
     private var lifecycleOperationInProgress = false
     private var lifecycleWaiters: [CheckedContinuation<Void, Never>] = []
     private var exclusiveProbeWaiters: [CheckedContinuation<Void, Never>] = []
@@ -211,6 +229,10 @@ actor AntigravityCLISession {
 
     var activeProbeCountForTesting: Int {
         self.activeProbeCount
+    }
+
+    var lastStopReasonForTesting: String? {
+        self.lastStopReason
     }
 
     // MARK: Lifecycle
@@ -270,10 +292,15 @@ actor AntigravityCLISession {
         let shouldForceStopUnhealthy = !success &&
             self.consecutiveProbeFailures >= max(1, self.dependencies.failureRelaunchThreshold)
         let shouldReset = forceTerminate || resetAfterFetch || self.resetRequestedWhenIdle || shouldForceStopUnhealthy
+        let currentResetCause = Self.resetCause(
+            authenticationRequired: forceTerminate,
+            resetAfterFetch: resetAfterFetch,
+            shouldForceStopUnhealthy: shouldForceStopUnhealthy)
 
         guard self.activeProbeCount == 0 else {
             if shouldReset {
                 self.resetRequestedWhenIdle = true
+                self.pendingResetCause = Self.strongestResetCause(self.pendingResetCause, currentResetCause)
             }
             if shouldReset, !success || forceTerminate {
                 self.hardResetRequestedWhenIdle = true
@@ -283,19 +310,11 @@ actor AntigravityCLISession {
 
         if shouldReset {
             let shouldForceTerminate = !success || forceTerminate || self.hardResetRequestedWhenIdle
-            let reason =
-                if shouldForceTerminate {
-                    "authentication required"
-                } else if resetAfterFetch {
-                    "one-shot CLI fetch"
-                } else if shouldForceStopUnhealthy {
-                    "unhealthy CLI HTTPS session"
-                } else {
-                    "deferred reset"
-                }
+            let resetCause = Self.strongestResetCause(self.pendingResetCause, currentResetCause)
             await self.withLifecycleOperation {
                 guard self.activeProbeCount == 0 else {
                     self.resetRequestedWhenIdle = true
+                    self.pendingResetCause = Self.strongestResetCause(self.pendingResetCause, resetCause)
                     if shouldForceTerminate {
                         self.hardResetRequestedWhenIdle = true
                     }
@@ -303,14 +322,36 @@ actor AntigravityCLISession {
                 }
                 self.resetRequestedWhenIdle = false
                 self.hardResetRequestedWhenIdle = false
+                self.pendingResetCause = nil
                 await self.stopCurrentSessionLocked(
-                    reason: reason,
+                    reason: resetCause.message,
                     clearRecord: true,
                     graceful: !shouldForceTerminate)
             }
         } else {
             self.armIdleTimer()
         }
+    }
+
+    static func resetCause(
+        authenticationRequired: Bool,
+        resetAfterFetch: Bool,
+        shouldForceStopUnhealthy: Bool) -> ResetCause
+    {
+        if authenticationRequired {
+            .authentication
+        } else if shouldForceStopUnhealthy {
+            .unhealthy
+        } else if resetAfterFetch {
+            .oneShotCLI
+        } else {
+            .deferred
+        }
+    }
+
+    static func strongestResetCause(_ existing: ResetCause?, _ incoming: ResetCause) -> ResetCause {
+        guard let existing else { return incoming }
+        return existing.rawValue >= incoming.rawValue ? existing : incoming
     }
 
     /// Ensure a warm ``agy`` is running on the given binary path.
@@ -585,6 +626,9 @@ actor AntigravityCLISession {
 
     private func stopCurrentSessionLocked(reason: String, clearRecord: Bool, graceful: Bool = true) async {
         self.cancelIdleTimer()
+        let effectiveReason = self.pendingResetCause?.message ?? reason
+        self.pendingResetCause = nil
+        self.lastStopReason = effectiveReason
         guard let proc = self.process else {
             if clearRecord {
                 try? self.dependencies.launchLock.withLock {
@@ -599,7 +643,7 @@ actor AntigravityCLISession {
 
         let pid = proc.pid
         let identity = self.persistedProcessIdentity
-        Self.log.debug("Antigravity CLI session stopping", metadata: ["pid": "\(pid)", "reason": "\(reason)"])
+        Self.log.debug("Antigravity CLI session stopping", metadata: ["pid": "\(pid)", "reason": "\(effectiveReason)"])
 
         self.process = nil
         self.binaryPath = nil
