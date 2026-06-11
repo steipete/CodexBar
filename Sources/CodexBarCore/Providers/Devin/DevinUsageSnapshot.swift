@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 public enum DevinUsageError: LocalizedError, Sendable {
@@ -12,7 +13,8 @@ public enum DevinUsageError: LocalizedError, Sendable {
         case .noSession:
             "No Devin browser session found. Please log in to app.devin.ai or paste a Bearer token."
         case .missingOrganization:
-            "No Devin organization was found. Open an app.devin.ai/org/... page or set the organization in Devin settings."
+            "No Devin organization was found. Open an app.devin.ai/org/... page " +
+                "or set the organization in Devin settings."
         case .invalidCredentials:
             "Devin session token is invalid or expired."
         case let .apiError(message):
@@ -55,16 +57,20 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primary = RateWindow(
-            usedPercent: self.daily?.usedPercent ?? 0,
-            windowMinutes: 24 * 60,
-            resetsAt: self.daily?.resetsAt,
-            resetDescription: "Daily")
-        let secondary = RateWindow(
-            usedPercent: self.weekly?.usedPercent ?? 0,
-            windowMinutes: 7 * 24 * 60,
-            resetsAt: self.weekly?.resetsAt,
-            resetDescription: "Weekly")
+        let primary = self.daily.map {
+            RateWindow(
+                usedPercent: $0.usedPercent,
+                windowMinutes: 24 * 60,
+                resetsAt: $0.resetsAt,
+                resetDescription: "Daily")
+        }
+        let secondary = self.weekly.map {
+            RateWindow(
+                usedPercent: $0.usedPercent,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: $0.resetsAt,
+                resetDescription: "Weekly")
+        }
         let identity = ProviderIdentitySnapshot(
             providerID: .devin,
             accountEmail: nil,
@@ -85,10 +91,11 @@ public enum DevinUsageParser {
     }
 
     public static func parse(_ object: Any, organization: String?, now: Date = Date()) throws -> DevinUsageSnapshot {
-        guard let daily = self.findWindow(in: object, matching: isDailyKey),
-              let weekly = self.findWindow(in: object, matching: isWeeklyKey)
-        else {
-            throw DevinUsageError.parseFailed("Missing daily or weekly quota windows.")
+        let current = (object as? [String: Any]).map(self.currentQuotaWindows)
+        let daily = current?.daily ?? self.findWindow(in: object, matching: self.isDailyKey)
+        let weekly = current?.weekly ?? self.findWindow(in: object, matching: self.isWeeklyKey)
+        guard daily != nil || weekly != nil else {
+            throw DevinUsageError.parseFailed("Missing Devin quota windows.")
         }
 
         return DevinUsageSnapshot(
@@ -97,6 +104,25 @@ public enum DevinUsageParser {
             planName: self.findPlanName(in: object),
             organization: self.displayOrganization(from: organization),
             updatedAt: now)
+    }
+
+    private static func currentQuotaWindows(_ dictionary: [String: Any])
+        -> (daily: DevinQuotaWindow?, weekly: DevinQuotaWindow?)
+    {
+        let daily = self.currentQuotaWindow(
+            percent: dictionary["daily_percentage"],
+            resetsAt: dictionary["daily_reset_at"])
+        let weekly = self.currentQuotaWindow(
+            percent: dictionary["weekly_percentage"],
+            resetsAt: dictionary["weekly_reset_at"])
+        return (daily, weekly)
+    }
+
+    private static func currentQuotaWindow(percent: Any?, resetsAt: Any?) -> DevinQuotaWindow? {
+        guard let usedPercent = self.double(percent) else { return nil }
+        return DevinQuotaWindow(
+            usedPercent: usedPercent <= 1 ? usedPercent * 100 : usedPercent,
+            resetsAt: self.date(from: resetsAt))
     }
 
     private static func findWindow(in object: Any, matching keyMatches: (String) -> Bool) -> DevinQuotaWindow? {
@@ -255,7 +281,7 @@ public enum DevinUsageParser {
     private static func double(_ value: Any?) -> Double? {
         switch value {
         case let number as NSNumber:
-            number.doubleValue
+            CFGetTypeID(number) == CFBooleanGetTypeID() ? nil : number.doubleValue
         case let string as String:
             Double(string.trimmingCharacters(in: .whitespacesAndNewlines))
         default:
@@ -265,12 +291,12 @@ public enum DevinUsageParser {
 
     private static func isDailyKey(_ raw: String) -> Bool {
         let key = raw.lowercased()
-        return key.contains("daily") || key.contains("day")
+        return !key.contains("hide") && (key.contains("daily") || key.contains("day"))
     }
 
     private static func isWeeklyKey(_ raw: String) -> Bool {
         let key = raw.lowercased()
-        return key.contains("weekly") || key.contains("week")
+        return !key.contains("hide") && (key.contains("weekly") || key.contains("week"))
     }
 
     private static func displayOrganization(from raw: String?) -> String? {

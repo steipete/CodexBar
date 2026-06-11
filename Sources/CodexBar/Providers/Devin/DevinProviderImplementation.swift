@@ -42,7 +42,7 @@ struct DevinProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.devinCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatically imports the app.devin.ai browser session.",
+                auto: "Automatically imports the app.devin.ai session from Chrome.",
                 manual: "Paste an Authorization Bearer token from app.devin.ai.",
                 off: "Paste an Authorization Bearer token from app.devin.ai.")
         }
@@ -51,7 +51,7 @@ struct DevinProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "devin-cookie-source",
                 title: "Auth source",
-                subtitle: "Automatically imports the app.devin.ai browser session.",
+                subtitle: "Automatically imports the app.devin.ai session from Chrome.",
                 dynamicSubtitle: subtitle,
                 binding: cookieBinding,
                 options: cookieOptions,

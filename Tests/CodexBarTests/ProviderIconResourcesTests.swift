@@ -24,6 +24,7 @@ struct ProviderIconResourcesTests {
             "antigravity",
             "factory",
             "copilot",
+            "devin",
             "crof",
             "commandcode",
             "t3chat",

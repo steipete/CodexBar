@@ -11,38 +11,18 @@ public struct DevinUsageFetcher: Sendable {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
 
     public struct RequestAuth: Sendable, Equatable {
-        public struct RefreshSession: Sendable, Equatable {
-            public let tokenEndpoint: URL
-            public let clientID: String
-            public let audience: String?
-            public let scope: String?
-
-            public init(tokenEndpoint: URL, clientID: String, audience: String?, scope: String?) {
-                self.tokenEndpoint = tokenEndpoint
-                self.clientID = clientID
-                self.audience = audience
-                self.scope = scope
-            }
-        }
-
         public let bearerToken: String
-        public let refreshToken: String?
-        public let refreshSession: RefreshSession?
         public let organization: String?
         public let internalOrganizationID: String?
         public let sourceLabel: String
 
         public init(
             bearerToken: String,
-            refreshToken: String? = nil,
-            refreshSession: RefreshSession? = nil,
             organization: String?,
             internalOrganizationID: String?,
             sourceLabel: String)
         {
             self.bearerToken = bearerToken
-            self.refreshToken = refreshToken
-            self.refreshSession = refreshSession
             self.organization = organization
             self.internalOrganizationID = internalOrganizationID
             self.sourceLabel = sourceLabel
@@ -96,48 +76,34 @@ public struct DevinUsageFetcher: Sendable {
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> DevinUsageSnapshot
     {
-        let organization = self.normalizedOrganization(organizationOverride ?? auth.organization)
+        let organization = self.normalizedOrganization(organizationOverride) ??
+            self.normalizedOrganization(auth.organization)
         guard let organization else {
             throw DevinUsageError.missingOrganization
         }
 
         var lastError: Error?
-        var currentAuth = auth
-        var didRefreshToken = false
-
-        retryPaths: while true {
-            for path in self.candidatePaths(
-                organization: organization,
-                internalOrganizationID: currentAuth.internalOrganizationID)
-            {
-                do {
-                    let data = try await self.fetch(
-                        path: path,
-                        auth: currentAuth,
-                        timeout: timeout,
-                        transport: transport)
-                    logger?("[devin] Fetched quota usage from /api/\(path)")
-                    return try DevinUsageParser.parse(data, organization: organization, now: now)
-                } catch {
-                    lastError = error
-                    logger?("[devin] /api/\(path) failed: \(error.localizedDescription)")
-                    if case DevinUsageError.invalidCredentials = error {
-                        guard !didRefreshToken,
-                              let refreshedAuth = try await self.refreshedAuth(
-                                  from: currentAuth,
-                                  timeout: timeout,
-                                  logger: logger,
-                                  transport: transport)
-                        else {
-                            throw error
-                        }
-                        currentAuth = refreshedAuth
-                        didRefreshToken = true
-                        continue retryPaths
-                    }
+        for path in self.candidatePaths(
+            organization: organization,
+            internalOrganizationID: auth.internalOrganizationID)
+        {
+            let data: Data
+            do {
+                data = try await self.fetch(
+                    path: path,
+                    auth: auth,
+                    timeout: timeout,
+                    transport: transport)
+            } catch {
+                lastError = error
+                logger?("[devin] /api/\(path) failed: \(error.localizedDescription)")
+                if case DevinUsageError.invalidCredentials = error {
+                    throw error
                 }
+                continue
             }
-            break
+            logger?("[devin] Fetched quota usage from /api/\(path)")
+            return try DevinUsageParser.parse(data, organization: organization, now: now)
         }
 
         throw lastError ?? DevinUsageError.apiError("No Devin quota endpoint succeeded.")
@@ -172,9 +138,10 @@ public struct DevinUsageFetcher: Sendable {
         }
 
         #if os(macOS)
+        let normalizedOrganizationOverride = Self.normalizedOrganization(organizationOverride)
         let sessions = DevinSessionImporter.importSessions(
             browserDetection: self.browserDetection,
-            organizationOverride: organizationOverride,
+            organizationOverride: normalizedOrganizationOverride,
             logger: logger)
         guard !sessions.isEmpty else {
             throw DevinUsageError.noSession
@@ -183,15 +150,7 @@ public struct DevinUsageFetcher: Sendable {
         return sessions.map { session in
             RequestAuth(
                 bearerToken: session.accessToken,
-                refreshToken: session.refreshToken,
-                refreshSession: session.auth0.map {
-                    RequestAuth.RefreshSession(
-                        tokenEndpoint: $0.tokenEndpoint,
-                        clientID: $0.clientID,
-                        audience: $0.audience,
-                        scope: $0.scope)
-                },
-                organization: Self.normalizedOrganization(organizationOverride ?? session.organization),
+                organization: normalizedOrganizationOverride ?? Self.normalizedOrganization(session.organization),
                 internalOrganizationID: session.internalOrganizationID,
                 sourceLabel: session.sourceLabel)
         }
@@ -200,9 +159,9 @@ public struct DevinUsageFetcher: Sendable {
         #endif
     }
 
-    private static func shouldTryNextSession(after error: Error) -> Bool {
+    static func shouldTryNextSession(after error: Error) -> Bool {
         switch error {
-        case DevinUsageError.invalidCredentials, DevinUsageError.apiError:
+        case DevinUsageError.invalidCredentials, DevinUsageError.apiError, DevinUsageError.missingOrganization:
             true
         default:
             false
@@ -238,72 +197,6 @@ public struct DevinUsageFetcher: Sendable {
         return response.data
     }
 
-    private static func refreshedAuth(
-        from auth: RequestAuth,
-        timeout: TimeInterval,
-        logger: ((String) -> Void)?,
-        transport: any ProviderHTTPTransport) async throws -> RequestAuth?
-    {
-        guard let refreshToken = auth.refreshToken,
-              let refreshSession = auth.refreshSession
-        else {
-            return nil
-        }
-        let accessToken = try await self.refreshAccessToken(
-            refreshToken: refreshToken,
-            session: refreshSession,
-            timeout: timeout,
-            transport: transport)
-        logger?("[devin] Refreshed expired browser access token")
-        return RequestAuth(
-            bearerToken: accessToken,
-            refreshToken: refreshToken,
-            refreshSession: refreshSession,
-            organization: auth.organization,
-            internalOrganizationID: auth.internalOrganizationID,
-            sourceLabel: auth.sourceLabel)
-    }
-
-    private static func refreshAccessToken(
-        refreshToken: String,
-        session: RequestAuth.RefreshSession,
-        timeout: TimeInterval,
-        transport: any ProviderHTTPTransport) async throws -> String
-    {
-        var request = URLRequest(url: session.tokenEndpoint)
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeout
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-        var items = [
-            URLQueryItem(name: "grant_type", value: "refresh_token"),
-            URLQueryItem(name: "client_id", value: session.clientID),
-            URLQueryItem(name: "refresh_token", value: refreshToken),
-        ]
-        if let audience = session.audience, !audience.isEmpty {
-            items.append(URLQueryItem(name: "audience", value: audience))
-        }
-        if let scope = session.scope, !scope.isEmpty {
-            items.append(URLQueryItem(name: "scope", value: scope))
-        }
-        var components = URLComponents()
-        components.queryItems = items
-        request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
-
-        let response = try await transport.response(for: request)
-        guard response.statusCode == 200 else {
-            throw DevinUsageError.invalidCredentials
-        }
-        guard let object = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any],
-              let accessToken = object["access_token"] as? String,
-              !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else {
-            throw DevinUsageError.parseFailed("Missing refreshed access token.")
-        }
-        return accessToken
-    }
-
     private static func candidatePaths(organization: String, internalOrganizationID: String?) -> [String] {
         var paths: [String] = []
         let normalized = self.normalizedOrganization(organization) ?? organization
@@ -328,7 +221,10 @@ public struct DevinUsageFetcher: Sendable {
         guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
             return nil
         }
-        if let url = URL(string: value), let host = url.host, host.contains("devin.ai") {
+        if let url = URL(string: value),
+           let host = url.host?.lowercased(),
+           host == "devin.ai" || host.hasSuffix(".devin.ai")
+        {
             let components = url.path.split(separator: "/").map(String.init)
             if components.count >= 2, components[0] == "org" {
                 value = "org/\(components[1])"
@@ -340,7 +236,7 @@ public struct DevinUsageFetcher: Sendable {
         if value.hasPrefix("org/") || value.hasPrefix("organizations/") {
             return value
         }
-        if value.hasPrefix("org-") {
+        if self.isInternalOrganizationID(value) {
             return "organizations/\(value)"
         }
         return "org/\(value)"
@@ -353,6 +249,10 @@ public struct DevinUsageFetcher: Sendable {
             return nil
         }
         return String(normalized.dropFirst("organizations/".count))
+    }
+
+    static func isInternalOrganizationID(_ value: String) -> Bool {
+        value.hasPrefix("org-") || value.hasPrefix("org_")
     }
 }
 

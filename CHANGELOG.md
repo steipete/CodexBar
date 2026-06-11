@@ -2,6 +2,9 @@
 
 ## 0.33.1 — Unreleased
 
+### Added
+- Devin: add daily and weekly quota tracking from the signed-in Chrome session or a manual Bearer token (#1264, fixes #800). Thanks @coygeek!
+
 ## 0.33.0 — 2026-06-11
 
 ### Added

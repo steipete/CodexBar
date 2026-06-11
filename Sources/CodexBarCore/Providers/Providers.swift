@@ -222,6 +222,7 @@ public enum ProviderBrowserCookieDefaults {
         nil
         #endif
     }
+
     /// MiMo Auto: Safari first (no Keychain prompt), keep the existing Chrome-family
     /// entries from main, and add Firefox/Edge per #1304. Other Chromium forks stay on
     /// Manual import to avoid scanning the full SweetCookieKit default order.

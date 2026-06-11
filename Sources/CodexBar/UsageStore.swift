@@ -1049,7 +1049,6 @@ extension UsageStore {
                 .alibabatokenplan: "Alibaba Token Plan debug log not yet implemented",
                 .factory: "Droid debug log not yet implemented",
                 .copilot: "Copilot debug log not yet implemented",
-                .devin: "Devin debug log not yet implemented",
                 .manus: "Manus debug log not yet implemented",
                 .vertexai: "Vertex AI debug log not yet implemented",
                 .kilo: "Kilo debug log not yet implemented",

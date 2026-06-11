@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 48 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 49 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -33,6 +33,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
+| Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
 | Manus | Browser `session_id` cookie (auto/manual/env) → credits API (`web`). |
 | MiniMax | Manual/browser session via Coding Plan web path (`web`), or Coding Plan API token (`api`). |
@@ -106,6 +107,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Supports global and BigModel CN quota hosts; override with `Z_AI_API_HOST` or `Z_AI_QUOTA_URL`.
 - Status: none yet.
 - Details: `docs/zai.md`.
+
+## Devin
+- Automatic auth reads the current `auth1_session` token and organization metadata from Chrome localStorage.
+- Manual auth accepts the `Authorization: Bearer ...` value from an app.devin.ai request.
+- Usage endpoint: `GET /api/<internal-org-id>/billing/quota/usage`.
+- Shows daily and weekly quota percentages with their reset timestamps.
+- Details: `docs/devin.md`.
 
 ## Manus
 - Session token via browser `session_id` cookie, manual Settings entry, `MANUS_SESSION_TOKEN`, or `MANUS_COOKIE`.
