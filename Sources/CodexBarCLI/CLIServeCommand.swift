@@ -65,6 +65,11 @@ private struct ServeHealthPayload: Encodable {
     let status: String
 }
 
+struct CLIServeConfigSnapshot: Sendable {
+    let config: CodexBarConfig
+    let cacheToken: String
+}
+
 private final class CLIServeDeadlineState: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<CLILocalHTTPResponse, Never>?
@@ -240,12 +245,12 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
-        let config = Self.loadConfig(output: output)
+        let configStore = CodexBarConfigStore()
         let cache = CLIServeResponseCache()
         let server = CLILocalHTTPServer(host: "127.0.0.1", port: port) { request in
             await Self.handleServeRequest(
                 request,
-                config: config,
+                configStore: configStore,
                 cache: cache,
                 refreshInterval: refreshInterval,
                 requestTimeout: requestTimeout)
@@ -301,7 +306,7 @@ extension CodexBarCLI {
 
     private static func handleServeRequest(
         _ request: CLILocalHTTPRequest,
-        config: CodexBarConfig,
+        configStore: CodexBarConfigStore,
         cache: CLIServeResponseCache,
         refreshInterval: TimeInterval,
         requestTimeout: TimeInterval) async -> CLILocalHTTPResponse
@@ -322,24 +327,61 @@ extension CodexBarCLI {
         case .health:
             return Self.serveJSON(ServeHealthPayload(status: "ok"))
         case let .usage(provider):
+            let snapshot: CLIServeConfigSnapshot
+            do {
+                snapshot = try Self.loadServeConfigSnapshot(configStore: configStore)
+            } catch {
+                return Self.serveError(status: .internalServerError, message: error.localizedDescription)
+            }
             return await Self.cachedServeResponse(
-                key: "usage:\(provider ?? "")",
+                key: Self.serveCacheKey(kind: "usage", provider: provider, configToken: snapshot.cacheToken),
                 cache: cache,
                 refreshInterval: refreshInterval,
                 requestTimeout: requestTimeout)
             {
-                await Self.serveUsage(provider: provider, config: config)
+                await Self.serveUsage(provider: provider, config: snapshot.config)
             }
         case let .cost(provider):
+            let snapshot: CLIServeConfigSnapshot
+            do {
+                snapshot = try Self.loadServeConfigSnapshot(configStore: configStore)
+            } catch {
+                return Self.serveError(status: .internalServerError, message: error.localizedDescription)
+            }
             return await Self.cachedServeResponse(
-                key: "cost:\(provider ?? "")",
+                key: Self.serveCacheKey(kind: "cost", provider: provider, configToken: snapshot.cacheToken),
                 cache: cache,
                 refreshInterval: refreshInterval,
                 requestTimeout: requestTimeout)
             {
-                await Self.serveCost(provider: provider, config: config)
+                await Self.serveCost(provider: provider, config: snapshot.config)
             }
         }
+    }
+
+    static func loadServeConfigSnapshot(
+        configStore: CodexBarConfigStore = CodexBarConfigStore()) throws -> CLIServeConfigSnapshot
+    {
+        let config = try configStore.load() ?? CodexBarConfig.makeDefault()
+        return try CLIServeConfigSnapshot(
+            config: config,
+            cacheToken: Self.serveConfigCacheToken(for: config))
+    }
+
+    static func serveCacheKey(kind: String, provider: String?, configToken: String) -> String {
+        "\(kind):\(provider ?? ""):\(configToken)"
+    }
+
+    static func serveConfigCacheToken(for config: CodexBarConfig) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(config.normalized())
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in data {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
     }
 
     static func cachedServeResponse(

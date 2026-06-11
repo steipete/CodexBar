@@ -2,6 +2,7 @@ import Commander
 import Foundation
 import Testing
 @testable import CodexBarCLI
+@testable import CodexBarCore
 
 struct CLIServeRouterTests {
     @Test
@@ -136,6 +137,29 @@ struct CLIServeRouterTests {
         #expect(serve.contains("--request-timeout <seconds>"))
         #expect(serve.contains("codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30"))
         #expect(root.contains("--request-timeout <seconds>"))
+    }
+
+    @Test
+    func `serve config snapshot reflects provider changes`() throws {
+        let store = testConfigStore(suiteName: "CLIServeRouterTests-serve-config-freshness-\(UUID().uuidString)")
+        defer { try? store.deleteIfPresent() }
+        var firstConfig = CodexBarConfig.makeDefault()
+        firstConfig.setProviderConfig(ProviderConfig(id: .opencodego, enabled: false))
+        try store.save(firstConfig)
+
+        let firstSnapshot = try CodexBarCLI.loadServeConfigSnapshot(configStore: store)
+
+        var secondConfig = firstConfig
+        secondConfig.setProviderConfig(ProviderConfig(id: .opencodego, enabled: true))
+        try store.save(secondConfig)
+        let secondSnapshot = try CodexBarCLI.loadServeConfigSnapshot(configStore: store)
+
+        #expect(!firstSnapshot.config.enabledProviders().contains(.opencodego))
+        #expect(secondSnapshot.config.enabledProviders().contains(.opencodego))
+        #expect(firstSnapshot.cacheToken != secondSnapshot.cacheToken)
+        #expect(
+            CodexBarCLI.serveCacheKey(kind: "usage", provider: nil, configToken: firstSnapshot.cacheToken) !=
+                CodexBarCLI.serveCacheKey(kind: "usage", provider: nil, configToken: secondSnapshot.cacheToken))
     }
 
     @Test
