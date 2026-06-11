@@ -2190,10 +2190,16 @@ enum CostUsageScanner {
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
+        if shouldInspectPriorityTurns {
+            Self.loadCodexPriorityTurnsMemoFromDiskIfNeeded(cacheRoot: options.cacheRoot)
+        }
         let priorityTurns = shouldInspectPriorityTurns ? Self.codexPriorityTurns(
             databaseURL: options.codexTraceDatabaseURL,
             sinceDayKey: range.scanSinceKey,
             untilDayKey: range.scanUntilKey) : [:]
+        if shouldInspectPriorityTurns {
+            Self.persistCodexPriorityTurnsMemoIfDirty(cacheRoot: options.cacheRoot)
+        }
         let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns)
         let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns)
         let priorityTurnsChanged = shouldInspectPriorityTurns

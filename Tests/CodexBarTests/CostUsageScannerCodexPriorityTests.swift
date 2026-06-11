@@ -584,6 +584,92 @@ struct CostUsageScannerCodexPriorityTests {
         #expect(turns["turn-\(newest)"]?.model == "completed-model")
     }
 
+    @Test
+    func `persisted memo survives a simulated relaunch and keeps refreshes incremental`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "thread_id=thread-a turn.id=turn-a websocket request: "
+                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:01:00Z",
+            body: "thread_id=thread-b turn.id=turn-b websocket request: "
+                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
+        #expect(CostUsageScanner.codexPriorityTurns(databaseURL: dbURL).count == 2)
+        let scanned = try #require(CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path))
+
+        CostUsageScanner.persistCodexPriorityTurnsMemoIfDirty(cacheRoot: env.root)
+        #expect(FileManager.default.fileExists(
+            atPath: CodexPriorityTurnsMemoIO.artifactURL(cacheRoot: env.root).path))
+        var persisted = try #require(CodexPriorityTurnsMemoIO.load(cacheRoot: env.root))
+        persisted[dbURL.path]?.observationID = UInt64.max
+        CodexPriorityTurnsMemoIO.save(states: persisted, cacheRoot: env.root)
+
+        // Simulated relaunch: in-process state is gone, the artifact remains.
+        CostUsageScanner._test_removeCodexPriorityTurnsMemoState(forPath: dbURL.path)
+        CostUsageScanner._test_resetCodexPriorityTurnsMemoDiskState()
+
+        CostUsageScanner.loadCodexPriorityTurnsMemoFromDiskIfNeeded(cacheRoot: env.root)
+        let seeded = try #require(CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path))
+        #expect(seeded.observationID == 0)
+        #expect(seeded.lastRowID == scanned.lastRowID)
+        #expect(seeded.turns.keys.sorted() == ["turn-a", "turn-b"])
+
+        // The next refresh resumes from the persisted cursor instead of rescanning.
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:02:00Z",
+            body: "thread_id=thread-c turn.id=turn-c websocket request: "
+                + #"{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}"#)
+        let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(turns.keys.sorted() == ["turn-a", "turn-b", "turn-c"])
+        let advanced = try #require(CostUsageScanner._test_codexPriorityTurnsMemoState(forPath: dbURL.path))
+        #expect(advanced.observationID > 0)
+        #expect(advanced.lastRowID == scanned.lastRowID + 1)
+    }
+
+    @Test
+    func `persisted memo from a different parser hash or version is discarded`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let state = CostUsageScanner.CodexPriorityTurnsMemoState(
+            observationID: 7,
+            coverageSinceEpoch: 0,
+            lastRowID: 7,
+            fileIdentity: 42,
+            turns: [:],
+            requestSourcesByTurnID: [:],
+            priorityCompletedModelsByTurnID: [:],
+            completedModelsByTurnID: [:],
+            completedTurnIDInsertionOrder: [],
+            completedTurnIDInsertionOrderStartIndex: 0)
+
+        CodexPriorityTurnsMemoIO.save(states: ["/tmp/db": state], cacheRoot: env.root, producerKey: "codex:pt:pstale")
+        #expect(CodexPriorityTurnsMemoIO.load(cacheRoot: env.root) == nil)
+
+        CodexPriorityTurnsMemoIO.save(states: ["/tmp/db": state], cacheRoot: env.root)
+        #expect(CodexPriorityTurnsMemoIO.load(cacheRoot: env.root)?["/tmp/db"]?.lastRowID == 7)
+        #expect(CodexPriorityTurnsMemoIO.load(cacheRoot: env.root, producerKey: "codex:pt:pother") == nil)
+    }
+
+    @Test
+    func `corrupted persisted memo artifact is ignored`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let url = CodexPriorityTurnsMemoIO.artifactURL(cacheRoot: env.root)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: url)
+
+        #expect(CodexPriorityTurnsMemoIO.load(cacheRoot: env.root) == nil)
+    }
+
     static func insertTestLogs(dbURL: URL, rows: [(epochSeconds: Int64, body: String)]) throws {
         var db: OpaquePointer?
         guard sqlite3_open(dbURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }

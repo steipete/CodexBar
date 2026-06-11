@@ -24,7 +24,7 @@ extension CostUsageScanner {
     /// `INTEGER PRIMARY KEY AUTOINCREMENT` id, so rowids are monotonic and never
     /// reused. Codex prunes old rows in place, so source row IDs are retained and cheaply
     /// revalidated before each incremental scan.
-    struct CodexPriorityTurnsMemoState {
+    struct CodexPriorityTurnsMemoState: Codable {
         var observationID: UInt64
         var coverageSinceEpoch: Int64
         var lastRowID: Int64
@@ -75,11 +75,11 @@ extension CostUsageScanner {
         _ updated: CodexPriorityTurnsMemoState,
         forPath path: String)
     {
-        self.codexPriorityTurnsMemo.withLock { memo in
+        let stored = self.codexPriorityTurnsMemo.withLock { memo in
             if let existing = memo[path],
                existing.observationID > updated.observationID
             {
-                return
+                return false
             }
             if let existing = memo[path],
                existing.observationID == updated.observationID,
@@ -87,10 +87,12 @@ extension CostUsageScanner {
                existing.coverageSinceEpoch <= updated.coverageSinceEpoch,
                existing.lastRowID >= updated.lastRowID
             {
-                return
+                return false
             }
             memo[path] = updated
+            return true
         }
+        if stored { self.markCodexPriorityTurnsMemoDirty() }
     }
 
     static func _test_resetCodexPriorityTurnsMemo() {
@@ -100,6 +102,10 @@ extension CostUsageScanner {
 
     static func _test_codexPriorityTurnsMemoState(forPath path: String) -> CodexPriorityTurnsMemoState? {
         self.codexPriorityTurnsMemo.withLock { $0[path] }
+    }
+
+    static func _test_removeCodexPriorityTurnsMemoState(forPath path: String) {
+        self.codexPriorityTurnsMemo.withLock { $0[path] = nil }
     }
 
     static func _test_accumulateCodexPriorityTurns(
@@ -118,6 +124,10 @@ extension CostUsageScanner {
             db,
             lastRowID: lastRowID,
             coverageSinceEpoch: coverageSinceEpoch).query
+    }
+
+    static func codexPriorityTurnsMemoSnapshot() -> [String: CodexPriorityTurnsMemoState] {
+        self.codexPriorityTurnsMemo.withLock { $0 }
     }
     #endif
 
