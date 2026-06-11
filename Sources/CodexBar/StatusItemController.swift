@@ -154,6 +154,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
     var providerSwitcherPointerInteractionMenuID: ObjectIdentifier?
     var pendingProviderSwitcherPointerRebuild: PendingProviderSwitcherRebuild?
+    var overviewScrollAccumulatedDelta: CGFloat = 0
+    var overviewScrollNavigationHandlerForTesting: ((OverviewScrollStep) -> Void)?
     var hasPreparedForAppShutdown = false
     var scheduleQuitTermination: (@escaping @MainActor () -> Void) -> Void = { operation in
         DispatchQueue.main.async {

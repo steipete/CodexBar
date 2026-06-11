@@ -155,8 +155,11 @@ extension StatusItemController {
         }
 
         self.removeProviderSwitcherShortcutMonitor()
+        self.resetOverviewScrollAccumulation()
         let monitor = ProviderSwitcherShortcutEventMonitor(
-            events: [.keyDown, .keyUp, .leftMouseDown, .leftMouseUp])
+            events: [.keyDown, .keyUp, .leftMouseDown, .leftMouseUp, .scrollWheel],
+            peekGate: ProviderSwitcherEventPeekGate(
+                eventTypes: [.keyDown, .keyUp, .leftMouseDown, .leftMouseUp, .scrollWheel]))
         { [weak self, weak menu] event in
             guard let self,
                   let menu,
@@ -220,6 +223,8 @@ extension StatusItemController {
             _ = switcher.handleMenuTrackingMouseUp(event)
             self.finishProviderSwitcherPointerInteraction(in: menu)
             return true
+        case .scrollWheel:
+            return self.handleOverviewScrollWheel(event, menu: menu)
         default:
             return false
         }
