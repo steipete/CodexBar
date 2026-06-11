@@ -1217,9 +1217,16 @@ extension UsageMenuCardView.Model {
         if input.provider == .factory, snapshot.tertiary != nil {
             return ("5-hour", L("Weekly"), L("Monthly"), true)
         }
-        let primaryLabel = input.provider == .grok
-            ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
-            : input.metadata.sessionLabel
+        // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool —
+        // relabel the primary bar so it reads as a request count instead of a dollar percentage.
+        let primaryLabel = if input.provider == .cursor, snapshot.cursorRequests != nil {
+            "Requests"
+        } else if input.provider == .grok {
+            GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata
+                .sessionLabel
+        } else {
+            input.metadata.sessionLabel
+        }
         return (
             L(primaryLabel),
             L(input.metadata.weeklyLabel),
@@ -1323,6 +1330,14 @@ extension UsageMenuCardView.Model {
             primaryDetailRight = paceDetail.rightLabel
             primaryPacePercent = paceDetail.pacePercent
             primaryPaceOnTop = paceDetail.paceOnTop
+        }
+        // Legacy request-based Cursor plans: surface the raw used/limit quota on its own line,
+        // since the percentage bar and pace detail alone never spell out the request cap.
+        if input.provider == .cursor, let requests = input.snapshot?.cursorRequests {
+            primaryDetailText = String(
+                format: L("Request quota: %@ / %@"),
+                "\(requests.used)",
+                "\(requests.limit)")
         }
         if input.provider == .synthetic,
            let regen = Self.syntheticRollingRegenDetail(

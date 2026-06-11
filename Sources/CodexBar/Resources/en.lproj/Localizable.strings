@@ -1069,3 +1069,5 @@
 "Search providers" = "Search providers";
 
 "language_vietnamese" = "Vietnamese";
+
+"Request quota: %@ / %@" = "Request quota: %@ / %@";

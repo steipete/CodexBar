@@ -442,8 +442,10 @@ public struct CursorStatusSnapshot: Sendable {
             resetsAt: self.billingCycleEnd,
             resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
 
-        // Secondary: Auto + Composer usage (shown as its own bar below Total)
-        let secondary: RateWindow? = self.autoPercentUsed.map { pct in
+        // Secondary: Auto + Composer usage (shown as its own bar below Total).
+        // Legacy request-based plans don't have the token-based Auto/API breakdown — those percentages
+        // come from the new usage-based pricing and are meaningless next to a request quota, so hide them.
+        let secondary: RateWindow? = self.isLegacyRequestPlan ? nil : self.autoPercentUsed.map { pct in
             RateWindow(
                 usedPercent: pct,
                 windowMinutes: billingCycleWindowMinutes,
@@ -451,8 +453,8 @@ public struct CursorStatusSnapshot: Sendable {
                 resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
         }
 
-        // Tertiary: API (named model) usage
-        let tertiary: RateWindow? = self.apiPercentUsed.map { pct in
+        // Tertiary: API (named model) usage — hidden for legacy request-based plans (see above).
+        let tertiary: RateWindow? = self.isLegacyRequestPlan ? nil : self.apiPercentUsed.map { pct in
             RateWindow(
                 usedPercent: pct,
                 windowMinutes: billingCycleWindowMinutes,

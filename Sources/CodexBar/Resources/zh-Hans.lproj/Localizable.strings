@@ -1041,3 +1041,5 @@
 "Search providers" = "搜索提供商";
 
 "language_vietnamese" = "越南语";
+
+"Request quota: %@ / %@" = "请求额度：%@ / %@";
