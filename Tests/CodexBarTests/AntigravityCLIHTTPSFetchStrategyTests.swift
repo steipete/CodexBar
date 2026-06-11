@@ -257,6 +257,23 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
+    func `cli HTTPS availability requires supported localhost trust`() async throws {
+        let binaryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-antigravity-\(UUID().uuidString)")
+        try Data("#!/bin/sh\n".utf8).write(to: binaryURL)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: binaryURL.path)
+        defer { try? FileManager.default.removeItem(at: binaryURL) }
+
+        let strategy = AntigravityCLIHTTPSFetchStrategy()
+        let context = self.makeFetchContext(env: ["ANTIGRAVITY_CLI_PATH": binaryURL.path])
+        let isAvailable = await strategy.isAvailable(context)
+
+        #expect(isAvailable)
+    }
+
+    @Test
     func `cli HTTPS falls back to command model configs when user status fails`() async throws {
         let endpoints = [
             AntigravityStatusProbe.AntigravityConnectionEndpoint(

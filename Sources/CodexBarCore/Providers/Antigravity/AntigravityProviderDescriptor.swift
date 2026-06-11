@@ -103,10 +103,14 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        BinaryLocator.resolveAntigravityBinary(env: context.env) != nil
+        guard Self.supportsLocalhostServerTrust else { return false }
+        return BinaryLocator.resolveAntigravityBinary(env: context.env) != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        guard Self.supportsLocalhostServerTrust else {
+            throw AntigravityStatusProbeError.notRunning
+        }
         guard let binary = BinaryLocator.resolveAntigravityBinary(env: context.env) else {
             throw AntigravityStatusProbeError.notRunning
         }
@@ -116,6 +120,14 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             resetAfterFetch: Self.shouldResetSessionAfterFetch(context))
         try AntigravitySelectedAccountGuard.validate(result.usage, context: context)
         return result
+    }
+
+    private static var supportsLocalhostServerTrust: Bool {
+        #if os(Linux)
+        false
+        #else
+        true
+        #endif
     }
 
     private func fetchUsingWarmSession(
