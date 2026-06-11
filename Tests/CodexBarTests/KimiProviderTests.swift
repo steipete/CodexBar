@@ -42,14 +42,24 @@ struct KimiSettingsReaderTests {
 
     @Test
     func `reads API key from preferred environment variable`() {
-        let env = ["KIMI_API_KEY": "kimi-api-token"]
+        let env = ["KIMI_CODE_API_KEY": "kimi-code-token"]
+        let token = KimiSettingsReader.apiKey(environment: env)
+        #expect(token == "kimi-code-token")
+    }
+
+    @Test
+    func `falls back to generic API key environment variable`() {
+        let env = ["KIMI_API_KEY": "'kimi-api-token'"]
         let token = KimiSettingsReader.apiKey(environment: env)
         #expect(token == "kimi-api-token")
     }
 
     @Test
-    func `reads API key from code specific environment variable`() {
-        let env = ["KIMI_CODE_API_KEY": "'kimi-code-token'"]
+    func `prefers code specific API key over generic Kimi key`() {
+        let env = [
+            "KIMI_API_KEY": "generic-kimi-token",
+            "KIMI_CODE_API_KEY": "kimi-code-token",
+        ]
         let token = KimiSettingsReader.apiKey(environment: env)
         #expect(token == "kimi-code-token")
     }

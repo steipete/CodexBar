@@ -88,7 +88,8 @@ struct ProviderConfigEnvironmentTests {
             provider: .kimi,
             config: config)
 
-        #expect(env[KimiSettingsReader.apiKeyEnvironmentKeys[0]] == "kimi-api-token")
+        #expect(env["KIMI_CODE_API_KEY"] == "kimi-api-token")
+        #expect(env["KIMI_API_KEY"] == nil)
         #expect(env[KimiSettingsReader.codeAPIBaseURLEnvironmentKey] == "https://proxy.example.com/kimi")
         #expect(ProviderTokenResolver.kimiAPIToken(environment: env) == "kimi-api-token")
         #expect(KimiSettingsReader.codeAPIBaseURL(environment: env).absoluteString == "https://proxy.example.com/kimi")

@@ -2,8 +2,8 @@ import Foundation
 
 public enum KimiSettingsReader {
     public static let apiKeyEnvironmentKeys = [
-        "KIMI_API_KEY",
         "KIMI_CODE_API_KEY",
+        "KIMI_API_KEY",
     ]
     public static let codeAPIBaseURLEnvironmentKey = "KIMI_CODE_BASE_URL"
     public static let defaultCodeAPIBaseURL = URL(string: "https://api.kimi.com")!

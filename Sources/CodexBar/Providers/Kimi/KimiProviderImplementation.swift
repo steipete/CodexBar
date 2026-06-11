@@ -105,7 +105,7 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "kimi-api-key",
                 title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. You can also provide KIMI_API_KEY.",
+                subtitle: "Stored in ~/.codexbar/config.json. You can also provide KIMI_CODE_API_KEY.",
                 kind: .secure,
                 placeholder: "Paste Kimi Code API key...",
                 binding: context.stringBinding(\.kimiAPIKey),
