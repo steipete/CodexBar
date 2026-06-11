@@ -264,27 +264,6 @@ public struct TTYCommandRunner {
         }
     }
 
-    @discardableResult
-    static func registerActiveProcessForAppShutdown(pid: pid_t, binary: String) -> Bool {
-        TTYCommandRunnerActiveProcessRegistry.register(pid: pid, binary: binary)
-    }
-
-    static func beginActiveProcessLaunchForAppShutdown() -> Bool {
-        TTYCommandRunnerActiveProcessRegistry.beginLaunch()
-    }
-
-    static func endActiveProcessLaunchForAppShutdown() {
-        TTYCommandRunnerActiveProcessRegistry.endLaunch()
-    }
-
-    static func updateActiveProcessGroupForAppShutdown(pid: pid_t, processGroup: pid_t?) {
-        TTYCommandRunnerActiveProcessRegistry.updateProcessGroup(pid: pid, processGroup: processGroup)
-    }
-
-    static func unregisterActiveProcessForAppShutdown(pid: pid_t) {
-        TTYCommandRunnerActiveProcessRegistry.unregister(pid: pid)
-    }
-
     private static func resolveShutdownTargets(
         _ targets: [(pid: pid_t, binary: String, processGroup: pid_t?)],
         hostProcessGroup: pid_t,
@@ -1085,6 +1064,27 @@ public struct TTYCommandRunner {
 }
 
 extension TTYCommandRunner {
+    @discardableResult
+    static func registerActiveProcessForAppShutdown(pid: pid_t, binary: String) -> Bool {
+        TTYCommandRunnerActiveProcessRegistry.register(pid: pid, binary: binary)
+    }
+
+    static func beginActiveProcessLaunchForAppShutdown() -> Bool {
+        TTYCommandRunnerActiveProcessRegistry.beginLaunch()
+    }
+
+    static func endActiveProcessLaunchForAppShutdown() {
+        TTYCommandRunnerActiveProcessRegistry.endLaunch()
+    }
+
+    static func updateActiveProcessGroupForAppShutdown(pid: pid_t, processGroup: pid_t?) {
+        TTYCommandRunnerActiveProcessRegistry.updateProcessGroup(pid: pid, processGroup: processGroup)
+    }
+
+    static func unregisterActiveProcessForAppShutdown(pid: pid_t) {
+        TTYCommandRunnerActiveProcessRegistry.unregister(pid: pid)
+    }
+
     static func _test_resetTrackedProcesses() {
         TTYCommandRunnerActiveProcessRegistry.reset()
     }
