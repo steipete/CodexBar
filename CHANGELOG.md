@@ -27,6 +27,7 @@
 - Menu bar: add an optional reset-time display for the selected quota metric, with percent fallback when reset metadata is unavailable (#1223, fixes #1185). Thanks @Yuxin-Qiao!
 - Cursor: include application data, extensions, settings, and caches in optional local storage tracking (fixes #1403). Thanks @dhruv-anand-aintech!
 - Menu bar: move the highlighted Overview provider with trackpad or mouse-wheel scrolling while preserving native submenu and keyboard behavior (#1436). Thanks @joshuavial!
+- Localization: add Italian as a selectable app language (#1248). Thanks @Yuxin-Qiao!
 
 ### Fixed
 - Launch at Login: remove pending registrations when disabled without re-registering entries awaiting user approval (#1469). Thanks @AmrMohamad!
