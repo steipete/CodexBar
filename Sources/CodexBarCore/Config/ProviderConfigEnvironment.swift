@@ -24,6 +24,9 @@ public enum ProviderConfigEnvironment {
         if provider == .kimi {
             return self.applyKimiOverrides(base: base, config: config)
         }
+        if provider == .poe {
+            return self.applyPoeOverrides(base: base, config: config)
+        }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
         if let key = self.directAPIKeyEnvironmentKey(for: provider) {
@@ -150,6 +153,24 @@ public enum ProviderConfigEnvironment {
         }
         if let projectID = config.sanitizedWorkspaceID {
             env[OpenAIAPISettingsReader.projectIDEnvironmentKey] = projectID
+        }
+        return env
+    }
+
+    private static func applyPoeOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let apiKey = config.sanitizedAPIKey {
+            env[PoeSettingsReader.apiKeyEnvironmentKey] = apiKey
+        }
+        if let oauthKey = config.sanitizedSecretKey {
+            env[PoeSettingsReader.oauthAPIKeyEnvironmentKey] = oauthKey
+        }
+        if let expiresAt = config.sanitizedWorkspaceID {
+            env[PoeSettingsReader.oauthAPIKeyExpiresAtEnvironmentKey] = expiresAt
         }
         return env
     }

@@ -84,4 +84,94 @@ struct PoeUsageFetcherTests {
         #expect(PoeUsageSnapshot.compactNumber(999) == "999")
         #expect(PoeUsageSnapshot.compactNumber(10000) == "10,000")
     }
+
+    @Test
+    func `history page parser extracts entries and cursor`() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "query_id": "a1",
+              "creation_time": 1717000000000000,
+              "bot_name": "GPT-4o",
+              "usage_type": "API",
+              "cost_points": 12.5,
+              "cost_usd": "0.03"
+            },
+            {
+              "query_id": "a2",
+              "creation_time": 1717003600,
+              "bot_name": "Claude Sonnet",
+              "usage_type": "Chat",
+              "cost_points": "8",
+              "usd": "0.02"
+            }
+          ],
+          "next_cursor": "cursor-2"
+        }
+        """
+
+        let parsed = try PoeUsageFetcher._parseHistoryPageForTesting(Data(json.utf8))
+        #expect(parsed.entries.count == 2)
+        #expect(parsed.entries[0].model == "GPT-4o")
+        #expect(parsed.entries[0].points == 12.5)
+        #expect(parsed.entries[0].id == "a1")
+        #expect(parsed.entries[1].costUSD == 0.02)
+        #expect(parsed.nextCursor == "cursor-2")
+    }
+
+    @Test
+    func `history parser derives cursor from has_more and last query id`() throws {
+        let json = """
+        {
+          "has_more": true,
+          "data": [
+            {
+              "query_id": "q-1",
+              "creation_time": 1717000000,
+              "bot_name": "GPT-4o",
+              "usage_type": "API",
+              "cost_points": 3
+            },
+            {
+              "query_id": "q-2",
+              "creation_time": 1717003600,
+              "bot_name": "Claude Sonnet",
+              "usage_type": "Chat",
+              "cost_points": 9
+            }
+          ]
+        }
+        """
+
+        let parsed = try PoeUsageFetcher._parseHistoryPageForTesting(Data(json.utf8))
+        #expect(parsed.entries.count == 2)
+        #expect(parsed.nextCursor == "q-2")
+    }
+
+    @Test
+    func `history daily aggregation groups by utc day`() {
+        let entries = [
+            PoeUsageHistorySnapshot.Entry(
+                id: "1",
+                createdAt: Date(timeIntervalSince1970: 1_717_000_000),
+                model: "GPT-4o",
+                usageType: "inference",
+                points: 10,
+                costUSD: 0.02),
+            PoeUsageHistorySnapshot.Entry(
+                id: "2",
+                createdAt: Date(timeIntervalSince1970: 1_717_000_100),
+                model: "GPT-4o",
+                usageType: "inference",
+                points: 5,
+                costUSD: 0.01),
+        ]
+
+        let daily = PoeUsageFetcher._buildDailyBucketsForTesting(entries: entries)
+        #expect(daily.count == 1)
+        #expect(daily[0].requests == 2)
+        #expect(daily[0].points == 15)
+        #expect(daily[0].costUSD == 0.03)
+    }
 }

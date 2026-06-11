@@ -135,6 +135,34 @@ struct ProviderTokenResolverTests {
         #expect(resolution == nil)
     }
 
+    @Test
+    func `poe resolution prefers unexpired oauth api key over manual key`() {
+        let future = Date().addingTimeInterval(3600).timeIntervalSince1970
+        let env: [String: String] = [
+            PoeSettingsReader.apiKeyEnvironmentKey: "manual-key",
+            PoeSettingsReader.oauthAPIKeyEnvironmentKey: "oauth-key",
+            PoeSettingsReader.oauthAPIKeyExpiresAtEnvironmentKey: String(future),
+        ]
+
+        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        #expect(resolution?.token == "oauth-key")
+        #expect(resolution?.source == .environment)
+    }
+
+    @Test
+    func `poe resolution falls back to manual key when oauth key is expired`() {
+        let past = Date().addingTimeInterval(-3600).timeIntervalSince1970
+        let env: [String: String] = [
+            PoeSettingsReader.apiKeyEnvironmentKey: "manual-key",
+            PoeSettingsReader.oauthAPIKeyEnvironmentKey: "oauth-key",
+            PoeSettingsReader.oauthAPIKeyExpiresAtEnvironmentKey: String(past),
+        ]
+
+        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        #expect(resolution?.token == "manual-key")
+        #expect(resolution?.source == .environment)
+    }
+
     private func makeCodebuffCredentialsFile(contents: String) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

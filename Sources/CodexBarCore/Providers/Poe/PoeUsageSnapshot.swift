@@ -2,13 +2,16 @@ import Foundation
 
 public struct PoeUsageSnapshot: Sendable {
     public let currentPointBalance: Double?
+    public let history: PoeUsageHistorySnapshot?
     public let updatedAt: Date
 
     public init(
         currentPointBalance: Double? = nil,
+        history: PoeUsageHistorySnapshot? = nil,
         updatedAt: Date = Date())
     {
         self.currentPointBalance = currentPointBalance
+        self.history = history
         self.updatedAt = updatedAt
     }
 
@@ -24,6 +27,7 @@ public struct PoeUsageSnapshot: Sendable {
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
+            poeUsage: self.history,
             updatedAt: self.updatedAt,
             identity: identity)
     }

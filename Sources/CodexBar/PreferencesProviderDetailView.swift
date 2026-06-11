@@ -83,7 +83,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         else {
             return nil
         }
-        guard provider == .openrouter || provider == .mimo || provider == .moonshot else {
+        guard provider == .openrouter || provider == .mimo || provider == .moonshot || provider == .poe else {
             return (label: L("Plan"), value: rawPlan)
         }
 
