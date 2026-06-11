@@ -146,9 +146,6 @@ struct PopoverRootView: View {
     /// 懒构造图表视图；数据缺失返回 nil。
     let makeChartView: (PopoverChartKind, CGFloat) -> AnyView?
 
-    /// 当前呈现的二级图表；非 nil 时触发 .popover(item:) 弹出侧边浮层。
-    @State private var presentedChart: PopoverChartKind?
-
     private static let menuWidth: CGFloat = 310
 
     var body: some View {
@@ -170,29 +167,6 @@ struct PopoverRootView: View {
         // 无障碍：整个菜单根容器
         .accessibilityElement(children: .contain)
         .accessibilityLabel("CodexBar menu")
-        // 二级图表 popover：锚点用整体 bounds（实现最简单稳定，macOS 侧边弹出效果符合预期）
-        .popover(
-            item: self.$presentedChart,
-            attachmentAnchor: .rect(.bounds),
-            arrowEdge: .trailing)
-        { kind in
-            Group {
-                if let chart = self.makeChartView(kind, 360) {
-                    chart
-                } else {
-                    Text("No data available")
-                        .foregroundStyle(.secondary)
-                        .padding()
-                }
-            }
-            .frame(minWidth: 320)
-        }
-        // 切 provider 时关闭子 popover
-        .onChange(of: self.viewModel.selection) { _, _ in self.presentedChart = nil }
-        // popover 隐藏时关闭子 popover
-        .onChange(of: self.viewModel.isVisible) { _, isVisible in
-            if !isVisible { self.presentedChart = nil }
-        }
     }
 
     // MARK: - 切换器（垂直布局，对齐 NSView ProviderSwitcherView stackedIcons 模式）
@@ -273,8 +247,8 @@ struct PopoverRootView: View {
 
     /// Overview 内容区（Task 2.4）：多 provider 概览行，与 NSMenu addOverviewRows 等价。
     /// Task 3.2：当 makeOverviewChart(row) 非 nil 时，在行尾添加 chevron 按钮触发二级图表 popover。
-    /// 布局：HStack { 行主体 Button（切 provider）; chevronButton（呈现子 popover）}
-    /// 两个 Button 互不干扰：行主体点击执行 viewModel.select；chevron 点击设置 presentedChart。
+    /// 布局：HStack { 行主体 Button（切 provider）; chevronButton（呈现局部 popover）}
+    /// 两个 Button 互不干扰：行主体点击执行 viewModel.select；chevron 点击触发行级 isPresentingChart。
     @ViewBuilder private var overviewContent: some View {
         let rows = self.makeOverviewRows()
         if rows.isEmpty {
@@ -292,8 +266,8 @@ struct PopoverRootView: View {
                         chart: chart,
                         menuWidth: Self.menuWidth,
                         overviewChevronWidth: Self.overviewChevronWidth,
-                        onSelectProvider: { self.viewModel.select(.provider(row.provider)) },
-                        onPresentChart: { self.presentedChart = chart })
+                        makeChartView: self.makeChartView,
+                        onSelectProvider: { self.viewModel.select(.provider(row.provider)) })
                     if row.id != rows.last?.id {
                         Divider()
                     }
@@ -370,7 +344,7 @@ struct PopoverRootView: View {
             if s.hasUsageBlock {
                 ChartSectionContainer(
                     chart: s.usageChart,
-                    onPresentChart: { self.presentedChart = $0 },
+                    makeChartView: self.makeChartView,
                     content: {
                         UsageMenuCardHeaderAndUsageSectionView(
                             model: s.model,
@@ -394,7 +368,7 @@ struct PopoverRootView: View {
             if let storageText = s.storageText {
                 ChartSectionContainer(
                     chart: s.storageChart,
-                    onPresentChart: { self.presentedChart = $0 },
+                    makeChartView: self.makeChartView,
                     content: {
                         StorageMenuCardSectionView(
                             storageText: storageText,
@@ -414,7 +388,7 @@ struct PopoverRootView: View {
                 // 此处无需重复。
                 ChartSectionContainer(
                     chart: s.creditsChart,
-                    onPresentChart: { self.presentedChart = $0 },
+                    makeChartView: self.makeChartView,
                     content: {
                         UsageMenuCardCreditsSectionView(
                             model: s.model,
@@ -436,7 +410,7 @@ struct PopoverRootView: View {
             if s.hasExtraUsage {
                 ChartSectionContainer(
                     chart: s.extraUsageChart,
-                    onPresentChart: { self.presentedChart = $0 },
+                    makeChartView: self.makeChartView,
                     content: {
                         UsageMenuCardExtraUsageSectionView(
                             model: s.model,
@@ -454,7 +428,7 @@ struct PopoverRootView: View {
             if s.hasCost {
                 ChartSectionContainer(
                     chart: s.costChart,
-                    onPresentChart: { self.presentedChart = $0 },
+                    makeChartView: self.makeChartView,
                     content: { PopoverCostCompactRow(model: s.model) })
             }
         }
@@ -468,9 +442,7 @@ struct PopoverRootView: View {
         if !entries.isEmpty {
             Divider()
             ForEach(entries) { kind in
-                ChartEntryRowView(kind: kind) {
-                    self.presentedChart = kind
-                }
+                ChartEntryRowView(kind: kind, makeChartView: self.makeChartView)
             }
         }
     }
@@ -486,16 +458,18 @@ struct PopoverRootView: View {
 // MARK: - OverviewRowView（独立视图，持有 isHovered @State）
 
 /// Overview 单行：行主体 Button（切 provider）+ 可选 chevron Button（呈现图表）。
-/// 抽出为独立 View 以便持有 @State private var isHovered。
+/// 抽出为独立 View 以便持有 @State private var isHovered 和 isPresentingChart。
+/// makeChartView 由 PopoverRootView 透传，懒构造图表内容视图。
 private struct OverviewRowView: View {
     let row: StatusItemController.PopoverOverviewRow
     let chart: PopoverChartKind?
     let menuWidth: CGFloat
     let overviewChevronWidth: CGFloat
+    let makeChartView: (PopoverChartKind, CGFloat) -> AnyView?
     let onSelectProvider: () -> Void
-    let onPresentChart: () -> Void
 
     @State private var isHovered = false
+    @State private var isPresentingChart = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -516,7 +490,7 @@ private struct OverviewRowView: View {
             .accessibilityHint("Show \(self.row.provider.rawValue) details")
             if let chart = self.chart {
                 Button {
-                    self.onPresentChart()
+                    self.isPresentingChart = true
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.caption2)
@@ -528,6 +502,18 @@ private struct OverviewRowView: View {
                 .focusEffectDisabled()
                 // 无障碍
                 .accessibilityLabel(chart.title)
+                .popover(isPresented: self.$isPresentingChart, arrowEdge: .trailing) {
+                    Group {
+                        if let chartView = self.makeChartView(chart, 360) {
+                            chartView
+                        } else {
+                            Text("No data available")
+                                .foregroundStyle(.secondary)
+                                .padding()
+                        }
+                    }
+                    .frame(minWidth: 320)
+                }
             }
         }
         .background(self.isHovered ? Color.accentColor : Color.clear)
@@ -539,16 +525,18 @@ private struct OverviewRowView: View {
 
 // MARK: - ChartEntryRowView（独立视图，持有 isHovered @State）
 
-/// 图表下钻入口行，持有自己的 hover 状态。
+/// 图表下钻入口行，持有自己的 hover 状态与局部 popover 状态。
+/// makeChartView 由 PopoverRootView 透传，懒构造图表内容视图。
 private struct ChartEntryRowView: View {
     let kind: PopoverChartKind
-    let onTap: () -> Void
+    let makeChartView: (PopoverChartKind, CGFloat) -> AnyView?
 
     @State private var isHovered = false
+    @State private var isPresentingChart = false
 
     var body: some View {
         Button {
-            self.onTap()
+            self.isPresentingChart = true
         } label: {
             HStack {
                 Text(self.kind.title).font(.callout)
@@ -570,6 +558,18 @@ private struct ChartEntryRowView: View {
         .focusEffectDisabled()
         // 无障碍：Button 标题即 label，hint 说明用途
         .accessibilityHint("Show chart")
+        .popover(isPresented: self.$isPresentingChart, arrowEdge: .trailing) {
+            Group {
+                if let chartView = self.makeChartView(self.kind, 360) {
+                    chartView
+                } else {
+                    Text("No data available")
+                        .foregroundStyle(.secondary)
+                        .padding()
+                }
+            }
+            .frame(minWidth: 320)
+        }
     }
 }
 
@@ -577,17 +577,19 @@ private struct ChartEntryRowView: View {
 
 /// 可复用段容器：wrap 任意段内容，chart 非 nil 时显示行尾 chevron + hover 高亮 + 点击触发图表 popover。
 /// chart 为 nil 时纯展示，无任何交互修饰。
+/// makeChartView 由 PopoverRootView 透传，懒构造图表内容视图。
 private struct ChartSectionContainer<Content: View>: View {
     let chart: PopoverChartKind?
-    let onPresentChart: (PopoverChartKind) -> Void
+    let makeChartView: (PopoverChartKind, CGFloat) -> AnyView?
     @ViewBuilder let content: () -> Content
 
     @State private var isHovered = false
+    @State private var isPresentingChart = false
 
     var body: some View {
         if let chart {
             Button {
-                self.onPresentChart(chart)
+                self.isPresentingChart = true
             } label: {
                 ZStack(alignment: .topTrailing) {
                     self.content()
@@ -612,6 +614,18 @@ private struct ChartSectionContainer<Content: View>: View {
             .focusEffectDisabled()
             .accessibilityLabel(chart.title)
             .accessibilityHint("Show chart")
+            .popover(isPresented: self.$isPresentingChart, arrowEdge: .trailing) {
+                Group {
+                    if let chartView = self.makeChartView(chart, 360) {
+                        chartView
+                    } else {
+                        Text("No data available")
+                            .foregroundStyle(.secondary)
+                            .padding()
+                    }
+                }
+                .frame(minWidth: 320)
+            }
         } else {
             self.content()
         }
