@@ -31,4 +31,14 @@ struct CopilotBudgetCookieRoutingTests {
 
         #expect(CopilotAPIFetchStrategy.budgetCookieHeaderOverride(from: settings) == nil)
     }
+
+    @Test
+    func `invalid manual budget cookies do not fall back to browser import`() {
+        let settings = ProviderSettingsSnapshot.CopilotProviderSettings(
+            budgetExtrasEnabled: true,
+            budgetCookieSource: .manual,
+            manualBudgetCookieHeader: "Cookie:")
+
+        #expect(CopilotAPIFetchStrategy.budgetCookieHeaderOverride(from: settings) == nil)
+    }
 }

@@ -110,8 +110,7 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         from settings: ProviderSettingsSnapshot.CopilotProviderSettings) -> String?
     {
         guard settings.budgetCookieSource == .manual else { return nil }
-        let cookieHeader = settings.manualBudgetCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return cookieHeader.isEmpty ? nil : cookieHeader
+        return CookieHeaderNormalizer.normalize(settings.manualBudgetCookieHeader)
     }
 
     private func expectedBudgetAccountIdentifier(
