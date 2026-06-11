@@ -186,6 +186,23 @@ struct CodexBarTests {
     }
 
     @Test
+    func `copying extra rate windows preserves subscription dates`() {
+        let expiresAt = Date(timeIntervalSince1970: 1_810_656_000)
+        let renewsAt = Date(timeIntervalSince1970: 1_810_569_600)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            subscriptionExpiresAt: expiresAt,
+            subscriptionRenewsAt: renewsAt,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+
+        let copied = snapshot.with(extraRateWindows: [])
+
+        #expect(copied.subscriptionExpiresAt == expiresAt)
+        #expect(copied.subscriptionRenewsAt == renewsAt)
+    }
+
+    @Test
     func `copilot icon falls back to chat lane when selected budget is unavailable`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),

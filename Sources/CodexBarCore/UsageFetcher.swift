@@ -222,6 +222,8 @@ public struct UsageSnapshot: Codable, Sendable {
             mistralUsage: self.mistralUsage,
             deepgramUsage: self.deepgramUsage,
             cursorRequests: self.cursorRequests,
+            subscriptionExpiresAt: self.subscriptionExpiresAt,
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
             updatedAt: self.updatedAt,
             identity: self.identity)
     }
