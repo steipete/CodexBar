@@ -113,7 +113,7 @@ extension CostUsageScanner {
         _ db: OpaquePointer?,
         lastRowID: Int64) -> String
     {
-        self.codexPriorityAccumulationQuery(db, lastRowID: lastRowID)
+        self.codexPriorityAccumulationPlan(db, lastRowID: lastRowID).query
     }
     #endif
 
@@ -445,11 +445,11 @@ extension CostUsageScanner {
         _ db: OpaquePointer?,
         into state: inout CodexPriorityTurnsMemoState) -> Bool
     {
-        let query = self.codexPriorityAccumulationQuery(db, lastRowID: state.lastRowID)
+        let plan = self.codexPriorityAccumulationPlan(db, lastRowID: state.lastRowID)
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return false }
+        guard sqlite3_prepare_v2(db, plan.query, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
-        if state.lastRowID == 0, self.hasCodexLogsTimestampIndex(db) {
+        if plan.usesTimestampIndex {
             sqlite3_bind_int64(stmt, 1, state.coverageSinceEpoch)
         } else {
             sqlite3_bind_int64(stmt, 1, state.lastRowID)
@@ -485,28 +485,32 @@ extension CostUsageScanner {
         }
     }
 
-    private static func codexPriorityAccumulationQuery(
+    private static func codexPriorityAccumulationPlan(
         _ db: OpaquePointer?,
-        lastRowID: Int64) -> String
+        lastRowID: Int64) -> (query: String, usesTimestampIndex: Bool)
     {
         if lastRowID == 0, self.hasCodexLogsTimestampIndex(db) {
-            return """
+            return (
+                """
+                select rowid, ts, feedback_log_body
+                from logs indexed by idx_logs_ts
+                where ts >= ?
+                  and (feedback_log_body like '%websocket request:%'
+                       or feedback_log_body like '%response.completed%')
+                order by rowid
+                """,
+                true)
+        }
+        return (
+            """
             select rowid, ts, feedback_log_body
-            from logs indexed by idx_logs_ts
-            where ts >= ?
+            from logs
+            where rowid > ? and ts >= ?
               and (feedback_log_body like '%websocket request:%'
                    or feedback_log_body like '%response.completed%')
             order by rowid
-            """
-        }
-        return """
-        select rowid, ts, feedback_log_body
-        from logs
-        where rowid > ? and ts >= ?
-          and (feedback_log_body like '%websocket request:%'
-               or feedback_log_body like '%response.completed%')
-        order by rowid
-        """
+            """,
+            false)
     }
 
     private static func hasCodexLogsTimestampIndex(_ db: OpaquePointer?) -> Bool {
