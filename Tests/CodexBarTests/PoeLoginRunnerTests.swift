@@ -320,4 +320,33 @@ struct PoeLoginRunnerTests {
         ])
         #expect(value == "real-client")
     }
+
+    // MARK: - httpResponse: HTML escape
+
+    @Test
+    func `callback response html-escapes attacker-controlled error text`() {
+        let response = PoeLoginRunner._httpResponseForTesting(
+            code: nil,
+            returnedState: "expected-state",
+            error: "invalid_request",
+            errorDescription: "<script>alert('xss')</script> & \"quoted\" value")
+
+        #expect(response.contains("HTTP/1.1 400 Bad Request"))
+        #expect(response.contains(
+            "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt; &amp; &quot;quoted&quot; value"))
+        #expect(!response.contains("<script>"))
+        #expect(!response.contains("</script>"))
+    }
+
+    @Test
+    func `callback response renders generic success message without escape surprises`() {
+        let response = PoeLoginRunner._httpResponseForTesting(
+            code: "poe-code",
+            returnedState: "expected-state",
+            error: nil,
+            errorDescription: nil)
+
+        #expect(response.contains("HTTP/1.1 200 OK"))
+        #expect(response.contains("Poe login complete. You can return to CodexBar."))
+    }
 }
