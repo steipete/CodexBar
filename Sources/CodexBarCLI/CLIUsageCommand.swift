@@ -265,6 +265,10 @@ extension CodexBarCLI {
             base: baseSource,
             provider: provider,
             account: account)
+        let cacheAccountKey = Self.usageCacheAccountKey(
+            provider: provider,
+            account: account,
+            codexVisibleAccount: codexVisibleAccount)
 
         #if !os(macOS)
         if Self.sourceModeRequiresWebSupport(
@@ -275,7 +279,9 @@ extension CodexBarCLI {
         {
             return Self.webSourceUnsupportedOutput(
                 provider: provider,
-                account: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                account: (
+                    label: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                    cacheKey: cacheAccountKey),
                 source: effectiveSourceMode.rawValue,
                 status: status,
                 command: command)
@@ -362,6 +368,7 @@ extension CodexBarCLI {
                 output.payload.append(ProviderPayload(
                     provider: provider,
                     account: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                    cacheAccountKey: cacheAccountKey,
                     version: version,
                     source: source,
                     status: status,
@@ -377,6 +384,7 @@ extension CodexBarCLI {
                 output.payload.append(Self.makeProviderErrorPayload(
                     provider: provider,
                     account: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                    cacheAccountKey: cacheAccountKey,
                     source: effectiveSourceMode.rawValue,
                     status: status,
                     error: error,
@@ -433,7 +441,7 @@ extension CodexBarCLI {
 
     private static func webSourceUnsupportedOutput(
         provider: UsageProvider,
-        account: String?,
+        account: (label: String?, cacheKey: String?),
         source: String,
         status: ProviderStatusPayload?,
         command: UsageCommandContext) -> UsageCommandOutput
@@ -448,7 +456,8 @@ extension CodexBarCLI {
         if command.format == .json {
             output.payload.append(Self.makeProviderErrorPayload(
                 provider: provider,
-                account: account,
+                account: account.label,
+                cacheAccountKey: account.cacheKey,
                 source: source,
                 status: status,
                 error: error,
@@ -457,6 +466,36 @@ extension CodexBarCLI {
             Self.writeStderr("Error: \(error.localizedDescription)\n")
         }
         return output
+    }
+
+    static func usageCacheAccountKey(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        codexVisibleAccount: CodexVisibleAccount?) -> String?
+    {
+        if let account {
+            return "token:\(account.id.uuidString.lowercased())"
+        }
+        if let codexVisibleAccount {
+            if let workspaceAccountID = codexVisibleAccount.workspaceAccountID?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !workspaceAccountID.isEmpty,
+                !codexVisibleAccount.email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                let email = codexVisibleAccount.email
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                return "codex:workspace:\(workspaceAccountID):email:\(email)"
+            }
+            if let storedAccountID = codexVisibleAccount.storedAccountID {
+                return "codex:stored:\(storedAccountID.uuidString.lowercased())"
+            }
+            if let authFingerprint = codexVisibleAccount.authFingerprint {
+                return "codex:auth:\(authFingerprint)"
+            }
+            return nil
+        }
+        return "default:\(provider.rawValue)"
     }
 
     static func sourceModeRequiresWebSupport(

@@ -49,6 +49,7 @@ extension CodexBarCLI {
     static func makeProviderErrorPayload(
         provider: UsageProvider,
         account: String?,
+        cacheAccountKey: String? = nil,
         source: String,
         status: ProviderStatusPayload?,
         error: Error,
@@ -57,6 +58,7 @@ extension CodexBarCLI {
         ProviderPayload(
             provider: provider,
             account: account,
+            cacheAccountKey: cacheAccountKey,
             version: nil,
             source: source,
             status: status,

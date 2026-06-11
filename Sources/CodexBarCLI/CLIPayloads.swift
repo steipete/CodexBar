@@ -7,6 +7,7 @@ import FoundationNetworking
 struct ProviderPayload: Encodable {
     let provider: String
     let account: String?
+    let cacheAccountKey: String?
     let version: String?
     let source: String
     let status: ProviderStatusPayload?
@@ -16,9 +17,23 @@ struct ProviderPayload: Encodable {
     let openaiDashboard: OpenAIDashboardSnapshot?
     let error: ProviderErrorPayload?
 
+    private enum CodingKeys: String, CodingKey {
+        case provider
+        case account
+        case version
+        case source
+        case status
+        case usage
+        case credits
+        case antigravityPlanInfo
+        case openaiDashboard
+        case error
+    }
+
     init(
         provider: UsageProvider,
         account: String?,
+        cacheAccountKey: String? = nil,
         version: String?,
         source: String,
         status: ProviderStatusPayload?,
@@ -30,6 +45,7 @@ struct ProviderPayload: Encodable {
     {
         self.provider = provider.rawValue
         self.account = account
+        self.cacheAccountKey = cacheAccountKey
         self.version = version
         self.source = source
         self.status = status
@@ -43,6 +59,7 @@ struct ProviderPayload: Encodable {
     init(
         providerID: String,
         account: String?,
+        cacheAccountKey: String? = nil,
         version: String?,
         source: String,
         status: ProviderStatusPayload?,
@@ -54,6 +71,7 @@ struct ProviderPayload: Encodable {
     {
         self.provider = providerID
         self.account = account
+        self.cacheAccountKey = cacheAccountKey
         self.version = version
         self.source = source
         self.status = status

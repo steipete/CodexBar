@@ -185,7 +185,7 @@ private final class CLIServeDeadlineState: @unchecked Sendable {
     }
 }
 
-private enum CLIServeCacheLookup {
+enum CLIServeCacheLookup {
     case response(CLILocalHTTPResponse)
     case miss
 }
@@ -208,8 +208,26 @@ actor CLIServeResponseCache {
         let response: CLILocalHTTPResponse
     }
 
+    private struct UsageItemKey: Hashable {
+        let provider: String
+        let accountID: String
+    }
+
+    private struct LastGoodUsageItem {
+        let recordedAt: Date
+        let data: Data
+    }
+
+    private struct UsageMergeResult {
+        let response: CLILocalHTTPResponse
+        let hasFreshSuccess: Bool
+        let fallbackRecordedAt: Date?
+    }
+
     private var entries: [String: Entry] = [:]
     private var lastGood: [String: LastGoodEntry] = [:]
+    private var lastGoodUsageItems: [String: [UsageItemKey: LastGoodUsageItem]] = [:]
+    private var lastGoodUsageOrder: [String: [UsageItemKey]] = [:]
     private var inFlightKeys: Set<String> = []
     private var waiters: [String: [CheckedContinuation<CLIServeCacheLookup, Never>]] = [:]
 
@@ -222,7 +240,7 @@ actor CLIServeResponseCache {
         return entry.response
     }
 
-    fileprivate func responseOrStartFetch(for key: String, now: Date) async -> CLIServeCacheLookup {
+    func responseOrStartFetch(for key: String, now: Date) async -> CLIServeCacheLookup {
         self.pruneExpiredEntries(now: now)
         if let cached = self.response(for: key) {
             return .response(cached)
@@ -243,7 +261,7 @@ actor CLIServeResponseCache {
     /// fall back to the last good response when one was recorded within
     /// `staleTTL`, so transient provider errors do not blank out consumers
     /// that poll this endpoint (status bars hide items on error payloads).
-    fileprivate func completeFetch(
+    func completeFetch(
         _ response: CLILocalHTTPResponse,
         for key: String,
         policy: CachePolicy,
@@ -251,12 +269,26 @@ actor CLIServeResponseCache {
         shouldCache: Bool) -> CLILocalHTTPResponse
     {
         let delivered: CLILocalHTTPResponse
+        let staleResponse = self.staleResponse(for: key, staleTTL: policy.staleTTL, now: now)
+        let usageMerge = self.mergeLastGoodUsageItems(
+            into: response,
+            for: key,
+            staleTTL: policy.staleTTL,
+            now: now,
+            replaceCachedItems: shouldCache)
         if shouldCache {
             self.store(response, for: key, ttl: policy.ttl, now: now)
             self.lastGood[key] = LastGoodEntry(recordedAt: now, response: response)
             delivered = response
+        } else if let usageMerge {
+            delivered = usageMerge.response
+            if let recordedAt = usageMerge.fallbackRecordedAt {
+                self.lastGood[key] = LastGoodEntry(recordedAt: recordedAt, response: delivered)
+            } else if !usageMerge.hasFreshSuccess {
+                self.lastGood[key] = nil
+            }
         } else {
-            delivered = self.staleResponse(for: key, staleTTL: policy.staleTTL, now: now) ?? response
+            delivered = staleResponse ?? response
         }
         self.inFlightKeys.remove(key)
         let waiters = self.waiters.removeValue(forKey: key) ?? []
@@ -271,12 +303,161 @@ actor CLIServeResponseCache {
         staleTTL: TimeInterval,
         now: Date) -> CLILocalHTTPResponse?
     {
-        guard staleTTL > 0, let entry = self.lastGood[key] else { return nil }
-        guard now.timeIntervalSince(entry.recordedAt) <= staleTTL else {
+        guard staleTTL > 0 else { return nil }
+        if let entry = self.lastGood[key],
+           now.timeIntervalSince(entry.recordedAt) <= staleTTL
+        {
+            return entry.response
+        }
+        if self.lastGood[key] != nil {
             self.lastGood[key] = nil
+        }
+        return self.staleUsageResponse(for: key, staleTTL: staleTTL, now: now)
+    }
+
+    private func mergeLastGoodUsageItems(
+        into response: CLILocalHTTPResponse,
+        for key: String,
+        staleTTL: TimeInterval,
+        now: Date,
+        replaceCachedItems: Bool) -> UsageMergeResult?
+    {
+        guard key.hasPrefix("usage:"),
+              response.status == .ok,
+              staleTTL > 0,
+              var items = try? JSONSerialization.jsonObject(with: response.body) as? [[String: Any]]
+        else {
             return nil
         }
-        return entry.response
+
+        var cachedItems = replaceCachedItems ? [:] : self.lastGoodUsageItems[key] ?? [:]
+        if !replaceCachedItems {
+            cachedItems = cachedItems.filter { now.timeIntervalSince($0.value.recordedAt) <= staleTTL }
+        }
+        let itemKeys = items.indices.compactMap { index in
+            Self.usageItemKey(
+                items[index],
+                accountID: Self.cacheAccountKey(at: index, in: response.usageCacheKeys))
+        }
+        let duplicateKeys = Set(
+            Dictionary(grouping: itemKeys, by: { $0 })
+                .filter { $0.value.count > 1 }
+                .map(\.key))
+        self.lastGoodUsageOrder[key] = itemKeys.filter { !duplicateKeys.contains($0) }
+        for duplicateKey in duplicateKeys {
+            cachedItems[duplicateKey] = nil
+        }
+        var hasFreshSuccess = false
+        var fallbackRecordedAt: Date?
+        var replacedError = false
+
+        for index in items.indices {
+            let item = items[index]
+            guard let itemKey = Self.usageItemKey(
+                item,
+                accountID: Self.cacheAccountKey(at: index, in: response.usageCacheKeys))
+            else {
+                if !Self.hasError(item) {
+                    hasFreshSuccess = true
+                    fallbackRecordedAt = Self.earlier(fallbackRecordedAt, now)
+                }
+                continue
+            }
+            guard !duplicateKeys.contains(itemKey) else {
+                if !Self.hasError(item) {
+                    hasFreshSuccess = true
+                    fallbackRecordedAt = Self.earlier(fallbackRecordedAt, now)
+                }
+                continue
+            }
+
+            if Self.hasError(item) {
+                guard let cached = cachedItems[itemKey],
+                      let cachedItem = try? JSONSerialization.jsonObject(with: cached.data) as? [String: Any]
+                else {
+                    continue
+                }
+                items[index] = cachedItem
+                fallbackRecordedAt = Self.earlier(fallbackRecordedAt, cached.recordedAt)
+                replacedError = true
+            } else {
+                hasFreshSuccess = true
+                fallbackRecordedAt = Self.earlier(fallbackRecordedAt, now)
+                if let data = try? JSONSerialization.data(withJSONObject: item, options: [.sortedKeys]) {
+                    cachedItems[itemKey] = LastGoodUsageItem(recordedAt: now, data: data)
+                }
+            }
+        }
+        self.lastGoodUsageItems[key] = cachedItems
+
+        guard replacedError,
+              let body = try? JSONSerialization.data(withJSONObject: items, options: [.sortedKeys])
+        else {
+            return UsageMergeResult(
+                response: response,
+                hasFreshSuccess: hasFreshSuccess,
+                fallbackRecordedAt: fallbackRecordedAt)
+        }
+        return UsageMergeResult(
+            response: CLILocalHTTPResponse(
+                status: response.status,
+                body: body,
+                contentType: response.contentType,
+                usageCacheKeys: response.usageCacheKeys),
+            hasFreshSuccess: hasFreshSuccess,
+            fallbackRecordedAt: fallbackRecordedAt)
+    }
+
+    private static func earlier(_ lhs: Date?, _ rhs: Date) -> Date {
+        lhs.map { min($0, rhs) } ?? rhs
+    }
+
+    private func staleUsageResponse(
+        for key: String,
+        staleTTL: TimeInterval,
+        now: Date) -> CLILocalHTTPResponse?
+    {
+        guard key.hasPrefix("usage:"),
+              let order = self.lastGoodUsageOrder[key],
+              !order.isEmpty
+        else {
+            return nil
+        }
+
+        var cachedItems = self.lastGoodUsageItems[key] ?? [:]
+        cachedItems = cachedItems.filter { now.timeIntervalSince($0.value.recordedAt) <= staleTTL }
+        self.lastGoodUsageItems[key] = cachedItems
+        let items = order.compactMap { itemKey -> [String: Any]? in
+            guard let data = cachedItems[itemKey]?.data else { return nil }
+            return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        }
+        guard !items.isEmpty,
+              let body = try? JSONSerialization.data(withJSONObject: items, options: [.sortedKeys])
+        else {
+            return nil
+        }
+        return CLILocalHTTPResponse(status: .ok, body: body)
+    }
+
+    private static func usageItemKey(_ item: [String: Any], accountID: String?) -> UsageItemKey? {
+        guard let provider = item["provider"] as? String,
+              !provider.isEmpty,
+              let accountID,
+              !accountID.isEmpty
+        else {
+            return nil
+        }
+        return UsageItemKey(provider: provider, accountID: accountID)
+    }
+
+    private static func cacheAccountKey(at index: Int, in keys: [String?]?) -> String? {
+        guard let keys, keys.indices.contains(index) else { return nil }
+        return keys[index]
+    }
+
+    private static func hasError(_ item: [String: Any]) -> Bool {
+        guard let error = item["error"] else { return false }
+        return !(error is NSNull)
     }
 
     private func store(_ response: CLILocalHTTPResponse, for key: String, ttl: TimeInterval, now: Date) {
@@ -631,7 +812,9 @@ extension CodexBarCLI {
             output.merge(providerOutput)
         }
 
-        return Self.serveJSON(output.payload)
+        return Self.serveJSON(
+            output.payload,
+            usageCacheKeys: output.payload.map(\.cacheAccountKey))
     }
 
     private static func serveCost(provider rawProvider: String?, config: CodexBarConfig) async -> CLILocalHTTPResponse {
@@ -676,9 +859,16 @@ extension CodexBarCLI {
         return selection
     }
 
-    private static func serveJSON(_ payload: some Encodable, status: CLIHTTPStatus = .ok) -> CLILocalHTTPResponse {
+    private static func serveJSON(
+        _ payload: some Encodable,
+        status: CLIHTTPStatus = .ok,
+        usageCacheKeys: [String?]? = nil) -> CLILocalHTTPResponse
+    {
         let json = Self.encodeJSON(payload, pretty: false) ?? "{}"
-        return CLILocalHTTPResponse(status: status, body: Data(json.utf8))
+        return CLILocalHTTPResponse(
+            status: status,
+            body: Data(json.utf8),
+            usageCacheKeys: usageCacheKeys)
     }
 
     private static func serveError(status: CLIHTTPStatus, message: String) -> CLILocalHTTPResponse {

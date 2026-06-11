@@ -164,11 +164,18 @@ struct CLILocalHTTPResponse {
     let status: CLIHTTPStatus
     let body: Data
     let contentType: String
+    let usageCacheKeys: [String?]?
 
-    init(status: CLIHTTPStatus, body: Data, contentType: String = "application/json; charset=utf-8") {
+    init(
+        status: CLIHTTPStatus,
+        body: Data,
+        contentType: String = "application/json; charset=utf-8",
+        usageCacheKeys: [String?]? = nil)
+    {
         self.status = status
         self.body = body
         self.contentType = contentType
+        self.usageCacheKeys = usageCacheKeys
     }
 
     var serialized: Data {
