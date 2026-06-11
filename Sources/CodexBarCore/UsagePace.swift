@@ -90,7 +90,7 @@ public struct UsagePace: Sendable {
                     etaSeconds = candidate
                 }
             }
-        } else if elapsed > 0, actual == 0 {
+        } else if paceElapsed > 0, actual == 0 {
             willLastToReset = true
         }
 
