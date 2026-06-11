@@ -174,4 +174,78 @@ struct PoeUsageFetcherTests {
         #expect(daily[0].points == 15)
         #expect(daily[0].costUSD == 0.03)
     }
+
+    @Test
+    func `fetch usage returns balance when points history endpoint fails`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let path = url.path
+            let response: (Data, Int)
+            if path.contains("current_balance") {
+                response = (Data(#"{"current_point_balance": 1500}"#.utf8), 200)
+            } else if path.contains("points_history") {
+                // Simulate a 500 from the optional history endpoint.
+                response = (Data("server error".utf8), 500)
+            } else {
+                Issue.record("Unexpected request: \(url.absoluteString)")
+                return Self.httpResponse(url: nil, status: 0)
+            }
+            return Self.httpResponse(url: nil, status: response.1, body: response.0)
+        }
+
+        let snapshot = try await PoeUsageFetcher._fetchUsage(
+            apiKey: "test-key",
+            transport: transport)
+
+        #expect(snapshot.currentPointBalance == 1500)
+        // History should be nil, not propagate the failure.
+        #expect(snapshot.history == nil)
+    }
+
+    @Test
+    func `fetch usage surfaces history snapshot when history endpoint succeeds`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let path = url.path
+            if path.contains("current_balance") {
+                return Self.httpResponse(
+                    url: nil,
+                    status: 200,
+                    body: Data(#"{"current_point_balance": 2500}"#.utf8))
+            }
+            if path.contains("points_history") {
+                return Self.httpResponse(
+                    url: nil,
+                    status: 200,
+                    body: Data("""
+                    {"data":[],"next_cursor":null}
+                    """.utf8))
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.httpResponse(url: nil, status: 0)
+        }
+
+        let snapshot = try await PoeUsageFetcher._fetchUsage(
+            apiKey: "test-key",
+            transport: transport)
+
+        #expect(snapshot.currentPointBalance == 2500)
+        // Empty history page still produces a non-nil snapshot with empty buckets.
+        #expect(snapshot.history == nil)
+    }
+}
+
+extension PoeUsageFetcherTests {
+    fileprivate static func httpResponse(
+        url: URL?,
+        status: Int,
+        body: Data = Data()) -> (Data, URLResponse)
+    {
+        let response = HTTPURLResponse(
+            url: url ?? URL(string: "https://example.invalid")!,
+            statusCode: status,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil) ?? HTTPURLResponse()
+        return (body, response)
+    }
 }

@@ -33,6 +33,13 @@ public struct PoeUsageFetcher: Sendable {
     private static let timeoutSeconds: TimeInterval = 15
 
     public static func fetchUsage(apiKey: String) async throws -> PoeUsageSnapshot {
+        try await self._fetchUsage(apiKey: apiKey, transport: ProviderHTTPClient.shared)
+    }
+
+    static func _fetchUsage(
+        apiKey: String,
+        transport: any ProviderHTTPTransport) async throws -> PoeUsageSnapshot
+    {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw PoeUsageError.missingCredentials
@@ -44,9 +51,17 @@ public struct PoeUsageFetcher: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = Self.timeoutSeconds
 
-        let response = try await self.perform(request: request)
+        let response = try await self.perform(request: request, transport: transport)
         let balance = try self.parseSnapshot(data: response.data).currentPointBalance
-        let history = try await self.fetchHistory(apiKey: trimmed)
+        // `points_history` is a best-effort supplement; never let an optional
+        // history failure cost the user the current balance display.
+        let history: PoeUsageHistorySnapshot?
+        do {
+            history = try await self.fetchHistory(apiKey: trimmed, transport: transport)
+        } catch {
+            Self.log.error("Poe points_history fetch failed; returning balance only: \(error)")
+            history = nil
+        }
         return PoeUsageSnapshot(
             currentPointBalance: balance,
             history: history,
@@ -80,7 +95,10 @@ public struct PoeUsageFetcher: Sendable {
             updatedAt: Date())
     }
 
-    private static func fetchHistory(apiKey: String) async throws -> PoeUsageHistorySnapshot? {
+    private static func fetchHistory(
+        apiKey: String,
+        transport: any ProviderHTTPTransport) async throws -> PoeUsageHistorySnapshot?
+    {
         var cursor: String?
         var entries: [PoeUsageHistorySnapshot.Entry] = []
         let cutoff = Date().addingTimeInterval(-30 * 24 * 3600)
@@ -104,7 +122,7 @@ public struct PoeUsageFetcher: Sendable {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-            let response = try await self.perform(request: request)
+            let response = try await self.perform(request: request, transport: transport)
             let parsed = try self.parseHistoryPage(data: response.data)
             entries.append(contentsOf: parsed.entries)
             cursor = parsed.nextCursor
@@ -231,9 +249,15 @@ public struct PoeUsageFetcher: Sendable {
         return Date(timeIntervalSince1970: raw)
     }
 
-    private static func perform(request: URLRequest) async throws -> ProviderHTTPResponse {
-        let response = try await ProviderHTTPClient.shared.response(for: request)
-        let data = response.data
+    private static func perform(
+        request: URLRequest,
+        transport: any ProviderHTTPTransport) async throws -> ProviderHTTPResponse
+    {
+        let (data, urlResponse) = try await transport.data(for: request)
+        guard let httpResponse = urlResponse as? HTTPURLResponse else {
+            throw PoeUsageError.networkError("Non-HTTP response")
+        }
+        let response = ProviderHTTPResponse(data: data, response: httpResponse)
         guard response.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? ""
             Self.log.error("Poe API returned \(response.statusCode): \(body)")
