@@ -44,6 +44,9 @@ public enum ClaudeProviderDescriptor {
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        if let multiplier = ClaudeDemoUsage.activeMultiplier() {
+            return [ClaudeDemoFetchStrategy(multiplier: multiplier)]
+        }
         if context.sourceMode == .api || self.hasAutoAdminAPIKey(context: context) {
             return [ClaudeAdminAPIFetchStrategy()]
         }
@@ -183,6 +186,28 @@ private struct ClaudePlannedFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         self.base.shouldFallback(on: error, context: context)
+    }
+}
+
+/// Local-only demo source. Returns synthetic, inflated Admin-API usage so the
+/// Claude card renders a believable spend dashboard without real credentials.
+/// Gated by ``ClaudeDemoUsage/activeMultiplier(environment:homeDirectory:)``.
+struct ClaudeDemoFetchStrategy: ProviderFetchStrategy {
+    let id: String = "claude.demo"
+    let kind: ProviderFetchKind = .apiToken
+    let multiplier: Double
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let usage = ClaudeDemoUsage.makeSnapshot(multiplier: self.multiplier)
+        return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "demo")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
     }
 }
 
