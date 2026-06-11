@@ -404,6 +404,7 @@
 "language_french" = "Francês";
 "language_ukrainian" = "Ucraniano";
 "language_japanese" = "Japonês";
+"language_korean" = "한국어";
 "start_at_login_title" = "Iniciar ao fazer login";
 "start_at_login_subtitle" = "Abre o CodexBar automaticamente ao iniciar o Mac.";
 "show_cost_summary" = "Mostrar resumo de custos";

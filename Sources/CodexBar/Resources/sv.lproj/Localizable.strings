@@ -405,6 +405,7 @@
 "language_french" = "Franska";
 "language_ukrainian" = "Ukrainska";
 "language_japanese" = "Japanska";
+"language_korean" = "한국어";
 "start_at_login_title" = "Starta vid inloggning";
 "start_at_login_subtitle" = "Öppnar CodexBar automatiskt när du startar din Mac.";
 "show_cost_summary" = "Visa kostnadssammanfattning";

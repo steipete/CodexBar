@@ -16,6 +16,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case ukrainian = "uk"
     case vietnamese = "vi"
     case japanese = "ja"
+    case korean = "ko"
 
     var id: String {
         self.rawValue
@@ -36,6 +37,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .ukrainian: L("language_ukrainian")
         case .vietnamese: L("language_vietnamese")
         case .japanese: L("language_japanese")
+        case .korean: L("language_korean")
         }
     }
 }
