@@ -10,6 +10,8 @@ Povod je [ovaj tweet](https://x.com/steipete/status/2055346265869721905) koji
 prikazuje CodexBar (macOS menu-bar app, čiji je ovo fork) s impresivnim
 brojkama na **OpenAI API** kartici:
 
+![Originalna slika iz tweeta](images/00-original-tweet.jpeg)
+
 | Polje | Iznos sa screenshota |
 |---|---|
 | Today | $19.985,84 |
