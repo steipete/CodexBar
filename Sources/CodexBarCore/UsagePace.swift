@@ -52,12 +52,11 @@ public struct UsagePace: Sendable {
         guard timeUntilReset > 0 else { return nil }
         guard timeUntilReset <= duration else { return nil }
         let elapsed = (duration - timeUntilReset).clamped(to: 0...duration)
-        let expected: Double
-        if let workDays, workDays >= 2, workDays < 7, minutes == 10080 {
-            expected = Self.workdayAwareExpected(
+        let expected: Double = if let workDays, workDays >= 2, workDays < 7, minutes == 10080 {
+            Self.workdayAwareExpected(
                 elapsed: elapsed, duration: duration, resetsAt: resetsAt, workDays: workDays)
         } else {
-            expected = ((elapsed / duration) * 100).clamped(to: 0...100)
+            ((elapsed / duration) * 100).clamped(to: 0...100)
         }
         let actual = window.usedPercent.clamped(to: 0...100)
         if elapsed == 0, actual > 0 {
