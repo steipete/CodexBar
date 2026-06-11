@@ -123,11 +123,14 @@ struct CostUsageCacheTests {
     }
 
     @Test
-    func `generated parser hash is stable short lowercase hex`() {
-        let hash = CodexParserHash.value
+    func `generated parser hashes are stable short lowercase hex with separate domains`() {
+        let sessions = CodexParserHash.sessions
+        let priority = CodexParserHash.priorityTurns
 
-        #expect(hash.range(of: #"^[0-9a-f]{16}$"#, options: .regularExpression) != nil)
-        #expect(CostUsageCacheIO.currentProducerKey(provider: .codex) == "codex:cu:p\(hash)")
+        #expect(sessions.range(of: #"^[0-9a-f]{16}$"#, options: .regularExpression) != nil)
+        #expect(priority.range(of: #"^[0-9a-f]{16}$"#, options: .regularExpression) != nil)
+        #expect(CostUsageCacheIO.currentProducerKey(provider: .codex) == "codex:cu:p\(sessions)")
+        #expect(CodexPriorityTurnsMemoIO.currentProducerKey() == "codex:pt:p\(priority)")
     }
 
     private func makeTemporaryCacheRoot() throws -> URL {

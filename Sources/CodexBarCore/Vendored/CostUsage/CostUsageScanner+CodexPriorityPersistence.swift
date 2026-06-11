@@ -30,7 +30,7 @@ enum CodexPriorityTurnsMemoIO {
                 isDirectory: false)
     }
 
-    static func currentProducerKey(parserHash: String = CodexParserHash.value) -> String {
+    static func currentProducerKey(parserHash: String = CodexParserHash.priorityTurns) -> String {
         "codex:pt:p\(parserHash)"
     }
 

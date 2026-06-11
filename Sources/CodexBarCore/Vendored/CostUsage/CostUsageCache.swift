@@ -76,7 +76,7 @@ enum CostUsageCacheIO {
 
     static func currentProducerKey(
         provider: UsageProvider,
-        parserHash: String = CodexParserHash.value) -> String?
+        parserHash: String = CodexParserHash.sessions) -> String?
     {
         guard provider == .codex else { return nil }
         return "\(provider.rawValue):cu:p\(parserHash)"
