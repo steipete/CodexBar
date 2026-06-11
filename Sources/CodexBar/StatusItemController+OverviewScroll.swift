@@ -51,6 +51,11 @@ extension StatusItemController {
             self.postOverviewScrollNavigation(movingUp ? .up : .down)
             steps += 1
         }
+        // Discard the remainder once the cap is hit, otherwise the leftover delta from a
+        // fast flick would keep emitting capped batches on the next small scroll.
+        if steps == Self.maxScrollStepsPerEvent {
+            self.overviewScrollAccumulatedDelta = 0
+        }
         return true
     }
 

@@ -137,6 +137,25 @@ struct StatusMenuOverviewScrollTests {
     }
 
     @Test
+    func `capped flick discards leftover distance`() throws {
+        let controller = self.makeController(suiteName: "OverviewScroll-CapRemainder")
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = self.makeOverviewMenu()
+
+        var steps: [OverviewScrollStep] = []
+        controller.overviewScrollNavigationHandlerForTesting = { steps.append($0) }
+
+        let flick = try #require(self.makeScrollEvent(deltaY: 500, precise: true))
+        #expect(controller.handleOverviewScrollWheel(flick, menu: menu))
+        #expect(steps == [.up, .up, .up])
+
+        steps = []
+        let smallScroll = try #require(self.makeScrollEvent(deltaY: 10, precise: true))
+        #expect(controller.handleOverviewScrollWheel(smallScroll, menu: menu))
+        #expect(steps.isEmpty)
+    }
+
+    @Test
     func `open submenu suspends scroll navigation`() throws {
         let controller = self.makeController(suiteName: "OverviewScroll-Submenu")
         defer { controller.releaseStatusItemsForTesting() }
