@@ -304,6 +304,8 @@
 "Switcher shows icons" = "Switcher zeigt Symbole an";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Verknüpfen Sie CodexBarCLI mit /usr/local/bin und /opt/homebrew/bin als Codexbar.";
 "System" = "System";
+"terminal_app_subtitle" = "Terminal für die Aktion „Terminal öffnen“";
+"terminal_app_title" = "Standardterminal";
 "Temporarily shows the loading animation after the next refresh." = "Zeigt nach der nächsten Aktualisierung vorübergehend die Ladeanimation an.";
 "Tertiary (\\(label))" = "Tertiär (\\\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiär (\\\\(tertiaryTitle))";
@@ -400,6 +402,7 @@
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
 "language_german" = "Deutsch";
+"language_japanese" = "Japanisch";
 "language_swedish" = "Svenska";
 "language_dutch" = "Niederländisch";
 "language_french" = "Französisch";
@@ -910,7 +913,7 @@
 "Antigravity login failed" = "Antigravity-Anmeldung fehlgeschlagen";
 "Antigravity login timed out" = "Zeitüberschreitung beim Antigravity-Login";
 "Auth source" = "Authentifizierungsquelle";
-"Automatic imports Chrome browser cookies from Xiaomi MiMo." = "Importiert automatisch Chrome-Browser-Cookies von Xiaomi MiMo.";
+"Automatic imports browser cookies from Xiaomi MiMo." = "Importiert automatisch Browser-Cookies von Xiaomi MiMo.";
 "Automatic imports Windsurf session data from Chromium browser localStorage." = "Importiert Windsurf-Sitzungsdaten automatisch aus dem lokalen Speicher des Chromium-Browsers.";
 "Automatic imports browser cookies from Bailian." = "Automatischer Import von Browser-Cookies von Bailian.";
 "Automatically imports browser cookies." = "Importiert automatisch Browser-Cookies.";
@@ -1010,6 +1013,7 @@
 "Personal account" = "Persönliches Konto";
 "Project ID" = "Projekt-ID";
 "Re-auth" = "Erneut authentifizieren";
+"Re-login at claude.ai" = "Erneut bei claude.ai anmelden";
 "Re-authenticating…" = "Erneute Authentifizierung…";
 "Refresh Session" = "Sitzung aktualisieren";
 "Refresh organizations" = "Organisationen aktualisieren";
@@ -1065,3 +1069,5 @@
 "Clear" = "Klar";
 "No matching providers" = "Keine passenden Anbieter";
 "Search providers" = "Suchanbieter";
+
+"Request quota: %@ / %@" = "Anfragelimit: %@ / %@";
