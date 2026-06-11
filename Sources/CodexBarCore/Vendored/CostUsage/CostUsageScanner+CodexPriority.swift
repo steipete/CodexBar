@@ -111,9 +111,13 @@ extension CostUsageScanner {
 
     static func _test_codexPriorityAccumulationQuery(
         _ db: OpaquePointer?,
-        lastRowID: Int64) -> String
+        lastRowID: Int64,
+        coverageSinceEpoch: Int64) -> String
     {
-        self.codexPriorityAccumulationPlan(db, lastRowID: lastRowID).query
+        self.codexPriorityAccumulationPlan(
+            db,
+            lastRowID: lastRowID,
+            coverageSinceEpoch: coverageSinceEpoch).query
     }
     #endif
 
@@ -445,7 +449,10 @@ extension CostUsageScanner {
         _ db: OpaquePointer?,
         into state: inout CodexPriorityTurnsMemoState) -> Bool
     {
-        let plan = self.codexPriorityAccumulationPlan(db, lastRowID: state.lastRowID)
+        let plan = self.codexPriorityAccumulationPlan(
+            db,
+            lastRowID: state.lastRowID,
+            coverageSinceEpoch: state.coverageSinceEpoch)
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, plan.query, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
@@ -487,9 +494,13 @@ extension CostUsageScanner {
 
     private static func codexPriorityAccumulationPlan(
         _ db: OpaquePointer?,
-        lastRowID: Int64) -> (query: String, usesTimestampIndex: Bool)
+        lastRowID: Int64,
+        coverageSinceEpoch: Int64) -> (query: String, usesTimestampIndex: Bool)
     {
-        if lastRowID == 0, self.hasCodexLogsTimestampIndex(db) {
+        if lastRowID == 0,
+           coverageSinceEpoch > 0,
+           self.hasCodexLogsTimestampIndex(db)
+        {
             return (
                 """
                 select rowid, ts, feedback_log_body

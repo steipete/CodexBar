@@ -87,11 +87,28 @@ struct CostUsageScannerCodexPriorityTests {
         }
         defer { sqlite3_close(db) }
 
-        let coldQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(db, lastRowID: 0)
-        let coldPlan = try Self.queryPlan(db: db, query: coldQuery, bindings: [0])
+        let coldQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(
+            db,
+            lastRowID: 0,
+            coverageSinceEpoch: 1)
+        let coldPlan = try Self.queryPlan(db: db, query: coldQuery, bindings: [1])
         #expect(coldPlan.contains { $0.contains("USING INDEX idx_logs_ts") })
 
-        let warmQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(db, lastRowID: 1)
+        let unboundedColdQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(
+            db,
+            lastRowID: 0,
+            coverageSinceEpoch: 0)
+        let unboundedColdPlan = try Self.queryPlan(
+            db: db,
+            query: unboundedColdQuery,
+            bindings: [0, 0])
+        #expect(unboundedColdPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
+        #expect(!unboundedColdPlan.contains { $0.contains("USE TEMP B-TREE") })
+
+        let warmQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(
+            db,
+            lastRowID: 1,
+            coverageSinceEpoch: 0)
         let warmPlan = try Self.queryPlan(db: db, query: warmQuery, bindings: [1, 0])
         #expect(warmPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
     }
