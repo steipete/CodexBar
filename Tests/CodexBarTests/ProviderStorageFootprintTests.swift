@@ -1,10 +1,28 @@
 import AppKit
 import CodexBarCore
 import Foundation
+import Observation
 import Testing
 @testable import CodexBar
 
 struct ProviderStorageFootprintTests {
+    private final class ObservationFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+
+        func set() {
+            self.lock.lock()
+            self.value = true
+            self.lock.unlock()
+        }
+
+        func get() -> Bool {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.value
+        }
+    }
+
     @Test
     func `scanner sums nested regular files and skips symlink targets`() throws {
         let root = try Self.makeTemporaryDirectory()
@@ -310,6 +328,54 @@ struct ProviderStorageFootprintTests {
 
         #expect(store.storageFootprint(for: .codex)?.totalBytes == 0)
         #expect(store.storageFootprintText(for: .codex) == "No local data found")
+    }
+
+    @Test
+    @MainActor
+    func `repeated identical storage refresh does not republish observable footprints`() async throws {
+        let home = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
+        let sessions = codexHome.appendingPathComponent("sessions", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 32).write(to: sessions.appendingPathComponent("session.jsonl"))
+
+        let suite = "ProviderStorageFootprintTests-identity-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        if let codexMetadata = ProviderDefaults.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            environmentBase: ["CODEX_HOME": codexHome.path])
+        settings.providerStorageFootprintsEnabled = true
+        store.managedCodexAccountsForStorageOverride = []
+
+        await store.refreshStorageFootprintsForOverviewNow()
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)
+
+        // A second scan over identical on-disk data must not re-assign the observable property.
+        // Storage scans run on every menu open and every ~5 min; an unconditional re-publish wakes
+        // `menuObservationToken` -> `invalidateMenus` churn for no value change.
+        let didRepublish = ObservationFlag()
+        withObservationTracking {
+            _ = store.providerStorageFootprints
+        } onChange: {
+            didRepublish.set()
+        }
+        await store.refreshStorageFootprintsForOverviewNow()
+
+        #expect(didRepublish.get() == false)
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 32)
     }
 
     @Test

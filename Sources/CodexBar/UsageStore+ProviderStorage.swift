@@ -177,9 +177,25 @@ extension UsageStore {
         updatedAt: Date)
     {
         let providerSet = Set(providers)
-        self.providerStorageFootprints = self.providerStorageFootprints.filter { !providerSet.contains($0.key) }
+        var updated = self.providerStorageFootprints.filter { !providerSet.contains($0.key) }
         for provider in providers {
-            self.providerStorageFootprints[provider] = footprints[provider]
+            // Reuse the existing footprint when only its scan timestamp would change, so the equality
+            // guard below treats an unchanged scan as a no-op.
+            if let incoming = footprints[provider],
+               let existing = self.providerStorageFootprints[provider],
+               existing.hasSameContents(as: incoming)
+            {
+                updated[provider] = existing
+            } else {
+                updated[provider] = footprints[provider]
+            }
+        }
+        // Only republish the observable footprints when a value actually changed. Storage scans run
+        // on every menu open and roughly every 5 minutes; an unconditional re-assignment wakes
+        // `menuObservationToken` -> `invalidateMenus` churn (clearing menu caches) even when the
+        // scanned bytes are identical.
+        if updated != self.providerStorageFootprints {
+            self.providerStorageFootprints = updated
         }
         self.lastStorageRefreshSignature = signature
         self.lastStorageRefreshRequestKey = requestKey ?? signature
