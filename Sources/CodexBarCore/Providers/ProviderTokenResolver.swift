@@ -129,6 +129,12 @@ public enum ProviderTokenResolver {
         self.deepseekResolution(environment: environment)?.token
     }
 
+    public static func poeToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.poeResolution(environment: environment)?.token
+    }
+
     public static func crofToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -173,6 +179,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(DeepSeekSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func poeResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(PoeSettingsReader.apiKey(environment: environment))
     }
 
     public static func crofResolution(

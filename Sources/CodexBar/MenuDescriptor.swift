@@ -440,7 +440,7 @@ struct MenuDescriptor {
                 entries.append(.text("\(L("Activity")): \(detail)", .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
-            if provider == .openrouter || provider == .mimo,
+            if provider == .openrouter || provider == .mimo || provider == .poe,
                loginMethodText.localizedCaseInsensitiveContains("balance:")
             {
                 let balanceValue = loginMethodText

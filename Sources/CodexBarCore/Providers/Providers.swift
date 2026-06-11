@@ -53,6 +53,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case llmproxy
     case litellm
     case deepgram
+    case poe
 }
 
 // swiftformat:enable sortDeclarations
@@ -106,6 +107,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case llmproxy
     case litellm
     case deepgram
+    case poe
     case combined
 }
 

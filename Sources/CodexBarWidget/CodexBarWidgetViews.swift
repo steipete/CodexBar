@@ -313,6 +313,7 @@ private struct ProviderSwitchChip: View {
         case .llmproxy: "LLM Proxy"
         case .litellm: "LiteLLM"
         case .deepgram: "Deepgram"
+        case .poe: "Poe"
         }
     }
 }
@@ -823,6 +824,8 @@ enum WidgetColors {
             Color(red: 76 / 255, green: 137 / 255, blue: 240 / 255)
         case .deepgram:
             Color(red: 10 / 255, green: 18 / 255, blue: 27 / 255)
+        case .poe:
+            Color(red: 0.15, green: 0.68, blue: 0.38)
         }
     }
 }

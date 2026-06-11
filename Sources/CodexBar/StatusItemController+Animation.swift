@@ -688,6 +688,11 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .poe,
+           let balance = Self.poeBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
         if provider == .mistral,
            let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
         {
@@ -786,6 +791,13 @@ extension StatusItemController {
         if snapshot.primary != nil, preference != .secondary { return nil }
         let detail = mimoUsage.balanceDetail
         return detail.components(separatedBy: " (Paid:").first
+    }
+
+    nonisolated static func poeBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        self.displayValue(
+            from: snapshot?.loginMethod(for: .poe),
+            prefix: "Balance:",
+            removingSuffix: "")
     }
 
     nonisolated static func moonshotBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {

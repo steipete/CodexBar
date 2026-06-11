@@ -68,7 +68,7 @@ public enum ProviderConfigEnvironment {
     public static func supportsAPIKeyOverride(for provider: UsageProvider) -> Bool {
         if self.directAPIKeyEnvironmentKey(for: provider) != nil { return true }
         switch provider {
-        case .copilot, .kimik2, .warp, .codebuff, .crof, .doubao:
+        case .copilot, .kimik2, .warp, .codebuff, .crof, .doubao, .poe:
             return true
         case .azureopenai:
             return true
@@ -132,6 +132,8 @@ public enum ProviderConfigEnvironment {
             LLMProxySettingsReader.apiKeyEnvironmentKey
         case .litellm:
             LiteLLMSettingsReader.apiKeyEnvironmentKey
+        case .poe:
+            PoeSettingsReader.apiKeyEnvironmentKey
         default:
             nil
         }

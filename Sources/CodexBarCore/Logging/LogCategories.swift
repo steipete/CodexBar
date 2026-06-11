@@ -64,6 +64,7 @@ public enum LogCategories {
     public static let perplexityAPI = "perplexity-api"
     public static let perplexityCookie = "perplexity-cookie"
     public static let perplexityWeb = "perplexity-web"
+    public static let poeUsage = "poe-usage"
     public static let providerDetection = "provider-detection"
     public static let providers = "providers"
     public static let quotaWarningNotifications = "quotaWarningNotifications"

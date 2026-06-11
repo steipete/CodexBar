@@ -103,6 +103,7 @@ public enum ProviderDescriptorRegistry {
         .llmproxy: LLMProxyProviderDescriptor.descriptor,
         .litellm: LiteLLMProviderDescriptor.descriptor,
         .deepgram: DeepgramProviderDescriptor.descriptor,
+        .poe: PoeProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

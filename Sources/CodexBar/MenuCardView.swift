@@ -1344,6 +1344,11 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailText = detail
         }
+        if input.provider == .poe,
+           let balance = StatusItemController.poeBalanceDisplayText(snapshot: input.snapshot)
+        {
+            primaryDetailText = balance
+        }
         if input.provider == .kiro,
            let kiroUsage = input.snapshot?.kiroUsage,
            kiroUsage.creditsTotal > 0
