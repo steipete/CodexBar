@@ -71,6 +71,31 @@ struct StatusMenuOverviewScrollTests {
     }
 
     @Test
+    func `navigation targets only overview rows`() {
+        let controller = self.makeController(suiteName: "OverviewScroll-Targets")
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = self.makeOverviewMenu()
+        let refresh = NSMenuItem(title: "Refresh", action: nil, keyEquivalent: "")
+        refresh.isEnabled = true
+        menu.addItem(refresh)
+        let rows = Array(menu.items.prefix(2))
+
+        #expect(controller.overviewScrollTargetItem(in: menu, step: .down) === rows[0])
+        #expect(controller.overviewScrollTargetItem(in: menu, step: .up) === rows[1])
+
+        controller.highlightedMenuItems[ObjectIdentifier(menu)] = rows[0]
+        #expect(controller.overviewScrollTargetItem(in: menu, step: .down) === rows[1])
+        #expect(controller.overviewScrollTargetItem(in: menu, step: .up) === rows[0])
+
+        controller.highlightedMenuItems[ObjectIdentifier(menu)] = rows[1]
+        #expect(controller.overviewScrollTargetItem(in: menu, step: .down) === rows[1])
+        #expect(controller.overviewScrollTargetItem(in: menu, step: .up) === rows[0])
+
+        controller.highlightedMenuItems[ObjectIdentifier(menu)] = refresh
+        #expect(controller.overviewScrollTargetItem(in: menu, step: .down) === rows[0])
+    }
+
+    @Test
     func `small precise deltas accumulate before stepping`() throws {
         let controller = self.makeController(suiteName: "OverviewScroll-Accumulate")
         defer { controller.releaseStatusItemsForTesting() }

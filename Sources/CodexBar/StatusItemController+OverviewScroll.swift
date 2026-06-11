@@ -14,8 +14,8 @@ extension StatusItemController {
     private static let maxScrollStepsPerEvent = 3
 
     /// Scrolling the wheel while the overview tab is open moves the row highlight up/down.
-    /// Steps are delivered as synthetic arrow-key events so AppKit's native menu highlight,
-    /// submenu, and return-key activation behavior stay intact.
+    /// Steps are delivered as mouse-move events over the custom card views so AppKit's
+    /// native menu highlight and submenu behavior stay intact.
     @discardableResult
     func handleOverviewScrollWheel(_ event: NSEvent, menu: NSMenu) -> Bool {
         guard self.menuHasOverviewRows(menu) else {
@@ -48,7 +48,7 @@ extension StatusItemController {
         while abs(self.overviewScrollAccumulatedDelta) >= threshold, steps < Self.maxScrollStepsPerEvent {
             let movingUp = self.overviewScrollAccumulatedDelta > 0
             self.overviewScrollAccumulatedDelta += movingUp ? -threshold : threshold
-            self.postOverviewScrollNavigation(movingUp ? .up : .down)
+            self.postOverviewScrollNavigation(movingUp ? .up : .down, menu: menu)
             steps += 1
         }
         // Discard the remainder once the cap is hit, otherwise the leftover delta from a
@@ -69,24 +69,57 @@ extension StatusItemController {
         self.overviewScrollAccumulatedDelta = 0
     }
 
-    private func postOverviewScrollNavigation(_ step: OverviewScrollStep) {
+    private func postOverviewScrollNavigation(_ step: OverviewScrollStep, menu: NSMenu) {
         if let handler = self.overviewScrollNavigationHandlerForTesting {
             handler(step)
             return
         }
-        let keyCode: UInt16 = step == .down ? 125 : 126
-        guard let keyEvent = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
+        guard let target = self.overviewScrollTargetItem(in: menu, step: step) else { return }
+        let menuID = ObjectIdentifier(menu)
+        guard self.highlightedMenuItems[menuID] !== target else { return }
+
+        // Advance local state immediately so a capped multi-step flick can target successive rows
+        // before AppKit drains the synthetic mouse-move events.
+        self.menu(menu, willHighlight: target)
+
+        guard let view = target.view,
+              let window = view.window
+        else { return }
+        let location = view.convert(
+            NSPoint(x: view.bounds.midX, y: view.bounds.midY),
+            to: nil)
+        guard let event = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: location,
             modifierFlags: [],
             timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: 0,
+            windowNumber: window.windowNumber,
             context: nil,
-            characters: "",
-            charactersIgnoringModifiers: "",
-            isARepeat: false,
-            keyCode: keyCode)
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0)
         else { return }
-        NSApp.postEvent(keyEvent, atStart: true)
+        NSApp.postEvent(event, atStart: false)
+    }
+
+    func overviewScrollTargetItem(in menu: NSMenu, step: OverviewScrollStep) -> NSMenuItem? {
+        let rows = menu.items.filter { item in
+            (item.representedObject as? String)?.hasPrefix(Self.overviewRowIdentifierPrefix) == true
+        }
+        guard !rows.isEmpty else { return nil }
+
+        guard let current = self.highlightedMenuItems[ObjectIdentifier(menu)],
+              let currentIndex = rows.firstIndex(where: { $0 === current })
+        else {
+            return step == .down ? rows.first : rows.last
+        }
+
+        let targetIndex: Int = switch step {
+        case .up:
+            max(0, currentIndex - 1)
+        case .down:
+            min(rows.count - 1, currentIndex + 1)
+        }
+        return rows[targetIndex]
     }
 }
