@@ -3,6 +3,6 @@
 enum CodexParserHash {
     /// Hash of codex session/cost parsing sources (non-Claude, non-priority-turns).
     static let sessions = "91ab91ab2dd5246b"
-    /// Hash of codex priority-turns parsing sources.
-    static let priorityTurns = "6d64628ee98b719a"
+    /// Hash of codex priority-turns parsing sources and their shared scanner dependencies.
+    static let priorityTurns = "a3e303f66e535cc6"
 }

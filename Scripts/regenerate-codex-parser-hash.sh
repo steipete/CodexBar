@@ -34,10 +34,17 @@ PRIORITY_FILE_LIST="$(mktemp)"
 trap 'rm -f "$SESSIONS_FILE_LIST" "$PRIORITY_FILE_LIST"' EXIT
 
 # Codex priority-turn parsing has its own producer key (the priority-turns memo
-# artifact); everything else non-Claude feeds the session/cost cache key. Keeping
-# the domains separate means a priority-parser change no longer invalidates the
-# whole session cost cache: changed priority turns already trigger targeted
-# per-file re-derivation through codexPriorityTurnKeys/changedPriorityTurnIDs.
+# artifact); the session/cost cache key excludes priority-turn sources, so a
+# priority-parser change no longer invalidates the whole session cost cache:
+# changed priority turns already trigger targeted per-file re-derivation through
+# codexPriorityTurnKeys/changedPriorityTurnIDs.
+#
+# The priority hash intentionally covers ALL non-Claude sources, not just the
+# CodexPriority files: priority parsing depends on shared helpers (timestamps,
+# day ranges, the scanner core), and a superset hash is dependency-complete by
+# construction. The asymmetry is deliberate — the session cache is the expensive
+# artifact to rebuild, while a priority memo rebuild is one bounded background
+# scan, so the memo conservatively invalidates on any scanner change.
 find "$SOURCE_DIR" \
   -type f \
   -name '*.swift' \
@@ -49,7 +56,8 @@ find "$SOURCE_DIR" \
 
 find "$SOURCE_DIR" \
   -type f \
-  -name '*CodexPriority*.swift' \
+  -name '*.swift' \
+  ! -name '*Claude*' \
   -print |
   sed "s#^${ROOT_DIR}/##" |
   LC_ALL=C sort >"$PRIORITY_FILE_LIST"
@@ -79,7 +87,7 @@ render_generated() {
 enum CodexParserHash {
     /// Hash of codex session/cost parsing sources (non-Claude, non-priority-turns).
     static let sessions = "$SESSIONS_HASH"
-    /// Hash of codex priority-turns parsing sources.
+    /// Hash of codex priority-turns parsing sources and their shared scanner dependencies.
     static let priorityTurns = "$PRIORITY_HASH"
 }
 SWIFT
