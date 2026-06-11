@@ -170,6 +170,7 @@ final class ProviderSwitcherView: NSView {
             case .overview:
                 nil
             }
+            Self.applyQuotaBarContentInset(to: button)
             self.addQuotaIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
             button.bezelStyle = .regularSquare
             button.isBordered = false
@@ -657,7 +658,6 @@ final class ProviderSwitcherView: NSView {
                     self.addQuotaIndicator(to: button, selection: segment.selection, remainingPercent: remaining)
                 }
             } else if let indicator = self.quotaIndicators.removeValue(forKey: key) {
-                Self.applyQuotaBarContentInset(to: button, height: 0)
                 indicator.track.removeFromSuperview()
                 continue
             }
