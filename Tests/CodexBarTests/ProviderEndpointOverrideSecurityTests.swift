@@ -4,6 +4,42 @@ import Testing
 
 struct ProviderEndpointOverrideSecurityTests {
     @Test
+    func `sibling endpoint overrides reject userinfo and encoded host delimiters`() {
+        let userInfoURL = "https://user:pass@proxy.test/v1"
+        let encodedHostURL = "https://proxy.test%2f.attacker.test/v1"
+
+        #expect(OpenRouterSettingsReader.apiURL(
+            environment: ["OPENROUTER_API_URL": userInfoURL]).host == "openrouter.ai")
+        #expect(throws: OpenRouterSettingsError.invalidEndpointOverride("OPENROUTER_API_URL")) {
+            try OpenRouterSettingsReader.validateEndpointOverrides(
+                environment: ["OPENROUTER_API_URL": encodedHostURL])
+        }
+
+        #expect(CodebuffSettingsReader.apiURL(
+            environment: ["CODEBUFF_API_URL": userInfoURL]).host == "www.codebuff.com")
+        #expect(throws: CodebuffSettingsError.invalidEndpointOverride("CODEBUFF_API_URL")) {
+            try CodebuffSettingsReader.validateEndpointOverrides(
+                environment: ["CODEBUFF_API_URL": encodedHostURL])
+        }
+
+        #expect(GroqSettingsReader.apiURL(
+            environment: [GroqSettingsReader.apiURLEnvironmentKey: userInfoURL]).host == "api.groq.com")
+        #expect(throws: GroqSettingsError.invalidEndpointOverride(GroqSettingsReader.apiURLEnvironmentKey)) {
+            try GroqSettingsReader.validateEndpointOverrides(
+                environment: [GroqSettingsReader.apiURLEnvironmentKey: encodedHostURL])
+        }
+
+        #expect(ElevenLabsSettingsReader.apiURL(
+            environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: userInfoURL]).host == "api.elevenlabs.io")
+        #expect(throws: ElevenLabsSettingsError.invalidEndpointOverride(
+            ElevenLabsSettingsReader.apiURLEnvironmentKey))
+        {
+            try ElevenLabsSettingsReader.validateEndpointOverrides(
+                environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: encodedHostURL])
+        }
+    }
+
+    @Test
     func `OpenRouter endpoint override must be HTTPS or a bare host`() throws {
         let httpsURL = OpenRouterSettingsReader.apiURL(
             environment: ["OPENROUTER_API_URL": "https://router.test/v1"])

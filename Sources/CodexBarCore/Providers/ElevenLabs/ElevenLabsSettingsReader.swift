@@ -26,9 +26,9 @@ public enum ElevenLabsSettingsReader {
     public static func validateEndpointOverrides(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        if self.hasExplicitNonHTTPSURL(environment[self.apiURLEnvironmentKey]) {
-            throw ElevenLabsSettingsError.invalidEndpointOverride(self.apiURLEnvironmentKey)
-        }
+        guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
+        throw ElevenLabsSettingsError.invalidEndpointOverride(self.apiURLEnvironmentKey)
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -46,25 +46,7 @@ public enum ElevenLabsSettingsReader {
 
     private static func validAPIURL(environment: [String: String]) -> URL? {
         guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return nil }
-        if let scheme = self.explicitURLScheme(raw) {
-            return scheme == "https" ? URL(string: raw) : nil
-        }
-        return URL(string: "https://\(raw)")
-    }
-
-    private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
-        guard let cleaned = self.cleaned(raw),
-              let scheme = self.explicitURLScheme(cleaned)
-        else { return false }
-        return scheme != "https"
-    }
-
-    private static func explicitURLScheme(_ raw: String) -> String? {
-        guard let schemeSeparator = raw.range(
-            of: #"^[A-Za-z][A-Za-z0-9+.-]*://"#,
-            options: .regularExpression)
-        else { return nil }
-        return raw[..<schemeSeparator.upperBound].dropLast(3).lowercased()
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 }
 

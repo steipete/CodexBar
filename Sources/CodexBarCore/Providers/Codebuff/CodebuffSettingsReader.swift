@@ -22,9 +22,9 @@ public enum CodebuffSettingsReader {
     public static func validateEndpointOverrides(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        if self.hasExplicitNonHTTPSURL(environment["CODEBUFF_API_URL"]) {
-            throw CodebuffSettingsError.invalidEndpointOverride("CODEBUFF_API_URL")
-        }
+        guard let raw = self.cleaned(environment["CODEBUFF_API_URL"]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
+        throw CodebuffSettingsError.invalidEndpointOverride("CODEBUFF_API_URL")
     }
 
     /// Returns the auth token from the local credentials file if present.
@@ -69,25 +69,7 @@ public enum CodebuffSettingsReader {
 
     private static func validAPIURL(environment: [String: String]) -> URL? {
         guard let raw = self.cleaned(environment["CODEBUFF_API_URL"]) else { return nil }
-        if let scheme = self.explicitURLScheme(raw) {
-            return scheme == "https" ? URL(string: raw) : nil
-        }
-        return URL(string: "https://\(raw)")
-    }
-
-    private static func hasExplicitNonHTTPSURL(_ raw: String?) -> Bool {
-        guard let cleaned = self.cleaned(raw),
-              let scheme = self.explicitURLScheme(cleaned)
-        else { return false }
-        return scheme != "https"
-    }
-
-    private static func explicitURLScheme(_ raw: String) -> String? {
-        guard let schemeSeparator = raw.range(
-            of: #"^[A-Za-z][A-Za-z0-9+.-]*://"#,
-            options: .regularExpression)
-        else { return nil }
-        return raw[..<schemeSeparator.upperBound].dropLast(3).lowercased()
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 }
 

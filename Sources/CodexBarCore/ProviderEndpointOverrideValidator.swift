@@ -58,7 +58,12 @@ struct ProviderEndpointOverrideValidator: Sendable {
         guard let url else { return nil }
         guard let scheme = url.scheme?.lowercased(), scheme == "https" else { return nil }
         guard url.user == nil, url.password == nil else { return nil }
-        guard url.host(percentEncoded: false) != nil else { return nil }
+        guard let decodedHost = url.host(percentEncoded: false)?.lowercased(),
+              !decodedHost.isEmpty,
+              !decodedHost.contains("%"),
+              let encodedHost = url.host(percentEncoded: true)?.lowercased(),
+              Self.hostHasNoEncodedDelimiters(encodedHost, decodedHost: decodedHost, url: url)
+        else { return nil }
         return url
     }
 
@@ -102,7 +107,7 @@ struct ProviderEndpointOverrideValidator: Sendable {
               decodedHost.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
               decodedHost.rangeOfCharacter(from: .controlCharacters) == nil,
               let encodedHost = url.host(percentEncoded: true)?.lowercased(),
-              self.hostHasNoEncodedDelimiters(encodedHost, decodedHost: decodedHost, url: url)
+              Self.hostHasNoEncodedDelimiters(encodedHost, decodedHost: decodedHost, url: url)
         else { return nil }
 
         switch policy {
@@ -118,7 +123,7 @@ struct ProviderEndpointOverrideValidator: Sendable {
         }
     }
 
-    private func hostHasNoEncodedDelimiters(_ encodedHost: String, decodedHost: String, url: URL) -> Bool {
+    private static func hostHasNoEncodedDelimiters(_ encodedHost: String, decodedHost: String, url: URL) -> Bool {
         if decodedHost.contains(":") {
             guard encodedHost == decodedHost,
                   let componentHost = URLComponents(url: url, resolvingAgainstBaseURL: false)?.host,
