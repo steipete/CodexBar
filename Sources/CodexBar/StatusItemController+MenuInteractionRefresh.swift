@@ -27,6 +27,34 @@ extension StatusItemController {
         #endif
     }
 
+    struct MenuOperationTrace {
+        let operation: String
+        let startedAt: CFTimeInterval
+    }
+
+    /// Pairs the slow-operation timing log with a watchdog breadcrumb so a hang during
+    /// the operation is attributed to it even when the operation never finishes logging.
+    func beginMenuOperationTrace(
+        _ operation: String,
+        breadcrumb: @autoclosure () -> String) -> MenuOperationTrace
+    {
+        #if DEBUG
+        MainThreadActivityBreadcrumb.push(breadcrumb())
+        #endif
+        return MenuOperationTrace(operation: operation, startedAt: CACurrentMediaTime())
+    }
+
+    func endMenuOperationTrace(_ trace: MenuOperationTrace, menu: NSMenu, provider: UsageProvider?) {
+        #if DEBUG
+        MainThreadActivityBreadcrumb.pop()
+        #endif
+        self.logMenuOperationDurationIfSlow(
+            trace.operation,
+            startedAt: trace.startedAt,
+            menu: menu,
+            provider: provider)
+    }
+
     func logMenuOperationDurationIfSlow(
         _ operation: String,
         startedAt: CFTimeInterval,
@@ -56,6 +84,25 @@ extension StatusItemController {
                 "section": label,
                 "durationMs": String(format: "%.1f", elapsed * 1000),
             ])
+    }
+
+    private static let slowHostedSubviewDisplaySettleThreshold: TimeInterval = 0.1
+
+    /// Chart construction returns before SwiftUI's first draw of the hosted view, so a
+    /// fast hydrate can still display with a visible hitch. Measure to the next main
+    /// runloop turn, which includes the Core Animation commit and first render pass.
+    func logHostedSubviewDisplaySettle(_ label: String, startedAt: CFTimeInterval) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let elapsed = CACurrentMediaTime() - startedAt
+            guard elapsed >= Self.slowHostedSubviewDisplaySettleThreshold else { return }
+            self.menuLogger.warning(
+                "slow hosted subview display",
+                metadata: [
+                    "section": label,
+                    "durationMs": String(format: "%.1f", elapsed * 1000),
+                ])
+        }
     }
 
     func deferMenuInteractionRefreshIfNeeded(providers: [UsageProvider]) {

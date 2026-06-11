@@ -62,6 +62,10 @@ extension StatusItemController {
         menu.removeAllItems()
 
         let t0 = CACurrentMediaTime()
+        #if DEBUG
+        MainThreadActivityBreadcrumb.push("hydrateChart:\(chartID)")
+        defer { MainThreadActivityBreadcrumb.pop() }
+        #endif
         let didHydrate: Bool = switch chartID {
         case Self.usageBreakdownChartID:
             self.appendUsageBreakdownChartItem(to: menu, width: width)
@@ -103,6 +107,7 @@ extension StatusItemController {
             false
         }
         self.logChartRenderDurationIfSlow("hydrateHostedSubview:\(chartID)", startedAt: t0)
+        self.logHostedSubviewDisplaySettle("hydrateHostedSubview:\(chartID)", startedAt: t0)
 
         if !didHydrate {
             self.appendHostedSubviewUnavailableItem(
@@ -130,6 +135,10 @@ extension StatusItemController {
 
         menu.removeAllItems()
         let t0 = CACurrentMediaTime()
+        #if DEBUG
+        MainThreadActivityBreadcrumb.push("refreshChart:\(identity.chartID)")
+        defer { MainThreadActivityBreadcrumb.pop() }
+        #endif
         let didHydrate: Bool = switch identity.chartID {
         case Self.usageBreakdownChartID:
             self.appendUsageBreakdownChartItem(to: menu, width: width)
@@ -163,6 +172,7 @@ extension StatusItemController {
             false
         }
         self.logChartRenderDurationIfSlow("refreshHostedSubview:\(identity.chartID)", startedAt: t0)
+        self.logHostedSubviewDisplaySettle("refreshHostedSubview:\(identity.chartID)", startedAt: t0)
 
         if !didHydrate {
             self.appendHostedSubviewUnavailableItem(

@@ -57,14 +57,8 @@ extension StatusItemController {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        let menuOpenStartedAt = CACurrentMediaTime()
-        defer {
-            self.logMenuOperationDurationIfSlow(
-                "menuWillOpen",
-                startedAt: menuOpenStartedAt,
-                menu: menu,
-                provider: self.menuProvider(for: menu))
-        }
+        let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")
+        defer { self.endMenuOperationTrace(trace, menu: menu, provider: self.menuProvider(for: menu)) }
 
         self.cancelDeferredMenuInteractionRefreshTask()
         self.cancelClosedMenuRebuild(menu)
@@ -202,14 +196,10 @@ extension StatusItemController {
     }
 
     func populateMenu(_ menu: NSMenu, provider: UsageProvider?) {
-        let populateStartedAt = CACurrentMediaTime()
-        defer {
-            self.logMenuOperationDurationIfSlow(
-                "populateMenu",
-                startedAt: populateStartedAt,
-                menu: menu,
-                provider: provider)
-        }
+        let trace = self.beginMenuOperationTrace(
+            "populateMenu",
+            breadcrumb: "populateMenu:\(provider?.rawValue ?? "merged")")
+        defer { self.endMenuOperationTrace(trace, menu: menu, provider: provider) }
         defer { self.refreshMenuCardHeights(in: menu) }
 
         let enabledProviders = self.store.enabledProvidersForDisplay()
