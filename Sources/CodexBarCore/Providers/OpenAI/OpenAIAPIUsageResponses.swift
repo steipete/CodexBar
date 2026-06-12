@@ -2,6 +2,21 @@ import Foundation
 
 struct CostsResponse: Decodable {
     let data: [OpenAICostBucket]
+    let hasMore: Bool
+    let nextPage: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case data
+        case hasMore = "has_more"
+        case nextPage = "next_page"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.data = try container.decode([OpenAICostBucket].self, forKey: .data)
+        self.hasMore = try container.decode(Bool.self, forKey: .hasMore)
+        self.nextPage = try container.decodeIfPresent(String.self, forKey: .nextPage)
+    }
 }
 
 struct OpenAICostBucket: Decodable {
@@ -44,6 +59,21 @@ struct OpenAICostResult: Decodable {
 
 struct CompletionsUsageResponse: Decodable {
     let data: [OpenAICompletionsUsageBucket]
+    let hasMore: Bool
+    let nextPage: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case data
+        case hasMore = "has_more"
+        case nextPage = "next_page"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.data = try container.decode([OpenAICompletionsUsageBucket].self, forKey: .data)
+        self.hasMore = try container.decode(Bool.self, forKey: .hasMore)
+        self.nextPage = try container.decodeIfPresent(String.self, forKey: .nextPage)
+    }
 }
 
 struct OpenAICompletionsUsageBucket: Decodable {

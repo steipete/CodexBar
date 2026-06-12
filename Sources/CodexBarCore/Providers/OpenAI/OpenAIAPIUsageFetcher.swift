@@ -38,6 +38,7 @@ public enum OpenAIAPIUsageFetcher {
         URL(string: "https://api.openai.com/v1/organization/usage/completions")!
 
     private static let maxDailyBucketLimit = 31
+    private static let maxPaginationPages = 100
     private static let timeoutSeconds: TimeInterval = 20
 
     private struct EndpointRequestContext {
@@ -51,7 +52,13 @@ public enum OpenAIAPIUsageFetcher {
         let name: String
         let baseURL: URL
         let queryItems: [URLQueryItem]
-        let decodeBuckets: (Data) throws -> [Bucket]
+        let decodePage: (Data) throws -> UsagePage<Bucket>
+    }
+
+    private struct UsagePage<Bucket> {
+        let data: [Bucket]
+        let hasMore: Bool
+        let nextPage: String?
     }
 
     private typealias SnapshotMetadata = (now: Date, calendar: Calendar, historyDays: Int, projectID: String?)
@@ -122,7 +129,13 @@ public enum OpenAIAPIUsageFetcher {
             name: "costs",
             baseURL: baseURL,
             queryItems: [URLQueryItem(name: "group_by", value: "line_item")],
-            decodeBuckets: { try self.decodeCosts($0).data })
+            decodePage: {
+                let response = try self.decodeCosts($0)
+                return UsagePage(
+                    data: response.data,
+                    hasMore: response.hasMore,
+                    nextPage: response.nextPage)
+            })
     }
 
     private static func completionsEndpoint(
@@ -132,7 +145,13 @@ public enum OpenAIAPIUsageFetcher {
             name: "completions",
             baseURL: baseURL,
             queryItems: [URLQueryItem(name: "group_by", value: "model")],
-            decodeBuckets: { try self.decodeCompletions($0).data })
+            decodePage: {
+                let response = try self.decodeCompletions($0)
+                return UsagePage(
+                    data: response.data,
+                    hasMore: response.hasMore,
+                    nextPage: response.nextPage)
+            })
     }
 
     private static func fetchBuckets<Bucket>(
@@ -142,17 +161,48 @@ public enum OpenAIAPIUsageFetcher {
     {
         var buckets: [Bucket] = []
         for range in ranges {
-            let url = Self.url(
-                baseURL: endpoint.baseURL,
-                range: range,
-                queryItems: endpoint.queryItems + Self.projectQueryItems(projectID: context.projectID))
-            let data = try await Self.fetchData(
-                url: url,
-                apiKey: context.apiKey,
-                endpoint: endpoint.name,
-                transport: context.transport,
-                retryPolicy: context.retryPolicy)
-            try buckets.append(contentsOf: endpoint.decodeBuckets(data))
+            var nextPage: String?
+            var seenPages: Set<String> = []
+            var pageCount = 0
+
+            repeat {
+                pageCount += 1
+                guard pageCount <= Self.maxPaginationPages else {
+                    throw OpenAIAPIUsageError.parseFailed(
+                        endpoint: endpoint.name,
+                        message: "Pagination exceeded \(Self.maxPaginationPages) pages.")
+                }
+
+                let url = Self.url(
+                    baseURL: endpoint.baseURL,
+                    range: range,
+                    queryItems: endpoint.queryItems + Self.projectQueryItems(projectID: context.projectID),
+                    page: nextPage)
+                let data = try await Self.fetchData(
+                    url: url,
+                    apiKey: context.apiKey,
+                    endpoint: endpoint.name,
+                    transport: context.transport,
+                    retryPolicy: context.retryPolicy)
+                let page = try endpoint.decodePage(data)
+                buckets.append(contentsOf: page.data)
+
+                guard page.hasMore else {
+                    nextPage = nil
+                    continue
+                }
+                guard let cursor = Self.cleanedPageCursor(page.nextPage) else {
+                    throw OpenAIAPIUsageError.parseFailed(
+                        endpoint: endpoint.name,
+                        message: "Pagination cursor missing.")
+                }
+                guard seenPages.insert(cursor).inserted else {
+                    throw OpenAIAPIUsageError.parseFailed(
+                        endpoint: endpoint.name,
+                        message: "Pagination cursor repeated.")
+                }
+                nextPage = cursor
+            } while nextPage != nil
         }
         return buckets
     }
@@ -270,14 +320,30 @@ public enum OpenAIAPIUsageFetcher {
         return trimmed
     }
 
-    private static func url(baseURL: URL, range: DateRange, queryItems extraItems: [URLQueryItem]) -> URL {
+    private static func cleanedPageCursor(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func url(
+        baseURL: URL,
+        range: DateRange,
+        queryItems extraItems: [URLQueryItem],
+        page: String? = nil) -> URL
+    {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
-        components.queryItems = [
+        var queryItems = [
             URLQueryItem(name: "start_time", value: String(range.startTime)),
             URLQueryItem(name: "end_time", value: String(range.endTime)),
             URLQueryItem(name: "bucket_width", value: "1d"),
             URLQueryItem(name: "limit", value: String(range.limit)),
         ] + extraItems
+        if let page {
+            queryItems.append(URLQueryItem(name: "page", value: page))
+        }
+        components.queryItems = queryItems
         return components.url!
     }
 
