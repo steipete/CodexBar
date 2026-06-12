@@ -627,9 +627,11 @@
 "display_mode_percent" = "Prozent";
 "display_mode_pace" = "Tempo";
 "display_mode_both" = "Beide";
+"display_mode_reset_time" = "Zurücksetzungszeit";
 "display_mode_percent_desc" = "Verbleibenden/verwendeten Prozentsatz anzeigen (z. B. 45 %)";
 "display_mode_pace_desc" = "Tempoanzeige anzeigen (z. B. +5%)";
 "display_mode_both_desc" = "Zeigen Sie sowohl Prozentsatz als auch Tempo an (z. B. 45 % · +5 %)";
+"display_mode_reset_time_desc" = "Zurücksetzungszeit der ausgewählten Metrik anzeigen (z. B. ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Betriebsbereit";
