@@ -85,4 +85,45 @@ struct StatusMenuSwitcherLayoutTests {
 
         #expect(view._test_simulateRuntimeClickOnQuotaIndicator(buttonTag: 2))
     }
+
+    @Test
+    func `localized inline switcher titles fit without losing equal sizing`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("tr") {
+            for width in stride(from: CGFloat(280), through: CGFloat(330), by: 1) {
+                let view = ProviderSwitcherView(
+                    providers: [.codex, .devin],
+                    selected: .overview,
+                    includesOverview: true,
+                    width: width,
+                    showsIcons: true,
+                    iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+                    weeklyRemainingProvider: { _ in nil },
+                    onSelect: { _ in })
+                view.updateConstraintsForSubtreeIfNeeded()
+                view.layoutSubtreeIfNeeded()
+
+                let frames = view._test_buttonFrames()
+                let desiredWidths = view._test_buttonDesiredWidths()
+                #expect(frames.count == 3)
+                #expect(desiredWidths.count == frames.count)
+                let firstWidth = try #require(frames.first?.width)
+
+                for (frame, desiredWidth) in zip(frames, desiredWidths) {
+                    #expect(frame.width == firstWidth)
+                    let minimalInsetAllowedWidth = floor((width - 12 - 2) / 3)
+                    let evenMinimalInsetAllowedWidth = minimalInsetAllowedWidth
+                        .truncatingRemainder(dividingBy: 2) == 0
+                        ? minimalInsetAllowedWidth
+                        : minimalInsetAllowedWidth - 1
+                    let roundedDesiredWidth = ceil(desiredWidth)
+                    let evenDesiredWidth = roundedDesiredWidth.truncatingRemainder(dividingBy: 2) == 0
+                        ? roundedDesiredWidth
+                        : roundedDesiredWidth + 1
+                    if evenMinimalInsetAllowedWidth >= evenDesiredWidth {
+                        #expect(frame.width >= desiredWidth)
+                    }
+                }
+            }
+        }
+    }
 }

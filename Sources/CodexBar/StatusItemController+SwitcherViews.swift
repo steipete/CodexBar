@@ -111,17 +111,6 @@ final class ProviderSwitcherView: NSView {
         self.layer?.insertSublayer(self.lightModeOverlayLayer, at: 0)
         self.updateLightModeStyling()
 
-        let layoutCount = Self.layoutCount(for: self.segments.count, rows: self.rowCount)
-        let outerPadding: CGFloat = Self.switcherOuterPadding(
-            for: width,
-            count: layoutCount,
-            minimumGap: minimumGap)
-        let maxAllowedSegmentWidth = Self.maxAllowedUniformSegmentWidth(
-            for: width,
-            count: layoutCount,
-            outerPadding: outerPadding,
-            minimumGap: minimumGap)
-
         func makeButton(index: Int, segment: Segment) -> NSButton {
             let button: NSButton
             if self.stackedIcons {
@@ -189,22 +178,32 @@ final class ProviderSwitcherView: NSView {
             self.segments.firstIndex { $0.selection == selected }
         }
 
+        let layoutCount = Self.layoutCount(for: self.segments.count, rows: self.rowCount)
+        let requiredUniformWidth = self.stackedIcons
+            ? nil
+            : self.buttons.map(Self.maxToggleWidth(for:)).max()
+        let layoutMetrics = Self.switcherLayoutMetrics(
+            for: width,
+            count: layoutCount,
+            minimumGap: minimumGap,
+            requiredSegmentWidth: requiredUniformWidth)
+
         let uniformWidth: CGFloat
         if self.rowCount > 1 || !self.stackedIcons {
-            uniformWidth = self.applyUniformSegmentWidth(maxAllowedWidth: maxAllowedSegmentWidth)
+            uniformWidth = self.applyUniformSegmentWidth(maxAllowedWidth: layoutMetrics.maxAllowedSegmentWidth)
             if uniformWidth > 0 {
                 self.segmentWidths = Array(repeating: uniformWidth, count: self.buttons.count)
             }
         } else {
             self.segmentWidths = self.applyNonUniformSegmentWidths(
                 totalWidth: width,
-                outerPadding: outerPadding,
+                outerPadding: layoutMetrics.outerPadding,
                 minimumGap: minimumGap)
             uniformWidth = 0
         }
 
         self.applyLayout(
-            outerPadding: outerPadding,
+            outerPadding: layoutMetrics.outerPadding,
             minimumGap: minimumGap,
             uniformWidth: uniformWidth)
         if width > 0 {
@@ -579,7 +578,12 @@ final class ProviderSwitcherView: NSView {
         return rowCount >= 3 ? 39 : 36
     }
 
-    private static func switcherOuterPadding(for width: CGFloat, count: Int, minimumGap: CGFloat) -> CGFloat {
+    private static func switcherOuterPadding(
+        for width: CGFloat,
+        count: Int,
+        minimumGap: CGFloat,
+        requiredSegmentWidth: CGFloat? = nil) -> CGFloat
+    {
         // Align with the card's left/right content grid when possible.
         let preferred: CGFloat = 16
         let reduced: CGFloat = 10
@@ -594,8 +598,27 @@ final class ProviderSwitcherView: NSView {
         // Only sacrifice padding when we'd otherwise squeeze buttons into unreadable widths.
         let minimumComfortableAverage: CGFloat = count >= 5 ? 50 : 54
 
-        if averageButtonWidth(outerPadding: preferred) >= minimumComfortableAverage { return preferred }
-        if averageButtonWidth(outerPadding: reduced) >= minimumComfortableAverage { return reduced }
+        func fits(outerPadding: CGFloat) -> Bool {
+            if let requiredSegmentWidth {
+                let allowedWidth = self.maxAllowedUniformSegmentWidth(
+                    for: width,
+                    count: count,
+                    outerPadding: outerPadding,
+                    minimumGap: minimumGap)
+                let evenAllowedWidth = allowedWidth.truncatingRemainder(dividingBy: 2) == 0
+                    ? allowedWidth
+                    : allowedWidth - 1
+                let desiredWidth = ceil(requiredSegmentWidth)
+                let evenDesiredWidth = desiredWidth.truncatingRemainder(dividingBy: 2) == 0
+                    ? desiredWidth
+                    : desiredWidth + 1
+                return evenAllowedWidth >= evenDesiredWidth
+            }
+            return averageButtonWidth(outerPadding: outerPadding) >= minimumComfortableAverage
+        }
+
+        if fits(outerPadding: preferred) { return preferred }
+        if fits(outerPadding: reduced) { return reduced }
         return minimal
     }
 
@@ -894,6 +917,27 @@ final class ProviderSwitcherView: NSView {
 }
 
 extension ProviderSwitcherView {
+    private static func switcherLayoutMetrics(
+        for width: CGFloat,
+        count: Int,
+        minimumGap: CGFloat,
+        requiredSegmentWidth: CGFloat?) -> (outerPadding: CGFloat, maxAllowedSegmentWidth: CGFloat)
+    {
+        let outerPadding = self.switcherOuterPadding(
+            for: width,
+            count: count,
+            minimumGap: minimumGap,
+            requiredSegmentWidth: requiredSegmentWidth)
+        let maxAllowedSegmentWidth = self.maxAllowedUniformSegmentWidth(
+            for: width,
+            count: count,
+            outerPadding: outerPadding,
+            minimumGap: minimumGap)
+        return (outerPadding, maxAllowedSegmentWidth)
+    }
+}
+
+extension ProviderSwitcherView {
     fileprivate func button(at location: NSPoint) -> NSButton? {
         self.buttons.first { $0.frame.contains(location) }
     }
@@ -983,6 +1027,10 @@ extension ProviderSwitcherView {
 
     func _test_buttonFittingSizes() -> [NSSize] {
         self.buttons.map(\.fittingSize)
+    }
+
+    func _test_buttonDesiredWidths() -> [CGFloat] {
+        self.buttons.map(Self.maxToggleWidth(for:))
     }
 
     func _test_buttonContentFrames() -> [NSRect?] {
