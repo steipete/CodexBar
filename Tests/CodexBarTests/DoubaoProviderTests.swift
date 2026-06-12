@@ -22,7 +22,7 @@ struct DoubaoProviderTests {
     }
 
     @Test
-    func `usage snapshot shows active key when headers are absent`() {
+    func `usage snapshot omits unknown request limit when headers are absent`() {
         let now = Date(timeIntervalSince1970: 1_742_771_200)
         let snapshot = DoubaoUsageSnapshot(
             remainingRequests: 0,
@@ -33,7 +33,7 @@ struct DoubaoProviderTests {
 
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.primary?.usedPercent == 0)
-        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+        #expect(usage.primary == nil)
+        #expect(usage.rateLimitsUnavailable(for: .doubao))
     }
 }

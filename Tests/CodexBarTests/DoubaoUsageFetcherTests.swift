@@ -30,7 +30,7 @@ struct DoubaoUsageSnapshotTests {
     }
 
     @Test
-    func `unreliable headers limit positive remaining zero falls back to Active hint`() {
+    func `unreliable headers omit the request limit window`() {
         let snapshot = DoubaoUsageSnapshot(
             remainingRequests: 0,
             limitRequests: 1000,
@@ -39,8 +39,8 @@ struct DoubaoUsageSnapshotTests {
             apiKeyValid: true,
             requestLimitsReliable: false)
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.primary?.usedPercent == 0)
-        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+        #expect(usage.primary == nil)
+        #expect(usage.rateLimitsUnavailable(for: .doubao))
     }
 
     @Test
@@ -57,7 +57,7 @@ struct DoubaoUsageSnapshotTests {
     }
 
     @Test
-    func `both headers missing but key valid falls back to Active hint`() {
+    func `both headers missing but key valid omit the request limit window`() {
         let snapshot = DoubaoUsageSnapshot(
             remainingRequests: 0,
             limitRequests: 0,
@@ -65,8 +65,8 @@ struct DoubaoUsageSnapshotTests {
             updatedAt: Date(),
             apiKeyValid: true)
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.primary?.usedPercent == 0)
-        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+        #expect(usage.primary == nil)
+        #expect(usage.rateLimitsUnavailable(for: .doubao))
     }
 
     @Test
@@ -98,7 +98,7 @@ struct DoubaoUsageSnapshotTests {
 
 struct DoubaoUsageFetcherTests {
     @Test
-    func `repeated successful zero remaining responses use active fallback`() async throws {
+    func `repeated successful zero remaining responses omit unknown request limit`() async throws {
         let transport = DoubaoScriptedTransport(results: [
             .response(statusCode: 200, limit: 1000, remaining: 0),
             .response(statusCode: 200, limit: 1000, remaining: 0),
@@ -107,8 +107,8 @@ struct DoubaoUsageFetcherTests {
         let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.primary?.usedPercent == 0)
-        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+        #expect(usage.primary == nil)
+        #expect(usage.rateLimitsUnavailable(for: .doubao))
         #expect(await transport.requestCount() == 2)
     }
 
@@ -157,7 +157,7 @@ struct DoubaoUsageFetcherTests {
     }
 
     @Test
-    func `bare rate limit uses active fallback`() async throws {
+    func `bare rate limit omits unknown request limit`() async throws {
         let transport = DoubaoScriptedTransport(results: [
             .response(statusCode: 429, limit: nil, remaining: nil),
         ])
@@ -165,8 +165,8 @@ struct DoubaoUsageFetcherTests {
         let snapshot = try await DoubaoUsageFetcher.fetchUsage(apiKey: "test-key", session: transport)
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.primary?.usedPercent == 0)
-        #expect(usage.primary?.resetDescription == "Active - check dashboard for details")
+        #expect(usage.primary == nil)
+        #expect(usage.rateLimitsUnavailable(for: .doubao))
         #expect(await transport.requestCount() == 1)
     }
 

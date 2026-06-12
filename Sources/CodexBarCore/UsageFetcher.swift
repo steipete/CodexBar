@@ -483,6 +483,15 @@ public enum UsageLimitsAvailability: Equatable, Sendable {
         account: AccountInfo? = nil,
         lastErrorDescription: String? = nil) -> Self
     {
+        if provider == .doubao {
+            guard let snapshot,
+                  snapshot.identity(for: provider) != nil
+            else {
+                return .available
+            }
+            return snapshot.hasRateLimitWindows ? .available : .unavailable
+        }
+
         guard provider == .codex else { return .available }
 
         if let snapshot {

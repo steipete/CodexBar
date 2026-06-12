@@ -30,26 +30,25 @@ public struct DoubaoUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let usedPercent: Double
-        let resetDescription: String
-
+        let primary: RateWindow?
         if self.limitRequests > 0, self.requestLimitsReliable {
             let used = max(0, self.limitRequests - self.remainingRequests)
-            usedPercent = min(100, max(0, Double(used) / Double(self.limitRequests) * 100))
-            resetDescription = "\(used)/\(self.limitRequests) requests"
+            primary = RateWindow(
+                usedPercent: min(100, max(0, Double(used) / Double(self.limitRequests) * 100)),
+                windowMinutes: nil,
+                resetsAt: self.resetTime,
+                resetDescription: "\(used)/\(self.limitRequests) requests")
         } else if self.apiKeyValid {
-            usedPercent = 0
-            resetDescription = "Active - check dashboard for details"
+            // Ark can return successful requests without a trustworthy request-limit window.
+            // Omitting the window prevents the UI from presenting unknown usage as 100% left.
+            primary = nil
         } else {
-            usedPercent = 0
-            resetDescription = "No usage data"
+            primary = RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: self.resetTime,
+                resetDescription: "No usage data")
         }
-
-        let primary = RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: nil,
-            resetsAt: self.resetTime,
-            resetDescription: resetDescription)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .doubao,
