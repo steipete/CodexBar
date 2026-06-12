@@ -1,7 +1,4 @@
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
 
 /// Local tracker fallback for MiMo when Xiaomi platform.xiaomimimo.com cookie is unavailable.
 ///
@@ -24,7 +21,7 @@ public enum MiMoLocalUsageFallback {
         self.snapshot(cachePath: self.defaultCachePath(), now: now)
     }
 
-    public static func snapshot(cachePath: String, now: Date) -> MiMoUsageSnapshot? {
+    public static func snapshot(cachePath: String, now: Date = Date()) -> MiMoUsageSnapshot? {
         let url = URL(fileURLWithPath: cachePath)
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
@@ -33,36 +30,17 @@ public enum MiMoLocalUsageFallback {
         let week = windows["week"] as? [String: Any] ?? [:]
         let today = windows["today"] as? [String: Any] ?? [:]
         let allTime = windows["all_time"] as? [String: Any] ?? [:]
-        let sessionsScanned = json["sessions_scanned"] as? Int ?? 0
+        let sessionsScanned = Self.intValue(json["sessions_scanned"])
+        let weekTotal = Self.total(for: week)
+        let todayTotal = Self.total(for: today)
+        let allTotal = Self.total(for: allTime)
 
-        let weekInput = Self.intValue(week["input"])
-        let weekOutput = Self.intValue(week["output"])
-        let weekCacheRead = Self.intValue(week["cache_read"])
-        let weekTotal = weekInput + weekOutput + weekCacheRead
-
-        let todayInput = Self.intValue(today["input"])
-        let todayOutput = Self.intValue(today["output"])
-        let todayCacheRead = Self.intValue(today["cache_read"])
-        let todayTotal = todayInput + todayOutput + todayCacheRead
-
-        let allInput = Self.intValue(allTime["input"])
-        let allOutput = Self.intValue(allTime["output"])
-        let allCacheRead = Self.intValue(allTime["cache_read"])
-        let allTotal = allInput + allOutput + allCacheRead
-
-        // planCode shows today/week/lifetime/sessions in the loginMethod row.
-        var parts: [String] = []
+        var parts = ["Local"]
         if todayTotal > 0 { parts.append("\(Self.fmtTokens(todayTotal)) today") }
         if weekTotal > 0 { parts.append("\(Self.fmtTokens(weekTotal)) week") }
         if allTotal > 0 { parts.append("\(Self.fmtTokens(allTotal)) total") }
         parts.append("\(sessionsScanned) sessions")
         let planCode = parts.joined(separator: " · ")
-
-        // Progress bar: weekly usage vs lifetime baseline (this-week vs all-time activity ratio).
-        // Idle (week=0) → bar empty, lifetime as baseline so the bar is meaningful once user resumes cc-mimo.
-        let tokenLimit = max(allTotal, weekTotal + 1)
-        let tokenUsed = weekTotal
-        let tokenPercent = tokenLimit > 0 ? Double(tokenUsed) / Double(tokenLimit) : 0
 
         return MiMoUsageSnapshot(
             balance: 0,
@@ -70,10 +48,10 @@ public enum MiMoLocalUsageFallback {
             planCode: planCode,
             planPeriodEnd: nil,
             planExpired: false,
-            tokenUsed: tokenUsed,
-            tokenLimit: tokenLimit,
-            tokenPercent: tokenPercent,
-            updatedAt: now)
+            tokenUsed: 0,
+            tokenLimit: 0,
+            tokenPercent: 0,
+            updatedAt: Self.updatedAt(json: json, url: url, fallback: now))
     }
 
     private static func fmtTokens(_ n: Int) -> String {
@@ -82,10 +60,34 @@ public enum MiMoLocalUsageFallback {
         return "\(n)"
     }
 
+    private static func total(for window: [String: Any]) -> Int {
+        ["input", "output", "cache_read", "cache_create"].reduce(into: 0) { total, key in
+            let (sum, overflow) = total.addingReportingOverflow(Self.intValue(window[key]))
+            total = overflow ? Int.max : sum
+        }
+    }
+
     private static func intValue(_ raw: Any?) -> Int {
-        if let i = raw as? Int { return i }
-        if let d = raw as? Double { return Int(d) }
-        if let s = raw as? String, let i = Int(s) { return i }
+        if let i = raw as? Int { return max(0, i) }
+        if let d = raw as? Double,
+           d.isFinite,
+           d >= 0,
+           d <= Double(Int.max)
+        {
+            return Int(d)
+        }
+        if let s = raw as? String, let i = Int(s) { return max(0, i) }
         return 0
+    }
+
+    private static func updatedAt(json: [String: Any], url: URL, fallback: Date) -> Date {
+        if let raw = json["updated_at"] as? String {
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = fractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) {
+                return parsed
+            }
+        }
+        return (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? fallback
     }
 }

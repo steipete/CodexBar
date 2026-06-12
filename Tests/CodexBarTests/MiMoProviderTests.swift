@@ -658,6 +658,50 @@ extension MiMoProviderTests {
     }
 
     @Test
+    func `mimo local strategy works when web cookies are disabled or invalid`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-local-strategy-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("usage.json")
+        let payload: [String: Any] = [
+            "updated_at": "2026-06-03T05:04:03+00:00",
+            "sessions_scanned": 2,
+            "windows": [
+                "today": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "week": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "all_time": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: payload).write(to: file)
+
+        let settings = [
+            ProviderSettingsSnapshot.make(mimo: .init(cookieSource: .off, manualCookieHeader: nil)),
+            ProviderSettingsSnapshot.make(
+                mimo: .init(cookieSource: .manual, manualCookieHeader: "Cookie: userId=123")),
+        ]
+
+        for setting in settings {
+            let context = self.makeContext(
+                settings: setting,
+                environment: ["MIMO_LOCAL_USAGE_PATH": file.path])
+            let outcome = await MiMoProviderDescriptor.descriptor.fetchPlan.fetchOutcome(
+                context: context,
+                provider: .mimo)
+
+            switch outcome.result {
+            case let .success(result):
+                #expect(result.sourceLabel == "local")
+                #expect(result.strategyID == "mimo.local")
+                #expect(result.usage.primary == nil)
+                #expect(result.usage.loginMethod(for: .mimo)?.contains("Local") == true)
+            case let .failure(error):
+                Issue.record("Expected local MiMo fallback, got \(error)")
+            }
+        }
+    }
+
+    @Test
     func `mimo manual mode does not report available from cached browser session`() async {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }

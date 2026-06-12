@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite
 struct MiMoLocalUsageFallbackTests {
     @Test
     func `returns nil when cache file is missing`() {
@@ -26,22 +25,30 @@ struct MiMoLocalUsageFallbackTests {
     }
 
     @Test
-    func `parses cache and surfaces lifetime + planCode + progress`() throws {
+    func `parses all token buckets without fabricating a quota window`() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimo-fallback-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let file = dir.appendingPathComponent("usage.json")
+        let updatedAt = "2026-06-03T05:04:03.123456+00:00"
         let payload: [String: Any] = [
+            "updated_at": updatedAt,
             "sessions_scanned": 1296,
             "windows": [
-                "today": ["input": 1500, "output": 500, "cache_read": 0, "cache_create": 0, "messages": 3],
-                "week": ["input": 30000, "output": 10000, "cache_read": 60000, "cache_create": 0, "messages": 25],
+                "today": ["input": 1500, "output": 500, "cache_read": 0, "cache_create": 250, "messages": 3],
+                "week": [
+                    "input": 30000,
+                    "output": 10000,
+                    "cache_read": 60000,
+                    "cache_create": 10000,
+                    "messages": 25,
+                ],
                 "all_time": [
                     "input": 3_600_000,
                     "output": 1_100_000,
                     "cache_read": 16_100_000,
-                    "cache_create": 0,
+                    "cache_create": 2_000_000,
                     "messages": 1315,
                 ],
             ],
@@ -56,18 +63,20 @@ struct MiMoLocalUsageFallbackTests {
         #expect(plan.contains("week"))
         #expect(plan.contains("total"))
         #expect(plan.contains("1296 sessions"))
+        #expect(plan.contains("110.0k week"))
+        #expect(plan.contains("22.8M total"))
+        #expect(snap.tokenUsed == 0)
+        #expect(snap.tokenLimit == 0)
+        #expect(snap.tokenPercent == 0)
+        #expect(snap.toUsageSnapshot().primary == nil)
 
-        // Progress bar: tokenUsed = week, tokenLimit = max(allTotal, week+1) → bar ~0.2% used.
-        let weekSum = 30000 + 10000 + 60000 // 100k
-        #expect(snap.tokenUsed == weekSum)
-        let allSum = 3_600_000 + 1_100_000 + 16_100_000 // 20.8M
-        #expect(snap.tokenLimit == max(allSum, weekSum + 1))
-        #expect(snap.tokenPercent > 0)
-        #expect(snap.tokenPercent < 0.01) // ~0.5% of lifetime
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        #expect(snap.updatedAt == formatter.date(from: updatedAt))
     }
 
     @Test
-    func `idle week surfaces empty progress with lifetime baseline`() throws {
+    func `idle week keeps local accounting in the plan summary`() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimo-fallback-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -85,10 +94,10 @@ struct MiMoLocalUsageFallbackTests {
 
         let snap = try #require(MiMoLocalUsageFallback.snapshot(cachePath: file.path, now: Date()))
         #expect(snap.tokenUsed == 0)
-        #expect(snap.tokenLimit == 2_000_000) // allTotal as baseline
+        #expect(snap.tokenLimit == 0)
         #expect(snap.tokenPercent == 0)
-        // planCode skips today/week (both zero) but keeps total + sessions.
         let plan = try #require(snap.planCode)
+        #expect(plan.hasPrefix("Local"))
         #expect(!plan.contains("today"))
         #expect(!plan.contains("week"))
         #expect(plan.contains("total"))

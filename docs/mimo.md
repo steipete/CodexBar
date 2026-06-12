@@ -75,11 +75,11 @@ This fallback is **implicit opt-in**: it only activates when `~/.codexbar/mimo-l
    chmod +x ~/.local/bin/mimo-usage
    ```
 
-2. Run `mimo-usage --update` once to populate `~/.codexbar/mimo-local-usage.json`. The tracker scans `~/.claude-envs/mimo/.claude/projects/**/*.jsonl` (default path for a `cc-mimo`-style wrapper) and aggregates `input_tokens` / `output_tokens` / `cache_read_input_tokens` per time window (today / this week / all time).
+2. Run `mimo-usage --update` once to populate `~/.codexbar/mimo-local-usage.json`. The tracker scans `~/.claude-envs/mimo/.claude/projects/**/*.jsonl` (default path for a `cc-mimo`-style wrapper) and aggregates input, output, cache-read, and cache-creation tokens per time window (today / this week / all time).
 
 3. Trigger updates either on each wrapper invocation (recommended — call `mimo-usage --update` post-exec from your MiMo CLI launcher) or via a `launchd` / `cron` job every 5 minutes.
 
-4. CodexBar picks up the file on its next refresh. The MiMo card displays `Xiaomi MiMo (local)` with progress bar showing weekly tokens vs lifetime baseline and a `<today> · <week> · <lifetime> · <sessions>` plan label. The `Balance updates / Daily billing finalizes` footer is suppressed for `local` source since neither applies.
+4. CodexBar picks up the file on its next refresh. The MiMo card displays `Xiaomi MiMo (local)` with a `Local · <today> · <week> · <lifetime> · <sessions>` summary and the cache's actual update time. Local activity is not rendered as a quota percentage. The `Balance updates / Daily billing finalizes` footer is suppressed for `local` source since neither applies.
 
 ### Wrapper integration example
 
@@ -93,5 +93,5 @@ exit $_exit
 ### Limitations
 
 - **Local accounting only** — this is not real platform quota. The Xiaomi platform may rate-limit your account before your local counter reflects it.
-- The session jsonl scan root (`~/.claude-envs/mimo/.claude/projects`) is hard-coded at the top of `Scripts/mimo-usage.py` (`MIMO_HOME`). Users with a different `HOME` override for their wrapper should edit that constant.
+- Override the session root with `MIMO_CLAUDE_HOME` and the cache path with `MIMO_LOCAL_USAGE_PATH` when a wrapper uses non-default locations.
 - Cache schema (`~/.codexbar/mimo-local-usage.json`) is internal; do not rely on the JSON shape for external tooling.

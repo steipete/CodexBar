@@ -104,6 +104,17 @@ extension UsageMenuCardView.Model {
         return error
     }
 
+    static func mimoUsageNotes(input: Input, subscriptionNotes: [String]) -> [String] {
+        let source = input.sourceLabel?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard source != "local" else { return [] }
+        return [
+            L("Balance updates in near-real time (up to 5 min lag)"),
+            L("Daily billing data finalizes at 07:00 UTC"),
+        ] + subscriptionNotes
+    }
+
     private static func hasLocalCodexTokenUsage(_ input: Input) -> Bool {
         input.provider == .codex &&
             input.tokenCostUsageEnabled &&

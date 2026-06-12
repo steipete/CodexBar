@@ -16,13 +16,14 @@ Usage:
 import json
 import os
 import sys
-import time
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
-MIMO_HOME = Path.home() / ".claude-envs" / "mimo"
+MIMO_HOME = Path(os.environ.get("MIMO_CLAUDE_HOME", Path.home() / ".claude-envs" / "mimo")).expanduser()
 PROJECTS_DIR = MIMO_HOME / ".claude" / "projects"
-CACHE_PATH = Path.home() / ".codexbar" / "mimo-local-usage.json"
+CACHE_PATH = Path(
+    os.environ.get("MIMO_LOCAL_USAGE_PATH", Path.home() / ".codexbar" / "mimo-local-usage.json")
+).expanduser()
 
 
 def parse_session_usage(jsonl_path: Path):
@@ -139,7 +140,7 @@ def fmt_tokens(n: int) -> str:
 def short_status(payload):
     """1-line status line."""
     w = payload["windows"]["week"]
-    total = w["input"] + w["output"] + w["cache_read"]
+    total = w["input"] + w["output"] + w["cache_read"] + w["cache_create"]
     return f"mimo: {fmt_tokens(total)} tok this week ({w['messages']} msg)"
 
 
@@ -175,7 +176,7 @@ def human_summary(payload):
         out_t = fmt_tokens(w["output"])
         cr_t = fmt_tokens(w["cache_read"])
         cc_t = fmt_tokens(w["cache_create"])
-        total = w["input"] + w["output"] + w["cache_read"]
+        total = w["input"] + w["output"] + w["cache_read"] + w["cache_create"]
         lines.append(f"{label:>10}: {fmt_tokens(total):>8} total | in={in_t} out={out_t} cache_r={cr_t} cache_c={cc_t} | msg={w['messages']}")
     lines.append("")
     lines.append("Note: this is local accounting from cc-mimo session jsonl.")

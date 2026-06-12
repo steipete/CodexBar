@@ -942,18 +942,7 @@ extension UsageMenuCardView.Model {
         }
 
         if input.provider == .mimo, input.snapshot != nil {
-            // Local fallback (cc-mimo session jsonl scan) has no platform billing —
-            // suppress the misleading "balance updates / daily billing" footer.
-            let resolvedSource = input.sourceLabel?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            if resolvedSource == "local" {
-                return []
-            }
-            return [
-                L("Balance updates in near-real time (up to 5 min lag)"),
-                L("Daily billing data finalizes at 07:00 UTC"),
-            ] + subscriptionNotes
+            return Self.mimoUsageNotes(input: input, subscriptionNotes: subscriptionNotes)
         }
 
         if let notes = apiProviderUsageNotes(input: input) {
