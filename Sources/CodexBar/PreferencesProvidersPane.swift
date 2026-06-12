@@ -364,8 +364,12 @@ struct ProvidersPane: View {
     private func extraSettingsToggles(for provider: UsageProvider) -> [ProviderSettingsToggleDescriptor] {
         guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
         let context = self.makeSettingsContext(provider: provider)
-        let shared = RollingWindowAutoStartSupport.toggle(context: context).map { [$0] } ?? []
-        return (shared + impl.settingsToggles(context: context))
+        var toggles: [ProviderSettingsToggleDescriptor] = []
+        if let rollingWindowToggle = RollingWindowAutoStartSupport.toggle(context: context) {
+            toggles.append(rollingWindowToggle)
+        }
+        toggles.append(contentsOf: impl.settingsToggles(context: context))
+        return toggles
             .filter { $0.isVisible?() ?? true }
     }
 

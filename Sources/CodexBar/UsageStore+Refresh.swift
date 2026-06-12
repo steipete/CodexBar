@@ -303,11 +303,11 @@ extension UsageStore {
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
                 snapshot: backfilled)
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             self.scheduleRollingWindowAutoStartIfNeeded(
                 provider: provider,
                 previousSnapshot: refreshSnapshots.previous,
                 currentProviderData: scoped)
-            guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             if let runtime = self.providerRuntimes[provider] {
                 let context = ProviderRuntimeContext(
                     provider: provider, settings: self.settings, store: self)
@@ -347,9 +347,7 @@ extension UsageStore {
             self.lastSourceLabels.removeValue(forKey: provider)
             self.lastFetchAttempts.removeValue(forKey: provider)
             self.accountSnapshots.removeValue(forKey: provider)
-            self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
-            self.rollingWindowAutoStartRuntime.inFlight.remove(provider)
-            self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: provider)
+            self.resetRollingWindowAutoStartState(for: provider)
             if provider == .codex {
                 self.codexAccountSnapshots = []
             }

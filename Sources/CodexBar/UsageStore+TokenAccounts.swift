@@ -1185,11 +1185,11 @@ extension UsageStore {
             self.rememberLiveSystemCodexEmailIfNeeded(snapshot.accountEmail(for: .codex))
             self.seedCodexAccountScopedRefreshGuard(accountEmail: account.email)
             await self.recordPlanUtilizationHistorySample(provider: .codex, snapshot: snapshot)
+            guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
             self.scheduleRollingWindowAutoStartIfNeeded(
                 provider: .codex,
                 previousSnapshot: previousSnapshot,
                 currentProviderData: snapshot)
-            guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
             self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
         case let .failure(error):
             guard let message = self.tokenAccountErrorMessage(error) else {
@@ -1249,6 +1249,7 @@ extension UsageStore {
                 provider: provider,
                 snapshot: backfilled.current,
                 account: account)
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
             self.scheduleRollingWindowAutoStartIfNeeded(
                 provider: provider,
                 previousSnapshot: backfilled.previous,

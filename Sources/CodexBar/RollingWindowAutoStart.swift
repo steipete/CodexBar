@@ -41,10 +41,13 @@ enum RollingWindowAutoStartSupport {
     }
 }
 
+@MainActor
 final class RollingWindowAutoStartRuntimeState {
     var inFlight: Set<UsageProvider> = []
     var attemptedResetAt: [UsageProvider: Date] = [:]
+    #if DEBUG
     var testRunnerOverride: (any RollingWindowPingRunning)?
+    #endif
 }
 
 struct RollingWindowAutoStartDecision: Equatable {
@@ -66,10 +69,13 @@ struct RollingWindowAutoStartDecision: Equatable {
             return nil
         }
 
-        let currentWindow = RollingWindowAutoStartSupport.rollingWindow(
+        guard let currentWindow = RollingWindowAutoStartSupport.rollingWindow(
             provider: provider,
             snapshot: currentProviderData)
-        if let currentResetAt = currentWindow?.resetsAt, currentResetAt > now {
+        else {
+            return nil
+        }
+        if let currentResetAt = currentWindow.resetsAt, currentResetAt > now {
             return nil
         }
 
@@ -105,6 +111,11 @@ enum RollingWindowPingStarter {
     static let defaultPrompt = "hi"
     static let defaultTimeout: TimeInterval = 90
 
+    /// Builds a tiny provider CLI prompt from environment overrides.
+    ///
+    /// Supported keys are `CODEXBAR_ROLLING_WINDOW_<PROVIDER>_PROMPT`,
+    /// `_TIMEOUT`, `_BINARY`, `_MODEL`, and `_REASONING`, where provider is the
+    /// uppercased provider id with hyphens replaced by underscores.
     static func start(
         provider: UsageProvider,
         environment baseEnvironment: [String: String],
@@ -157,7 +168,7 @@ enum RollingWindowPingStarter {
                     "-m",
                     model,
                     "-c",
-                    "model_reasoning_effort=\"\(reasoning)\"",
+                    "model_reasoning_effort=\(reasoning)",
                     prompt,
                 ],
                 timeout: timeout)
@@ -232,11 +243,5 @@ enum RollingWindowPingError: LocalizedError {
         case let .unsupportedProvider(provider):
             "\(provider.displayName) does not have a configured rolling-window CLI ping command."
         }
-    }
-}
-
-extension UsageProvider {
-    var displayName: String {
-        ProviderDescriptorRegistry.metadata[self]?.displayName ?? self.rawValue
     }
 }
