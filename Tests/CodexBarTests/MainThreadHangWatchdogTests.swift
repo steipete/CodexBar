@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+#if DEBUG
 struct MainThreadHangWatchdogTests {
     @MainActor
     @Test
@@ -115,3 +116,4 @@ extension OSAllocatedBox {
         return true
     }
 }
+#endif
