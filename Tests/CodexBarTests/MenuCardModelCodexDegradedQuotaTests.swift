@@ -192,6 +192,7 @@ struct MenuCardModelCodexDegradedQuotaTests {
             subtitleText: "Not fetched yet",
             subtitleStyle: .info,
             planText: nil,
+            subscriptionText: nil,
             metrics: [],
             usageNotes: [],
             openAIAPIUsage: nil,

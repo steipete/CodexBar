@@ -114,6 +114,7 @@ struct StatusMenuCostMenuCardTests {
             subtitleText: "Updated now",
             subtitleStyle: .info,
             planText: "Pro",
+            subscriptionText: nil,
             metrics: [],
             usageNotes: [],
             openAIAPIUsage: nil,
