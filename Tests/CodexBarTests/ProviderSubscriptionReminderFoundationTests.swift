@@ -3,6 +3,8 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+// swiftlint:disable contains_over_first_not_nil contains_over_filter_count
+
 @Suite(.serialized)
 @MainActor
 struct ProviderSubscriptionReminderFoundationTests {
