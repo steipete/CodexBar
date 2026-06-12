@@ -27,7 +27,7 @@ CACHE_PATH = Path(
 
 
 def parse_session_usage(jsonl_path: Path):
-    """Yield (timestamp_iso, usage_dict) for each assistant message with usage."""
+    """Yield (identity, timestamp_iso, usage_dict) for each assistant message with usage."""
     try:
         with jsonl_path.open() as f:
             for line in f:
@@ -42,7 +42,12 @@ def parse_session_usage(jsonl_path: Path):
                         continue
                     if not ts:
                         continue
-                    yield ts, usage
+                    message_id = msg.get("id")
+                    request_id = d.get("requestId") or d.get("request_id")
+                    identity = None
+                    if isinstance(message_id, str) and isinstance(request_id, str):
+                        identity = (message_id, request_id)
+                    yield identity, ts, usage
                 except (json.JSONDecodeError, ValueError):
                     continue
     except (OSError, IOError):
@@ -63,13 +68,15 @@ def aggregate_usage():
     }
     sessions_scanned = 0
     last_activity = None
+    keyed_rows = {}
+    unkeyed_rows = []
 
     if not PROJECTS_DIR.exists():
         return windows, sessions_scanned, last_activity
 
     for jsonl in PROJECTS_DIR.rglob("*.jsonl"):
         sessions_scanned += 1
-        for ts_str, usage in parse_session_usage(jsonl):
+        for identity, ts_str, usage in parse_session_usage(jsonl):
             try:
                 # Parse ISO timestamp (may end with Z)
                 ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
@@ -78,37 +85,46 @@ def aggregate_usage():
             except (ValueError, TypeError):
                 continue
 
-            input_t = int(usage.get("input_tokens", 0) or 0)
-            output_t = int(usage.get("output_tokens", 0) or 0)
-            cache_read_t = int(usage.get("cache_read_input_tokens", 0) or 0)
-            cache_create_t = int(usage.get("cache_creation_input_tokens", 0) or 0)
+            row = (ts, usage)
+            if identity is None:
+                unkeyed_rows.append(row)
+            else:
+                previous = keyed_rows.get(identity)
+                if previous is None or ts >= previous[0]:
+                    keyed_rows[identity] = row
 
-            if last_activity is None or ts > last_activity:
-                last_activity = ts
+    for ts, usage in [*keyed_rows.values(), *unkeyed_rows]:
+        input_t = int(usage.get("input_tokens", 0) or 0)
+        output_t = int(usage.get("output_tokens", 0) or 0)
+        cache_read_t = int(usage.get("cache_read_input_tokens", 0) or 0)
+        cache_create_t = int(usage.get("cache_creation_input_tokens", 0) or 0)
 
-            # all_time
-            w = windows["all_time"]
+        if last_activity is None or ts > last_activity:
+            last_activity = ts
+
+        # all_time
+        w = windows["all_time"]
+        w["input"] += input_t
+        w["output"] += output_t
+        w["cache_read"] += cache_read_t
+        w["cache_create"] += cache_create_t
+        w["messages"] += 1
+
+        if ts >= week_start:
+            w = windows["week"]
             w["input"] += input_t
             w["output"] += output_t
             w["cache_read"] += cache_read_t
             w["cache_create"] += cache_create_t
             w["messages"] += 1
 
-            if ts >= week_start:
-                w = windows["week"]
-                w["input"] += input_t
-                w["output"] += output_t
-                w["cache_read"] += cache_read_t
-                w["cache_create"] += cache_create_t
-                w["messages"] += 1
-
-            if ts >= today_start:
-                w = windows["today"]
-                w["input"] += input_t
-                w["output"] += output_t
-                w["cache_read"] += cache_read_t
-                w["cache_create"] += cache_create_t
-                w["messages"] += 1
+        if ts >= today_start:
+            w = windows["today"]
+            w["input"] += input_t
+            w["output"] += output_t
+            w["cache_read"] += cache_read_t
+            w["cache_create"] += cache_create_t
+            w["messages"] += 1
 
     return windows, sessions_scanned, last_activity
 
