@@ -212,6 +212,7 @@ public struct UsageSnapshot: Codable, Sendable {
             tertiary: self.tertiary,
             extraRateWindows: extraRateWindows,
             kiroUsage: self.kiroUsage,
+            ampUsage: self.ampUsage,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,

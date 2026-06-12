@@ -189,9 +189,13 @@ struct CodexBarTests {
     func `copying extra rate windows preserves subscription dates`() {
         let expiresAt = Date(timeIntervalSince1970: 1_810_656_000)
         let renewsAt = Date(timeIntervalSince1970: 1_810_569_600)
+        let ampUsage = AmpUsageDetails(
+            individualCredits: 12.5,
+            workspaceBalances: [AmpWorkspaceBalance(name: "Team", remaining: 7.25)])
         let snapshot = UsageSnapshot(
             primary: nil,
             secondary: nil,
+            ampUsage: ampUsage,
             subscriptionExpiresAt: expiresAt,
             subscriptionRenewsAt: renewsAt,
             updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
@@ -200,6 +204,7 @@ struct CodexBarTests {
 
         #expect(copied.subscriptionExpiresAt == expiresAt)
         #expect(copied.subscriptionRenewsAt == renewsAt)
+        #expect(copied.ampUsage == ampUsage)
     }
 
     @Test
