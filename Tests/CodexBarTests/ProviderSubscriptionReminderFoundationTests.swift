@@ -335,9 +335,9 @@ struct ProviderSubscriptionReminderFoundationTests {
             includeContextualActions: false)
 
         let lines = Self.textLines(from: descriptor)
-        // swiftlint:disable:next contains_over_filter_count contains_over_first_not_nil
+        // swiftlint:disable:next contains_over_filter_count
         #expect(lines.contains(where: { $0.hasPrefix("Subscription: Expires in 7 days") }))
-        // swiftlint:disable:next contains_over_filter_count contains_over_first_not_nil
+        // swiftlint:disable:next contains_over_filter_count
         #expect(!lines.contains(where: { $0.hasPrefix("Subscription: Resets ") }))
     }
 
