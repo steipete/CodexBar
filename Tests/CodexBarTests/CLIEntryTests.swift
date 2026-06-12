@@ -323,6 +323,6 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .kimi,
-            environment: ["KIMI_API_KEY": "kimi-test"]))
+            environment: ["KIMI_CODE_API_KEY": "kimi-test"]))
     }
 }

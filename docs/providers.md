@@ -129,7 +129,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Details: `docs/minimax.md`.
 
 ## Kimi
-- Kimi Code API key via `~/.codexbar/config.json`, `KIMI_CODE_API_KEY`, or fallback `KIMI_API_KEY`.
+- Kimi Code API key via `~/.codexbar/config.json` or `KIMI_CODE_API_KEY`.
 - Web fallback uses the JWT from `kimi-auth` cookie via manual entry or `KIMI_AUTH_TOKEN` env var.
 - Shows weekly quota and 5-hour rate limit (300 minutes).
 - Status: none yet.

@@ -74,7 +74,7 @@ export KIMI_AUTH_TOKEN="jwt-token-here"
 
 When multiple sources are available, CodexBar uses this order:
 
-1. API key (`providers[].apiKey`, `KIMI_CODE_API_KEY`, or fallback `KIMI_API_KEY`) in Auto mode
+1. API key (`providers[].apiKey` or `KIMI_CODE_API_KEY`) in Auto mode
 2. Manual cookie/token (from Settings UI) when web fallback is used
 3. Cookie environment variable (`KIMI_AUTH_TOKEN`)
 4. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
@@ -87,7 +87,7 @@ When multiple sources are available, CodexBar uses this order:
 
 **Endpoint**: `GET https://api.kimi.com/coding/v1/usages`
 
-**Authentication**: Bearer token (from `providers[].apiKey`, `KIMI_CODE_API_KEY`, or fallback `KIMI_API_KEY`)
+**Authentication**: Bearer token (from `providers[].apiKey` or `KIMI_CODE_API_KEY`)
 
 **Response**:
 ```json
