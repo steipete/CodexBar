@@ -163,6 +163,14 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
         }
         guard let respondedAt = box.respondedAt else { return }
         let duration = self.elapsedSeconds(from: pingSentAt, to: respondedAt)
+        // The watchdog thread can itself be descheduled until after the main thread
+        // recovers. Preserve sampling for long hangs even when the polling loop misses
+        // the threshold crossing.
+        if !didAttemptSample, duration >= self.sampleThreshold {
+            if case let .attempted(file) = self.captureSampleIfAllowed() {
+                sampleFile = file
+            }
+        }
         var metadata: [String: String] = [
             "durationMs": String(format: "%.0f", duration * 1000),
             "activity": activities.isEmpty ? "unknown" : activities.joined(separator: ","),
