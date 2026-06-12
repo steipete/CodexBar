@@ -105,6 +105,26 @@ struct MainThreadHangWatchdogTests {
     }
 
     @Test
+    func `missed sample window does not consume cooldown`() {
+        let attempts = OSAllocatedBox(0)
+        let watchdog = MainThreadHangWatchdog(
+            pingInterval: 0.01,
+            hangThreshold: 0.01,
+            sampleThreshold: 0.02,
+            sampleCooldown: 3600,
+            sampleCaptureOverride: {
+                attempts.withValue { $0 += 1 }
+                return nil
+            })
+
+        watchdog.traceHangForTesting(responseDelay: 0.05, responseBeforeTrace: true)
+        #expect(attempts.get() == 0)
+
+        watchdog.traceHangForTesting(responseDelay: 0.05, waitForSampleAttempt: true)
+        #expect(attempts.get() == 1)
+    }
+
+    @Test
     func `cooldown blocked hang samples when cooldown expires`() {
         let attempts = OSAllocatedBox(0)
         let watchdog = MainThreadHangWatchdog(
