@@ -549,11 +549,14 @@ extension CodexBarCLI {
             return false
         }
         if provider == .ollama,
-           sourceMode == .auto,
-           settings?.ollama?.cookieSource == .off
-           || environment.map({ ProviderTokenResolver.ollamaToken(environment: $0) != nil }) == true
+           sourceMode == .auto
         {
-            return false
+            let hasEnvironmentToken = environment.map {
+                ProviderTokenResolver.ollamaToken(environment: $0) != nil
+            } == true
+            if settings?.ollama?.cookieSource == .off || hasEnvironmentToken {
+                return false
+            }
         }
         return switch sourceMode {
         case .web:

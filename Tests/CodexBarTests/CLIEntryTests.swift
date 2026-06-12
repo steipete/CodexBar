@@ -311,6 +311,10 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .ollama,
             environment: ["OLLAMA_API_KEY": "ollama-test"]))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .codex,
+            environment: ["OLLAMA_API_KEY": "ollama-test"]))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .ollama,
