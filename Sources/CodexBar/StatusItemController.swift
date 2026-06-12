@@ -183,6 +183,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         (@MainActor (TimeInterval) async -> CodexLoginRunner.Result)?
     #endif
     var blinkTask: Task<Void, Never>?
+    var menuBarCountdownRefreshTask: Task<Void, Never>?
     var loginTask: Task<Void, Never>? {
         didSet { self.refreshMenusForLoginStateChange() }
     }
@@ -660,6 +661,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
+        self.scheduleMenuBarCountdownRefreshIfNeeded()
         self.lastObservedStoreIconWorkSignature = self.storeIconObservationSignature()
         self.beginIconPerfUpdatePass()
         defer { self.endIconPerfUpdatePass() }
@@ -893,6 +895,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             animationDriver?.stop()
         }
         self.blinkTask?.cancel()
+        self.menuBarCountdownRefreshTask?.cancel()
         self.loginTask?.cancel()
         self.screenChangeVisibilityTask?.cancel()
         self.pendingScreenChangePreviousCount = nil
