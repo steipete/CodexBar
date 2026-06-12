@@ -1605,9 +1605,4 @@ extension UsageMenuCardView.Model {
                     windowMinutes: window.windowMinutes))
         }
     }
-
-    private static func dashboardHint(error: String?) -> String? {
-        guard let error, !error.isEmpty else { return nil }
-        return error
-    }
 }

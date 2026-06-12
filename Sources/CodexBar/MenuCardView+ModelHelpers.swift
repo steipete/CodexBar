@@ -77,6 +77,11 @@ extension UsageMenuCardView.Model {
         return lastError
     }
 
+    static func dashboardHint(error: String?) -> String? {
+        guard let error, !error.isEmpty else { return nil }
+        return error
+    }
+
     private static func hasLocalCodexTokenUsage(_ input: Input) -> Bool {
         input.provider == .codex &&
             input.tokenCostUsageEnabled &&
