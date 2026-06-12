@@ -126,6 +126,20 @@ struct LocalizationLanguageCatalogTests {
             arguments: ["%20", 15, "oturum"])
         #expect(rendered.contains("15%"))
         #expect(!rendered.contains("%2$d"))
+
+        let historyFormat = try #require(turkish["%@: %@%% used"])
+        let historyLabel = String(
+            format: historyFormat,
+            locale: Locale(identifier: "tr_TR"),
+            arguments: ["12 Haz", "45"])
+        #expect(historyLabel == "12 Haz: 45% kullanıldı")
+
+        let miniMaxFormat = try #require(turkish["minimax_used_percent_format"])
+        let miniMaxLabel = String(
+            format: miniMaxFormat,
+            locale: Locale(identifier: "tr_TR"),
+            arguments: ["45%"])
+        #expect(miniMaxLabel == "45% kullanıldı")
     }
 
     @Test

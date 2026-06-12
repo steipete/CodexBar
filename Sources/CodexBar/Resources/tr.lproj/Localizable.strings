@@ -734,7 +734,7 @@
 "This month: %@ tokens" = "Bu ay: %@ jeton";
 "No utilization data yet." = "Henüz kullanım verisi yok.";
 "No %@ utilization data yet." = "Henüz %@ kullanım verisi yok.";
-"%@: %@%% used" = "%@: %% %@ kullanıldı";
+"%@: %@%% used" = "%@: %@%% kullanıldı";
 "%dd" = "%d gün";
 "today" = "bugün";
 "just now" = "az önce";
@@ -885,7 +885,7 @@
 "not detected" = "algılanmadı";
 "Estimated from local Codex logs for the selected account." = "Seçili hesap için yerel Codex günlüklerinden tahmin edildi.";
 "minimax_usage_amount_format" = "Kullanım: %@ / %@";
-"minimax_used_percent_format" = "%% %@ kullanıldı";
+"minimax_used_percent_format" = "%@ kullanıldı";
 "minimax_service_text_generation" = "Metin Üretimi";
 "minimax_service_text_to_speech" = "Metinden Sese";
 "minimax_service_music_generation" = "Müzik Üretimi";
