@@ -29,7 +29,7 @@ struct StatusMenuSwitcherLayoutTests {
             #expect(frame.maxY == overviewFrame.maxY)
         }
 
-        #expect(view._test_rowHeight() == 41)
+        #expect(view._test_rowHeight() == 36)
     }
 
     @Test
@@ -54,7 +54,7 @@ struct StatusMenuSwitcherLayoutTests {
         #expect(buttonFrames.count == 3)
         #expect(contentFrames.count == 3)
         #expect(trackFrames.count == 1)
-        #expect(view._test_rowHeight() == 35)
+        #expect(view._test_rowHeight() == 30)
 
         let overviewFrame = try #require(buttonFrames.first)
         for (buttonFrame, contentFrame) in zip(buttonFrames, contentFrames) {
@@ -67,11 +67,12 @@ struct StatusMenuSwitcherLayoutTests {
         let devinButtonFrame = try #require(buttonFrames.last)
         let devinTrackFrame = try #require(trackFrames.first)
         #expect(devinButtonFrame.height == 30)
-        #expect(devinTrackFrame.maxY < devinButtonFrame.minY)
+        #expect(devinTrackFrame.minY >= devinButtonFrame.minY)
+        #expect(devinTrackFrame.maxY <= devinButtonFrame.maxY)
     }
 
     @Test
-    func `quota indicator footer selects its provider`() {
+    func `integrated quota indicator selects its provider`() {
         let view = ProviderSwitcherView(
             providers: [.codex, .devin],
             selected: .provider(.codex),

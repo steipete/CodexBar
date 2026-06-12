@@ -43,12 +43,8 @@ final class ProviderSwitcherView: NSView {
     private var selectedSegmentIndex: Int?
     private let lightModeOverlayLayer = CALayer()
     private static let quotaIndicatorHeight: CGFloat = 2
-    private static let quotaIndicatorBottomInset: CGFloat = 1
+    private static let quotaIndicatorBottomInset: CGFloat = 2
     private static let quotaIndicatorHorizontalInset: CGFloat = 8
-    private static let quotaIndicatorContentGap: CGFloat = 2
-    private static var quotaIndicatorGutterHeight: CGFloat {
-        self.quotaIndicatorContentGap + self.quotaIndicatorHeight + self.quotaIndicatorBottomInset
-    }
 
     init(
         providers: [UsageProvider],
@@ -104,7 +100,6 @@ final class ProviderSwitcherView: NSView {
             stackedIcons: self.stackedIcons)
         self.rowSpacing = self.stackedIcons ? 4 : 2
         self.rowHeight = Self.switcherButtonHeight(stackedIcons: self.stackedIcons, rowCount: self.rowCount)
-            + Self.quotaIndicatorGutterHeight
         let height: CGFloat = self.rowHeight * CGFloat(self.rowCount)
             + self.rowSpacing * CGFloat(max(0, self.rowCount - 1))
         self.preferredWidth = width
@@ -177,8 +172,7 @@ final class ProviderSwitcherView: NSView {
             button.state = (selected == segment.selection) ? .on : .off
             button.toolTip = nil
             button.translatesAutoresizingMaskIntoConstraints = false
-            button.heightAnchor.constraint(
-                equalToConstant: self.rowHeight - Self.quotaIndicatorGutterHeight).isActive = true
+            button.heightAnchor.constraint(equalToConstant: self.rowHeight).isActive = true
             self.buttons.append(button)
             return button
         }
@@ -383,13 +377,9 @@ final class ProviderSwitcherView: NSView {
             gap.priority = .defaultHigh
             NSLayoutConstraint.activate([
                 left.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: outerPadding),
-                left.centerYAnchor.constraint(
-                    equalTo: self.centerYAnchor,
-                    constant: -Self.quotaIndicatorGutterHeight / 2),
+                left.centerYAnchor.constraint(equalTo: self.centerYAnchor),
                 right.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -outerPadding),
-                right.centerYAnchor.constraint(
-                    equalTo: self.centerYAnchor,
-                    constant: -Self.quotaIndicatorGutterHeight / 2),
+                right.centerYAnchor.constraint(equalTo: self.centerYAnchor),
                 gap,
             ])
             return
@@ -409,17 +399,11 @@ final class ProviderSwitcherView: NSView {
 
             NSLayoutConstraint.activate([
                 left.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: outerPadding),
-                left.centerYAnchor.constraint(
-                    equalTo: self.centerYAnchor,
-                    constant: -Self.quotaIndicatorGutterHeight / 2),
+                left.centerYAnchor.constraint(equalTo: self.centerYAnchor),
                 mid.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                mid.centerYAnchor.constraint(
-                    equalTo: self.centerYAnchor,
-                    constant: -Self.quotaIndicatorGutterHeight / 2),
+                mid.centerYAnchor.constraint(equalTo: self.centerYAnchor),
                 right.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -outerPadding),
-                right.centerYAnchor.constraint(
-                    equalTo: self.centerYAnchor,
-                    constant: -Self.quotaIndicatorGutterHeight / 2),
+                right.centerYAnchor.constraint(equalTo: self.centerYAnchor),
                 leftGap,
                 rightGap,
             ])
@@ -458,9 +442,7 @@ final class ProviderSwitcherView: NSView {
                 } else {
                     NSLayoutConstraint.activate([
                         button.leadingAnchor.constraint(equalTo: rowContainer.leadingAnchor, constant: xOffset),
-                        button.centerYAnchor.constraint(
-                            equalTo: rowContainer.centerYAnchor,
-                            constant: -Self.quotaIndicatorGutterHeight / 2),
+                        button.centerYAnchor.constraint(equalTo: rowContainer.centerYAnchor),
                     ])
                 }
                 xOffset += width + computedGap
@@ -471,9 +453,7 @@ final class ProviderSwitcherView: NSView {
         if let first = self.buttons.first {
             NSLayoutConstraint.activate([
                 first.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                first.centerYAnchor.constraint(
-                    equalTo: self.centerYAnchor,
-                    constant: -Self.quotaIndicatorGutterHeight / 2),
+                first.centerYAnchor.constraint(equalTo: self.centerYAnchor),
             ])
         }
     }
@@ -537,9 +517,7 @@ final class ProviderSwitcherView: NSView {
                 let xOffset = CGFloat(columnIndex) * (uniformWidth + computedGap)
                 NSLayoutConstraint.activate([
                     button.leadingAnchor.constraint(equalTo: gridContainer.leadingAnchor, constant: xOffset),
-                    button.centerYAnchor.constraint(
-                        equalTo: rowView.centerYAnchor,
-                        constant: -Self.quotaIndicatorGutterHeight / 2),
+                    button.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
                 ])
             }
         }
@@ -917,12 +895,7 @@ final class ProviderSwitcherView: NSView {
 
 extension ProviderSwitcherView {
     fileprivate func button(at location: NSPoint) -> NSButton? {
-        self.buttons.first { button in
-            var hitFrame = button.frame
-            hitFrame.origin.y -= Self.quotaIndicatorGutterHeight
-            hitFrame.size.height += Self.quotaIndicatorGutterHeight
-            return hitFrame.contains(location)
-        }
+        self.buttons.first { $0.frame.contains(location) }
     }
 }
 
@@ -1068,7 +1041,7 @@ extension ProviderSwitcherView {
         track.layer?.cornerRadius = Self.quotaIndicatorHeight / 2
         track.layer?.masksToBounds = true
         track.translatesAutoresizingMaskIntoConstraints = false
-        self.addSubview(track)
+        view.addSubview(track)
 
         let fill = NSView()
         fill.wantsLayer = true
@@ -1090,9 +1063,9 @@ extension ProviderSwitcherView {
             track.trailingAnchor.constraint(
                 equalTo: view.trailingAnchor,
                 constant: -Self.quotaIndicatorHorizontalInset),
-            track.topAnchor.constraint(
+            track.bottomAnchor.constraint(
                 equalTo: view.bottomAnchor,
-                constant: Self.quotaIndicatorContentGap),
+                constant: -Self.quotaIndicatorBottomInset),
             track.heightAnchor.constraint(equalToConstant: Self.quotaIndicatorHeight),
             fill.leadingAnchor.constraint(equalTo: track.leadingAnchor),
             fill.topAnchor.constraint(equalTo: track.topAnchor),
