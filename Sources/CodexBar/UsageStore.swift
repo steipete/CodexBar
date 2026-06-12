@@ -4,6 +4,8 @@ import Foundation
 import Observation
 import SweetCookieKit
 
+// swiftlint:disable file_length
+
 // MARK: - Observation helpers
 
 @MainActor
