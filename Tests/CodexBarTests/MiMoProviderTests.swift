@@ -702,6 +702,41 @@ extension MiMoProviderTests {
     }
 
     @Test
+    func `mimo explicit web mode does not use local fallback`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-web-mode-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("usage.json")
+        let payload: [String: Any] = [
+            "updated_at": "2026-06-03T05:04:03+00:00",
+            "sessions_scanned": 1,
+            "windows": [
+                "today": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "week": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "all_time": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: payload).write(to: file)
+
+        let context = self.makeContext(
+            sourceMode: .web,
+            settings: ProviderSettingsSnapshot.make(
+                mimo: .init(cookieSource: .off, manualCookieHeader: nil)),
+            environment: ["MIMO_LOCAL_USAGE_PATH": file.path])
+        let outcome = await MiMoProviderDescriptor.descriptor.fetchPlan.fetchOutcome(
+            context: context,
+            provider: .mimo)
+
+        switch outcome.result {
+        case let .success(result):
+            Issue.record("Expected explicit web mode to reject local fallback, got \(result.strategyID)")
+        case .failure:
+            break
+        }
+    }
+
+    @Test
     func `mimo manual mode does not report available from cached browser session`() async {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
@@ -952,13 +987,14 @@ extension MiMoProviderTests {
     }
 
     private func makeContext(
+        sourceMode: ProviderSourceMode = .auto,
         settings: ProviderSettingsSnapshot? = nil,
         environment: [String: String] = [:]) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: .app,
-            sourceMode: .auto,
+            sourceMode: sourceMode,
             includeCredits: false,
             webTimeout: 1,
             webDebugDumpHTML: false,

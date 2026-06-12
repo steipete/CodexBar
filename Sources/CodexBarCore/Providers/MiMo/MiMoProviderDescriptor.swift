@@ -33,8 +33,11 @@ public enum MiMoProviderDescriptor {
                 noDataMessage: { "Xiaomi MiMo cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-                    [MiMoWebFetchStrategy(), MiMoLocalFetchStrategy()]
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    if context.sourceMode == .web {
+                        return [MiMoWebFetchStrategy()]
+                    }
+                    return [MiMoWebFetchStrategy(), MiMoLocalFetchStrategy()]
                 })),
             cli: ProviderCLIConfig(
                 name: "mimo",
