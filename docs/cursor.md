@@ -48,8 +48,9 @@ Manual option:
 
 ## Snapshot mapping
 - Primary: plan usage percent (included plan).
-- Secondary: on-demand usage percent (individual usage).
-- Provider cost: on-demand usage USD (limit when known).
+- Secondary: Auto + Composer usage percent.
+- Tertiary: API (named model) usage percent.
+- Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
 - Reset: billing cycle end date.
 
 ## Key files

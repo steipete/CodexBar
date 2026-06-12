@@ -131,6 +131,31 @@ struct StatusItemExtraUsageMetricTests {
     }
 
     @Test
+    func `menu bar extra usage preference uses percent in combined mode`() {
+        let (store, controller) = self.makeController(
+            suiteName: "StatusItemExtraUsageMetricTests-cursor-combined-text",
+            provider: .cursor)
+        controller.settings.menuBarDisplayMode = .both
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 56,
+                limit: 100,
+                currencyCode: "USD",
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let displayText = controller.menuBarDisplayText(for: .cursor, snapshot: snapshot)
+
+        #expect(displayText == "56%")
+    }
+
+    @Test
     func `menu bar extra usage preference preserves claude currency display`() {
         let (store, controller) = self.makeController(
             suiteName: "StatusItemExtraUsageMetricTests-claude-spend-text",

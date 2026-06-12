@@ -407,6 +407,31 @@ struct CursorStatusProbeTests {
     }
 
     @Test
+    func `uses team on demand budget when individual usage has no cap`() {
+        let snapshot = CursorStatusSnapshot(
+            planPercentUsed: 0,
+            autoPercentUsed: 0,
+            apiPercentUsed: 0,
+            planUsedUSD: 0,
+            planLimitUSD: 20,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: 0,
+            teamOnDemandLimitUSD: 2349,
+            billingCycleEnd: nil,
+            membershipType: "enterprise",
+            accountEmail: nil,
+            accountName: nil,
+            rawJSON: nil)
+
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        #expect(usageSnapshot.providerCost?.used == 0)
+        #expect(usageSnapshot.providerCost?.limit == 2349)
+        #expect(usageSnapshot.providerCost?.currencyCode == "USD")
+    }
+
+    @Test
     func `formats membership types`() {
         let testCases: [(input: String, expected: String)] = [
             ("pro", "Cursor Pro"),

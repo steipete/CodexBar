@@ -463,9 +463,19 @@ public struct CursorStatusSnapshot: Sendable {
                 resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
         }
 
-        // On-demand: tracked via providerCost only (shown in the credits/cost section)
-        let resolvedOnDemandUsed = self.onDemandUsedUSD
-        let resolvedOnDemandLimit = self.onDemandLimitUSD
+        // Prefer a personal cap. Team accounts with no user cap expose only the shared on-demand budget.
+        let resolvedOnDemandUsed: Double
+        let resolvedOnDemandLimit: Double?
+        if (self.onDemandLimitUSD ?? 0) > 0 {
+            resolvedOnDemandUsed = self.onDemandUsedUSD
+            resolvedOnDemandLimit = self.onDemandLimitUSD
+        } else if (self.teamOnDemandLimitUSD ?? 0) > 0 {
+            resolvedOnDemandUsed = self.teamOnDemandUsedUSD ?? 0
+            resolvedOnDemandLimit = self.teamOnDemandLimitUSD
+        } else {
+            resolvedOnDemandUsed = self.onDemandUsedUSD
+            resolvedOnDemandLimit = self.onDemandLimitUSD
+        }
 
         // Provider cost snapshot for on-demand usage (include budget before first spend)
         let providerCost: ProviderCostSnapshot? = if resolvedOnDemandUsed > 0
