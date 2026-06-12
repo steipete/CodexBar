@@ -28,6 +28,7 @@ extension UsageStore {
         _ = self.pathDebugInfo
         _ = self.statuses
         _ = self.probeLogs
+        _ = self.rollingWindowAutoStartStatus
         _ = self.historicalPaceRevision
         _ = self.planUtilizationHistoryRevision
         _ = self.providerStorageFootprints
