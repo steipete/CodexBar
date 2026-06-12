@@ -1172,6 +1172,7 @@ extension UsageStore {
         switch outcome.result {
         case .success:
             guard let snapshot else { return }
+            let previousSnapshot = self.lastKnownResetSnapshots[.codex]
             self.handleSessionQuotaTransition(provider: .codex, snapshot: snapshot)
             self.lastKnownResetSnapshots[.codex] = snapshot
             self.lastCodexAccountScopedRefreshGuard = Self.codexScopedRefreshGuard(for: account)
@@ -1184,6 +1185,10 @@ extension UsageStore {
             self.rememberLiveSystemCodexEmailIfNeeded(snapshot.accountEmail(for: .codex))
             self.seedCodexAccountScopedRefreshGuard(accountEmail: account.email)
             await self.recordPlanUtilizationHistorySample(provider: .codex, snapshot: snapshot)
+            self.scheduleRollingWindowAutoStartIfNeeded(
+                provider: .codex,
+                previousSnapshot: previousSnapshot,
+                currentProviderData: snapshot)
             guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
             self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
         case let .failure(error):
@@ -1226,8 +1231,9 @@ extension UsageStore {
             }
             let backfilled = await MainActor.run {
                 guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else {
-                    return nil as UsageSnapshot?
+                    return nil as (current: UsageSnapshot, previous: UsageSnapshot?)?
                 }
+                let previousSnapshot = self.lastKnownResetSnapshots[provider]
                 let backfilled = labeled.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider])
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
@@ -1236,13 +1242,17 @@ extension UsageStore {
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
-                return backfilled
+                return (backfilled, previousSnapshot)
             }
             guard let backfilled else { return }
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
-                snapshot: backfilled,
+                snapshot: backfilled.current,
                 account: account)
+            self.scheduleRollingWindowAutoStartIfNeeded(
+                provider: provider,
+                previousSnapshot: backfilled.previous,
+                currentProviderData: backfilled.current)
         case let .failure(error):
             await MainActor.run {
                 guard let message = self.tokenAccountErrorMessage(error) else {
