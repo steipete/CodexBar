@@ -660,16 +660,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     func updateIcons() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
-        MainThreadActivityBreadcrumb.push("updateIcons")
         #endif
+        MainThreadActivityBreadcrumb.push("updateIcons")
         self.scheduleMenuBarCountdownRefreshIfNeeded()
         self.lastObservedStoreIconWorkSignature = self.storeIconObservationSignature()
         self.beginIconPerfUpdatePass()
         defer {
             self.endIconPerfUpdatePass()
-            #if DEBUG
             MainThreadActivityBreadcrumb.pop()
-            #endif
         }
         // Avoid flicker: when an animation driver is active, store updates can call `updateIcons()` and
         // briefly overwrite the animated frame with the static (phase=nil) icon.

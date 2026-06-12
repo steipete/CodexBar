@@ -40,9 +40,9 @@ struct CodexBarApp: App {
 
         KeychainAccessGate.isDisabled = UserDefaults.standard.bool(forKey: "debugDisableKeychainAccess")
         KeychainPromptCoordinator.install()
-        #if DEBUG
-        MainThreadHangWatchdog.shared.start()
-        #endif
+        if MainThreadHangWatchdog.isEnabledForCurrentProcess {
+            MainThreadHangWatchdog.shared.start()
+        }
 
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()

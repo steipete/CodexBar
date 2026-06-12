@@ -33,23 +33,6 @@ extension UsageStore {
         return self.providerSpecs[provider]
     }
 
-    /// The menu card shows its "Refreshing…" indicator for the whole provider refresh,
-    /// so a slow fetch reads as lag even when the UI stays responsive. Persist a warning
-    /// whenever a single provider keeps the spinner up this long.
-    private static let slowProviderRefreshThreshold: TimeInterval = 5
-
-    private func logProviderRefreshDurationIfSlow(_ provider: UsageProvider, startedAt: DispatchTime) {
-        let elapsed = TimeInterval(DispatchTime.now().uptimeNanoseconds - startedAt.uptimeNanoseconds)
-            / 1_000_000_000
-        guard elapsed >= Self.slowProviderRefreshThreshold else { return }
-        self.providerLogger.warning(
-            "slow provider refresh",
-            metadata: [
-                "provider": provider.rawValue,
-                "durationMs": String(format: "%.0f", elapsed * 1000),
-            ])
-    }
-
     func refreshProvider(
         _ provider: UsageProvider,
         allowDisabled: Bool = false,
@@ -161,9 +144,7 @@ extension UsageStore {
     {
         self.providerRefreshCounts[provider, default: 0] += 1
         self.refreshingProviders.insert(provider)
-        let refreshStartedAt = DispatchTime.now()
         defer {
-            self.logProviderRefreshDurationIfSlow(provider, startedAt: refreshStartedAt)
             let remaining = max(0, self.providerRefreshCounts[provider, default: 1] - 1)
             if remaining == 0 {
                 self.providerRefreshCounts.removeValue(forKey: provider)

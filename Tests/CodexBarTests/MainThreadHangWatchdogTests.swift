@@ -3,6 +3,7 @@ import Testing
 @testable import CodexBar
 
 #if DEBUG
+@Suite(.serialized)
 struct MainThreadHangWatchdogTests {
     @MainActor
     @Test
@@ -18,9 +19,9 @@ struct MainThreadHangWatchdogTests {
     }
 
     @Test
-    func `watchdog reports a blocked main thread with the active breadcrumb`() async throws {
+    func `watchdog reports an unsynchronized main thread stall`() async throws {
         let watchdog = MainThreadHangWatchdog(
-            pingInterval: 0.02,
+            pingInterval: 0.01,
             hangThreshold: 0.05,
             sampleThreshold: 60,
             sampleCooldown: 3600)
@@ -30,39 +31,15 @@ struct MainThreadHangWatchdogTests {
             reported.append((duration, activities))
         }
 
-        let ready = OSAllocatedBox(false)
-        let gateOnce = OSAllocatedBox(true)
-        let beginPing = DispatchSemaphore(value: 0)
-        let pingScheduled = DispatchSemaphore(value: 0)
-        watchdog.onBeforePingForTesting = {
-            guard gateOnce.takeTrue() else { return }
-            ready.set(true)
-            beginPing.wait()
-        }
-        watchdog.onPingScheduledForTesting = {
-            pingScheduled.signal()
-        }
         watchdog.start()
-        defer {
-            beginPing.signal()
-            pingScheduled.signal()
-            watchdog.stop()
-        }
+        defer { watchdog.stop() }
 
-        for _ in 0..<200 where !ready.get() {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        try #require(ready.get())
-
-        let didSchedulePing = await MainActor.run {
-            beginPing.signal()
-            guard pingScheduled.wait(timeout: .now() + 2) == .success else { return false }
+        try await Task.sleep(for: .milliseconds(75))
+        await MainActor.run {
             MainThreadActivityBreadcrumb.push("testStall")
-            Thread.sleep(forTimeInterval: 0.4)
+            Thread.sleep(forTimeInterval: 0.25)
             MainThreadActivityBreadcrumb.pop()
-            return true
         }
-        try #require(didSchedulePing)
 
         // Concurrent test suites stall the main thread too: a single hang report can span
         // several of them and is only delivered once the whole stall ends, so poll for our
@@ -78,7 +55,75 @@ struct MainThreadHangWatchdogTests {
         let report = try #require(stallReport)
         #expect(report.0 >= 0.05)
     }
+
+    @Test
+    func `sample capture cannot inflate reported hang duration`() throws {
+        let sampleRequested = OSAllocatedBox(false)
+        let watchdog = MainThreadHangWatchdog(
+            pingInterval: 0.01,
+            hangThreshold: 0.03,
+            sampleThreshold: 0.05,
+            sampleCooldown: 3600,
+            sampleCaptureOverride: {
+                sampleRequested.set(true)
+                Thread.sleep(forTimeInterval: 0.3)
+                return "/tmp/codexbar-watchdog-test-sample.txt"
+            })
+
+        let reported = OSAllocatedBox<[(TimeInterval, [String])]>([])
+        watchdog.onHangForTesting = { duration, activities in
+            reported.append((duration, activities))
+        }
+
+        MainThreadActivityBreadcrumb.push("sampledStall")
+        watchdog.traceHangForTesting(responseDelay: 0.12)
+        MainThreadActivityBreadcrumb.pop()
+
+        let report = try #require(reported.get().first)
+        #expect(sampleRequested.get())
+        #expect(report.1.contains("sampledStall"))
+        #expect(report.0 >= 0.03)
+        #expect(report.0 < 0.2)
+    }
+
+    @Test
+    func `failed sample capture is attempted once per hang`() {
+        let attempts = OSAllocatedBox(0)
+        let watchdog = MainThreadHangWatchdog(
+            pingInterval: 0.01,
+            hangThreshold: 0.01,
+            sampleThreshold: 0.02,
+            sampleCooldown: 3600,
+            sampleCaptureOverride: {
+                attempts.withValue { $0 += 1 }
+                return nil
+            })
+
+        watchdog.traceHangForTesting(responseDelay: 0.12)
+
+        #expect(attempts.get() == 1)
+    }
+
+    @Test
+    func `cooldown blocked hang samples when cooldown expires`() {
+        let attempts = OSAllocatedBox(0)
+        let watchdog = MainThreadHangWatchdog(
+            pingInterval: 0.01,
+            hangThreshold: 0.01,
+            sampleThreshold: 0.01,
+            sampleCooldown: 0.2,
+            sampleCaptureOverride: {
+                attempts.withValue { $0 += 1 }
+                return nil
+            })
+
+        watchdog.traceHangForTesting(responseDelay: 0.05)
+        watchdog.traceHangForTesting(responseDelay: 0.3)
+
+        #expect(attempts.get() == 2)
+    }
 }
+#endif
 
 private final class OSAllocatedBox<T>: @unchecked Sendable {
     private let lock = NSLock()
@@ -108,12 +153,9 @@ extension OSAllocatedBox {
         self.lock.unlock()
     }
 
-    func takeTrue() -> Bool where T == Bool {
+    func withValue(_ body: (inout T) -> Void) {
         self.lock.lock()
-        defer { self.lock.unlock() }
-        guard self.value else { return false }
-        self.value = false
-        return true
+        body(&self.value)
+        self.lock.unlock()
     }
 }
-#endif

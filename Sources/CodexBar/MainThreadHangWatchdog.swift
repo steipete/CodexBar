@@ -1,8 +1,6 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
-#if DEBUG
 /// Tracks what the main thread is currently doing so hang reports can name the
 /// operation even when the stall happens in uninstrumented code.
 enum MainThreadActivityBreadcrumb {
@@ -14,55 +12,69 @@ enum MainThreadActivityBreadcrumb {
     private static let state = State()
 
     static var current: String? {
-        self.state.lock.lock()
-        defer { self.state.lock.unlock() }
-        return self.state.stack.last
+        guard MainThreadHangWatchdog.isEnabledForCurrentProcess else { return nil }
+        return self.state.lock.withLock { self.state.stack.last }
     }
 
     static func push(_ label: String) {
-        self.state.lock.lock()
-        defer { self.state.lock.unlock() }
-        self.state.stack.append(label)
+        guard MainThreadHangWatchdog.isEnabledForCurrentProcess else { return }
+        self.state.lock.withLock {
+            self.state.stack.append(label)
+        }
     }
 
     static func pop() {
-        self.state.lock.lock()
-        defer { self.state.lock.unlock() }
-        _ = self.state.stack.popLast()
+        guard MainThreadHangWatchdog.isEnabledForCurrentProcess else { return }
+        self.state.lock.withLock {
+            _ = self.state.stack.popLast()
+        }
     }
 }
 
-/// Detects main-thread stalls regardless of where they originate. A utility thread
-/// pings the main queue and measures how long each ping waits; stalls above the
-/// threshold are logged with the active breadcrumb, and long hangs additionally
-/// capture a `/usr/bin/sample` of the process so the guilty stack lands in
-/// ~/Library/Logs/CodexBar without anyone having to reproduce under a profiler.
-/// Only started in DEBUG builds; release builds never spawn the watchdog thread.
+/// Detects main-queue response delays and records breadcrumbs for the work that
+/// occupied the main thread. Long hangs launch `/usr/bin/sample` asynchronously
+/// so sampling cannot delay recovery detection or inflate the reported duration.
 final class MainThreadHangWatchdog: @unchecked Sendable {
     static let shared = MainThreadHangWatchdog()
+    static let isEnabledForCurrentProcess: Bool = {
+        #if DEBUG
+        true
+        #else
+        let environment = ProcessInfo.processInfo.environment
+        return environment["CODEXBAR_MAIN_THREAD_HANG_WATCHDOG"] == "1" ||
+            UserDefaults.standard.bool(forKey: "debugMainThreadHangWatchdog")
+        #endif
+    }()
 
     private let logger = CodexBarLog.logger(LogCategories.app)
     private let pingInterval: TimeInterval
     private let hangThreshold: TimeInterval
     private let sampleThreshold: TimeInterval
     private let sampleCooldown: TimeInterval
+    private let sampleCaptureOverride: (@Sendable () -> String?)?
     private let lock = NSLock()
     private var isRunning = false
     private var lastSampleAt: Date?
+    private var activeSampleProcesses: [ObjectIdentifier: Process] = [:]
     var onHangForTesting: ((TimeInterval, [String]) -> Void)?
-    var onBeforePingForTesting: (() -> Void)?
-    var onPingScheduledForTesting: (() -> Void)?
+
+    private enum SampleCaptureResult {
+        case coolingDown
+        case attempted(String?)
+    }
 
     init(
-        pingInterval: TimeInterval = 0.5,
+        pingInterval: TimeInterval = 0.025,
         hangThreshold: TimeInterval = 0.15,
         sampleThreshold: TimeInterval = 2.0,
-        sampleCooldown: TimeInterval = 300)
+        sampleCooldown: TimeInterval = 300,
+        sampleCaptureOverride: (@Sendable () -> String?)? = nil)
     {
         self.pingInterval = pingInterval
         self.hangThreshold = hangThreshold
         self.sampleThreshold = sampleThreshold
         self.sampleCooldown = sampleCooldown
+        self.sampleCaptureOverride = sampleCaptureOverride
     }
 
     func start() {
@@ -77,54 +89,53 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
     }
 
     func stop() {
-        self.lock.lock()
-        self.isRunning = false
-        self.lock.unlock()
+        self.lock.withLock {
+            self.isRunning = false
+        }
     }
 
     private var shouldRun: Bool {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return self.isRunning
+        self.lock.withLock { self.isRunning }
     }
 
     private final class PingBox: @unchecked Sendable {
         private let lock = NSLock()
-        private var responded = false
+        private let semaphore = DispatchSemaphore(value: 0)
+        private var _respondedAt: DispatchTime?
 
         func markResponded() {
-            self.lock.lock()
-            self.responded = true
-            self.lock.unlock()
+            self.lock.withLock {
+                self._respondedAt = .now()
+            }
+            self.semaphore.signal()
         }
 
-        var hasResponded: Bool {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            return self.responded
+        var respondedAt: DispatchTime? {
+            self.lock.withLock { self._respondedAt }
+        }
+
+        func waitForResponse(timeout: TimeInterval) -> Bool {
+            self.semaphore.wait(timeout: .now() + timeout) == .success
         }
     }
 
     private func run() {
         while self.shouldRun {
-            self.onBeforePingForTesting?()
             let box = PingBox()
             let pingSentAt = DispatchTime.now()
             DispatchQueue.main.async { box.markResponded() }
-            self.onPingScheduledForTesting?()
-            Thread.sleep(forTimeInterval: self.hangThreshold)
-            guard self.shouldRun else { return }
-            if !box.hasResponded {
+            if !box.waitForResponse(timeout: self.hangThreshold) {
+                guard self.shouldRun else { return }
                 self.traceHang(box: box, pingSentAt: pingSentAt)
             }
+            guard self.shouldRun else { return }
             Thread.sleep(forTimeInterval: self.pingInterval)
         }
     }
 
     private func traceHang(box: PingBox, pingSentAt: DispatchTime) {
-        // A single stall can span several pieces of main-thread work (runloop sources and
-        // timers interleave ahead of the queued ping), so sample the breadcrumb throughout
-        // the hang and report every distinct activity observed.
+        // One delayed ping can span several main-thread operations, so retain each
+        // distinct breadcrumb observed until the queued ping finally executes.
         var activities: [String] = []
         func recordActivity() {
             guard activities.count < 8,
@@ -136,58 +147,104 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
 
         recordActivity()
         var sampleFile: String?
-        while !box.hasResponded, self.shouldRun {
+        var didAttemptSample = false
+        while box.respondedAt == nil, self.shouldRun {
             recordActivity()
-            if sampleFile == nil, self.elapsedSeconds(since: pingSentAt) >= self.sampleThreshold {
-                sampleFile = self.captureSampleIfAllowed()
+            if !didAttemptSample, self.elapsedSeconds(since: pingSentAt) >= self.sampleThreshold {
+                switch self.captureSampleIfAllowed() {
+                case .coolingDown:
+                    break
+                case let .attempted(file):
+                    didAttemptSample = true
+                    sampleFile = file
+                }
             }
-            Thread.sleep(forTimeInterval: 0.05)
+            Thread.sleep(forTimeInterval: 0.025)
         }
-        guard box.hasResponded else { return }
-        let duration = self.elapsedSeconds(since: pingSentAt)
+        guard let respondedAt = box.respondedAt else { return }
+        let duration = self.elapsedSeconds(from: pingSentAt, to: respondedAt)
         var metadata: [String: String] = [
             "durationMs": String(format: "%.0f", duration * 1000),
             "activity": activities.isEmpty ? "unknown" : activities.joined(separator: ","),
         ]
         if let sampleFile {
-            metadata["sample"] = sampleFile
+            metadata["sampleRequested"] = sampleFile
         }
         self.logger.warning("main thread hang", metadata: metadata)
         self.onHangForTesting?(duration, activities)
     }
 
     private func elapsedSeconds(since start: DispatchTime) -> TimeInterval {
-        TimeInterval(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+        self.elapsedSeconds(from: start, to: .now())
     }
 
-    private func captureSampleIfAllowed() -> String? {
-        self.lock.lock()
-        if let last = self.lastSampleAt, Date().timeIntervalSince(last) < self.sampleCooldown {
-            self.lock.unlock()
-            return nil
-        }
-        self.lastSampleAt = Date()
-        self.lock.unlock()
+    private func elapsedSeconds(from start: DispatchTime, to end: DispatchTime) -> TimeInterval {
+        TimeInterval(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+    }
 
+    private func captureSampleIfAllowed() -> SampleCaptureResult {
+        let now = Date()
+        let shouldCapture = self.lock.withLock {
+            if self.lastSampleAt.map({ now.timeIntervalSince($0) < self.sampleCooldown }) ?? false {
+                return false
+            }
+            self.lastSampleAt = now
+            return true
+        }
+        guard shouldCapture else { return .coolingDown }
+
+        let file = if let sampleCaptureOverride {
+            sampleCaptureOverride()
+        } else {
+            self.launchSample()
+        }
+        return .attempted(file)
+    }
+
+    private func launchSample() -> String? {
         let directory = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs/CodexBar", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            self.logger.warning(
+                "main thread hang sample failed",
+                metadata: ["error": "\(error)"])
+            return nil
+        }
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate, .withTime]
         let stamp = formatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
         let file = directory.appendingPathComponent("hang-sample-\(stamp).txt")
 
         let process = Process()
+        let processID = ObjectIdentifier(process)
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sample")
         process.arguments = ["\(ProcessInfo.processInfo.processIdentifier)", "3", "-file", file.path]
+        process.terminationHandler = { [weak self] completedProcess in
+            self?.sampleDidFinish(completedProcess, processID: processID, file: file)
+        }
+        self.lock.withLock {
+            self.activeSampleProcesses[processID] = process
+        }
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
+            _ = self.lock.withLock {
+                self.activeSampleProcesses.removeValue(forKey: processID)
+            }
             self.logger.warning(
                 "main thread hang sample failed",
                 metadata: ["error": "\(error)"])
             return nil
+        }
+        return file.path
+    }
+
+    private func sampleDidFinish(_ process: Process, processID: ObjectIdentifier, file: URL) {
+        _ = self.lock.withLock {
+            self.activeSampleProcesses.removeValue(forKey: processID)
         }
         guard process.terminationStatus == 0,
               FileManager.default.fileExists(atPath: file.path)
@@ -195,9 +252,30 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
             self.logger.warning(
                 "main thread hang sample failed",
                 metadata: ["status": "\(process.terminationStatus)"])
-            return nil
+            return
         }
-        return file.path
+        self.logger.info(
+            "main thread hang sample captured",
+            metadata: ["sample": file.path])
     }
+
+    #if DEBUG
+    func traceHangForTesting(responseDelay: TimeInterval) {
+        self.lock.withLock {
+            self.isRunning = true
+        }
+        defer {
+            self.lock.withLock {
+                self.isRunning = false
+            }
+        }
+
+        let box = PingBox()
+        let pingSentAt = DispatchTime.now()
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + responseDelay) {
+            box.markResponded()
+        }
+        self.traceHang(box: box, pingSentAt: pingSentAt)
+    }
+    #endif
 }
-#endif
