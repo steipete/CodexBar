@@ -8,6 +8,7 @@
 - Menu bar: move the highlighted Overview provider with trackpad or mouse-wheel scrolling while preserving native submenu and keyboard behavior (#1436). Thanks @joshuavial!
 
 ### Fixed
+- Settings: slightly increase the window height so standard panes fit without clipping their final controls or helper text.
 - Grok: recover web billing from status-7 credential failures by combining current browser sessions with non-expired CLI auth, accept raw protobuf responses, and render current zero-use periods (#1452). Thanks @bcharleson!
 - Antigravity: detect current hyphenated IDE language-server processes inside Antigravity app bundles so local quota refreshes no longer report the IDE as unavailable (#1405). Thanks @lfmundim!
 - Menu bar: avoid republishing unchanged provider storage footprints so background scans no longer trigger unnecessary menu observation work (#1416). Thanks @soohanpark!
