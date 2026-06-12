@@ -13,6 +13,7 @@
 - Menu bar: move the highlighted Overview provider with trackpad or mouse-wheel scrolling while preserving native submenu and keyboard behavior (#1436). Thanks @joshuavial!
 
 ### Fixed
+- CLI: keep Ollama API credentials scoped to Ollama when deciding whether another provider requires macOS web support (#1466). Thanks @WadydX!
 - Provider switcher: keep localized tab titles visible by tightening outer insets only when equal-width segments would otherwise truncate.
 - OpenAI API: follow Admin usage pagination for costs and completions so multi-page organization usage totals are not undercounted (#1465). Thanks @rohitjavvadi!
 - Settings: slightly increase the window height so standard panes fit without clipping their final controls or helper text.
