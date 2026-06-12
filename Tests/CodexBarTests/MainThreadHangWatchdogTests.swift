@@ -66,7 +66,7 @@ struct MainThreadHangWatchdogTests {
             sampleCooldown: 3600,
             sampleCaptureOverride: {
                 sampleRequested.set(true)
-                Thread.sleep(forTimeInterval: 0.3)
+                Thread.sleep(forTimeInterval: 1)
                 return "/tmp/codexbar-watchdog-test-sample.txt"
             })
 
@@ -76,14 +76,14 @@ struct MainThreadHangWatchdogTests {
         }
 
         MainThreadActivityBreadcrumb.push("sampledStall")
-        watchdog.traceHangForTesting(responseDelay: 0.12)
+        watchdog.traceHangForTesting(responseDelay: 0.05, waitForSampleAttempt: true)
         MainThreadActivityBreadcrumb.pop()
 
         let report = try #require(reported.get().first)
         #expect(sampleRequested.get())
         #expect(report.1.contains("sampledStall"))
         #expect(report.0 >= 0.03)
-        #expect(report.0 < 0.2)
+        #expect(report.0 < 0.75)
     }
 
     @Test
@@ -92,14 +92,14 @@ struct MainThreadHangWatchdogTests {
         let watchdog = MainThreadHangWatchdog(
             pingInterval: 0.01,
             hangThreshold: 0.01,
-            sampleThreshold: 0.02,
+            sampleThreshold: 0,
             sampleCooldown: 3600,
             sampleCaptureOverride: {
                 attempts.withValue { $0 += 1 }
                 return nil
             })
 
-        watchdog.traceHangForTesting(responseDelay: 0.12)
+        watchdog.traceHangForTesting(responseDelay: 0.05, waitForSampleAttempt: true)
 
         #expect(attempts.get() == 1)
     }
@@ -110,15 +110,15 @@ struct MainThreadHangWatchdogTests {
         let watchdog = MainThreadHangWatchdog(
             pingInterval: 0.01,
             hangThreshold: 0.01,
-            sampleThreshold: 0.01,
+            sampleThreshold: 0,
             sampleCooldown: 0.2,
             sampleCaptureOverride: {
                 attempts.withValue { $0 += 1 }
                 return nil
             })
 
-        watchdog.traceHangForTesting(responseDelay: 0.05)
-        watchdog.traceHangForTesting(responseDelay: 0.3)
+        watchdog.traceHangForTesting(responseDelay: 0.05, waitForSampleAttempt: true)
+        watchdog.traceHangForTesting(responseDelay: 1)
 
         #expect(attempts.get() == 2)
     }

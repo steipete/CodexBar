@@ -57,6 +57,9 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
     private var lastSampleAt: Date?
     private var activeSampleProcesses: [ObjectIdentifier: Process] = [:]
     var onHangForTesting: ((TimeInterval, [String]) -> Void)?
+    #if DEBUG
+    private var onSampleAttemptForTesting: (() -> Void)?
+    #endif
 
     private enum SampleCaptureResult {
         case coolingDown
@@ -151,6 +154,9 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
         while box.respondedAt == nil, self.shouldRun {
             recordActivity()
             if !didAttemptSample, self.elapsedSeconds(since: pingSentAt) >= self.sampleThreshold {
+                #if DEBUG
+                self.onSampleAttemptForTesting?()
+                #endif
                 switch self.captureSampleIfAllowed() {
                 case .coolingDown:
                     break
@@ -268,7 +274,7 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
     }
 
     #if DEBUG
-    func traceHangForTesting(responseDelay: TimeInterval) {
+    func traceHangForTesting(responseDelay: TimeInterval, waitForSampleAttempt: Bool = false) {
         self.lock.withLock {
             self.isRunning = true
         }
@@ -276,12 +282,20 @@ final class MainThreadHangWatchdog: @unchecked Sendable {
             self.lock.withLock {
                 self.isRunning = false
             }
+            self.onSampleAttemptForTesting = nil
         }
 
         let box = PingBox()
         let pingSentAt = DispatchTime.now()
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + responseDelay) {
-            box.markResponded()
+        let scheduleResponse = {
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + responseDelay) {
+                box.markResponded()
+            }
+        }
+        if waitForSampleAttempt {
+            self.onSampleAttemptForTesting = scheduleResponse
+        } else {
+            scheduleResponse()
         }
         self.traceHang(box: box, pingSentAt: pingSentAt)
     }
