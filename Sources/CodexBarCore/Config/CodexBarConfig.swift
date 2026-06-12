@@ -77,6 +77,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var enabled: Bool?
     public var source: ProviderSourceMode?
     public var extrasEnabled: Bool?
+    public var rollingWindowAutoStartEnabled: Bool?
     public var apiKey: String?
     public var secretKey: String?
     public var cookieHeader: String?
@@ -97,6 +98,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         enabled: Bool? = nil,
         source: ProviderSourceMode? = nil,
         extrasEnabled: Bool? = nil,
+        rollingWindowAutoStartEnabled: Bool? = nil,
         apiKey: String? = nil,
         secretKey: String? = nil,
         cookieHeader: String? = nil,
@@ -116,6 +118,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.enabled = enabled
         self.source = source
         self.extrasEnabled = extrasEnabled
+        self.rollingWindowAutoStartEnabled = rollingWindowAutoStartEnabled
         self.apiKey = apiKey
         self.secretKey = secretKey
         self.cookieHeader = cookieHeader

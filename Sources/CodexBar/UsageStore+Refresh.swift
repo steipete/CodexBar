@@ -263,7 +263,7 @@ extension UsageStore {
             {
                 return
             }
-            let backfilled = await MainActor.run { () -> UsageSnapshot? in
+            let refreshSnapshots = await MainActor.run { () -> (current: UsageSnapshot, previous: UsageSnapshot?)? in
                 guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else {
                     return nil
                 }
@@ -293,15 +293,20 @@ extension UsageStore {
                     self.rememberLiveSystemCodexEmailIfNeeded(scoped.accountEmail(for: .codex))
                     self.seedCodexAccountScopedRefreshGuard(accountEmail: scoped.accountEmail(for: .codex))
                 }
-                return backfilled
+                return (backfilled, resetBackfillSource)
             }
-            guard let backfilled else { return }
+            guard let refreshSnapshots else { return }
+            let backfilled = refreshSnapshots.current
             if context.shouldConsumeClaudeKeychainFingerprint {
                 _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
             }
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
                 snapshot: backfilled)
+            self.scheduleRollingWindowAutoStartIfNeeded(
+                provider: provider,
+                previousSnapshot: refreshSnapshots.previous,
+                currentProviderData: scoped)
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             if let runtime = self.providerRuntimes[provider] {
                 let context = ProviderRuntimeContext(
@@ -342,6 +347,9 @@ extension UsageStore {
             self.lastSourceLabels.removeValue(forKey: provider)
             self.lastFetchAttempts.removeValue(forKey: provider)
             self.accountSnapshots.removeValue(forKey: provider)
+            self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
+            self.rollingWindowAutoStartRuntime.inFlight.remove(provider)
+            self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: provider)
             if provider == .codex {
                 self.codexAccountSnapshots = []
             }

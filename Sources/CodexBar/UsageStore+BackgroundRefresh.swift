@@ -10,6 +10,9 @@ extension UsageStore {
         self.lastSourceLabels.removeValue(forKey: provider)
         self.lastFetchAttempts.removeValue(forKey: provider)
         self.accountSnapshots.removeValue(forKey: provider)
+        self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
+        self.rollingWindowAutoStartRuntime.inFlight.remove(provider)
+        self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: provider)
         self.tokenSnapshots.removeValue(forKey: provider)
         self.tokenErrors[provider] = nil
         self.providerStorageFootprints.removeValue(forKey: provider)

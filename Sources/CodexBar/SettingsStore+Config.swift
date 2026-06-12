@@ -22,6 +22,16 @@ extension SettingsStore {
             global: self.quotaWarningWindowEnabled(window))
     }
 
+    func rollingWindowAutoStartEnabled(provider: UsageProvider) -> Bool {
+        self.configSnapshot.providerConfig(for: provider)?.rollingWindowAutoStartEnabled ?? false
+    }
+
+    func setRollingWindowAutoStartEnabled(provider: UsageProvider, enabled: Bool) {
+        self.updateProviderConfig(provider: provider) { entry in
+            entry.rollingWindowAutoStartEnabled = enabled ? true : nil
+        }
+    }
+
     func hasQuotaWarningOverride(provider: UsageProvider, window: QuotaWarningWindow) -> Bool {
         self.quotaWarningConfig(for: provider).hasOverride(for: window)
     }
