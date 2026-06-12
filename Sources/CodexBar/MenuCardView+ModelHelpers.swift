@@ -173,6 +173,18 @@ extension UsageMenuCardView.Model {
             paceOnTop: paceOnTop)
     }
 
+    static func standardWeeklyPace(input: Input, window: RateWindow) -> UsagePace? {
+        if let weeklyPace = input.weeklyPace {
+            return weeklyPace
+        }
+        return UsagePace.weekly(
+            window: window,
+            now: input.now,
+            defaultWindowMinutes: 10080,
+            workDays: input.workDaysPerWeek)
+            .flatMap { $0.expectedUsedPercent >= 3 ? $0 : nil }
+    }
+
     static func cursorBillingCyclePaceDetail(
         window: RateWindow,
         input: Input,
