@@ -99,6 +99,8 @@
 "Could not start codex login" = "codex login başlatılamadı";
 "Could not switch system account" = "Sistem hesabı değiştirilemedi";
 "Credits" = "Krediler";
+"Individual credits" = "Bireysel krediler";
+"Workspace" = "Çalışma alanı";
 "Credits history" = "Kredi geçmişi";
 "Cursor login failed" = "Cursor girişi başarısız";
 "Custom" = "Özel";
@@ -432,7 +434,7 @@
 "quota_warning_notification_body" = "%1$@ kaldı. %2$d%% %3$@ uyarı eşiğinize ulaşıldı.";
 "quota_warning_notification_body_with_account" = "Hesap %1$@. %2$@ kaldı. %3$d%% %4$@ uyarı eşiğinize ulaşıldı.";
 "session_depleted_notification_title" = "%@ oturumu tükendi";
-"session_depleted_notification_body" = "%%0 kaldı. Tekrar kullanılabilir olduğunda bildirilecek.";
+"session_depleted_notification_body" = "0% kaldı. Tekrar kullanılabilir olduğunda bildirilecek.";
 "session_restored_notification_title" = "%@ oturumu geri yüklendi";
 "session_restored_notification_body" = "Oturum kotası tekrar kullanılabilir.";
 "quota_warning_warn_at" = "Uyarı eşikleri";

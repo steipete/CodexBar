@@ -118,6 +118,7 @@ struct LocalizationLanguageCatalogTests {
         #expect(turkish["tab_general"] == "Genel")
         #expect(turkish["quit_app"] == "CodexBar'dan Çık")
         #expect(turkish["display_mode_percent_desc"]?.contains("%45") == true)
+        #expect(turkish["session_depleted_notification_body"]?.hasPrefix("0% kaldı.") == true)
 
         let format = try #require(turkish["quota_warning_notification_body"])
         let rendered = String(
