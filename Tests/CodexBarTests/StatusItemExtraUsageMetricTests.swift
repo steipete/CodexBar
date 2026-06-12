@@ -106,11 +106,35 @@ struct StatusItemExtraUsageMetricTests {
     }
 
     @Test
-    func `menu bar extra usage preference keeps currency fallback in pace mode`() {
+    func `menu bar extra usage preference keeps cursor currency fallback in pace mode`() {
+        let (store, controller) = self.makeController(
+            suiteName: "StatusItemExtraUsageMetricTests-cursor-pace-spend-text",
+            provider: .cursor)
+        controller.settings.menuBarDisplayMode = .pace
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 12.34,
+                limit: 100,
+                currencyCode: "USD",
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let displayText = controller.menuBarDisplayText(for: .cursor, snapshot: snapshot)
+
+        #expect(displayText == "$12.34")
+    }
+
+    @Test
+    func `menu bar extra usage preference preserves claude currency display`() {
         let (store, controller) = self.makeController(
             suiteName: "StatusItemExtraUsageMetricTests-claude-spend-text",
             provider: .claude)
-        controller.settings.menuBarDisplayMode = .pace
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
