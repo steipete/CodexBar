@@ -25,6 +25,19 @@ struct MiMoLocalUsageFallbackTests {
     }
 
     @Test
+    func `returns nil when cache schema is incomplete`() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-fallback-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("incomplete.json")
+        try Data("{}".utf8).write(to: file)
+
+        let snap = MiMoLocalUsageFallback.snapshot(cachePath: file.path, now: Date())
+        #expect(snap == nil)
+    }
+
+    @Test
     func `parses all token buckets without fabricating a quota window`() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimo-fallback-test-\(UUID().uuidString)")

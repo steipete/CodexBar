@@ -25,11 +25,13 @@ public enum MiMoLocalUsageFallback {
         let url = URL(fileURLWithPath: cachePath)
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-
-        let windows = json["windows"] as? [String: Any] ?? [:]
-        let week = windows["week"] as? [String: Any] ?? [:]
-        let today = windows["today"] as? [String: Any] ?? [:]
-        let allTime = windows["all_time"] as? [String: Any] ?? [:]
+        guard let windows = json["windows"] as? [String: Any],
+              let week = windows["week"] as? [String: Any],
+              let today = windows["today"] as? [String: Any],
+              let allTime = windows["all_time"] as? [String: Any]
+        else {
+            return nil
+        }
         let sessionsScanned = Self.intValue(json["sessions_scanned"])
         let weekTotal = Self.total(for: week)
         let todayTotal = Self.total(for: today)
