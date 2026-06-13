@@ -124,6 +124,17 @@ extension StatusItemController {
                 self.deferredMenuInteractionRefreshTask = nil
                 return
             }
+            let pendingProviders = self.deferredMenuInteractionRefreshProviders
+            let hasProviderRefreshInFlight = pendingProviders.contains {
+                self.store.refreshingProviders.contains($0)
+            }
+            guard !self.store.isRefreshing, !hasProviderRefreshInFlight else {
+                self.deferredMenuInteractionRefreshTask = nil
+                self.scheduleDeferredMenuInteractionRefreshIfNeeded(
+                    delay: Self.defaultDeferredMenuInteractionRefreshDelay)
+                return
+            }
+            self.clearSatisfiedDeferredMenuInteractionRefreshes(for: Array(pendingProviders))
             let shouldRefreshStore = self.deferredMenuInteractionRefreshPending
             let openAIDashboardRefreshReason = self.deferredOpenAIDashboardRefreshReason
             guard shouldRefreshStore || openAIDashboardRefreshReason != nil else {
@@ -132,13 +143,6 @@ extension StatusItemController {
             }
             guard !self.hasPreparedForAppShutdown else {
                 self.deferredMenuInteractionRefreshTask = nil
-                return
-            }
-            guard !self.store.isRefreshing else {
-                self.deferredMenuInteractionRefreshTask = nil
-                self
-                    .scheduleDeferredMenuInteractionRefreshIfNeeded(delay: Self
-                        .defaultDeferredMenuInteractionRefreshDelay)
                 return
             }
             self.deferredMenuInteractionRefreshTask = nil

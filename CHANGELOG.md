@@ -2,6 +2,7 @@
 
 ## 0.34.1 — Unreleased
 
+- Menu bar: avoid starting a duplicate background provider refresh when the menu closes while its initial missing-data refresh is still in flight.
 - Menu bar: rebuild merged provider content inside AppKit's active tracking run loop so provider switches no longer wait for the menu to close or the default run loop to resume.
 - Diagnostics: enforce probe timeouts even when an underlying provider operation ignores Swift task cancellation.
 - Kimi: add usage fetching from the official Code API key flow, with optional compatible HTTPS proxy support (#1424). Thanks @kiranmagic7!
