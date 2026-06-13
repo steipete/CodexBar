@@ -4,6 +4,16 @@ import Testing
 
 @MainActor
 struct StatusMenuAppearanceTests {
+    private final class AppearanceTrackingMenu: NSMenu {
+        var appearanceAssignmentCount = 0
+
+        override var appearance: NSAppearance? {
+            didSet {
+                self.appearanceAssignmentCount += 1
+            }
+        }
+    }
+
     @Test
     func `pin uses the exact application effective appearance`() {
         let menu = NSMenu()
@@ -15,17 +25,16 @@ struct StatusMenuAppearanceTests {
     }
 
     @Test
-    func `pin replaces a distinct appearance with the same name`() throws {
-        let menu = NSMenu()
-        let initialAppearance = try #require(NSAppearance(named: .aqua))
-        let replacementAppearance = try #require(NSAppearance(appearanceNamed: .aqua, bundle: .main))
-        #expect(initialAppearance.name == replacementAppearance.name)
-        #expect(initialAppearance !== replacementAppearance)
-        menu.appearance = initialAppearance
+    func `pin reassigns an appearance even when its name is unchanged`() throws {
+        let menu = AppearanceTrackingMenu()
+        let appearance = try #require(NSAppearance(named: .aqua))
+        menu.appearance = appearance
+        let assignmentsBeforePin = menu.appearanceAssignmentCount
 
-        StatusMenuAppearance.pin(menu, to: replacementAppearance)
+        StatusMenuAppearance.pin(menu, to: appearance)
 
-        #expect(menu.appearance === replacementAppearance)
+        #expect(menu.appearance === appearance)
+        #expect(menu.appearanceAssignmentCount == assignmentsBeforePin + 1)
     }
 
     @Test
