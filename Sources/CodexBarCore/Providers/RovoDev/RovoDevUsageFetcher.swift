@@ -13,6 +13,22 @@ public struct RovoDevBalance: Decodable, Sendable, Equatable {
     public let monthlyTotal: Int?
     public let monthlyRemaining: Int?
     public let monthlyUsed: Int?
+
+    public init(
+        dailyTotal: Int?,
+        dailyRemaining: Int?,
+        dailyUsed: Int?,
+        monthlyTotal: Int?,
+        monthlyRemaining: Int?,
+        monthlyUsed: Int?)
+    {
+        self.dailyTotal = dailyTotal
+        self.dailyRemaining = dailyRemaining
+        self.dailyUsed = dailyUsed
+        self.monthlyTotal = monthlyTotal
+        self.monthlyRemaining = monthlyRemaining
+        self.monthlyUsed = monthlyUsed
+    }
 }
 
 /// Parsed snapshot from the Rovo Dev credits/check response.
