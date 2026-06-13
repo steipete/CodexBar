@@ -93,7 +93,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | ZenMux | Management API key from config/env → five-hour and seven-day quota windows plus PAYG balance (`api`). |
 | ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
-| Rovo Dev | Atlassian email + API token → monthly credit usage API (`api`). |
+| Rovo Dev | Experimental Atlassian email + API token → monthly credit usage service (`api`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -528,7 +528,8 @@ scan fails, while provider/account configuration changes replace obsolete result
 ## Rovo Dev
 
 - Auth: Atlassian email + API token (HTTP Basic), configured in **Settings → Providers → Rovo Dev** or via `ROVODEV_EMAIL` + `ROVODEV_API_TOKEN`.
-- Reads monthly credit usage from `GET https://api.atlassian.com/rovodev/v3/credits/check`.
+- Reads monthly credit usage from the undocumented `GET https://api.atlassian.com/rovodev/v3/credits/check`
+  service endpoint; compatibility may change without notice.
 - Displays: credits used / total, account status (Active / Rate Limited / Blocked).
 - Plans: Rovo Dev Free (350 credits/user/month/site), Rovo Dev Standard (2,000 credits/user/month).
 - Status: `https://status.atlassian.com` (link only, no auto-polling).

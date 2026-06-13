@@ -20,7 +20,7 @@ struct RovoDevProviderImplementation: ProviderImplementation {
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        // Available when both email and API token are configured (env vars take precedence over settings)
+        // Available when both email and API token are configured.
         if RovoDevSettingsReader.apiToken(environment: context.environment) != nil,
            RovoDevSettingsReader.email(environment: context.environment) != nil
         {
@@ -37,7 +37,7 @@ struct RovoDevProviderImplementation: ProviderImplementation {
                 id: "rovodev-email",
                 title: "Atlassian email",
                 subtitle: "Your Atlassian account email address.",
-                kind: .text,
+                kind: .plain,
                 placeholder: "you@example.com",
                 binding: context.stringBinding(\.rovoDevEmail),
                 actions: [],

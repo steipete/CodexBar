@@ -17,6 +17,9 @@ The Rovo Dev provider tracks monthly credit usage for [Atlassian Rovo Dev](https
 - Auth: Atlassian email + API token via HTTP Basic auth.
 - Source mode: `api` only (no CLI-parse fallback needed).
 
+This integration is experimental. Atlassian does not publish the credits endpoint or its Basic-auth contract as
+a public API, so compatibility can change without notice.
+
 ## Plans and credit allowances
 
 | Plan | Credits |
@@ -28,7 +31,8 @@ The Rovo Dev provider tracks monthly credit usage for [Atlassian Rovo Dev](https
 
 ### 1. Create an Atlassian API token
 
-Go to [id.atlassian.com → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens) and create a new token. A standard (non-scoped) API token works; you do not need a scoped Rovo Dev token.
+Go to [id.atlassian.com → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+and create a token. The provider currently expects an Atlassian API token plus the matching account email.
 
 ### 2. Configure via Settings
 
@@ -74,10 +78,8 @@ export ROVODEV_API_URL="https://my-proxy.example.com"
 
 ## Credential Resolution Order
 
-The fetch strategy tries credentials in this order:
-
-1. `ROVODEV_API_TOKEN` + `ROVODEV_EMAIL` environment variables (highest priority)
-2. Settings-stored values (email saved as `workspaceID`, token as `apiKey` in `~/.codexbar/config.json`)
+Settings-stored values override the matching environment variable when present. Unset Settings fields fall back to
+`ROVODEV_API_TOKEN` or `ROVODEV_EMAIL`.
 
 > **Note:** Token accounts are not supported for Rovo Dev because this provider requires two separate credentials (email + API token). Use environment variables or Settings instead.
 

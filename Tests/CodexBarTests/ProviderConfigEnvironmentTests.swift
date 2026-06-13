@@ -764,6 +764,39 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `Rovo Dev config overrides environment credentials`() {
+        let config = ProviderConfig(
+            id: .rovodev,
+            apiKey: "config-token",
+            workspaceID: "config@example.com")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [
+                RovoDevSettingsReader.apiTokenEnvironmentKey: "env-token",
+                RovoDevSettingsReader.emailEnvironmentKey: "env@example.com",
+            ],
+            provider: .rovodev,
+            config: config)
+
+        #expect(env[RovoDevSettingsReader.apiTokenEnvironmentKey] == "config-token")
+        #expect(env[RovoDevSettingsReader.emailEnvironmentKey] == "config@example.com")
+    }
+
+    @Test
+    func `Rovo Dev unset config fields preserve environment credentials`() {
+        let config = ProviderConfig(id: .rovodev, apiKey: "config-token")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [
+                RovoDevSettingsReader.apiTokenEnvironmentKey: "env-token",
+                RovoDevSettingsReader.emailEnvironmentKey: "env@example.com",
+            ],
+            provider: .rovodev,
+            config: config)
+
+        #expect(env[RovoDevSettingsReader.apiTokenEnvironmentKey] == "config-token")
+        #expect(env[RovoDevSettingsReader.emailEnvironmentKey] == "env@example.com")
+    }
+
+    @Test
     func `codebuff config override leaves environment token alone`() {
         let config = ProviderConfig(id: .codebuff, apiKey: "config-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

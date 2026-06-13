@@ -364,6 +364,7 @@ private struct ProviderSwitchChip: View {
         case .neuralwatt: "Neuralwatt"
         case .zenmux: "ZenMux"
         case .aiand: "ai&"
+        case .rovodev: "Rovo Dev"
         }
     }
 }
@@ -1112,6 +1113,8 @@ enum WidgetColors {
             Color(red: 108 / 255, green: 92 / 255, blue: 231 / 255)
         case .aiand:
             Color(red: 226 / 255, green: 92 / 255, blue: 43 / 255)
+        case .rovodev:
+            Color(red: 0, green: 82 / 255, blue: 204 / 255)
         }
     }
 }
