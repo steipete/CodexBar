@@ -104,6 +104,7 @@ public enum ProviderDescriptorRegistry {
         .litellm: LiteLLMProviderDescriptor.descriptor,
         .deepgram: DeepgramProviderDescriptor.descriptor,
         .poe: PoeProviderDescriptor.descriptor,
+        .chutes: ChutesProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

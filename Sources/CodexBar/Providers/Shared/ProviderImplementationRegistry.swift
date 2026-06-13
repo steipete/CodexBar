@@ -64,6 +64,7 @@ enum ProviderImplementationRegistry {
         case .litellm: LiteLLMProviderImplementation()
         case .deepgram: DeepgramProviderImplementation()
         case .poe: PoeProviderImplementation()
+        case .chutes: ChutesProviderImplementation()
         }
     }
 
