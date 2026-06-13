@@ -79,12 +79,15 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let resetDescription = self.creditSummary
-        let primary = RateWindow(
-            usedPercent: self.usedPercent,
-            windowMinutes: nil,
-            resetsAt: nil,
-            resetDescription: resetDescription)
+        let primary: RateWindow? = if let total = self.creditsTotal, total > 0, self.creditsUsed != nil {
+            RateWindow(
+                usedPercent: self.usedPercent,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: self.creditSummary)
+        } else {
+            nil
+        }
 
         let loginMethod: String? = self.displayStatus
         let identity = ProviderIdentitySnapshot(

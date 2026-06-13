@@ -333,6 +333,25 @@ final class RovoDevUsageFetcherTests: XCTestCase {
         XCTAssertEqual(snapshot.toUsageSnapshot().identity?.accountEmail, "user@example.com")
     }
 
+    func test_usageSnapshot_blockedWithoutBalanceDoesNotReportFullQuota() {
+        let snapshot = RovoDevUsageSnapshot(
+            status: "USER_BLOCKED",
+            balance: RovoDevBalance(
+                dailyTotal: nil,
+                dailyRemaining: nil,
+                dailyUsed: nil,
+                monthlyTotal: nil,
+                monthlyRemaining: nil,
+                monthlyUsed: nil),
+            message: "Access blocked",
+            accountEmail: "user@example.com",
+            updatedAt: Date())
+
+        let usage = snapshot.toUsageSnapshot()
+        XCTAssertNil(usage.primary)
+        XCTAssertEqual(usage.identity?.loginMethod, "Blocked")
+    }
+
     func test_costUsageScanner_returnsEmptyReport() {
         let now = Date()
         let report = CostUsageScanner.loadDailyReport(
