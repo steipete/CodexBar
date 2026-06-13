@@ -433,7 +433,7 @@
 "quota_warning_session_capitalized" = "Sessione";
 "quota_warning_weekly" = "settimanale";
 "quota_warning_weekly_capitalized" = "Settimanale";
-"quota_warning_notification_title" = "Quota %@ %1$@ quasi esaurita";
+"quota_warning_notification_title" = "Quota %2$@ di %1$@ quasi esaurita";
 "quota_warning_notification_body" = "Rimane %1$@. Hai raggiunto la soglia di avviso del %2$d%% per la quota %3$@.";
 "quota_warning_notification_body_with_account" = "Account %1$@. Rimane %2$@. Hai raggiunto la soglia di avviso del %3$d%% per la quota %4$@.";
 "session_depleted_notification_title" = "Sessione %@ esaurita";

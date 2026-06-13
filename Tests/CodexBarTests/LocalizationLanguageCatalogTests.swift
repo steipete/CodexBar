@@ -201,6 +201,13 @@ struct LocalizationLanguageCatalogTests {
             locale: Locale(identifier: "it_IT"),
             arguments: ["20%", 15, "settimanale"])
         #expect(warning == "Rimane 20%. Hai raggiunto la soglia di avviso del 15% per la quota settimanale.")
+
+        let titleFormat = try #require(italian["quota_warning_notification_title"])
+        let title = String(
+            format: titleFormat,
+            locale: Locale(identifier: "it_IT"),
+            arguments: ["Codex", "settimanale"])
+        #expect(title == "Quota settimanale di Codex quasi esaurita")
     }
 
     @Test
