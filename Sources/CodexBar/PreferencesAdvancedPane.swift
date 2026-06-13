@@ -20,6 +20,7 @@ struct AdvancedPane: View {
                             .font(.body)
                         Spacer()
                         KeyboardShortcuts.Recorder(for: .openMenu)
+                            .frame(width: 170)
                     }
                     Text(L("open_menu_shortcut_subtitle"))
                         .font(.footnote)
