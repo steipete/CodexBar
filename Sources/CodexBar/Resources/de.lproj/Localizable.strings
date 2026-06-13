@@ -412,6 +412,7 @@
 "language_turkish" = "Türkçe";
 "language_italian" = "Italiano";
 "language_indonesian" = "Indonesisch";
+"language_polish" = "Polnisch";
 "start_at_login_title" = "Beim Login starten";
 "start_at_login_subtitle" = "Startet CodexBar automatisch, wenn dein Mac hochfährt.";
 "show_cost_summary" = "Kostenübersicht anzeigen";

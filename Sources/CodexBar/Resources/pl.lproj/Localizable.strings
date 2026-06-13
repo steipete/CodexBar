@@ -99,6 +99,8 @@
 "Could not start codex login" = "Could not start codex login";
 "Could not switch system account" = "Could not switch system account";
 "Credits" = "Kredyty";
+"Individual credits" = "Kredyty indywidualne";
+"Workspace" = "Obszar roboczy";
 "Credits history" = "Credits history";
 "Cursor login failed" = "Cursor login failed";
 "Custom" = "Custom";
@@ -401,6 +403,7 @@
 "language_chinese_simplified" = "简体中文";
 "language_chinese_traditional" = "繁體中文";
 "language_portuguese_brazilian" = "Português (Brasil)";
+"language_german" = "Niemiecki";
 "language_swedish" = "Svenska";
 "language_french" = "Francuski";
 "language_dutch" = "Niderlandzki";
@@ -408,6 +411,8 @@
 "language_vietnamese" = "Wietnamski";
 "language_polish" = "Polski";
 "language_japanese" = "Japoński";
+"language_korean" = "Koreański";
+"language_turkish" = "Turecki";
 "start_at_login_title" = "Uruchamiaj przy logowaniu";
 "start_at_login_subtitle" = "Automatycznie uruchamia CodexBar podczas startu Maca.";
 "show_cost_summary" = "Pokaż podsumowanie kosztów";
@@ -626,9 +631,11 @@
 "display_mode_percent" = "Percent";
 "display_mode_pace" = "Pace";
 "display_mode_both" = "Both";
+"display_mode_reset_time" = "Godzina resetu";
 "display_mode_percent_desc" = "Show remaining/used percentage (e.g. 45%)";
 "display_mode_pace_desc" = "Show pace indicator (e.g. +5%)";
 "display_mode_both_desc" = "Show both percentage and pace (e.g. 45% · +5%)";
+"display_mode_reset_time_desc" = "Pokaż godzinę resetu dla wybranej metryki (np. ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Operacyjne";

@@ -412,6 +412,7 @@
 "language_turkish" = "Türkçe";
 "language_italian" = "Italiano";
 "language_indonesian" = "Endonezce";
+"language_polish" = "Lehçe";
 "start_at_login_title" = "Girişte Başlat";
 "start_at_login_subtitle" = "Mac'inizi başlattığınızda CodexBar'ı otomatik olarak açar.";
 "show_cost_summary" = "Maliyet özetini göster";
