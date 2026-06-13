@@ -288,13 +288,22 @@ extension StatusItemController {
     }
 
     /// 统一构造一个临时 NSMenuItem 传递 representedObject，再对无参/带参 selector 分别分发。
-    /// quit 不关闭 popover（应用即将退出）；其余动作执行后关闭。
+    /// Refresh stays open so updated data can render in place; quit exits the app.
     func performMenuAction(_ action: MenuDescriptor.MenuAction) {
         self.performLegacyMenuAction(action)
-        if action != .quit {
+        if Self.shouldClosePopover(after: action) {
             // 与 NSMenu 选中动作后菜单关闭对齐：合并与全部 per-provider popover 一并关闭，
             // 避免 split 模式下动作执行后面板滞留。
             self.closeAllProviderPopovers()
+        }
+    }
+
+    static func shouldClosePopover(after action: MenuDescriptor.MenuAction) -> Bool {
+        switch action {
+        case .refresh, .quit:
+            false
+        default:
+            true
         }
     }
 
@@ -324,6 +333,10 @@ extension StatusItemController {
     ///   仅单卡片路径（分支 4）保留 popoverCanShowBuyCredits 计算。
     func popoverCardPlan(for provider: UsageProvider) -> PopoverCardPlan {
         var plan = PopoverCardPlan()
+        plan.storageText = self.store.storageFootprintText(for: provider)
+        if self.store.storageFootprint(for: provider)?.components.isEmpty == false {
+            plan.storageChart = .storageBreakdown(provider)
+        }
 
         // ── 1. Codex stacked ──
         if let codexDisplay = self.codexAccountMenuDisplay(for: provider), codexDisplay.showAll {
@@ -357,7 +370,6 @@ extension StatusItemController {
             }
             // stacked 路径：cards 为空时 fallback 到单卡片，与 NSMenu addStackedCodexMenuCards:49-56 对齐
             self.applyStackedFallback(to: &plan, provider: provider)
-            plan.storageText = self.store.storageFootprintText(for: provider)
             // stacked 路径不显示 Buy Credits，与 NSMenu stacked 路径 return false 早退一致
             plan.showBuyCredits = false
             return plan
@@ -380,7 +392,6 @@ extension StatusItemController {
             plan.cards = cards
             // stacked 路径：cards 为空时 fallback 到单卡片，与 NSMenu addStackedMenuCards:716-722 对齐
             self.applyStackedFallback(to: &plan, provider: provider)
-            plan.storageText = self.store.storageFootprintText(for: provider)
             // stacked 路径不显示 Buy Credits，与 NSMenu stacked 路径 return false 早退一致
             plan.showBuyCredits = false
             return plan
@@ -401,7 +412,6 @@ extension StatusItemController {
             plan.cards = cards
             // stacked 路径：cards 为空时 fallback 到单卡片，与 NSMenu addStackedMenuCards:716-722 对齐
             self.applyStackedFallback(to: &plan, provider: provider)
-            plan.storageText = self.store.storageFootprintText(for: provider)
             // stacked 路径不显示 Buy Credits，与 NSMenu stacked 路径 return false 早退一致
             plan.showBuyCredits = false
             return plan
@@ -420,7 +430,6 @@ extension StatusItemController {
         } else {
             plan.emptyText = "Loading…"
         }
-        plan.storageText = self.store.storageFootprintText(for: provider)
         return plan
     }
 

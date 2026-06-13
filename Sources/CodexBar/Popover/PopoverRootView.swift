@@ -319,11 +319,16 @@ struct PopoverRootView: View {
                 }
                 if let storageText = plan.storageText {
                     Divider()
-                    StorageMenuCardSectionView(
-                        storageText: storageText,
-                        topPadding: 6,
-                        bottomPadding: 6,
-                        width: Self.menuWidth)
+                    ChartSectionContainer(
+                        chart: plan.storageChart,
+                        makeChartView: self.makeChartView,
+                        content: {
+                            StorageMenuCardSectionView(
+                                storageText: storageText,
+                                topPadding: 6,
+                                bottomPadding: 6,
+                                width: Self.menuWidth)
+                        })
                 }
                 if plan.showBuyCredits {
                     Divider()

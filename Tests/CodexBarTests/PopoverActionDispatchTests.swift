@@ -35,6 +35,18 @@ struct PopoverActionSectionsViewTests {
     func `shortcutLabel returns nil for installUpdate`() {
         #expect(PopoverActionSectionsView.shortcutLabel(for: .installUpdate) == nil)
     }
+
+    @MainActor
+    @Test
+    func refreshKeepsPopoverOpen() {
+        #expect(StatusItemController.shouldClosePopover(after: .refresh) == false)
+    }
+
+    @MainActor
+    @Test
+    func navigationActionClosesPopover() {
+        #expect(StatusItemController.shouldClosePopover(after: .settings) == true)
+    }
 }
 
 // MARK: - MenuDescriptor.build 底部 metaSection 契约测试

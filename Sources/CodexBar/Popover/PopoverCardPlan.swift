@@ -35,6 +35,7 @@ struct PopoverCardPlan {
 
     var cards: [Card] = []
     var storageText: String?
+    var storageChart: PopoverChartKind?
     var showBuyCredits = false
     var emptyText: String? // 无任何卡片时的占位文案
 }

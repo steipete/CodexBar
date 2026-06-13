@@ -15,6 +15,7 @@ struct PopoverCardPlanTests {
         let plan = PopoverCardPlan()
         #expect(plan.cards.isEmpty)
         #expect(plan.storageText == nil)
+        #expect(plan.storageChart == nil)
         #expect(plan.showBuyCredits == false)
         #expect(plan.emptyText == nil)
     }
@@ -39,6 +40,27 @@ struct PopoverCardPlanTests {
         var plan = PopoverCardPlan()
         plan.storageText = "1.2 GB"
         #expect(plan.storageText == "1.2 GB")
+    }
+
+    @MainActor
+    @Test
+    func wholeCardStorageIncludesBreakdownChart() throws {
+        let (controller, settings) = try makeMinimalController()
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.providerStorageFootprintsEnabled = true
+        controller.store.providerStorageFootprints[.claude] = ProviderStorageFootprint(
+            provider: .claude,
+            totalBytes: 1024,
+            paths: ["/tmp/claude"],
+            missingPaths: [],
+            unreadablePaths: [],
+            components: [.init(path: "/tmp/claude/cache", totalBytes: 1024)],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let plan = controller.popoverCardPlan(for: .claude)
+
+        #expect(plan.storageText != nil)
+        #expect(plan.storageChart == .storageBreakdown(.claude))
     }
 
     // MARK: 2. Card Identifiable id 稳定性
