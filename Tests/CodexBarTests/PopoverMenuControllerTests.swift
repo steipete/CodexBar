@@ -4,30 +4,31 @@ import Testing
 @testable import CodexBar
 
 @MainActor @Suite struct PopoverMenuControllerTests {
-    @Test func showAndCloseUpdatesViewModelVisibility() throws {
+    @Test(arguments: [
+        (visibleHeight: CGFloat(300), expectedMaximumHeight: CGFloat(320)),
+        (visibleHeight: CGFloat(600), expectedMaximumHeight: CGFloat(491)),
+        (visibleHeight: CGFloat(1000), expectedMaximumHeight: CGFloat(720)),
+    ])
+    func showPreparationUpdatesViewModel(
+        visibleHeight: CGFloat,
+        expectedMaximumHeight: CGFloat)
+    {
         let vm = MenuViewModel()
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let button = try #require(statusItem.button)
         let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
-        controller.show(relativeTo: button)
+        controller.prepareForShowForTesting(visibleHeight: visibleHeight)
         #expect(vm.isVisible == true)
-        #expect(vm.maximumPopoverHeight >= 320)
-        #expect(vm.maximumPopoverHeight <= 720)
+        #expect(vm.maximumPopoverHeight == expectedMaximumHeight)
         controller.close()
         #expect(vm.isVisible == false)
-        NSStatusBar.system.removeStatusItem(statusItem)
     }
 
-    @Test func escapeKeyClosesPopover() throws {
+    @Test func escapeKeyClosesPopover() {
         let vm = MenuViewModel()
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let button = try #require(statusItem.button)
         let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
-        controller.show(relativeTo: button)
+        controller.prepareForShowForTesting(visibleHeight: 600)
         let handled = controller.handleKeyDownForTesting(keyCode: 53) // Esc
         #expect(handled == true)
         #expect(vm.isVisible == false)
-        NSStatusBar.system.removeStatusItem(statusItem)
     }
 
     @Test func nonEscapeKeyNotHandled() {
@@ -88,18 +89,14 @@ import Testing
 
     // MARK: - #1 transient 双触发防抖
 
-    @Test func toggleAfterCloseIsSuppressedWithinSameRunloop() throws {
+    @Test func toggleAfterCloseIsSuppressedWithinSameRunloop() {
         let vm = MenuViewModel()
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let button = try #require(statusItem.button)
         let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
-        controller.show(relativeTo: button)
+        controller.prepareForShowForTesting(visibleHeight: 600)
         #expect(vm.isVisible == true)
         controller.simulatePopoverDidCloseForTesting() // 模拟 transient 外部点击关闭
         #expect(vm.isVisible == false)
-        controller.toggle(relativeTo: button) // 紧随的 button.action：应被吞掉，不重开
-        #expect(vm.isVisible == false)
-        NSStatusBar.system.removeStatusItem(statusItem)
+        #expect(controller.canOpenFromToggleForTesting() == false)
     }
 }
 

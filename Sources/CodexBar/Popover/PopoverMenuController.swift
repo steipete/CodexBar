@@ -68,8 +68,7 @@ final class PopoverMenuController<Content: View> {
     func show(relativeTo button: NSStatusBarButton) {
         guard !self.popover.isShown else { return }
         let visibleHeight = button.window?.screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? 900
-        self.viewModel.maximumPopoverHeight = min(720, max(320, floor(visibleHeight * 0.82)))
-        self.viewModel.setVisible(true)
+        self.prepareForShow(visibleHeight: visibleHeight)
         self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         self.popover.contentViewController?.view.window?.makeKey()
         self.installKeyMonitor()
@@ -88,8 +87,17 @@ final class PopoverMenuController<Content: View> {
             return
         }
         // 刚因 transient 点击关闭时吞掉这次重开，避免闪烁
-        if self.suppressNextToggleOpen { return }
+        guard self.canOpenFromToggle() else { return }
         self.show(relativeTo: button)
+    }
+
+    private func prepareForShow(visibleHeight: CGFloat) {
+        self.viewModel.maximumPopoverHeight = min(720, max(320, floor(visibleHeight * 0.82)))
+        self.viewModel.setVisible(true)
+    }
+
+    private func canOpenFromToggle() -> Bool {
+        !self.suppressNextToggleOpen
     }
 
     // MARK: - 关闭统一清理（delegate 回调 + close() 共用）
@@ -107,6 +115,14 @@ final class PopoverMenuController<Content: View> {
     /// 测试接缝：模拟 transient 外部点击关闭（驱动 handleDidClose），绕过真实 NSPopover。
     func simulatePopoverDidCloseForTesting() {
         self.handleDidClose()
+    }
+
+    func prepareForShowForTesting(visibleHeight: CGFloat) {
+        self.prepareForShow(visibleHeight: visibleHeight)
+    }
+
+    func canOpenFromToggleForTesting() -> Bool {
+        self.canOpenFromToggle()
     }
 
     // MARK: - 键盘 monitor
