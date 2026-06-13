@@ -8,7 +8,7 @@
 - Menu bar: avoid starting a duplicate background provider refresh when the menu closes while its initial missing-data refresh is still in flight.
 - Menu bar: rebuild merged provider content inside AppKit's active tracking run loop so provider switches no longer wait for the menu to close or the default run loop to resume.
 - Diagnostics: enforce probe timeouts even when an underlying provider operation ignores Swift task cancellation.
-- Release: let `package_app.sh` own the single release build pass during signing/notarization, avoiding a redundant pre-build that could churn SwiftPM outputs before packaging.
+- Release: let `package_app.sh` own the single release build pass during signing/notarization, avoiding a redundant pre-build that could churn SwiftPM outputs before packaging. Thanks @ProspectOre!
 - Kimi: add usage fetching from the official Code API key flow, with optional compatible HTTPS proxy support (#1424). Thanks @kiranmagic7!
 - Menu bar: keep the selected quota percentage visible in Pace mode when pace is temporarily unavailable instead of collapsing to an icon-only status item (fixes #1462).
 - Menu bar: restore native macOS positioning for merged provider dropdowns while preparing current content before AppKit lays out the menu.
