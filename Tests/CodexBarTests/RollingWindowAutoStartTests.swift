@@ -113,7 +113,7 @@ struct RollingWindowAutoStartTests {
         #expect(command.arguments.contains("--skip-git-repo-check"))
         #expect(command.arguments.contains("gpt-5.4-mini"))
         #expect(command.arguments.contains("model_reasoning_effort=low"))
-        #expect(command.arguments.last == "hi")
+        #expect(command.arguments.last == "Say hi, then stop.")
     }
 
     @Test

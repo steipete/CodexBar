@@ -108,7 +108,7 @@ struct SubprocessRollingWindowPingRunner: RollingWindowPingRunning {
 }
 
 enum RollingWindowPingStarter {
-    static let defaultPrompt = "hi"
+    static let defaultPrompt = "Say hi, then stop."
     static let defaultTimeout: TimeInterval = 90
 
     /// Builds a tiny provider CLI prompt from environment overrides.
