@@ -28,15 +28,15 @@ private func isRunningTestsProcess() -> Bool {
     isRunningTestsProcessAtStartup
 }
 
-private let standardAppLanguageAtProcessStart = UserDefaults.standard.string(forKey: "appLanguage")
-
 private func resolvedAppLanguage() -> String {
     if let override = CodexBarLocalizationOverride.appLanguage {
         return override
     }
     if isRunningTestsProcess() {
-        let current = UserDefaults.standard.string(forKey: "appLanguage")
-        return current == standardAppLanguageAtProcessStart ? "en" : current ?? ""
+        if let current = UserDefaults.standard.string(forKey: "appLanguage"), !current.isEmpty {
+            return current
+        }
+        return "en"
     }
     return appLanguageDefaults().string(forKey: "appLanguage") ?? ""
 }
