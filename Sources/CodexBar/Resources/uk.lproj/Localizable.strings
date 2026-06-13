@@ -503,7 +503,7 @@
 "show_quota_warning_markers_title" = "Показати маркери попередження про квоти";
 "show_quota_warning_markers_subtitle" = "Малюйте порогові позначки на панелях використання, коли налаштовано попередження про квоту.";
 "weekly_progress_work_days_title" = "Щотижневі робочі дні";
-"weekly_progress_work_days_subtitle" = "Позначте межі дня на смугах тижневого використання.";
+"weekly_progress_work_days_subtitle" = "Задайте робочі дні для позначок на смугах тижневого використання та розрахунків темпу.";
 "show_reset_time_as_clock_title" = "Показувати час скидання як годинник";
 "show_reset_time_as_clock_subtitle" = "Відображення часу скидання як абсолютних значень годинника замість зворотного відліку.";
 "show_provider_changelog_links_title" = "Показати посилання журналу змін провайдера";

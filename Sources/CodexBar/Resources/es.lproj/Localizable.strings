@@ -491,6 +491,8 @@
 "show_usage_as_used_subtitle" = "Las barras de progreso se llenan a medida que consumes la cuota (en lugar de mostrar lo restante).";
 "show_quota_warning_markers_title" = "Mostrar marcadores de aviso de cuota";
 "show_quota_warning_markers_subtitle" = "Dibuja marcas de umbral en las barras de uso cuando hay avisos de cuota configurados.";
+"weekly_progress_work_days_title" = "Días laborables del progreso semanal";
+"weekly_progress_work_days_subtitle" = "Define los días laborables para los marcadores de las barras de uso semanal y los cálculos de ritmo.";
 "show_reset_time_as_clock_title" = "Mostrar la hora de reinicio como reloj";
 "show_reset_time_as_clock_subtitle" = "Mostrar las horas de reinicio como valores de reloj absolutos en lugar de cuentas atrás.";
 "show_provider_changelog_links_title" = "Mostrar enlaces al registro de cambios del proveedor";

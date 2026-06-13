@@ -4,6 +4,17 @@ import Foundation
 import os.lock
 import SweetCookieKit
 
+enum BrowserCookieStoreAccessDecision: Equatable {
+    case allowed
+    case suppressed
+}
+
+struct BrowserCookieStoreAccessSuppressedError: LocalizedError {
+    var errorDescription: String? {
+        "Browser cookie store access is suppressed for this process."
+    }
+}
+
 public enum BrowserCookieAccessGate {
     private struct State {
         var loaded = false
@@ -15,15 +26,22 @@ public enum BrowserCookieAccessGate {
     private static let cooldownInterval: TimeInterval = 60 * 60 * 6
     private static let log = CodexBarLog.logger(LogCategories.browserCookieGate)
 
-    static func allowsCookieStoreAccess(homeDirectories: [URL]) -> Bool {
-        guard self.isRunningUnderTests,
-              ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_BROWSER_COOKIE_ACCESS"] != "1"
+    static let allowTestCookieAccessEnvironmentKey = "CODEXBAR_ALLOW_TEST_BROWSER_COOKIE_ACCESS"
+
+    static func cookieStoreAccessDecision(
+        homeDirectories: [URL],
+        processName: String = ProcessInfo.processInfo.processName,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> BrowserCookieStoreAccessDecision
+    {
+        guard self.isRunningUnderTests(processName: processName, environment: environment),
+              environment[self.allowTestCookieAccessEnvironmentKey] != "1"
         else {
-            return true
+            return .allowed
         }
 
         let defaultHomes = Set(BrowserCookieClient.defaultHomeDirectories().map(Self.normalizedPath))
-        return homeDirectories.allSatisfy { !defaultHomes.contains(Self.normalizedPath($0)) }
+        let usesDefaultHome = homeDirectories.contains { defaultHomes.contains(Self.normalizedPath($0)) }
+        return usesDefaultHome ? .suppressed : .allowed
     }
 
     public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
@@ -108,10 +126,11 @@ public enum BrowserCookieAccessGate {
 
     private static let safeStorageLabels: [(service: String, account: String)] = Browser.safeStorageLabels
 
-    private static var isRunningUnderTests: Bool {
-        let processName = ProcessInfo.processInfo.processName
-        let environment = ProcessInfo.processInfo.environment
-        return processName == "swiftpm-testing-helper"
+    private static func isRunningUnderTests(
+        processName: String,
+        environment: [String: String]) -> Bool
+    {
+        processName == "swiftpm-testing-helper"
             || processName.hasSuffix("PackageTests")
             || environment["XCTestConfigurationFilePath"] != nil
             || environment["SWIFT_TESTING"] != nil
@@ -137,14 +156,25 @@ public enum BrowserCookieAccessGate {
 }
 
 extension BrowserCookieClient {
+    public func codexBarStores(for browser: Browser) throws -> [BrowserCookieStore] {
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(
+            homeDirectories: self.configuration.homeDirectories) == .allowed
+        else {
+            throw BrowserCookieStoreAccessSuppressedError()
+        }
+        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
+        return self.stores(for: browser)
+    }
+
     public func codexBarRecords(
         matching query: BrowserCookieQuery,
         in browser: Browser,
         logger: ((String) -> Void)? = nil) throws -> [BrowserCookieStoreRecords]
     {
-        guard BrowserCookieAccessGate.allowsCookieStoreAccess(homeDirectories: self.configuration.homeDirectories)
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(
+            homeDirectories: self.configuration.homeDirectories) == .allowed
         else {
-            return []
+            throw BrowserCookieStoreAccessSuppressedError()
         }
         guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
         return try self.records(matching: query, in: browser, logger: logger)

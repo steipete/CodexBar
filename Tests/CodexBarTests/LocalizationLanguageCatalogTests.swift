@@ -64,6 +64,30 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `localized catalogs include workday pace setting copy`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(
+            at: resourcesURL,
+            includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+
+        for catalogURL in catalogs {
+            let stringsURL = catalogURL.appendingPathComponent("Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: stringsURL) as? [String: String])
+            let title = catalog["weekly_progress_work_days_title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subtitle = catalog["weekly_progress_work_days_subtitle"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            #expect(title?.isEmpty == false, "Missing workday title in \(catalogURL.lastPathComponent)")
+            #expect(subtitle?.isEmpty == false, "Missing workday subtitle in \(catalogURL.lastPathComponent)")
+        }
+    }
+
+    @Test
     func `ukrainian localization bundle exists and contains key UI labels`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

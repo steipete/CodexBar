@@ -846,7 +846,7 @@
 "Cleanup ideas" = "清理建议";
 "%d unreadable item(s) skipped" = "已跳过 %d 个不可读项目";
 "weekly_progress_work_days_title" = "工作日刻度线";
-"weekly_progress_work_days_subtitle" = "在每周用量条上显示按天分隔的刻度线。";
+"weekly_progress_work_days_subtitle" = "设置用于每周用量条刻度和进度计算的工作日。";
 "copilot_device_code" = "设备代码已复制到剪贴板：%1$@\n\n请在以下地址验证：%2$@";
 "copilot_waiting_text" = "请在浏览器中完成登录。\n登录完成后，此窗口会自动关闭。";
 "vertex_ai_login_instructions" = "要跟踪 Vertex AI 用量，请通过 Google Cloud 进行认证。\n\n1. 打开终端\n2. 运行：gcloud auth application-default login\n3. 按照浏览器提示登录\n4. 设置你的项目：gcloud config set project PROJECT_ID\n\n是否现在打开终端？";

@@ -184,6 +184,22 @@ extension UsageMenuCardView.Model {
             paceOnTop: paceOnTop)
     }
 
+    static func standardWeeklyPace(input: Input, window: RateWindow) -> UsagePace? {
+        if let weeklyPace = input.weeklyPace {
+            return weeklyPace
+        }
+        return Self.displayableWeeklyPace(UsagePace.weekly(
+            window: window,
+            now: input.now,
+            defaultWindowMinutes: 10080,
+            workDays: input.workDaysPerWeek))
+    }
+
+    private static func displayableWeeklyPace(_ pace: UsagePace?) -> UsagePace? {
+        guard let pace else { return nil }
+        return pace.expectedUsedPercent >= 3 || pace.etaSeconds == 0 ? pace : nil
+    }
+
     static func cursorBillingCyclePaceDetail(
         window: RateWindow,
         input: Input,
@@ -192,10 +208,12 @@ extension UsageMenuCardView.Model {
         guard input.provider == .cursor,
               window.windowMinutes != nil
         else { return nil }
-        let resolved = pace ?? UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080)
-        guard let resolved,
-              resolved.expectedUsedPercent >= 3
-        else { return nil }
+        let resolved = pace ?? UsagePace.weekly(
+            window: window,
+            now: input.now,
+            defaultWindowMinutes: 10080,
+            workDays: input.workDaysPerWeek)
+        guard let resolved = Self.displayableWeeklyPace(resolved) else { return nil }
         return Self.weeklyPaceDetail(
             window: window,
             now: input.now,
@@ -296,8 +314,11 @@ extension UsageMenuCardView.Model {
                 now: input.now,
                 showUsed: input.usageBarsShowUsed)
         case 10080:
-            let pace = UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080)
-                .flatMap { $0.expectedUsedPercent >= 3 ? $0 : nil }
+            let pace = Self.displayableWeeklyPace(UsagePace.weekly(
+                window: window,
+                now: input.now,
+                defaultWindowMinutes: 10080,
+                workDays: input.workDaysPerWeek))
             return Self.weeklyPaceDetail(
                 window: window,
                 now: input.now,

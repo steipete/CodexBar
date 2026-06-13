@@ -187,7 +187,7 @@ public enum AlibabaCodingPlanCookieImporter {
     }
 }
 
-private enum AlibabaChromiumCookieFallbackImporter {
+enum AlibabaChromiumCookieFallbackImporter {
     private struct ChromiumCookieRecord {
         let domain: String
         let name: String
@@ -217,9 +217,10 @@ private enum AlibabaChromiumCookieFallbackImporter {
     static func importSession(
         browser: Browser,
         domains: [String],
+        cookieClient: BrowserCookieClient = BrowserCookieClient(),
         logger: ((String) -> Void)? = nil) throws -> AlibabaCodingPlanCookieImporter.SessionInfo?
     {
-        let stores = BrowserCookieClient().stores(for: browser).filter { $0.databaseURL != nil }
+        let stores = try cookieClient.codexBarStores(for: browser).filter { $0.databaseURL != nil }
         guard !stores.isEmpty else { return nil }
 
         logger?("[alibaba-cookie] Trying \(browser.displayName) Chromium fallback")

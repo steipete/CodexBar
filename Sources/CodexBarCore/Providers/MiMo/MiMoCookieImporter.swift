@@ -133,7 +133,7 @@ public enum MiMoCookieImporter {
             browserDetection: browserDetection,
             logger: logger,
             loadRecords: { browserSource, query, log in
-                try Self.cookieClient.records(
+                try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)
