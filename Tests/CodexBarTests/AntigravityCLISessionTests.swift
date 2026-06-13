@@ -658,7 +658,8 @@ struct AntigravityCLISessionTests {
           echo closed >> \(outputURL.path)
         fi
         """
-        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        // Direct writes close the executable before spawn; atomic replacement can race with exec on Linux.
+        try Data(script.utf8).write(to: scriptURL)
         #expect(chmod(scriptURL.path, 0o700) == 0)
 
         let handle = try AntigravityPTYProcessLauncher().launch(binary: scriptURL.path)
