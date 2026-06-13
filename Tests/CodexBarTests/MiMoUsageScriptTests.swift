@@ -5,15 +5,99 @@ import Testing
 struct MiMoUsageScriptTests {
     @Test
     func `script keeps final cumulative streaming usage`() throws {
-        try self.assertFinalStreamingUsage(includeRequestID: true)
+        let rows = [
+            self.assistantRow(outputTokens: 10),
+            self.assistantRow(outputTokens: 40),
+            self.assistantRow(outputTokens: 90),
+        ]
+        let allTime = try self.runScript(files: ["session.jsonl": rows])
+
+        self.assertUsage(
+            allTime,
+            expected: .init(input: 120, cacheCreate: 10, cacheRead: 5, output: 90, messages: 1))
     }
 
     @Test
-    func `script deduplicates streaming usage without request id`() throws {
-        try self.assertFinalStreamingUsage(includeRequestID: false)
+    func `script keeps final cumulative streaming usage without session id`() throws {
+        let rows = [
+            self.assistantRow(outputTokens: 10, sessionID: nil),
+            self.assistantRow(outputTokens: 40, sessionID: nil),
+            self.assistantRow(outputTokens: 90, sessionID: nil),
+        ]
+        let allTime = try self.runScript(files: ["session.jsonl": rows])
+
+        self.assertUsage(
+            allTime,
+            expected: .init(input: 120, cacheCreate: 10, cacheRead: 5, output: 90, messages: 1))
     }
 
-    private func assertFinalStreamingUsage(includeRequestID: Bool) throws {
+    @Test
+    func `script keeps final cumulative usage without request id`() throws {
+        let rows = [
+            self.assistantRow(outputTokens: 10, requestID: nil),
+            self.assistantRow(outputTokens: 40, requestID: nil),
+            self.assistantRow(outputTokens: 90, requestID: nil),
+        ]
+        let allTime = try self.runScript(files: ["session.jsonl": rows])
+
+        self.assertUsage(
+            allTime,
+            expected: .init(input: 120, cacheCreate: 10, cacheRead: 5, output: 90, messages: 1))
+    }
+
+    @Test
+    func `script counts rows without session identity conservatively`() throws {
+        let rows = [
+            self.assistantRow(outputTokens: 10, sessionID: nil, requestID: nil),
+            self.assistantRow(outputTokens: 40, sessionID: nil, requestID: nil),
+            self.assistantRow(outputTokens: 90, sessionID: nil, requestID: nil),
+        ]
+        let allTime = try self.runScript(files: ["session.jsonl": rows])
+
+        self.assertUsage(
+            allTime,
+            expected: .init(input: 360, cacheCreate: 30, cacheRead: 15, output: 140, messages: 3))
+    }
+
+    @Test
+    func `script keeps distinct requests sharing a message id`() throws {
+        let rows = [
+            self.assistantRow(outputTokens: 40, requestID: "req_one"),
+            self.assistantRow(outputTokens: 90, requestID: "req_two"),
+        ]
+        let allTime = try self.runScript(files: ["session.jsonl": rows])
+
+        self.assertUsage(
+            allTime,
+            expected: .init(input: 240, cacheCreate: 20, cacheRead: 10, output: 130, messages: 2))
+    }
+
+    @Test
+    func `script deduplicates copied rows from the same session`() throws {
+        let rows = [self.assistantRow(outputTokens: 90)]
+        let allTime = try self.runScript(files: [
+            "session.jsonl": rows,
+            "session-copy.jsonl": rows,
+        ])
+
+        self.assertUsage(
+            allTime,
+            expected: .init(input: 120, cacheCreate: 10, cacheRead: 5, output: 90, messages: 1))
+    }
+
+    @Test
+    func `script deduplicates copied requests from different sessions`() throws {
+        let allTime = try self.runScript(files: [
+            "session-a.jsonl": [self.assistantRow(outputTokens: 90, sessionID: "session_a")],
+            "session-b.jsonl": [self.assistantRow(outputTokens: 90, sessionID: "session_b")],
+        ])
+
+        self.assertUsage(
+            allTime,
+            expected: .init(input: 120, cacheCreate: 10, cacheRead: 5, output: 90, messages: 1))
+    }
+
+    private func runScript(files: [String: [[String: Any]]]) throws -> [String: Any] {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimo-usage-script-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -25,18 +109,14 @@ struct MiMoUsageScriptTests {
             .appendingPathComponent("project-a")
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
 
-        let now = ISO8601DateFormatter().string(from: Date())
-        let rows = [
-            self.assistantRow(timestamp: now, outputTokens: 10, includeRequestID: includeRequestID),
-            self.assistantRow(timestamp: now, outputTokens: 40, includeRequestID: includeRequestID),
-            self.assistantRow(timestamp: now, outputTokens: 90, includeRequestID: includeRequestID),
-        ]
-        let session = projects.appendingPathComponent("session.jsonl")
-        let jsonl = try rows
-            .map { try JSONSerialization.data(withJSONObject: $0) }
-            .map { try #require(String(bytes: $0, encoding: .utf8)) }
-            .joined(separator: "\n")
-        try jsonl.write(to: session, atomically: true, encoding: .utf8)
+        for (name, rows) in files {
+            let session = projects.appendingPathComponent(name)
+            let jsonl = try rows
+                .map { try JSONSerialization.data(withJSONObject: $0) }
+                .map { try #require(String(bytes: $0, encoding: .utf8)) }
+                .joined(separator: "\n")
+            try jsonl.write(to: session, atomically: true, encoding: .utf8)
+        }
 
         let cache = root.appendingPathComponent("usage.json")
         let process = Process()
@@ -60,12 +140,15 @@ struct MiMoUsageScriptTests {
         let payload = try #require(
             JSONSerialization.jsonObject(with: Data(contentsOf: cache)) as? [String: Any])
         let windows = try #require(payload["windows"] as? [String: Any])
-        let allTime = try #require(windows["all_time"] as? [String: Any])
-        #expect(allTime["input"] as? Int == 120)
-        #expect(allTime["cache_create"] as? Int == 10)
-        #expect(allTime["cache_read"] as? Int == 5)
-        #expect(allTime["output"] as? Int == 90)
-        #expect(allTime["messages"] as? Int == 1)
+        return try #require(windows["all_time"] as? [String: Any])
+    }
+
+    private func assertUsage(_ allTime: [String: Any], expected: UsageExpectation) {
+        #expect(allTime["input"] as? Int == expected.input)
+        #expect(allTime["cache_create"] as? Int == expected.cacheCreate)
+        #expect(allTime["cache_read"] as? Int == expected.cacheRead)
+        #expect(allTime["output"] as? Int == expected.output)
+        #expect(allTime["messages"] as? Int == expected.messages)
     }
 
     private var scriptURL: URL {
@@ -77,13 +160,13 @@ struct MiMoUsageScriptTests {
     }
 
     private func assistantRow(
-        timestamp: String,
         outputTokens: Int,
-        includeRequestID: Bool) -> [String: Any]
+        sessionID: String? = "session_stream",
+        requestID: String? = "req_stream") -> [String: Any]
     {
         var row: [String: Any] = [
             "type": "assistant",
-            "timestamp": timestamp,
+            "timestamp": ISO8601DateFormatter().string(from: Date()),
             "message": [
                 "id": "msg_stream",
                 "usage": [
@@ -94,9 +177,20 @@ struct MiMoUsageScriptTests {
                 ],
             ],
         ]
-        if includeRequestID {
-            row["requestId"] = "req_stream"
+        if let sessionID {
+            row["sessionId"] = sessionID
+        }
+        if let requestID {
+            row["requestId"] = requestID
         }
         return row
+    }
+
+    private struct UsageExpectation {
+        let input: Int
+        let cacheCreate: Int
+        let cacheRead: Int
+        let output: Int
+        let messages: Int
     }
 }

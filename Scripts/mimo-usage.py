@@ -42,10 +42,26 @@ def parse_session_usage(jsonl_path: Path):
                         continue
                     if not ts:
                         continue
+                    metadata = d.get("metadata")
+                    message_metadata = msg.get("metadata")
+                    session_id = d.get("sessionId") or d.get("session_id")
+                    if not session_id and isinstance(metadata, dict):
+                        session_id = metadata.get("sessionId")
+                    if not session_id and isinstance(message_metadata, dict):
+                        session_id = message_metadata.get("sessionId")
                     message_id = msg.get("id")
+                    request_id = d.get("requestId") or d.get("request_id")
                     identity = None
-                    if isinstance(message_id, str):
-                        identity = (str(jsonl_path), message_id)
+                    if all(isinstance(value, str) and value for value in (message_id, request_id)):
+                        identity = ("request", message_id, request_id)
+                    elif (
+                        request_id is None
+                        and isinstance(session_id, str)
+                        and session_id
+                        and isinstance(message_id, str)
+                        and message_id
+                    ):
+                        identity = ("legacy", session_id, message_id)
                     yield identity, ts, usage
                 except (json.JSONDecodeError, ValueError):
                     continue
