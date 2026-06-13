@@ -281,6 +281,52 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `scheduler forces refresh after ping when triggering refresh is still registered`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-uncoalesced")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = RecordingRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        var refreshCount = 0
+        store._test_providerRefreshOverride = { _ in
+            refreshCount += 1
+        }
+
+        let lingeringGeneration: UInt64 = 10
+        let lingeringState = ProviderRefreshTaskState(generation: lingeringGeneration)
+        lingeringState.install(task: Task {})
+        lingeringState.markCompleted(retryRequired: false)
+        store.providerRefreshTasks[.codex] = [lingeringState]
+        store.latestProviderRefreshGenerations[.codex] = lingeringGeneration
+        store.providerRefreshTaskGeneration = lingeringGeneration
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(-60),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            now: now)
+
+        try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
+        #expect(await runner.count == 1)
+        #expect(refreshCount == 1)
+        #expect(store.latestProviderRefreshGenerations[.codex] == lingeringGeneration + 1)
+    }
+
+    @Test
     func `scheduler routes codex ping through selected managed account environment`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-managed-codex-route")
         settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)

@@ -78,7 +78,7 @@ extension UsageStore {
                     environment: environment,
                     runner: runner)
                 self.rollingWindowAutoStartStatus[provider] = "Ping prompt sent."
-                await self.refreshProvider(provider, coalesceIfRefreshing: true)
+                await self.refreshProvider(provider)
                 let refreshedWindow = self.snapshots[provider].flatMap {
                     RollingWindowAutoStartSupport.rollingWindow(provider: provider, snapshot: $0)
                 }
