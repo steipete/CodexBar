@@ -92,6 +92,10 @@ struct PreferencesPaneSmokeTests {
 
     @Test
     func `german app language resolves localized labels`() {
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-language-de")
+        settings.appLanguage = "de"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "de")
         CodexBarLocalizationOverride.$appLanguage.withValue("de") {
             #expect(L("tab_general") == "Allgemein")
             #expect(L("language_title") == "Sprache")
@@ -105,6 +109,10 @@ struct PreferencesPaneSmokeTests {
 
     @Test
     func `italian language preference resolves italian strings`() {
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-language-italian")
+        settings.appLanguage = "it"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "it")
         CodexBarLocalizationOverride.$appLanguage.withValue("it") {
             #expect(L("language_title") == "Lingua")
             #expect(L("section_system") == "Sistema")
