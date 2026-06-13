@@ -970,13 +970,16 @@ extension StatusItemController {
         return menu
     }
 
-    /// Pins a status-bar menu to the system (app) appearance so it follows the user's Light/Dark
+    /// Pins a status-bar menu to the system appearance so it follows the user's Light/Dark
     /// setting. Without this, `NSStatusItem` dropdown menus inherit the *menu bar's* vibrant
     /// appearance, which macOS renders dark whenever a dark or strongly-colored window/wallpaper
     /// sits behind the menu bar — even when the system is in Light mode. Re-applied on every open
     /// so it stays correct if the user switches appearance while the app keeps the menu alive.
     func pinMenuToSystemAppearance(_ menu: NSMenu) {
-        let appearance = NSApp.effectiveAppearance
+        let name = Self.systemMenuAppearanceName(
+            interfaceStyle: UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
+        guard let appearance = NSAppearance(named: name) else { return }
         if menu.appearance?.name != appearance.name {
             menu.appearance = appearance
         }
@@ -985,6 +988,17 @@ extension StatusItemController {
                 self.pinMenuToSystemAppearance(submenu)
             }
         }
+    }
+
+    static func systemMenuAppearanceName(
+        interfaceStyle: String?,
+        increaseContrast: Bool) -> NSAppearance.Name
+    {
+        let isDark = interfaceStyle?.caseInsensitiveCompare("Dark") == .orderedSame
+        if increaseContrast {
+            return isDark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua
+        }
+        return isDark ? .darkAqua : .aqua
     }
 
     private func makeProviderSwitcherItem(

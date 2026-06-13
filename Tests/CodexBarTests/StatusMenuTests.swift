@@ -228,11 +228,14 @@ struct StatusMenuTests {
             statusBar: self.makeStatusBarForTesting())
         defer { controller.releaseStatusItemsForTesting() }
 
-        let expectedAppearance = NSApp.effectiveAppearance.name
+        let expectedAppearance = StatusItemController.systemMenuAppearanceName(
+            interfaceStyle: UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
         let menu = controller.makeMenu()
         #expect(menu.appearance?.name == expectedAppearance)
 
-        let staleAppearance: NSAppearance.Name = expectedAppearance == .darkAqua ? .aqua : .darkAqua
+        let isDark = expectedAppearance == .darkAqua || expectedAppearance == .accessibilityHighContrastDarkAqua
+        let staleAppearance: NSAppearance.Name = isDark ? .aqua : .darkAqua
         menu.appearance = NSAppearance(named: staleAppearance)
         let submenu = NSMenu()
         submenu.appearance = NSAppearance(named: staleAppearance)
@@ -243,6 +246,22 @@ struct StatusMenuTests {
         #expect(menu.appearance?.name == expectedAppearance)
         #expect(submenu.appearance?.name == expectedAppearance)
         controller.menuDidClose(menu)
+    }
+
+    @Test
+    func `system menu appearance follows global interface style and contrast`() {
+        #expect(StatusItemController.systemMenuAppearanceName(
+            interfaceStyle: nil,
+            increaseContrast: false) == .aqua)
+        #expect(StatusItemController.systemMenuAppearanceName(
+            interfaceStyle: "Dark",
+            increaseContrast: false) == .darkAqua)
+        #expect(StatusItemController.systemMenuAppearanceName(
+            interfaceStyle: nil,
+            increaseContrast: true) == .accessibilityHighContrastAqua)
+        #expect(StatusItemController.systemMenuAppearanceName(
+            interfaceStyle: "dark",
+            increaseContrast: true) == .accessibilityHighContrastDarkAqua)
     }
 
     @Test
