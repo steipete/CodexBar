@@ -42,6 +42,8 @@ struct RollingWindowAutoStartTests {
 
         let decision = RollingWindowAutoStartDecision.shouldStart(
             provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
             previous: previous,
             currentProviderData: current,
             now: now)
@@ -69,6 +71,8 @@ struct RollingWindowAutoStartTests {
 
         let decision = RollingWindowAutoStartDecision.shouldStart(
             provider: .codex,
+            previousSourceLabel: "oauth",
+            sourceLabel: "oauth",
             previous: previous,
             currentProviderData: current,
             now: now)
@@ -90,6 +94,8 @@ struct RollingWindowAutoStartTests {
 
         let decision = RollingWindowAutoStartDecision.shouldStart(
             provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
             previous: previous,
             currentProviderData: current,
             now: now)
@@ -98,8 +104,114 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `decision skips provider data from credentials that do not match the CLI`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(-60),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        #expect(RollingWindowAutoStartDecision.shouldStart(
+            provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "openai-web",
+            previous: previous,
+            currentProviderData: current,
+            now: now) == nil)
+        #expect(RollingWindowAutoStartDecision.shouldStart(
+            provider: .claude,
+            previousSourceLabel: "claude",
+            sourceLabel: "oauth",
+            previous: previous,
+            currentProviderData: current,
+            now: now) == nil)
+        #expect(RollingWindowAutoStartDecision.shouldStart(
+            provider: .claude,
+            previousSourceLabel: "web",
+            sourceLabel: "claude",
+            previous: previous,
+            currentProviderData: current,
+            now: now) == nil)
+    }
+
+    @Test
+    func `claude decision selects five hour window instead of weekly primary`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let weeklyReset = now.addingTimeInterval(6 * 24 * 60 * 60)
+        let expiredSessionReset = now.addingTimeInterval(-60)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 5 * 60,
+                resetsAt: expiredSessionReset,
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 5 * 60,
+                resetsAt: nil,
+                resetDescription: nil),
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .claude,
+            previousSourceLabel: "claude",
+            sourceLabel: "claude",
+            previous: previous,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision?.resetAt == expiredSessionReset)
+    }
+
+    @Test
+    func `claude decision skips weekly only snapshots`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(-60),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: nil,
+                resetDescription: nil),
+            updatedAt: now)
+
+        #expect(RollingWindowAutoStartDecision.shouldStart(
+            provider: .claude,
+            previousSourceLabel: "claude",
+            sourceLabel: "claude",
+            previous: previous,
+            currentProviderData: current,
+            now: now) == nil)
+    }
+
+    @Test
     func `only known prompt harness providers expose auto start support`() {
-        #expect(RollingWindowAutoStartSupport.providers == [.codex, .claude, .opencode])
+        #expect(RollingWindowAutoStartSupport.providers == [.codex, .claude])
+        #expect(RollingWindowPingStarter.command(provider: .opencode, environment: [:]) == nil)
         #expect(RollingWindowPingStarter.command(provider: .opencodego, environment: [:]) == nil)
         #expect(RollingWindowPingStarter.command(provider: .zai, environment: [:]) == nil)
     }
@@ -149,11 +261,15 @@ struct RollingWindowAutoStartTests {
 
         store.scheduleRollingWindowAutoStartIfNeeded(
             provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
             previousSnapshot: previous,
             currentProviderData: current,
             now: now)
         store.scheduleRollingWindowAutoStartIfNeeded(
             provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
             previousSnapshot: previous,
             currentProviderData: current,
             now: now)
@@ -203,6 +319,8 @@ struct RollingWindowAutoStartTests {
 
         store.scheduleRollingWindowAutoStartIfNeeded(
             provider: .codex,
+            previousSourceLabel: "oauth",
+            sourceLabel: "oauth",
             previousSnapshot: previous,
             currentProviderData: current,
             now: now)
@@ -238,6 +356,8 @@ struct RollingWindowAutoStartTests {
 
         store.scheduleRollingWindowAutoStartIfNeeded(
             provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
             previousSnapshot: previous,
             currentProviderData: current,
             now: now)
@@ -266,6 +386,8 @@ struct RollingWindowAutoStartTests {
 
         store.scheduleRollingWindowAutoStartIfNeeded(
             provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
             previousSnapshot: previous,
             currentProviderData: current,
             now: now)

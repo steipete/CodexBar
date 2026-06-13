@@ -13,6 +13,8 @@ extension UsageStore {
     @MainActor
     func scheduleRollingWindowAutoStartIfNeeded(
         provider: UsageProvider,
+        previousSourceLabel: String?,
+        sourceLabel: String?,
         previousSnapshot: UsageSnapshot?,
         currentProviderData: UsageSnapshot,
         now: Date = Date())
@@ -21,6 +23,8 @@ extension UsageStore {
               !self.rollingWindowAutoStartRuntime.inFlight.contains(provider),
               let decision = RollingWindowAutoStartDecision.shouldStart(
                   provider: provider,
+                  previousSourceLabel: previousSourceLabel,
+                  sourceLabel: sourceLabel,
                   previous: previousSnapshot,
                   currentProviderData: currentProviderData,
                   now: now)

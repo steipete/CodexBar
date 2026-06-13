@@ -263,7 +263,8 @@ extension UsageStore {
             {
                 return
             }
-            let refreshSnapshots = await MainActor.run { () -> (current: UsageSnapshot, previous: UsageSnapshot?)? in
+            let refreshSnapshots = await MainActor.run {
+                () -> (current: UsageSnapshot, previous: UsageSnapshot?, previousSourceLabel: String?)? in
                 guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else {
                     return nil
                 }
@@ -273,6 +274,7 @@ extension UsageStore {
                 let resetBackfillSource = provider == .codex
                     ? self.codexLastKnownResetSnapshot(matching: context.codexExpectedGuard)
                     : self.lastKnownResetSnapshots[provider]
+                let previousSourceLabel = resetBackfillSource == nil ? nil : self.lastSourceLabels[provider]
                 let backfilled = scoped.backfillingResetTimes(from: resetBackfillSource)
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
@@ -293,7 +295,7 @@ extension UsageStore {
                     self.rememberLiveSystemCodexEmailIfNeeded(scoped.accountEmail(for: .codex))
                     self.seedCodexAccountScopedRefreshGuard(accountEmail: scoped.accountEmail(for: .codex))
                 }
-                return (backfilled, resetBackfillSource)
+                return (backfilled, resetBackfillSource, previousSourceLabel)
             }
             guard let refreshSnapshots else { return }
             let backfilled = refreshSnapshots.current
@@ -306,6 +308,8 @@ extension UsageStore {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             self.scheduleRollingWindowAutoStartIfNeeded(
                 provider: provider,
+                previousSourceLabel: refreshSnapshots.previousSourceLabel,
+                sourceLabel: result.sourceLabel,
                 previousSnapshot: refreshSnapshots.previous,
                 currentProviderData: scoped)
             if let runtime = self.providerRuntimes[provider] {

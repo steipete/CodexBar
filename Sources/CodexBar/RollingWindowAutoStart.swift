@@ -6,7 +6,6 @@ enum RollingWindowAutoStartSupport {
     static let providers: Set<UsageProvider> = [
         .codex,
         .claude,
-        .opencode,
     ]
 
     @MainActor
@@ -23,10 +22,17 @@ enum RollingWindowAutoStartSupport {
             id: "\(context.provider.rawValue)-rolling-window-auto-start",
             title: "Auto-start rolling window",
             subtitle: "When a rolling window expires and provider data shows no active replacement, "
-                + "send a tiny prompt through the provider CLI.",
+                + "send a tiny prompt through matching provider CLI credentials.",
             binding: binding,
             statusText: {
-                context.store.rollingWindowAutoStartStatus[context.provider]
+                if binding.wrappedValue,
+                   !self.sourceSupportsAutoStart(
+                       provider: context.provider,
+                       sourceLabel: context.store.lastSourceLabels[context.provider])
+                {
+                    return "Waiting for usage from matching CLI credentials."
+                }
+                return context.store.rollingWindowAutoStartStatus[context.provider]
             },
             actions: [],
             isVisible: nil,
@@ -37,7 +43,26 @@ enum RollingWindowAutoStartSupport {
 
     static func rollingWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
         guard self.providers.contains(provider) else { return nil }
-        return snapshot.primary
+        switch provider {
+        case .claude:
+            return [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+                .compactMap(\.self)
+                .first { $0.windowMinutes == 5 * 60 }
+        default:
+            return snapshot.primary
+        }
+    }
+
+    static func sourceSupportsAutoStart(provider: UsageProvider, sourceLabel: String?) -> Bool {
+        let normalized = sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch provider {
+        case .codex:
+            return normalized == "codex-cli" || normalized == "oauth"
+        case .claude:
+            return normalized == "claude"
+        default:
+            return false
+        }
     }
 }
 
@@ -55,16 +80,23 @@ struct RollingWindowAutoStartDecision: Equatable {
 
     static func shouldStart(
         provider: UsageProvider,
+        previousSourceLabel: String?,
+        sourceLabel: String?,
         previous: UsageSnapshot?,
         currentProviderData: UsageSnapshot,
         now: Date = Date()) -> RollingWindowAutoStartDecision?
     {
-        guard RollingWindowAutoStartSupport.providers.contains(provider),
-              let previousWindow = previous.flatMap({ RollingWindowAutoStartSupport.rollingWindow(
-                  provider: provider,
-                  snapshot: $0) }),
-              let previousResetAt = previousWindow.resetsAt,
-              previousResetAt <= now
+        guard RollingWindowAutoStartSupport.sourceSupportsAutoStart(
+            provider: provider,
+            sourceLabel: previousSourceLabel),
+            RollingWindowAutoStartSupport.sourceSupportsAutoStart(
+                provider: provider,
+                sourceLabel: sourceLabel),
+            let previousWindow = previous.flatMap({ RollingWindowAutoStartSupport.rollingWindow(
+                provider: provider,
+                snapshot: $0) }),
+            let previousResetAt = previousWindow.resetsAt,
+            previousResetAt <= now
         else {
             return nil
         }
@@ -83,7 +115,7 @@ struct RollingWindowAutoStartDecision: Equatable {
     }
 }
 
-struct RollingWindowPingRequest: Sendable {
+struct RollingWindowPingRequest {
     let provider: UsageProvider
     let binary: String
     let arguments: [String]
@@ -179,14 +211,6 @@ enum RollingWindowPingStarter {
                 binary: binary,
                 executable: "claude",
                 arguments: ["-p", "--no-session-persistence", "--model", model, prompt],
-                timeout: timeout)
-        case .opencode:
-            let model = self.value(environment: environment, key: self.envKey(provider: provider, suffix: "MODEL"))
-                ?? "anthropic/claude-3-5-haiku-latest"
-            return self.command(
-                binary: binary,
-                executable: "opencode",
-                arguments: ["run", "--model", model, "--variant", "minimal", prompt],
                 timeout: timeout)
         default:
             return nil

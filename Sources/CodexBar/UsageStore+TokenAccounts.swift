@@ -1172,7 +1172,8 @@ extension UsageStore {
         switch outcome.result {
         case .success:
             guard let snapshot else { return }
-            let previousSnapshot = self.lastKnownResetSnapshots[.codex]
+            let previousSnapshot = self.codexLastKnownResetSnapshot(for: account)
+            let previousSourceLabel = previousSnapshot == nil ? nil : self.lastSourceLabels[.codex]
             self.handleSessionQuotaTransition(provider: .codex, snapshot: snapshot)
             self.lastKnownResetSnapshots[.codex] = snapshot
             self.lastCodexAccountScopedRefreshGuard = Self.codexScopedRefreshGuard(for: account)
@@ -1188,6 +1189,8 @@ extension UsageStore {
             guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
             self.scheduleRollingWindowAutoStartIfNeeded(
                 provider: .codex,
+                previousSourceLabel: previousSourceLabel,
+                sourceLabel: sourceLabel,
                 previousSnapshot: previousSnapshot,
                 currentProviderData: snapshot)
             self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
@@ -1231,9 +1234,10 @@ extension UsageStore {
             }
             let backfilled = await MainActor.run {
                 guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else {
-                    return nil as (current: UsageSnapshot, previous: UsageSnapshot?)?
+                    return nil as (current: UsageSnapshot, previous: UsageSnapshot?, previousSourceLabel: String?)?
                 }
                 let previousSnapshot = self.lastKnownResetSnapshots[provider]
+                let previousSourceLabel = previousSnapshot == nil ? nil : self.lastSourceLabels[provider]
                 let backfilled = labeled.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider])
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
@@ -1242,7 +1246,7 @@ extension UsageStore {
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
-                return (backfilled, previousSnapshot)
+                return (backfilled, previousSnapshot, previousSourceLabel)
             }
             guard let backfilled else { return }
             await self.recordPlanUtilizationHistorySample(
@@ -1252,6 +1256,8 @@ extension UsageStore {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
             self.scheduleRollingWindowAutoStartIfNeeded(
                 provider: provider,
+                previousSourceLabel: backfilled.previousSourceLabel,
+                sourceLabel: result.sourceLabel,
                 previousSnapshot: backfilled.previous,
                 currentProviderData: backfilled.current)
         case let .failure(error):
