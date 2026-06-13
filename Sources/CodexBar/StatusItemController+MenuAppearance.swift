@@ -1,14 +1,13 @@
 import AppKit
 
-extension StatusItemController {
-    static func systemMenuAppearanceName(
-        interfaceStyle: String?,
-        increaseContrast: Bool) -> NSAppearance.Name
-    {
-        let isDark = interfaceStyle?.caseInsensitiveCompare("Dark") == .orderedSame
-        if increaseContrast {
-            return isDark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua
-        }
-        return isDark ? .darkAqua : .aqua
+@MainActor
+enum StatusMenuAppearance {
+    static func pin(_ menu: NSMenu) {
+        self.pin(menu, to: NSApplication.shared.effectiveAppearance)
+    }
+
+    static func pin(_ menu: NSMenu, to appearance: NSAppearance) {
+        // The exact effective appearance carries accessibility attributes that its name can omit.
+        menu.appearance = appearance
     }
 }

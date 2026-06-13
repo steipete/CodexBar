@@ -1,60 +1,51 @@
 import AppKit
-import CodexBarCore
 import Testing
 @testable import CodexBar
 
-extension StatusMenuTests {
+@MainActor
+struct StatusMenuAppearanceTests {
     @Test
-    func `status menu follows current system appearance when created and opened`() {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
+    func `pin uses the exact application effective appearance`() {
+        let menu = NSMenu()
+        let effectiveAppearance = NSApplication.shared.effectiveAppearance
 
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-        defer { controller.releaseStatusItemsForTesting() }
+        StatusMenuAppearance.pin(menu)
 
-        let expectedAppearance = StatusItemController.systemMenuAppearanceName(
-            interfaceStyle: UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
-            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
-        let menu = controller.makeMenu()
-        #expect(menu.appearance?.name == expectedAppearance)
-
-        let isDark = expectedAppearance == .darkAqua || expectedAppearance == .accessibilityHighContrastDarkAqua
-        let staleAppearance: NSAppearance.Name = isDark ? .aqua : .darkAqua
-        menu.appearance = NSAppearance(named: staleAppearance)
-        let submenu = NSMenu()
-        submenu.appearance = NSAppearance(named: staleAppearance)
-        let submenuItem = NSMenuItem()
-        submenuItem.submenu = submenu
-        menu.addItem(submenuItem)
-        controller.menuWillOpen(menu)
-        #expect(menu.appearance?.name == expectedAppearance)
-        #expect(submenu.appearance?.name == expectedAppearance)
-        controller.menuDidClose(menu)
+        #expect(menu.appearance === effectiveAppearance)
     }
 
     @Test
-    func `system menu appearance follows global interface style and contrast`() {
-        #expect(StatusItemController.systemMenuAppearanceName(
-            interfaceStyle: nil,
-            increaseContrast: false) == .aqua)
-        #expect(StatusItemController.systemMenuAppearanceName(
-            interfaceStyle: "Dark",
-            increaseContrast: false) == .darkAqua)
-        #expect(StatusItemController.systemMenuAppearanceName(
-            interfaceStyle: nil,
-            increaseContrast: true) == .accessibilityHighContrastAqua)
-        #expect(StatusItemController.systemMenuAppearanceName(
-            interfaceStyle: "dark",
-            increaseContrast: true) == .accessibilityHighContrastDarkAqua)
+    func `pin replaces a distinct appearance with the same name`() throws {
+        let menu = NSMenu()
+        let initialAppearance = try #require(NSAppearance(named: .aqua))
+        let replacementAppearance = try #require(NSAppearance(appearanceNamed: .aqua, bundle: .main))
+        #expect(initialAppearance.name == replacementAppearance.name)
+        #expect(initialAppearance !== replacementAppearance)
+        menu.appearance = initialAppearance
+
+        StatusMenuAppearance.pin(menu, to: replacementAppearance)
+
+        #expect(menu.appearance === replacementAppearance)
+    }
+
+    @Test
+    func `submenus inherit each refreshed root appearance`() throws {
+        let menu = NSMenu()
+        let submenu = NSMenu()
+        let item = NSMenuItem(title: "Details", action: nil, keyEquivalent: "")
+        item.submenu = submenu
+        menu.addItem(item)
+
+        let lightAppearance = try #require(NSAppearance(named: .aqua))
+        StatusMenuAppearance.pin(menu, to: lightAppearance)
+        #expect(menu.appearance === lightAppearance)
+        #expect(submenu.appearance == nil)
+        #expect(submenu.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua)
+
+        let darkAppearance = try #require(NSAppearance(named: .darkAqua))
+        StatusMenuAppearance.pin(menu, to: darkAppearance)
+        #expect(menu.appearance === darkAppearance)
+        #expect(submenu.appearance == nil)
+        #expect(submenu.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
     }
 }

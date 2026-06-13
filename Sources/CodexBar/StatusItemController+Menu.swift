@@ -67,7 +67,7 @@ extension StatusItemController {
 
         // Keep the menu drawing in the current system appearance rather than the menu bar's
         // (possibly dark) vibrant appearance. Done before any early return so submenus match too.
-        self.pinMenuToSystemAppearance(menu)
+        StatusMenuAppearance.pin(menu)
 
         self.cancelDeferredMenuInteractionRefreshTask()
         self.cancelClosedMenuRebuild(menu)
@@ -834,7 +834,6 @@ extension StatusItemController {
                     }
                     let submenu = NSMenu(title: title)
                     submenu.autoenablesItems = false
-                    self.pinMenuToSystemAppearance(submenu)
                     for submenuItem in submenuItems {
                         let child = NSMenuItem(title: submenuItem.title, action: nil, keyEquivalent: "")
                         child.state = submenuItem.isChecked ? .on : .off
@@ -966,28 +965,8 @@ extension StatusItemController {
         menu.autoenablesItems = false
         menu.delegate = self
         menu.persistentActionDelegate = self
-        self.pinMenuToSystemAppearance(menu)
+        StatusMenuAppearance.pin(menu)
         return menu
-    }
-
-    /// Pins a status-bar menu to the system appearance so it follows the user's Light/Dark
-    /// setting. Without this, `NSStatusItem` dropdown menus inherit the *menu bar's* vibrant
-    /// appearance, which macOS renders dark whenever a dark or strongly-colored window/wallpaper
-    /// sits behind the menu bar — even when the system is in Light mode. Re-applied on every open
-    /// so it stays correct if the user switches appearance while the app keeps the menu alive.
-    func pinMenuToSystemAppearance(_ menu: NSMenu) {
-        let name = Self.systemMenuAppearanceName(
-            interfaceStyle: UserDefaults.standard.string(forKey: "AppleInterfaceStyle"),
-            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
-        guard let appearance = NSAppearance(named: name) else { return }
-        if menu.appearance?.name != appearance.name {
-            menu.appearance = appearance
-        }
-        for item in menu.items {
-            if let submenu = item.submenu {
-                self.pinMenuToSystemAppearance(submenu)
-            }
-        }
     }
 
     private func makeProviderSwitcherItem(
