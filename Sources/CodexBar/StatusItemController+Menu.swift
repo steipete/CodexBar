@@ -980,6 +980,11 @@ extension StatusItemController {
         if menu.appearance?.name != appearance.name {
             menu.appearance = appearance
         }
+        for item in menu.items {
+            if let submenu = item.submenu {
+                self.pinMenuToSystemAppearance(submenu)
+            }
+        }
     }
 
     private func makeProviderSwitcherItem(

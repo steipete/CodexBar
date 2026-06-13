@@ -234,8 +234,14 @@ struct StatusMenuTests {
 
         let staleAppearance: NSAppearance.Name = expectedAppearance == .darkAqua ? .aqua : .darkAqua
         menu.appearance = NSAppearance(named: staleAppearance)
+        let submenu = NSMenu()
+        submenu.appearance = NSAppearance(named: staleAppearance)
+        let submenuItem = NSMenuItem()
+        submenuItem.submenu = submenu
+        menu.addItem(submenuItem)
         controller.menuWillOpen(menu)
         #expect(menu.appearance?.name == expectedAppearance)
+        #expect(submenu.appearance?.name == expectedAppearance)
         controller.menuDidClose(menu)
     }
 
