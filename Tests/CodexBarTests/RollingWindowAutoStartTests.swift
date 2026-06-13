@@ -284,16 +284,11 @@ struct RollingWindowAutoStartTests {
     func `scheduler routes codex ping through selected managed account environment`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-managed-codex-route")
         settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
-        let managedAccount = ManagedCodexAccount(
-            id: UUID(),
-            email: "managed@example.com",
-            managedHomePath: "/tmp/codexbar-managed-codex-home",
-            createdAt: 1,
-            updatedAt: 1,
-            lastAuthenticatedAt: 1)
-        settings._test_activeManagedCodexAccount = managedAccount
-        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
-        defer { settings._test_activeManagedCodexAccount = nil }
+        let managedID = UUID()
+        let managedHome = "/tmp/codexbar-managed-codex-home"
+        settings._test_activeManagedCodexRemoteHomePath = managedHome
+        settings.codexActiveSource = .liveSystem
+        defer { settings._test_activeManagedCodexRemoteHomePath = nil }
 
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
@@ -323,11 +318,48 @@ struct RollingWindowAutoStartTests {
             sourceLabel: "oauth",
             previousSnapshot: previous,
             currentProviderData: current,
+            codexActiveSourceOverride: .managedAccount(id: managedID),
             now: now)
 
         try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
         let request = try #require(await runner.lastRequest)
-        #expect(request.environment["CODEX_HOME"] == managedAccount.managedHomePath)
+        #expect(request.environment["CODEX_HOME"] == managedHome)
+    }
+
+    @Test
+    func `scheduler skips selected token account snapshots because prompt cli cannot be account bound`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-token-account-skip")
+        settings.setRollingWindowAutoStartEnabled(provider: .claude, enabled: true)
+        settings.addTokenAccount(provider: .claude, label: "Session", token: "sk-ant-session-token")
+        let account = try #require(settings.selectedTokenAccount(for: .claude))
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = RecordingRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(-60),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .claude,
+            previousSourceLabel: "claude",
+            sourceLabel: "claude",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            tokenOverride: TokenAccountOverride(provider: .claude, account: account),
+            now: now)
+
+        try await Task.sleep(for: .milliseconds(25))
+        #expect(await runner.isEmpty)
+        #expect(store.rollingWindowAutoStartStatus[.claude] == nil)
     }
 
     @Test

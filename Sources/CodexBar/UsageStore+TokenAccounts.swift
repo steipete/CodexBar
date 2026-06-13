@@ -1192,7 +1192,8 @@ extension UsageStore {
                 previousSourceLabel: previousSourceLabel,
                 sourceLabel: sourceLabel,
                 previousSnapshot: previousSnapshot,
-                currentProviderData: snapshot)
+                currentProviderData: snapshot,
+                codexActiveSourceOverride: account.selectionSource)
             self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
         case let .failure(error):
             guard let message = self.tokenAccountErrorMessage(error) else {
@@ -1259,7 +1260,8 @@ extension UsageStore {
                 previousSourceLabel: backfilled.previousSourceLabel,
                 sourceLabel: result.sourceLabel,
                 previousSnapshot: backfilled.previous,
-                currentProviderData: backfilled.current)
+                currentProviderData: backfilled.current,
+                tokenOverride: account.map { TokenAccountOverride(provider: provider, account: $0) })
         case let .failure(error):
             await MainActor.run {
                 guard let message = self.tokenAccountErrorMessage(error) else {

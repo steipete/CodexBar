@@ -17,9 +17,12 @@ extension UsageStore {
         sourceLabel: String?,
         previousSnapshot: UsageSnapshot?,
         currentProviderData: UsageSnapshot,
+        tokenOverride: TokenAccountOverride? = nil,
+        codexActiveSourceOverride: CodexActiveSource? = nil,
         now: Date = Date())
     {
         guard self.settings.rollingWindowAutoStartEnabled(provider: provider),
+              self.canRouteRollingWindowAutoStart(provider: provider, tokenOverride: tokenOverride),
               !self.rollingWindowAutoStartRuntime.inFlight.contains(provider),
               let decision = RollingWindowAutoStartDecision.shouldStart(
                   provider: provider,
@@ -60,7 +63,8 @@ extension UsageStore {
                     base: self.environmentBase,
                     provider: provider,
                     settings: self.settings,
-                    tokenOverride: nil)
+                    tokenOverride: nil,
+                    codexActiveSourceOverride: codexActiveSourceOverride)
                 try await RollingWindowPingStarter.start(
                     provider: provider,
                     environment: environment,
@@ -84,5 +88,12 @@ extension UsageStore {
                     ])
             }
         }
+    }
+
+    private func canRouteRollingWindowAutoStart(
+        provider: UsageProvider,
+        tokenOverride: TokenAccountOverride?) -> Bool
+    {
+        tokenOverride == nil && self.settings.selectedTokenAccount(for: provider) == nil
     }
 }
