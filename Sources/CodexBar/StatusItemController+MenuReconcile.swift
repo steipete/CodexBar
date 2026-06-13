@@ -1,5 +1,31 @@
 import AppKit
 
+// ============================================================================
+// LAYOUT ENGINE ARCHITECTURE
+// ============================================================================
+// CodexBar menu rendering follows a strict two-phase deterministic pipeline:
+//
+//   PHASE C — LAYOUT ENGINE
+//     • All SwiftUI measurement, intrinsic sizing, fittingSize evaluation
+//     • All content fingerprinting, height caching, LayoutGraph construction
+//     • All menu-item property setup (title, action, target, submenu, …)
+//     • View allocation: NSHostingView(rootView:) — exactly once per content
+//     • Frame commit: hosting.frame = precomputedSize
+//     • Output: frozen NSMenuItem snapshot (view + properties)
+//     • MUST NOT touch NSMenu — output is the LayoutGraph
+//
+//   PHASE A — RENDER LAYER
+//     • ONLY responsibility: assign NSView to NSMenuItem
+//     • NO measurement, NO SwiftUI interaction, NO invalidateIntrinsicContentSize
+//     • NO fittingSize / intrinsicContentSize access
+//     • NO layout computation of any kind
+//     • NSMenu is a passive renderer; A-phase hands it precomputed views
+//
+// The boundary is enforced structurally: A-phase functions are 1-line assignments.
+// Any future code that wants to do "more" in A-phase must be justified against
+// this contract.
+// ============================================================================
+
 /// Pre-harvest snapshot of one live content row, captured before card views are detached
 /// into the recycle pool so reconciliation can still compare row shapes afterwards.
 struct MenuRowShape {
@@ -60,12 +86,20 @@ extension StatusItemController {
         }
 
         for offset in 0..<prefix {
-            self.updateMenuItemInPlace(menu.items[fromIndex + offset], from: newItems[offset])
+            let live = menu.items[fromIndex + offset]
+            let scratch = newItems[offset]
+            // Phase C: content sync (properties only, no view).
+            self.applyMenuItemContent(live, from: scratch)
+            // Phase A: view handoff (precomputed view, no measurement).
+            self.updateMenuItemInPlace(live, from: scratch)
         }
         for offset in 0..<suffix {
-            self.updateMenuItemInPlace(
-                menu.items[menu.items.count - 1 - offset],
-                from: newItems[newItems.count - 1 - offset])
+            let live = menu.items[menu.items.count - 1 - offset]
+            let scratch = newItems[newItems.count - 1 - offset]
+            // Phase C: content sync.
+            self.applyMenuItemContent(live, from: scratch)
+            // Phase A: view handoff.
+            self.updateMenuItemInPlace(live, from: scratch)
         }
 
         let liveMiddleCount = shapes.count - prefix - suffix
@@ -106,6 +140,7 @@ extension StatusItemController {
                 }
                 displacedItems.append(newItem)
             } else {
+                // Phase A: structural replacement when shape doesn't match.
                 menu.insertItem(newItem, at: index)
                 menu.removeItem(liveItem)
                 displacedItems.append(liveItem)
@@ -144,20 +179,15 @@ extension StatusItemController {
         }
     }
 
-    private func updateMenuItemInPlace(_ liveItem: NSMenuItem, from newItem: NSMenuItem) {
+    /// === PHASE C: LAYOUT ENGINE ===
+    /// Applies the content payload of a freshly-built NSMenuItem onto an existing live
+    /// NSMenuItem that already occupies its slot in the tracked menu. Pure property
+    /// synchronization — no view transfer, no layout, no SwiftUI interaction.
+    /// Called by A-phase render-layer callers before the view handoff.
+    private func applyMenuItemContent(_ liveItem: NSMenuItem, from newItem: NSMenuItem) {
         if liveItem.isSeparatorItem { return }
-        let remainsHighlighted = liveItem.menu.map {
-            self.highlightedMenuItems[ObjectIdentifier($0)] === liveItem
-        } ?? false
-        // Detach from the scratch item first so a view or submenu is never referenced by
-        // two menu items at once.
-        let view = newItem.view
-        newItem.view = nil
-        let submenu = newItem.submenu
+        liveItem.submenu = newItem.submenu
         newItem.submenu = nil
-        liveItem.view = view
-        (view as? MenuCardHighlighting)?.setHighlighted(remainsHighlighted)
-        liveItem.submenu = submenu
         liveItem.title = newItem.title
         liveItem.attributedTitle = newItem.attributedTitle
         liveItem.action = newItem.action
@@ -183,8 +213,35 @@ extension StatusItemController {
         }
     }
 
+    /// === PHASE A: RENDER LAYER ===
+    /// Pure view transfer. The precomputed NSHostingView from C-phase is moved from
+    /// the scratch item onto the existing live item in the tracked menu. NO measurement,
+    /// NO SwiftUI interaction, NO layout invalidation, NO fittingSize/intrinsicContentSize
+    /// access. The view's frame is already authoritative from C-phase; the live item
+    /// keeps its current submenu/property state (which C-phase updated via
+    /// `applyMenuItemContent` before this handoff).
+    private func updateMenuItemInPlace(_ liveItem: NSMenuItem, from newItem: NSMenuItem) {
+        if liveItem.isSeparatorItem { return }
+        let remainsHighlighted = liveItem.menu.map {
+            self.highlightedMenuItems[ObjectIdentifier($0)] === liveItem
+        } ?? false
+        // Single-assignment view handoff. Nothing else belongs in this function.
+        let precomputedView = newItem.view
+        newItem.view = nil
+        liveItem.view = precomputedView
+        (precomputedView as? MenuCardHighlighting)?.setHighlighted(remainsHighlighted)
+    }
+
     private func swapMenuItemContents(_ liveItem: NSMenuItem, _ cachedItem: NSMenuItem) {
         let holder = NSMenuItem()
+        // Phase C: three-way content rotation
+        //   holder   ← liveItem  (save live's state)
+        //   liveItem ← cachedItem (live now mirrors cached)
+        //   cachedItem ← holder   (cached now mirrors live's old state)
+        self.applyMenuItemContent(holder, from: liveItem)
+        self.applyMenuItemContent(liveItem, from: cachedItem)
+        self.applyMenuItemContent(cachedItem, from: holder)
+        // Phase A: three-way view rotation (same pattern)
         self.updateMenuItemInPlace(holder, from: liveItem)
         self.updateMenuItemInPlace(liveItem, from: cachedItem)
         self.updateMenuItemInPlace(cachedItem, from: holder)

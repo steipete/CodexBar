@@ -1,6 +1,10 @@
 import AppKit
 import SwiftUI
 
+// === PHASE C: LAYOUT ENGINE — MEASUREMENT PIPELINE ===
+// All measurement, height caching, and frame commit happens here. A-phase render
+// layer must not call any of the functions in this file.
+
 extension StatusItemController {
     func refreshMenuCardHeights(in menu: NSMenu) {
         let width = self.renderedMenuWidth(for: menu)
@@ -8,8 +12,8 @@ extension StatusItemController {
             guard let view = item.view, view is any MenuCardMeasuring else { continue }
             guard abs(view.frame.width - width) > 0.5 else { continue }
             let id = item.representedObject as? String ?? "menuCard"
-            let scope = self.menuProvider(for: menu)?.rawValue ?? id
-            let height = self.cachedMenuCardHeight(for: id, scope: scope, width: width) {
+            let providerState = self.menuProvider(for: menu)?.rawValue ?? id
+            let height = self.cachedMenuCardHeight(for: id, providerState: providerState, width: width) {
                 self.menuCardHeight(for: view, width: width)
             }
             view.frame = NSRect(
@@ -72,9 +76,9 @@ extension StatusItemController {
         }
         let height = self.cachedMenuCardHeight(
             for: id,
-            scope: heightCacheScope ?? id,
+            providerState: heightCacheScope ?? id,
             width: width,
-            fingerprint: heightCacheFingerprint)
+            contentFingerprint: heightCacheFingerprint)
         {
             self.menuCardHeight(for: hosting, width: width)
         }

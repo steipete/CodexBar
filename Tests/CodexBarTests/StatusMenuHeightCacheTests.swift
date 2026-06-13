@@ -97,9 +97,9 @@ extension StatusMenuTests {
         var measureCount = 0
         let first = controller.cachedMenuCardHeight(
             for: "menuCard",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320,
-            fingerprint: "content:stable")
+            contentFingerprint: "content:stable")
         {
             measureCount += 1
             return 42
@@ -109,9 +109,9 @@ extension StatusMenuTests {
 
         let second = controller.cachedMenuCardHeight(
             for: "menuCard",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320,
-            fingerprint: "content:stable")
+            contentFingerprint: "content:stable")
         {
             measureCount += 1
             return 99
@@ -130,18 +130,18 @@ extension StatusMenuTests {
         var measureCount = 0
         let first = controller.cachedMenuCardHeight(
             for: "menuCard",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320,
-            fingerprint: "content:a")
+            contentFingerprint: "content:a")
         {
             measureCount += 1
             return 42
         }
         let second = controller.cachedMenuCardHeight(
             for: "menuCard",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320,
-            fingerprint: "content:b")
+            contentFingerprint: "content:b")
         {
             measureCount += 1
             return 99
@@ -160,7 +160,7 @@ extension StatusMenuTests {
         var measureCount = 0
         let first = controller.cachedMenuCardHeight(
             for: "menuCard",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320)
         {
             measureCount += 1
@@ -171,7 +171,7 @@ extension StatusMenuTests {
 
         let second = controller.cachedMenuCardHeight(
             for: "menuCard",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320)
         {
             measureCount += 1
@@ -190,24 +190,24 @@ extension StatusMenuTests {
 
         _ = controller.cachedMenuCardHeight(
             for: "versioned",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320)
         {
             42
         }
         _ = controller.cachedMenuCardHeight(
             for: "fingerprinted",
-            scope: UsageProvider.codex.rawValue,
+            providerState: UsageProvider.codex.rawValue,
             width: 320,
-            fingerprint: "content:stable")
+            contentFingerprint: "content:stable")
         {
             99
         }
 
         controller.invalidateMenus()
 
-        #expect(controller.menuCardHeightCache.keys.allSatisfy { !$0.fingerprint.hasPrefix("version:") })
-        #expect(controller.menuCardHeightCache.keys.contains { $0.fingerprint == "content:stable" })
+        #expect(controller.menuCardHeightCache.keys.allSatisfy { !$0.contentFingerprint.hasPrefix("version:") })
+        #expect(controller.menuCardHeightCache.keys.contains { $0.contentFingerprint == "content:stable" })
     }
 
     @Test
@@ -261,7 +261,7 @@ extension StatusMenuTests {
         controller.populateMenu(menu, provider: .codex)
         controller.populateMenu(menu, provider: .claude)
 
-        let scopes = Set(controller.menuCardHeightCache.keys.map(\.scope))
+        let scopes = Set(controller.menuCardHeightCache.keys.map(\.providerState))
         #expect(scopes.contains(UsageProvider.codex.rawValue))
         #expect(scopes.contains(UsageProvider.claude.rawValue))
     }
