@@ -145,6 +145,25 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `italian localization matches English catalog and includes current UI labels`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let enURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
+        let itURL = resourcesURL.appendingPathComponent("it.lproj/Localizable.strings")
+        let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
+        let italian = try #require(NSDictionary(contentsOf: itURL) as? [String: String])
+
+        #expect(Set(italian.keys) == Set(english.keys))
+        #expect(italian["Individual credits"] == "Crediti individuali")
+        #expect(italian["Workspace"] == "Spazio di lavoro")
+        #expect(italian["display_mode_reset_time"] == "Ora di reimpostazione")
+        #expect(italian["display_mode_reset_time_desc"]?.contains("↻ 15:56") == true)
+    }
+
+    @Test
     func `japanese usage chart accessibility text preserves argument meanings`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

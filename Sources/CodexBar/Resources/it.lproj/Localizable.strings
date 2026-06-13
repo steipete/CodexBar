@@ -99,6 +99,8 @@
 "Could not start codex login" = "Could not start codex login";
 "Could not switch system account" = "Could not switch system account";
 "Credits" = "Crediti";
+"Individual credits" = "Crediti individuali";
+"Workspace" = "Spazio di lavoro";
 "Credits history" = "Credits history";
 "Cursor login failed" = "Cursor login failed";
 "Custom" = "Custom";
@@ -401,9 +403,12 @@
 "language_chinese_simplified" = "Cinese semplificato";
 "language_chinese_traditional" = "Cinese tradizionale";
 "language_portuguese_brazilian" = "Portoghese (Brasile)";
+"language_german" = "Tedesco";
 "language_swedish" = "Svedese";
 "language_italian" = "Italiano";
 "language_japanese" = "Giapponese";
+"language_korean" = "Coreano";
+"language_turkish" = "Turco";
 "language_french" = "Francese";
 "language_dutch" = "Olandese";
 "language_ukrainian" = "Ucraino";
@@ -626,9 +631,11 @@
 "display_mode_percent" = "Percentuale";
 "display_mode_pace" = "Andamento";
 "display_mode_both" = "Entrambi";
+"display_mode_reset_time" = "Ora di reimpostazione";
 "display_mode_percent_desc" = "Mostra percentuale residua/consumata (es. 45%)";
 "display_mode_pace_desc" = "Mostra indicatore andamento (es. +5%)";
 "display_mode_both_desc" = "Mostra percentuale e andamento (es. 45% · +5%)";
+"display_mode_reset_time_desc" = "Mostra l'ora di reimpostazione per la metrica selezionata (es. ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Operativo";
