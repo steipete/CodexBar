@@ -187,12 +187,13 @@ public struct RovoDevUsageFetcher: Sendable {
 
         let response = try await transport.response(for: request)
         switch response.statusCode {
-        case 200:
-            return try Self.parseSnapshot(data: response.data, accountEmail: trimmedEmail, updatedAt: Date())
-        case 403:
+        case 200, 403:
             let decoded = try Self.decodeResponse(data: response.data)
             guard decoded.isRecognizedPayload else {
-                Self.log.error("Rovo Dev API returned an unrecognized HTTP 403 response")
+                Self.log.error("Rovo Dev API returned an unrecognized HTTP \(response.statusCode) response")
+                if response.statusCode == 200 {
+                    throw RovoDevUsageError.parseFailed("Unrecognized response payload")
+                }
                 throw RovoDevUsageError.apiError(response.statusCode)
             }
             return Self.makeSnapshot(from: decoded, accountEmail: trimmedEmail, updatedAt: Date())

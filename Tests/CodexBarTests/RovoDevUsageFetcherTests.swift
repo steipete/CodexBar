@@ -110,6 +110,26 @@ final class RovoDevUsageFetcherTests: XCTestCase {
         }
     }
 
+    func test_fetchUsage_rejectsGenericSuccessfulResponse() async {
+        let transport = Self.makeTransport(
+            statusCode: 200,
+            body: #"{"message":"Request completed"}"#)
+
+        do {
+            _ = try await RovoDevUsageFetcher.fetchUsage(
+                email: "user@example.com",
+                apiToken: "secret",
+                environment: [:],
+                transport: transport)
+            XCTFail("Expected unrecognized successful response to fail")
+        } catch {
+            guard case let RovoDevUsageError.parseFailed(message) = error else {
+                return XCTFail("Expected parseFailed, got \(error)")
+            }
+            XCTAssertEqual(message, "Unrecognized response payload")
+        }
+    }
+
     func test_cleaned_stripsWhitespace() {
         XCTAssertEqual(RovoDevSettingsReader.cleaned("  hello  "), "hello")
     }
