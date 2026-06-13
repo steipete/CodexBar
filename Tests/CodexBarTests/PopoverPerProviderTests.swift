@@ -57,6 +57,24 @@ import Testing
         #expect(controller.providerMenuViewModels[.claude] == nil)
         #expect(viewModel.isVisible == false)
     }
+
+    @Test func shortcutPreservesFallbackWhenNoProviderIsEnabled() throws {
+        let controller = try makePerProviderController()
+        defer { controller.releaseStatusItemsForTesting() }
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            controller.settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: false)
+        }
+        controller.ensureProviderPopover(for: .codex)
+
+        let viewModel = controller.prepareProviderPopoverForShortcut(for: .codex)
+
+        #expect(controller.fallbackProvider == .codex)
+        #expect(viewModel.isFallback)
+        #expect(viewModel.providers.isEmpty)
+        #expect(controller.providerMenuViewModels[.codex] === viewModel)
+    }
 }
 
 @MainActor

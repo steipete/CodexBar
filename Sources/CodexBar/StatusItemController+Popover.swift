@@ -137,11 +137,13 @@ extension StatusItemController {
     }
 
     /// 懒创建指定 provider 的 MenuViewModel + PopoverMenuController（首次调用后缓存）。
-    func ensureProviderPopover(for provider: UsageProvider, isFallback: Bool = false) {
-        if self.providerMenuViewModels[provider]?.isFallback == isFallback,
+    @discardableResult
+    func ensureProviderPopover(for provider: UsageProvider, isFallback: Bool = false) -> MenuViewModel {
+        if let viewModel = self.providerMenuViewModels[provider],
+           viewModel.isFallback == isFallback,
            self.providerPopoverControllers[provider] != nil
         {
-            return
+            return viewModel
         }
         self.providerPopoverControllers[provider]?.close()
         let vm = isFallback
@@ -166,6 +168,13 @@ extension StatusItemController {
         }
         // onNavigate/onSelectIndex 留为 nil（单 provider 无切换器，不处理方向键/数字键）
         self.providerPopoverControllers[provider] = ctrl
+        return vm
+    }
+
+    func prepareProviderPopoverForShortcut(for provider: UsageProvider) -> MenuViewModel {
+        self.ensureProviderPopover(
+            for: provider,
+            isFallback: self.fallbackProvider == provider)
     }
 
     /// 非合并模式下为每个 enabled/fallback provider 安装 per-provider popover，复刻 attachMenus(fallback:) 遍历结构。

@@ -320,12 +320,11 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         // Use the lazy accessor to ensure the item exists
         let item = self.lazyStatusItem(for: provider)
         if self.usePopoverMenu, let button = item.button {
-            // 确保 popover controller 已创建（快捷键可能先于 attachProviderPopovers 触发）
-            self.ensureProviderPopover(for: provider)
+            let viewModel = self.prepareProviderPopoverForShortcut(for: provider)
             self.closeAllProviderPopovers(except: provider)
             self.providerPopoverControllers[provider]?.toggle(relativeTo: button)
             if self.providerPopoverControllers[provider]?.isShown == true {
-                self.schedulePopoverOpenRefresh(providers: [provider])
+                self.schedulePopoverOpenRefresh(providers: viewModel.providers)
             }
         } else {
             item.button?.performClick(nil)
