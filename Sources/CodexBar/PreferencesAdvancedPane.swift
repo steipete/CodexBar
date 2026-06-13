@@ -19,8 +19,7 @@ struct AdvancedPane: View {
                         Text(L("open_menu_shortcut_title"))
                             .font(.body)
                         Spacer()
-                        KeyboardShortcuts.Recorder(for: .openMenu)
-                            .frame(width: 170)
+                        OpenMenuShortcutRecorder()
                     }
                     Text(L("open_menu_shortcut_subtitle"))
                         .font(.footnote)
@@ -100,6 +99,32 @@ struct AdvancedPane: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
+    }
+}
+
+@MainActor
+struct OpenMenuShortcutRecorder: NSViewRepresentable {
+    static let preferredWidth: CGFloat = 170
+
+    func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
+        KeyboardShortcuts.RecorderCocoa(for: .openMenu)
+    }
+
+    func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
+        nsView.shortcutName = .openMenu
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: KeyboardShortcuts.RecorderCocoa,
+        context: Context)
+        -> CGSize?
+    {
+        Self.fittedSize(proposedWidth: proposal.width, intrinsicHeight: nsView.intrinsicContentSize.height)
+    }
+
+    static func fittedSize(proposedWidth: CGFloat?, intrinsicHeight: CGFloat) -> CGSize {
+        CGSize(width: max(proposedWidth ?? self.preferredWidth, self.preferredWidth), height: intrinsicHeight)
     }
 }
 
