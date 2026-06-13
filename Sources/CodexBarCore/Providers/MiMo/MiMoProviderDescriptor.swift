@@ -193,7 +193,7 @@ struct MiMoLocalFetchStrategy: ProviderFetchStrategy {
         guard let snapshot = MiMoLocalUsageFallback.snapshot(cachePath: path) else {
             throw MiMoLocalUsageError.invalidCache(path)
         }
-        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "local")
+        return self.makeResult(usage: snapshot.toUsageSnapshot(includeBalance: false), sourceLabel: "local")
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

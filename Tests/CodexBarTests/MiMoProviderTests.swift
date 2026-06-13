@@ -694,6 +694,7 @@ extension MiMoProviderTests {
                 #expect(result.sourceLabel == "local")
                 #expect(result.strategyID == "mimo.local")
                 #expect(result.usage.primary == nil)
+                #expect(result.usage.mimoUsage == nil)
                 #expect(result.usage.loginMethod(for: .mimo)?.contains("Local") == true)
             case let .failure(error):
                 Issue.record("Expected local MiMo fallback, got \(error)")

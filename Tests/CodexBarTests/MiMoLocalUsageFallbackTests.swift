@@ -81,7 +81,9 @@ struct MiMoLocalUsageFallbackTests {
         #expect(snap.tokenUsed == 0)
         #expect(snap.tokenLimit == 0)
         #expect(snap.tokenPercent == 0)
-        #expect(snap.toUsageSnapshot().primary == nil)
+        let usage = snap.toUsageSnapshot(includeBalance: false)
+        #expect(usage.primary == nil)
+        #expect(usage.mimoUsage == nil)
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -109,6 +111,7 @@ struct MiMoLocalUsageFallbackTests {
         #expect(snap.tokenUsed == 0)
         #expect(snap.tokenLimit == 0)
         #expect(snap.tokenPercent == 0)
+        #expect(snap.toUsageSnapshot(includeBalance: false).mimoUsage == nil)
         let plan = try #require(snap.planCode)
         #expect(plan.hasPrefix("Local"))
         #expect(!plan.contains("today"))
