@@ -72,26 +72,24 @@ public struct UsagePace: Sendable {
         var willLastToReset = false
 
         let paceElapsed = workdayProgress?.elapsedSeconds ?? elapsed
-        if paceElapsed > 0, actual > 0 {
+        if actual >= 100 {
+            etaSeconds = 0
+        } else if paceElapsed > 0, actual > 0 {
             let rate = actual / paceElapsed
             if rate > 0 {
-                let remaining = max(0, 100 - actual)
-                if remaining == 0 {
-                    etaSeconds = 0
+                let remaining = 100 - actual
+                let candidate = remaining / rate
+                let effectiveTimeUntilReset = workdayProgress?.remainingSeconds ?? timeUntilReset
+                if candidate >= effectiveTimeUntilReset {
+                    willLastToReset = true
+                } else if let workDays = workdayProgress?.workDays {
+                    etaSeconds = Self.wallClockInterval(
+                        from: now,
+                        to: resetsAt,
+                        consumingWorkSeconds: candidate,
+                        workDays: workDays)
                 } else {
-                    let candidate = remaining / rate
-                    let effectiveTimeUntilReset = workdayProgress?.remainingSeconds ?? timeUntilReset
-                    if candidate >= effectiveTimeUntilReset {
-                        willLastToReset = true
-                    } else if let workDays = workdayProgress?.workDays {
-                        etaSeconds = Self.wallClockInterval(
-                            from: now,
-                            to: resetsAt,
-                            consumingWorkSeconds: candidate,
-                            workDays: workDays)
-                    } else {
-                        etaSeconds = candidate
-                    }
+                    etaSeconds = candidate
                 }
             }
         } else if paceElapsed > 0, actual == 0 {
