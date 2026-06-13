@@ -867,6 +867,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     private func removeProviderStatusItem(for provider: UsageProvider) {
+        self.removeProviderPopover(for: provider)
         if let menu = self.providerMenus.removeValue(forKey: provider) {
             let menuID = ObjectIdentifier(menu)
             self.menuProviders.removeValue(forKey: menuID)

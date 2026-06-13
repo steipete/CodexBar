@@ -131,6 +131,11 @@ extension StatusItemController {
         self.popoverMenuController?.close()
     }
 
+    func removeProviderPopover(for provider: UsageProvider) {
+        self.providerPopoverControllers.removeValue(forKey: provider)?.close()
+        self.providerMenuViewModels.removeValue(forKey: provider)
+    }
+
     /// 懒创建指定 provider 的 MenuViewModel + PopoverMenuController（首次调用后缓存）。
     func ensureProviderPopover(for provider: UsageProvider, isFallback: Bool = false) {
         if self.providerMenuViewModels[provider]?.isFallback == isFallback,
@@ -180,6 +185,9 @@ extension StatusItemController {
                 item.menu = nil
                 item.button?.target = nil
                 item.button?.action = nil
+                self.removeProviderPopover(for: provider)
+            } else {
+                self.removeProviderPopover(for: provider)
             }
         }
     }

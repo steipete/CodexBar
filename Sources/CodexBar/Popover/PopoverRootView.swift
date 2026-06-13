@@ -27,18 +27,12 @@ private struct ProviderSwitcherTabView: View {
         Button(action: self.onTap) {
             VStack(spacing: 3) {
                 // 图标（约 18pt），与 NSView StackedToggleButton 图标区域对齐
-                Group {
-                    if let nsImage = self.icon {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        Image(systemName: "square.fill")
-                            .resizable()
-                            .scaledToFit()
-                    }
+                if let nsImage = self.icon {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
                 }
-                .frame(width: 18, height: 18)
                 // 标题（.caption2 大小，lineLimit 1 + 截断）
                 Text(self.title)
                     .font(.caption2)

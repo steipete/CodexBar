@@ -43,4 +43,44 @@ import Testing
         #expect(vm.providers.isEmpty)
         #expect(vm.selection == .provider(.codex))
     }
+
+    @Test func removingProviderPopoverClearsControllerAndVisibility() throws {
+        let controller = try makePerProviderController()
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.ensureProviderPopover(for: .claude)
+        let viewModel = try #require(controller.providerMenuViewModels[.claude])
+        viewModel.setVisible(true)
+
+        controller.removeProviderPopover(for: .claude)
+
+        #expect(controller.providerPopoverControllers[.claude] == nil)
+        #expect(controller.providerMenuViewModels[.claude] == nil)
+        #expect(viewModel.isVisible == false)
+    }
+}
+
+@MainActor
+private func makePerProviderController() throws -> StatusItemController {
+    let suite = "PopoverPerProviderTests-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defaults.removePersistentDomain(forName: suite)
+    let settings = SettingsStore(
+        userDefaults: defaults,
+        configStore: testConfigStore(suiteName: suite),
+        zaiTokenStore: NoopZaiTokenStore(),
+        syntheticTokenStore: NoopSyntheticTokenStore())
+    settings.statusChecksEnabled = false
+    settings.refreshFrequency = .manual
+    let fetcher = UsageFetcher(environment: [:])
+    let store = UsageStore(
+        fetcher: fetcher,
+        browserDetection: BrowserDetection(cacheTTL: 0),
+        settings: settings)
+    return StatusItemController(
+        store: store,
+        settings: settings,
+        account: AccountInfo(email: nil, plan: nil),
+        updater: DisabledUpdaterController(),
+        preferencesSelection: PreferencesSelection(),
+        statusBar: .system)
 }
