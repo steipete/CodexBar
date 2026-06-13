@@ -16,6 +16,9 @@ struct TestProcessCleanupTests {
             "/Applications/Codex.app/Contents/Resources/codex app-server --listen stdio://",
             "/opt/homebrew/bin/codex app-server",
             "node /Users/test/node_modules/.bin/codex app-server --listen stdio://",
+            "/tmp/codex-stub-cache app-server",
+            "/tmp/codex-stub-01234567-89AB-CDEF-0123 app-server",
+            "/tmp/codex-stub-01234567-89AB-CDEF-0123-456789ABCDEF app-server-helper",
         ]
 
         for command in testStubCommands {

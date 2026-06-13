@@ -7,8 +7,11 @@ import Glibc
 #endif
 
 enum TestProcessCleanup {
-    static let codexTestStubCommandRegex =
-        #"codex-(stub|fallback-stub|plan-only-stub|credits-only-stub|hung-stub)-[[:xdigit:]-]+.*app-server"#
+    static let codexTestStubCommandRegex = [
+        #"codex-(stub|fallback-stub|plan-only-stub|credits-only-stub|hung-stub)-"#,
+        #"[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}"#,
+        #"[[:space:]]+app-server([[:space:]]|$)"#,
+    ].joined()
 
     static func register() {
         atexit(_testProcessCleanupAtExit)
