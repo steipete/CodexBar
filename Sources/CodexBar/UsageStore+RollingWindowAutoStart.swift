@@ -52,9 +52,14 @@ extension UsageStore {
                 #else
                 let runner = SubprocessRollingWindowPingRunner()
                 #endif
+                let environment = ProviderRegistry.makeEnvironment(
+                    base: self.environmentBase,
+                    provider: provider,
+                    settings: self.settings,
+                    tokenOverride: nil)
                 try await RollingWindowPingStarter.start(
                     provider: provider,
-                    environment: self.environmentBase,
+                    environment: environment,
                     runner: runner)
                 self.rollingWindowAutoStartStatus[provider] = "Ping prompt sent."
                 await self.refreshProvider(provider, coalesceIfRefreshing: true)

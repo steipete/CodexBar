@@ -155,6 +155,54 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `scheduler routes codex ping through selected managed account environment`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-managed-codex-route")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/codexbar-managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: ["CODEX_HOME": "/tmp/codexbar-ambient-codex-home"])
+        let runner = RecordingRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        store._test_providerRefreshOverride = { _ in }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(-60),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSnapshot: previous,
+            currentProviderData: current,
+            now: now)
+
+        try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
+        let request = try #require(await runner.lastRequest)
+        #expect(request.environment["CODEX_HOME"] == managedAccount.managedHomePath)
+    }
+
+    @Test
     func `scheduler skips when current snapshot has active window`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-active")
         settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
@@ -262,8 +310,13 @@ struct RollingWindowAutoStartTests {
 private actor RecordingRollingWindowPingRunner: RollingWindowPingRunning {
     private let error: Error?
     private(set) var count = 0
+    private(set) var requests: [RollingWindowPingRequest] = []
     var isEmpty: Bool {
         self.count < 1
+    }
+
+    var lastRequest: RollingWindowPingRequest? {
+        self.requests.last
     }
 
     init(error: Error? = nil) {
@@ -272,6 +325,7 @@ private actor RecordingRollingWindowPingRunner: RollingWindowPingRunning {
 
     func run(_ request: RollingWindowPingRequest) async throws {
         self.count += 1
+        self.requests.append(request)
         if let error {
             throw error
         }
