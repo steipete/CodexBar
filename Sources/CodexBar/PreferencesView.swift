@@ -106,19 +106,19 @@ struct PreferencesView: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
         .frame(width: self.contentWidth, height: self.contentHeight)
+        .background {
+            SettingsWindowAppearanceBridge(colorScheme: self.colorScheme)
+                .allowsHitTesting(false)
+        }
         .onAppear {
             self.updateLayout(for: self.selection.tab, animate: false)
             self.ensureValidTabSelection()
-            Self.refreshSettingsWindowAppearance(for: self.colorScheme)
         }
         .onChange(of: self.selection.tab) { _, newValue in
             self.updateLayout(for: newValue, animate: true)
         }
         .onChange(of: self.settings.debugMenuEnabled) { _, _ in
             self.ensureValidTabSelection()
-        }
-        .onChange(of: self.colorScheme) { _, newValue in
-            Self.refreshSettingsWindowAppearance(for: newValue)
         }
     }
 
@@ -145,17 +145,6 @@ struct PreferencesView: View {
         })
     }
 
-    private static func refreshSettingsWindowAppearance(for colorScheme: ColorScheme) {
-        guard let window = settingsWindow() else { return }
-        // Pulse an explicit appearance to redraw SwiftUI's native tab toolbar, then restore inheritance.
-        // Leaving it pinned prevents the environment color scheme from observing the next system change.
-        window.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
-        Task { @MainActor [weak window] in
-            await Task.yield()
-            window?.appearance = nil
-        }
-    }
-
     private static func resizeSettingsWindow(width: CGFloat, height: CGFloat, animate: Bool) {
         guard let window = settingsWindow() else { return }
         let toolbarHeight = window.frame.height - window.contentLayoutRect.height
@@ -172,5 +161,71 @@ struct PreferencesView: View {
             self.selection.tab = .general
             self.updateLayout(for: .general, animate: true)
         }
+    }
+}
+
+@MainActor
+enum SettingsWindowAppearance {
+    typealias ResetAction = @MainActor @Sendable () -> Void
+    typealias ResetScheduler = @MainActor @Sendable (@escaping ResetAction) -> Void
+
+    static func refresh(
+        _ window: NSWindow,
+        application: NSApplication = NSApp,
+        scheduleReset: ResetScheduler = Self.scheduleReset)
+    {
+        window.appearanceSource = application
+        // Pulse the exact effective appearance so the native toolbar redraws without
+        // dropping inherited accessibility attributes, then restore KVO inheritance.
+        window.appearance = application.effectiveAppearance
+        scheduleReset { [weak window] in
+            window?.appearance = nil
+            window?.viewsNeedDisplay = true
+        }
+    }
+
+    static func scheduleReset(_ action: @escaping ResetAction) {
+        Task { @MainActor in
+            await Task.yield()
+            action()
+        }
+    }
+}
+
+@MainActor
+struct SettingsWindowAppearanceBridge: NSViewRepresentable {
+    let colorScheme: ColorScheme
+
+    func makeNSView(context: Context) -> SettingsWindowAppearanceView {
+        SettingsWindowAppearanceView()
+    }
+
+    func updateNSView(_ nsView: SettingsWindowAppearanceView, context: Context) {
+        nsView.refreshWindowAppearance(for: self.colorScheme)
+    }
+}
+
+@MainActor
+final class SettingsWindowAppearanceView: NSView {
+    private let scheduleReset: SettingsWindowAppearance.ResetScheduler
+
+    init(scheduleReset: @escaping SettingsWindowAppearance.ResetScheduler = SettingsWindowAppearance.scheduleReset) {
+        self.scheduleReset = scheduleReset
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        self.refreshWindowAppearance()
+    }
+
+    func refreshWindowAppearance(for _: ColorScheme? = nil) {
+        guard let window else { return }
+        SettingsWindowAppearance.refresh(window, scheduleReset: self.scheduleReset)
     }
 }
