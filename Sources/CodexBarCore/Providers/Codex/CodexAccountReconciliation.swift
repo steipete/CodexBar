@@ -22,16 +22,13 @@ public enum CodexActiveSourceResolver {
             .liveSystem
         case let .managedAccount(id):
             if let activeStoredAccount = snapshot.activeStoredAccount {
-                self.matchesLiveSystemAccount(
-                    storedAccount: activeStoredAccount,
-                    snapshot: snapshot,
-                    liveSystemAccount: snapshot.liveSystemAccount) ? .liveSystem : .managedAccount(id: id)
+                self.resolvedSource(for: activeStoredAccount, snapshot: snapshot)
             } else {
                 snapshot.liveSystemAccount != nil ? .liveSystem : .managedAccount(id: id)
             }
         case let .profileHome(path):
             if let normalizedPath = snapshot.configuredProfileHomePath(path: path) {
-                .profileHome(path: normalizedPath)
+                self.resolvedProfileSource(path: normalizedPath, snapshot: snapshot)
             } else {
                 .liveSystem
             }
@@ -40,6 +37,35 @@ public enum CodexActiveSourceResolver {
         return CodexResolvedActiveSource(
             persistedSource: persistedSource,
             resolvedSource: resolvedSource)
+    }
+
+    private static func resolvedProfileSource(
+        path: String,
+        snapshot: CodexAccountReconciliationSnapshot) -> CodexActiveSource
+    {
+        if let livePath = snapshot.liveSystemAccount.flatMap({
+            CodexHomeScope.normalizedHomePath($0.codexHomePath)
+        }), livePath == path {
+            return .liveSystem
+        }
+
+        if let storedAccount = snapshot.storedAccounts.first(where: {
+            CodexHomeScope.normalizedHomePath($0.managedHomePath) == path
+        }) {
+            return self.resolvedSource(for: storedAccount, snapshot: snapshot)
+        }
+
+        return .profileHome(path: path)
+    }
+
+    private static func resolvedSource(
+        for storedAccount: ManagedCodexAccount,
+        snapshot: CodexAccountReconciliationSnapshot) -> CodexActiveSource
+    {
+        self.matchesLiveSystemAccount(
+            storedAccount: storedAccount,
+            snapshot: snapshot,
+            liveSystemAccount: snapshot.liveSystemAccount) ? .liveSystem : .managedAccount(id: storedAccount.id)
     }
 
     private static func matchesLiveSystemAccount(

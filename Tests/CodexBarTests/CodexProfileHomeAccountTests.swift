@@ -164,6 +164,69 @@ struct CodexProfileHomeAccountTests {
         #expect(settings.codexActiveSource == .profileHome(path: normalizedProfilePath))
     }
 
+    @Test
+    @MainActor
+    func `profile home matching live home resolves to visible live account`() throws {
+        let suite = "CodexProfileHomeAccountTests-live-duplicate"
+        let settings = try Self.makeSettings(suite: suite)
+        let liveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let liveAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: liveHome.path,
+            observedAt: Date())
+        settings._test_liveSystemCodexAccount = liveAccount
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = [liveHome.path]
+            entry.codexActiveSource = .profileHome(path: liveHome.path)
+        }
+        defer {
+            settings._test_liveSystemCodexAccount = nil
+        }
+
+        let projection = settings.codexVisibleAccountProjection
+
+        #expect(settings.codexResolvedActiveSource == .liveSystem)
+        #expect(projection.visibleAccounts.map(\.email) == ["live@example.com"])
+        #expect(projection.activeVisibleAccountID == "live@example.com")
+        #expect(settings.persistResolvedCodexActiveSourceCorrectionIfNeeded())
+        #expect(settings.codexActiveSource == .liveSystem)
+    }
+
+    @Test
+    @MainActor
+    func `profile home matching managed home resolves to visible managed account`() throws {
+        let suite = "CodexProfileHomeAccountTests-managed-duplicate"
+        let settings = try Self.makeSettings(suite: suite)
+        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = [managedHome.path]
+            entry.codexActiveSource = .profileHome(path: managedHome.path)
+        }
+        defer {
+            settings._test_activeManagedCodexAccount = nil
+        }
+
+        let projection = settings.codexVisibleAccountProjection
+
+        #expect(settings.codexResolvedActiveSource == .managedAccount(id: managedAccount.id))
+        #expect(projection.visibleAccounts.map(\.email) == ["managed@example.com"])
+        #expect(projection.activeVisibleAccountID == "managed@example.com")
+        #expect(settings.persistResolvedCodexActiveSourceCorrectionIfNeeded())
+        #expect(settings.codexActiveSource == .managedAccount(id: managedAccount.id))
+    }
+
     private static func writeCodexAuthFile(
         homeURL: URL,
         email: String,
