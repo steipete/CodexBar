@@ -302,6 +302,35 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders Rovo credits as detail not reset`() {
+        let snap = RovoDevUsageSnapshot(
+            status: "OK",
+            balance: RovoDevBalance(
+                dailyTotal: nil,
+                dailyRemaining: nil,
+                dailyUsed: nil,
+                monthlyTotal: 2000,
+                monthlyRemaining: 1153,
+                monthlyUsed: nil),
+            message: nil,
+            accountEmail: "user@example.com",
+            updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
+
+        let output = CLIRenderer.renderText(
+            provider: .rovodev,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Rovo Dev (api)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("847 / 2000 credits"))
+        #expect(!output.contains("Resets 847 / 2000 credits"))
+    }
+
+    @Test
     func `renders kilo plan activity and fallback note`() {
         let now = Date(timeIntervalSince1970: 0)
         let identity = ProviderIdentitySnapshot(
