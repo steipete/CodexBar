@@ -53,6 +53,15 @@ extension UsageStore {
         self.rollingWindowAutoStartRuntime.attemptedResetAt[route] = decision.resetAt
         self.rollingWindowAutoStartRuntime.inFlight.insert(route)
         self.rollingWindowAutoStartStatus[provider] = "Starting a new rolling window..."
+        let metadata = Self.rollingWindowAutoStartLogMetadata(
+            provider: provider,
+            route: route,
+            previousSourceLabel: previousSourceLabel,
+            sourceLabel: sourceLabel,
+            expiredResetAt: decision.resetAt)
+        self.providerLogger.info(
+            "CodexBar detected inactive rolling window; pinging provider to start one",
+            metadata: metadata)
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -78,12 +87,26 @@ extension UsageStore {
                     environment: environment,
                     runner: runner)
                 self.rollingWindowAutoStartStatus[provider] = "Ping prompt sent."
+                self.providerLogger.info(
+                    "Rolling window auto-start ping successfully processed by provider",
+                    metadata: metadata)
                 await self.refreshProvider(provider)
                 let refreshedWindow = self.snapshots[provider].flatMap {
                     RollingWindowAutoStartSupport.rollingWindow(provider: provider, snapshot: $0)
                 }
                 if let resetsAt = refreshedWindow?.resetsAt, resetsAt > Date() {
                     self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
+                    self.providerLogger.info(
+                        "Rolling window auto-start verified new rolling window",
+                        metadata: metadata.merging([
+                            "verifiedResetAt": Self.rollingWindowAutoStartTimestamp(resetsAt),
+                        ], uniquingKeysWith: { _, new in new }))
+                } else {
+                    self.providerLogger.warning(
+                        "Rolling window auto-start could not verify new rolling window",
+                        metadata: metadata.merging([
+                            "verifiedResetAt": Self.rollingWindowAutoStartTimestamp(refreshedWindow?.resetsAt),
+                        ], uniquingKeysWith: { _, new in new }))
                 }
             } catch {
                 self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: route)
@@ -121,5 +144,39 @@ extension UsageStore {
         tokenOverride: TokenAccountOverride?) -> Bool
     {
         tokenOverride == nil && self.settings.selectedTokenAccount(for: provider) == nil
+    }
+
+    private static func rollingWindowAutoStartLogMetadata(
+        provider: UsageProvider,
+        route: RollingWindowAutoStartRoute,
+        previousSourceLabel: String?,
+        sourceLabel: String?,
+        expiredResetAt: Date) -> [String: String]
+    {
+        [
+            "provider": provider.rawValue,
+            "route": self.rollingWindowAutoStartRouteLabel(route),
+            "previousSource": previousSourceLabel ?? "none",
+            "source": sourceLabel ?? "none",
+            "expiredResetAt": self.rollingWindowAutoStartTimestamp(expiredResetAt),
+        ]
+    }
+
+    private static func rollingWindowAutoStartRouteLabel(_ route: RollingWindowAutoStartRoute) -> String {
+        switch route {
+        case let .provider(provider):
+            provider.rawValue
+        case .codexLiveSystem:
+            "codex-live-system"
+        case let .codexManagedAccount(id):
+            "codex-managed-account:\(id.uuidString)"
+        }
+    }
+
+    private static func rollingWindowAutoStartTimestamp(_ date: Date?) -> String {
+        guard let date else { return "none" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 }
