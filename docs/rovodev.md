@@ -41,21 +41,18 @@ and create a token. The provider currently expects an Atlassian API token plus t
 3. Enter your **Atlassian email** (e.g. `you@example.com`)
 4. Paste the **API token** (starts with `ATATT3x...`)
 
-### 3. Configure via CLI
-
-```bash
-# Set the API token
-printf '%s' "$MY_API_TOKEN" | codexbar config set-api-key --provider rovodev --stdin
-
-# Set the email (stored as workspaceID in config)
-codexbar config set --provider rovodev workspaceID "you@example.com"
-```
-
-### 4. Configure via Environment Variables
+### 3. Configure via Environment Variables
 
 ```bash
 export ROVODEV_API_TOKEN="ATATT3x..."
 export ROVODEV_EMAIL="you@example.com"
+```
+
+The CLI can update the stored API token, but the required email must still be configured in Settings or through
+`ROVODEV_EMAIL`:
+
+```bash
+printf '%s' "$MY_API_TOKEN" | codexbar config set-api-key --provider rovodev --stdin
 ```
 
 For self-hosted proxies or testing, override the API base URL:
