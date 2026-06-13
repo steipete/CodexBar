@@ -58,26 +58,33 @@ if codexbar_sparkle_version_dir "$AMBIGUOUS" 2>"$TEMP_DIR/ambiguous.log"; then
 fi
 grep -Fq "multiple version directories" "$TEMP_DIR/ambiguous.log"
 
-OUTSIDE="$TEMP_DIR/OutsideVersion"
-mkdir -p "$OUTSIDE"
-
-ESCAPED_CURRENT="$TEMP_DIR/Escaped Current Sparkle.framework"
-make_sparkle_version "$ESCAPED_CURRENT" A
-rm "$ESCAPED_CURRENT/Versions/Current" 2>/dev/null || true
-ln -s "$OUTSIDE" "$ESCAPED_CURRENT/Versions/Current"
-if codexbar_sparkle_version_dir "$ESCAPED_CURRENT" 2>"$TEMP_DIR/escaped-current.log"; then
-  echo "ERROR: Escaped Sparkle Versions/Current was accepted." >&2
+BROKEN_CURRENT="$TEMP_DIR/Broken Current Sparkle.framework"
+make_sparkle_version "$BROKEN_CURRENT" B
+ln -s Missing "$BROKEN_CURRENT/Versions/Current"
+if codexbar_sparkle_version_dir "$BROKEN_CURRENT" 2>"$TEMP_DIR/broken-current.log"; then
+  echo "ERROR: Broken Sparkle Versions/Current was accepted." >&2
   exit 1
 fi
-grep -Fq "resolves outside" "$TEMP_DIR/escaped-current.log"
+grep -Fq "Versions/Current does not resolve" "$TEMP_DIR/broken-current.log"
 
-ESCAPED_SINGLE="$TEMP_DIR/Escaped Single Sparkle.framework"
-mkdir -p "$ESCAPED_SINGLE/Versions"
-ln -s "$OUTSIDE" "$ESCAPED_SINGLE/Versions/B"
-if codexbar_sparkle_version_dir "$ESCAPED_SINGLE" 2>"$TEMP_DIR/escaped-single.log"; then
-  echo "ERROR: Escaped single Sparkle version directory was accepted." >&2
+ESCAPING_CURRENT="$TEMP_DIR/Escaping Current Sparkle.framework"
+OUTSIDE_SPARKLE="$TEMP_DIR/Outside Sparkle.framework"
+make_sparkle_version "$ESCAPING_CURRENT" B
+make_sparkle_version "$OUTSIDE_SPARKLE" C
+ln -s "$OUTSIDE_SPARKLE/Versions/C" "$ESCAPING_CURRENT/Versions/Current"
+if codexbar_sparkle_version_dir "$ESCAPING_CURRENT" 2>"$TEMP_DIR/escaping-current.log"; then
+  echo "ERROR: Escaping Sparkle Versions/Current was accepted." >&2
   exit 1
 fi
-grep -Fq "resolves outside" "$TEMP_DIR/escaped-single.log"
+grep -Fq "outside the framework versions directory" "$TEMP_DIR/escaping-current.log"
+
+ESCAPING_SINGLE="$TEMP_DIR/Escaping Single Sparkle.framework"
+mkdir -p "$ESCAPING_SINGLE/Versions"
+ln -s "$OUTSIDE_SPARKLE/Versions/C" "$ESCAPING_SINGLE/Versions/B"
+if codexbar_sparkle_version_dir "$ESCAPING_SINGLE" 2>"$TEMP_DIR/escaping-single.log"; then
+  echo "ERROR: Escaping single Sparkle version directory was accepted." >&2
+  exit 1
+fi
+grep -Fq "outside the framework versions directory" "$TEMP_DIR/escaping-single.log"
 
 echo "Sparkle signing path tests passed."

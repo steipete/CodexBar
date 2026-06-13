@@ -1,32 +1,38 @@
 #!/usr/bin/env bash
 
+codexbar_resolve_sparkle_version_child() {
+  local versions_dir="$1"
+  local candidate="$2"
+  local label="$3"
+  local versions_root resolved
+
+  versions_root=$(cd "$versions_dir" && pwd -P)
+  if ! resolved=$(cd "$candidate" 2>/dev/null && pwd -P); then
+    echo "ERROR: Sparkle ${label} does not resolve: ${candidate}" >&2
+    return 1
+  fi
+  if [[ "$(dirname "$resolved")" != "$versions_root" ]]; then
+    echo "ERROR: Sparkle ${label} resolves outside the framework versions directory: ${candidate}" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$resolved"
+}
+
 codexbar_sparkle_version_dir() {
   local sparkle="$1"
   local versions_dir="${sparkle}/Versions"
-  local versions_root
 
   if [[ ! -d "$versions_dir" ]]; then
     echo "ERROR: Missing Sparkle versions directory: ${versions_dir}" >&2
     return 1
   fi
-  if ! versions_root=$(cd "$versions_dir" 2>/dev/null && pwd -P); then
-    echo "ERROR: Sparkle versions directory does not resolve: ${versions_dir}" >&2
-    return 1
-  fi
 
-  if [[ -e "$versions_dir/Current" ]]; then
+  if [[ -e "$versions_dir/Current" || -L "$versions_dir/Current" ]]; then
     local current
-    if ! current=$(cd "$versions_dir/Current" 2>/dev/null && pwd -P); then
-      echo "ERROR: Sparkle Versions/Current does not resolve: ${versions_dir}/Current" >&2
+    if ! current=$(codexbar_resolve_sparkle_version_child "$versions_dir" "$versions_dir/Current" "Versions/Current"); then
       return 1
     fi
-    case "$current" in
-      "$versions_root"/*) ;;
-      *)
-        echo "ERROR: Sparkle Versions/Current resolves outside ${versions_root}: ${current}" >&2
-        return 1
-        ;;
-    esac
     printf '%s\n' "$current"
     return
   fi
@@ -48,14 +54,10 @@ codexbar_sparkle_version_dir() {
       ;;
     1)
       local resolved
-      resolved=$(cd "${version_dirs[0]}" && pwd -P)
-      case "$resolved" in
-        "$versions_root"/*) ;;
-        *)
-          echo "ERROR: Sparkle version directory resolves outside ${versions_root}: ${resolved}" >&2
-          return 1
-          ;;
-      esac
+      if ! resolved=$(codexbar_resolve_sparkle_version_child \
+        "$versions_dir" "${version_dirs[0]}" "version directory"); then
+        return 1
+      fi
       printf '%s\n' "$resolved"
       ;;
     *)
