@@ -2,6 +2,7 @@
 
 ## 0.34.1 — Unreleased
 
+- Menu bar: pin the status-item dropdown to the current system appearance so it follows the Light/Dark setting instead of inheriting the menu bar's vibrant appearance, which rendered the menu dark in Light mode whenever a dark or strongly-colored window or wallpaper sat behind the menu bar.
 - Xiaomi MiMo: show paid and granted balance components alongside token-plan usage without requiring a duplicate provider (#1309). Thanks @AdrianSimionov!
 - Settings: keep the native tab toolbar in sync when macOS switches appearance while the window is open (#1484). Thanks @hhh2210!
 - Menu bar: avoid starting a duplicate background provider refresh when the menu closes while its initial missing-data refresh is still in flight.
