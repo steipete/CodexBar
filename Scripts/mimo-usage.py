@@ -43,10 +43,9 @@ def parse_session_usage(jsonl_path: Path):
                     if not ts:
                         continue
                     message_id = msg.get("id")
-                    request_id = d.get("requestId") or d.get("request_id")
                     identity = None
-                    if isinstance(message_id, str) and isinstance(request_id, str):
-                        identity = (message_id, request_id)
+                    if isinstance(message_id, str):
+                        identity = (str(jsonl_path), message_id)
                     yield identity, ts, usage
                 except (json.JSONDecodeError, ValueError):
                     continue

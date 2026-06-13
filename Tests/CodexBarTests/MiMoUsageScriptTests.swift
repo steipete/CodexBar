@@ -5,6 +5,15 @@ import Testing
 struct MiMoUsageScriptTests {
     @Test
     func `script keeps final cumulative streaming usage`() throws {
+        try self.assertFinalStreamingUsage(includeRequestID: true)
+    }
+
+    @Test
+    func `script deduplicates streaming usage without request id`() throws {
+        try self.assertFinalStreamingUsage(includeRequestID: false)
+    }
+
+    private func assertFinalStreamingUsage(includeRequestID: Bool) throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimo-usage-script-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -18,9 +27,9 @@ struct MiMoUsageScriptTests {
 
         let now = ISO8601DateFormatter().string(from: Date())
         let rows = [
-            self.assistantRow(timestamp: now, outputTokens: 10),
-            self.assistantRow(timestamp: now, outputTokens: 40),
-            self.assistantRow(timestamp: now, outputTokens: 90),
+            self.assistantRow(timestamp: now, outputTokens: 10, includeRequestID: includeRequestID),
+            self.assistantRow(timestamp: now, outputTokens: 40, includeRequestID: includeRequestID),
+            self.assistantRow(timestamp: now, outputTokens: 90, includeRequestID: includeRequestID),
         ]
         let session = projects.appendingPathComponent("session.jsonl")
         let jsonl = try rows
@@ -67,11 +76,14 @@ struct MiMoUsageScriptTests {
             .appendingPathComponent("Scripts/mimo-usage.py")
     }
 
-    private func assistantRow(timestamp: String, outputTokens: Int) -> [String: Any] {
-        [
+    private func assistantRow(
+        timestamp: String,
+        outputTokens: Int,
+        includeRequestID: Bool) -> [String: Any]
+    {
+        var row: [String: Any] = [
             "type": "assistant",
             "timestamp": timestamp,
-            "requestId": "req_stream",
             "message": [
                 "id": "msg_stream",
                 "usage": [
@@ -82,5 +94,9 @@ struct MiMoUsageScriptTests {
                 ],
             ],
         ]
+        if includeRequestID {
+            row["requestId"] = "req_stream"
+        }
+        return row
     }
 }
