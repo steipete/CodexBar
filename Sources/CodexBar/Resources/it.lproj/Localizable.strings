@@ -1,4 +1,4 @@
-/* English localization for CodexBar (base/fallback) */
+/* Italian localization for CodexBar */
 
 " providers" = " provider";
 "(System)" = "(Sistema)";
@@ -382,7 +382,7 @@
 "metric_secondary" = "Secondario (%@)";
 "metric_tertiary" = "Terziario (%@)";
 "multiple_workspaces_found" = "CodexBar ha trovato più workspace per %@. Scegli il workspace da aggiungere.";
-"ory_session_…=…; csrftoken=…" = "ory_sessione_…=…; csrftoken=…";
+"ory_session_…=…; csrftoken=…" = "ory_session_…=…; csrftoken=…";
 "overview_choose_providers" = "Scegli fino a %@ provider";
 "remove_account_message" = "Rimuovere %@ da CodexBar? La sua home Codex gestita verrà eliminata.";
 "version_format" = "Versione %@";
@@ -427,17 +427,17 @@
 "session_quota_notifications_title" = "Notifiche quota sessione";
 "session_quota_notifications_subtitle" = "Notifica quando la quota sessione di 5 ore arriva allo 0% e quando torna disponibile.";
 "quota_warning_notifications_title" = "Notifiche avviso quota";
-"quota_warning_notifications_subtitle" = "Avvisa quando la quota residua di sessione o settimanale supera le soglie configurate.";
+"quota_warning_notifications_subtitle" = "Avvisa quando la quota residua di sessione o settimanale scende sotto le soglie configurate.";
 "quota_warnings_title" = "Avvisi quota";
 "quota_warning_session" = "sessione";
 "quota_warning_session_capitalized" = "Sessione";
 "quota_warning_weekly" = "settimanale";
 "quota_warning_weekly_capitalized" = "Settimanale";
 "quota_warning_notification_title" = "Quota %@ %1$@ quasi esaurita";
-"quota_warning_notification_body" = "%1$@ rimasto. Hai raggiunto la soglia di avviso %2$d%% per la quota %3$@.";
-"quota_warning_notification_body_with_account" = "Account %1$@. %2$@ rimasto. Hai raggiunto la soglia di avviso %3$d%% per la quota %4$@.";
+"quota_warning_notification_body" = "Rimane %1$@. Hai raggiunto la soglia di avviso del %2$d%% per la quota %3$@.";
+"quota_warning_notification_body_with_account" = "Account %1$@. Rimane %2$@. Hai raggiunto la soglia di avviso del %3$d%% per la quota %4$@.";
 "session_depleted_notification_title" = "Sessione %@ esaurita";
-"session_depleted_notification_body" = "Rimasto 0%. Ti avviseremo quando tornerà disponibile.";
+"session_depleted_notification_body" = "Rimane lo 0%. Ti avviseremo quando tornerà disponibile.";
 "session_restored_notification_title" = "Sessione %@ ripristinata";
 "session_restored_notification_body" = "La quota di sessione è di nuovo disponibile.";
 "quota_warning_warn_at" = "Avvisa a";
@@ -542,7 +542,7 @@
 "weekly_limit_confetti_subtitle" = "Mostra coriandoli a schermo intero quando la quota settimanale si resetta.";
 "hide_personal_info_title" = "Nascondi informazioni personali";
 "hide_personal_info_subtitle" = "Oscura gli indirizzi email nella barra menu e nell'interfaccia menu.";
-"show_provider_storage_usage_title" = "Mostra utilizzo storage provider";
+"show_provider_storage_usage_title" = "Mostra spazio usato dai provider";
 "show_provider_storage_usage_subtitle" = "Mostra l'uso disco locale nei menu. Scansiona in background i percorsi dei provider.";
 "section_keychain_access" = "Accesso Portachiavi";
 "keychain_access_caption" = "Disattiva tutte le letture e scritture del Portachiavi. Usalo se macOS continua a chiedere accesso a 'Chrome/Brave/Edge Safe Storage' anche dopo aver scelto Consenti sempre. Quando è attivo, l'importazione dei cookie dal browser non è disponibile; incolla manualmente gli header Cookie in Provider. L'OAuth di Claude/Codex tramite CLI continua a funzionare.";
@@ -687,8 +687,8 @@
 "No available fetch strategy for %@." = "Nessuna strategia di recupero disponibile per %@.";
 "Today" = "Oggi";
 "Today tokens" = "Token di oggi";
-"30d cost" = "Costo 30g";
-"30d tokens" = "Token 30g";
+"30d cost" = "Costo 30 g";
+"30d tokens" = "Token 30 g";
 "Latest tokens" = "Token recenti";
 "Top model" = "Modello principale";
 "Storage" = "Archiviazione";
@@ -705,7 +705,7 @@
 "Latest billing day (%@)" = "Ultimo giorno di fatturazione (%@)";
 "%@ left" = "%@ rimasto";
 "Resets %@" = "Si resetta %@";
-"Resets in %@" = "Reset tra %@";
+"Resets in %@" = "Si reimposta tra %@";
 "Resets now" = "Si resetta ora";
 "Lasts until reset" = "Valido fino al reset";
 "Updated %@" = "Aggiornato %@";
@@ -731,8 +731,8 @@
 "Latest hour" = "Ultima ora";
 "Peak hour" = "Ora di picco";
 "Top method" = "Metodo principale";
-"30d cash" = "Contanti 30g";
-"30d billing history from MiniMax web session" = "Cronologia fatturazione 30g dalla sessione web MiniMax";
+"30d cash" = "Spesa 30 g";
+"30d billing history from MiniMax web session" = "Cronologia di fatturazione degli ultimi 30 giorni dalla sessione web MiniMax";
 "AWS Cost Explorer billing can lag." = "La fatturazione di AWS Cost Explorer può avere ritardi.";
 "Rate limit: %d / %@" = "Limite di richiesta: %d / %@";
 "Key remaining" = "Residuo chiave";
@@ -760,7 +760,7 @@
 "Today: %@ tokens" = "Oggi: %@ token";
 "Last 30 days: %@ · %@ tokens" = "Ultimi 30 giorni: %@ · %@ token";
 "Last 30 days: %@" = "Ultimi 30 giorni: %@";
-"Est. total (30d): %@" = "Totale stimato (30g): %@";
+"Est. total (30d): %@" = "Totale stimato (30 g): %@";
 "Est. total (%@): %@" = "Totale stimato (%@): %@";
 "Hover a bar for details" = "Passa il mouse su una barra per i dettagli";
 "%@: %@ · %@ tokens" = "%@: %@ • %@ token";
@@ -826,14 +826,14 @@
 "Usage used" = "Utilizzo consumato";
 "API key verified. Ollama does not expose Cloud quota limits through the API." = "Chiave API verificata. Ollama non espone i limiti di quota Cloud tramite API.";
 "Last 30 days: %@ tokens" = "Ultimi 30 giorni: %@ token";
-"7d spend" = "Spesa 7g";
-"30d spend" = "Spesa 30g";
+"7d spend" = "Spesa 7 g";
+"30d spend" = "Spesa 30 g";
 "Cache read" = "Lettura cache";
 "Claude Admin API 30 day spend trend" = "Trend spesa 30 giorni Claude Admin API";
 "OpenRouter API key spend trend" = "Trend spesa chiave API OpenRouter";
 "z.ai hourly token trend" = "Trend orario token z.ai";
 "MiniMax 30 day token usage trend" = "Trend utilizzo token 30 giorni MiniMax";
-"Today cash" = "Contanti di oggi";
+"Today cash" = "Spesa di oggi";
 "DeepSeek 30 day token usage trend" = "Trend utilizzo token 30 giorni DeepSeek";
 "cache-hit input" = "input cache-hit";
 "cache-miss input" = "input cache-miss";
@@ -906,7 +906,7 @@
 "%@ is waiting for permission" = "%@ è in attesa di autorizzazione";
 "%@ requests" = "%@ richieste";
 "%@: %@ credits" = "%@: %@ crediti";
-"30d requests" = "Richieste 30g";
+"30d requests" = "Richieste 30 g";
 "4 days" = "4 giorni";
 "5 days" = "5 giorni";
 "7 days" = "7 giorni";
@@ -1057,7 +1057,7 @@
 "Timed out waiting for Cursor login. %@" = "Timeout in attesa dell'accesso Cursor. %@";
 "Timed out waiting for Cursor login. %@ Last error: %@" = "Timeout in attesa dell'accesso Cursor. %@ Ultimo errore: %@";
 "Today requests" = "Richieste di oggi";
-"Total (30d): %@ credits" = "Totale (30g): %@ crediti";
+"Total (30d): %@ credits" = "Totale (30 g): %@ crediti";
 "Username" = "Nome utente";
 "Uses username + password to login and obtain an Oasis-Token automatically." = "Usa nome utente e password per accedere e ottenere automaticamente un Oasis-Token.";
 "Uses username + password to login and obtain an %@ automatically." = "Usa nome utente e password per accedere e ottenere automaticamente un %@.";

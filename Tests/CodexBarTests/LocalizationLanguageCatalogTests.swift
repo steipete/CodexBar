@@ -42,6 +42,12 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `app language catalog includes Italian`() {
+        #expect(AppLanguage.allCases.contains(.italian))
+        #expect(AppLanguage.italian.rawValue == "it")
+    }
+
+    @Test
     func `localized catalogs include every app language label`() throws {
         #expect(self.languageKeys.count == AppLanguage.allCases.count)
 
@@ -161,6 +167,40 @@ struct LocalizationLanguageCatalogTests {
         #expect(italian["Workspace"] == "Spazio di lavoro")
         #expect(italian["display_mode_reset_time"] == "Ora di reimpostazione")
         #expect(italian["display_mode_reset_time_desc"]?.contains("↻ 15:56") == true)
+        #expect(italian["ory_session_…=…; csrftoken=…"] == "ory_session_…=…; csrftoken=…")
+        #expect(italian["quota_warning_notifications_subtitle"]?.contains("scende sotto") == true)
+
+        let intentionallyUnchanged: Set<String> = [
+            "Account",
+            "Build",
+            "Chrome",
+            "Cookie: ...",
+            "Cookie: …",
+            "Deployment",
+            "Email",
+            "Endpoint",
+            "Gemini Flash",
+            "GitHub",
+            "Google OAuth",
+            "No",
+            "Oasis-Token",
+            "Password",
+            "Provider",
+            "Token",
+            "language_italian",
+            "link_email",
+            "link_github",
+            "ory_session_…=…; csrftoken=…",
+        ]
+        let unchanged = Set(english.keys.filter { italian[$0] == english[$0] })
+        #expect(unchanged == intentionallyUnchanged)
+
+        let warningFormat = try #require(italian["quota_warning_notification_body"])
+        let warning = String(
+            format: warningFormat,
+            locale: Locale(identifier: "it_IT"),
+            arguments: ["20%", 15, "settimanale"])
+        #expect(warning == "Rimane 20%. Hai raggiunto la soglia di avviso del 15% per la quota settimanale.")
     }
 
     @Test
@@ -199,27 +239,5 @@ struct LocalizationLanguageCatalogTests {
 
         #expect(rendered.contains("7일간"))
         #expect(rendered.contains("3개 서비스"))
-    }
-
-    @Test
-    func `all localization catalogs include italian language label`() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let resources = root.appendingPathComponent("Sources/CodexBar/Resources", isDirectory: true)
-
-        let lprojDirectories = try FileManager.default.contentsOfDirectory(
-            at: resources,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]).filter { $0.pathExtension == "lproj" }
-
-        #expect(!lprojDirectories.isEmpty)
-        for directory in lprojDirectories {
-            let content = try String(
-                contentsOf: directory.appendingPathComponent("Localizable.strings"),
-                encoding: .utf8)
-            #expect(content.contains("\"language_italian\" = \"Italiano\";"))
-        }
     }
 }

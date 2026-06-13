@@ -33,9 +33,6 @@ private func resolvedAppLanguage() -> String {
         return override
     }
     if isRunningTestsProcess() {
-        if let current = UserDefaults.standard.string(forKey: "appLanguage"), !current.isEmpty {
-            return current
-        }
         return "en"
     }
     return appLanguageDefaults().string(forKey: "appLanguage") ?? ""
