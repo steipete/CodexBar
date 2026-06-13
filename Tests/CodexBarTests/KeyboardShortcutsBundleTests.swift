@@ -10,9 +10,7 @@ struct KeyboardShortcutsBundleTests {
 
     @Test func `open menu recorder expands beyond dependency intrinsic width`() {
         let recorder = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.width"))
-        let size = OpenMenuShortcutRecorder.fittedSize(
-            proposedWidth: recorder.intrinsicContentSize.width,
-            intrinsicHeight: recorder.intrinsicContentSize.height)
+        let size = OpenMenuShortcutRecorder.fittedSize(intrinsicHeight: recorder.intrinsicContentSize.height)
 
         #expect(size.width == OpenMenuShortcutRecorder.preferredWidth)
         #expect(size.width > recorder.intrinsicContentSize.width)
