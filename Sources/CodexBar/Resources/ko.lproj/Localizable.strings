@@ -495,7 +495,7 @@
 "show_quota_warning_markers_title" = "할당량 경고 표시기 표시";
 "show_quota_warning_markers_subtitle" = "할당량 경고가 구성된 경우 사용량 막대에 임계값 눈금 표시를 그립니다.";
 "weekly_progress_work_days_title" = "주간 진행률 근무일";
-"weekly_progress_work_days_subtitle" = "주간 사용량 막대에 날짜 경계 눈금 표시를 그립니다.";
+"weekly_progress_work_days_subtitle" = "주간 사용량 막대 눈금과 페이스 계산에 사용할 근무일을 설정합니다.";
 "show_reset_time_as_clock_title" = "재설정 시간을 시계로 표시";
 "show_reset_time_as_clock_subtitle" = "재설정 시간을 카운트다운 대신 절대 시각으로 표시합니다.";
 "show_provider_changelog_links_title" = "공급자 변경 로그 링크 표시";

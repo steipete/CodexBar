@@ -41,7 +41,8 @@ public struct UsagePace: Sendable {
         window: RateWindow,
         now: Date = .init(),
         defaultWindowMinutes: Int = 10080,
-        workDays: Int? = nil) -> UsagePace?
+        workDays: Int? = nil,
+        calendar: Calendar = .current) -> UsagePace?
     {
         guard let resetsAt = window.resetsAt else { return nil }
         let minutes = window.windowMinutes ?? defaultWindowMinutes
@@ -55,7 +56,12 @@ public struct UsagePace: Sendable {
         let workdayProgress: WorkdayProgress? = if let workDays, workDays >= 2, workDays < 7,
                                                    minutes == 10080
         {
-            Self.workdayProgress(now: now, duration: duration, resetsAt: resetsAt, workDays: workDays)
+            Self.workdayProgress(
+                now: now,
+                duration: duration,
+                resetsAt: resetsAt,
+                workDays: workDays,
+                calendar: calendar)
         } else {
             nil
         }
@@ -87,7 +93,8 @@ public struct UsagePace: Sendable {
                         from: now,
                         to: resetsAt,
                         consumingWorkSeconds: candidate,
-                        workDays: workDays)
+                        workDays: workDays,
+                        calendar: calendar)
                 } else {
                     etaSeconds = candidate
                 }
@@ -142,12 +149,10 @@ public struct UsagePace: Sendable {
         now: Date,
         duration: TimeInterval,
         resetsAt: Date,
-        workDays: Int) -> WorkdayProgress?
+        workDays: Int,
+        calendar: Calendar) -> WorkdayProgress?
     {
         let windowStart = resetsAt.addingTimeInterval(-duration)
-
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
 
         var totalWorkSeconds: TimeInterval = 0
         var elapsedWorkSeconds: TimeInterval = 0
@@ -155,7 +160,11 @@ public struct UsagePace: Sendable {
 
         var cursor = windowStart
         while cursor < resetsAt {
-            let startOfNextDay = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: cursor)!)
+            guard let startOfNextDay = Self.nextDayBoundary(after: cursor, calendar: calendar),
+                  startOfNextDay > cursor
+            else {
+                return nil
+            }
             let sliceEnd = min(startOfNextDay, resetsAt)
 
             if Self.isWorkday(cursor, calendar: calendar, workDays: workDays) {
@@ -183,17 +192,19 @@ public struct UsagePace: Sendable {
         from now: Date,
         to resetsAt: Date,
         consumingWorkSeconds requiredWorkSeconds: TimeInterval,
-        workDays: Int) -> TimeInterval?
+        workDays: Int,
+        calendar: Calendar) -> TimeInterval?
     {
         guard requiredWorkSeconds > 0 else { return 0 }
-
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
 
         var remaining = requiredWorkSeconds
         var cursor = now
         while cursor < resetsAt {
-            let startOfNextDay = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: cursor)!)
+            guard let startOfNextDay = Self.nextDayBoundary(after: cursor, calendar: calendar),
+                  startOfNextDay > cursor
+            else {
+                return nil
+            }
             let sliceEnd = min(startOfNextDay, resetsAt)
             if Self.isWorkday(cursor, calendar: calendar, workDays: workDays) {
                 let available = sliceEnd.timeIntervalSince(cursor)
@@ -205,6 +216,10 @@ public struct UsagePace: Sendable {
             cursor = sliceEnd
         }
         return nil
+    }
+
+    private static func nextDayBoundary(after date: Date, calendar: Calendar) -> Date? {
+        calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))
     }
 
     private static func isWorkday(_ date: Date, calendar: Calendar, workDays: Int) -> Bool {

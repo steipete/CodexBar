@@ -491,6 +491,8 @@
 "show_usage_as_used_subtitle" = "Les barres de progrés s'omplen a mesura que consumeixes la quota (en comptes de mostrar el que queda).";
 "show_quota_warning_markers_title" = "Mostra els marcadors d'avís de quota";
 "show_quota_warning_markers_subtitle" = "Dibuixa marques de llindar a les barres d'ús quan hi ha avisos de quota configurats.";
+"weekly_progress_work_days_title" = "Dies laborables del progrés setmanal";
+"weekly_progress_work_days_subtitle" = "Defineix els dies laborables per als marcadors de les barres d'ús setmanal i els càlculs de ritme.";
 "show_reset_time_as_clock_title" = "Mostra l'hora de reinici com a rellotge";
 "show_reset_time_as_clock_subtitle" = "Mostra les hores de reinici com a valors de rellotge absoluts en comptes de comptes enrere.";
 "show_provider_changelog_links_title" = "Mostra els enllaços al registre de canvis del proveïdor";
