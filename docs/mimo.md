@@ -43,7 +43,7 @@ Safari cookie import may require granting CodexBar Full Disk Access in **System 
 ## Limitations
 
 - Token cost, status polling, and debug log output are not supported yet
-- Widgets show token-plan usage but omit balance details
+- Widgets do not support Xiaomi MiMo yet
 - Auto import covers Safari, Chrome variants, Firefox, and Edge only; other browsers use **Manual** mode
 
 ## Troubleshooting
