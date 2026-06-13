@@ -3,9 +3,14 @@
 codexbar_sparkle_version_dir() {
   local sparkle="$1"
   local versions_dir="${sparkle}/Versions"
+  local versions_root
 
   if [[ ! -d "$versions_dir" ]]; then
     echo "ERROR: Missing Sparkle versions directory: ${versions_dir}" >&2
+    return 1
+  fi
+  if ! versions_root=$(cd "$versions_dir" 2>/dev/null && pwd -P); then
+    echo "ERROR: Sparkle versions directory does not resolve: ${versions_dir}" >&2
     return 1
   fi
 
@@ -15,6 +20,13 @@ codexbar_sparkle_version_dir() {
       echo "ERROR: Sparkle Versions/Current does not resolve: ${versions_dir}/Current" >&2
       return 1
     fi
+    case "$current" in
+      "$versions_root"/*) ;;
+      *)
+        echo "ERROR: Sparkle Versions/Current resolves outside ${versions_root}: ${current}" >&2
+        return 1
+        ;;
+    esac
     printf '%s\n' "$current"
     return
   fi
@@ -37,6 +49,13 @@ codexbar_sparkle_version_dir() {
     1)
       local resolved
       resolved=$(cd "${version_dirs[0]}" && pwd -P)
+      case "$resolved" in
+        "$versions_root"/*) ;;
+        *)
+          echo "ERROR: Sparkle version directory resolves outside ${versions_root}: ${resolved}" >&2
+          return 1
+          ;;
+      esac
       printf '%s\n' "$resolved"
       ;;
     *)

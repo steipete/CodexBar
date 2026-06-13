@@ -58,4 +58,26 @@ if codexbar_sparkle_version_dir "$AMBIGUOUS" 2>"$TEMP_DIR/ambiguous.log"; then
 fi
 grep -Fq "multiple version directories" "$TEMP_DIR/ambiguous.log"
 
+OUTSIDE="$TEMP_DIR/OutsideVersion"
+mkdir -p "$OUTSIDE"
+
+ESCAPED_CURRENT="$TEMP_DIR/Escaped Current Sparkle.framework"
+make_sparkle_version "$ESCAPED_CURRENT" A
+rm "$ESCAPED_CURRENT/Versions/Current" 2>/dev/null || true
+ln -s "$OUTSIDE" "$ESCAPED_CURRENT/Versions/Current"
+if codexbar_sparkle_version_dir "$ESCAPED_CURRENT" 2>"$TEMP_DIR/escaped-current.log"; then
+  echo "ERROR: Escaped Sparkle Versions/Current was accepted." >&2
+  exit 1
+fi
+grep -Fq "resolves outside" "$TEMP_DIR/escaped-current.log"
+
+ESCAPED_SINGLE="$TEMP_DIR/Escaped Single Sparkle.framework"
+mkdir -p "$ESCAPED_SINGLE/Versions"
+ln -s "$OUTSIDE" "$ESCAPED_SINGLE/Versions/B"
+if codexbar_sparkle_version_dir "$ESCAPED_SINGLE" 2>"$TEMP_DIR/escaped-single.log"; then
+  echo "ERROR: Escaped single Sparkle version directory was accepted." >&2
+  exit 1
+fi
+grep -Fq "resolves outside" "$TEMP_DIR/escaped-single.log"
+
 echo "Sparkle signing path tests passed."
