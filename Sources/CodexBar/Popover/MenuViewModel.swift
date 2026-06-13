@@ -86,8 +86,9 @@ final class MenuViewModel {
         self.select(stops[nextIndex])
     }
 
-    func selectProvider(atIndex index: Int) {
-        guard self.providers.indices.contains(index) else { return }
-        self.select(.provider(self.providers[index]))
+    func selectNavigationStop(atIndex index: Int) {
+        let stops = self.navigationStops
+        guard stops.indices.contains(index) else { return }
+        self.select(stops[index])
     }
 }

@@ -866,7 +866,7 @@ extension StatusItemController {
             }
         }
         self.popoverMenuController?.onSelectIndex = { [weak self] index in
-            self?.menuViewModel.selectProvider(atIndex: index)
+            self?.menuViewModel.selectNavigationStop(atIndex: index)
         }
     }
 }

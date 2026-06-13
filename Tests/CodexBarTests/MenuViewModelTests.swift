@@ -1,14 +1,14 @@
 import Testing
 @testable import CodexBar
 
-@MainActor @Suite struct MenuViewModelTests {
-    @Test func defaultsToFirstProviderNotVisible() {
+@MainActor struct MenuViewModelTests {
+    @Test func `defaults to first provider not visible`() {
         let vm = MenuViewModel()
         #expect(vm.isVisible == false)
         #expect(vm.selection == .overview)
     }
 
-    @Test func selectingProviderBumpsContentVersionOnce() {
+    @Test func `selecting provider bumps content version once`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
         let v0 = vm.contentVersion
@@ -17,13 +17,13 @@ import Testing
         #expect(vm.contentVersion == v0 + 1)
     }
 
-    @Test func selectingSameValueDoesNotBump() {
+    @Test func `selecting same value does not bump`() {
         let vm = MenuViewModel()
         vm.select(.overview) // already .overview
         #expect(vm.contentVersion == 0) // no change → no bump
     }
 
-    @Test func markVisibleTogglesState() {
+    @Test func `mark visible toggles state`() {
         let vm = MenuViewModel()
         vm.setVisible(true)
         #expect(vm.isVisible == true)
@@ -33,7 +33,7 @@ import Testing
 
     // MARK: - Task 1.4 导航助手
 
-    @Test func selectNextCyclesThroughOverviewAndProviders() {
+    @Test func `select next cycles through overview and providers`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
         vm.includesOverview = true
@@ -44,24 +44,37 @@ import Testing
         vm.selectNext(); #expect(vm.selection == .overview)
     }
 
-    @Test func selectPreviousWrapsBackward() {
+    @Test func `select previous wraps backward`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
         vm.includesOverview = true
         vm.selectPrevious(); #expect(vm.selection == .provider(.claude)) // overview ← 回绕到末尾
     }
 
-    @Test func selectProviderAtIndexBounds() {
+    @Test func `select navigation stop at index includes overview in visible order`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
-        vm.selectProvider(atIndex: 1); #expect(vm.selection == .provider(.claude))
-        vm.selectProvider(atIndex: 9) // 越界：无变化
+        vm.includesOverview = true
+        vm.select(.provider(.claude))
+
+        vm.selectNavigationStop(atIndex: 0); #expect(vm.selection == .overview)
+        vm.selectNavigationStop(atIndex: 2); #expect(vm.selection == .provider(.claude))
+        vm.selectNavigationStop(atIndex: 9) // 越界：无变化
         #expect(vm.selection == .provider(.claude))
+    }
+
+    @Test func `select navigation stop at index starts with provider without overview`() {
+        let vm = MenuViewModel()
+        vm.providers = [.codex, .claude]
+
+        vm.selectNavigationStop(atIndex: 0)
+
+        #expect(vm.selection == .provider(.codex))
     }
 
     // MARK: - Task 2.6 onSelectionChanged 回调
 
-    @Test func onSelectionChangedFiresOnActualChange() {
+    @Test func `on selection changed fires on actual change`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
         var received: [ProviderSwitcherSelection] = []
@@ -76,7 +89,7 @@ import Testing
         #expect(received[1] == .provider(.claude))
     }
 
-    @Test func onSelectionChangedValueMatchesSelection() {
+    @Test func `on selection changed value matches selection`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
         vm.includesOverview = true
@@ -90,7 +103,7 @@ import Testing
         #expect(callbackValue == vm.selection)
     }
 
-    @Test func onSelectionChangedNotFiredForSameValue() {
+    @Test func `on selection changed not fired for same value`() {
         let vm = MenuViewModel()
         // 初始值 .overview，再次 select .overview 不应触发
         var callCount = 0
@@ -101,7 +114,7 @@ import Testing
 
     // MARK: - Task 2.5 includesOverview
 
-    @Test func includesOverviewFalseSkipsOverviewInNavigation() {
+    @Test func `includes overview false skips overview in navigation`() {
         let vm = MenuViewModel()
         vm.providers = [.codex, .claude]
         vm.includesOverview = false
@@ -115,7 +128,7 @@ import Testing
         vm.selectNext(); #expect(vm.selection == .provider(.claude))
     }
 
-    @Test func includesOverviewTrueAddsOverviewToNavigationStops() {
+    @Test func `includes overview true adds overview to navigation stops`() {
         let vm = MenuViewModel()
         vm.providers = [.codex]
         vm.includesOverview = true
