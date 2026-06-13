@@ -52,7 +52,7 @@ extension MiMoUsageSnapshot {
         return "\(balanceText) (Paid: \(paid) / Granted: \(granted))"
     }
 
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(includeBalance: Bool = true) -> UsageSnapshot {
         let tokenWindow: RateWindow? = {
             guard self.tokenLimit > 0 else { return nil }
             let usedPercent = max(0, min(100, self.tokenPercent * 100))
@@ -81,7 +81,7 @@ extension MiMoUsageSnapshot {
             primary: tokenWindow,
             secondary: nil,
             tertiary: nil,
-            mimoUsage: self,
+            mimoUsage: includeBalance ? self : nil,
             updatedAt: self.updatedAt,
             identity: identity)
     }

@@ -942,10 +942,7 @@ extension UsageMenuCardView.Model {
         }
 
         if input.provider == .mimo, input.snapshot != nil {
-            return [
-                L("Balance updates in near-real time (up to 5 min lag)"),
-                L("Daily billing data finalizes at 07:00 UTC"),
-            ] + subscriptionNotes
+            return Self.mimoUsageNotes(input: input, subscriptionNotes: subscriptionNotes)
         }
 
         if let notes = apiProviderUsageNotes(input: input) {
@@ -1573,9 +1570,7 @@ extension UsageMenuCardView.Model {
                 paceDetail = Self.weeklyPaceDetail(
                     window: window,
                     now: input.now,
-                    pace: input.weeklyPace
-                        ?? UsagePace.weekly(window: window, now: input.now, defaultWindowMinutes: 10080)
-                        .flatMap { $0.expectedUsedPercent >= 3 ? $0 : nil },
+                    pace: Self.standardWeeklyPace(input: input, window: window),
                     showUsed: input.usageBarsShowUsed)
             }
 

@@ -503,7 +503,7 @@
 "show_quota_warning_markers_title" = "Kota uyarı işaretlerini göster";
 "show_quota_warning_markers_subtitle" = "Kota uyarıları yapılandırıldığında kullanım çubuklarına eşik çizgileri çizer.";
 "weekly_progress_work_days_title" = "Haftalık ilerleme iş günleri";
-"weekly_progress_work_days_subtitle" = "Haftalık kullanım çubuklarına gün sınırı çizgileri çizer.";
+"weekly_progress_work_days_subtitle" = "Haftalık kullanım çubuğu işaretleri ve tempo hesaplamaları için iş günlerini ayarlar.";
 "show_reset_time_as_clock_title" = "Sıfırlama süresini saat olarak göster";
 "show_reset_time_as_clock_subtitle" = "Sıfırlama sürelerini geri sayım yerine mutlak saat değerleri olarak göster.";
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";

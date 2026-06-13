@@ -503,7 +503,7 @@
 "show_quota_warning_markers_title" = "Quotenwarnmarkierungen anzeigen";
 "show_quota_warning_markers_subtitle" = "Zeichnen Sie Schwellenwertmarkierungen auf Nutzungsbalken, wenn Kontingentwarnungen konfiguriert sind.";
 "weekly_progress_work_days_title" = "Wöchentliche Fortschrittsarbeitstage";
-"weekly_progress_work_days_subtitle" = "Zeichnen Sie Häkchenmarkierungen für die Tagesgrenzen auf den Balken für die wöchentliche Nutzung.";
+"weekly_progress_work_days_subtitle" = "Legt Arbeitstage für Markierungen in wöchentlichen Nutzungsbalken und Tempo-Berechnungen fest.";
 "show_reset_time_as_clock_title" = "Reset-Zeit als Uhr anzeigen";
 "show_reset_time_as_clock_subtitle" = "Anzeige der Rücksetzzeiten als absolute Uhrwerte statt als Countdown.";
 "show_provider_changelog_links_title" = "Links zum Änderungsprotokoll des Anbieters anzeigen";

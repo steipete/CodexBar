@@ -33,7 +33,12 @@ public enum MiMoProviderDescriptor {
                 noDataMessage: { "Xiaomi MiMo cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MiMoWebFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    if context.sourceMode == .web {
+                        return [MiMoWebFetchStrategy()]
+                    }
+                    return [MiMoWebFetchStrategy(), MiMoLocalFetchStrategy()]
+                })),
             cli: ProviderCLIConfig(
                 name: "mimo",
                 aliases: ["xiaomi-mimo"],
@@ -55,6 +60,19 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try await self.fetchFromWeb(context)
+    }
+
+    private static func shouldFallbackToLocal(error: Error) -> Bool {
+        if error is MiMoSettingsError { return true }
+        guard let mimoError = error as? MiMoUsageError else { return false }
+        switch mimoError {
+        case .invalidCredentials, .loginRequired: return true
+        case .parseFailed, .networkError: return false
+        }
+    }
+
+    private func fetchFromWeb(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard context.settings?.mimo?.cookieSource != .off else {
             throw MiMoSettingsError.missingCookie()
         }
@@ -126,8 +144,8 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         #endif
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+        Self.shouldFallbackToLocal(error: error)
     }
 
     private static func resolveManualCookieHeader(context: ProviderFetchContext) -> String? {
@@ -148,5 +166,41 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         case .networkError:
             return false
         }
+    }
+}
+
+enum MiMoLocalUsageError: LocalizedError {
+    case invalidCache(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .invalidCache(path):
+            "Xiaomi MiMo local usage cache is unreadable or malformed: \(path)"
+        }
+    }
+}
+
+struct MiMoLocalFetchStrategy: ProviderFetchStrategy {
+    let id: String = "mimo.local"
+    let kind: ProviderFetchKind = .localProbe
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        MiMoLocalUsageFallback.cacheExists(environment: context.env)
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let path = Self.cachePath(context: context)
+        guard let snapshot = MiMoLocalUsageFallback.snapshot(cachePath: path) else {
+            throw MiMoLocalUsageError.invalidCache(path)
+        }
+        return self.makeResult(usage: snapshot.toUsageSnapshot(includeBalance: false), sourceLabel: "local")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+
+    private static func cachePath(context: ProviderFetchContext) -> String {
+        MiMoLocalUsageFallback.cachePath(environment: context.env)
     }
 }

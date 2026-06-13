@@ -503,7 +503,7 @@
 "show_quota_warning_markers_title" = "Afficher les marqueurs d'avertissement de quota";
 "show_quota_warning_markers_subtitle" = "Dessinez des coches de seuil sur les barres d’utilisation lorsque des avertissements de quota sont configurés.";
 "weekly_progress_work_days_title" = "Jours de travail hebdomadaires";
-"weekly_progress_work_days_subtitle" = "Dessinez des graduations journalières sur les barres d’utilisation hebdomadaire.";
+"weekly_progress_work_days_subtitle" = "Définit les jours ouvrés pour les repères des barres d’utilisation hebdomadaire et le calcul du rythme.";
 "show_reset_time_as_clock_title" = "Afficher l'heure de réinitialisation sous forme d'horloge";
 "show_reset_time_as_clock_subtitle" = "Affichez les temps de réinitialisation sous forme de valeurs d'horloge absolues au lieu de comptes à rebours.";
 "show_provider_changelog_links_title" = "Afficher les liens du journal des modifications du fournisseur";

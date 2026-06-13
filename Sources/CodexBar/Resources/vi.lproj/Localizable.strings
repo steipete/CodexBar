@@ -501,7 +501,7 @@
 "show_quota_warning_markers_title" = "Hiển thị Hạn mức dấu cảnh báo";
 "show_quota_warning_markers_subtitle" = "Vẽ dấu kiểm ngưỡng trên thanh Mức sử dụng khi cảnh báo Hạn mức được định cấu hình.";
 "weekly_progress_work_days_title" = "Tiến độ ngày làm việc hàng tuần";
-"weekly_progress_work_days_subtitle" = "Vẽ các dấu kiểm ranh giới ngày trên các thanh Mức sử dụng hàng tuần.";
+"weekly_progress_work_days_subtitle" = "Đặt ngày làm việc cho các vạch trên thanh sử dụng hằng tuần và phép tính nhịp độ.";
 "show_reset_time_as_clock_title" = "Hiển thị Đặt lại thời gian dưới dạng đồng hồ";
 "show_reset_time_as_clock_subtitle" = "Hiển thị Đặt lại thời gian dưới dạng giá trị đồng hồ tuyệt đối thay vì đếm ngược.";
 "show_provider_changelog_links_title" = "Hiển thị Nhà cung cấp liên kết nhật ký thay đổi";

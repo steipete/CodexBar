@@ -503,7 +503,7 @@
 "show_quota_warning_markers_title" = "Toon waarschuwingsmarkeringen voor quota";
 "show_quota_warning_markers_subtitle" = "Teken drempelmarkeringen op gebruiksbalken wanneer quotawaarschuwingen zijn geconfigureerd.";
 "weekly_progress_work_days_title" = "Wekelijkse voortgang werkdagen";
-"weekly_progress_work_days_subtitle" = "Teken daggrensmarkeringen op de wekelijkse gebruiksbalken.";
+"weekly_progress_work_days_subtitle" = "Stel werkdagen in voor markeringen op wekelijkse gebruiksbalken en tempoberekeningen.";
 "show_reset_time_as_clock_title" = "Toon resettijd als klok";
 "show_reset_time_as_clock_subtitle" = "Geef resettijden weer als absolute klokwaarden in plaats van aftellingen.";
 "show_provider_changelog_links_title" = "Toon provider changelog-links";
