@@ -65,31 +65,49 @@ struct KimiSettingsReaderTests {
     }
 
     @Test
-    func `uses custom code API base URL when valid`() {
+    func `uses default code API base URL when override is absent`() throws {
+        let url = try KimiSettingsReader.codeAPIBaseURL(environment: [:])
+        #expect(url == KimiSettingsReader.defaultCodeAPIBaseURL)
+    }
+
+    @Test
+    func `uses custom code API base URL when valid`() throws {
         let env = ["KIMI_CODE_BASE_URL": "https://proxy.example.com/kimi"]
-        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
+        let url = try KimiSettingsReader.codeAPIBaseURL(environment: env)
         #expect(url.absoluteString == "https://proxy.example.com/kimi")
     }
 
     @Test
-    func `falls back to default code API base URL when invalid`() {
+    func `rejects invalid code API base URL`() {
         let env = ["KIMI_CODE_BASE_URL": "not a url"]
-        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
-        #expect(url == KimiSettingsReader.defaultCodeAPIBaseURL)
+
+        #expect(throws: KimiAPIError.invalidRequest(
+            "Kimi Code API base URL must use HTTPS without user info"))
+        {
+            try KimiSettingsReader.codeAPIBaseURL(environment: env)
+        }
     }
 
     @Test
-    func `falls back to default code API base URL when insecure`() {
+    func `rejects insecure code API base URL`() {
         let env = ["KIMI_CODE_BASE_URL": "http://proxy.example.com/kimi"]
-        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
-        #expect(url == KimiSettingsReader.defaultCodeAPIBaseURL)
+
+        #expect(throws: KimiAPIError.invalidRequest(
+            "Kimi Code API base URL must use HTTPS without user info"))
+        {
+            try KimiSettingsReader.codeAPIBaseURL(environment: env)
+        }
     }
 
     @Test
-    func `falls back to default code API base URL when URL contains user info`() {
+    func `rejects code API base URL containing user info`() {
         let env = ["KIMI_CODE_BASE_URL": "https://api.kimi.com@proxy.example.com/kimi"]
-        let url = KimiSettingsReader.codeAPIBaseURL(environment: env)
-        #expect(url == KimiSettingsReader.defaultCodeAPIBaseURL)
+
+        #expect(throws: KimiAPIError.invalidRequest(
+            "Kimi Code API base URL must use HTTPS without user info"))
+        {
+            try KimiSettingsReader.codeAPIBaseURL(environment: env)
+        }
     }
 
     @Test
@@ -136,6 +154,35 @@ struct KimiAPIFetchStrategyTests {
         let context = makeKimiFetchContext(sourceMode: .api)
 
         #expect(strategy.shouldFallback(on: KimiAPIError.invalidToken, context: context) == false)
+    }
+
+    @Test
+    func `auto mode falls back from API response decoding failure`() {
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(sourceMode: .auto)
+        let error = DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Unexpected Kimi payload"))
+
+        #expect(strategy.shouldFallback(on: error, context: context))
+    }
+
+    @Test
+    func `explicit API mode surfaces response decoding failure`() {
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(sourceMode: .api)
+        let error = DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Unexpected Kimi payload"))
+
+        #expect(strategy.shouldFallback(on: error, context: context) == false)
+    }
+
+    @Test
+    func `auto mode does not start web fallback after cancellation`() {
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(sourceMode: .auto)
+
+        #expect(strategy.shouldFallback(on: CancellationError(), context: context) == false)
+        #expect(strategy.shouldFallback(on: URLError(.cancelled), context: context) == false)
     }
 }
 
@@ -267,6 +314,44 @@ struct KimiUsageResponseParsingTests {
         #expect(snapshot.weekly.used == "375")
         #expect(snapshot.rateLimit?.limit == "200")
         #expect(snapshot.rateLimit?.used == "19")
+    }
+
+    @Test
+    func `parses official numeric values and reset key variants`() throws {
+        let json = """
+        {
+          "usage": {
+            "limit": 1000,
+            "used": 40,
+            "remaining": 960,
+            "resetAt": "2026-01-09T15:23:13Z"
+          },
+          "limits": [
+            {
+              "window": {
+                "duration": 300,
+                "timeUnit": "TIME_UNIT_MINUTE"
+              },
+              "detail": {
+                "limit": 100,
+                "remaining": 99,
+                "reset_at": "2026-01-06T13:33:02Z"
+              }
+            }
+          ]
+        }
+        """
+
+        let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8))
+
+        #expect(snapshot.weekly.limit == "1000")
+        #expect(snapshot.weekly.used == "40")
+        #expect(snapshot.weekly.remaining == "960")
+        #expect(snapshot.weekly.resetTime == "2026-01-09T15:23:13Z")
+        #expect(snapshot.rateLimit?.limit == "100")
+        #expect(snapshot.rateLimit?.used == nil)
+        #expect(snapshot.rateLimit?.remaining == "99")
+        #expect(snapshot.rateLimit?.resetTime == "2026-01-06T13:33:02Z")
     }
 
     @Test

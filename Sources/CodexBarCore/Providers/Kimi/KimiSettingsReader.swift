@@ -19,12 +19,17 @@ public enum KimiSettingsReader {
         return nil
     }
 
-    public static func codeAPIBaseURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        guard let raw = self.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]),
-              URL(string: raw)?.scheme != nil,
+    public static func codeAPIBaseURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws -> URL
+    {
+        guard let raw = self.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]) else {
+            return self.defaultCodeAPIBaseURL
+        }
+
+        guard URL(string: raw)?.scheme != nil,
               let url = ProviderEndpointOverrideValidator().validatedURL(raw)
         else {
-            return self.defaultCodeAPIBaseURL
+            throw KimiAPIError.invalidRequest("Kimi Code API base URL must use HTTPS without user info")
         }
         return url
     }
