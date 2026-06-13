@@ -6,8 +6,10 @@ extension UsageStore {
 
     func resetRollingWindowAutoStartState(for provider: UsageProvider) {
         self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
-        self.rollingWindowAutoStartRuntime.inFlight.remove(provider)
-        self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: provider)
+        self.rollingWindowAutoStartRuntime.inFlight = self.rollingWindowAutoStartRuntime.inFlight
+            .filter { $0.provider != provider }
+        self.rollingWindowAutoStartRuntime.attemptedResetAt = self.rollingWindowAutoStartRuntime.attemptedResetAt
+            .filter { $0.key.provider != provider }
     }
 
     @MainActor
@@ -21,9 +23,15 @@ extension UsageStore {
         codexActiveSourceOverride: CodexActiveSource? = nil,
         now: Date = Date())
     {
+        let resolvedCodexActiveSource = provider == .codex
+            ? (codexActiveSourceOverride ?? self.settings.codexResolvedActiveSource)
+            : nil
+        let route = Self.rollingWindowAutoStartRoute(
+            provider: provider,
+            codexActiveSource: resolvedCodexActiveSource)
         guard self.settings.rollingWindowAutoStartEnabled(provider: provider),
               self.canRouteRollingWindowAutoStart(provider: provider, tokenOverride: tokenOverride),
-              !self.rollingWindowAutoStartRuntime.inFlight.contains(provider),
+              !self.rollingWindowAutoStartRuntime.inFlight.contains(route),
               let decision = RollingWindowAutoStartDecision.shouldStart(
                   provider: provider,
                   previousSourceLabel: previousSourceLabel,
@@ -35,21 +43,21 @@ extension UsageStore {
             return
         }
 
-        if let attempted = self.rollingWindowAutoStartRuntime.attemptedResetAt[provider],
+        if let attempted = self.rollingWindowAutoStartRuntime.attemptedResetAt[route],
            // Reset timestamps can be rounded differently across adjacent snapshots.
            abs(attempted.timeIntervalSince(decision.resetAt)) < Self.rollingWindowAutoStartSameResetTolerance
         {
             return
         }
 
-        self.rollingWindowAutoStartRuntime.attemptedResetAt[provider] = decision.resetAt
-        self.rollingWindowAutoStartRuntime.inFlight.insert(provider)
+        self.rollingWindowAutoStartRuntime.attemptedResetAt[route] = decision.resetAt
+        self.rollingWindowAutoStartRuntime.inFlight.insert(route)
         self.rollingWindowAutoStartStatus[provider] = "Starting a new rolling window..."
 
         Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                self.rollingWindowAutoStartRuntime.inFlight.remove(provider)
+                self.rollingWindowAutoStartRuntime.inFlight.remove(route)
             }
 
             do {
@@ -64,7 +72,7 @@ extension UsageStore {
                     provider: provider,
                     settings: self.settings,
                     tokenOverride: nil,
-                    codexActiveSourceOverride: codexActiveSourceOverride)
+                    codexActiveSourceOverride: resolvedCodexActiveSource)
                 try await RollingWindowPingStarter.start(
                     provider: provider,
                     environment: environment,
@@ -78,7 +86,7 @@ extension UsageStore {
                     self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
                 }
             } catch {
-                self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: provider)
+                self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: route)
                 self.rollingWindowAutoStartStatus[provider] = error.localizedDescription
                 self.providerLogger.warning(
                     "Rolling window auto-start failed",
@@ -87,6 +95,24 @@ extension UsageStore {
                         "error": error.localizedDescription,
                     ])
             }
+        }
+    }
+
+    private static func rollingWindowAutoStartRoute(
+        provider: UsageProvider,
+        codexActiveSource: CodexActiveSource?) -> RollingWindowAutoStartRoute
+    {
+        guard provider == .codex else {
+            return .provider(provider)
+        }
+
+        switch codexActiveSource {
+        case .liveSystem:
+            return .codexLiveSystem
+        case let .managedAccount(id):
+            return .codexManagedAccount(id)
+        case nil:
+            preconditionFailure("Codex rolling-window auto-start requires a resolved active source")
         }
     }
 

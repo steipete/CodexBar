@@ -327,6 +327,56 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `scheduler deduplicates reset attempts per managed codex account`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-managed-codex-dedupe")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        settings._test_activeManagedCodexRemoteHomePath = "/tmp/codexbar-managed-codex-home"
+        defer { settings._test_activeManagedCodexRemoteHomePath = nil }
+
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = RecordingRollingWindowPingRunner(delay: .milliseconds(25))
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        store._test_providerRefreshOverride = { _ in }
+
+        let firstAccountID = UUID()
+        let secondAccountID = UUID()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expired = now.addingTimeInterval(-60)
+        let previous = Self.snapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: expired, resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: "oauth",
+            sourceLabel: "oauth",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            codexActiveSourceOverride: .managedAccount(id: firstAccountID),
+            now: now)
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: "oauth",
+            sourceLabel: "oauth",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            codexActiveSourceOverride: .managedAccount(id: secondAccountID),
+            now: now)
+        try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
+
+        #expect(await runner.count == 2)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[
+            .codexManagedAccount(firstAccountID),
+        ] == expired)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[
+            .codexManagedAccount(secondAccountID),
+        ] == expired)
+    }
+
+    @Test
     func `scheduler skips selected token account snapshots because prompt cli cannot be account bound`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-token-account-skip")
         settings.setRollingWindowAutoStartEnabled(provider: .claude, enabled: true)
@@ -426,7 +476,7 @@ struct RollingWindowAutoStartTests {
 
         try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
         #expect(await runner.count == 1)
-        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codex] == nil)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == nil)
         #expect(store.rollingWindowAutoStartStatus[.codex] == "test ping failed")
     }
 
@@ -451,7 +501,9 @@ struct RollingWindowAutoStartTests {
 
     private static func waitForAutoStartToFinish(store: UsageStore, provider: UsageProvider) async throws {
         for _ in 0..<50 {
-            if !store.rollingWindowAutoStartRuntime.inFlight.contains(provider) { return }
+            if !store.rollingWindowAutoStartRuntime.inFlight.contains(where: { $0.provider == provider }) {
+                return
+            }
             try await Task.sleep(for: .milliseconds(10))
         }
         Issue.record("Timed out waiting for rolling window auto-start to finish")
@@ -473,6 +525,7 @@ struct RollingWindowAutoStartTests {
 
 private actor RecordingRollingWindowPingRunner: RollingWindowPingRunning {
     private let error: Error?
+    private let delay: Duration?
     private(set) var count = 0
     private(set) var requests: [RollingWindowPingRequest] = []
     var isEmpty: Bool {
@@ -483,13 +536,17 @@ private actor RecordingRollingWindowPingRunner: RollingWindowPingRunning {
         self.requests.last
     }
 
-    init(error: Error? = nil) {
+    init(error: Error? = nil, delay: Duration? = nil) {
         self.error = error
+        self.delay = delay
     }
 
     func run(_ request: RollingWindowPingRequest) async throws {
         self.count += 1
         self.requests.append(request)
+        if let delay {
+            try await Task.sleep(for: delay)
+        }
         if let error {
             throw error
         }

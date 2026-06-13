@@ -68,11 +68,26 @@ enum RollingWindowAutoStartSupport {
 
 @MainActor
 final class RollingWindowAutoStartRuntimeState {
-    var inFlight: Set<UsageProvider> = []
-    var attemptedResetAt: [UsageProvider: Date] = [:]
+    var inFlight: Set<RollingWindowAutoStartRoute> = []
+    var attemptedResetAt: [RollingWindowAutoStartRoute: Date] = [:]
     #if DEBUG
     var testRunnerOverride: (any RollingWindowPingRunning)?
     #endif
+}
+
+enum RollingWindowAutoStartRoute: Hashable {
+    case provider(UsageProvider)
+    case codexLiveSystem
+    case codexManagedAccount(UUID)
+
+    var provider: UsageProvider {
+        switch self {
+        case let .provider(provider):
+            provider
+        case .codexLiveSystem, .codexManagedAccount:
+            .codex
+        }
+    }
 }
 
 struct RollingWindowAutoStartDecision: Equatable {
