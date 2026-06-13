@@ -252,6 +252,18 @@ struct PopoverChartEntriesTests {
 
     @MainActor
     @Test
+    func overviewActionsUseSavedSelectedProvider() throws {
+        let (controller, settings) = try makeChartTestController()
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.selectedMenuProvider = .claude
+        let viewModel = MenuViewModel()
+        viewModel.providers = [.codex, .claude]
+
+        #expect(controller.popoverActionProvider(for: viewModel) == .claude)
+    }
+
+    @MainActor
+    @Test
     func `popoverChartView 数据缺失时返回 nil 不崩溃`() throws {
         let (controller, _) = try makeChartTestController()
         defer { controller.releaseStatusItemsForTesting() }

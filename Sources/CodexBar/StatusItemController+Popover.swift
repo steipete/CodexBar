@@ -265,13 +265,14 @@ extension StatusItemController {
 
     // MARK: - popover 动作分发
 
-    /// popover 动作分发：通过 selector(for:) 复用 NSMenu 路径的全部逻辑，
-    /// 解析当前面板动作应使用的 provider 上下文（与 NSMenu menuWillOpen 写入 lastMenuProvider
-    /// 的语义对齐）：选中具体 provider 时取之；Overview 时取第一个可用 provider；兜底 .codex。
-    /// makeSections 与动作分发共用，保证菜单内容与动作目标一致。
+    /// Resolve the provider context used by popover actions.
+    /// Provider tabs target themselves; Overview preserves the saved provider before falling back.
     func popoverActionProvider(for vm: MenuViewModel) -> UsageProvider {
-        if case let .provider(p) = vm.selection { return p }
+        if case let .provider(provider) = vm.selection { return provider }
         let enabled = vm.providers
+        if let selected = self.selectedMenuProvider, enabled.contains(selected) {
+            return selected
+        }
         return enabled.first(where: { self.store.isProviderAvailable($0) })
             ?? enabled.first
             ?? .codex
