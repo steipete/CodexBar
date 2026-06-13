@@ -14,8 +14,8 @@ struct ZedProviderImplementation: ProviderImplementation {
                 id: "zed-sign-in",
                 title: "Zed sign-in",
                 subtitle: """
-                Sign in to Zed first. CodexBar reads the editor Keychain session to fetch plan \
-                and Edit Predictions quota from cloud.zed.dev. Token spend is only on the billing dashboard.
+                Sign in from the Zed editor app (GitHub). CodexBar reads that Keychain session — a browser \
+                login to dashboard.zed.dev is not enough. Token spend is only on the billing dashboard.
                 """,
                 actions: [
                     ProviderSettingsActionDescriptor(

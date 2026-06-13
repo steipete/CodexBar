@@ -24,6 +24,7 @@ Authorization: {user_id} {access_token}
 | Item | Value |
 | --- | --- |
 | Service URL | `https://zed.dev` by default, or custom `credentials_url` from `~/Library/Application Support/Zed/settings.json` |
+| Keychain class | **Internet password** (`kSecClassInternetPassword`, server = service URL). Generic-password fallback is supported for older layouts. |
 | Account | Zed user ID (string) |
 | Secret | Access token (UTF-8 bytes) |
 
@@ -68,8 +69,8 @@ Per [LLM Providers](https://zed.dev/docs/ai/llm-providers.html) and [External Ag
 ## Troubleshooting
 
 ### “Not signed in to Zed”
-- Open Zed and complete GitHub sign-in.
-- Confirm a Keychain entry exists for service `https://zed.dev` (or your custom `credentials_url`).
+- Sign in from the **Zed editor app** (Command Palette → `client: sign in`), not only dashboard.zed.dev in a browser.
+- Confirm a Keychain internet-password entry exists for server `https://zed.dev` (or your custom `credentials_url`).
 
 ### “Could not read Zed credentials from the Keychain”
 - macOS may block Keychain access until you allow CodexBar (same class of issue as other IDE probes).

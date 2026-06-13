@@ -134,7 +134,7 @@ public enum ZedStatusProbeError: LocalizedError, Sendable, Equatable {
         case .notSupported:
             "Zed is only supported on macOS."
         case .notSignedIn:
-            "Not signed in to Zed. Open Zed and sign in with GitHub first."
+            "Not signed in to Zed. Sign in from the Zed editor app (GitHub), not just the browser dashboard."
         case .keychainUnavailable:
             "Could not read Zed credentials from the Keychain. Grant CodexBar Keychain access or sign in to Zed again."
         case let .networkError(message):
@@ -203,15 +203,37 @@ public struct ZedKeychainCredentialsReader: ZedCredentialsReading, Sendable {
     public init() {}
 
     public func loadCredentials(serviceURL: String) throws -> ZedCredentials? {
+        if let credentials = try self.loadInternetPasswordCredentials(server: serviceURL) {
+            return credentials
+        }
+        return try self.loadGenericPasswordCredentials(service: serviceURL)
+    }
+
+    private func loadInternetPasswordCredentials(server: String) throws -> ZedCredentials? {
         var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceURL,
+            kSecClass as String: kSecClassInternetPassword,
+            kSecAttrServer as String: server,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnAttributes as String: true,
             kSecReturnData as String: true,
         ]
         KeychainNoUIQuery.apply(to: &query)
+        return try self.credentials(from: query)
+    }
 
+    private func loadGenericPasswordCredentials(service: String) throws -> ZedCredentials? {
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnAttributes as String: true,
+            kSecReturnData as String: true,
+        ]
+        KeychainNoUIQuery.apply(to: &query)
+        return try self.credentials(from: query)
+    }
+
+    private func credentials(from query: [String: Any]) throws -> ZedCredentials? {
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         switch status {
