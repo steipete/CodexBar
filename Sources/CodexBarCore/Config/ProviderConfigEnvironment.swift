@@ -6,8 +6,8 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
-        if let env = self.applyDedicatedProviderOverrides(base: base, provider: provider, config: config) {
-            return env
+        if let overrides = self.applyProviderSpecificOverrides(base: base, provider: provider, config: config) {
+            return overrides
         }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
@@ -50,6 +50,31 @@ public enum ProviderConfigEnvironment {
         return env
     }
 
+    private static func applyProviderSpecificOverrides(
+        base: [String: String],
+        provider: UsageProvider,
+        config: ProviderConfig?) -> [String: String]?
+    {
+        switch provider {
+        case .openai:
+            self.applyOpenAIOverrides(base: base, config: config)
+        case .bedrock:
+            self.applyBedrockOverrides(base: base, config: config)
+        case .deepgram:
+            self.applyDeepgramOverrides(base: base, config: config)
+        case .rovodev:
+            self.applyRovoDevOverrides(base: base, config: config)
+        case .llmproxy, .litellm:
+            self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
+        case .azureopenai:
+            self.applyAzureOpenAIOverrides(base: base, config: config)
+        case .kimi:
+            self.applyKimiOverrides(base: base, config: config)
+        default:
+            nil
+        }
+    }
+
     public static func supportsAPIKeyOverride(for provider: UsageProvider) -> Bool {
         if self.directAPIKeyEnvironmentKey(for: provider) != nil { return true }
         switch provider {
@@ -75,31 +100,6 @@ public enum ProviderConfigEnvironment {
 
     private static func supportsAPIKeyAndBaseURLOverride(_ provider: UsageProvider) -> Bool {
         self.baseURLEnvironmentKey(for: provider) != nil
-    }
-
-    private static func applyDedicatedProviderOverrides(
-        base: [String: String],
-        provider: UsageProvider,
-        config: ProviderConfig?) -> [String: String]?
-    {
-        switch provider {
-        case .openai:
-            self.applyOpenAIOverrides(base: base, config: config)
-        case .bedrock:
-            self.applyBedrockOverrides(base: base, config: config)
-        case .deepgram:
-            self.applyDeepgramOverrides(base: base, config: config)
-        case .rovodev:
-            self.applyRovoDevOverrides(base: base, config: config)
-        case .llmproxy, .litellm:
-            self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
-        case .azureopenai:
-            self.applyAzureOpenAIOverrides(base: base, config: config)
-        case .kimi:
-            self.applyKimiOverrides(base: base, config: config)
-        default:
-            nil
-        }
     }
 
     private static func directAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
