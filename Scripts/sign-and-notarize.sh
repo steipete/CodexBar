@@ -8,6 +8,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 source "$ROOT/version.env"
 source "$ROOT/Scripts/release_artifacts.sh"
 source "$ROOT/Scripts/package_product_paths.sh"
+source "$ROOT/Scripts/release_dsym_paths.sh"
 
 # Allow building a universal binary if ARCHES is provided; default to universal (arm64 + x86_64).
 ARCHES_VALUE=${ARCHES:-"arm64 x86_64"}
@@ -105,13 +106,7 @@ if [[ ${#ARCH_LIST[@]} -gt 1 ]]; then
   BINARIES=()
   for ((index = 0; index < ${#ARCH_LIST[@]}; index++)); do
     ARCH="${ARCH_LIST[$index]}"
-    ARCH_DSYM="${DSYM_PATHS[$index]}/Contents/Resources/DWARF/${APP_NAME}"
-    if [[ ! -f "$ARCH_DSYM" ]]; then
-      echo "Missing fresh dSYM for ${ARCH} at: $ARCH_DSYM" >&2
-      exit 1
-    fi
-    if ! lipo -archs "$ARCH_DSYM" | tr ' ' '\n' | grep -qx "$ARCH"; then
-      echo "dSYM at ${ARCH_DSYM} does not contain required architecture: ${ARCH}" >&2
+    if ! ARCH_DSYM=$(codexbar_require_dsym_dwarf_for_arch "${DSYM_PATHS[$index]}" "$APP_NAME" "$ARCH"); then
       exit 1
     fi
     BINARIES+=("$ARCH_DSYM")
