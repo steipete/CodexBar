@@ -23,6 +23,7 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
     public let retryAfterSeconds: Int?
     /// Per-model token usage, e.g. {"Claude Haiku 4.5": 91295}
     public let modelUsages: [String: Int]?
+    public let accountEmail: String?
     public let updatedAt: Date
 
     public init(
@@ -31,6 +32,7 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
         message: String?,
         retryAfterSeconds: Int? = nil,
         modelUsages: [String: Int]? = nil,
+        accountEmail: String? = nil,
         updatedAt: Date)
     {
         self.status = status
@@ -38,6 +40,7 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
         self.message = message
         self.retryAfterSeconds = retryAfterSeconds
         self.modelUsages = modelUsages
+        self.accountEmail = accountEmail
         self.updatedAt = updatedAt
     }
 
@@ -70,7 +73,7 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
         let loginMethod: String? = self.displayStatus
         let identity = ProviderIdentitySnapshot(
             providerID: .rovodev,
-            accountEmail: nil,
+            accountEmail: self.accountEmail,
             accountOrganization: nil,
             loginMethod: loginMethod)
 
@@ -142,6 +145,7 @@ public struct RovoDevUsageFetcher: Sendable {
             throw RovoDevUsageError.missingCredentials
         }
 
+        try RovoDevSettingsReader.validateEndpointOverrides(environment: environment)
         let url = Self.creditsCheckURL(baseURL: RovoDevSettingsReader.apiURL(environment: environment))
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -158,7 +162,7 @@ public struct RovoDevUsageFetcher: Sendable {
         switch response.statusCode {
         case 200, 403:
             // 403 can still contain valid usage data (e.g. USER_BLOCKED status)
-            return try Self.parseSnapshot(data: response.data, updatedAt: Date())
+            return try Self.parseSnapshot(data: response.data, accountEmail: trimmedEmail, updatedAt: Date())
         case 401:
             throw RovoDevUsageError.missingCredentials
         default:
@@ -175,7 +179,11 @@ public struct RovoDevUsageFetcher: Sendable {
         self.creditsCheckURL(baseURL: baseURL)
     }
 
-    private static func parseSnapshot(data: Data, updatedAt: Date) throws -> RovoDevUsageSnapshot {
+    private static func parseSnapshot(
+        data: Data,
+        accountEmail: String? = nil,
+        updatedAt: Date) throws -> RovoDevUsageSnapshot
+    {
         let decoded: CreditsCheckResponse
         do {
             decoded = try JSONDecoder().decode(CreditsCheckResponse.self, from: data)
@@ -194,6 +202,7 @@ public struct RovoDevUsageFetcher: Sendable {
             message: decoded.message,
             retryAfterSeconds: decoded.retryAfterSeconds,
             modelUsages: decoded.modelUsages,
+            accountEmail: accountEmail,
             updatedAt: updatedAt)
     }
 

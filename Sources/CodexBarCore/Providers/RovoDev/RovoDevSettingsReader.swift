@@ -2,7 +2,6 @@ import Foundation
 
 public enum RovoDevSettingsReader {
     /// Environment variable for the Atlassian API token used to authenticate with the Rovo Dev credits API.
-    /// Typically set as: ROVODEV_API_TOKEN=<email>:<api_token>  or just <api_token> + ROVODEV_EMAIL.
     public static let apiTokenEnvironmentKey = "ROVODEV_API_TOKEN"
     public static let emailEnvironmentKey = "ROVODEV_EMAIL"
     public static let apiURLEnvironmentKey = "ROVODEV_API_URL"
@@ -19,12 +18,18 @@ public enum RovoDevSettingsReader {
 
     /// Returns the base API URL (default: https://api.atlassian.com).
     public static func apiURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let override = self.cleaned(environment[self.apiURLEnvironmentKey]),
-           let url = URL(string: override)
-        {
+        if let url = self.validAPIURL(environment: environment) {
             return url
         }
         return URL(string: "https://api.atlassian.com")!
+    }
+
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
+        throw RovoDevSettingsError.invalidEndpointOverride(self.apiURLEnvironmentKey)
     }
 
     /// Returns the billing site URL from ~/.rovodev/config.yml if available.
@@ -57,5 +62,21 @@ public enum RovoDevSettingsReader {
         }
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
+    }
+
+    private static func validAPIURL(environment: [String: String]) -> URL? {
+        guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return nil }
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
+    }
+}
+
+public enum RovoDevSettingsError: LocalizedError, Sendable, Equatable {
+    case invalidEndpointOverride(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .invalidEndpointOverride(key):
+            "Rovo Dev endpoint override \(key) must use HTTPS or a bare host."
+        }
     }
 }

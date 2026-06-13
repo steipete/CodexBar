@@ -73,7 +73,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
-| Rovo Dev | Atlassian email + API token → monthly credit usage API (`api`). |
+| Rovo Dev | Experimental Atlassian email + API token → monthly credit usage service (`api`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -418,7 +418,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## Rovo Dev
 
 - Auth: Atlassian email + API token (HTTP Basic), configured in **Settings → Providers → Rovo Dev** or via `ROVODEV_EMAIL` + `ROVODEV_API_TOKEN`.
-- Reads monthly credit usage from `GET https://api.atlassian.com/rovodev/v3/credits/check`.
+- Reads monthly credit usage from the undocumented `GET https://api.atlassian.com/rovodev/v3/credits/check`
+  service endpoint; compatibility may change without notice.
 - Displays: credits used / total, account status (Active / Rate Limited / Blocked).
 - Plans: Rovo Dev Free (350 credits/user/month/site), Rovo Dev Standard (2,000 credits/user/month).
 - Status: `https://status.atlassian.com` (link only, no auto-polling).
