@@ -3,6 +3,8 @@ import Foundation
 
 extension UsageStore {
     private static let rollingWindowAutoStartSameResetTolerance: TimeInterval = 1
+    private static let rollingWindowAutoStartTimestampFormat = Date.ISO8601FormatStyle(
+        includingFractionalSeconds: true)
 
     func resetRollingWindowAutoStartState(for provider: UsageProvider) {
         self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
@@ -58,7 +60,7 @@ extension UsageStore {
             route: route,
             previousSourceLabel: previousSourceLabel,
             sourceLabel: sourceLabel,
-            expiredResetAt: decision.resetAt)
+            previousResetAt: decision.resetAt)
         self.providerLogger.info(
             "CodexBar detected inactive rolling window; pinging provider to start one",
             metadata: metadata)
@@ -146,37 +148,40 @@ extension UsageStore {
         tokenOverride == nil && self.settings.selectedTokenAccount(for: provider) == nil
     }
 
-    private static func rollingWindowAutoStartLogMetadata(
+    static func rollingWindowAutoStartLogMetadata(
         provider: UsageProvider,
         route: RollingWindowAutoStartRoute,
         previousSourceLabel: String?,
         sourceLabel: String?,
-        expiredResetAt: Date) -> [String: String]
+        previousResetAt: Date) -> [String: String]
     {
         [
             "provider": provider.rawValue,
             "route": self.rollingWindowAutoStartRouteLabel(route),
             "previousSource": previousSourceLabel ?? "none",
             "source": sourceLabel ?? "none",
-            "expiredResetAt": self.rollingWindowAutoStartTimestamp(expiredResetAt),
+            "previousResetAt": self.rollingWindowAutoStartTimestamp(previousResetAt),
         ]
     }
 
-    private static func rollingWindowAutoStartRouteLabel(_ route: RollingWindowAutoStartRoute) -> String {
+    static func rollingWindowAutoStartRouteLabel(_ route: RollingWindowAutoStartRoute) -> String {
         switch route {
         case let .provider(provider):
-            provider.rawValue
+            "provider:\(provider.rawValue)"
         case .codexLiveSystem:
             "codex-live-system"
         case let .codexManagedAccount(id):
-            "codex-managed-account:\(id.uuidString)"
+            "codex-managed-account:\(Self.redactedRollingWindowAutoStartAccountID(id))"
         }
     }
 
-    private static func rollingWindowAutoStartTimestamp(_ date: Date?) -> String {
+    static func rollingWindowAutoStartTimestamp(_ date: Date?) -> String {
         guard let date else { return "none" }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        return Self.rollingWindowAutoStartTimestampFormat.format(date)
+    }
+
+    private static func redactedRollingWindowAutoStartAccountID(_ id: UUID) -> String {
+        let value = id.uuidString
+        return "\(value.prefix(6))...\(value.suffix(6))"
     }
 }

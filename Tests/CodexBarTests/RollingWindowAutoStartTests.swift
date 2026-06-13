@@ -217,6 +217,38 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `log metadata labels routes and old reset timestamp clearly`() throws {
+        let accountID = try #require(UUID(uuidString: "12345678-90AB-CDEF-1234-567890ABCDEF"))
+        let resetAt = Date(timeIntervalSince1970: 1_800_000_000)
+
+        let metadata = UsageStore.rollingWindowAutoStartLogMetadata(
+            provider: .codex,
+            route: .codexManagedAccount(accountID),
+            previousSourceLabel: nil,
+            sourceLabel: "oauth",
+            previousResetAt: resetAt)
+
+        #expect(metadata["provider"] == "codex")
+        #expect(metadata["route"] == "codex-managed-account:123456...ABCDEF")
+        #expect(metadata["route"]?.contains(accountID.uuidString) == false)
+        #expect(metadata["previousSource"] == "none")
+        #expect(metadata["source"] == "oauth")
+        #expect(metadata["previousResetAt"] == "2027-01-15T08:00:00.000Z")
+        #expect(metadata["expiredResetAt"] == nil)
+    }
+
+    @Test
+    func `log helpers format all route cases and nil timestamps`() throws {
+        let accountID = try #require(UUID(uuidString: "12345678-90AB-CDEF-1234-567890ABCDEF"))
+
+        #expect(UsageStore.rollingWindowAutoStartRouteLabel(.provider(.claude)) == "provider:claude")
+        #expect(UsageStore.rollingWindowAutoStartRouteLabel(.codexLiveSystem) == "codex-live-system")
+        #expect(UsageStore.rollingWindowAutoStartRouteLabel(.codexManagedAccount(accountID)) ==
+            "codex-managed-account:123456...ABCDEF")
+        #expect(UsageStore.rollingWindowAutoStartTimestamp(nil) == "none")
+    }
+
+    @Test
     func `codex command persists a low reasoning mini model session by default`() throws {
         let command = try #require(RollingWindowPingStarter.command(provider: .codex, environment: [:]))
 
