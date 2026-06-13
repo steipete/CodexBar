@@ -43,6 +43,7 @@ struct PreferencesView: View {
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
+    @Environment(\.colorScheme) private var colorScheme
     @State private var contentWidth: CGFloat = PreferencesTab.general.preferredWidth
     @State private var contentHeight: CGFloat = PreferencesTab.general.preferredHeight
 
@@ -108,12 +109,20 @@ struct PreferencesView: View {
         .onAppear {
             self.updateLayout(for: self.selection.tab, animate: false)
             self.ensureValidTabSelection()
+            Self.syncSettingsWindowAppearance()
         }
         .onChange(of: self.selection.tab) { _, newValue in
             self.updateLayout(for: newValue, animate: true)
         }
         .onChange(of: self.settings.debugMenuEnabled) { _, _ in
             self.ensureValidTabSelection()
+        }
+        .onChange(of: self.colorScheme) { _, _ in
+            // The Settings scene's native toolbar (the tab bar) can keep a stale
+            // light appearance when the system theme switches while the window
+            // already exists, leaving a light toolbar over dark content. Pin the
+            // window to the live effective appearance so the toolbar redraws.
+            Self.syncSettingsWindowAppearance()
         }
     }
 
@@ -133,11 +142,23 @@ struct PreferencesView: View {
     private static let settingsWindowIdentifier = "com_apple_SwiftUI_Settings_window"
     private static let knownTabTitles = Set(PreferencesTab.allCases.map(\.title))
 
+    private static func settingsWindow() -> NSWindow? {
+        NSApp.windows.first(where: {
+            $0.identifier?.rawValue == self.settingsWindowIdentifier
+                || self.knownTabTitles.contains($0.title)
+        })
+    }
+
+    /// Pin the Settings window to the app's current effective appearance so its
+    /// native toolbar (tab bar) does not get stuck in a stale light appearance
+    /// after the system theme switches. Called on appear and on color-scheme change.
+    private static func syncSettingsWindowAppearance() {
+        guard let window = settingsWindow() else { return }
+        window.appearance = NSApp.effectiveAppearance
+    }
+
     private static func resizeSettingsWindow(width: CGFloat, height: CGFloat, animate: Bool) {
-        guard let window = NSApp.windows.first(where: {
-            $0.identifier?.rawValue == settingsWindowIdentifier
-                || knownTabTitles.contains($0.title)
-        }) else { return }
+        guard let window = settingsWindow() else { return }
         let toolbarHeight = window.frame.height - window.contentLayoutRect.height
         guard toolbarHeight > 0 else { return }
         let newSize = NSSize(width: width, height: height + toolbarHeight)
