@@ -27,6 +27,10 @@ public enum MiMoLocalUsageFallback {
         return NSString(string: override).expandingTildeInPath
     }
 
+    public static func cacheExists(environment: [String: String]) -> Bool {
+        FileManager.default.fileExists(atPath: self.cachePath(environment: environment))
+    }
+
     public static func snapshot(now: Date = Date()) -> MiMoUsageSnapshot? {
         self.snapshot(cachePath: self.defaultCachePath(), now: now)
     }

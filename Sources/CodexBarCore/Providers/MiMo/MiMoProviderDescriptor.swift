@@ -185,7 +185,7 @@ struct MiMoLocalFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .localProbe
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        FileManager.default.fileExists(atPath: Self.cachePath(context: context))
+        MiMoLocalUsageFallback.cacheExists(environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

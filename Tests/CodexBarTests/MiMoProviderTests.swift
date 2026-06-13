@@ -703,6 +703,24 @@ extension MiMoProviderTests {
     }
 
     @Test
+    func `mimo malformed local cache stays available and reports its cache error`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-invalid-local-strategy-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("usage.json")
+        try Data("{}".utf8).write(to: file)
+
+        let context = self.makeContext(environment: ["MIMO_LOCAL_USAGE_PATH": file.path])
+        let strategy = MiMoLocalFetchStrategy()
+
+        #expect(await strategy.isAvailable(context))
+        await #expect(throws: MiMoLocalUsageError.self) {
+            try await strategy.fetch(context)
+        }
+    }
+
+    @Test
     func `mimo explicit web mode does not use local fallback`() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimo-web-mode-test-\(UUID().uuidString)")

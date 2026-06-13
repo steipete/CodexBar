@@ -349,7 +349,7 @@ final class CLIEntryTests: XCTestCase {
             .web,
             provider: .mimo,
             environment: ["MIMO_LOCAL_USAGE_PATH": validMiMoCache.path]))
-        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .mimo,
             environment: ["MIMO_LOCAL_USAGE_PATH": invalidMiMoCache.path]))

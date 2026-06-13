@@ -567,8 +567,7 @@ extension CodexBarCLI {
         if provider == .mimo,
            sourceMode == .auto,
            let environment,
-           MiMoLocalUsageFallback.snapshot(
-               cachePath: MiMoLocalUsageFallback.cachePath(environment: environment)) != nil
+           MiMoLocalUsageFallback.cacheExists(environment: environment)
         {
             return false
         }
