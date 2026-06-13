@@ -36,14 +36,7 @@ extension StatusItemController {
             // onSelectionChanged 必须在 refreshPopoverViewModelInputs() 之前注册，
             // 确保首次 restore（select(restored)）触发时回调已就位，不会静默丢失写回 settings 的副作用。
             vm.onSelectionChanged = { [weak self] selection in
-                guard let self else { return }
-                switch selection {
-                case .overview:
-                    self.settings.mergedMenuLastSelectedWasOverview = true
-                case let .provider(p):
-                    self.settings.selectedMenuProvider = p
-                    self.settings.mergedMenuLastSelectedWasOverview = false
-                }
+                self?.applyPopoverSelection(selection)
             }
             // 在控制器创建与回调注册完成后再 refresh，保证首次 selection restore 的写回不丢失。
             self.refreshPopoverViewModelInputs()
@@ -52,6 +45,22 @@ extension StatusItemController {
         self.statusItem.button?.action = #selector(self.handleStatusItemClick(_:))
         // 右键也触发 action，使右键可弹出 popover
         self.statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    func applyPopoverSelection(_ selection: ProviderSwitcherSelection) {
+        self.preservingMergedSwitcherContentCachesDuringInvalidation {
+            switch selection {
+            case .overview:
+                self.settings.mergedMenuLastSelectedWasOverview = true
+                self.lastMenuProvider = self.popoverActionProvider(for: self.menuViewModel)
+            case let .provider(provider):
+                self.settings.selectedMenuProvider = provider
+                self.settings.mergedMenuLastSelectedWasOverview = false
+                self.lastMenuProvider = provider
+            }
+            self.lastMergedSwitcherSelection = selection
+            self.refreshProviderSelectionDependentUI(deferRendering: true)
+        }
     }
 
     // MARK: - ViewModel 输入刷新

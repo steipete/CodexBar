@@ -264,6 +264,22 @@ struct PopoverChartEntriesTests {
 
     @MainActor
     @Test
+    func popoverSelectionRefreshesProviderDependentState() throws {
+        let (controller, settings) = try makeChartTestController()
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuViewModel.providers = [.codex, .claude]
+
+        controller.applyPopoverSelection(.provider(.claude))
+
+        #expect(settings.selectedMenuProvider == .claude)
+        #expect(settings.mergedMenuLastSelectedWasOverview == false)
+        #expect(controller.lastMenuProvider == .claude)
+        #expect(controller.lastMergedSwitcherSelection == .provider(.claude))
+        #expect(controller.providerSelectionUIRefreshTask != nil)
+    }
+
+    @MainActor
+    @Test
     func `popoverChartView 数据缺失时返回 nil 不崩溃`() throws {
         let (controller, _) = try makeChartTestController()
         defer { controller.releaseStatusItemsForTesting() }
