@@ -46,12 +46,12 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
 
     /// Monthly used credits (prefers monthly, falls back to daily).
     public var creditsUsed: Int? {
-        self.balance.monthlyUsed ?? self.balance.dailyUsed
+        self.preferredCredits.used
     }
 
     /// Monthly total credits (prefers monthly, falls back to daily).
     public var creditsTotal: Int? {
-        self.balance.monthlyTotal ?? self.balance.dailyTotal
+        self.preferredCredits.total
     }
 
     public var usedPercent: Double {
@@ -91,6 +91,32 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
             return "\(used) / \(total) credits"
         }
         return "\(used) credits used"
+    }
+
+    private var preferredCredits: (used: Int?, total: Int?) {
+        if let used = Self.usedCredits(
+            explicit: self.balance.monthlyUsed,
+            total: self.balance.monthlyTotal,
+            remaining: self.balance.monthlyRemaining)
+        {
+            return (used, self.balance.monthlyTotal)
+        }
+        if let used = Self.usedCredits(
+            explicit: self.balance.dailyUsed,
+            total: self.balance.dailyTotal,
+            remaining: self.balance.dailyRemaining)
+        {
+            return (used, self.balance.dailyTotal)
+        }
+        return (nil, self.balance.monthlyTotal ?? self.balance.dailyTotal)
+    }
+
+    private static func usedCredits(explicit: Int?, total: Int?, remaining: Int?) -> Int? {
+        if let explicit {
+            return explicit
+        }
+        guard let total, let remaining else { return nil }
+        return max(0, min(total, total - remaining))
     }
 
     private var displayStatus: String? {
