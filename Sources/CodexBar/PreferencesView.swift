@@ -109,7 +109,7 @@ struct PreferencesView: View {
         .onAppear {
             self.updateLayout(for: self.selection.tab, animate: false)
             self.ensureValidTabSelection()
-            Self.syncSettingsWindowAppearance()
+            Self.refreshSettingsWindowAppearance(for: self.colorScheme)
         }
         .onChange(of: self.selection.tab) { _, newValue in
             self.updateLayout(for: newValue, animate: true)
@@ -117,12 +117,8 @@ struct PreferencesView: View {
         .onChange(of: self.settings.debugMenuEnabled) { _, _ in
             self.ensureValidTabSelection()
         }
-        .onChange(of: self.colorScheme) { _, _ in
-            // The Settings scene's native toolbar (the tab bar) can keep a stale
-            // light appearance when the system theme switches while the window
-            // already exists, leaving a light toolbar over dark content. Pin the
-            // window to the live effective appearance so the toolbar redraws.
-            Self.syncSettingsWindowAppearance()
+        .onChange(of: self.colorScheme) { _, newValue in
+            Self.refreshSettingsWindowAppearance(for: newValue)
         }
     }
 
@@ -149,12 +145,15 @@ struct PreferencesView: View {
         })
     }
 
-    /// Pin the Settings window to the app's current effective appearance so its
-    /// native toolbar (tab bar) does not get stuck in a stale light appearance
-    /// after the system theme switches. Called on appear and on color-scheme change.
-    private static func syncSettingsWindowAppearance() {
+    private static func refreshSettingsWindowAppearance(for colorScheme: ColorScheme) {
         guard let window = settingsWindow() else { return }
-        window.appearance = NSApp.effectiveAppearance
+        // Pulse an explicit appearance to redraw SwiftUI's native tab toolbar, then restore inheritance.
+        // Leaving it pinned prevents the environment color scheme from observing the next system change.
+        window.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
+        Task { @MainActor [weak window] in
+            await Task.yield()
+            window?.appearance = nil
+        }
     }
 
     private static func resizeSettingsWindow(width: CGFloat, height: CGFloat, animate: Bool) {
