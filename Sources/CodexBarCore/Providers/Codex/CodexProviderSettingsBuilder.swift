@@ -38,6 +38,12 @@ public enum CodexKnownOwnerCatalog {
                 normalizedEmail: CodexIdentityResolver.normalizeEmail(liveSystemAccount.email)))
         }
 
+        for profileAccount in snapshot.profileHomeAccounts {
+            candidates.append(CodexDashboardKnownOwnerCandidate(
+                identity: snapshot.runtimeIdentity(for: profileAccount),
+                normalizedEmail: CodexIdentityResolver.normalizeEmail(profileAccount.email)))
+        }
+
         return candidates
     }
 }
@@ -52,6 +58,8 @@ public enum CodexProviderSettingsBuilder {
             false
         case .managedAccount:
             true
+        case .profileHome:
+            false
         }
 
         return ProviderSettingsSnapshot.CodexProviderSettings(

@@ -3,15 +3,18 @@ import Foundation
 public enum CodexActiveSource: Codable, Equatable, Sendable {
     case liveSystem
     case managedAccount(id: UUID)
+    case profileHome(path: String)
 
     private enum CodingKeys: String, CodingKey {
         case kind
         case accountID
+        case homePath
     }
 
     private enum Kind: String, Codable {
         case liveSystem
         case managedAccount
+        case profileHome
     }
 
     public init(from decoder: any Decoder) throws {
@@ -22,6 +25,9 @@ public enum CodexActiveSource: Codable, Equatable, Sendable {
         case .managedAccount:
             let id = try container.decode(UUID.self, forKey: .accountID)
             self = .managedAccount(id: id)
+        case .profileHome:
+            let path = try container.decode(String.self, forKey: .homePath)
+            self = .profileHome(path: path)
         }
     }
 
@@ -33,6 +39,9 @@ public enum CodexActiveSource: Codable, Equatable, Sendable {
         case let .managedAccount(id):
             try container.encode(Kind.managedAccount, forKey: .kind)
             try container.encode(id, forKey: .accountID)
+        case let .profileHome(path):
+            try container.encode(Kind.profileHome, forKey: .kind)
+            try container.encode(path, forKey: .homePath)
         }
     }
 }

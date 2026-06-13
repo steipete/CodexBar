@@ -36,6 +36,27 @@ Usage source picker:
   `UsageSnapshot.extraRateWindows` entries (Spark uses a stable `codex-spark` id / `Codex Spark` title).
   When the field is absent, the snapshot is unchanged.
 
+### Advanced profile-home accounts
+- Managed Codex accounts remain the default multi-account path.
+- Advanced users can add existing Codex homes to `~/.codexbar/config.json` with
+  `providers[].codexProfileHomePaths`.
+- Each configured path must point at a Codex home that contains `auth.json`.
+- CodexBar reads identity from the configured home, exposes it in the Codex account switcher, and scopes
+  remote Codex fetches with `CODEX_HOME`.
+- Profile homes are not copied, reauthenticated, or removed by CodexBar.
+
+Example:
+
+```json
+{
+  "id": "codex",
+  "codexProfileHomePaths": [
+    "~/.codex-work",
+    "~/.codex-personal"
+  ]
+}
+```
+
 ### OpenAI web dashboard (optional, off by default)
 - Enable it in Preferences -> Providers -> Codex -> OpenAI web extras.
 - It exists for dashboard-only extras such as code review remaining, usage breakdown, and credits history.

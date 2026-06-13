@@ -150,6 +150,8 @@ extension UsageStore {
                     .email)
         case .managedAccount:
             Self.normalizeCodexAccountScopedKey(self.currentManagedCodexRuntimeEmail())
+        case let .profileHome(path):
+            Self.normalizeCodexAccountScopedKey(self.currentProfileCodexRuntimeEmail(path: path))
         }
         return CodexAccountScopedRefreshGuard(
             source: source,
@@ -217,6 +219,8 @@ extension UsageStore {
             guard let currentAccountKey = currentGuard.accountKey else { return true }
             return resultAccountKey == currentAccountKey
         case .managedAccount:
+            return false
+        case .profileHome:
             return false
         }
     }
@@ -339,6 +343,8 @@ extension UsageStore {
                 self.settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email)
         case .managedAccount:
             CodexIdentityResolver.normalizeEmail(self.currentManagedCodexRuntimeEmail())
+        case let .profileHome(path):
+            CodexIdentityResolver.normalizeEmail(self.currentProfileCodexRuntimeEmail(path: path))
         }
     }
 
@@ -461,6 +467,12 @@ extension UsageStore {
         case let .managedAccount(id):
             guard let account = snapshot.storedAccounts.first(where: { $0.id == id }) else { return nil }
             return CodexAuthFingerprint.fingerprint(homePath: account.managedHomePath)
+        case let .profileHome(path):
+            guard let profileAccount = snapshot.profileHomeAccount(path: path) else {
+                guard let normalizedPath = CodexHomeScope.normalizedHomePath(path) else { return nil }
+                return CodexAuthFingerprint.fingerprint(homePath: normalizedPath)
+            }
+            return CodexAuthFingerprint.normalize(profileAccount.authFingerprint)
         }
     }
 
@@ -507,6 +519,8 @@ extension UsageStore {
                 return nil
             }
             return self.currentManagedCodexRuntimeEmail()
+        case let .profileHome(path):
+            return self.currentProfileCodexRuntimeEmail(path: path)
         }
     }
 
@@ -544,6 +558,12 @@ extension UsageStore {
                 return .unresolved
             }
             return self.settings.codexAccountReconciliationSnapshot.runtimeIdentity(for: activeStoredAccount)
+        case let .profileHome(path):
+            guard let profileAccount = self.settings.codexAccountReconciliationSnapshot.profileHomeAccount(path: path)
+            else {
+                return .unresolved
+            }
+            return self.settings.codexAccountReconciliationSnapshot.runtimeIdentity(for: profileAccount)
         }
     }
 
@@ -562,6 +582,12 @@ extension UsageStore {
                 return .unresolved
             }
             return self.settings.codexAccountReconciliationSnapshot.runtimeIdentity(for: activeStoredAccount)
+        case let .profileHome(path):
+            guard let profileAccount = self.settings.codexAccountReconciliationSnapshot.profileHomeAccount(path: path)
+            else {
+                return .unresolved
+            }
+            return self.settings.codexAccountReconciliationSnapshot.runtimeIdentity(for: profileAccount)
         }
     }
 
@@ -574,6 +600,14 @@ extension UsageStore {
         }
         return Self.normalizeCodexAccountScopedEmail(
             self.settings.codexAccountReconciliationSnapshot.runtimeEmail(for: activeStoredAccount))
+    }
+
+    func currentProfileCodexRuntimeEmail(path: String) -> String? {
+        guard let profileAccount = self.settings.codexAccountReconciliationSnapshot.profileHomeAccount(path: path)
+        else {
+            return nil
+        }
+        return Self.normalizeCodexAccountScopedEmail(profileAccount.email)
     }
 
     private func clearCodexOpenAIWebStateForAccountTransition(targetEmail: String?) {

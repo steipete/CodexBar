@@ -112,6 +112,28 @@ struct CodexActiveSourceConfigTests {
     }
 
     @Test
+    func `provider config encodes profile home active source with expected schema`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    codexActiveSource: .profileHome(path: "/Users/test/.codex-work"),
+                    codexProfileHomePaths: ["/Users/test/.codex-work"]),
+            ])
+
+        let data = try JSONEncoder().encode(config)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let providers = try #require(object?["providers"] as? [[String: Any]])
+        let provider = try #require(providers.first(where: { $0["id"] as? String == "codex" }))
+        let activeSource = try #require(provider["codexActiveSource"] as? [String: Any])
+
+        #expect(activeSource.count == 2)
+        #expect(activeSource["kind"] as? String == "profileHome")
+        #expect(activeSource["homePath"] as? String == "/Users/test/.codex-work")
+        #expect(provider["codexProfileHomePaths"] as? [String] == ["/Users/test/.codex-work"])
+    }
+
+    @Test
     func `provider config round trips live system active source`() throws {
         let config = CodexBarConfig(
             providers: [
@@ -140,5 +162,23 @@ struct CodexActiveSourceConfigTests {
         let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
 
         #expect(decoded.providerConfig(for: .codex)?.codexActiveSource == .managedAccount(id: accountID))
+    }
+
+    @Test
+    func `provider config round trips profile home active source`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    codexActiveSource: .profileHome(path: "/Users/test/.codex-work"),
+                    codexProfileHomePaths: ["/Users/test/.codex-work"]),
+            ])
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
+        let providerConfig = decoded.providerConfig(for: .codex)
+
+        #expect(providerConfig?.codexActiveSource == .profileHome(path: "/Users/test/.codex-work"))
+        #expect(providerConfig?.codexProfileHomePaths == ["/Users/test/.codex-work"])
     }
 }

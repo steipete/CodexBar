@@ -107,6 +107,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var enterpriseHost: String?
     public var tokenAccounts: ProviderTokenAccountData?
     public var codexActiveSource: CodexActiveSource?
+    public var codexProfileHomePaths: [String]?
     public var quotaWarnings: QuotaWarningConfig?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
@@ -127,6 +128,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         enterpriseHost: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
         codexActiveSource: CodexActiveSource? = nil,
+        codexProfileHomePaths: [String]? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
         kiloKnownOrganizations: [KiloOrganization]? = nil,
         kiloEnabledOrganizationIDs: [String]? = nil,
@@ -146,6 +148,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.enterpriseHost = enterpriseHost
         self.tokenAccounts = tokenAccounts
         self.codexActiveSource = codexActiveSource
+        self.codexProfileHomePaths = codexProfileHomePaths
         self.quotaWarnings = quotaWarnings
         self.kiloKnownOrganizations = kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = kiloEnabledOrganizationIDs

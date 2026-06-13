@@ -145,6 +145,8 @@ struct ProviderRegistry {
                 env = CodexHomeScope.scopedEnvironment(base: env, codexHome: managedHomePath)
             } else if let liveHomePath = settings.liveSystemCodexHomePath(forActiveSource: codexActiveSource) {
                 env = CodexHomeScope.scopedEnvironment(base: env, codexHome: liveHomePath)
+            } else if let profileHomePath = settings.profileCodexHomePath(forActiveSource: codexActiveSource) {
+                env = CodexHomeScope.scopedEnvironment(base: env, codexHome: profileHomePath)
             }
         }
         return env

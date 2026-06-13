@@ -875,6 +875,8 @@ extension UsageStore {
             return nil
         case .managedAccount:
             return self.codexAccountEmailForOpenAIDashboard()
+        case let .profileHome(path):
+            return self.currentProfileCodexRuntimeEmail(path: path)
         }
     }
 
@@ -1328,6 +1330,11 @@ extension UsageStore {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if let managed, !managed.isEmpty { return managed }
             return nil
+        case let .profileHome(path):
+            let profile = self.currentProfileCodexRuntimeEmail(path: path)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let profile, !profile.isEmpty { return profile }
+            return nil
         }
     }
 
@@ -1337,6 +1344,8 @@ extension UsageStore {
             nil
         case let .managedAccount(id):
             self.openAIWebManagedTargetStoreIsUnreadable() ? .managedStoreUnreadable : .managedAccount(id)
+        case .profileHome:
+            nil
         }
     }
 }

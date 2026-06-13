@@ -56,6 +56,8 @@ extension UsageStore {
             "live"
         case let .managedAccount(id):
             "managed:\(id.uuidString)"
+        case let .profileHome(path):
+            "profile:\(path)"
         }
 
         let identityKey = switch expectedGuard.identity {
