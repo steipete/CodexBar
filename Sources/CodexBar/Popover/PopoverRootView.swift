@@ -241,11 +241,18 @@ struct PopoverRootView: View {
     // MARK: - 内容区
 
     @ViewBuilder private var content: some View {
-        switch self.viewModel.selection {
-        case .overview:
-            self.overviewContent
-        case let .provider(p):
-            self.providerContent(for: p)
+        if self.viewModel.isFallback {
+            Text(L("No usage configured."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding()
+        } else {
+            switch self.viewModel.selection {
+            case .overview:
+                self.overviewContent
+            case let .provider(p):
+                self.providerContent(for: p)
+            }
         }
     }
 

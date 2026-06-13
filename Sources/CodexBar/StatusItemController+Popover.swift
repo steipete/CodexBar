@@ -132,9 +132,16 @@ extension StatusItemController {
     }
 
     /// 懒创建指定 provider 的 MenuViewModel + PopoverMenuController（首次调用后缓存）。
-    func ensureProviderPopover(for provider: UsageProvider) {
-        if self.providerPopoverControllers[provider] != nil { return }
-        let vm = MenuViewModel.singleProvider(provider)
+    func ensureProviderPopover(for provider: UsageProvider, isFallback: Bool = false) {
+        if self.providerMenuViewModels[provider]?.isFallback == isFallback,
+           self.providerPopoverControllers[provider] != nil
+        {
+            return
+        }
+        self.providerPopoverControllers[provider]?.close()
+        let vm = isFallback
+            ? MenuViewModel.fallback(statusItemProvider: provider)
+            : MenuViewModel.singleProvider(provider)
         self.providerMenuViewModels[provider] = vm
         let ctrl = self.makePopoverController(
             viewModel: vm,
@@ -163,7 +170,9 @@ extension StatusItemController {
             if shouldHaveItem {
                 let item = self.lazyStatusItem(for: provider)
                 item.menu = nil // 清掉残留 NSMenu
-                self.ensureProviderPopover(for: provider)
+                self.ensureProviderPopover(
+                    for: provider,
+                    isFallback: !self.isEnabled(provider) && fallback == provider)
                 item.button?.target = self
                 item.button?.action = #selector(self.handleProviderStatusItemClick(_:))
                 item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -206,7 +215,7 @@ extension StatusItemController {
                 makeSections: { [weak self] in
                     guard let self else { return [] }
                     let isOverview = vm.selection == .overview
-                    let provider = self.popoverActionProvider(for: vm)
+                    let provider = vm.isFallback ? nil : self.popoverActionProvider(for: vm)
                     return MenuDescriptor.build(
                         provider: provider,
                         store: store,

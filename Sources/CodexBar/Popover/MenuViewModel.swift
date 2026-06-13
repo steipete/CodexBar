@@ -11,6 +11,8 @@ final class MenuViewModel {
     var selection: ProviderSwitcherSelection = .overview
     /// 当前可显示的 provider 列表（合并模式切换器用）。
     var providers: [UsageProvider] = []
+    /// Split-mode placeholder shown when no provider is available.
+    var isFallback = false
     /// Popover height cap derived from the status item's current screen.
     var maximumPopoverHeight: CGFloat = 720
     /// 切换器是否含 Overview tab（由 controller 在 attach/打开时刷新）。
@@ -35,6 +37,13 @@ final class MenuViewModel {
         vm.includesOverview = false
         // 直接赋值而非调用 select()，避免触发 onSelectionChanged（此时尚未注册，且单 provider 不需持久化）
         vm.selection = .provider(provider)
+        return vm
+    }
+
+    static func fallback(statusItemProvider: UsageProvider) -> MenuViewModel {
+        let vm = MenuViewModel()
+        vm.isFallback = true
+        vm.selection = .provider(statusItemProvider)
         return vm
     }
 

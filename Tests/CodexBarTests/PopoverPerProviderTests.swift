@@ -35,4 +35,12 @@ import Testing
         vm.select(newSelection)
         #expect(vm.selection == newSelection)
     }
+
+    @Test func fallbackFactoryDoesNotExposeProviderContent() {
+        let vm = MenuViewModel.fallback(statusItemProvider: .codex)
+
+        #expect(vm.isFallback)
+        #expect(vm.providers.isEmpty)
+        #expect(vm.selection == .provider(.codex))
+    }
 }
