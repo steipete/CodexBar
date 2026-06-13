@@ -684,7 +684,6 @@ extension StatusItemController {
             if PopoverChartKind.isZaiDetailsAvailable(snapshot: snapshot) {
                 return .zaiDetails(provider)
             }
-            return nil
         }
         // tokenUsage 不为 nil → costHistory
         if model.tokenUsage != nil,

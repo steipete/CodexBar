@@ -214,6 +214,44 @@ struct PopoverChartEntriesTests {
 
     @MainActor
     @Test
+    func zaiOverviewFallsBackToStorageWhenMCPDetailsAreUnavailable() throws {
+        let (controller, settings) = try makeChartTestController()
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.providerStorageFootprintsEnabled = true
+        let root = "/Users/test/.zai"
+        controller.store.providerStorageFootprints[.zai] = ProviderStorageFootprint(
+            provider: .zai,
+            totalBytes: 1024,
+            paths: [root],
+            missingPaths: [],
+            unreadablePaths: [],
+            components: [.init(path: "\(root)/cache", totalBytes: 1024)],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let model = UsageMenuCardView.Model(
+            provider: .zai,
+            providerName: "Z.ai",
+            email: "",
+            subtitleText: "",
+            subtitleStyle: .info,
+            planText: nil,
+            metrics: [],
+            usageNotes: [],
+            openAIAPIUsage: nil,
+            inlineUsageDashboard: nil,
+            creditsText: nil,
+            creditsRemaining: nil,
+            creditsHintText: nil,
+            creditsHintCopyText: nil,
+            providerCost: nil,
+            tokenUsage: nil,
+            placeholder: nil,
+            progressColor: .blue)
+
+        #expect(controller.popoverOverviewChart(for: .zai, model: model) == .storageBreakdown(.zai))
+    }
+
+    @MainActor
+    @Test
     func `popoverChartView 数据缺失时返回 nil 不崩溃`() throws {
         let (controller, _) = try makeChartTestController()
         defer { controller.releaseStatusItemsForTesting() }
