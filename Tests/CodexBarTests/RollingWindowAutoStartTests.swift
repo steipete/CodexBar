@@ -117,6 +117,16 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `claude command disables session persistence`() throws {
+        let command = try #require(RollingWindowPingStarter.command(provider: .claude, environment: [:]))
+
+        #expect(command.arguments.contains("-p"))
+        #expect(command.arguments.contains("--no-session-persistence"))
+        #expect(command.arguments.contains("haiku"))
+        #expect(command.arguments.last == "Say hi, then stop.")
+    }
+
+    @Test
     func `scheduler starts once per reset and refreshes after ping`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-once")
         settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)

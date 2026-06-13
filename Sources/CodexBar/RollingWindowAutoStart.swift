@@ -178,7 +178,7 @@ enum RollingWindowPingStarter {
             return self.command(
                 binary: binary,
                 executable: "claude",
-                arguments: ["-p", prompt, "--model", model],
+                arguments: ["-p", "--no-session-persistence", "--model", model, prompt],
                 timeout: timeout)
         case .opencode:
             let model = self.value(environment: environment, key: self.envKey(provider: provider, suffix: "MODEL"))
