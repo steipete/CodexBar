@@ -17,6 +17,16 @@ public enum MiMoLocalUsageFallback {
         "\(NSHomeDirectory())/.codexbar/mimo-local-usage.json"
     }
 
+    public static func cachePath(environment: [String: String]) -> String {
+        guard let override = environment["MIMO_LOCAL_USAGE_PATH"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !override.isEmpty
+        else {
+            return self.defaultCachePath()
+        }
+        return NSString(string: override).expandingTildeInPath
+    }
+
     public static func snapshot(now: Date = Date()) -> MiMoUsageSnapshot? {
         self.snapshot(cachePath: self.defaultCachePath(), now: now)
     }

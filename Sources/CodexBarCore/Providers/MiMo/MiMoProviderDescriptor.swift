@@ -201,12 +201,6 @@ struct MiMoLocalFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func cachePath(context: ProviderFetchContext) -> String {
-        guard let override = context.env["MIMO_LOCAL_USAGE_PATH"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !override.isEmpty
-        else {
-            return MiMoLocalUsageFallback.defaultCachePath()
-        }
-        return NSString(string: override).expandingTildeInPath
+        MiMoLocalUsageFallback.cachePath(environment: context.env)
     }
 }

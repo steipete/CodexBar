@@ -564,6 +564,14 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .mimo,
+           sourceMode == .auto,
+           let environment,
+           MiMoLocalUsageFallback.snapshot(
+               cachePath: MiMoLocalUsageFallback.cachePath(environment: environment)) != nil
+        {
+            return false
+        }
         return switch sourceMode {
         case .web:
             true
