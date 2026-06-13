@@ -1217,6 +1217,20 @@ extension UsageMenuCardView.Model {
                 title: labels.secondary,
                 zaiTimeDetail: zaiTimeDetail))
         }
+        if input.provider == .mimo, let mimoUsage = snapshot.mimoUsage {
+            metrics.append(Metric(
+                id: "mimo-balance",
+                title: L("Balance"),
+                percent: 0,
+                percentStyle: percentStyle,
+                statusText: mimoUsage.balanceDetail,
+                resetText: nil,
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true))
+        }
         if labels.showsTertiary, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
             if input.provider == .alibaba || input.provider == .alibabatokenplan,
@@ -1286,30 +1300,6 @@ extension UsageMenuCardView.Model {
                 paceOnTop: true))
         }
         return metrics
-    }
-
-    private static func rateWindowLabels(
-        input: Input,
-        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
-    {
-        if input.provider == .factory, snapshot.tertiary != nil {
-            return ("5-hour", L("Weekly"), L("Monthly"), true)
-        }
-        // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool —
-        // relabel the primary bar so it reads as a request count instead of a dollar percentage.
-        let primaryLabel = if input.provider == .cursor, snapshot.cursorRequests != nil {
-            "Requests"
-        } else if input.provider == .grok {
-            GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata
-                .sessionLabel
-        } else {
-            input.metadata.sessionLabel
-        }
-        return (
-            L(primaryLabel),
-            L(input.metadata.weeklyLabel),
-            input.metadata.opusLabel.map(L) ?? L("Sonnet"),
-            input.metadata.supportsOpus)
     }
 
     private static func primaryMetric(
@@ -1547,6 +1537,7 @@ extension UsageMenuCardView.Model {
             title: title ?? L(input.metadata.weeklyLabel),
             percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
             percentStyle: percentStyle,
+            statusText: nil,
             resetText: weeklyResetText,
             detailText: weeklyDetailText,
             detailLeftText: paceDetail?.leftLabel,

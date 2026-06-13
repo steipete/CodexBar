@@ -143,6 +143,8 @@ public enum MiMoUsageFetcher {
         return MiMoUsageSnapshot(
             balance: balanceSnapshot.balance,
             currency: balanceSnapshot.currency,
+            cashBalance: balanceSnapshot.cashBalance,
+            giftBalance: balanceSnapshot.giftBalance,
             planCode: planDetail.planCode,
             planPeriodEnd: planDetail.periodEnd,
             planExpired: planDetail.expired,
@@ -173,13 +175,20 @@ public enum MiMoUsageFetcher {
         guard let balance = Double(data.balance) else {
             throw MiMoUsageError.parseFailed("Invalid balance value")
         }
+        let cashBalance = data.cashBalance.flatMap(Double.init)
+        let giftBalance = data.giftBalance.flatMap(Double.init)
 
         let currency = data.currency.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !currency.isEmpty else {
             throw MiMoUsageError.parseFailed("Missing currency")
         }
 
-        return MiMoUsageSnapshot(balance: balance, currency: currency, updatedAt: now)
+        return MiMoUsageSnapshot(
+            balance: balance,
+            currency: currency,
+            cashBalance: cashBalance,
+            giftBalance: giftBalance,
+            updatedAt: now)
     }
 
     static func parseTokenPlanDetail(from data: Data) throws -> (planCode: String?, periodEnd: Date?, expired: Bool) {
@@ -227,6 +236,8 @@ public enum MiMoUsageFetcher {
     private struct BalancePayload: Decodable {
         let balance: String
         let currency: String
+        let cashBalance: String?
+        let giftBalance: String?
     }
 
     private struct TokenPlanDetailResponse: Decodable {

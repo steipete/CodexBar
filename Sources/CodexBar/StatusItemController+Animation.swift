@@ -705,6 +705,13 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .mimo,
+           let balance = Self.miMoBalanceDisplayText(
+               snapshot: snapshot,
+               preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot))
+        {
+            return balance
+        }
         if provider == .moonshot,
            let balance = Self.moonshotBalanceDisplayText(snapshot: snapshot)
         {
@@ -798,6 +805,16 @@ extension StatusItemController {
 
         let balance = rawValue.split(separator: " ", maxSplits: 1).first
         return balance.map(String.init)
+    }
+
+    nonisolated static func miMoBalanceDisplayText(
+        snapshot: UsageSnapshot?,
+        preference: MenuBarMetricPreference) -> String?
+    {
+        guard let snapshot, let mimoUsage = snapshot.mimoUsage else { return nil }
+        if snapshot.primary != nil, preference != .secondary { return nil }
+        let detail = mimoUsage.balanceDetail
+        return detail.components(separatedBy: " (Paid:").first
     }
 
     nonisolated static func moonshotBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {

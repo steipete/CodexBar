@@ -768,24 +768,6 @@ final class UsageStore {
         var firedThresholds: Set<Int> = []
     }
 
-    private func sessionQuotaWindow(
-        provider: UsageProvider,
-        snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
-    {
-        if let primary = snapshot.primary, Self.isSessionWindow(primary) {
-            return (primary, .primary)
-        }
-        if provider == .copilot, let secondary = snapshot.secondary {
-            return (secondary, .copilotSecondaryFallback)
-        }
-        return nil
-    }
-
-    private static func isSessionWindow(_ window: RateWindow) -> Bool {
-        guard let minutes = window.windowMinutes else { return true }
-        return minutes <= 6 * 60
-    }
-
     func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
         // Session quota notifications are tied to the primary session window. Copilot free plans can
         // expose only chat quota, so allow Copilot to fall back to secondary for transition tracking.
@@ -867,15 +849,17 @@ final class UsageStore {
         guard self.settings.quotaWarningNotificationsEnabled else { return }
 
         let accountDisplayName = self.quotaWarningAccountDisplayName(provider: provider, snapshot: snapshot)
+        let primaryWindow = provider == .mimo ? nil : snapshot.primary
+        let secondaryWindow = provider == .mimo ? nil : snapshot.secondary
         self.handleQuotaWarningTransition(
             provider: provider,
             window: .session,
-            rateWindow: snapshot.primary,
+            rateWindow: primaryWindow,
             accountDisplayName: accountDisplayName)
         self.handleQuotaWarningTransition(
             provider: provider,
             window: .weekly,
-            rateWindow: snapshot.secondary,
+            rateWindow: secondaryWindow,
             accountDisplayName: accountDisplayName)
     }
 

@@ -160,7 +160,7 @@ struct MiMoProviderTests {
     }
 
     @Test
-    func `usage snapshot exposes balance through identity plan text`() {
+    func `usage snapshot exposes balance without duplicating identity`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 25.51,
             currency: "USD",
@@ -170,7 +170,24 @@ struct MiMoProviderTests {
 
         #expect(usage.primary == nil)
         #expect(usage.secondary == nil)
-        #expect(usage.loginMethod(for: .mimo) == "Balance: $25.51")
+        #expect(usage.mimoUsage?.balanceDetail == "$25.51")
+        #expect(usage.loginMethod(for: .mimo) == nil)
+    }
+
+    @Test
+    func `usage snapshot exposes paid and granted balance components`() {
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary == nil)
+        #expect(usage.mimoUsage?.balanceDetail == "$25.51 (Paid: $20.00 / Granted: $5.51)")
+        #expect(usage.loginMethod(for: .mimo) == nil)
     }
 
     @Test
@@ -193,7 +210,42 @@ struct MiMoProviderTests {
         #expect(abs((usage.primary?.usedPercent ?? .nan) - 5.05) < 0.0001)
         #expect(usage.primary?.resetDescription == "10,100,158 / 200,000,000 Credits")
         #expect(usage.primary?.resetsAt == resetDate)
+        #expect(usage.secondary == nil)
+        #expect(usage.mimoUsage?.balanceDetail == "$25.51")
         #expect(usage.loginMethod(for: .mimo) == "Standard")
+    }
+
+    @Test
+    func `menu card shows balance as status text with and without token plan`() throws {
+        let now = Date(timeIntervalSince1970: 1_742_771_200)
+        let metadata = try #require(ProviderDefaults.metadata[.mimo])
+        let balanceOnly = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            updatedAt: now)
+            .toUsageSnapshot()
+        let withPlan = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            planCode: "standard",
+            tokenUsed: 10,
+            tokenLimit: 100,
+            tokenPercent: 0.1,
+            updatedAt: now)
+            .toUsageSnapshot()
+
+        let balanceModel = Self.makeMenuCardModel(snapshot: balanceOnly, metadata: metadata, now: now)
+        let planModel = Self.makeMenuCardModel(snapshot: withPlan, metadata: metadata, now: now)
+
+        #expect(balanceModel.metrics.first?.title == "Balance")
+        #expect(balanceModel.metrics.first?.statusText == "$25.51 (Paid: $20.00 / Granted: $5.51)")
+        #expect(planModel.metrics.first?.title == "Credits")
+        #expect(planModel.metrics.last?.title == "Balance")
+        #expect(planModel.metrics.last?.statusText == "$25.51 (Paid: $20.00 / Granted: $5.51)")
     }
 
     @Test
@@ -212,7 +264,58 @@ struct MiMoProviderTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary == nil)
-        #expect(usage.loginMethod(for: .mimo) == "Balance: $0.00")
+        #expect(usage.mimoUsage?.balanceDetail == "$0.00")
+        #expect(usage.loginMethod(for: .mimo) == nil)
+    }
+
+    @Test
+    func `usage snapshot persists mimo balance details`() throws {
+        let usage = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+            .toUsageSnapshot()
+
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: JSONEncoder().encode(usage))
+
+        #expect(decoded.primary == nil)
+        #expect(decoded.mimoUsage?.balanceDetail == "$25.51 (Paid: $20.00 / Granted: $5.51)")
+    }
+
+    @Test
+    func `balance does not participate in icon or switcher quota percentages`() {
+        let balanceOnly = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            updatedAt: Date())
+            .toUsageSnapshot()
+        let withPlan = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            tokenUsed: 10,
+            tokenLimit: 100,
+            tokenPercent: 0.1,
+            updatedAt: Date())
+            .toUsageSnapshot()
+
+        let balanceIcon = IconRemainingResolver.resolvedRemaining(snapshot: balanceOnly, style: .mimo)
+        let planIcon = IconRemainingResolver.resolvedRemaining(snapshot: withPlan, style: .mimo)
+
+        #expect(balanceIcon.primary == nil)
+        #expect(balanceIcon.secondary == nil)
+        #expect(StatusItemController.switcherWeeklyMetricPercent(
+            for: .mimo,
+            snapshot: balanceOnly,
+            showUsed: false) == nil)
+        #expect(planIcon.primary == 90)
+        #expect(planIcon.secondary == nil)
+        #expect(StatusItemController.switcherWeeklyMetricPercent(
+            for: .mimo,
+            snapshot: withPlan,
+            showUsed: false) == 90)
     }
 
     @Test
@@ -235,7 +338,58 @@ struct MiMoProviderTests {
 
         #expect(snapshot.balance == 25.51)
         #expect(snapshot.currency == "USD")
+        #expect(snapshot.cashBalance == nil)
+        #expect(snapshot.giftBalance == nil)
         #expect(snapshot.updatedAt == now)
+    }
+
+    @Test
+    func `parses paid and granted balance fields when available`() throws {
+        let now = Date(timeIntervalSince1970: 1_742_771_200)
+        let json = """
+        {
+          "code": 0,
+          "message": "",
+          "data": {
+            "balance": "50.00",
+            "frozenBalance": null,
+            "currency": "USD",
+            "overdraftLimit": null,
+            "remainingOverdraftLimit": null,
+            "giftBalance": "20.00",
+            "cashBalance": "30.00"
+          }
+        }
+        """
+
+        let snapshot = try MiMoUsageFetcher.parseUsageSnapshot(from: Data(json.utf8), now: now)
+
+        #expect(snapshot.balance == 50)
+        #expect(snapshot.cashBalance == 30)
+        #expect(snapshot.giftBalance == 20)
+        #expect(snapshot.currency == "USD")
+    }
+
+    @Test
+    func `ignores malformed optional balance components`() throws {
+        let json = """
+        {
+          "code": 0,
+          "message": "",
+          "data": {
+            "balance": "25.51",
+            "currency": "USD",
+            "giftBalance": "",
+            "cashBalance": "unknown"
+          }
+        }
+        """
+
+        let snapshot = try MiMoUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+
+        #expect(snapshot.balance == 25.51)
+        #expect(snapshot.cashBalance == nil)
+        #expect(snapshot.giftBalance == nil)
     }
 
     @Test
@@ -292,7 +446,7 @@ struct MiMoProviderTests {
     func `combined snapshot merges balance and token plan`() throws {
         let now = Date(timeIntervalSince1970: 1_742_771_200)
         let balanceJSON = """
-        {"code":0,"message":"","data":{"balance":"25.51","currency":"USD"}}
+        {"code":0,"message":"","data":{"balance":"25.51","currency":"USD","cashBalance":"20","giftBalance":"5.51"}}
         """
         let detailJSON = """
         {"code":0,"message":"","data":{"planCode":"standard","currentPeriodEnd":"2026-05-04 23:59:59","expired":false}}
@@ -325,6 +479,8 @@ struct MiMoProviderTests {
 
         #expect(snapshot.balance == 25.51)
         #expect(snapshot.currency == "USD")
+        #expect(snapshot.cashBalance == 20)
+        #expect(snapshot.giftBalance == 5.51)
         #expect(snapshot.planCode == "standard")
         #expect(snapshot.tokenUsed == 10_100_158)
         #expect(snapshot.tokenLimit == 200_000_000)
@@ -374,15 +530,20 @@ struct MiMoProviderTests {
         #expect(snapshot.currency == "USD")
         #expect(requestedPaths.contains("/api/v1/balance"))
     }
+}
 
+extension MiMoProviderTests {
     @Test
     @MainActor
     func `provider detail plan row formats mimo as balance`() {
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
-            let row = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Balance: $25.51")
+            let legacyBalance = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Balance: $25.51")
+            let tokenPlan = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Standard")
 
-            #expect(row?.label == "Balance")
-            #expect(row?.value == "$25.51")
+            #expect(legacyBalance?.label == "Balance")
+            #expect(legacyBalance?.value == "$25.51")
+            #expect(tokenPlan?.label == "Plan")
+            #expect(tokenPlan?.value == "Standard")
         }
     }
 
@@ -423,6 +584,56 @@ struct MiMoProviderTests {
 
         #expect(lines.contains("Balance: $25.51"))
         #expect(!lines.contains("Balance: Balance: $25.51"))
+        if provider == .mimo {
+            #expect(!lines.contains(where: { $0.hasPrefix("Balance: 100%") }))
+        }
+    }
+
+    @Test
+    @MainActor
+    func `menu descriptor renders mimo token detail without reset date`() throws {
+        let suite = "MiMoProviderTests-menu-token-detail"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            tokenUsed: 10,
+            tokenLimit: 100,
+            tokenPercent: 0.1,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+            .toUsageSnapshot()
+        store._setSnapshotForTesting(snapshot, provider: .mimo)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .mimo,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+        let lines = descriptor.sections
+            .flatMap(\.entries)
+            .compactMap { entry -> String? in
+                guard case let .text(text, _) = entry else { return nil }
+                return text
+            }
+
+        #expect(lines.contains("10 / 100 Credits"))
+        #expect(!lines.contains("Resets 10 / 100 Credits"))
     }
 
     @Test
@@ -577,7 +788,7 @@ struct MiMoProviderTests {
         #expect(requestedCookies.count == 6)
         #expect(requestedCookies.contains(where: { $0.contains("expired-token") }))
         #expect(requestedCookies.contains(where: { $0.contains("valid-token") }))
-        #expect(result.usage.loginMethod(for: .mimo) == "Balance: $25.51")
+        #expect(result.usage.mimoUsage?.balanceDetail == "$25.51")
         #expect(CookieHeaderCache.load(provider: .mimo)?.sourceLabel == "Active Chrome")
     }
 
@@ -639,6 +850,32 @@ struct MiMoProviderTests {
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/json"])!
         return (response, Data(body.utf8))
+    }
+
+    private static func makeMenuCardModel(
+        snapshot: UsageSnapshot,
+        metadata: ProviderMetadata,
+        now: Date) -> UsageMenuCardView.Model
+    {
+        UsageMenuCardView.Model.make(.init(
+            provider: .mimo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
     }
 
     private func makeBalanceSnapshot(provider: UsageProvider) -> UsageSnapshot {

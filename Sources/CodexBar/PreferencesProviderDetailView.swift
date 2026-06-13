@@ -95,6 +95,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 return (label: L("Balance"), value: trimmedValue)
             }
         }
+        if provider == .mimo {
+            return (label: L("Plan"), value: rawPlan)
+        }
         return (label: L("Balance"), value: rawPlan)
     }
 

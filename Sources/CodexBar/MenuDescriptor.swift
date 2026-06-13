@@ -150,10 +150,10 @@ struct MenuDescriptor {
             let resetStyle = settings.resetTimeDisplayStyle
             let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
             if let primary = snap.primary {
-                let primaryWindow = if provider == .warp || provider == .kilo || provider == .mimo || provider ==
-                    .abacus ||
-                    provider == .deepseek || provider == .azureopenai
-                {
+                let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
+                    provider == .deepseek || provider == .azureopenai || provider == .mimo
+                let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
                     RateWindow(
@@ -170,12 +170,11 @@ struct MenuDescriptor {
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
-                if provider == .warp || provider == .kilo || provider == .mimo || provider == .abacus || provider ==
-                    .deepseek || provider == .azureopenai,
-                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-                    !detail.isEmpty
+                if primaryDescriptionIsDetail,
+                   let primaryDetail,
+                   !primaryDetail.isEmpty
                 {
-                    entries.append(.text(detail, .secondary))
+                    entries.append(.text(primaryDetail, .secondary))
                 }
                 if provider == .crof,
                    primary.resetsAt != nil,
@@ -277,6 +276,9 @@ struct MenuDescriptor {
         }
         if let mistralUsage = snapshot.mistralUsage, !mistralUsage.daily.isEmpty {
             Self.appendMistralUsageSummary(entries: &entries, usage: mistralUsage)
+        }
+        if let mimoUsage = snapshot.mimoUsage {
+            entries.append(.text("\(L("Balance")): \(mimoUsage.balanceDetail)", .primary))
         }
     }
 

@@ -119,7 +119,6 @@ extension UsageStore {
                     percentLeft: window.remainingPercent)
             }
         }
-
         let primaryTitle: String = {
             if provider == .grok,
                let dyn = GrokProviderDescriptor.primaryLabel(window: snapshot.primary)

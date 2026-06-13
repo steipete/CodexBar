@@ -526,6 +526,20 @@ struct ProvidersPane: View {
             options = [
                 ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("Automatic")),
             ]
+        } else if provider == .mimo {
+            let snapshot = self.store.snapshot(for: provider)
+            var metricOptions = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("automatic")),
+            ]
+            if snapshot?.primary != nil, snapshot?.mimoUsage != nil {
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: String(format: L("metric_primary"), L("Credits"))))
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.secondary.rawValue,
+                    title: String(format: L("metric_secondary"), L("Balance"))))
+            }
+            options = metricOptions
         } else if provider == .abacus {
             let metadata = self.store.metadata(for: provider)
             options = [

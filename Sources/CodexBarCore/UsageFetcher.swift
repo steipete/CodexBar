@@ -128,6 +128,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let deepseekUsage: DeepSeekUsageSummary?
+    public let mimoUsage: MiMoUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot?
@@ -147,6 +148,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case providerCost
         case kiroUsage
         case ampUsage
+        case mimoUsage
         case openRouterUsage
         case openAIAPIUsage
         case claudeAdminAPIUsage
@@ -172,6 +174,7 @@ public struct UsageSnapshot: Codable, Sendable {
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
         deepseekUsage: DeepSeekUsageSummary? = nil,
+        mimoUsage: MiMoUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot? = nil,
@@ -193,6 +196,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
         self.deepseekUsage = deepseekUsage
+        self.mimoUsage = mimoUsage
         self.openRouterUsage = openRouterUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.claudeAdminAPIUsage = claudeAdminAPIUsage
@@ -217,6 +221,7 @@ public struct UsageSnapshot: Codable, Sendable {
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
             deepseekUsage: self.deepseekUsage,
+            mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,
@@ -241,6 +246,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.deepseekUsage = nil // Not persisted, fetched fresh each time
+        self.mimoUsage = try container.decodeIfPresent(MiMoUsageSnapshot.self, forKey: .mimoUsage)
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.claudeAdminAPIUsage = try container.decodeIfPresent(
@@ -280,6 +286,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
         try container.encodeIfPresent(self.kiroUsage, forKey: .kiroUsage)
         try container.encodeIfPresent(self.ampUsage, forKey: .ampUsage)
+        try container.encodeIfPresent(self.mimoUsage, forKey: .mimoUsage)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.claudeAdminAPIUsage, forKey: .claudeAdminAPIUsage)
@@ -385,6 +392,7 @@ public struct UsageSnapshot: Codable, Sendable {
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
             deepseekUsage: self.deepseekUsage,
+            mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,
@@ -424,6 +432,7 @@ public struct UsageSnapshot: Codable, Sendable {
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
             deepseekUsage: self.deepseekUsage,
+            mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,

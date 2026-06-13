@@ -160,6 +160,45 @@ struct UsageStoreSessionQuotaTransitionTests {
     }
 
     @Test
+    func `mimo balance and monthly credits do not emit quota notifications`() {
+        let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-mimo-balance")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.sessionQuotaNotificationsEnabled = true
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningThresholds = [50, 20]
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+        let balanceSnapshot = MiMoUsageSnapshot(
+            balance: 0,
+            currency: "USD",
+            updatedAt: Date())
+            .toUsageSnapshot()
+        let tokenPlanSnapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            tokenUsed: 100,
+            tokenLimit: 100,
+            tokenPercent: 1,
+            updatedAt: Date())
+            .toUsageSnapshot()
+
+        for snapshot in [balanceSnapshot, tokenPlanSnapshot] {
+            store.handleSessionQuotaTransition(provider: .mimo, snapshot: snapshot)
+            store.handleQuotaWarningTransitions(provider: .mimo, snapshot: snapshot)
+        }
+
+        #expect(notifier.posts.isEmpty)
+        #expect(notifier.quotaWarningPosts.isEmpty)
+    }
+
+    @Test
     func `claude five hour primary still emits session quota notifications`() {
         let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-claude-session")
         settings.refreshFrequency = .manual

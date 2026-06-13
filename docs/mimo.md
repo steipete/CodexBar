@@ -12,7 +12,8 @@ The Xiaomi MiMo provider tracks your current balance from the Xiaomi MiMo consol
 
 ## Features
 
-- **Balance display**: Shows the current MiMo balance as provider identity text.
+- **Balance display**: Shows total balance plus paid and granted components when MiMo returns them.
+- **Token plan usage**: Shows current token-plan credits while retaining balance as a second metric.
 - **Cookie-based auth**: Uses browser cookies or a pasted `Cookie:` header.
 - **Near-real-time updates**: Balance usually reflects within a few minutes.
 
@@ -34,15 +35,15 @@ Safari cookie import may require granting CodexBar Full Disk Access in **System 
 
 ## How it works
 
-- Fetches `GET https://platform.xiaomimimo.com/api/v1/balance`
+- Fetches balance and token-plan detail/usage endpoints under `https://platform.xiaomimimo.com/api/v1`
 - Requires the `api-platform_serviceToken` and `userId` cookies
 - Accepts optional MiMo cookies like `api-platform_ph` and `api-platform_slh` when present
 - Supports `MIMO_API_URL` to override the base API URL for testing
 
 ## Limitations
 
-- MiMo currently exposes **balance only**
-- Token cost, status polling, debug log output, and widgets are not supported yet
+- Token cost, status polling, and debug log output are not supported yet
+- Widgets show token-plan usage but omit balance details
 - Auto import covers Safari, Chrome variants, Firefox, and Edge only; other browsers use **Manual** mode
 
 ## Troubleshooting

@@ -34,6 +34,7 @@ enum CLIRenderer {
             now: now,
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
+        self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendLimitsUnavailableLine(
@@ -114,6 +115,15 @@ enum CLIRenderer {
             lines: &lines)
     }
 
+    private static func appendMiMoBalanceLine(
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard let usage = snapshot.mimoUsage else { return }
+        lines.append(self.labelValueLine("Balance", value: usage.balanceDetail, useColor: useColor))
+    }
+
     private static func appendTertiaryLines(
         snapshot: UsageSnapshot,
         labels: RateWindowLabels,
@@ -186,7 +196,6 @@ enum CLIRenderer {
                 tertiary: "Monthly",
                 showsTertiary: true)
         }
-
         let primaryLabel = provider == .grok
             ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
             : metadata.sessionLabel
@@ -239,7 +248,10 @@ enum CLIRenderer {
             for detail in kiloLogin.details {
                 lines.append(self.labelValueLine("Activity", value: detail, useColor: context.useColor))
             }
-        } else if let plan = snapshot.loginMethod(for: provider), !plan.isEmpty {
+        } else if let plan = snapshot.loginMethod(for: provider),
+                  !plan.isEmpty,
+                  provider != .mimo || !plan.localizedCaseInsensitiveContains("balance:")
+        {
             let displayPlan = if provider == .codex {
                 CodexPlanFormatting.displayName(plan) ?? plan
             } else {

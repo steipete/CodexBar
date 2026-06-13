@@ -45,6 +45,28 @@ extension UsageMenuCardView.Model {
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
 
+    static func rateWindowLabels(
+        input: Input,
+        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
+    {
+        if input.provider == .factory, snapshot.tertiary != nil {
+            return ("5-hour", L("Weekly"), L("Monthly"), true)
+        }
+        // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
+        let primaryLabel = if input.provider == .cursor, snapshot.cursorRequests != nil {
+            "Requests"
+        } else if input.provider == .grok {
+            GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
+        } else {
+            input.metadata.sessionLabel
+        }
+        return (
+            L(primaryLabel),
+            L(input.metadata.weeklyLabel),
+            input.metadata.opusLabel.map(L) ?? L("Sonnet"),
+            input.metadata.supportsOpus)
+    }
+
     static func resetText(
         for window: RateWindow,
         style: ResetTimeDisplayStyle,
