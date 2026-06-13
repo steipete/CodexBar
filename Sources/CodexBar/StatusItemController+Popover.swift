@@ -144,7 +144,6 @@ extension StatusItemController {
         // onNavigate/onSelectIndex 单 provider 下 no-op（不设）。
         ctrl.onRefresh = { [weak self] in
             self?.refreshNow()
-            self?.providerPopoverControllers[provider]?.close()
         }
         ctrl.onSettings = { [weak self] in
             self?.showSettingsGeneral()
@@ -826,7 +825,6 @@ extension StatusItemController {
     private func wirePopoverShortcutCallbacks() {
         self.popoverMenuController?.onRefresh = { [weak self] in
             self?.refreshNow()
-            self?.popoverMenuController?.close()
         }
         self.popoverMenuController?.onSettings = { [weak self] in
             self?.showSettingsGeneral()
