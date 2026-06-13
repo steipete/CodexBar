@@ -211,7 +211,6 @@ enum RollingWindowPingStarter {
                 arguments: [
                     "exec",
                     "--skip-git-repo-check",
-                    "--ephemeral",
                     "-m",
                     model,
                     "-c",

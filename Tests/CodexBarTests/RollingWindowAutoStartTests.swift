@@ -217,11 +217,11 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
-    func `codex command uses ephemeral low reasoning mini model by default`() throws {
+    func `codex command persists a low reasoning mini model session by default`() throws {
         let command = try #require(RollingWindowPingStarter.command(provider: .codex, environment: [:]))
 
         #expect(command.arguments.contains("exec"))
-        #expect(command.arguments.contains("--ephemeral"))
+        #expect(!command.arguments.contains("--ephemeral"))
         #expect(command.arguments.contains("--skip-git-repo-check"))
         #expect(command.arguments.contains("gpt-5.4-mini"))
         #expect(command.arguments.contains("model_reasoning_effort=low"))
