@@ -137,7 +137,8 @@ public struct RovoDevUsageFetcher: Sendable {
     public static func fetchUsage(
         email: String,
         apiToken: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> RovoDevUsageSnapshot
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> RovoDevUsageSnapshot
     {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -158,11 +159,17 @@ public struct RovoDevUsageFetcher: Sendable {
             request.setValue("Basic \(encoded)", forHTTPHeaderField: "Authorization")
         }
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         switch response.statusCode {
-        case 200, 403:
-            // 403 can still contain valid usage data (e.g. USER_BLOCKED status)
+        case 200:
             return try Self.parseSnapshot(data: response.data, accountEmail: trimmedEmail, updatedAt: Date())
+        case 403:
+            let decoded = try Self.decodeResponse(data: response.data)
+            guard decoded.isRecognizedPayload else {
+                Self.log.error("Rovo Dev API returned an unrecognized HTTP 403 response")
+                throw RovoDevUsageError.apiError(response.statusCode)
+            }
+            return Self.makeSnapshot(from: decoded, accountEmail: trimmedEmail, updatedAt: Date())
         case 401:
             throw RovoDevUsageError.missingCredentials
         default:
@@ -184,13 +191,24 @@ public struct RovoDevUsageFetcher: Sendable {
         accountEmail: String? = nil,
         updatedAt: Date) throws -> RovoDevUsageSnapshot
     {
-        let decoded: CreditsCheckResponse
+        let decoded = try self.decodeResponse(data: data)
+        return self.makeSnapshot(from: decoded, accountEmail: accountEmail, updatedAt: updatedAt)
+    }
+
+    private static func decodeResponse(data: Data) throws -> CreditsCheckResponse {
         do {
-            decoded = try JSONDecoder().decode(CreditsCheckResponse.self, from: data)
+            return try JSONDecoder().decode(CreditsCheckResponse.self, from: data)
         } catch {
             throw RovoDevUsageError.parseFailed(error.localizedDescription)
         }
-        return RovoDevUsageSnapshot(
+    }
+
+    private static func makeSnapshot(
+        from decoded: CreditsCheckResponse,
+        accountEmail: String?,
+        updatedAt: Date) -> RovoDevUsageSnapshot
+    {
+        RovoDevUsageSnapshot(
             status: decoded.status ?? "UNKNOWN",
             balance: decoded.balance ?? RovoDevBalance(
                 dailyTotal: nil,
@@ -214,10 +232,17 @@ public struct RovoDevUsageFetcher: Sendable {
 // MARK: - Private response models
 
 private struct CreditsCheckResponse: Decodable {
+    private static let recognizedStatuses = ["OK", "RATE_LIMITED", "USER_BLOCKED", "UNKNOWN"]
+
     let status: String?
     let balance: RovoDevBalance?
     let message: String?
     let retryAfterSeconds: Int?
     /// Per-model token usage map, e.g. {"Claude Haiku 4.5": 91295, "claude-sonnet-4-6": 18862727}
     let modelUsages: [String: Int]?
+
+    var isRecognizedPayload: Bool {
+        self.balance != nil
+            || self.status.map { Self.recognizedStatuses.contains($0.uppercased()) } == true
+    }
 }

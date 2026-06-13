@@ -72,6 +72,44 @@ final class RovoDevUsageFetcherTests: XCTestCase {
         }
     }
 
+    func test_fetchUsage_acceptsRecognizedBlockedResponse() async throws {
+        let transport = Self.makeTransport(
+            statusCode: 403,
+            body: """
+            {
+                "status": "USER_BLOCKED",
+                "message": "Rovo Dev access is blocked"
+            }
+            """)
+
+        let snapshot = try await RovoDevUsageFetcher.fetchUsage(
+            email: " user@example.com ",
+            apiToken: "secret",
+            environment: [:],
+            transport: transport)
+
+        XCTAssertEqual(snapshot.status, "USER_BLOCKED")
+        XCTAssertEqual(snapshot.message, "Rovo Dev access is blocked")
+        XCTAssertEqual(snapshot.accountEmail, "user@example.com")
+    }
+
+    func test_fetchUsage_rejectsGenericForbiddenResponse() async {
+        let transport = Self.makeTransport(
+            statusCode: 403,
+            body: #"{"error":"Forbidden","message":"Access denied"}"#)
+
+        do {
+            _ = try await RovoDevUsageFetcher.fetchUsage(
+                email: "user@example.com",
+                apiToken: "secret",
+                environment: [:],
+                transport: transport)
+            XCTFail("Expected generic forbidden response to fail")
+        } catch {
+            XCTAssertEqual(error as? RovoDevUsageError, .apiError(403))
+        }
+    }
+
     func test_cleaned_stripsWhitespace() {
         XCTAssertEqual(RovoDevSettingsReader.cleaned("  hello  "), "hello")
     }
@@ -240,5 +278,23 @@ final class RovoDevUsageFetcherTests: XCTestCase {
     func test_errorEquality() {
         XCTAssertEqual(RovoDevUsageError.missingCredentials, RovoDevUsageError.missingCredentials)
         XCTAssertNotEqual(RovoDevUsageError.missingCredentials, RovoDevUsageError.apiError(401))
+    }
+
+    private static func makeTransport(
+        statusCode: Int,
+        body: String) -> ProviderHTTPTransportHandler
+    {
+        ProviderHTTPTransportHandler { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: statusCode,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: ["Content-Type": "application/json"])
+            else {
+                throw URLError(.badServerResponse)
+            }
+            return (Data(body.utf8), response)
+        }
     }
 }
