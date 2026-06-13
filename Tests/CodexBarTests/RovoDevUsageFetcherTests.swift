@@ -163,6 +163,58 @@ final class RovoDevUsageFetcherTests: XCTestCase {
         XCTAssertEqual(snapshot.creditsTotal, 500)
     }
 
+    func test_parseSnapshot_derivesMonthlyUsedFromRemaining() throws {
+        let json = Data("""
+        {
+            "status": "OK",
+            "balance": {
+                "monthlyTotal": 2000,
+                "monthlyRemaining": 1153
+            }
+        }
+        """.utf8)
+
+        let snapshot = try RovoDevUsageFetcher._parseSnapshotForTesting(json, updatedAt: Date())
+        XCTAssertEqual(snapshot.creditsUsed, 847)
+        XCTAssertEqual(snapshot.creditsTotal, 2000)
+        XCTAssertEqual(snapshot.usedPercent, 42.35, accuracy: 0.001)
+    }
+
+    func test_parseSnapshot_derivesDailyUsedFromRemaining() throws {
+        let json = Data("""
+        {
+            "status": "OK",
+            "balance": {
+                "dailyTotal": 500,
+                "dailyRemaining": 400
+            }
+        }
+        """.utf8)
+
+        let snapshot = try RovoDevUsageFetcher._parseSnapshotForTesting(json, updatedAt: Date())
+        XCTAssertEqual(snapshot.creditsUsed, 100)
+        XCTAssertEqual(snapshot.creditsTotal, 500)
+        XCTAssertEqual(snapshot.usedPercent, 20.0, accuracy: 0.001)
+    }
+
+    func test_parseSnapshot_keepsDailyUsagePairedWithDailyTotal() throws {
+        let json = Data("""
+        {
+            "status": "OK",
+            "balance": {
+                "monthlyTotal": 2000,
+                "dailyTotal": 500,
+                "dailyUsed": 100
+            }
+        }
+        """.utf8)
+
+        let snapshot = try RovoDevUsageFetcher._parseSnapshotForTesting(json, updatedAt: Date())
+        XCTAssertEqual(snapshot.creditsUsed, 100)
+        XCTAssertEqual(snapshot.creditsTotal, 500)
+        XCTAssertEqual(snapshot.usedPercent, 20.0, accuracy: 0.001)
+    }
+
     func test_parseSnapshot_usedPercent() throws {
         let json = Data("""
         {
