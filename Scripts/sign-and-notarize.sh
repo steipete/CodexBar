@@ -32,9 +32,6 @@ trap 'rm -rf "$NOTARIZATION_TEMP_DIR"' EXIT
 chmod 600 "$API_KEY_PATH"
 
 ARCH_LIST=( ${ARCHES_VALUE} )
-for ARCH in "${ARCH_LIST[@]}"; do
-  swift build -c release --arch "$ARCH"
-done
 ARCHES="${ARCHES_VALUE}" ./Scripts/package_app.sh release
 
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
