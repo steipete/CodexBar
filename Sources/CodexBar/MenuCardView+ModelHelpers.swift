@@ -177,12 +177,16 @@ extension UsageMenuCardView.Model {
         if let weeklyPace = input.weeklyPace {
             return weeklyPace
         }
-        return UsagePace.weekly(
+        return Self.displayableWeeklyPace(UsagePace.weekly(
             window: window,
             now: input.now,
             defaultWindowMinutes: 10080,
-            workDays: input.workDaysPerWeek)
-            .flatMap { $0.expectedUsedPercent >= 3 ? $0 : nil }
+            workDays: input.workDaysPerWeek))
+    }
+
+    private static func displayableWeeklyPace(_ pace: UsagePace?) -> UsagePace? {
+        guard let pace else { return nil }
+        return pace.expectedUsedPercent >= 3 || pace.etaSeconds == 0 ? pace : nil
     }
 
     static func cursorBillingCyclePaceDetail(
@@ -198,9 +202,7 @@ extension UsageMenuCardView.Model {
             now: input.now,
             defaultWindowMinutes: 10080,
             workDays: input.workDaysPerWeek)
-        guard let resolved,
-              resolved.expectedUsedPercent >= 3
-        else { return nil }
+        guard let resolved = Self.displayableWeeklyPace(resolved) else { return nil }
         return Self.weeklyPaceDetail(
             window: window,
             now: input.now,
@@ -301,12 +303,11 @@ extension UsageMenuCardView.Model {
                 now: input.now,
                 showUsed: input.usageBarsShowUsed)
         case 10080:
-            let pace = UsagePace.weekly(
+            let pace = Self.displayableWeeklyPace(UsagePace.weekly(
                 window: window,
                 now: input.now,
                 defaultWindowMinutes: 10080,
-                workDays: input.workDaysPerWeek)
-                .flatMap { $0.expectedUsedPercent >= 3 ? $0 : nil }
+                workDays: input.workDaysPerWeek))
             return Self.weeklyPaceDetail(
                 window: window,
                 now: input.now,
