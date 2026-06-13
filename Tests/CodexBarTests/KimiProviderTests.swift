@@ -145,7 +145,7 @@ struct KimiAPIFetchStrategyTests {
         let strategy = KimiAPIFetchStrategy()
         let context = makeKimiFetchContext(sourceMode: .auto)
 
-        #expect(strategy.shouldFallback(on: KimiAPIError.invalidToken, context: context))
+        #expect(strategy.shouldFallback(on: KimiAPIError.invalidAPIKey, context: context))
     }
 
     @Test
@@ -153,7 +153,17 @@ struct KimiAPIFetchStrategyTests {
         let strategy = KimiAPIFetchStrategy()
         let context = makeKimiFetchContext(sourceMode: .api)
 
-        #expect(strategy.shouldFallback(on: KimiAPIError.invalidToken, context: context) == false)
+        #expect(strategy.shouldFallback(on: KimiAPIError.invalidAPIKey, context: context) == false)
+    }
+
+    @Test
+    func `explicit API mode reports API key remediation when key is missing`() async {
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(sourceMode: .api)
+
+        await #expect(throws: KimiAPIError.missingAPIKey) {
+            try await strategy.fetch(context)
+        }
     }
 
     @Test
@@ -406,6 +416,14 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
+    func `maps code API authentication and permission errors separately`() {
+        #expect(KimiUsageFetcher._codeAPIErrorForTesting(statusCode: 401) == .invalidAPIKey)
+        #expect(
+            KimiUsageFetcher._codeAPIErrorForTesting(statusCode: 403)
+                == .apiError("HTTP 403 (permission or quota denied)"))
+    }
+
+    @Test
     func `throws on invalid json`() {
         let invalidJson = "{ invalid json }"
 
@@ -573,6 +591,9 @@ struct KimiAPIErrorTests {
     func `error descriptions are helpful`() {
         #expect(KimiAPIError.missingToken.errorDescription?.contains("missing") == true)
         #expect(KimiAPIError.invalidToken.errorDescription?.contains("invalid") == true)
+        #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("Settings > Providers > Kimi") == true)
+        #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("KIMI_CODE_API_KEY") == true)
+        #expect(KimiAPIError.invalidAPIKey.errorDescription?.contains("API key") == true)
         #expect(KimiAPIError.invalidRequest("Bad request").errorDescription?.contains("Bad request") == true)
         #expect(KimiAPIError.networkError("Timeout").errorDescription?.contains("Timeout") == true)
         #expect(KimiAPIError.apiError("HTTP 500").errorDescription?.contains("HTTP 500") == true)

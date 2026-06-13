@@ -15,7 +15,7 @@ public struct KimiUsageFetcher: Sendable {
         now: Date = Date()) async throws -> KimiUsageSnapshot
     {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw KimiAPIError.missingToken
+            throw KimiAPIError.missingAPIKey
         }
 
         guard let validatedBaseURL = ProviderEndpointOverrideValidator().validatedURL(baseURL.absoluteString) else {
@@ -33,14 +33,7 @@ public struct KimiUsageFetcher: Sendable {
         guard response.statusCode == 200 else {
             let responseBody = String(data: data, encoding: .utf8) ?? "<binary data>"
             Self.log.error("Kimi Code API returned \(response.statusCode): \(responseBody)")
-
-            if response.statusCode == 401 || response.statusCode == 403 {
-                throw KimiAPIError.invalidToken
-            }
-            if response.statusCode == 400 {
-                throw KimiAPIError.invalidRequest("Bad request")
-            }
-            throw KimiAPIError.apiError("HTTP \(response.statusCode)")
+            throw self.codeAPIError(statusCode: response.statusCode)
         }
 
         return try self.parseCodeAPIUsage(from: data, now: now)
@@ -52,6 +45,10 @@ public struct KimiUsageFetcher: Sendable {
 
     static func _codeAPIUsageEndpointForTesting(baseURL: URL) -> URL {
         self.codeAPIUsageEndpoint(baseURL: baseURL)
+    }
+
+    static func _codeAPIErrorForTesting(statusCode: Int) -> KimiAPIError {
+        self.codeAPIError(statusCode: statusCode)
     }
 
     public static func fetchUsage(authToken: String, now: Date = Date()) async throws -> KimiUsageSnapshot {
@@ -143,6 +140,19 @@ public struct KimiUsageFetcher: Sendable {
             .appendingPathComponent("coding")
             .appendingPathComponent("v1")
             .appendingPathComponent("usages")
+    }
+
+    private static func codeAPIError(statusCode: Int) -> KimiAPIError {
+        switch statusCode {
+        case 400:
+            .invalidRequest("Bad request")
+        case 401:
+            .invalidAPIKey
+        case 403:
+            .apiError("HTTP 403 (permission or quota denied)")
+        default:
+            .apiError("HTTP \(statusCode)")
+        }
     }
 
     private static func decodeSessionInfo(from jwt: String) -> SessionInfo? {

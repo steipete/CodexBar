@@ -23,10 +23,9 @@ Choose one of three authentication methods:
 
 ### Method 1: Kimi Code API Key (Recommended)
 
-Use the API key created by the official Kimi Code flow:
+Create an API key in the [Kimi Code Console](https://www.kimi.com/code/console), then save it in CodexBar:
 
 ```bash
-kimi login
 codexbar config set-api-key --provider kimi --api-key "kimi-api-key-here"
 ```
 

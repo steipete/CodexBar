@@ -64,7 +64,7 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw KimiAPIError.missingToken
+            throw KimiAPIError.missingAPIKey
         }
         let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
         let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
@@ -81,8 +81,8 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
         if let urlError = error as? URLError {
             return urlError.code != .cancelled
         }
-        if case KimiAPIError.missingToken = error { return true }
-        if case KimiAPIError.invalidToken = error { return true }
+        if case KimiAPIError.missingAPIKey = error { return true }
+        if case KimiAPIError.invalidAPIKey = error { return true }
         if case KimiAPIError.apiError = error { return true }
         if error is DecodingError { return true }
         return false
