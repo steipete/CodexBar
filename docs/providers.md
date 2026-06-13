@@ -72,6 +72,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | LiteLLM | API key + base URL → `/key/info`, then `/user/info` or `/team/info` budget usage (`api`). |
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
+| Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` (`local`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -245,6 +246,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Reads `AIAssistantQuotaManager2.xml` for monthly credits and refill date.
 - Status: none (no status page).
 - Details: `docs/jetbrains.md`.
+
+## Zed
+- Reads the signed-in Zed editor session from the macOS Keychain (`credentials_url` / `https://zed.dev`).
+- Calls `GET https://cloud.zed.dev/client/users/me` for plan, billing cycle, Edit Predictions quota, and overdue invoice flag.
+- Shows static included token-credit labels from Zed docs; live token spend requires [dashboard.zed.dev](https://dashboard.zed.dev) (no public API).
+- Sign in to Zed first; no CLI usage command.
+- Details: `docs/zed.md`.
 
 ## Augment
 - Auto mode tries the `auggie` CLI first.

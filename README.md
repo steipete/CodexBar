@@ -11,7 +11,7 @@
 
 <a href="https://codexbar.app"><img src="docs/social.png" alt="CodexBar — every AI coding limit in your menu bar. 50 providers." width="100%" /></a>
 
-Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, GroqCloud, ElevenLabs, Deepgram, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenRouter, LiteLLM, LLM Proxy, Codebuff, Command Code, AWS Bedrock, and many newer coding providers. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
+Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, GroqCloud, ElevenLabs, Deepgram, z.ai, MiniMax, Kiro, Zed, Vertex AI, Augment, OpenRouter, LiteLLM, LLM Proxy, Codebuff, Command Code, AWS Bedrock, and many newer coding providers. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
 <img src="codexbar.png" alt="CodexBar menu popover with provider tiles, usage bars, and reset countdowns" width="520" />
 
@@ -105,6 +105,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [ElevenLabs](docs/elevenlabs.md) — API key for character credits and voice slot usage.
 - [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
 - [Windsurf](docs/windsurf.md) — Browser localStorage session import or local SQLite cache for plan usage.
+- [Zed](docs/zed.md) — Zed editor Keychain session for plan, edit-prediction quota, and billing cycle; token spend on dashboard only.
 - Perplexity — Account usage credits from Perplexity usage data.
 - [Xiaomi MiMo](docs/mimo.md) — Browser cookies for balance and token-plan usage.
 - [Doubao](docs/doubao.md) — API key for Volcengine Ark request-limit probes.

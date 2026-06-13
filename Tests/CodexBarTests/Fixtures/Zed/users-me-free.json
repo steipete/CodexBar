@@ -1,0 +1,35 @@
+{
+  "user": {
+    "id": 10001,
+    "metrics_id": "metrics-free-user",
+    "avatar_url": "https://avatars.githubusercontent.com/u/10001",
+    "github_login": "free-zed-user",
+    "name": "Free User",
+    "is_staff": false,
+    "accepted_tos_at": "2024-06-01T12:00:00.000Z",
+    "has_connected_to_collab_once": false
+  },
+  "feature_flags": [],
+  "organizations": [],
+  "default_organization_id": null,
+  "plans_by_organization": {},
+  "configuration_by_organization": {},
+  "plan": {
+    "plan_v3": "zed_free",
+    "subscription_period": {
+      "started_at": "2025-05-01T00:00:00.000Z",
+      "ended_at": "2025-06-01T00:00:00.000Z"
+    },
+    "usage": {
+      "edit_predictions": {
+        "used": 42,
+        "limit": {
+          "limited": 200
+        }
+      }
+    },
+    "trial_started_at": null,
+    "is_account_too_young": false,
+    "has_overdue_invoices": false
+  }
+}

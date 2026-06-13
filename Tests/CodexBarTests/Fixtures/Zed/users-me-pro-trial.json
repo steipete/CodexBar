@@ -1,0 +1,33 @@
+{
+  "user": {
+    "id": 10003,
+    "metrics_id": "metrics-trial-user",
+    "avatar_url": "https://avatars.githubusercontent.com/u/10003",
+    "github_login": "trial-zed-user",
+    "name": "Trial User",
+    "is_staff": false,
+    "accepted_tos_at": "2025-05-20T10:00:00.000Z",
+    "has_connected_to_collab_once": true
+  },
+  "feature_flags": [],
+  "organizations": [],
+  "default_organization_id": null,
+  "plans_by_organization": {},
+  "configuration_by_organization": {},
+  "plan": {
+    "plan_v3": "zed_pro_trial",
+    "subscription_period": {
+      "started_at": "2025-05-20T10:00:00.000Z",
+      "ended_at": "2025-06-03T10:00:00.000Z"
+    },
+    "usage": {
+      "edit_predictions": {
+        "used": 310,
+        "limit": "unlimited"
+      }
+    },
+    "trial_started_at": "2025-05-20T10:00:00.000Z",
+    "is_account_too_young": false,
+    "has_overdue_invoices": false
+  }
+}

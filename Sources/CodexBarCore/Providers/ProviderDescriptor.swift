@@ -86,6 +86,7 @@ public enum ProviderDescriptorRegistry {
         .elevenlabs: ElevenLabsProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
         .windsurf: WindsurfProviderDescriptor.descriptor,
+        .zed: ZedProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
         .mimo: MiMoProviderDescriptor.descriptor,
         .doubao: DoubaoProviderDescriptor.descriptor,

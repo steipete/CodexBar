@@ -1,0 +1,33 @@
+{
+  "user": {
+    "id": 10002,
+    "metrics_id": "metrics-pro-user",
+    "avatar_url": "https://avatars.githubusercontent.com/u/10002",
+    "github_login": "pro-zed-user",
+    "name": "Pro User",
+    "is_staff": false,
+    "accepted_tos_at": "2024-01-15T08:30:00.000Z",
+    "has_connected_to_collab_once": true
+  },
+  "feature_flags": [],
+  "organizations": [],
+  "default_organization_id": null,
+  "plans_by_organization": {},
+  "configuration_by_organization": {},
+  "plan": {
+    "plan_v3": "zed_pro",
+    "subscription_period": {
+      "started_at": "2025-05-13T00:00:00.000Z",
+      "ended_at": "2025-06-13T00:00:00.000Z"
+    },
+    "usage": {
+      "edit_predictions": {
+        "used": 1280,
+        "limit": "unlimited"
+      }
+    },
+    "trial_started_at": null,
+    "is_account_too_young": false,
+    "has_overdue_invoices": false
+  }
+}

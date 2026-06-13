@@ -1,0 +1,39 @@
+{
+  "user": {
+    "id": 10005,
+    "metrics_id": "metrics-business-user",
+    "avatar_url": "https://avatars.githubusercontent.com/u/10005",
+    "github_login": "business-zed-user",
+    "name": "Business User",
+    "is_staff": false,
+    "accepted_tos_at": "2023-11-01T00:00:00.000Z",
+    "has_connected_to_collab_once": true
+  },
+  "feature_flags": [],
+  "organizations": [
+    {
+      "id": "org-acme",
+      "name": "Acme Corp",
+      "is_personal": false
+    }
+  ],
+  "default_organization_id": "org-acme",
+  "plans_by_organization": {},
+  "configuration_by_organization": {},
+  "plan": {
+    "plan_v3": "zed_business",
+    "subscription_period": {
+      "started_at": "2025-05-01T00:00:00.000Z",
+      "ended_at": "2025-06-01T00:00:00.000Z"
+    },
+    "usage": {
+      "edit_predictions": {
+        "used": 5400,
+        "limit": "unlimited"
+      }
+    },
+    "trial_started_at": null,
+    "is_account_too_young": false,
+    "has_overdue_invoices": true
+  }
+}

@@ -315,6 +315,7 @@ private struct ProviderSwitchChip: View {
         case .deepgram: "Deepgram"
         case .poe: "Poe"
         case .chutes: "Chutes"
+        case .zed: "Zed"
         }
     }
 }
@@ -829,6 +830,8 @@ enum WidgetColors {
             Color(red: 0.15, green: 0.68, blue: 0.38)
         case .chutes:
             Color(red: 24 / 255, green: 160 / 255, blue: 88 / 255)
+        case .zed:
+            Color(red: 64 / 255, green: 156 / 255, blue: 255 / 255)
         }
     }
 }
