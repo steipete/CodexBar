@@ -1,4 +1,5 @@
 import CodexBarCore
+import CoreGraphics
 import Observation
 
 /// 面板内容的单一可观察状态源。替代旧架构中以 ObjectIdentifier(NSMenu) 为 key 的
@@ -10,6 +11,8 @@ final class MenuViewModel {
     var selection: ProviderSwitcherSelection = .overview
     /// 当前可显示的 provider 列表（合并模式切换器用）。
     var providers: [UsageProvider] = []
+    /// Popover height cap derived from the status item's current screen.
+    var maximumPopoverHeight: CGFloat = 720
     /// 切换器是否含 Overview tab（由 controller 在 attach/打开时刷新）。
     var includesOverview: Bool = false
     /// 内容版本号，选择/数据变化时自增，供 SwiftUI 视图 diff 参考（替代 menuContentVersion）。

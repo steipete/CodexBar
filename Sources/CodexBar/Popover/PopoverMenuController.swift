@@ -67,6 +67,8 @@ final class PopoverMenuController<Content: View> {
 
     func show(relativeTo button: NSStatusBarButton) {
         guard !self.popover.isShown else { return }
+        let visibleHeight = button.window?.screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? 900
+        self.viewModel.maximumPopoverHeight = min(720, max(320, floor(visibleHeight * 0.82)))
         self.viewModel.setVisible(true)
         self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         self.popover.contentViewController?.view.window?.makeKey()

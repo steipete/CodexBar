@@ -11,6 +11,8 @@ import Testing
         let controller = PopoverMenuController(viewModel: vm) { EmptyContentProbe() }
         controller.show(relativeTo: button)
         #expect(vm.isVisible == true)
+        #expect(vm.maximumPopoverHeight >= 320)
+        #expect(vm.maximumPopoverHeight <= 720)
         controller.close()
         #expect(vm.isVisible == false)
         NSStatusBar.system.removeStatusItem(statusItem)

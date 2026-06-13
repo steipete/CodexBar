@@ -149,20 +149,24 @@ struct PopoverRootView: View {
     private static let menuWidth: CGFloat = 310
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if self.viewModel.providers.count > 1 || self.viewModel.includesOverview {
-                self.switcher
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 0) {
+                if self.viewModel.providers.count > 1 || self.viewModel.includesOverview {
+                    self.switcher
+                    Divider()
+                }
+                self.content
                 Divider()
+                PopoverActionSectionsView(
+                    sections: self.makeSections(),
+                    onAction: self.onAction,
+                    actionSubtitle: self.actionSubtitle)
+                    .padding(.bottom, 6)
             }
-            self.content
-            Divider()
-            PopoverActionSectionsView(
-                sections: self.makeSections(),
-                onAction: self.onAction,
-                actionSubtitle: self.actionSubtitle)
-                .padding(.bottom, 6)
         }
+        .scrollBounceBehavior(.basedOnSize)
         .frame(width: Self.menuWidth, alignment: .leading)
+        .frame(maxHeight: self.viewModel.maximumPopoverHeight, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
         // 无障碍：整个菜单根容器
         .accessibilityElement(children: .contain)
@@ -447,7 +451,10 @@ struct PopoverRootView: View {
         if !entries.isEmpty {
             Divider()
             ForEach(entries) { kind in
-                ChartEntryRowView(kind: kind, makeChartView: self.makeChartView)
+                ChartEntryRowView(
+                    kind: kind,
+                    title: kind.costHistoryTitle(historyDays: self.store.settings.costUsageHistoryDays),
+                    makeChartView: self.makeChartView)
             }
         }
     }
@@ -527,6 +534,7 @@ private struct OverviewRowView: View {
 /// makeChartView 由 PopoverRootView 透传，懒构造图表内容视图。
 private struct ChartEntryRowView: View {
     let kind: PopoverChartKind
+    let title: String
     let makeChartView: (PopoverChartKind, CGFloat) -> AnyView?
 
     @State private var isHovered = false
@@ -537,7 +545,7 @@ private struct ChartEntryRowView: View {
             self.isPresentingChart = true
         } label: {
             HStack {
-                Text(self.kind.title).font(.callout)
+                Text(self.title).font(.callout)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.right")
                     .font(.caption2)
