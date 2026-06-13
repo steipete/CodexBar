@@ -187,6 +187,43 @@ private final class ProviderSwitcherMenuTrackingState {
     var isTrackingActive = false
 }
 
+@MainActor
+private final class ProviderSwitcherTrackingRunLoopOperation {
+    private var operation: (@MainActor () -> Void)?
+
+    init(operation: @escaping @MainActor () -> Void) {
+        self.operation = operation
+    }
+
+    func run() {
+        guard let operation = self.operation else { return }
+        self.operation = nil
+        operation()
+    }
+}
+
+@MainActor
+enum ProviderSwitcherTrackingRunLoopScheduler {
+    static func schedule(_ operation: @escaping @MainActor () -> Void) {
+        let pending = ProviderSwitcherTrackingRunLoopOperation(operation: operation)
+        let runLoop = CFRunLoopGetMain()
+        // Main-actor tasks can starve while AppKit owns the modal menu loop. Queue in both modes so the
+        // rebuild runs during tracking, with the default mode as a fallback if tracking ends first.
+        let modes = [
+            RunLoop.Mode.eventTracking.rawValue,
+            RunLoop.Mode.default.rawValue,
+        ]
+        for mode in modes {
+            CFRunLoopPerformBlock(runLoop, mode as CFString) {
+                MainActor.assumeIsolated {
+                    pending.run()
+                }
+            }
+        }
+        CFRunLoopWakeUp(runLoop)
+    }
+}
+
 extension StatusItemController {
     func installProviderSwitcherShortcutMonitorIfNeeded(for menu: NSMenu) {
         guard self.isMenuRefreshEnabled,

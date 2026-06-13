@@ -7,6 +7,23 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuSwitcherTrackingTests {
     @Test
+    func `switcher rebuild scheduler runs during menu tracking exactly once`() {
+        var runCount = 0
+        ProviderSwitcherTrackingRunLoopScheduler.schedule {
+            runCount += 1
+        }
+
+        CFRunLoopRunInMode(
+            CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString),
+            0.1,
+            true)
+        #expect(runCount == 1)
+
+        CFRunLoopRunInMode(.defaultMode, 0.1, true)
+        #expect(runCount == 1)
+    }
+
+    @Test
     func `pointer switch defers structural menu rebuild until mouse up`() async throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         let previousMenuRefresh = StatusItemController.menuRefreshEnabled

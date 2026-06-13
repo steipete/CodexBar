@@ -5,6 +5,13 @@ import QuartzCore
 extension StatusItemController {
     private static let providerSwitcherMenuRebuildDebounceNanoseconds: UInt64 = 0
 
+    private struct ScheduledOpenMenuRebuild {
+        let provider: UsageProvider?
+        let shouldCloseHostedSubviewMenus: Bool
+        let resyncReadinessBaselineAfterRebuild: Bool
+        let beforeRebuild: (@MainActor () -> Bool)?
+    }
+
     func didMenuAdjunctReadinessChange() -> Bool {
         let signature = self.menuAdjunctReadinessSignature()
         defer { self.recordMenuAdjunctReadinessBaseline(signature) }
@@ -200,6 +207,22 @@ extension StatusItemController {
         #else
         let debounceNanoseconds = Self.providerSwitcherMenuRebuildDebounceNanoseconds
         #endif
+        #if DEBUG
+        let usesTaskSchedulerForTesting = self._test_openMenuRefreshYieldOverride != nil
+            || self._test_openMenuRebuildObserver != nil
+        #else
+        let usesTaskSchedulerForTesting = false
+        #endif
+        if debounceNanoseconds == 0, !usesTaskSchedulerForTesting {
+            self.scheduleProviderSwitcherTrackingMenuRebuildIfStillVisible(
+                menu,
+                provider: provider)
+            { [weak self] in
+                guard let self else { return false }
+                return self.providerSwitcherUpdateToken == updateToken
+            }
+            return
+        }
         self.scheduleOpenMenuRebuildIfStillVisible(
             menu,
             provider: provider,
@@ -208,6 +231,32 @@ extension StatusItemController {
         { [weak self] in
             guard let self else { return false }
             return self.providerSwitcherUpdateToken == updateToken
+        }
+    }
+
+    private func scheduleProviderSwitcherTrackingMenuRebuildIfStillVisible(
+        _ menu: NSMenu,
+        provider: UsageProvider?,
+        beforeRebuild: @escaping @MainActor () -> Bool)
+    {
+        let key = ObjectIdentifier(menu)
+        self.openMenuRebuildsClosingHostedSubviewMenus.insert(key)
+        self.openMenuRebuildTokenCounter &+= 1
+        let rebuildToken = self.openMenuRebuildTokenCounter
+        self.openMenuRebuildTokens[key] = rebuildToken
+        self.openMenuRebuildTasks.removeValue(forKey: key)?.cancel()
+
+        ProviderSwitcherTrackingRunLoopScheduler.schedule { [weak self, weak menu] in
+            guard let self, let menu else { return }
+            self.performScheduledOpenMenuRebuild(
+                menu,
+                key: key,
+                rebuildToken: rebuildToken,
+                request: ScheduledOpenMenuRebuild(
+                    provider: provider,
+                    shouldCloseHostedSubviewMenus: true,
+                    resyncReadinessBaselineAfterRebuild: false,
+                    beforeRebuild: beforeRebuild))
         }
     }
 
@@ -243,23 +292,40 @@ extension StatusItemController {
                 try? await Task.sleep(nanoseconds: debounceNanoseconds)
             }
             guard !Task.isCancelled else { return }
-            guard self.openMenuRebuildTokens[key] == rebuildToken else { return }
-            defer {
-                if self.openMenuRebuildTokens[key] == rebuildToken {
-                    self.openMenuRebuildTasks.removeValue(forKey: key)
-                    self.openMenuRebuildTokens.removeValue(forKey: key)
-                    self.openMenuRebuildsClosingHostedSubviewMenus.remove(key)
-                }
+            self.performScheduledOpenMenuRebuild(
+                menu,
+                key: key,
+                rebuildToken: rebuildToken,
+                request: ScheduledOpenMenuRebuild(
+                    provider: provider,
+                    shouldCloseHostedSubviewMenus: shouldCloseHostedSubviewMenus,
+                    resyncReadinessBaselineAfterRebuild: resyncReadinessBaselineAfterRebuild,
+                    beforeRebuild: beforeRebuild))
+        }
+    }
+
+    private func performScheduledOpenMenuRebuild(
+        _ menu: NSMenu,
+        key: ObjectIdentifier,
+        rebuildToken: Int,
+        request: ScheduledOpenMenuRebuild)
+    {
+        guard self.openMenuRebuildTokens[key] == rebuildToken else { return }
+        defer {
+            if self.openMenuRebuildTokens[key] == rebuildToken {
+                self.openMenuRebuildTasks.removeValue(forKey: key)
+                self.openMenuRebuildTokens.removeValue(forKey: key)
+                self.openMenuRebuildsClosingHostedSubviewMenus.remove(key)
             }
-            guard self.openMenus[key] != nil else { return }
-            guard beforeRebuild?() ?? true else { return }
-            if shouldCloseHostedSubviewMenus {
-                self.closeHostedSubviewMenusForParentSwitch()
-            }
-            self.rebuildOpenMenuIfStillVisible(menu, provider: provider)
-            if resyncReadinessBaselineAfterRebuild, !self.menuNeedsRefresh(menu) {
-                self.resyncMenuAdjunctReadinessBaseline()
-            }
+        }
+        guard self.openMenus[key] != nil else { return }
+        guard request.beforeRebuild?() ?? true else { return }
+        if request.shouldCloseHostedSubviewMenus {
+            self.closeHostedSubviewMenusForParentSwitch()
+        }
+        self.rebuildOpenMenuIfStillVisible(menu, provider: request.provider)
+        if request.resyncReadinessBaselineAfterRebuild, !self.menuNeedsRefresh(menu) {
+            self.resyncMenuAdjunctReadinessBaseline()
         }
     }
 
