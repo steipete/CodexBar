@@ -30,7 +30,11 @@ public enum CodexActiveSourceResolver {
                 snapshot.liveSystemAccount != nil ? .liveSystem : .managedAccount(id: id)
             }
         case let .profileHome(path):
-            .profileHome(path: CodexHomeScope.normalizedHomePath(path) ?? path)
+            if let normalizedPath = snapshot.configuredProfileHomePath(path: path) {
+                .profileHome(path: normalizedPath)
+            } else {
+                .liveSystem
+            }
         }
 
         return CodexResolvedActiveSource(
@@ -63,6 +67,7 @@ public struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
     public let activeStoredAccount: ManagedCodexAccount?
     public let liveSystemAccount: ObservedSystemCodexAccount?
     public let profileHomeAccounts: [ObservedSystemCodexAccount]
+    public let profileHomePaths: [String]
     public let matchingStoredAccountForLiveSystemAccount: ManagedCodexAccount?
     public let activeSource: CodexActiveSource
     public let hasUnreadableAddedAccountStore: Bool
@@ -74,6 +79,7 @@ public struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
         activeStoredAccount: ManagedCodexAccount?,
         liveSystemAccount: ObservedSystemCodexAccount?,
         profileHomeAccounts: [ObservedSystemCodexAccount] = [],
+        profileHomePaths: [String]? = nil,
         matchingStoredAccountForLiveSystemAccount: ManagedCodexAccount?,
         activeSource: CodexActiveSource,
         hasUnreadableAddedAccountStore: Bool,
@@ -84,6 +90,8 @@ public struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
         self.activeStoredAccount = activeStoredAccount
         self.liveSystemAccount = liveSystemAccount
         self.profileHomeAccounts = Self.uniqueProfileHomeAccounts(profileHomeAccounts)
+        self.profileHomePaths = Self.uniqueNormalizedPaths(
+            profileHomePaths ?? profileHomeAccounts.map(\.codexHomePath))
         self.matchingStoredAccountForLiveSystemAccount = matchingStoredAccountForLiveSystemAccount
         self.activeSource = activeSource
         self.hasUnreadableAddedAccountStore = hasUnreadableAddedAccountStore
@@ -96,6 +104,7 @@ public struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
             && lhs.activeStoredAccount.map(AccountIdentity.init) == rhs.activeStoredAccount.map(AccountIdentity.init)
             && lhs.liveSystemAccount == rhs.liveSystemAccount
             && lhs.profileHomeAccounts == rhs.profileHomeAccounts
+            && lhs.profileHomePaths == rhs.profileHomePaths
             && lhs.matchingStoredAccountForLiveSystemAccount.map(AccountIdentity.init)
             == rhs.matchingStoredAccountForLiveSystemAccount.map(AccountIdentity.init)
             && lhs.activeSource == rhs.activeSource
@@ -127,6 +136,15 @@ public struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
         }
     }
 
+    public func configuredProfileHomePath(path: String) -> String? {
+        guard let normalizedPath = CodexHomeScope.normalizedHomePath(path),
+              self.profileHomePaths.contains(normalizedPath)
+        else {
+            return nil
+        }
+        return normalizedPath
+    }
+
     private static func normalizeEmail(_ email: String) -> String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
@@ -142,6 +160,18 @@ public struct CodexAccountReconciliationSnapshot: Equatable, Sendable {
             result.append(account)
         }
         return result
+    }
+
+    private static func uniqueNormalizedPaths(_ paths: [String]) -> [String] {
+        var seen: Set<String> = []
+        return paths.compactMap { path in
+            guard let normalizedPath = CodexHomeScope.normalizedHomePath(path),
+                  seen.insert(normalizedPath).inserted
+            else {
+                return nil
+            }
+            return normalizedPath
+        }
     }
 }
 
@@ -215,6 +245,7 @@ public struct DefaultCodexAccountReconciler: Sendable {
                 profileHomeAccounts: self.profileHomeAccounts(
                     profileHomeAccounts,
                     excludingManagedAccounts: accounts.accounts),
+                profileHomePaths: self.profileHomePaths,
                 matchingStoredAccountForLiveSystemAccount: matchingStoredAccountForLiveSystemAccount,
                 activeSource: self.activeSource,
                 hasUnreadableAddedAccountStore: false,
@@ -226,6 +257,7 @@ public struct DefaultCodexAccountReconciler: Sendable {
                 activeStoredAccount: nil,
                 liveSystemAccount: liveSystemAccount,
                 profileHomeAccounts: profileHomeAccounts,
+                profileHomePaths: self.profileHomePaths,
                 matchingStoredAccountForLiveSystemAccount: nil,
                 activeSource: self.activeSource,
                 hasUnreadableAddedAccountStore: true)

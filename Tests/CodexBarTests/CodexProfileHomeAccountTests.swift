@@ -54,6 +54,7 @@ struct CodexProfileHomeAccountTests {
         #expect(snapshot.liveSystemAccount == nil)
         #expect(snapshot.profileHomeAccounts.map(\.email) == ["profile@example.com"])
         #expect(snapshot.profileHomeAccounts.map(\.codexHomePath) == [normalizedProfilePath])
+        #expect(snapshot.profileHomePaths == [normalizedProfilePath])
         #expect(projection.visibleAccounts.map(\.email) == ["profile@example.com"])
         #expect(projection.activeVisibleAccountID == "profile@example.com")
         #expect(projection.liveVisibleAccountID == nil)
@@ -91,6 +92,76 @@ struct CodexProfileHomeAccountTests {
             tokenOverride: nil)
 
         #expect(environment["CODEX_HOME"] == normalizedProfilePath)
+    }
+
+    @Test
+    @MainActor
+    func `removed profile home falls back without routing stale path`() throws {
+        let suite = "CodexProfileHomeAccountTests-stale-routing"
+        let settings = try Self.makeSettings(suite: suite)
+        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let removedProfileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = []
+            entry.codexActiveSource = .profileHome(path: removedProfileHome.path)
+        }
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: missingLiveHome)
+            try? FileManager.default.removeItem(at: removedProfileHome)
+        }
+
+        let environment = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(settings.codexResolvedActiveSource == .liveSystem)
+        #expect(environment["CODEX_HOME"] == "/tmp/ambient-codex")
+        #expect(settings.persistResolvedCodexActiveSourceCorrectionIfNeeded())
+        #expect(settings.codexActiveSource == .liveSystem)
+    }
+
+    @Test
+    @MainActor
+    func `unreadable configured profile home remains selected and routed`() throws {
+        let suite = "CodexProfileHomeAccountTests-unreadable-routing"
+        let settings = try Self.makeSettings(suite: suite)
+        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let unreadableProfileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = [unreadableProfileHome.path]
+            entry.codexActiveSource = .profileHome(path: unreadableProfileHome.path)
+        }
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: missingLiveHome)
+            try? FileManager.default.removeItem(at: unreadableProfileHome)
+        }
+
+        let normalizedProfilePath = try #require(CodexHomeScope.normalizedHomePath(unreadableProfileHome.path))
+        let environment = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(settings.codexResolvedActiveSource == .profileHome(path: normalizedProfilePath))
+        #expect(settings.codexAccountReconciliationSnapshot.profileHomeAccounts.isEmpty)
+        #expect(environment["CODEX_HOME"] == normalizedProfilePath)
+        #expect(!settings.persistResolvedCodexActiveSourceCorrectionIfNeeded())
+        #expect(settings.codexActiveSource == .profileHome(path: normalizedProfilePath))
     }
 
     private static func writeCodexAuthFile(
