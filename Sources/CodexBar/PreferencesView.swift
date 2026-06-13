@@ -208,6 +208,7 @@ struct SettingsWindowAppearanceBridge: NSViewRepresentable {
 @MainActor
 final class SettingsWindowAppearanceView: NSView {
     private let scheduleReset: SettingsWindowAppearance.ResetScheduler
+    private var colorScheme: ColorScheme?
 
     init(scheduleReset: @escaping SettingsWindowAppearance.ResetScheduler = SettingsWindowAppearance.scheduleReset) {
         self.scheduleReset = scheduleReset
@@ -224,7 +225,13 @@ final class SettingsWindowAppearanceView: NSView {
         self.refreshWindowAppearance()
     }
 
-    func refreshWindowAppearance(for _: ColorScheme? = nil) {
+    func refreshWindowAppearance(for colorScheme: ColorScheme) {
+        guard self.colorScheme != colorScheme else { return }
+        self.colorScheme = colorScheme
+        self.refreshWindowAppearance()
+    }
+
+    private func refreshWindowAppearance() {
         guard let window else { return }
         SettingsWindowAppearance.refresh(window, scheduleReset: self.scheduleReset)
     }

@@ -47,7 +47,9 @@ struct SettingsWindowAppearanceTests {
         window.contentView = bridge
 
         bridge.refreshWindowAppearance(for: .light)
+        bridge.refreshWindowAppearance(for: .light)
         bridge.refreshWindowAppearance(for: .dark)
+        #expect(resetCapture.actions.count == 3)
         for action in resetCapture.actions {
             action()
         }
