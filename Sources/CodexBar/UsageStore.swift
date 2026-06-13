@@ -4,8 +4,6 @@ import Foundation
 import Observation
 import SweetCookieKit
 
-// swiftlint:disable file_length
-
 // MARK: - Observation helpers
 
 @MainActor
@@ -217,7 +215,7 @@ final class UsageStore {
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
     @ObservationIgnored let environmentBase: [String: String]
-    @ObservationIgnored private let sessionQuotaNotifier: any SessionQuotaNotifying
+    @ObservationIgnored let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored private let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     @ObservationIgnored let openAIWebLogger = CodexBarLog.logger(LogCategories.openAIWeb)
     @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
@@ -258,7 +256,6 @@ final class UsageStore {
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
     @ObservationIgnored var quotaWarningState: [QuotaWarningStateKey: QuotaWarningState] = [:]
-    @ObservationIgnored var providerSubscriptionReminderState: [UsageProvider: ProviderSubscriptionReminderState] = [:]
     @ObservationIgnored var lastPermissionPromptNotificationAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
@@ -946,6 +943,7 @@ extension UsageStore {
         await AugmentStatusProbe.latestDumps()
     }
 
+    // swiftlint:disable:next function_body_length
     func debugLog(for provider: UsageProvider) async -> String {
         if let cached = self.probeLogs[provider], !cached.isEmpty {
             return cached
@@ -986,6 +984,33 @@ extension UsageStore {
         let browserDetection = self.browserDetection
         let claudeDebugExecutionContext = self.currentClaudeDebugExecutionContext()
         let text = await Task.detached(priority: .utility) { () -> String in
+            let unimplementedDebugLogMessages: [UsageProvider: String] = [
+                .gemini: "Gemini debug log not yet implemented",
+                .antigravity: "Antigravity debug log not yet implemented",
+                .opencode: "OpenCode debug log not yet implemented",
+                .alibaba: "Alibaba Coding Plan debug log not yet implemented",
+                .alibabatokenplan: "Alibaba Token Plan debug log not yet implemented",
+                .factory: "Droid debug log not yet implemented",
+                .copilot: "Copilot debug log not yet implemented",
+                .manus: "Manus debug log not yet implemented",
+                .vertexai: "Vertex AI debug log not yet implemented",
+                .kilo: "Kilo debug log not yet implemented",
+                .kiro: "Kiro debug log not yet implemented",
+                .kimi: "Kimi debug log not yet implemented",
+                .kimik2: "Kimi K2 debug log not yet implemented",
+                .jetbrains: "JetBrains AI debug log not yet implemented",
+                .mimo: "Xiaomi MiMo debug log not yet implemented",
+                .doubao: "Doubao debug log not yet implemented",
+                .venice: "Venice debug log not yet implemented",
+                .commandcode: "Command Code debug log not yet implemented",
+                .stepfun: "StepFun debug log not yet implemented",
+                .bedrock: "Bedrock debug log not yet implemented",
+                .grok: "Grok debug log not yet implemented",
+                .groq: "Groq debug log not yet implemented",
+                .t3chat: "T3 Chat debug log not yet implemented",
+                .llmproxy: "LLM Proxy debug log not yet implemented",
+                .deepgram: "Deepgram debug log not yet implemented",
+            ]
             let buildText = {
                 switch provider {
                 case .codex:
@@ -1063,8 +1088,6 @@ extension UsageStore {
                      .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
                      .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
                      .grok, .groq, .t3chat, .llmproxy, .litellm, .deepgram:
-                    return Self.unimplementedDebugLogMessage(for: provider)
-                case .grok, .groq, .t3chat, .llmproxy, .litellm, .deepgram:
                     return Self.unimplementedDebugLogMessage(for: provider)
                 }
             }
@@ -1281,11 +1304,6 @@ extension UsageStore {
             resolution?.source.rawValue ?? "environment"
         }
         return "\(label)=\(hasAny ? "present" : "missing") source=\(source)"
-    }
-
-    private nonisolated static func unimplementedDebugLogMessage(for provider: UsageProvider) -> String {
-        let name = ProviderDescriptorRegistry.metadata[provider]?.displayName ?? provider.rawValue
-        return "\(name) debug log not yet implemented"
     }
 
     private static func debugCursorLog(

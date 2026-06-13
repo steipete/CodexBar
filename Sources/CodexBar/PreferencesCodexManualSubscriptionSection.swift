@@ -138,8 +138,7 @@ struct CodexManualSubscriptionSectionView: View {
                         .controlSize(.small)
 
                         Button(L("Clear")) {
-                            self.onClear()
-                            self.notice = L("Cleared manual subscription reminder.")
+                            self.clearSnapshot()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -183,6 +182,18 @@ struct CodexManualSubscriptionSectionView: View {
         }
         self.onSave(snapshot)
         self.notice = L("Saved to local config.")
+    }
+
+    private func clearSnapshot() {
+        let now = Date()
+        self.planName = ""
+        self.status = .active
+        self.hasRenewsAt = false
+        self.renewsAt = now
+        self.hasExpiresAt = false
+        self.expiresAt = now
+        self.onClear()
+        self.notice = L("Cleared manual subscription reminder.")
     }
 
     private func makeSnapshotForSave(now: Date) -> ProviderSubscriptionSnapshot {

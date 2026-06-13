@@ -1178,15 +1178,11 @@ extension UsageStore {
         switch outcome.result {
         case .success:
             guard let snapshot else { return }
-            let expectedGuard = Self.codexScopedRefreshGuard(for: account)
-            let backfilled = snapshot
-                .backfillingResetTimes(from: self.codexLastKnownResetSnapshot(matching: expectedGuard))
-            self.handleSessionQuotaTransition(provider: .codex, snapshot: backfilled)
+            self.handleSessionQuotaTransition(provider: .codex, snapshot: snapshot)
             self.handleProviderSubscriptionReminders(provider: .codex)
-            self.lastKnownResetSnapshots[.codex] = backfilled
-            self.lastCodexAccountScopedRefreshGuard = expectedGuard
-
-            self.snapshots[.codex] = backfilled
+            self.lastKnownResetSnapshots[.codex] = snapshot
+            self.lastCodexAccountScopedRefreshGuard = Self.codexScopedRefreshGuard(for: account)
+            self.snapshots[.codex] = snapshot
             if let sourceLabel {
                 self.lastSourceLabels[.codex] = sourceLabel
             }
