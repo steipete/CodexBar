@@ -29,10 +29,10 @@ Older local payloads may only include raw Claude, GPT-OSS, Gemini tiers, account
 Current Antigravity IDE local endpoints return `GetUserStatus`, `GetAvailableModels`, and `GetCascadeModelConfigData`
 with five-hour/session reset data, but not the app/CLI `RetrieveUserQuotaSummary` weekly/session grouping. OAuth
 payloads can be less complete and may only prove model availability. Treat `auto` as the authoritative user-facing mode:
-it accepts the first account-matching source in Antigravity app -> `agy` CLI -> Antigravity IDE order, and only adds OAuth
-when CodexBar has a selected/injected Google account. An all-100% `fetchAvailableModels` payload is only accepted after
-`retrieveUserQuota` echoes bucket fractions; this can be an availability-style fallback rather than the full
-Antigravity quota summary.
+it accepts the first account-matching source in Antigravity app -> `agy` CLI -> Antigravity IDE order, and adds OAuth
+when CodexBar has a selected/injected Google account or an existing shared credentials file. An all-100%
+`fetchAvailableModels` payload is only accepted after `retrieveUserQuota` echoes bucket fractions; this can be an
+availability-style fallback rather than the full Antigravity quota summary.
 
 ## OAuth account switching
 
@@ -42,8 +42,8 @@ Antigravity quota summary.
 - When a token account is selected, the OAuth fetcher uses that account before falling back to the shared credentials file.
   In `auto` mode the ambient Antigravity app, `agy` CLI, and IDE probes still run first, but a snapshot whose account
   does not match the selected account is rejected so the pipeline falls through to the account-scoped OAuth fetch (see
-  `AntigravitySelectedAccountGuard`). If no account is selected/injected, `auto` does not use the shared OAuth file;
-  choose explicit `Google OAuth` for that. Explicit `cli`/`oauth` source modes stay authoritative and are not re-checked.
+  `AntigravitySelectedAccountGuard`). If no account is selected/injected, `auto` includes OAuth only when the legacy
+  shared credentials file already exists. Explicit `cli`/`oauth` source modes stay authoritative and are not re-checked.
 - Removing the last saved token account that matches `~/.codexbar/antigravity/oauth_creds.json` deletes that shared file,
   so a removed CodexBar account does not silently continue refreshing through the legacy shared cache.
 - The menu action is labeled `Add Account...`; switching between saved accounts scopes Google OAuth fetches.
@@ -155,11 +155,11 @@ weekly limit shown by Antigravity 2.0.
 
 ### 4) OAuth remote fallback
 
-When source mode is `auto`, OAuth is used after app, `agy` CLI, and IDE paths fail only if CodexBar has a
-selected/injected Google account. The app, `agy` CLI, and IDE probes still run first, but in `auto` mode their snapshots
-are accepted only when the reported account matches the selected account; otherwise the pipeline falls through to this
-account-scoped OAuth fetch. When source mode is `oauth`, only OAuth is used and the shared OAuth file can still be used
-as a fallback credential source.
+When source mode is `auto`, OAuth is used after app, `agy` CLI, and IDE paths fail if CodexBar has a selected/injected
+Google account or an existing shared credentials file. The app, `agy` CLI, and IDE probes still run first, but in
+`auto` mode their snapshots are accepted only when the reported account matches the selected account; otherwise the
+pipeline falls through to this account-scoped OAuth fetch. When source mode is `oauth`, only OAuth is used and the
+shared OAuth file can still be used as a fallback credential source.
 
 ## Request body (summary)
 - Minimal metadata payload:
