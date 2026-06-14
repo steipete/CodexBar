@@ -2,6 +2,23 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private final class OpenCodeGoRequestRecorder<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Value] = []
+
+    func append(_ value: Value) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.storage.append(value)
+    }
+
+    var values: [Value] {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.storage
+    }
+}
+
 @Suite(.serialized)
 struct OpenCodeGoUsageFetcherErrorTests {
     @Test
@@ -79,7 +96,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
             OpenCodeGoStubURLProtocol.handler = nil
         }
 
-        var methods: [String] = []
+        let methods = OpenCodeGoRequestRecorder<String>()
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             methods.append(request.httpMethod ?? "GET")
@@ -125,7 +142,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
         #expect(snapshot.rollingUsagePercent == 22)
         #expect(snapshot.weeklyUsagePercent == 44)
         #expect(snapshot.monthlyUsagePercent == 55)
-        #expect(methods == ["GET", "POST", "GET", "GET"])
+        #expect(methods.values == ["GET", "POST", "GET", "GET"])
     }
 
     @Test
@@ -134,7 +151,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
             OpenCodeGoStubURLProtocol.handler = nil
         }
 
-        var methods: [String] = []
+        let methods = OpenCodeGoRequestRecorder<String>()
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             methods.append(request.httpMethod ?? "GET")
@@ -166,7 +183,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
             }
         }
 
-        #expect(methods == ["GET"])
+        #expect(methods.values == ["GET"])
     }
 
     @Test
@@ -175,7 +192,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
             OpenCodeGoStubURLProtocol.handler = nil
         }
 
-        var methods: [String] = []
+        let methods = OpenCodeGoRequestRecorder<String>()
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             methods.append(request.httpMethod ?? "GET")
@@ -202,20 +219,21 @@ struct OpenCodeGoUsageFetcherErrorTests {
             }
         }
 
-        #expect(methods == ["GET", "GET"])
+        #expect(methods.values == ["GET", "GET"])
     }
 
     @Test
-    func `zen only account returns balance without subscription usage windows`() async throws {
+    func `zen only account waits for balance beyond optional grace`() async throws {
         defer {
             OpenCodeGoStubURLProtocol.handler = nil
         }
 
-        var observedPaths: [String] = []
+        let observedPaths = OpenCodeGoRequestRecorder<String>()
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             observedPaths.append(url.path)
             if url.path == "/workspace/wrk_TEST123" {
+                Thread.sleep(forTimeInterval: 0.4)
                 return Self.makeResponse(
                     url: url,
                     body: #"<html><body><h2>現在の残高 $42.50</h2></body></html>"#,
@@ -242,8 +260,8 @@ struct OpenCodeGoUsageFetcherErrorTests {
         #expect(usage.secondary == nil)
         #expect(usage.providerCost?.used == 42.5)
         #expect(usage.providerCost?.period == "Zen balance")
-        #expect(observedPaths.count == 2)
-        #expect(Set(observedPaths) == ["/workspace/wrk_TEST123/go", "/workspace/wrk_TEST123"])
+        #expect(observedPaths.values.count == 2)
+        #expect(Set(observedPaths.values) == ["/workspace/wrk_TEST123/go", "/workspace/wrk_TEST123"])
     }
 
     @Test
@@ -252,7 +270,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
             OpenCodeGoStubURLProtocol.handler = nil
         }
 
-        var observedPaths: [String] = []
+        let observedPaths = OpenCodeGoRequestRecorder<String>()
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             observedPaths.append(url.path)
@@ -273,8 +291,8 @@ struct OpenCodeGoUsageFetcherErrorTests {
             workspaceIDOverride: "https://opencode.ai/workspace/wrk_URL123/billing",
             session: self.makeSession())
 
-        #expect(observedPaths.count == 2)
-        #expect(Set(observedPaths) == ["/workspace/wrk_URL123/go", "/workspace/wrk_URL123"])
+        #expect(observedPaths.values.count == 2)
+        #expect(Set(observedPaths.values) == ["/workspace/wrk_URL123/go", "/workspace/wrk_URL123"])
     }
 
     @Test

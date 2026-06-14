@@ -133,6 +133,9 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 timeout: min(timeout, self.optionalZenBalanceTimeout),
                 session: session)
         } : nil
+        defer {
+            zenBalanceTask?.cancel()
+        }
         let subscriptionText: String
         do {
             subscriptionText = try await self.fetchUsagePage(
@@ -151,7 +154,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             else {
                 throw error
             }
-            let zenBalance = try await self.completedOptionalZenBalance(from: zenBalanceTask)
+            let zenBalance = try await zenBalanceTask.value
             guard let zenBalance else {
                 throw error
             }
