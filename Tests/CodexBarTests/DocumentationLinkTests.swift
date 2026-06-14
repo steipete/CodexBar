@@ -137,6 +137,7 @@ struct DocumentationLinkTests {
         try """
         # Guide
         ## T3 Chat
+        ## CLI default selection (`--source auto`)
         ## Repeated
         ## Repeated
         ~~~markdown
@@ -145,7 +146,11 @@ struct DocumentationLinkTests {
         """.write(to: guide, atomically: true, encoding: .utf8)
 
         try Self.validateLocalDocLink("docs/guide.md#t3-chat", existsUnder: root)
+        try Self.validateLocalDocLink("docs/guide.md#cli-default-selection---source-auto", existsUnder: root)
         try Self.validateLocalDocLink("docs/guide.md#repeated-1", existsUnder: root)
+        #expect(throws: DocumentationLinkError.missingAnchor("docs/guide.md#cli-default-selection")) {
+            try Self.validateLocalDocLink("docs/guide.md#cli-default-selection", existsUnder: root)
+        }
         #expect(throws: DocumentationLinkError.missingAnchor("docs/guide.md#renamed")) {
             try Self.validateLocalDocLink("docs/guide.md#renamed", existsUnder: root)
         }
@@ -270,7 +275,7 @@ struct DocumentationLinkTests {
     private static func markdownHeadingAnchors(in markdown: String) -> Set<String> {
         var occurrences: [String: Int] = [:]
         var anchors: Set<String> = []
-        let source = Self.markdownTextOutsideCode(in: markdown)
+        let source = Self.markdownTextOutsideFencedCode(in: markdown)
         for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
             let markerCount = trimmed.prefix(while: { $0 == "#" }).count
@@ -302,6 +307,13 @@ struct DocumentationLinkTests {
     }
 
     private static func markdownTextOutsideCode(in markdown: String) -> String {
+        Self.markdownTextOutsideFencedCode(in: markdown)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { Self.removingInlineCode(from: String($0)) }
+            .joined(separator: "\n")
+    }
+
+    private static func markdownTextOutsideFencedCode(in markdown: String) -> String {
         var fence: (marker: Character, count: Int)?
         return markdown.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             if let activeFence = fence {
@@ -314,7 +326,7 @@ struct DocumentationLinkTests {
                 fence = openingFence
                 return ""
             }
-            return Self.removingInlineCode(from: String(line))
+            return String(line)
         }.joined(separator: "\n")
     }
 
