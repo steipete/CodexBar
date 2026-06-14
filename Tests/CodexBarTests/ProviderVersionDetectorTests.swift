@@ -46,22 +46,15 @@ final class ProviderVersionDetectorTests: XCTestCase {
         var environment = ProcessInfo.processInfo.environment
         environment["CODEXBAR_TEST_CHILD_PID_FILE"] = childPIDFile.path
         let script = """
-        import os
-        import subprocess
-        import sys
-
-        child = subprocess.Popen(
-            [sys.executable, "-c", "import time; time.sleep(5)"],
-            start_new_session=True,
-        )
-        with open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w") as handle:
-            handle.write(str(child.pid))
-        print("grok 1.2.3", flush=True)
+        (trap '' HUP; sleep 5) &
+        child=$!
+        printf '%s' "$child" > "$CODEXBAR_TEST_CHILD_PID_FILE"
+        printf 'grok 1.2.3\\n'
         """
 
         let start = Date()
         let version = ProviderVersionDetector.run(
-            path: "/usr/bin/python3",
+            path: "/bin/sh",
             args: ["-c", script],
             timeout: 1.0,
             environment: environment)
@@ -69,5 +62,9 @@ final class ProviderVersionDetectorTests: XCTestCase {
 
         XCTAssertEqual(version, "grok 1.2.3")
         XCTAssertLessThan(duration, 2.0)
+        let childPID = try XCTUnwrap(
+            pid_t(String(contentsOf: childPIDFile, encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines)))
+        XCTAssertEqual(kill(childPID, 0), 0, "Descendant should still hold the inherited pipe open")
     }
 }
