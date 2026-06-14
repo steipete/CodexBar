@@ -41,12 +41,20 @@ struct CodexManualSubscriptionSectionView: View {
         ProviderSettingsSection(title: L("Manual reminder")) {
             DisclosureGroup(isExpanded: self.$isExpanded) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(L("Use this local-only fallback when CodexBar cannot read your Codex renewal or expiry automatically."))
+                    Text(L(
+                        """
+                        Use this local-only fallback when CodexBar cannot read your Codex renewal \
+                        or expiry automatically.
+                        """))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(L("This does not sync with Codex and only affects menu display and reminder notifications on this Mac."))
+                    Text(L(
+                        """
+                        This does not sync with Codex and only affects menu display and reminder \
+                        notifications on this Mac.
+                        """))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -193,7 +201,7 @@ struct CodexManualSubscriptionSectionView: View {
                 self.hasRenewsAt = isEnabled
                 if isEnabled {
                     self.hasExpiresAt = false
-                    if self.status != .active && self.status != .trialing {
+                    if self.status != .active, self.status != .trialing {
                         self.status = .active
                     }
                 }
