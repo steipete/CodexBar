@@ -3,6 +3,7 @@
 ## 0.34.1 — Unreleased
 
 - Ollama: replace the bundled provider icon with the cleaner official mark while preserving native template tinting. Thanks @mattab178!
+- Menu bar: pin the status-item dropdown to the current system appearance so it follows the Light/Dark setting instead of inheriting the menu bar's vibrant appearance, which rendered the menu dark in Light mode whenever a dark or strongly-colored window or wallpaper sat behind the menu bar (#1490). Thanks @npapridonu!
 - Xiaomi MiMo: show paid and granted balance components alongside token-plan usage without requiring a duplicate provider (#1309). Thanks @AdrianSimionov!
 - Xiaomi MiMo: add an opt-in local session-log fallback for token accounting when browser quota authentication is unavailable (#1284). Thanks @LeoLin990405!
 - Settings: keep the native tab toolbar in sync when macOS switches appearance while the window is open (#1484). Thanks @hhh2210!
@@ -11,6 +12,7 @@
 - Diagnostics: enforce probe timeouts even when an underlying provider operation ignores Swift task cancellation.
 - Release: let `package_app.sh` own the single release build pass during signing/notarization, avoiding a redundant pre-build that could churn SwiftPM outputs before packaging. Thanks @ProspectOre!
 - Release: add focused dSYM preflight coverage so missing or wrong-architecture debug symbols fail with the exact path before universal symbol packaging. Thanks @ProspectOre!
+- Release: verify the packaged dSYM UUIDs match the signed app binary before zipping debug symbols, so uploaded symbols cannot silently drift away from the shipped build. Thanks @ProspectOre!
 - Kimi: add usage fetching from the official Code API key flow, with optional compatible HTTPS proxy support (#1424). Thanks @kiranmagic7!
 - Menu bar: keep the selected quota percentage visible in Pace mode when pace is temporarily unavailable instead of collapsing to an icon-only status item (fixes #1462).
 - Menu bar: restore native macOS positioning for merged provider dropdowns while preparing current content before AppKit lays out the menu.

@@ -119,6 +119,10 @@ if [[ ! -d "$DSYM_PATH" ]]; then
   echo "Missing dSYM at SwiftPM-reported path: $DSYM_PATH" >&2
   exit 1
 fi
+codexbar_verify_dsym_matches_binary \
+  "$APP_BUNDLE/Contents/MacOS/$APP_NAME" \
+  "$DSYM_PATH/Contents/Resources/DWARF/$APP_NAME" \
+  "${ARCH_LIST[@]}"
 "$DITTO_BIN" --norsrc -c -k --keepParent "$DSYM_PATH" "$DSYM_ZIP"
 
 echo "Done: $ZIP_NAME"
