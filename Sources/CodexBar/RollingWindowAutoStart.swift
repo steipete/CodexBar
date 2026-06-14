@@ -79,7 +79,13 @@ enum RollingWindowAutoStartSupport {
 
     static func hasExhaustedBlockingWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> Bool {
         guard self.providers.contains(provider) else { return false }
-        return [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+        let windows = switch provider {
+        case .claude:
+            [snapshot.primary, snapshot.secondary]
+        default:
+            [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+        }
+        return windows
             .compactMap(\.self)
             .contains { window in
                 guard window.windowMinutes != 5 * 60 else { return false }

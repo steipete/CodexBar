@@ -1,0 +1,180 @@
+import CodexBarCore
+import Foundation
+import Testing
+@testable import CodexBar
+
+@MainActor
+struct RollingWindowAutoStartReviewFixTests {
+    @Test
+    func `claude decision starts when model specific weekly window is exhausted`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiredSessionReset = now.addingTimeInterval(-60)
+        let modelSpecificExhausted = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+            resetDescription: nil)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 5 * 60,
+                resetsAt: expiredSessionReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: modelSpecificExhausted,
+            provider: .claude,
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 5 * 60,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: modelSpecificExhausted,
+            provider: .claude,
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .claude,
+            previousSourceLabel: "claude",
+            sourceLabel: "claude",
+            previous: previous,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision?.resetAt == expiredSessionReset)
+    }
+
+    @Test
+    func `open A I web dashboard attach updates reset snapshot and schedules expired window`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartReviewFixTests-dashboard")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "codex@example.com")
+        defer { settings._test_liveSystemCodexAccount = nil }
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = ReviewFixRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        var refreshCount = 0
+        store._test_providerRefreshOverride = { _ in
+            refreshCount += 1
+        }
+
+        let now = Date()
+        let expired = now.addingTimeInterval(-60)
+        await store.applyOpenAIDashboard(
+            Self.openAIWebDashboard(
+                email: "codex@example.com",
+                primaryLimit: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: 300,
+                    resetsAt: expired,
+                    resetDescription: nil),
+                updatedAt: now.addingTimeInterval(-120)),
+            targetEmail: "codex@example.com")
+        await store.applyOpenAIDashboard(
+            Self.openAIWebDashboard(
+                email: "codex@example.com",
+                primaryLimit: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: now),
+            targetEmail: "codex@example.com")
+
+        try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
+        #expect(await runner.count == 1)
+        #expect(refreshCount == 1)
+        #expect(store.lastKnownResetSnapshots[.codex]?.primary?.resetsAt == nil)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == expired)
+    }
+
+    private static func makeSettingsStore(suite: String) throws -> SettingsStore {
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        return SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+    }
+
+    private static func makeUsageStore(settings: SettingsStore) -> UsageStore {
+        UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+    }
+
+    private static func waitForAutoStartToFinish(store: UsageStore, provider: UsageProvider) async throws {
+        for _ in 0..<50 {
+            if !store.rollingWindowAutoStartRuntime.inFlight.contains(where: { $0.provider == provider }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        Issue.record("Timed out waiting for rolling window auto-start to finish")
+    }
+
+    private static func snapshot(
+        primary: RateWindow?,
+        secondary: RateWindow? = nil,
+        tertiary: RateWindow? = nil,
+        provider: UsageProvider,
+        updatedAt: Date) -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            updatedAt: updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: provider,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+    }
+
+    private static func liveSystemCodexAccount(email: String) -> ObservedSystemCodexAccount {
+        ObservedSystemCodexAccount(
+            email: email,
+            codexHomePath: "/tmp/codexbar-live-system",
+            observedAt: Date(),
+            identity: CodexIdentityResolver.resolve(accountId: nil, email: email))
+    }
+
+    private static func openAIWebDashboard(
+        email: String,
+        primaryLimit: RateWindow,
+        updatedAt: Date) -> OpenAIDashboardSnapshot
+    {
+        OpenAIDashboardSnapshot(
+            signedInEmail: email,
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: primaryLimit,
+            updatedAt: updatedAt)
+    }
+}
+
+private actor ReviewFixRollingWindowPingRunner: RollingWindowPingRunning {
+    private(set) var count = 0
+
+    func run(_: RollingWindowPingRequest) async throws {
+        self.count += 1
+    }
+}

@@ -246,13 +246,24 @@ extension UsageStore {
 
             if decision.allowedEffects.contains(.usageBackfill),
                allowCodexUsageBackfill,
-               self.snapshots[.codex] == nil,
+               self.snapshots[.codex] == nil || self.lastSourceLabels[.codex] == "openai-web",
                let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: attachedAccountEmail)
             {
-                self.snapshots[.codex] = usage
+                let previousSnapshot = self.lastKnownResetSnapshots[.codex]
+                let previousSourceLabel = previousSnapshot == nil ? nil : self.lastSourceLabels[.codex]
+                let backfilled = usage.backfillingResetTimes(from: previousSnapshot)
+                self.lastKnownResetSnapshots[.codex] = backfilled
+                self.snapshots[.codex] = backfilled
                 self.errors[.codex] = nil
                 self.failureGates[.codex]?.recordSuccess()
                 self.lastSourceLabels[.codex] = "openai-web"
+                self.scheduleRollingWindowAutoStartIfNeeded(
+                    provider: .codex,
+                    previousSourceLabel: previousSourceLabel,
+                    sourceLabel: "openai-web",
+                    previousSnapshot: previousSnapshot,
+                    currentProviderData: backfilled,
+                    codexActiveSourceOverride: self.settings.codexResolvedActiveSource)
             }
 
             if decision.allowedEffects.contains(.creditsAttachment),
@@ -329,6 +340,7 @@ extension UsageStore {
     private func clearDashboardDerivedCodexUsageIfNeeded() {
         guard self.lastSourceLabels[.codex] == "openai-web" else { return }
         self.snapshots.removeValue(forKey: .codex)
+        self.lastKnownResetSnapshots.removeValue(forKey: .codex)
         self.errors[.codex] = nil
         self.lastSourceLabels.removeValue(forKey: .codex)
         self.lastFetchAttempts.removeValue(forKey: .codex)
@@ -337,6 +349,7 @@ extension UsageStore {
         self.failureGates[.codex]?.reset()
         self.lastKnownSessionRemaining.removeValue(forKey: .codex)
         self.lastKnownSessionWindowSource.removeValue(forKey: .codex)
+        self.resetRollingWindowAutoStartState(for: .codex)
     }
 
     private func clearDashboardDerivedCreditsIfNeeded() {
