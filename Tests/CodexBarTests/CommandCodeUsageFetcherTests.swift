@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Tests for `CommandCodeUsageFetcher` parsers and the cookie/snapshot derivation,
 /// using real responses captured from api.commandcode.ai for an active "individual-go" plan.
@@ -47,6 +50,94 @@ struct CommandCodeUsageFetcherTests {
         let data = Data(#"{"success":true,"data":null}"#.utf8)
         let payload = try CommandCodeUsageFetcher.parseSubscription(data: data)
         #expect(payload == nil)
+    }
+
+    @Test
+    func `subscription failure preserves required credits`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/credits") {
+                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+            }
+            return try Self.response(request: request, statusCode: 503, body: #"{"error":"unavailable"}"#)
+        }
+
+        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+            cookieHeader: "session=valid",
+            session: transport,
+            now: Date(timeIntervalSince1970: 123))
+
+        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+        #expect(snapshot.plan == nil)
+        #expect(snapshot.billingPeriodEnd == nil)
+        #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 123))
+    }
+
+    @Test
+    func `subscription timeout does not hold credits for full request timeout`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/credits") {
+                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+            }
+            try await Task.sleep(for: .seconds(10))
+            return try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
+        }
+
+        let startedAt = ContinuousClock.now
+        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+            cookieHeader: "session=valid",
+            session: transport)
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+        #expect(snapshot.plan == nil)
+        #expect(elapsed < .seconds(3), "Subscription enrichment delayed credits: \(elapsed)")
+    }
+
+    @Test
+    func `cancellation after credits complete does not return partial snapshot`() async throws {
+        let subscriptionStarted = CommandCodeRequestGate()
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/credits") {
+                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+            }
+            await subscriptionStarted.open()
+            try await Task.sleep(for: .seconds(10))
+            return try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
+        }
+        let task = Task {
+            try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport)
+        }
+
+        await subscriptionStarted.wait()
+        try await Task.sleep(for: .milliseconds(50))
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
+    func `successful unknown active subscription still fails explicitly`() async {
+        let unknownPlanJSON = Self.subscriptionJSON.replacingOccurrences(
+            of: #""planId":"individual-go""#,
+            with: #""planId":"individual-future""#)
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            let body = path.hasSuffix("/credits") ? Self.creditsJSON : unknownPlanJSON
+            return try Self.response(request: request, statusCode: 200, body: body)
+        }
+
+        await #expect(throws: CommandCodeUsageError.unknownPlan("individual-future")) {
+            try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport)
+        }
     }
 
     @Test
@@ -109,5 +200,40 @@ struct CommandCodeUsageFetcherTests {
         #expect(CommandCodeCookieHeader.override(from: nil) == nil)
         #expect(CommandCodeCookieHeader.override(from: "") == nil)
         #expect(CommandCodeCookieHeader.override(from: "   ") == nil)
+    }
+
+    private static func response(
+        request: URLRequest,
+        statusCode: Int,
+        body: String) throws -> (Data, URLResponse)
+    {
+        let url = try #require(request.url)
+        let response = try #require(HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil))
+        return (Data(body.utf8), response)
+    }
+}
+
+private actor CommandCodeRequestGate {
+    private var isOpen = false
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !self.isOpen else { return }
+        await withCheckedContinuation { continuation in
+            self.continuations.append(continuation)
+        }
+    }
+
+    func open() {
+        self.isOpen = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
     }
 }

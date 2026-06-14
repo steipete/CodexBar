@@ -8,6 +8,7 @@ import FoundationNetworking
 public enum CommandCodeUsageFetcher {
     private static let log = CodexBarLog.logger(LogCategories.commandcodeUsage)
     private static let requestTimeoutSeconds: TimeInterval = 15
+    private static let subscriptionGraceSeconds: TimeInterval = 2
     private static let apiBase = URL(string: "https://api.commandcode.ai")!
     private static let creditsPath = "/internal/billing/credits"
     private static let subscriptionsPath = "/internal/billing/subscriptions"
@@ -21,11 +22,9 @@ public enum CommandCodeUsageFetcher {
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> CommandCodeUsageSnapshot
     {
-        async let creditsResult = self.fetchCredits(cookieHeader: cookieHeader, transport: transport)
-        async let subscriptionResult = self.fetchSubscription(cookieHeader: cookieHeader, transport: transport)
-
-        let credits = try await creditsResult
-        let subscription = try await subscriptionResult
+        let (credits, subscription) = try await self.fetchPayloads(
+            cookieHeader: cookieHeader,
+            transport: transport)
 
         let plan: CommandCodePlanCatalog.Plan? = subscription.flatMap { sub in
             CommandCodePlanCatalog.plan(forID: sub.planID)
@@ -47,6 +46,83 @@ public enum CommandCodeUsageFetcher {
             billingPeriodEnd: subscription?.currentPeriodEnd,
             subscriptionStatus: subscription?.status,
             updatedAt: now)
+    }
+
+    private enum FetchPart {
+        case credits(CreditsPayload)
+        case subscription(SubscriptionPayload?)
+        case subscriptionFailure(String)
+        case subscriptionTimeout
+    }
+
+    private static func fetchPayloads(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport) async throws -> (CreditsPayload, SubscriptionPayload?)
+    {
+        try await withThrowingTaskGroup(of: FetchPart.self) { group in
+            group.addTask {
+                try await .credits(self.fetchCredits(cookieHeader: cookieHeader, transport: transport))
+            }
+            group.addTask {
+                do {
+                    return try await .subscription(self.fetchSubscription(
+                        cookieHeader: cookieHeader,
+                        transport: transport))
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    return .subscriptionFailure(error.localizedDescription)
+                }
+            }
+
+            var credits: CreditsPayload?
+            var subscription: SubscriptionPayload?
+            var subscriptionFinished = false
+            var timeoutStarted = false
+
+            while let part = try await group.next() {
+                switch part {
+                case let .credits(payload):
+                    credits = payload
+                    if subscriptionFinished {
+                        group.cancelAll()
+                        return (payload, subscription)
+                    }
+                    if !timeoutStarted {
+                        timeoutStarted = true
+                        group.addTask {
+                            try await Task.sleep(for: .seconds(Self.subscriptionGraceSeconds))
+                            return .subscriptionTimeout
+                        }
+                    }
+
+                case let .subscription(payload):
+                    subscription = payload
+                    subscriptionFinished = true
+                    if let credits {
+                        group.cancelAll()
+                        return (credits, payload)
+                    }
+
+                case let .subscriptionFailure(message):
+                    Self.log.warning("Command Code subscription enrichment failed: \(message)")
+                    subscriptionFinished = true
+                    if let credits {
+                        group.cancelAll()
+                        return (credits, subscription)
+                    }
+
+                case .subscriptionTimeout:
+                    if let credits {
+                        Self.log.warning("Command Code subscription enrichment timed out")
+                        group.cancelAll()
+                        return (credits, subscription)
+                    }
+                }
+            }
+
+            throw CommandCodeUsageError.networkError("Credits request did not complete")
+        }
     }
 
     // MARK: - Endpoints
@@ -101,6 +177,9 @@ public enum CommandCodeUsageFetcher {
         do {
             response = try await transport.response(for: request)
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
             throw CommandCodeUsageError.networkError(error.localizedDescription)
         }
         if response.statusCode == 401 || response.statusCode == 403 {
