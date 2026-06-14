@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -119,7 +119,6 @@
 				};
 			};
 			buildConfigurationList = A17A8A4315AD7DBD4D417FCA /* Build configuration list for PBXProject "CodexBarWidgetExtension" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -131,7 +130,8 @@
 			packageReferences = (
 				B0BE8F0E2917CB6B2EDF1826 /* XCLocalSwiftPackageReference ".." */,
 			);
-			preferredProjectObjectVersion = 54;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B7E03090CEF29F6B74205FAE /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
