@@ -74,7 +74,7 @@ struct ZedLocalFetchStrategy: ProviderFetchStrategy {
         false
     }
 
-    private struct BillingFetchOutcome: Sendable {
+    private struct BillingFetchOutcome {
         let snapshot: ZedTokenBillingSnapshot?
         let errorMessage: String?
     }

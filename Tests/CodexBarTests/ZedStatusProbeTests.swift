@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct ZedStatusProbeTests {
-    private struct StubCredentialsReader: ZedCredentialsReading, Sendable {
+    private struct StubCredentialsReader: ZedCredentialsReading {
         let credentials: ZedCredentials?
 
         func loadCredentials(serviceURL _: String) throws -> ZedCredentials? {

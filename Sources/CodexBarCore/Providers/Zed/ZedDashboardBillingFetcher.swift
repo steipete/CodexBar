@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public struct ZedTokenBillingSnapshot: Sendable, Equatable {
     public let spentUSD: Double?
