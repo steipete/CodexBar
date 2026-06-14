@@ -112,6 +112,8 @@ struct RollingWindowAutoStartReviewFixTests {
             refreshCount += 1
         }
 
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] = now.addingTimeInterval(-3600)
         await store.applyOpenAIDashboard(
             Self.openAIWebDashboard(
                 email: "codex@example.com",
@@ -120,13 +122,14 @@ struct RollingWindowAutoStartReviewFixTests {
                     windowMinutes: 300,
                     resetsAt: nil,
                     resetDescription: nil),
-                updatedAt: Date()),
+                updatedAt: now),
             targetEmail: "codex@example.com")
 
         try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
         #expect(await runner.count == 1)
         #expect(refreshCount == 1)
         #expect(store.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.contains(.codexLiveSystem))
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == nil)
     }
 
     @Test
@@ -260,6 +263,7 @@ struct RollingWindowAutoStartReviewFixTests {
         let store = Self.makeUsageStore(settings: settings)
         let runner = ReviewFixRollingWindowPingRunner()
         store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        store.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.insert(.codexLiveSystem)
         var refreshCount = 0
 
         let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -297,6 +301,8 @@ struct RollingWindowAutoStartReviewFixTests {
         #expect(await runner.count == 1)
         #expect(refreshCount == 1)
         #expect(store.rollingWindowAutoStartStatus[.codex] == nil)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == nil)
+        #expect(!store.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.contains(.codexLiveSystem))
     }
 
     @Test
@@ -429,7 +435,7 @@ struct RollingWindowAutoStartReviewFixTests {
 private actor ReviewFixRollingWindowPingRunner: RollingWindowPingRunning {
     private(set) var count = 0
     var isEmpty: Bool {
-        self.count < 1
+        self.count == .zero
     }
 
     func run(_: RollingWindowPingRequest) async throws {

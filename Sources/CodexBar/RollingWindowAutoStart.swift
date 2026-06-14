@@ -57,6 +57,7 @@ enum RollingWindowAutoStartSupport {
 
     static func isActiveRollingWindow(_ window: RateWindow, now: Date = Date()) -> Bool {
         if let resetsAt = window.resetsAt {
+            // A window expiring exactly at now is no longer active for auto-start gating.
             return resetsAt > now
         }
         if window.usedPercent > 0 {
@@ -98,7 +99,7 @@ enum RollingWindowAutoStartSupport {
         }
     }
 
-    static func sourceAllowsNoHistoryAutoStart(provider: UsageProvider, sourceLabel: String?) -> Bool {
+    static func sourceAllowsResetlessAutoStart(provider: UsageProvider, sourceLabel: String?) -> Bool {
         let normalized = sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return provider == .codex && normalized == "openai-web"
     }
@@ -149,6 +150,7 @@ enum RollingWindowAutoStartRoute: Hashable {
 
 struct RollingWindowAutoStartDecision: Equatable {
     let resetAt: Date?
+    let resetSource: RollingWindowAutoStartResetSource
 
     static func shouldStart(
         provider: UsageProvider,
@@ -191,10 +193,10 @@ struct RollingWindowAutoStartDecision: Equatable {
             let previousResetAt = previousWindow.resetsAt
         {
             guard previousResetAt <= now else { return nil }
-            return RollingWindowAutoStartDecision(resetAt: previousResetAt)
+            return RollingWindowAutoStartDecision(resetAt: previousResetAt, resetSource: .previousExpiredReset)
         }
 
-        guard RollingWindowAutoStartSupport.sourceAllowsNoHistoryAutoStart(
+        guard RollingWindowAutoStartSupport.sourceAllowsResetlessAutoStart(
             provider: provider,
             sourceLabel: sourceLabel)
         else {
@@ -202,14 +204,37 @@ struct RollingWindowAutoStartDecision: Equatable {
         }
         if let currentResetAt = currentWindow.resetsAt {
             guard currentResetAt <= now else { return nil }
-            return RollingWindowAutoStartDecision(resetAt: currentResetAt)
+            return RollingWindowAutoStartDecision(resetAt: currentResetAt, resetSource: .currentExpiredReset)
         }
-        guard currentWindow.usedPercent <= 0,
-              !RollingWindowAutoStartSupport.hasResetDescription(currentWindow)
-        else {
-            return nil
+        return RollingWindowAutoStartDecision(resetAt: nil, resetSource: .inactiveWithoutReset)
+    }
+}
+
+enum RollingWindowAutoStartResetSource: Equatable {
+    case previousExpiredReset
+    case currentExpiredReset
+    case inactiveWithoutReset
+
+    var logValue: String {
+        switch self {
+        case .previousExpiredReset:
+            "previous-expired-reset"
+        case .currentExpiredReset:
+            "current-expired-reset"
+        case .inactiveWithoutReset:
+            "inactive-without-reset"
         }
-        return RollingWindowAutoStartDecision(resetAt: nil)
+    }
+
+    var trigger: String {
+        switch self {
+        case .previousExpiredReset:
+            "expired-previous-reset"
+        case .currentExpiredReset:
+            "expired-current-reset"
+        case .inactiveWithoutReset:
+            "inactive-without-reset"
+        }
     }
 }
 

@@ -328,14 +328,19 @@ struct RollingWindowAutoStartTests {
             route: .codexManagedAccount(accountID),
             previousSourceLabel: nil,
             sourceLabel: "oauth",
-            previousResetAt: resetAt)
+            decision: RollingWindowAutoStartDecision(
+                resetAt: resetAt,
+                resetSource: .previousExpiredReset))
 
         #expect(metadata["provider"] == "codex")
         #expect(metadata["route"] == "codex-managed-account:123456...ABCDEF")
         #expect(metadata["route"]?.contains(accountID.uuidString) == false)
         #expect(metadata["previousSource"] == "none")
         #expect(metadata["source"] == "oauth")
-        #expect(metadata["previousResetAt"] == "2027-01-15T08:00:00.000Z")
+        #expect(metadata["resetAt"] == "2027-01-15T08:00:00.000Z")
+        #expect(metadata["resetSource"] == "previous-expired-reset")
+        #expect(metadata["trigger"] == "expired-previous-reset")
+        #expect(metadata["previousResetAt"] == nil)
         #expect(metadata["expiredResetAt"] == nil)
     }
 

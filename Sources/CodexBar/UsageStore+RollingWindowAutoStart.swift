@@ -52,7 +52,7 @@ extension UsageStore {
             route: route,
             previousSourceLabel: previousSourceLabel,
             sourceLabel: sourceLabel,
-            previousResetAt: decision.resetAt)
+            decision: decision)
         switch self.canRouteRollingWindowAutoStart(
             provider: provider,
             tokenOverride: tokenOverride,
@@ -78,10 +78,12 @@ extension UsageStore {
                 return
             }
             self.rollingWindowAutoStartRuntime.attemptedResetAt[route] = resetAt
+            self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.remove(route)
         } else {
             guard !self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.contains(route) else {
                 return
             }
+            self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: route)
             self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.insert(route)
         }
 
@@ -123,9 +125,11 @@ extension UsageStore {
                     RollingWindowAutoStartSupport.rollingWindow(provider: provider, snapshot: $0)
                 }
                 let verified = refreshedWindow.map {
-                    RollingWindowAutoStartSupport.isActiveRollingWindow($0)
+                    RollingWindowAutoStartSupport.isActiveRollingWindow($0, now: now)
                 } ?? false
                 if verified {
+                    self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: route)
+                    self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.remove(route)
                     self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
                     self.providerLogger.info(
                         "Rolling window auto-start verified new rolling window",
@@ -273,15 +277,16 @@ extension UsageStore {
         route: RollingWindowAutoStartRoute,
         previousSourceLabel: String?,
         sourceLabel: String?,
-        previousResetAt: Date?) -> [String: String]
+        decision: RollingWindowAutoStartDecision) -> [String: String]
     {
         [
             "provider": provider.rawValue,
             "route": self.rollingWindowAutoStartRouteLabel(route),
             "previousSource": previousSourceLabel ?? "none",
             "source": sourceLabel ?? "none",
-            "previousResetAt": self.rollingWindowAutoStartTimestamp(previousResetAt),
-            "trigger": previousResetAt == nil ? "inactive-without-previous-reset" : "expired-previous-reset",
+            "resetAt": self.rollingWindowAutoStartTimestamp(decision.resetAt),
+            "resetSource": decision.resetSource.logValue,
+            "trigger": decision.resetSource.trigger,
         ]
     }
 
