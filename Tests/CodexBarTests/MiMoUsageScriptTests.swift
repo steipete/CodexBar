@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 
-@Suite
 struct MiMoUsageScriptTests {
     @Test
     func `script keeps final cumulative streaming usage`() throws {
