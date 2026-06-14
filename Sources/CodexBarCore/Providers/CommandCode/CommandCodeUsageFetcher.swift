@@ -85,6 +85,7 @@ public enum CommandCodeUsageFetcher {
                 case let .credits(payload):
                     credits = payload
                     if subscriptionFinished {
+                        try Task.checkCancellation()
                         group.cancelAll()
                         return (payload, subscription)
                     }
@@ -100,6 +101,7 @@ public enum CommandCodeUsageFetcher {
                     subscription = payload
                     subscriptionFinished = true
                     if let credits {
+                        try Task.checkCancellation()
                         group.cancelAll()
                         return (credits, payload)
                     }
@@ -108,6 +110,7 @@ public enum CommandCodeUsageFetcher {
                     Self.log.warning("Command Code subscription enrichment failed: \(message)")
                     subscriptionFinished = true
                     if let credits {
+                        try Task.checkCancellation()
                         group.cancelAll()
                         return (credits, subscription)
                     }
@@ -115,6 +118,7 @@ public enum CommandCodeUsageFetcher {
                 case .subscriptionTimeout:
                     if let credits {
                         Self.log.warning("Command Code subscription enrichment timed out")
+                        try Task.checkCancellation()
                         group.cancelAll()
                         return (credits, subscription)
                     }

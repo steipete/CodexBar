@@ -123,6 +123,37 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
+    func `cancellation wins when optional transport ignores cancellation then fails`() async throws {
+        let subscriptionStarted = CommandCodeRequestGate()
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/credits") {
+                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+            }
+            await subscriptionStarted.open()
+            do {
+                try await Task.sleep(for: .seconds(10))
+            } catch {
+                // Simulate a transport that converts cancellation into an ordinary endpoint failure.
+            }
+            return try Self.response(request: request, statusCode: 503, body: #"{"error":"unavailable"}"#)
+        }
+        let task = Task {
+            try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport)
+        }
+
+        await subscriptionStarted.wait()
+        try await Task.sleep(for: .milliseconds(50))
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
     func `successful unknown active subscription still fails explicitly`() async {
         let unknownPlanJSON = Self.subscriptionJSON.replacingOccurrences(
             of: #""planId":"individual-go""#,
