@@ -76,7 +76,7 @@ struct CodexManualSubscriptionSectionView: View {
                                 .labelsHidden()
                                 .datePickerStyle(.field)
                                 .environment(\.locale, codexBarLocalizedLocale())
-                                .environment(\.calendar, Calendar(identifier: .gregorian))
+                                .environment(\.calendar, Self.localizedManualDatePickerCalendar())
                         }
                     }
 
@@ -101,7 +101,7 @@ struct CodexManualSubscriptionSectionView: View {
                                 .labelsHidden()
                                 .datePickerStyle(.field)
                                 .environment(\.locale, codexBarLocalizedLocale())
-                                .environment(\.calendar, Calendar(identifier: .gregorian))
+                                .environment(\.calendar, Self.localizedManualDatePickerCalendar())
                         }
                     }
 
@@ -227,5 +227,11 @@ struct CodexManualSubscriptionSectionView: View {
             return .canceled
         }
         return .active
+    }
+
+    static func localizedManualDatePickerCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = codexBarLocalizedLocale()
+        return calendar
     }
 }

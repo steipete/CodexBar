@@ -182,7 +182,8 @@ struct ProviderSubscriptionReminderFoundationTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.statusChecksEnabled = false
 
-        let expiresToday = Date()
+        let now = Date(timeIntervalSince1970: 1_782_266_400) // 2026-06-24T00:40:00Z
+        let expiresToday = now
         settings.setProviderSubscriptionSnapshot(
             provider: .codex,
             snapshot: ProviderSubscriptionSnapshot(
@@ -191,7 +192,7 @@ struct ProviderSubscriptionReminderFoundationTests {
                 status: .canceled,
                 subscriptionRenewsAt: nil,
                 subscriptionExpiresAt: expiresToday,
-                updatedAt: Date()))
+                updatedAt: now))
 
         let notifier = SubscriptionReminderNotifierSpy()
         let store = UsageStore(
@@ -208,7 +209,8 @@ struct ProviderSubscriptionReminderFoundationTests {
             outcome,
             provider: .codex,
             account: nil,
-            fallbackSnapshot: nil)
+            fallbackSnapshot: nil,
+            now: now)
 
         #expect(notifier.reminders.contains(where: { $0.provider == .codex && $0.event.type == .expiresToday }))
     }
@@ -287,6 +289,14 @@ struct ProviderSubscriptionReminderFoundationTests {
             CodexManualSubscriptionSectionView.effectiveStatusForSave(hasExpiresAt: false) == .active)
         #expect(
             CodexManualSubscriptionSectionView.effectiveStatusForSave(hasExpiresAt: true) == .canceled)
+    }
+
+    @Test
+    func `manual reminder date picker keeps gregorian semantics with localized locale`() {
+        let calendar = CodexManualSubscriptionSectionView.localizedManualDatePickerCalendar()
+
+        #expect(calendar.identifier == .gregorian)
+        #expect(calendar.locale == codexBarLocalizedLocale())
     }
 
     @Test
@@ -371,7 +381,7 @@ struct ProviderSubscriptionReminderFoundationTests {
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
         let calendar = Calendar(identifier: .gregorian)
-        let now = Date()
+        let now = Date(timeIntervalSince1970: 1_782_180_000) // 2026-06-23T00:40:00Z
         let inSevenDays = try #require(calendar.date(byAdding: .day, value: 7, to: now))
 
         let originalSettings = SettingsStore(
@@ -398,7 +408,7 @@ struct ProviderSubscriptionReminderFoundationTests {
             sessionQuotaNotifier: originalNotifier,
             startupBehavior: .testing)
 
-        originalStore.handleProviderSubscriptionReminders(provider: .codex)
+        originalStore.handleProviderSubscriptionReminders(provider: .codex, now: now)
         #expect(originalNotifier.reminders.count == 1)
         #expect(originalNotifier.reminders.first?.event.type == .expiresIn7Days)
 
@@ -431,7 +441,7 @@ struct ProviderSubscriptionReminderFoundationTests {
             sessionQuotaNotifier: relaunchedNotifier,
             startupBehavior: .testing)
 
-        relaunchedStore.handleProviderSubscriptionReminders(provider: .codex)
+        relaunchedStore.handleProviderSubscriptionReminders(provider: .codex, now: now)
 
         let dedupeWorks = relaunchedNotifier.reminders.isEmpty
         #expect(dedupeWorks == true)

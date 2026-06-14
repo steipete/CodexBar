@@ -1217,6 +1217,7 @@ extension UsageStore {
         provider: UsageProvider,
         account: ProviderTokenAccount?,
         fallbackSnapshot: UsageSnapshot?,
+        now: Date = .init(),
         generation: UInt64? = nil) async
     {
         await MainActor.run {
@@ -1239,7 +1240,7 @@ extension UsageStore {
                 let backfilled = labeled.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider])
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
-                self.handleProviderSubscriptionReminders(provider: provider)
+                self.handleProviderSubscriptionReminders(provider: provider, now: now)
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
                 self.lastSourceLabels[provider] = result.sourceLabel
@@ -1254,7 +1255,7 @@ extension UsageStore {
                 account: account)
         case let .failure(error):
             await MainActor.run {
-                self.handleProviderSubscriptionReminders(provider: provider)
+                self.handleProviderSubscriptionReminders(provider: provider, now: now)
                 guard let message = self.tokenAccountErrorMessage(error) else {
                     self.errors[provider] = nil
                     return

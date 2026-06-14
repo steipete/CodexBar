@@ -1,7 +1,12 @@
+import Foundation
 import CodexBarCore
 
 extension UsageStore {
     func handleProviderSubscriptionReminders(provider: UsageProvider) {
+        self.handleProviderSubscriptionReminders(provider: provider, now: .init())
+    }
+
+    func handleProviderSubscriptionReminders(provider: UsageProvider, now: Date) {
         guard provider == .codex else { return }
         let previous = self.settings.providerSubscriptionReminderState(for: provider)
         guard let subscription = self.settings.providerSubscriptionSnapshot(for: provider),
@@ -17,7 +22,8 @@ extension UsageStore {
         let result = ProviderSubscriptionReminderLogic.evaluate(
             providerName: providerName,
             snapshot: subscription,
-            previous: previous)
+            previous: previous,
+            now: now)
         if let state = result.state {
             self.settings.setProviderSubscriptionReminderState(for: provider, state: state)
         }
