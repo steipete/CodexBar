@@ -110,6 +110,19 @@ struct ProviderIconResourcesTests {
         #expect(visiblePixels < 240)
     }
 
+    @Test
+    func `registered providers resolve bundled brand icons`() {
+        ProviderBrandIcon.resetCacheForTesting()
+        defer { ProviderBrandIcon.resetCacheForTesting() }
+
+        for provider in UsageProvider.allCases {
+            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+            #expect(
+                ProviderBrandIcon.image(for: provider) != nil,
+                "Missing icon resource \(descriptor.branding.iconResourceName).svg for \(provider.rawValue)")
+        }
+    }
+
     private static func repoRoot() throws -> URL {
         var dir = URL(filePath: #filePath).deletingLastPathComponent()
         for _ in 0..<12 {
