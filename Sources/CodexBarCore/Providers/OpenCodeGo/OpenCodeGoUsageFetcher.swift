@@ -126,23 +126,33 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 timeout: timeout,
                 session: session)
         }
+        let subscriptionTask = Task {
+            try await self.fetchUsagePage(
+                workspaceID: workspaceID,
+                cookieHeader: requestCookieHeader,
+                timeout: timeout,
+                session: session)
+        }
         let zenBalanceTask = includeZenBalance ? Task {
-            try await self.fetchOptionalZenBalance(
+            try await Task.sleep(for: self.optionalZenBalanceStartDelay)
+            return try await self.fetchOptionalZenBalance(
                 workspaceID: workspaceID,
                 cookieHeader: requestCookieHeader,
                 timeout: timeout,
                 session: session)
         } : nil
         defer {
+            subscriptionTask.cancel()
             zenBalanceTask?.cancel()
         }
         let subscriptionText: String
         do {
-            subscriptionText = try await self.fetchUsagePage(
-                workspaceID: workspaceID,
-                cookieHeader: requestCookieHeader,
-                timeout: timeout,
-                session: session)
+            subscriptionText = try await withTaskCancellationHandler {
+                try await subscriptionTask.value
+            } onCancel: {
+                subscriptionTask.cancel()
+                zenBalanceTask?.cancel()
+            }
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as URLError where error.code == .cancelled {

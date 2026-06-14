@@ -77,6 +77,7 @@ private final class OpenCodeGoOptionalZenBalanceRace: @unchecked Sendable {
 
 extension OpenCodeGoUsageFetcher {
     static let optionalZenBalanceTimeout: TimeInterval = 5
+    static let optionalZenBalanceStartDelay: Duration = .milliseconds(25)
     static let optionalZenBalanceJoinGrace: Duration = .milliseconds(250)
 
     public static func zenDashboardURL(workspaceID raw: String?) -> URL {

@@ -96,10 +96,10 @@ struct OpenCodeGoUsageFetcherErrorTests {
             OpenCodeGoStubURLProtocol.handler = nil
         }
 
-        let methods = OpenCodeGoRequestRecorder<String>()
+        let requests = OpenCodeGoRequestRecorder<String>()
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
-            methods.append(request.httpMethod ?? "GET")
+            requests.append("\(request.httpMethod ?? "GET") \(url.path)")
 
             let workspaceServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
             if url.query?.contains(workspaceServerID) == true,
@@ -137,12 +137,17 @@ struct OpenCodeGoUsageFetcherErrorTests {
         let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
             cookieHeader: "auth=test",
             timeout: 2,
+            includeZenBalance: false,
             session: self.makeSession())
 
         #expect(snapshot.rollingUsagePercent == 22)
         #expect(snapshot.weeklyUsagePercent == 44)
         #expect(snapshot.monthlyUsagePercent == 55)
-        #expect(methods.values == ["GET", "POST", "GET", "GET"])
+        #expect(requests.values == [
+            "GET /_server",
+            "POST /_server",
+            "GET /workspace/wrk_TEST123/go",
+        ])
     }
 
     @Test
