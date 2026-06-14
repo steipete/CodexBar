@@ -43,6 +43,7 @@ public enum CookieHeaderCache {
     }
 
     private static let log = CodexBarLog.logger(LogCategories.cookieCache)
+    private static let legacyBaseURLOverrideLock = NSLock()
     private nonisolated(unsafe) static var legacyBaseURLOverride: URL?
 
     private struct DisplaySnapshot {
@@ -613,7 +614,9 @@ public enum CookieHeaderCache {
     }
 
     static func setLegacyBaseURLOverrideForTesting(_ url: URL?) {
-        self.legacyBaseURLOverride = url
+        self.legacyBaseURLOverrideLock.withLock {
+            self.legacyBaseURLOverride = url
+        }
     }
 
     static func hasLegacyEntryForTesting(provider: UsageProvider) -> Bool {
@@ -666,8 +669,7 @@ public enum CookieHeaderCache {
     }
 
     private static var legacyMutationLockURL: URL {
-        let base = self.legacyBaseURLOverride
-            ?? self.legacyURL(for: .codex).deletingLastPathComponent()
+        let base = self.currentLegacyBaseURLOverride ?? self.defaultLegacyBaseURL
         return base.appendingPathComponent("cookie-cache.lock")
     }
 
@@ -696,14 +698,23 @@ public enum CookieHeaderCache {
     }
 
     private static func legacyURL(for provider: UsageProvider) -> URL {
-        if let override = self.legacyBaseURLOverride {
+        if let override = self.currentLegacyBaseURLOverride {
             return override.appendingPathComponent("\(provider.rawValue)-cookie.json")
         }
+        return self.defaultLegacyBaseURL.appendingPathComponent("\(provider.rawValue)-cookie.json")
+    }
+
+    private static var currentLegacyBaseURLOverride: URL? {
+        self.legacyBaseURLOverrideLock.withLock {
+            self.legacyBaseURLOverride
+        }
+    }
+
+    private static var defaultLegacyBaseURL: URL {
         let fm = FileManager.default
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fm.temporaryDirectory
         return base.appendingPathComponent("CodexBar", isDirectory: true)
-            .appendingPathComponent("\(provider.rawValue)-cookie.json")
     }
 
     private static func key(for provider: UsageProvider, scope: Scope?) -> KeychainCacheStore.Key {

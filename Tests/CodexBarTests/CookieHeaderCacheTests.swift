@@ -307,6 +307,30 @@ struct CookieHeaderCacheTests {
         #expect(!CookieHeaderCache.hasKeychainEntryForTesting(provider: provider))
     }
 
+    @Test
+    func `legacy URL override supports concurrent teardown reads`() {
+        let legacyBases = [
+            FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true),
+            FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true),
+        ]
+        defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
+
+        DispatchQueue.concurrentPerform(iterations: 5000) { index in
+            if index.isMultiple(of: 3) {
+                CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBases[index % legacyBases.count])
+            } else if index.isMultiple(of: 5) {
+                CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil)
+            } else {
+                _ = CookieHeaderCache.legacyURLForTesting(provider: .codex)
+            }
+        }
+
+        CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBases[0])
+        #expect(
+            CookieHeaderCache.legacyURLForTesting(provider: .codex)
+                == legacyBases[0].appendingPathComponent("codex-cookie.json"))
+    }
+
     #if os(macOS)
     @Test
     func `loadForDisplay throttles temporary keychain unavailability then retries`() async throws {
