@@ -128,6 +128,7 @@ public enum ZedStatusProbeError: LocalizedError, Sendable, Equatable {
     case notSignedIn
     case keychainUnavailable
     case invalidServerURL(String)
+    case untrustedServerConfiguration
     case networkError(String)
     case httpError(Int)
     case unauthorized
@@ -143,6 +144,8 @@ public enum ZedStatusProbeError: LocalizedError, Sendable, Equatable {
             "Could not read Zed credentials from the Keychain. Grant CodexBar Keychain access or sign in to Zed again."
         case let .invalidServerURL(value):
             "Zed server URL is invalid: \(value)"
+        case .untrustedServerConfiguration:
+            "Zed custom servers must use HTTPS and store credentials under the same server URL."
         case let .networkError(message):
             "Zed cloud API request failed: \(message)"
         case let .httpError(status):
@@ -185,17 +188,24 @@ public struct ZedClientSettings: Sendable, Equatable {
         } else {
             ZedStatusProbe.defaultKeychainServiceURL
         }
+        let isTrustedZedServer = server == "https://zed.dev" || server == "https://staging.zed.dev"
+        let trimmedCredentials = self.credentialsURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !isTrustedZedServer,
+           let trimmedCredentials,
+           !trimmedCredentials.isEmpty,
+           trimmedCredentials != server
+        {
+            return nil
+        }
         let cloudBase = switch server {
         case "https://zed.dev", "https://staging.zed.dev":
             "https://cloud.zed.dev"
-        case "http://localhost:3000":
-            "http://localhost:8787"
         default:
             server
         }
         guard let baseURL = URL(string: cloudBase),
               let scheme = baseURL.scheme?.lowercased(),
-              scheme == "https" || scheme == "http",
+              scheme == "https",
               baseURL.host != nil
         else {
             return nil
@@ -344,7 +354,11 @@ public struct ZedStatusProbe: Sendable {
         let cloudAPIURL: URL
         if let settings {
             guard let configuredURL = settings.cloudAPIURL else {
-                throw ZedStatusProbeError.invalidServerURL(settings.serverURL ?? "")
+                let serverURL = settings.serverURL ?? ""
+                guard URL(string: serverURL)?.scheme?.lowercased() == "https" else {
+                    throw ZedStatusProbeError.invalidServerURL(serverURL)
+                }
+                throw ZedStatusProbeError.untrustedServerConfiguration
             }
             cloudAPIURL = configuredURL
         } else {

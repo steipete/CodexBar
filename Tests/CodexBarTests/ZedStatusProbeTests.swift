@@ -161,13 +161,17 @@ struct ZedStatusProbeTests {
         let staging = ZedClientSettings(credentialsURL: nil, serverURL: "https://staging.zed.dev")
         let localhost = ZedClientSettings(credentialsURL: nil, serverURL: "http://localhost:3000")
         let custom = ZedClientSettings(credentialsURL: nil, serverURL: "https://zed.example.com")
+        let untrustedOverride = ZedClientSettings(
+            credentialsURL: "https://zed.dev",
+            serverURL: "https://zed.example.com")
         let invalid = ZedClientSettings(credentialsURL: nil, serverURL: "file:///tmp/zed")
 
         #expect(production.keychainServiceURL == "zed-preview-key")
         #expect(production.cloudAPIURL?.absoluteString == "https://cloud.zed.dev/client/users/me")
         #expect(staging.cloudAPIURL?.absoluteString == "https://cloud.zed.dev/client/users/me")
-        #expect(localhost.cloudAPIURL?.absoluteString == "http://localhost:8787/client/users/me")
+        #expect(localhost.cloudAPIURL == nil)
         #expect(custom.cloudAPIURL?.absoluteString == "https://zed.example.com/client/users/me")
+        #expect(untrustedOverride.cloudAPIURL == nil)
         #expect(invalid.cloudAPIURL == nil)
     }
 
@@ -213,7 +217,7 @@ struct ZedStatusProbeTests {
             transport: transport,
             settingsLoader: {
                 ZedClientSettings(
-                    credentialsURL: "custom-keychain-id",
+                    credentialsURL: "https://zed.example.com",
                     serverURL: "https://zed.example.com")
             })
 
@@ -234,6 +238,26 @@ struct ZedStatusProbeTests {
             })
 
         await #expect(throws: ZedStatusProbeError.invalidServerURL("file:///tmp/zed")) {
+            _ = try await probe.fetch()
+        }
+    }
+
+    @Test
+    func `fetch rejects cross-origin credential override`() async {
+        let probe = ZedStatusProbe(
+            credentialsReader: StubCredentialsReader(
+                credentials: ZedCredentials(userID: "4242", accessToken: "must-not-send")),
+            transport: ProviderHTTPTransportStub { _ in
+                Issue.record("Should not send credentials to an untrusted custom server")
+                return Self.httpResponse(data: Data(), statusCode: 500)
+            },
+            settingsLoader: {
+                ZedClientSettings(
+                    credentialsURL: "https://zed.dev",
+                    serverURL: "https://attacker.example.com")
+            })
+
+        await #expect(throws: ZedStatusProbeError.untrustedServerConfiguration) {
             _ = try await probe.fetch()
         }
     }
