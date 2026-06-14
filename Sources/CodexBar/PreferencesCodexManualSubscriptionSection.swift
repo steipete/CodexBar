@@ -27,9 +27,10 @@ struct CodexManualSubscriptionSectionView: View {
 
         let now = Date()
         let source = snapshot
+        let prefersExpiry = source?.subscriptionExpiresAt != nil
         self._planName = State(initialValue: source?.planName ?? "")
         self._status = State(initialValue: source?.status ?? .active)
-        self._hasRenewsAt = State(initialValue: source?.subscriptionRenewsAt != nil)
+        self._hasRenewsAt = State(initialValue: source?.subscriptionRenewsAt != nil && !prefersExpiry)
         self._renewsAt = State(initialValue: source?.subscriptionRenewsAt ?? now)
         self._hasExpiresAt = State(initialValue: source?.subscriptionExpiresAt != nil)
         self._expiresAt = State(initialValue: source?.subscriptionExpiresAt ?? now)
@@ -62,26 +63,11 @@ struct CodexManualSubscriptionSectionView: View {
                     }
 
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(L("Status"))
-                            .font(.subheadline.weight(.semibold))
-                            .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
-                        Spacer(minLength: 0)
-                        Picker("", selection: self.$status) {
-                            ForEach(ProviderSubscriptionStatus.allCases, id: \.self) { value in
-                                Text(Self.statusTitle(value)).tag(value)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                    }
-
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Text(L("Renewal date"))
                             .font(.subheadline.weight(.semibold))
                             .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
                         Spacer(minLength: 0)
-                        Toggle("", isOn: self.$hasRenewsAt)
+                        Toggle("", isOn: self.renewalBinding)
                             .labelsHidden()
                             .toggleStyle(.switch)
                             .controlSize(.small)
@@ -99,6 +85,21 @@ struct CodexManualSubscriptionSectionView: View {
                                 .environment(\.locale, codexBarLocalizedLocale())
                                 .environment(\.calendar, Calendar(identifier: .gregorian))
                         }
+
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(L("Status"))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
+                            Spacer(minLength: 0)
+                            Picker("", selection: self.$status) {
+                                Text(Self.statusTitle(.active)).tag(ProviderSubscriptionStatus.active)
+                                Text(Self.statusTitle(.trialing)).tag(ProviderSubscriptionStatus.trialing)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
+                        }
                     }
 
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -106,7 +107,7 @@ struct CodexManualSubscriptionSectionView: View {
                             .font(.subheadline.weight(.semibold))
                             .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
                         Spacer(minLength: 0)
-                        Toggle("", isOn: self.$hasExpiresAt)
+                        Toggle("", isOn: self.expiryBinding)
                             .labelsHidden()
                             .toggleStyle(.switch)
                             .controlSize(.small)
@@ -183,6 +184,31 @@ struct CodexManualSubscriptionSectionView: View {
             return line
         }
         return L("Off")
+    }
+
+    private var renewalBinding: Binding<Bool> {
+        Binding(
+            get: { self.hasRenewsAt },
+            set: { isEnabled in
+                self.hasRenewsAt = isEnabled
+                if isEnabled {
+                    self.hasExpiresAt = false
+                    if self.status != .active && self.status != .trialing {
+                        self.status = .active
+                    }
+                }
+            })
+    }
+
+    private var expiryBinding: Binding<Bool> {
+        Binding(
+            get: { self.hasExpiresAt },
+            set: { isEnabled in
+                self.hasExpiresAt = isEnabled
+                if isEnabled {
+                    self.hasRenewsAt = false
+                }
+            })
     }
 
     private func saveSnapshot() {
