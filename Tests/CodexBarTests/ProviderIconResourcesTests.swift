@@ -70,6 +70,17 @@ struct ProviderIconResourcesTests {
         #expect(first.isTemplate)
     }
 
+    @Test
+    func `ollama provider icon uses template rendering`() throws {
+        ProviderBrandIcon.resetCacheForTesting()
+        defer { ProviderBrandIcon.resetCacheForTesting() }
+
+        let image = try #require(ProviderBrandIcon.image(for: .ollama))
+
+        #expect(image.size == NSSize(width: 16, height: 16))
+        #expect(image.isTemplate)
+    }
+
     private static func repoRoot() throws -> URL {
         var dir = URL(filePath: #filePath).deletingLastPathComponent()
         for _ in 0..<12 {
