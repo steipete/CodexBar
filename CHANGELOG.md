@@ -18,7 +18,7 @@
 - Command Code: keep showing available credits after the bounded optional subscription grace, including when the transport ignores cancellation (fixes #1131).
 - DeepSeek: keep balance refreshes responsive when optional usage-summary work ignores cancellation.
 - OpenRouter: keep credit refreshes responsive when optional key-quota enrichment ignores cancellation.
-- Provider probes: stop waiting indefinitely for inherited output pipes after subprocesses or CLI version checks exit.
+- Provider probes: stop waiting indefinitely for inherited output pipes after subprocesses or CLI version checks exit (fixes #1531).
 - Menu bar: update visible usage values in place when a manual refresh completes instead of leaving the open provider card stale until the menu is reopened (fixes #1516).
 - Gemini: recognize the current `gemini-api-key` CLI auth setting so API-key sessions show the supported OAuth guidance instead of a misleading not-logged-in error (fixes #1511).
 - Xiaomi MiMo: cancel optional token-plan requests when the required balance request fails instead of delaying the error for up to 30 seconds.
