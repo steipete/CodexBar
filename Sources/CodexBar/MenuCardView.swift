@@ -659,6 +659,7 @@ private struct CreditsBarContent: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(self.creditsText)
                         .font(.caption)
+                        .lineLimit(1)
                     Spacer()
                     Text(self.scaleText)
                         .font(.caption)

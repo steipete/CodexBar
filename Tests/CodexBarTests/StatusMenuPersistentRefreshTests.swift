@@ -346,6 +346,59 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `refresh monitor updates single line credit balances`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(
+            settings: settings,
+            account: AccountInfo(email: "test@example.com", plan: "pro"))
+        let now = Date()
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        controller.store.credits = CreditsSnapshot(remaining: 80, events: [], updatedAt: now)
+        let fallback = try #require(controller.menuCardModel(for: .codex))
+
+        controller.store.credits = CreditsSnapshot(
+            remaining: 42,
+            events: [],
+            updatedAt: now.addingTimeInterval(1))
+        let refreshed = controller.menuCardRefreshMonitor.model(for: .codex, fallback: fallback)
+
+        #expect(refreshed.creditsRemaining == 42)
+        #expect(refreshed.creditsText != fallback.creditsText)
+    }
+
+    @Test
+    func `refresh monitor preserves multiline workspace credit text`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        controller.store.snapshots[.amp] = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            ampUsage: AmpUsageDetails(
+                individualCredits: 12,
+                workspaceBalances: [AmpWorkspaceBalance(name: "Team", remaining: 7)]),
+            updatedAt: Date())
+        let fallback = try #require(controller.menuCardModel(for: .amp))
+
+        controller.store.snapshots[.amp] = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            ampUsage: AmpUsageDetails(
+                individualCredits: 10,
+                workspaceBalances: [AmpWorkspaceBalance(name: "Team", remaining: 3)]),
+            updatedAt: Date())
+        let refreshed = controller.menuCardRefreshMonitor.model(for: .amp, fallback: fallback)
+
+        #expect(refreshed.creditsText == fallback.creditsText)
+    }
+
+    @Test
     func `refresh monitor preserves tracked layout when refresh adds usage sections`() throws {
         let settings = self.makeSettings()
         let controller = self.makeController(settings: settings)

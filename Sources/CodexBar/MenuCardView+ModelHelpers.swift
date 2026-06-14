@@ -41,8 +41,11 @@ extension UsageMenuCardView.Model {
               self.metrics.count == candidate.metrics.count,
               self.usageNotes == candidate.usageNotes,
               (self.openAIAPIUsage == nil) == (candidate.openAIAPIUsage == nil),
-              self.creditsText == candidate.creditsText,
-              (self.creditsRemaining == nil) == (candidate.creditsRemaining == nil),
+              Self.hasCompatibleCreditsLayout(
+                  currentText: self.creditsText,
+                  currentRemaining: self.creditsRemaining,
+                  candidateText: candidate.creditsText,
+                  candidateRemaining: candidate.creditsRemaining),
               self.creditsHintText == candidate.creditsHintText,
               self.placeholder == candidate.placeholder,
               Self.hasCompatibleDashboardLayout(self.inlineUsageDashboard, candidate.inlineUsageDashboard),
@@ -62,6 +65,25 @@ extension UsageMenuCardView.Model {
                 (current.detailLeftText == nil) == (refreshed.detailLeftText == nil) &&
                 (current.detailRightText == nil) == (refreshed.detailRightText == nil) &&
                 current.cardStyle == refreshed.cardStyle
+        }
+    }
+
+    private static func hasCompatibleCreditsLayout(
+        currentText: String?,
+        currentRemaining: Double?,
+        candidateText: String?,
+        candidateRemaining: Double?) -> Bool
+    {
+        switch (currentText, candidateText) {
+        case (nil, nil):
+            return true
+        case let (currentText?, candidateText?):
+            guard (currentRemaining == nil) == (candidateRemaining == nil) else { return false }
+            // Numeric balances render as a fixed single line beside the full-scale label.
+            // Multiline workspace balances retain their measured text until the menu reopens.
+            return currentRemaining != nil || currentText == candidateText
+        default:
+            return false
         }
     }
 
