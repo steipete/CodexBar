@@ -232,6 +232,34 @@ struct ChutesProviderTests {
     }
 
     @Test
+    func `exact percent value of one stays one percent`() throws {
+        let usedData = Data(#"""
+        {
+          "rolling_window": {
+            "usage_percent": 1
+          }
+        }
+        """#.utf8)
+        let remainingData = Data(#"""
+        {
+          "rolling_window": {
+            "percent_remaining": 1
+          }
+        }
+        """#.utf8)
+
+        let usedSnapshot = try ChutesUsageParser.parse(
+            data: usedData,
+            now: Date(timeIntervalSince1970: 123))
+        let remainingSnapshot = try ChutesUsageParser.parse(
+            data: remainingData,
+            now: Date(timeIntervalSince1970: 123))
+
+        #expect(usedSnapshot.toUsageSnapshot().primary?.usedPercent == 1)
+        #expect(remainingSnapshot.toUsageSnapshot().primary?.usedPercent == 99)
+    }
+
+    @Test
     func `auth failure surfaces invalid credentials`() async {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)

@@ -686,7 +686,7 @@ enum ChutesUsageParser {
 
     private static func normalizedPercent(_ value: Double?) -> Double? {
         guard let value, value.isFinite else { return nil }
-        let percent = abs(value) <= 1 ? value * 100 : value
+        let percent = abs(value) < 1 ? value * 100 : value
         return max(0, min(percent, 100))
     }
 
