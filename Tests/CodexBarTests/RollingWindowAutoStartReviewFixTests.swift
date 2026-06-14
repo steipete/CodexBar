@@ -55,7 +55,7 @@ struct RollingWindowAutoStartReviewFixTests {
     }
 
     @Test
-    func `open A I web dashboard attach updates reset snapshot and schedules expired window`() async throws {
+    func `OpenAI web dashboard attach updates reset snapshot and schedules expired window`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartReviewFixTests-dashboard")
         settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
         settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "codex@example.com")
@@ -98,6 +98,46 @@ struct RollingWindowAutoStartReviewFixTests {
         #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == expired)
     }
 
+    @Test
+    func `OpenAI web dashboard attach does not overwrite codex cli snapshot`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartReviewFixTests-dashboard-cli")
+        settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "web@example.com")
+        defer { settings._test_liveSystemCodexAccount = nil }
+        let store = Self.makeUsageStore(settings: settings)
+
+        let now = Date()
+        let cliReset = now.addingTimeInterval(60 * 60)
+        let cliSnapshot = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 42,
+                windowMinutes: 300,
+                resetsAt: cliReset,
+                resetDescription: nil),
+            accountEmail: "cli@example.com",
+            provider: .codex,
+            updatedAt: now.addingTimeInterval(-60))
+        store.snapshots[.codex] = cliSnapshot
+        store.lastKnownResetSnapshots[.codex] = cliSnapshot
+        store.lastSourceLabels[.codex] = "codex-cli"
+
+        await store.applyOpenAIDashboard(
+            Self.openAIWebDashboard(
+                email: "web@example.com",
+                primaryLimit: RateWindow(
+                    usedPercent: 5,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: now),
+            targetEmail: "web@example.com")
+
+        #expect(store.openAIDashboard?.signedInEmail == "web@example.com")
+        #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "cli@example.com")
+        #expect(store.snapshots[.codex]?.primary?.usedPercent == 42)
+        #expect(store.lastKnownResetSnapshots[.codex]?.primary?.resetsAt == cliReset)
+        #expect(store.lastSourceLabels[.codex] == "codex-cli")
+    }
+
     private static func makeSettingsStore(suite: String) throws -> SettingsStore {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -131,6 +171,7 @@ struct RollingWindowAutoStartReviewFixTests {
         primary: RateWindow?,
         secondary: RateWindow? = nil,
         tertiary: RateWindow? = nil,
+        accountEmail: String? = nil,
         provider: UsageProvider,
         updatedAt: Date) -> UsageSnapshot
     {
@@ -141,7 +182,7 @@ struct RollingWindowAutoStartReviewFixTests {
             updatedAt: updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: provider,
-                accountEmail: nil,
+                accountEmail: accountEmail,
                 accountOrganization: nil,
                 loginMethod: nil))
     }

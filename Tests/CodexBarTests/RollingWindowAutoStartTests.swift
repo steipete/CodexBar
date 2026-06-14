@@ -52,7 +52,7 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
-    func `decision starts for codex open A I web snapshots routed through codex cli`() {
+    func `decision starts for codex OpenAI web snapshots routed through codex cli`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let expired = now.addingTimeInterval(-60)
         let previous = Self.snapshot(
@@ -397,7 +397,7 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
-    func `scheduler starts codex ping for open A I web snapshot with expired prior reset`() async throws {
+    func `scheduler starts codex ping for OpenAI web snapshot with expired prior reset`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-openai-web")
         settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
         settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "codex@example.com")
@@ -435,7 +435,7 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
-    func `scheduler skips codex open A I web snapshot when live cli account differs`() async throws {
+    func `scheduler skips codex OpenAI web snapshot when live cli account differs`() async throws {
         let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-openai-web-mismatch")
         settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
         settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "cli@example.com")
@@ -467,7 +467,6 @@ struct RollingWindowAutoStartTests {
             currentProviderData: current,
             now: now)
 
-        try await Task.sleep(for: .milliseconds(25))
         #expect(await runner.isEmpty)
         #expect(store.rollingWindowAutoStartStatus[.codex] ==
             "Skipped: usage account does not match prompt CLI account.")
@@ -506,10 +505,9 @@ struct RollingWindowAutoStartTests {
             currentProviderData: current,
             now: now)
 
-        try await Task.sleep(for: .milliseconds(25))
         #expect(await runner.isEmpty)
         #expect(store.rollingWindowAutoStartStatus[.claude] ==
-            "Skipped: usage account does not match prompt CLI account.")
+            "Skipped: usage account cannot be verified against prompt CLI account.")
     }
 
     @Test
@@ -685,7 +683,6 @@ struct RollingWindowAutoStartTests {
             tokenOverride: TokenAccountOverride(provider: .claude, account: account),
             now: now)
 
-        try await Task.sleep(for: .milliseconds(25))
         #expect(await runner.isEmpty)
         #expect(store.rollingWindowAutoStartStatus[.claude] ==
             "Skipped: selected account cannot be pinged through ambient CLI.")
@@ -723,7 +720,6 @@ struct RollingWindowAutoStartTests {
             currentProviderData: current,
             now: now)
 
-        try await Task.sleep(for: .milliseconds(25))
         #expect(await runner.isEmpty)
         #expect(store.rollingWindowAutoStartStatus[.codex] == nil)
     }

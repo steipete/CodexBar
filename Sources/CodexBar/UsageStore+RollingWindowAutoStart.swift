@@ -62,7 +62,7 @@ extension UsageStore {
         case let .blocked(reason):
             self.rollingWindowAutoStartStatus[provider] = reason.statusMessage
             self.providerLogger.warning(
-                "Rolling window auto-start skipped because usage account cannot be matched to prompt CLI account",
+                "\(reason.logMessage)",
                 metadata: metadata.merging(reason.metadata, uniquingKeysWith: { _, new in new }))
             return
         }
@@ -189,7 +189,7 @@ extension UsageStore {
             }
             return .allowed
         default:
-            return .allowed
+            return .blocked(.unsupportedProvider(provider.rawValue))
         }
     }
 
@@ -298,13 +298,31 @@ private enum RollingWindowAutoStartRouteCheck {
 private enum RollingWindowAutoStartRouteBlockReason {
     case selectedTokenAccount
     case unverifiedPromptAccount(snapshotAccount: String, routedAccount: String, sourceKind: String)
+    case unsupportedProvider(String)
 
     var statusMessage: String {
         switch self {
         case .selectedTokenAccount:
             "Skipped: selected account cannot be pinged through ambient CLI."
-        case .unverifiedPromptAccount:
+        case let .unverifiedPromptAccount(_, _, sourceKind) where sourceKind == "openai-web":
             "Skipped: usage account does not match prompt CLI account."
+        case .unverifiedPromptAccount:
+            "Skipped: usage account cannot be verified against prompt CLI account."
+        case .unsupportedProvider:
+            "Skipped: provider cannot be routed through ambient CLI."
+        }
+    }
+
+    var logMessage: String {
+        switch self {
+        case .selectedTokenAccount:
+            "Rolling window auto-start skipped because selected account cannot be routed through ambient CLI"
+        case let .unverifiedPromptAccount(_, _, sourceKind) where sourceKind == "openai-web":
+            "Rolling window auto-start skipped because usage account does not match prompt CLI account"
+        case .unverifiedPromptAccount:
+            "Rolling window auto-start skipped because usage account cannot be verified against prompt CLI account"
+        case .unsupportedProvider:
+            "Rolling window auto-start skipped because provider cannot be routed through ambient CLI"
         }
     }
 
@@ -318,6 +336,11 @@ private enum RollingWindowAutoStartRouteBlockReason {
                 "snapshotAccount": snapshotAccount,
                 "routedAccount": routedAccount,
                 "sourceKind": sourceKind,
+            ]
+        case let .unsupportedProvider(provider):
+            [
+                "skipReason": "unsupported-provider",
+                "unsupportedProvider": provider,
             ]
         }
     }

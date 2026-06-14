@@ -3,6 +3,8 @@ import Foundation
 import SwiftUI
 
 enum RollingWindowAutoStartSupport {
+    static let sessionWindowMinutes = 5 * 60
+
     static let providers: Set<UsageProvider> = [
         .codex,
         .claude,
@@ -47,7 +49,7 @@ enum RollingWindowAutoStartSupport {
         case .claude:
             return [snapshot.primary, snapshot.secondary, snapshot.tertiary]
                 .compactMap(\.self)
-                .first { $0.windowMinutes == 5 * 60 }
+                .first { $0.windowMinutes == self.sessionWindowMinutes }
         default:
             return snapshot.primary
         }
@@ -71,6 +73,8 @@ enum RollingWindowAutoStartSupport {
         case .codex:
             return self.sourceSupportsAutoStart(provider: provider, sourceLabel: sourceLabel)
         case .claude:
+            // Claude web/OAuth snapshots can report the session window, but only
+            // Claude CLI credentials can be routed for auto-start prompts.
             return normalized == "claude" || normalized == "web" || normalized == "oauth"
         default:
             return false
@@ -88,7 +92,9 @@ enum RollingWindowAutoStartSupport {
         return windows
             .compactMap(\.self)
             .contains { window in
-                guard window.windowMinutes != 5 * 60 else { return false }
+                // Only exhausted non-session quotas block auto-start. Claude's
+                // model-specific tertiary window is intentionally ignored.
+                guard window.windowMinutes != Self.sessionWindowMinutes else { return false }
                 return window.usedPercent >= 100
             }
     }
