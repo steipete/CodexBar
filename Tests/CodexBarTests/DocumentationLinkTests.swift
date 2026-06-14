@@ -47,7 +47,6 @@ struct DocumentationLinkTests {
         [title](docs/title.md "Title")
         [angle](<docs/with space.md>)
         [reference][guide]
-
         [guide]: docs/reference.md?view=1#top
         `[code](docs/not-a-link.md)`
         ![image](docs/image.png)
@@ -307,7 +306,7 @@ struct DocumentationLinkTests {
     }
 
     private static func markdownTextOutsideCode(in markdown: String) -> String {
-        Self.markdownTextOutsideFencedCode(in: markdown)
+        self.markdownTextOutsideFencedCode(in: markdown)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { Self.removingInlineCode(from: String($0)) }
             .joined(separator: "\n")
