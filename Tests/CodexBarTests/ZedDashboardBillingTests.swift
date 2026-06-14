@@ -202,4 +202,36 @@ struct ZedDashboardBillingTests {
                 transport: transport)
         }
     }
+
+    @Test
+    func `billing fetch preserves transport cancellation`() async {
+        let transport = ProviderHTTPTransportStub { _ in
+            throw CancellationError()
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await ZedDashboardBillingFetcher.fetch(
+                browserDetection: BrowserDetection(),
+                cookieSource: .manual,
+                manualCookieHeader: "zed.session=redacted",
+                transport: transport)
+        }
+    }
+
+    @Test
+    func `billing fetch classifies transport failures as network errors`() async {
+        let transport = ProviderHTTPTransportStub { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+
+        await #expect(throws: ZedDashboardBillingError.networkError(
+            URLError(.notConnectedToInternet).localizedDescription))
+        {
+            _ = try await ZedDashboardBillingFetcher.fetch(
+                browserDetection: BrowserDetection(),
+                cookieSource: .manual,
+                manualCookieHeader: "zed.session=redacted",
+                transport: transport)
+        }
+    }
 }

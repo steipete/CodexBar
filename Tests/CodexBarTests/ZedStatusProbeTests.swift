@@ -211,4 +211,19 @@ struct ZedStatusProbeTests {
             _ = try await probe.fetch()
         }
     }
+
+    @Test
+    func `fetch preserves transport cancellation`() async {
+        let probe = ZedStatusProbe(
+            credentialsReader: StubCredentialsReader(
+                credentials: ZedCredentials(userID: "1", accessToken: "cancelled")),
+            transport: ProviderHTTPTransportStub { _ in
+                throw URLError(.cancelled)
+            },
+            settingsLoader: { nil })
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await probe.fetch()
+        }
+    }
 }

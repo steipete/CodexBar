@@ -330,6 +330,10 @@ public struct ZedStatusProbe: Sendable {
         let httpResponse: ProviderHTTPResponse
         do {
             httpResponse = try await self.transport.response(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             Self.logger.debug("Zed cloud API transport failed: \(error.localizedDescription)")
             throw ZedStatusProbeError.networkError(error.localizedDescription)

@@ -27,6 +27,7 @@ public enum ZedDashboardBillingError: LocalizedError, Sendable, Equatable {
     case invalidManualCookie
     case missingSessionCookie
     case unauthorized
+    case networkError(String)
     case requestFailed(Int)
     case parseFailed(String)
 
@@ -46,6 +47,8 @@ public enum ZedDashboardBillingError: LocalizedError, Sendable, Equatable {
             """
         case .unauthorized:
             "Zed dashboard session is invalid or expired. Sign in to dashboard.zed.dev again."
+        case let .networkError(message):
+            "Zed dashboard billing request failed: \(message)"
         case let .requestFailed(status):
             "Zed dashboard billing request failed with HTTP \(status)."
         case let .parseFailed(message):
@@ -151,10 +154,14 @@ public enum ZedDashboardBillingFetcher {
         let response: ProviderHTTPResponse
         do {
             response = try await transport.response(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             Self.logger.debug("Zed dashboard billing transport failed: \(error.localizedDescription)")
             logger?("[zed-dashboard] Transport failed: \(error.localizedDescription)")
-            throw ZedDashboardBillingError.parseFailed(error.localizedDescription)
+            throw ZedDashboardBillingError.networkError(error.localizedDescription)
         }
 
         switch response.statusCode {

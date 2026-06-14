@@ -55,7 +55,7 @@ struct ZedLocalFetchStrategy: ProviderFetchStrategy {
         let probe = ZedStatusProbe()
         let snapshot = try await probe.fetch()
         let cookieSource = context.settings?.zed?.cookieSource ?? .off
-        let billing = await self.fetchBilling(context: context)
+        let billing = try await self.fetchBilling(context: context)
         let usage = snapshot.toUsageSnapshot(
             tokenBilling: billing.snapshot,
             dashboardCookieSource: cookieSource,
@@ -79,7 +79,7 @@ struct ZedLocalFetchStrategy: ProviderFetchStrategy {
         let errorMessage: String?
     }
 
-    private func fetchBilling(context: ProviderFetchContext) async -> BillingFetchOutcome {
+    private func fetchBilling(context: ProviderFetchContext) async throws -> BillingFetchOutcome {
         let settings = context.settings?.zed
         let cookieSource = settings?.cookieSource ?? .off
         guard cookieSource != .off else {
@@ -94,6 +94,10 @@ struct ZedLocalFetchStrategy: ProviderFetchStrategy {
                 timeout: context.webTimeout,
                 logger: context.verbose ? { print($0) } : nil)
             return BillingFetchOutcome(snapshot: snapshot, errorMessage: nil)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             if context.verbose {
