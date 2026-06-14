@@ -111,8 +111,15 @@ def main() -> int:
         print("::endgroup::", flush=True)
         if result == 0:
             continue
-        if result != 124 or len(group) == 1:
+        if len(group) == 1:
             return result
+
+        if result != 124:
+            print(f"Shard {group_index} failed with exit code {result}; retrying shard once", flush=True)
+            retry_result = run_group(group, args.timeout)
+            if retry_result == 0:
+                continue
+            return retry_result
 
         print(f"Shard {group_index} timed out; retrying suites one at a time", flush=True)
         for suite in group:
