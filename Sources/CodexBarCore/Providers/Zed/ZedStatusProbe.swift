@@ -127,6 +127,7 @@ public enum ZedStatusProbeError: LocalizedError, Sendable, Equatable {
     case notSupported
     case notSignedIn
     case keychainUnavailable
+    case invalidServerURL(String)
     case networkError(String)
     case httpError(Int)
     case unauthorized
@@ -140,6 +141,8 @@ public enum ZedStatusProbeError: LocalizedError, Sendable, Equatable {
             "Not signed in to Zed. Sign in from the Zed editor app (GitHub), not just the browser dashboard."
         case .keychainUnavailable:
             "Could not read Zed credentials from the Keychain. Grant CodexBar Keychain access or sign in to Zed again."
+        case let .invalidServerURL(value):
+            "Zed server URL is invalid: \(value)"
         case let .networkError(message):
             "Zed cloud API request failed: \(message)"
         case let .httpError(status):
@@ -173,6 +176,31 @@ public struct ZedClientSettings: Sendable, Equatable {
             return trimmedServer
         }
         return ZedStatusProbe.defaultKeychainServiceURL
+    }
+
+    public var cloudAPIURL: URL? {
+        let trimmedServer = self.serverURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let server = if let trimmedServer, !trimmedServer.isEmpty {
+            trimmedServer
+        } else {
+            ZedStatusProbe.defaultKeychainServiceURL
+        }
+        let cloudBase = switch server {
+        case "https://zed.dev", "https://staging.zed.dev":
+            "https://cloud.zed.dev"
+        case "http://localhost:3000":
+            "http://localhost:8787"
+        default:
+            server
+        }
+        guard let baseURL = URL(string: cloudBase),
+              let scheme = baseURL.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              baseURL.host != nil
+        else {
+            return nil
+        }
+        return baseURL.appendingPathComponent("client/users/me")
     }
 
     public static func load(from url: URL = ZedStatusProbe.defaultSettingsURL) -> ZedClientSettings? {
@@ -313,16 +341,32 @@ public struct ZedStatusProbe: Sendable {
     public func fetch() async throws -> ZedUsageSnapshot {
         let settings = self.settingsLoader()
         let serviceURL = settings?.keychainServiceURL ?? Self.defaultKeychainServiceURL
+        let cloudAPIURL: URL
+        if let settings {
+            guard let configuredURL = settings.cloudAPIURL else {
+                throw ZedStatusProbeError.invalidServerURL(settings.serverURL ?? "")
+            }
+            cloudAPIURL = configuredURL
+        } else {
+            cloudAPIURL = Self.cloudAPIURL
+        }
         guard let credentials = try self.credentialsReader.loadCredentials(serviceURL: serviceURL) else {
             throw ZedStatusProbeError.notSignedIn
         }
 
-        let response = try await self.fetchAuthenticatedUser(credentials: credentials)
+        let response = try await self.fetchAuthenticatedUser(credentials: credentials, apiURL: cloudAPIURL)
         return ZedUsageSnapshot(response: response)
     }
 
     public func fetchAuthenticatedUser(credentials: ZedCredentials) async throws -> ZedAuthenticatedUserResponse {
-        var request = URLRequest(url: Self.cloudAPIURL)
+        try await self.fetchAuthenticatedUser(credentials: credentials, apiURL: Self.cloudAPIURL)
+    }
+
+    private func fetchAuthenticatedUser(
+        credentials: ZedCredentials,
+        apiURL: URL) async throws -> ZedAuthenticatedUserResponse
+    {
+        var request = URLRequest(url: apiURL)
         request.httpMethod = "GET"
         request.setValue(credentials.authorizationHeader, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")

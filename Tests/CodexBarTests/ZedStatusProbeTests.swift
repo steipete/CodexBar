@@ -156,6 +156,22 @@ struct ZedStatusProbeTests {
     }
 
     @Test
+    func `maps server url independently from keychain identifier`() {
+        let production = ZedClientSettings(credentialsURL: "zed-preview-key", serverURL: "https://zed.dev")
+        let staging = ZedClientSettings(credentialsURL: nil, serverURL: "https://staging.zed.dev")
+        let localhost = ZedClientSettings(credentialsURL: nil, serverURL: "http://localhost:3000")
+        let custom = ZedClientSettings(credentialsURL: nil, serverURL: "https://zed.example.com")
+        let invalid = ZedClientSettings(credentialsURL: nil, serverURL: "file:///tmp/zed")
+
+        #expect(production.keychainServiceURL == "zed-preview-key")
+        #expect(production.cloudAPIURL?.absoluteString == "https://cloud.zed.dev/client/users/me")
+        #expect(staging.cloudAPIURL?.absoluteString == "https://cloud.zed.dev/client/users/me")
+        #expect(localhost.cloudAPIURL?.absoluteString == "http://localhost:8787/client/users/me")
+        #expect(custom.cloudAPIURL?.absoluteString == "https://zed.example.com/client/users/me")
+        #expect(invalid.cloudAPIURL == nil)
+    }
+
+    @Test
     func `display plan names normalize zed enums`() {
         #expect(ZedUsageSnapshot.displayPlanName("zed_pro") == "Zed Pro")
         #expect(ZedUsageSnapshot.displayPlanName("zed_pro_trial") == "Zed Pro Trial")
@@ -180,6 +196,46 @@ struct ZedStatusProbeTests {
 
         let snapshot = try await probe.fetch()
         #expect(snapshot.response.plan.planV3 == "zed_pro")
+    }
+
+    @Test
+    func `fetch sends credentials only to configured server`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.url?.absoluteString == "https://zed.example.com/client/users/me")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "4242 custom-token")
+            return Self.httpResponse(
+                data: Self.fixture(plan: "zed_pro", used: 0, limit: "\"unlimited\""),
+                statusCode: 200)
+        }
+        let probe = ZedStatusProbe(
+            credentialsReader: StubCredentialsReader(
+                credentials: ZedCredentials(userID: "4242", accessToken: "custom-token")),
+            transport: transport,
+            settingsLoader: {
+                ZedClientSettings(
+                    credentialsURL: "custom-keychain-id",
+                    serverURL: "https://zed.example.com")
+            })
+
+        _ = try await probe.fetch()
+    }
+
+    @Test
+    func `fetch rejects invalid server before reading credentials`() async {
+        let probe = ZedStatusProbe(
+            credentialsReader: StubCredentialsReader(
+                credentials: ZedCredentials(userID: "4242", accessToken: "must-not-send")),
+            transport: ProviderHTTPTransportStub { _ in
+                Issue.record("Should not send credentials to an invalid server URL")
+                return Self.httpResponse(data: Data(), statusCode: 500)
+            },
+            settingsLoader: {
+                ZedClientSettings(credentialsURL: "custom-keychain-id", serverURL: "file:///tmp/zed")
+            })
+
+        await #expect(throws: ZedStatusProbeError.invalidServerURL("file:///tmp/zed")) {
+            _ = try await probe.fetch()
+        }
     }
 
     @Test
