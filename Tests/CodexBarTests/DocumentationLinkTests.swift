@@ -308,7 +308,7 @@ struct DocumentationLinkTests {
     private static func markdownTextOutsideCode(in markdown: String) -> String {
         self.markdownTextOutsideFencedCode(in: markdown)
             .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { Self.removingInlineCode(from: String($0)) }
+            .map { self.removingInlineCode(from: String($0)) }
             .joined(separator: "\n")
     }
 
