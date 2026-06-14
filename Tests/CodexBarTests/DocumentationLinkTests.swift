@@ -4,19 +4,21 @@ import Testing
 struct DocumentationLinkTests {
     private enum DocumentationLinkError: Error, Equatable {
         case invalidURL(String)
+        case missingAnchor(String)
+        case missingTarget(String)
         case outsideDocumentationRoot(String)
     }
 
     @Test
-    func `readme local documentation links resolve`() throws {
+    func `readme local documentation destinations resolve`() throws {
         let root = try Self.repoRoot()
         let readme = try String(contentsOf: root.appending(path: "README.md"), encoding: .utf8)
-        let links = try Self.markdownLinks(in: readme)
+        let links = try (Self.markdownLinks(in: readme) + Self.markdownImageLinks(in: readme))
             .filter(Self.isRepositoryDocReference)
 
         #expect(!links.isEmpty)
         for link in links {
-            try Self.expectLocalDocLink(link, existsUnder: root)
+            try Self.validateLocalDocLink(link, existsUnder: root)
         }
     }
 
@@ -30,7 +32,7 @@ struct DocumentationLinkTests {
 
         #expect(!links.isEmpty)
         for link in links {
-            try Self.expectLocalDocLink(link, existsUnder: root)
+            try Self.validateLocalDocLink(link, existsUnder: root)
         }
     }
 
@@ -63,6 +65,23 @@ struct DocumentationLinkTests {
     }
 
     @Test
+    func `markdown images support standard inline destination syntax`() {
+        let markdown = """
+        ![simple](docs/simple.png)
+        ![query](docs/query.png?raw=1#preview)
+        ![title](docs/title.png "Title")
+        ![angle](<docs/with space.png>)
+        """
+
+        #expect(Self.markdownImageLinks(in: markdown) == [
+            "docs/simple.png",
+            "docs/query.png?raw=1#preview",
+            "docs/title.png",
+            "docs/with space.png",
+        ])
+    }
+
+    @Test
     func `local documentation paths normalize safely`() throws {
         let root = URL(filePath: "/tmp/CodexBar-documentation-links", directoryHint: .isDirectory)
 
@@ -76,6 +95,29 @@ struct DocumentationLinkTests {
         }
         #expect(!Self.isRepositoryDocReference("#section"))
         #expect(!Self.isRepositoryDocReference("https://example.com/docs/remote.md"))
+    }
+
+    @Test
+    func `markdown fragments resolve to rendered heading anchors`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "DocumentationLinkTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let docs = root.appending(path: "docs", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let guide = docs.appending(path: "guide.md")
+        try """
+        # Guide
+        ## T3 Chat
+        ## Repeated
+        ## Repeated
+        """.write(to: guide, atomically: true, encoding: .utf8)
+
+        try Self.validateLocalDocLink("docs/guide.md#t3-chat", existsUnder: root)
+        try Self.validateLocalDocLink("docs/guide.md#repeated-1", existsUnder: root)
+        #expect(throws: DocumentationLinkError.missingAnchor("docs/guide.md#renamed")) {
+            try Self.validateLocalDocLink("docs/guide.md#renamed", existsUnder: root)
+        }
     }
 
     @Test
@@ -98,6 +140,22 @@ struct DocumentationLinkTests {
         return markdown.runs.compactMap { $0.link?.relativeString }
     }
 
+    private static func markdownImageLinks(in text: String) -> [String] {
+        let pattern =
+            #"\!\[(?:\\.|[^\]\\])*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))"# +
+            #"(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range).compactMap { match in
+            for index in 1...2 {
+                if let linkRange = Range(match.range(at: index), in: text) {
+                    return String(text[linkRange])
+                }
+            }
+            return nil
+        }
+    }
+
     private static func inlineCodeDocLinks(in text: String) -> [String] {
         text.split(separator: "\n").compactMap { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -109,11 +167,22 @@ struct DocumentationLinkTests {
         }
     }
 
-    private static func expectLocalDocLink(_ rawLink: String, existsUnder root: URL) throws {
+    private static func validateLocalDocLink(_ rawLink: String, existsUnder root: URL) throws {
         let url = try Self.localDocURL(for: rawLink, repositoryRoot: root)
-        #expect(
-            FileManager.default.fileExists(atPath: url.path(percentEncoded: false)),
-            "Missing local documentation target: \(rawLink)")
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+            throw DocumentationLinkError.missingTarget(rawLink)
+        }
+
+        guard url.pathExtension.lowercased() == "md",
+              let fragment = URLComponents(string: rawLink)?.fragment,
+              !fragment.isEmpty
+        else {
+            return
+        }
+        let markdown = try String(contentsOf: url, encoding: .utf8)
+        guard Self.markdownHeadingAnchors(in: markdown).contains(fragment) else {
+            throw DocumentationLinkError.missingAnchor(rawLink)
+        }
     }
 
     private static func isRepositoryDocReference(_ rawLink: String) -> Bool {
@@ -145,6 +214,39 @@ struct DocumentationLinkTests {
             throw DocumentationLinkError.outsideDocumentationRoot(components.path)
         }
         return target
+    }
+
+    private static func markdownHeadingAnchors(in markdown: String) -> Set<String> {
+        var occurrences: [String: Int] = [:]
+        var anchors: Set<String> = []
+        for line in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
+            let markerCount = trimmed.prefix(while: { $0 == "#" }).count
+            guard (1...6).contains(markerCount),
+                  trimmed.dropFirst(markerCount).first?.isWhitespace == true
+            else {
+                continue
+            }
+            let heading = trimmed.dropFirst(markerCount).trimmingCharacters(in: .whitespaces)
+            guard let base = Self.markdownHeadingSlug(heading), !base.isEmpty else { continue }
+            let occurrence = occurrences[base, default: 0]
+            anchors.insert(occurrence == 0 ? base : "\(base)-\(occurrence)")
+            occurrences[base] = occurrence + 1
+        }
+        return anchors
+    }
+
+    private static func markdownHeadingSlug(_ heading: String) -> String? {
+        guard let rendered = try? AttributedString(markdown: heading) else { return nil }
+        var slug = ""
+        for scalar in String(rendered.characters).lowercased().unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) || scalar == "-" || scalar == "_" {
+                slug.unicodeScalars.append(scalar)
+            } else if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+                slug.append("-")
+            }
+        }
+        return slug
     }
 
     private static func repoRoot() throws -> URL {
