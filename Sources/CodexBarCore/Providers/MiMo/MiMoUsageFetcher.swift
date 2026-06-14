@@ -62,7 +62,8 @@ public enum MiMoUsageFetcher {
     public static func fetchUsage(
         cookieHeader: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        now: Date = Date()) async throws -> MiMoUsageSnapshot
+        now: Date = Date(),
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MiMoUsageSnapshot
     {
         guard let normalizedCookie = MiMoCookieHeader.normalizedHeader(from: cookieHeader) else {
             throw MiMoSettingsError.invalidCookie
@@ -74,21 +75,79 @@ public enum MiMoUsageFetcher {
         let tokenUsageURL = MiMoSettingsReader.apiURL(environment: environment)
             .appendingPathComponent("tokenPlan/usage")
 
-        async let balanceData = self.fetchAuthenticated(url: balanceURL, cookie: normalizedCookie)
-        let tokenDetailData: Data? = try? await self.fetchAuthenticated(url: tokenDetailURL, cookie: normalizedCookie)
-        let tokenUsageData: Data? = try? await self.fetchAuthenticated(url: tokenUsageURL, cookie: normalizedCookie)
+        let payloads = try await self.fetchPayloads(
+            balanceURL: balanceURL,
+            tokenDetailURL: tokenDetailURL,
+            tokenUsageURL: tokenUsageURL,
+            cookie: normalizedCookie,
+            transport: transport)
 
-        return try await self.parseCombinedSnapshot(
-            balanceData: balanceData,
-            tokenDetailData: tokenDetailData,
-            tokenUsageData: tokenUsageData,
+        return try self.parseCombinedSnapshot(
+            balanceData: payloads.balance,
+            tokenDetailData: payloads.tokenDetail,
+            tokenUsageData: payloads.tokenUsage,
             now: now)
+    }
+
+    private enum FetchPart {
+        case balance(Data)
+        case tokenDetail(Data?)
+        case tokenUsage(Data?)
+    }
+
+    private static func fetchPayloads(
+        balanceURL: URL,
+        tokenDetailURL: URL,
+        tokenUsageURL: URL,
+        cookie: String,
+        transport: any ProviderHTTPTransport) async throws -> (balance: Data, tokenDetail: Data?, tokenUsage: Data?)
+    {
+        try await withThrowingTaskGroup(of: FetchPart.self) { group in
+            group.addTask {
+                try await .balance(self.fetchAuthenticated(
+                    url: balanceURL,
+                    cookie: cookie,
+                    transport: transport))
+            }
+            group.addTask {
+                await .tokenDetail(try? self.fetchAuthenticated(
+                    url: tokenDetailURL,
+                    cookie: cookie,
+                    transport: transport))
+            }
+            group.addTask {
+                await .tokenUsage(try? self.fetchAuthenticated(
+                    url: tokenUsageURL,
+                    cookie: cookie,
+                    transport: transport))
+            }
+
+            var balance: Data?
+            var tokenDetail: Data?
+            var tokenUsage: Data?
+
+            while let part = try await group.next() {
+                switch part {
+                case let .balance(data):
+                    balance = data
+                case let .tokenDetail(data):
+                    tokenDetail = data
+                case let .tokenUsage(data):
+                    tokenUsage = data
+                }
+            }
+
+            guard let balance else {
+                throw MiMoUsageError.networkError("Balance request did not complete")
+            }
+            return (balance, tokenDetail, tokenUsage)
+        }
     }
 
     private static func fetchAuthenticated(
         url: URL,
         cookie: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> Data
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -104,7 +163,7 @@ public enum MiMoUsageFetcher {
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
             forHTTPHeaderField: "User-Agent")
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
 
         switch response.statusCode {
         case 200:

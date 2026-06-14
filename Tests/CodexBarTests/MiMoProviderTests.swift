@@ -530,6 +530,58 @@ struct MiMoProviderTests {
         #expect(snapshot.currency == "USD")
         #expect(requestedPaths.contains("/api/v1/balance"))
     }
+
+    @Test
+    func `required balance failure cancels optional mimo requests promptly`() async throws {
+        let optionalStarted = MiMoOptionalRequestGate()
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/balance") {
+                await optionalStarted.wait()
+                throw URLError(.userAuthenticationRequired)
+            }
+
+            await optionalStarted.open()
+            try await Task.sleep(for: .seconds(5))
+            let (response, data) = try Self.makeResponse(url: #require(request.url), body: "{}")
+            return (data, response)
+        }
+
+        let startedAt = ContinuousClock.now
+        do {
+            _ = try await MiMoUsageFetcher.fetchUsage(
+                cookieHeader: "userId=123; api-platform_serviceToken=svc-token",
+                environment: ["MIMO_API_URL": "https://mimo.test/api/v1"],
+                session: transport)
+            Issue.record("Expected required balance request to fail")
+        } catch let error as URLError {
+            #expect(error.code == .userAuthenticationRequired)
+        }
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(elapsed < .seconds(1), "Required failure was delayed by optional requests: \(elapsed)")
+    }
+}
+
+private actor MiMoOptionalRequestGate {
+    private var isOpen = false
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !self.isOpen else { return }
+        await withCheckedContinuation { continuation in
+            self.continuations.append(continuation)
+        }
+    }
+
+    func open() {
+        self.isOpen = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
 }
 
 extension MiMoProviderTests {
