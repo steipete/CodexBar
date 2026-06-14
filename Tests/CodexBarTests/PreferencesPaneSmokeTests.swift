@@ -53,6 +53,16 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
+    func `cost history days editor builds with clamped settings binding`() {
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-cost-history-days")
+
+        settings.costUsageHistoryDays = 999
+        #expect(settings.costUsageHistoryDays == 365)
+
+        _ = CostHistoryDaysEditor(settings: settings).body
+    }
+
+    @Test
     func `language preference updates global localization resolver`() {
         let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
         let previousAppleLanguages = UserDefaults.standard.object(forKey: "AppleLanguages")
