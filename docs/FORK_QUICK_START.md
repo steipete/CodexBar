@@ -41,7 +41,7 @@ read_when:
 swift build
 
 # Run tests
-swift test
+make test
 
 # Format code
 swiftformat Sources Tests
@@ -128,13 +128,13 @@ git push origin feature/my-feature
 ### Testing Changes
 ```bash
 # Run all tests
-swift test
+make test
 
 # Run specific test
 swift test --filter AugmentTests
 
 # Build and test together
-./Scripts/compile_and_run.sh
+./Scripts/compile_and_run.sh --test
 ```
 
 ### Updating Documentation

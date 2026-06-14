@@ -43,7 +43,7 @@ jobs:
       - name: Swift Test
         timeout-minutes: 60
         run: |
-          python3 Scripts/ci_swift_test_by_suite.py --group-size 1 --timeout 120
+          CODEXBAR_TEST_GROUP_SIZE=1 CODEXBAR_TEST_SUITE_TIMEOUT=120 ./Scripts/test.sh
 
   build-linux-cli:
     timeout-minutes: 20

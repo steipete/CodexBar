@@ -200,7 +200,7 @@ open CodexBar.app
 Dev loop:
 ```bash
 ./Scripts/compile_and_run.sh
-./Scripts/compile_and_run.sh --test  # also run swift test before packaging/relaunching
+./Scripts/compile_and_run.sh --test  # also run the sharded test suite before packaging/relaunching
 make check                           # SwiftFormat + SwiftLint
 make docs-list                       # list docs with frontmatter summaries
 ```

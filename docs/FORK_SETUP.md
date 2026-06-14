@@ -255,7 +255,7 @@ git cherry-pick <your-commit-hash>
 git diff upstream/main
 
 # 4. Test
-swift test
+make test
 
 # 5. Push to your fork
 git push origin upstream-pr/fix-cursor-bonus

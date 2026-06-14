@@ -31,7 +31,7 @@ build:
 	swift build
 
 test:
-	swift test
+	./Scripts/test.sh
 
 test-tty:
 	swift test --filter TTYIntegrationTests

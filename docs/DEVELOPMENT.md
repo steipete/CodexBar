@@ -16,7 +16,7 @@ read_when:
 # Full build, package, and launch (recommended)
 ./Scripts/compile_and_run.sh
 
-# Also run swift test before packaging/relaunching
+# Also run the sharded test suite before packaging/relaunching
 ./Scripts/compile_and_run.sh --test
 
 # Just build and package (no tests)
@@ -114,7 +114,7 @@ CodexBar/
 
 ### Run Tests Only
 ```bash
-swift test
+make test
 ```
 
 ### Format Code

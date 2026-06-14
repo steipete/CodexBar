@@ -99,7 +99,7 @@ The build script creates `CodexBar.app` in the project root. Old numbered builds
 This script:
 1. Kills existing CodexBar instances
 2. Runs `swift build` (release mode)
-3. Runs `swift test` (all tests)
+3. Runs the sharded full test suite when `--test` is passed
 4. Packages the app with `./Scripts/package_app.sh`
 5. Launches `CodexBar.app`
 6. Verifies it stays running
@@ -126,7 +126,7 @@ swift build -c release
 ### Run Tests Only
 
 ```bash
-swift test
+make test
 ```
 
 ### Debug Build
