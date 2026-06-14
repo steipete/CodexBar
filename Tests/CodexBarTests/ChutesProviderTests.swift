@@ -204,6 +204,34 @@ struct ChutesProviderTests {
     }
 
     @Test
+    func `identical usage values keep distinct quota windows`() throws {
+        let data = Data(#"""
+        {
+          "quotas": [
+            {
+              "used": 0,
+              "limit": 100,
+              "window_minutes": 240
+            },
+            {
+              "used": 0,
+              "limit": 100,
+              "window_minutes": 43200
+            }
+          ]
+        }
+        """#.utf8)
+
+        let snapshot = try ChutesUsageParser.parse(data: data, now: Date(timeIntervalSince1970: 123))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.windowMinutes == 240)
+        #expect(usage.secondary?.usedPercent == 0)
+        #expect(usage.secondary?.windowMinutes == 43200)
+    }
+
+    @Test
     func `auth failure surfaces invalid credentials`() async {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)

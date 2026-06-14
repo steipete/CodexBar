@@ -555,15 +555,13 @@ enum ChutesUsageParser {
     }
 
     private static func deduplicated(_ objects: [[String: Any]]) -> [[String: Any]] {
-        var seen: Set<String> = []
+        var seen: Set<Data> = []
         var unique: [[String: Any]] = []
         for object in objects {
-            let usedPart = self.firstDouble(in: object, keys: self.usedKeys).map { "\($0)" } ?? ""
-            let limitPart = self.firstDouble(in: object, keys: self.limitKeys).map { "\($0)" } ?? ""
-            let key = object.keys.sorted().joined(separator: "|") + "|" +
-                (self.firstString(in: object, keys: self.labelKeys) ?? "") + "|" +
-                usedPart + "|" +
-                limitPart
+            guard let key = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else {
+                unique.append(object)
+                continue
+            }
             guard seen.insert(key).inserted else { continue }
             unique.append(object)
         }
