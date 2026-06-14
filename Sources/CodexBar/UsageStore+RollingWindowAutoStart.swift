@@ -124,8 +124,9 @@ extension UsageStore {
                 let refreshedWindow = self.snapshots[provider].flatMap {
                     RollingWindowAutoStartSupport.rollingWindow(provider: provider, snapshot: $0)
                 }
+                let verificationNow = Date()
                 let verified = refreshedWindow.map {
-                    RollingWindowAutoStartSupport.isActiveRollingWindow($0, now: now)
+                    RollingWindowAutoStartSupport.isActiveRollingWindow($0, now: verificationNow)
                 } ?? false
                 if verified {
                     self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: route)
@@ -134,6 +135,7 @@ extension UsageStore {
                     self.providerLogger.info(
                         "Rolling window auto-start verified new rolling window",
                         metadata: metadata.merging([
+                            "verifiedAt": Self.rollingWindowAutoStartTimestamp(verificationNow),
                             "verifiedResetAt": Self.rollingWindowAutoStartTimestamp(refreshedWindow?.resetsAt),
                             "verifiedResetDescription": Self.rollingWindowAutoStartResetDescription(refreshedWindow),
                         ], uniquingKeysWith: { _, new in new }))
@@ -141,6 +143,7 @@ extension UsageStore {
                     self.providerLogger.warning(
                         "Rolling window auto-start could not verify new rolling window",
                         metadata: metadata.merging([
+                            "verifiedAt": Self.rollingWindowAutoStartTimestamp(verificationNow),
                             "verifiedResetAt": Self.rollingWindowAutoStartTimestamp(refreshedWindow?.resetsAt),
                             "verifiedResetDescription": Self.rollingWindowAutoStartResetDescription(refreshedWindow),
                         ], uniquingKeysWith: { _, new in new }))

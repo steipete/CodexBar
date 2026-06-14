@@ -306,6 +306,54 @@ struct RollingWindowAutoStartReviewFixTests {
     }
 
     @Test
+    func `scheduler keeps retry state when refreshed reset expired before verification`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartReviewFixTests-stale-refreshed-reset")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = ReviewFixRollingWindowPingRunner(delay: .milliseconds(50))
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        var refreshCount = 0
+
+        let now = Date()
+        let refreshedReset = now.addingTimeInterval(0.01)
+        store._test_providerRefreshOverride = { _ in
+            refreshCount += 1
+            store.snapshots[.codex] = Self.snapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: refreshedReset,
+                    resetDescription: nil),
+                provider: .codex,
+                updatedAt: Date())
+        }
+
+        let expired = now.addingTimeInterval(-60)
+        let previous = Self.snapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: expired, resetDescription: nil),
+            provider: .codex,
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            provider: .codex,
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            now: now)
+
+        try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
+        #expect(await runner.count == 1)
+        #expect(refreshCount == 1)
+        #expect(store.rollingWindowAutoStartStatus[.codex] == "Ping prompt sent.")
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == expired)
+    }
+
+    @Test
     func `reset description log helper trims missing and present values`() {
         #expect(UsageStore.rollingWindowAutoStartResetDescription(nil) == "none")
         #expect(UsageStore.rollingWindowAutoStartResetDescription(
@@ -433,12 +481,20 @@ struct RollingWindowAutoStartReviewFixTests {
 }
 
 private actor ReviewFixRollingWindowPingRunner: RollingWindowPingRunning {
+    private let delay: Duration?
     private(set) var count = 0
     var isEmpty: Bool {
         self.count == .zero
     }
 
+    init(delay: Duration? = nil) {
+        self.delay = delay
+    }
+
     func run(_: RollingWindowPingRequest) async throws {
         self.count += 1
+        if let delay {
+            try await Task.sleep(for: delay)
+        }
     }
 }
