@@ -28,6 +28,16 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         return self.stopAndSnapshot()
     }
 
+    package func finishSynchronously(timeout: TimeInterval) -> Data {
+        let deadline = Date().addingTimeInterval(max(0, timeout))
+        self.condition.lock()
+        while !self.isFinished, !self.isStopping {
+            guard self.condition.wait(until: deadline) else { break }
+        }
+        self.condition.unlock()
+        return self.stopAndSnapshot()
+    }
+
     package func stop() {
         _ = self.stopAndSnapshot()
     }

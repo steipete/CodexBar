@@ -224,27 +224,20 @@ public struct KiroStatusProbe: Sendable {
     private static let logger = CodexBarLog.logger(LogCategories.kiro)
 
     public static func detectVersion() -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["kiro-cli", "--version"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        do {
-            try process.run()
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return nil }
-            // Output is like "kiro-cli 1.23.1"
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.hasPrefix("kiro-cli ") {
-                return String(trimmed.dropFirst("kiro-cli ".count))
-            }
-            return trimmed.isEmpty ? nil : trimmed
-        } catch {
-            self.logger.debug("kiro-cli version detection failed: \(error.localizedDescription)")
+        guard let path = TTYCommandRunner.which("kiro-cli"),
+              let output = ProviderVersionDetector.run(
+                  path: path,
+                  args: ["--version"],
+                  mergeStandardError: true)
+        else {
+            self.logger.debug("kiro-cli version detection failed")
             return nil
         }
+        // Output is like "kiro-cli 1.23.1"
+        if output.hasPrefix("kiro-cli ") {
+            return String(output.dropFirst("kiro-cli ".count))
+        }
+        return output
     }
 
     public func fetch() async throws -> KiroUsageSnapshot {
