@@ -105,6 +105,7 @@ enum ProviderChoice: String, AppEnum {
         case .litellm: return nil // LiteLLM not yet supported in widgets
         case .deepgram: return nil // Deepgram not yet supported in widgets
         case .poe: return nil // Poe not yet supported in widgets
+        case .chutes: return nil // Chutes not yet supported in widgets
         }
     }
 }

@@ -120,7 +120,7 @@ public struct ChutesQuotaWindow: Sendable, Equatable {
         }
 
         var text = String(format: "%.2f", value)
-        while text.contains(".") && text.hasSuffix("0") {
+        while text.contains("."), text.hasSuffix("0") {
             text.removeLast()
         }
         if text.hasSuffix(".") {
@@ -375,7 +375,7 @@ enum ChutesUsageParser {
         let explicitRolling = self.firstDictionary(
             in: root,
             dataRoot: dataRoot,
-            keys: rollingPayloadKeys)
+            keys: self.rollingPayloadKeys)
             .flatMap {
                 self.parseQuota(
                     $0,
@@ -385,7 +385,7 @@ enum ChutesUsageParser {
         let explicitMonthly = self.firstDictionary(
             in: root,
             dataRoot: dataRoot,
-            keys: monthlyPayloadKeys)
+            keys: self.monthlyPayloadKeys)
             .flatMap {
                 self.parseQuota(
                     $0,
@@ -426,11 +426,11 @@ enum ChutesUsageParser {
         defaultLabel: String?,
         defaultWindowMinutes: Int?) -> ChutesQuotaWindow?
     {
-        let label = self.firstString(in: payload, keys: labelKeys) ?? defaultLabel
-        let limit = self.firstDouble(in: payload, keys: limitKeys)
-        let used = self.firstDouble(in: payload, keys: usedKeys)
-        let remaining = self.firstDouble(in: payload, keys: remainingKeys)
-        var usedPercent = self.normalizedPercent(self.firstDouble(in: payload, keys: percentUsedKeys))
+        let label = self.firstString(in: payload, keys: self.labelKeys) ?? defaultLabel
+        let limit = self.firstDouble(in: payload, keys: self.limitKeys)
+        let used = self.firstDouble(in: payload, keys: self.usedKeys)
+        let remaining = self.firstDouble(in: payload, keys: self.remainingKeys)
+        var usedPercent = self.normalizedPercent(self.firstDouble(in: payload, keys: self.percentUsedKeys))
         if usedPercent == nil,
            let remainingPercent = self.normalizedPercent(self.firstDouble(in: payload, keys: percentRemainingKeys))
         {
@@ -438,8 +438,8 @@ enum ChutesUsageParser {
         }
 
         let window = self.windowMinutes(from: payload) ?? defaultWindowMinutes
-        let resetsAt = self.firstDate(in: payload, keys: resetKeys)
-        let unit = self.firstString(in: payload, keys: unitKeys) ?? "credits"
+        let resetsAt = self.firstDate(in: payload, keys: self.resetKeys)
+        let unit = self.firstString(in: payload, keys: self.unitKeys) ?? "credits"
 
         let quota = ChutesQuotaWindow(
             label: label,
@@ -476,9 +476,9 @@ enum ChutesUsageParser {
             return active ? .active : .inactive
         }
 
-        let status = self.firstString(in: root, keys: statusKeys)
-            ?? self.firstString(in: dataRoot, keys: statusKeys)
-            ?? subscription.flatMap { self.firstString(in: $0, keys: statusKeys) }
+        let status = self.firstString(in: root, keys: self.statusKeys)
+            ?? self.firstString(in: dataRoot, keys: self.statusKeys)
+            ?? subscription.flatMap { self.firstString(in: $0, keys: self.statusKeys) }
         let normalizedStatus = status?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let normalizedStatus, !normalizedStatus.isEmpty else { return .unknown }
         if normalizedStatus.contains("active") && !normalizedStatus.contains("inactive") {
@@ -500,9 +500,9 @@ enum ChutesUsageParser {
         dataRoot: [String: Any],
         subscription: [String: Any]?) -> String?
     {
-        self.firstString(in: root, keys: planKeys)
-            ?? self.firstString(in: dataRoot, keys: planKeys)
-            ?? subscription.flatMap { self.firstString(in: $0, keys: planKeys) }
+        self.firstString(in: root, keys: self.planKeys)
+            ?? self.firstString(in: dataRoot, keys: self.planKeys)
+            ?? subscription.flatMap { self.firstString(in: $0, keys: self.planKeys) }
     }
 
     private static func subscriptionRenewsAt(
@@ -510,9 +510,9 @@ enum ChutesUsageParser {
         dataRoot: [String: Any],
         subscription: [String: Any]?) -> Date?
     {
-        self.firstDate(in: root, keys: resetKeys)
-            ?? self.firstDate(in: dataRoot, keys: resetKeys)
-            ?? subscription.flatMap { self.firstDate(in: $0, keys: resetKeys) }
+        self.firstDate(in: root, keys: self.resetKeys)
+            ?? self.firstDate(in: dataRoot, keys: self.resetKeys)
+            ?? subscription.flatMap { self.firstDate(in: $0, keys: self.resetKeys) }
     }
 
     private static func firstDictionary(
@@ -526,8 +526,8 @@ enum ChutesUsageParser {
 
     private static func fallbackQuotaObjects(from root: [String: Any], dataRoot: [String: Any]) -> [[String: Any]] {
         let candidates: [Any?] = [
-            self.value(in: root, keys: quotaContainerKeys),
-            self.value(in: dataRoot, keys: quotaContainerKeys),
+            self.value(in: root, keys: self.quotaContainerKeys),
+            self.value(in: dataRoot, keys: self.quotaContainerKeys),
             dataRoot,
             root,
         ]
@@ -556,10 +556,10 @@ enum ChutesUsageParser {
         var seen: Set<String> = []
         var unique: [[String: Any]] = []
         for object in objects {
-            let usedPart = self.firstDouble(in: object, keys: usedKeys).map { "\($0)" } ?? ""
-            let limitPart = self.firstDouble(in: object, keys: limitKeys).map { "\($0)" } ?? ""
+            let usedPart = self.firstDouble(in: object, keys: self.usedKeys).map { "\($0)" } ?? ""
+            let limitPart = self.firstDouble(in: object, keys: self.limitKeys).map { "\($0)" } ?? ""
             let key = object.keys.sorted().joined(separator: "|") + "|" +
-                (self.firstString(in: object, keys: labelKeys) ?? "") + "|" +
+                (self.firstString(in: object, keys: self.labelKeys) ?? "") + "|" +
                 usedPart + "|" +
                 limitPart
             guard seen.insert(key).inserted else { continue }
@@ -569,11 +569,11 @@ enum ChutesUsageParser {
     }
 
     private static func isQuotaPayload(_ payload: [String: Any]) -> Bool {
-        self.firstDouble(in: payload, keys: limitKeys) != nil ||
-            self.firstDouble(in: payload, keys: usedKeys) != nil ||
-            self.firstDouble(in: payload, keys: remainingKeys) != nil ||
-            self.firstDouble(in: payload, keys: percentUsedKeys) != nil ||
-            self.firstDouble(in: payload, keys: percentRemainingKeys) != nil
+        self.firstDouble(in: payload, keys: self.limitKeys) != nil ||
+            self.firstDouble(in: payload, keys: self.usedKeys) != nil ||
+            self.firstDouble(in: payload, keys: self.remainingKeys) != nil ||
+            self.firstDouble(in: payload, keys: self.percentUsedKeys) != nil ||
+            self.firstDouble(in: payload, keys: self.percentRemainingKeys) != nil
     }
 
     private static func kind(for window: ChutesQuotaWindow) -> WindowKind? {
@@ -581,8 +581,8 @@ enum ChutesUsageParser {
             window.label,
             window.unit,
         ]
-        .compactMap { $0?.lowercased() }
-        .joined(separator: " ")
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
 
         if label.contains("rolling") ||
             label.contains("4h") ||
@@ -630,8 +630,7 @@ enum ChutesUsageParser {
         guard !text.isEmpty else { return nil }
         let compact = text.replacingOccurrences(of: " ", with: "")
         let scanner = Scanner(string: compact)
-        var value = 0.0
-        guard scanner.scanDouble(&value), value > 0 else { return nil }
+        guard let value = scanner.scanDouble(), value > 0 else { return nil }
         let suffix = String(compact[scanner.currentIndex...])
         if suffix.hasPrefix("min") || suffix == "m" {
             return Int(value.rounded())

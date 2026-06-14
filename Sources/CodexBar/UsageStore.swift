@@ -985,6 +985,7 @@ extension UsageStore {
                 .llmproxy: "LLM Proxy debug log not yet implemented",
                 .litellm: "LiteLLM debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
+                .chutes: "Chutes debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -1059,11 +1060,11 @@ extension UsageStore {
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
-                case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .devin,
-                     .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
-                     .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
-                     .grok, .groq, .t3chat, .llmproxy, .litellm, .deepgram, .poe:
-                    return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
+                 case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .devin,
+                      .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
+                      .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
+                     .grok, .groq, .t3chat, .llmproxy, .litellm, .deepgram, .poe, .chutes:
+                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
             return await claudeDebugExecutionContext.apply {
