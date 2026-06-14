@@ -130,6 +130,71 @@ struct RollingWindowAutoStartReviewFixTests {
     }
 
     @Test
+    func `decision skips inactive codex cli snapshot without previous reset`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            provider: .codex,
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .codex,
+            previousSourceLabel: nil,
+            sourceLabel: "codex-cli",
+            previous: nil,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision == nil)
+    }
+
+    @Test
+    func `decision skips inactive claude cli snapshot without previous reset`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            provider: .claude,
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .claude,
+            previousSourceLabel: nil,
+            sourceLabel: "claude",
+            previous: nil,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision == nil)
+    }
+
+    @Test
+    func `scheduler skips codex cli inactive snapshot without prior reset`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartReviewFixTests-cli-no-reset")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = ReviewFixRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        store._test_providerRefreshOverride = { _ in }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            provider: .codex,
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: nil,
+            sourceLabel: "codex-cli",
+            previousSnapshot: nil,
+            currentProviderData: current,
+            now: now)
+
+        #expect(await runner.isEmpty)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.isEmpty)
+    }
+
+    @Test
     func `decision skips active codex OpenAI web window with reset description and no reset timestamp`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let previous = Self.snapshot(
@@ -158,6 +223,34 @@ struct RollingWindowAutoStartReviewFixTests {
             now: now)
 
         #expect(decision == nil)
+    }
+
+    @Test
+    func `decision starts when current rolling window has expired timestamp and reset description`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expired = now.addingTimeInterval(-60)
+        let previous = Self.snapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: expired, resetDescription: nil),
+            provider: .codex,
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: expired,
+                resetDescription: "Resets 8:44 PM"),
+            provider: .codex,
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
+            previous: previous,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision?.resetAt == expired)
     }
 
     @Test
@@ -335,6 +428,9 @@ struct RollingWindowAutoStartReviewFixTests {
 
 private actor ReviewFixRollingWindowPingRunner: RollingWindowPingRunning {
     private(set) var count = 0
+    var isEmpty: Bool {
+        self.count < 1
+    }
 
     func run(_: RollingWindowPingRequest) async throws {
         self.count += 1

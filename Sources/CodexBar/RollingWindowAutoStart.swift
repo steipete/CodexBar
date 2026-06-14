@@ -56,8 +56,8 @@ enum RollingWindowAutoStartSupport {
     }
 
     static func isActiveRollingWindow(_ window: RateWindow, now: Date = Date()) -> Bool {
-        if let resetsAt = window.resetsAt, resetsAt > now {
-            return true
+        if let resetsAt = window.resetsAt {
+            return resetsAt > now
         }
         if window.usedPercent > 0 {
             return true
@@ -96,6 +96,11 @@ enum RollingWindowAutoStartSupport {
         default:
             return false
         }
+    }
+
+    static func sourceAllowsNoHistoryAutoStart(provider: UsageProvider, sourceLabel: String?) -> Bool {
+        let normalized = sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return provider == .codex && normalized == "openai-web"
     }
 
     static func hasExhaustedBlockingWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> Bool {
@@ -189,14 +194,20 @@ struct RollingWindowAutoStartDecision: Equatable {
             return RollingWindowAutoStartDecision(resetAt: previousResetAt)
         }
 
-        guard currentWindow.usedPercent <= 0,
-              !RollingWindowAutoStartSupport.hasResetDescription(currentWindow)
+        guard RollingWindowAutoStartSupport.sourceAllowsNoHistoryAutoStart(
+            provider: provider,
+            sourceLabel: sourceLabel)
         else {
             return nil
         }
         if let currentResetAt = currentWindow.resetsAt {
             guard currentResetAt <= now else { return nil }
             return RollingWindowAutoStartDecision(resetAt: currentResetAt)
+        }
+        guard currentWindow.usedPercent <= 0,
+              !RollingWindowAutoStartSupport.hasResetDescription(currentWindow)
+        else {
+            return nil
         }
         return RollingWindowAutoStartDecision(resetAt: nil)
     }
