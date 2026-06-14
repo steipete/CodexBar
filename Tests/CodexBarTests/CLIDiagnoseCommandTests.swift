@@ -87,6 +87,19 @@ struct CLIDiagnoseCommandTests {
     }
 
     @Test
+    func `generic diagnose auth summary detects Chutes environment credentials`() {
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .chutes,
+            account: nil,
+            config: nil,
+            environment: [ChutesSettingsReader.apiKeyEnvironmentKey: "chutes-test"],
+            settings: nil)
+
+        #expect(summary.configured)
+        #expect(summary.modes == ["api"])
+    }
+
+    @Test
     func `generic diagnose auth summary requires complete Bedrock credentials`() {
         let partial = CodexBarCLI._diagnosticAuthSummaryForTesting(
             provider: .bedrock,

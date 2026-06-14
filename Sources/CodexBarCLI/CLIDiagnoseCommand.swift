@@ -204,6 +204,8 @@ extension CodexBarCLI {
             ClaudeAdminAPISettingsReader.apiKey(environment: environment) != nil
         case .codebuff:
             CodebuffSettingsReader.apiKey(environment: environment) != nil
+        case .chutes:
+            ChutesSettingsReader.apiKey(environment: environment) != nil
         case .crof:
             CrofSettingsReader.apiKey(environment: environment) != nil
         case .deepgram:
