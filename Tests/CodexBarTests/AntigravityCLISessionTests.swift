@@ -628,6 +628,32 @@ struct AntigravityCLISessionTests {
     }
 
     @Test
+    func `pty launcher retries transient text busy spawn errors`() {
+        var attempts = 0
+
+        let result = AntigravityPTYProcessLauncher.spawnWithTextBusyRetry(retryDelay: 0) {
+            attempts += 1
+            return attempts < 3 ? ETXTBSY : 0
+        }
+
+        #expect(result == 0)
+        #expect(attempts == 3)
+    }
+
+    @Test
+    func `pty launcher does not retry other spawn errors`() {
+        var attempts = 0
+
+        let result = AntigravityPTYProcessLauncher.spawnWithTextBusyRetry(retryDelay: 0) {
+            attempts += 1
+            return EACCES
+        }
+
+        #expect(result == EACCES)
+        #expect(attempts == 1)
+    }
+
+    @Test
     func `pty launcher uses home and closes unrelated descriptors`() throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("antigravity-spawn-\(UUID().uuidString)", isDirectory: true)

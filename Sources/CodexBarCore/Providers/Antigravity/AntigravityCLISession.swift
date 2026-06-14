@@ -829,6 +829,23 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
         return signals
     }
 
+    static func spawnWithTextBusyRetry(
+        maxAttempts: Int = 3,
+        retryDelay: TimeInterval = 0.01,
+        spawn: () -> Int32) -> Int32
+    {
+        var result = spawn()
+        guard maxAttempts > 1 else { return result }
+
+        for _ in 1..<maxAttempts where result == ETXTBSY {
+            if retryDelay > 0 {
+                Thread.sleep(forTimeInterval: retryDelay)
+            }
+            result = spawn()
+        }
+        return result
+    }
+
     func launch(binary: String) throws -> any AntigravityCLIProcessHandle {
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
@@ -914,8 +931,10 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
         }
 
         var pid: pid_t = 0
-        let spawnResult = binary.withCString { execPath in
-            posix_spawn(&pid, execPath, &fileActions, &attr, cArgs, cEnv)
+        let spawnResult = Self.spawnWithTextBusyRetry {
+            binary.withCString { execPath in
+                posix_spawn(&pid, execPath, &fileActions, &attr, cArgs, cEnv)
+            }
         }
         guard spawnResult == 0 else {
             try? primaryHandle.close()
