@@ -148,26 +148,42 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
         } catch let error as OpenCodeGoUsageError {
-            guard case let .parseFailed(message) = error,
-                  message.contains("Missing usage fields"),
-                  let zenBalanceTask
-            else {
-                throw error
-            }
-            let zenBalance = try await zenBalanceTask.value
-            guard let zenBalance else {
-                throw error
-            }
-            return OpenCodeGoUsageSnapshot.zenBalanceOnly(balanceUSD: zenBalance, updatedAt: now)
+            return try await self.requiredZenBalanceFallback(
+                from: zenBalanceTask,
+                for: error,
+                now: now)
         } catch {
             throw error
         }
-        let snapshot = try self.parseSubscription(text: subscriptionText, now: now)
+        let snapshot: OpenCodeGoUsageSnapshot
+        do {
+            snapshot = try self.parseSubscription(text: subscriptionText, now: now)
+        } catch let error as OpenCodeGoUsageError {
+            return try await self.requiredZenBalanceFallback(
+                from: zenBalanceTask,
+                for: error,
+                now: now)
+        }
         guard let zenBalanceTask else {
             return snapshot
         }
         let zenBalance = try await self.completedOptionalZenBalance(from: zenBalanceTask)
         return snapshot.withZenBalanceUSD(zenBalance)
+    }
+
+    private static func requiredZenBalanceFallback(
+        from task: Task<Double?, Error>?,
+        for error: OpenCodeGoUsageError,
+        now: Date) async throws -> OpenCodeGoUsageSnapshot
+    {
+        guard case let .parseFailed(message) = error,
+              message.contains("Missing usage fields"),
+              let task,
+              let zenBalance = try await task.value
+        else {
+            throw error
+        }
+        return OpenCodeGoUsageSnapshot.zenBalanceOnly(balanceUSD: zenBalance, updatedAt: now)
     }
 
     static func fetchOptionalZenBalance(

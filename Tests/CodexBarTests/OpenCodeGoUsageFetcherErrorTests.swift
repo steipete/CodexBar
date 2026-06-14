@@ -265,6 +265,42 @@ struct OpenCodeGoUsageFetcherErrorTests {
     }
 
     @Test
+    func `zen only account falls back after final subscription parse failure`() async throws {
+        defer {
+            OpenCodeGoStubURLProtocol.handler = nil
+        }
+
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/workspace/wrk_TEST123" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"<html><body><h2>Current balance $17.25</h2></body></html>"#,
+                    statusCode: 200,
+                    contentType: "text/html")
+            }
+            return Self.makeResponse(
+                url: url,
+                body: #"<script>rollingUsage:{usagePercent:12}</script>"#,
+                statusCode: 200,
+                contentType: "text/html")
+        }
+
+        let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
+            cookieHeader: "auth=test",
+            timeout: 2,
+            workspaceIDOverride: "wrk_TEST123",
+            session: self.makeSession())
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.isBalanceOnly)
+        #expect(snapshot.zenBalanceUSD == 17.25)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+        #expect(usage.providerCost?.used == 17.25)
+    }
+
+    @Test
     func `normalizes workspace override from URL into go page path`() async throws {
         defer {
             OpenCodeGoStubURLProtocol.handler = nil
