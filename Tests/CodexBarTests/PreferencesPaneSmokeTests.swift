@@ -58,6 +58,8 @@ struct PreferencesPaneSmokeTests {
 
         settings.costUsageHistoryDays = 999
         #expect(settings.costUsageHistoryDays == 365)
+        #expect(CostHistoryDaysEditor.title(days: 365).contains("365"))
+        #expect(!CostHistoryDaysEditor.title(days: 365).contains("%d"))
 
         _ = CostHistoryDaysEditor(settings: settings).body
     }

@@ -265,21 +265,25 @@ struct GeneralPane: View {
 struct CostHistoryDaysEditor: View {
     @Bindable var settings: SettingsStore
 
+    static func title(days: Int) -> String {
+        String(format: L("cost_history_days_title"), days)
+    }
+
     var body: some View {
+        let title = Self.title(days: self.settings.costUsageHistoryDays)
+
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Stepper(
                 value: self.$settings.costUsageHistoryDays,
                 in: 1...365,
                 step: 1)
             {
-                Text(String(
-                    format: L("cost_history_days_title"),
-                    self.settings.costUsageHistoryDays))
+                Text(title)
                     .font(.footnote)
             }
 
             TextField(
-                L("cost_history_days_title"),
+                title,
                 value: self.$settings.costUsageHistoryDays,
                 format: .number)
                 .labelsHidden()
