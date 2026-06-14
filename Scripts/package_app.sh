@@ -17,6 +17,7 @@ esac
 # Load version info
 source "$ROOT/version.env"
 source "$ROOT/Scripts/package_product_paths.sh"
+source "$ROOT/Scripts/sparkle_signing_paths.sh"
 
 # Clean build only when explicitly requested (slower).
 if [[ "${CODEXBAR_FORCE_CLEAN:-0}" == "1" ]]; then
@@ -434,18 +435,11 @@ else
   CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
 fi
 function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
-# Sign innermost binaries first, then the framework root to seal resources
-resign "$SPARKLE"
-resign "$SPARKLE/Versions/B/Sparkle"
-resign "$SPARKLE/Versions/B/Autoupdate"
-resign "$SPARKLE/Versions/B/Updater.app"
-resign "$SPARKLE/Versions/B/Updater.app/Contents/MacOS/Updater"
-resign "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
-resign "$SPARKLE/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
-resign "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
-resign "$SPARKLE/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
-resign "$SPARKLE/Versions/B"
-resign "$SPARKLE"
+# Validate Sparkle's nested layout before signing so framework layout drift fails clearly.
+SPARKLE_SIGNING_TARGETS=$(codexbar_sparkle_signing_targets "$SPARKLE")
+while IFS= read -r SPARKLE_TARGET; do
+  resign "$SPARKLE_TARGET"
+done <<<"$SPARKLE_SIGNING_TARGETS"
 
 if [[ -f "$ICON_TARGET" ]]; then
   cp "$ICON_TARGET" "$APP/Contents/Resources/Icon.icns"
