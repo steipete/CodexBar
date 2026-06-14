@@ -41,17 +41,18 @@ struct DocumentationLinkTests {
 
     @Test
     func `markdown links support standard destination syntax`() throws {
-        let markdown = """
-        [fragment](#section)
-        [query](docs/guide%20name.md?mode=print#topic)
-        [title](docs/title.md "Title")
-        [angle](<docs/with space.md>)
-        [reference][guide]
-        [guide]: docs/reference.md?view=1#top
-        `[code](docs/not-a-link.md)`
-        ![image](docs/image.png)
-        [external](https://example.com/docs/remote.md)
-        """
+        let markdown = [
+            "[fragment](#section)",
+            "[query](docs/guide%20name.md?mode=print#topic)",
+            #"[title](docs/title.md "Title")"#,
+            "[angle](<docs/with space.md>)",
+            "[reference][guide]",
+            "",
+            "[guide]: docs/reference.md?view=1#top",
+            "`[code](docs/not-a-link.md)`",
+            "![image](docs/image.png)",
+            "[external](https://example.com/docs/remote.md)",
+        ].joined(separator: "\n")
 
         let links = try Self.markdownLinks(in: markdown)
 
