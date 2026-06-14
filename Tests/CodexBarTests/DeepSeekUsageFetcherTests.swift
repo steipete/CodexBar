@@ -369,6 +369,33 @@ struct DeepSeekUsageFetcherTests {
     }
 
     @Test
+    func `balance grace does not wait for optional summary that ignores cancellation`() async throws {
+        let startedAt = ContinuousClock.now
+        let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
+            apiKey: "test-key",
+            includeOptionalUsage: true,
+            optionalSummaryJoinGrace: .milliseconds(20),
+            fetchBalanceData: { _ in
+                Data(Self.sampleBalanceJSON.utf8)
+            },
+            fetchSummary: { _ in
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                        continuation.resume(returning: Self.sampleSummary())
+                    }
+                }
+            })
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(snapshot.totalBalance == 50.0)
+        #expect(snapshot.usageSummary == nil)
+        #expect(elapsed < .milliseconds(300), "Optional summary delayed balance: \(elapsed)")
+
+        // Let the deliberately cancellation-ignoring test task drain before the test exits.
+        try await Task.sleep(for: .milliseconds(550))
+    }
+
+    @Test
     func `balance returns when optional usage summary fails closed`() async throws {
         let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
             apiKey: "test-key",
