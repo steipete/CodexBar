@@ -52,6 +52,28 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `decision starts for codex open A I web snapshots routed through codex cli`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expired = now.addingTimeInterval(-60)
+        let previous = Self.snapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: expired, resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .codex,
+            previousSourceLabel: "openai-web",
+            sourceLabel: "openai-web",
+            previous: previous,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision?.resetAt == expired)
+    }
+
+    @Test
     func `decision skips when provider data already has active rolling window`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let previous = Self.snapshot(
@@ -104,13 +126,43 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
-    func `decision skips provider data from credentials that do not match the CLI`() {
+    func `decision skips when secondary quota window is exhausted`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expired = now.addingTimeInterval(-60)
+        let weeklyExhausted = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(2 * 24 * 60 * 60),
+            resetDescription: nil)
+        let previous = Self.snapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: expired, resetDescription: nil),
+            secondary: weeklyExhausted,
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: weeklyExhausted,
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .codex,
+            previousSourceLabel: "codex-cli",
+            sourceLabel: "codex-cli",
+            previous: previous,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision == nil)
+    }
+
+    @Test
+    func `decision accepts claude web or oauth candidates for scheduler route validation`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expired = now.addingTimeInterval(-60)
         let previous = Self.snapshot(
             primary: RateWindow(
                 usedPercent: 20,
                 windowMinutes: 300,
-                resetsAt: now.addingTimeInterval(-60),
+                resetsAt: expired,
                 resetDescription: nil),
             updatedAt: now.addingTimeInterval(-120))
         let current = Self.snapshot(
@@ -118,26 +170,19 @@ struct RollingWindowAutoStartTests {
             updatedAt: now)
 
         #expect(RollingWindowAutoStartDecision.shouldStart(
-            provider: .codex,
-            previousSourceLabel: "codex-cli",
-            sourceLabel: "openai-web",
-            previous: previous,
-            currentProviderData: current,
-            now: now) == nil)
-        #expect(RollingWindowAutoStartDecision.shouldStart(
             provider: .claude,
             previousSourceLabel: "claude",
             sourceLabel: "oauth",
             previous: previous,
             currentProviderData: current,
-            now: now) == nil)
+            now: now)?.resetAt == expired)
         #expect(RollingWindowAutoStartDecision.shouldStart(
             provider: .claude,
             previousSourceLabel: "web",
             sourceLabel: "claude",
             previous: previous,
             currentProviderData: current,
-            now: now) == nil)
+            now: now)?.resetAt == expired)
     }
 
     @Test
@@ -206,6 +251,45 @@ struct RollingWindowAutoStartTests {
             previous: previous,
             currentProviderData: current,
             now: now) == nil)
+    }
+
+    @Test
+    func `claude decision skips when weekly quota window is exhausted`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiredSessionReset = now.addingTimeInterval(-60)
+        let exhaustedWeekly = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+            resetDescription: nil)
+        let previous = Self.snapshot(
+            primary: exhaustedWeekly,
+            secondary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 5 * 60,
+                resetsAt: expiredSessionReset,
+                resetDescription: nil),
+            provider: .claude,
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: exhaustedWeekly,
+            secondary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 5 * 60,
+                resetsAt: nil,
+                resetDescription: nil),
+            provider: .claude,
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .claude,
+            previousSourceLabel: "web",
+            sourceLabel: "web",
+            previous: previous,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision == nil)
     }
 
     @Test
@@ -310,6 +394,122 @@ struct RollingWindowAutoStartTests {
         #expect(await runner.count == 1)
         #expect(refreshCount == 1)
         #expect(store.rollingWindowAutoStartStatus[.codex] == "Ping prompt sent.")
+    }
+
+    @Test
+    func `scheduler starts codex ping for open A I web snapshot with expired prior reset`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-openai-web")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "codex@example.com")
+        defer { settings._test_liveSystemCodexAccount = nil }
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = RecordingRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        var refreshCount = 0
+        store._test_providerRefreshOverride = { _ in
+            refreshCount += 1
+        }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expired = now.addingTimeInterval(-60)
+        let previous = Self.snapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: expired, resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            accountEmail: "codex@example.com",
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: "openai-web",
+            sourceLabel: "openai-web",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            now: now)
+
+        try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
+        #expect(await runner.count == 1)
+        #expect(refreshCount == 1)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == expired)
+    }
+
+    @Test
+    func `scheduler skips codex open A I web snapshot when live cli account differs`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-openai-web-mismatch")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "cli@example.com")
+        defer { settings._test_liveSystemCodexAccount = nil }
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = RecordingRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        store._test_providerRefreshOverride = { _ in }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(-60),
+                resetDescription: nil),
+            accountEmail: "web@example.com",
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            accountEmail: "web@example.com",
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: "openai-web",
+            sourceLabel: "openai-web",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            now: now)
+
+        try await Task.sleep(for: .milliseconds(25))
+        #expect(await runner.isEmpty)
+        #expect(store.rollingWindowAutoStartStatus[.codex] ==
+            "Skipped: usage account does not match prompt CLI account.")
+    }
+
+    @Test
+    func `scheduler skips claude web snapshot because prompt cli account cannot be verified`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-claude-web-mismatch")
+        settings.setRollingWindowAutoStartEnabled(provider: .claude, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = RecordingRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        store._test_providerRefreshOverride = { _ in }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previous = Self.snapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(-60),
+                resetDescription: nil),
+            accountEmail: "web@example.com",
+            provider: .claude,
+            updatedAt: now.addingTimeInterval(-120))
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            accountEmail: "web@example.com",
+            provider: .claude,
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .claude,
+            previousSourceLabel: "web",
+            sourceLabel: "web",
+            previousSnapshot: previous,
+            currentProviderData: current,
+            now: now)
+
+        try await Task.sleep(for: .milliseconds(25))
+        #expect(await runner.isEmpty)
+        #expect(store.rollingWindowAutoStartStatus[.claude] ==
+            "Skipped: usage account does not match prompt CLI account.")
     }
 
     @Test
@@ -487,7 +687,8 @@ struct RollingWindowAutoStartTests {
 
         try await Task.sleep(for: .milliseconds(25))
         #expect(await runner.isEmpty)
-        #expect(store.rollingWindowAutoStartStatus[.claude] == nil)
+        #expect(store.rollingWindowAutoStartStatus[.claude] ==
+            "Skipped: selected account cannot be pinged through ambient CLI.")
     }
 
     @Test
@@ -591,13 +792,30 @@ struct RollingWindowAutoStartTests {
         primary: RateWindow?,
         secondary: RateWindow? = nil,
         tertiary: RateWindow? = nil,
+        accountEmail: String? = nil,
+        provider: UsageProvider = .codex,
         updatedAt: Date) -> UsageSnapshot
     {
         UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
-            updatedAt: updatedAt)
+            updatedAt: updatedAt,
+            identity: accountEmail.map {
+                ProviderIdentitySnapshot(
+                    providerID: provider,
+                    accountEmail: $0,
+                    accountOrganization: nil,
+                    loginMethod: nil)
+            })
+    }
+
+    private static func liveSystemCodexAccount(email: String) -> ObservedSystemCodexAccount {
+        ObservedSystemCodexAccount(
+            email: email,
+            codexHomePath: "/tmp/codexbar-live-system",
+            observedAt: Date(),
+            identity: CodexIdentityResolver.resolve(accountId: nil, email: email))
     }
 }
 

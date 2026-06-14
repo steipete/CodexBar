@@ -57,12 +57,34 @@ enum RollingWindowAutoStartSupport {
         let normalized = sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         switch provider {
         case .codex:
-            return normalized == "codex-cli" || normalized == "oauth"
+            return normalized == "codex-cli" || normalized == "oauth" || normalized == "openai-web"
         case .claude:
             return normalized == "claude"
         default:
             return false
         }
+    }
+
+    static func sourceCanReportRollingWindow(provider: UsageProvider, sourceLabel: String?) -> Bool {
+        let normalized = sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch provider {
+        case .codex:
+            return self.sourceSupportsAutoStart(provider: provider, sourceLabel: sourceLabel)
+        case .claude:
+            return normalized == "claude" || normalized == "web" || normalized == "oauth"
+        default:
+            return false
+        }
+    }
+
+    static func hasExhaustedBlockingWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> Bool {
+        guard self.providers.contains(provider) else { return false }
+        return [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+            .compactMap(\.self)
+            .contains { window in
+                guard window.windowMinutes != 5 * 60 else { return false }
+                return window.usedPercent >= 100
+            }
     }
 }
 
@@ -101,10 +123,10 @@ struct RollingWindowAutoStartDecision: Equatable {
         currentProviderData: UsageSnapshot,
         now: Date = Date()) -> RollingWindowAutoStartDecision?
     {
-        guard RollingWindowAutoStartSupport.sourceSupportsAutoStart(
+        guard RollingWindowAutoStartSupport.sourceCanReportRollingWindow(
             provider: provider,
             sourceLabel: previousSourceLabel),
-            RollingWindowAutoStartSupport.sourceSupportsAutoStart(
+            RollingWindowAutoStartSupport.sourceCanReportRollingWindow(
                 provider: provider,
                 sourceLabel: sourceLabel),
             let previousWindow = previous.flatMap({ RollingWindowAutoStartSupport.rollingWindow(
@@ -123,6 +145,12 @@ struct RollingWindowAutoStartDecision: Equatable {
             return nil
         }
         if let currentResetAt = currentWindow.resetsAt, currentResetAt > now {
+            return nil
+        }
+        guard !RollingWindowAutoStartSupport.hasExhaustedBlockingWindow(
+            provider: provider,
+            snapshot: currentProviderData)
+        else {
             return nil
         }
 

@@ -32,7 +32,6 @@ extension UsageStore {
             provider: provider,
             codexActiveSource: resolvedCodexActiveSource)
         guard self.settings.rollingWindowAutoStartEnabled(provider: provider),
-              self.canRouteRollingWindowAutoStart(provider: provider, tokenOverride: tokenOverride),
               !self.rollingWindowAutoStartRuntime.inFlight.contains(route),
               let decision = RollingWindowAutoStartDecision.shouldStart(
                   provider: provider,
@@ -42,6 +41,29 @@ extension UsageStore {
                   currentProviderData: currentProviderData,
                   now: now)
         else {
+            return
+        }
+
+        let metadata = Self.rollingWindowAutoStartLogMetadata(
+            provider: provider,
+            route: route,
+            previousSourceLabel: previousSourceLabel,
+            sourceLabel: sourceLabel,
+            previousResetAt: decision.resetAt)
+        switch self.canRouteRollingWindowAutoStart(
+            provider: provider,
+            tokenOverride: tokenOverride,
+            sourceLabel: sourceLabel,
+            currentProviderData: currentProviderData,
+            codexActiveSource: resolvedCodexActiveSource)
+        {
+        case .allowed:
+            break
+        case let .blocked(reason):
+            self.rollingWindowAutoStartStatus[provider] = reason.statusMessage
+            self.providerLogger.warning(
+                "Rolling window auto-start skipped because usage account cannot be matched to prompt CLI account",
+                metadata: metadata.merging(reason.metadata, uniquingKeysWith: { _, new in new }))
             return
         }
 
@@ -55,12 +77,6 @@ extension UsageStore {
         self.rollingWindowAutoStartRuntime.attemptedResetAt[route] = decision.resetAt
         self.rollingWindowAutoStartRuntime.inFlight.insert(route)
         self.rollingWindowAutoStartStatus[provider] = "Starting a new rolling window..."
-        let metadata = Self.rollingWindowAutoStartLogMetadata(
-            provider: provider,
-            route: route,
-            previousSourceLabel: previousSourceLabel,
-            sourceLabel: sourceLabel,
-            previousResetAt: decision.resetAt)
         self.providerLogger.info(
             "CodexBar detected inactive rolling window; pinging provider to start one",
             metadata: metadata)
@@ -143,9 +159,97 @@ extension UsageStore {
 
     private func canRouteRollingWindowAutoStart(
         provider: UsageProvider,
-        tokenOverride: TokenAccountOverride?) -> Bool
+        tokenOverride: TokenAccountOverride?,
+        sourceLabel: String?,
+        currentProviderData: UsageSnapshot,
+        codexActiveSource: CodexActiveSource?) -> RollingWindowAutoStartRouteCheck
     {
-        tokenOverride == nil && self.settings.selectedTokenAccount(for: provider) == nil
+        if tokenOverride != nil || self.settings.selectedTokenAccount(for: provider) != nil {
+            return .blocked(.selectedTokenAccount)
+        }
+        switch provider {
+        case .codex:
+            guard Self.normalizedRollingWindowAutoStartSourceLabel(sourceLabel) == "openai-web" else {
+                return .allowed
+            }
+            return self.codexOpenAIWebSnapshotMatchesRollingWindowAutoStartRoute(
+                currentProviderData,
+                activeSource: codexActiveSource)
+                ? .allowed
+                : .blocked(self.codexOpenAIWebAutoStartBlockReason(
+                    currentProviderData,
+                    activeSource: codexActiveSource))
+        case .claude:
+            guard Self.normalizedRollingWindowAutoStartSourceLabel(sourceLabel) == "claude" else {
+                return .blocked(.unverifiedPromptAccount(
+                    snapshotAccount: Self.rollingWindowAutoStartAccountState(
+                        currentProviderData.accountEmail(for: .claude)),
+                    routedAccount: "unknown",
+                    sourceKind: "non-cli"))
+            }
+            return .allowed
+        default:
+            return .allowed
+        }
+    }
+
+    private func codexOpenAIWebSnapshotMatchesRollingWindowAutoStartRoute(
+        _ snapshot: UsageSnapshot,
+        activeSource: CodexActiveSource?) -> Bool
+    {
+        guard let activeSource,
+              let snapshotEmail = CodexIdentityResolver.normalizeEmail(snapshot.accountEmail(for: .codex)),
+              let routedEmail = Self.codexRollingWindowAutoStartRoutedEmail(
+                  settings: self.settings,
+                  activeSource: activeSource)
+        else {
+            return false
+        }
+        return snapshotEmail == routedEmail
+    }
+
+    private func codexOpenAIWebAutoStartBlockReason(
+        _ snapshot: UsageSnapshot,
+        activeSource: CodexActiveSource?) -> RollingWindowAutoStartRouteBlockReason
+    {
+        let snapshotAccount = Self.rollingWindowAutoStartAccountState(snapshot.accountEmail(for: .codex))
+        let routedAccount = Self.rollingWindowAutoStartAccountState(
+            activeSource.flatMap {
+                Self.codexRollingWindowAutoStartRoutedEmail(settings: self.settings, activeSource: $0)
+            })
+        return .unverifiedPromptAccount(
+            snapshotAccount: snapshotAccount,
+            routedAccount: routedAccount,
+            sourceKind: activeSource == nil ? "missing-route" : "openai-web")
+    }
+
+    private static func codexRollingWindowAutoStartRoutedEmail(
+        settings: SettingsStore,
+        activeSource: CodexActiveSource) -> String?
+    {
+        let reconciliation = settings.codexAccountReconciliationSnapshot(activeSourceOverride: activeSource)
+        switch activeSource {
+        case .liveSystem:
+            return CodexIdentityResolver.normalizeEmail(reconciliation.liveSystemAccount?.email)
+        case let .managedAccount(id):
+            guard let account = reconciliation.storedAccounts.first(where: { $0.id == id }) else {
+                return nil
+            }
+            return CodexIdentityResolver.normalizeEmail(reconciliation.runtimeEmail(for: account))
+        }
+    }
+
+    private static func normalizedRollingWindowAutoStartSourceLabel(_ sourceLabel: String?) -> String? {
+        sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func rollingWindowAutoStartAccountState(_ account: String?) -> String {
+        if let account = account?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !account.isEmpty
+        {
+            return "present"
+        }
+        return "missing"
     }
 
     static func rollingWindowAutoStartLogMetadata(
@@ -183,5 +287,38 @@ extension UsageStore {
     private static func redactedRollingWindowAutoStartAccountID(_ id: UUID) -> String {
         let value = id.uuidString
         return "\(value.prefix(6))...\(value.suffix(6))"
+    }
+}
+
+private enum RollingWindowAutoStartRouteCheck {
+    case allowed
+    case blocked(RollingWindowAutoStartRouteBlockReason)
+}
+
+private enum RollingWindowAutoStartRouteBlockReason {
+    case selectedTokenAccount
+    case unverifiedPromptAccount(snapshotAccount: String, routedAccount: String, sourceKind: String)
+
+    var statusMessage: String {
+        switch self {
+        case .selectedTokenAccount:
+            "Skipped: selected account cannot be pinged through ambient CLI."
+        case .unverifiedPromptAccount:
+            "Skipped: usage account does not match prompt CLI account."
+        }
+    }
+
+    var metadata: [String: String] {
+        switch self {
+        case .selectedTokenAccount:
+            ["skipReason": "selected-token-account"]
+        case let .unverifiedPromptAccount(snapshotAccount, routedAccount, sourceKind):
+            [
+                "skipReason": "account-match-unverified",
+                "snapshotAccount": snapshotAccount,
+                "routedAccount": routedAccount,
+                "sourceKind": sourceKind,
+            ]
+        }
     }
 }
