@@ -14,7 +14,8 @@ set -euo pipefail
 printf '%s\n' "$*" >> "${FAKE_SWIFT_LOG}"
 if [[ "$*" == "test list" ]]; then
   printf '%s\n' \
-    "CodexBarTests.Alpha/test_one" \
+    "CodexBarTests.Alpha/test_one()" \
+    "CodexBarTests.Alpha/test_two(argument:)" \
     "CodexBarTests.Beta/test_two" \
     'CodexBarTests.`top level works`()' \
     'CodexBarTests.`top/level slash works`()'

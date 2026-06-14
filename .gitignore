@@ -33,6 +33,7 @@ debug_*.swift
 .codex/environments/
 .swiftpm-cache/
 .tmp-clang/
+__pycache__/
 
 # Debug/analysis docs
 docs/*-analysis.md

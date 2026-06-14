@@ -50,7 +50,7 @@ def swift_test_list() -> list[TestSelection]:
     selections: set[TestSelection] = set()
     unknown: list[str] = []
     for line in result.stdout.splitlines():
-        top_level = re.fullmatch(r"(?P<module>[^.]+)\.(?:`(?P<display>.+)`|(?P<function>[^()]+))\(\)", line)
+        top_level = re.fullmatch(r"(?P<module>[^.]+)\.(?:`(?P<display>.+)`|(?P<function>[^()/]+))\(\)", line)
         if top_level is not None:
             module = top_level.group("module")
             test_name = top_level.group("display") or top_level.group("function")
