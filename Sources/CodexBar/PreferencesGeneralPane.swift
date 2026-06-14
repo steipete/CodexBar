@@ -130,16 +130,7 @@ struct GeneralPane: View {
                                 .fixedSize(horizontal: false, vertical: true)
 
                             if self.settings.costUsageEnabled {
-                                Stepper(
-                                    value: self.$settings.costUsageHistoryDays,
-                                    in: 1...365,
-                                    step: 1)
-                                {
-                                    Text(String(
-                                        format: L("cost_history_days_title"),
-                                        self.settings.costUsageHistoryDays))
-                                        .font(.footnote)
-                                }
+                                CostHistoryDaysEditor(settings: self.settings)
 
                                 Text(L("cost_auto_refresh_info"))
                                     .font(.footnote)
@@ -267,5 +258,39 @@ struct GeneralPane: View {
         return Text(String(format: L("cost_status_no_data"), name))
             .font(.footnote)
             .foregroundStyle(.tertiary)
+    }
+}
+
+@MainActor
+struct CostHistoryDaysEditor: View {
+    @Bindable var settings: SettingsStore
+
+    static func title(days: Int) -> String {
+        String(format: L("cost_history_days_title"), days)
+    }
+
+    var body: some View {
+        let title = Self.title(days: self.settings.costUsageHistoryDays)
+
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Stepper(
+                value: self.$settings.costUsageHistoryDays,
+                in: 1...365,
+                step: 1)
+            {
+                Text(title)
+                    .font(.footnote)
+            }
+
+            TextField(
+                title,
+                value: self.$settings.costUsageHistoryDays,
+                format: .number)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .font(.footnote)
+                .monospacedDigit()
+                .frame(width: 64)
+        }
     }
 }
