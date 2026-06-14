@@ -1,8 +1,74 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 struct KiroStatusProbeTests {
+    @Test
+    func `fetch returns when usage helper leaves inherited pipes open`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-pipe-\(UUID().uuidString)", isDirectory: true)
+        let childPIDFile = root.appendingPathComponent("child.pid")
+        let cliURL = root.appendingPathComponent("kiro-cli")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        defer {
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                _ = kill(childPID, SIGKILL)
+            }
+        }
+
+        let script = """
+        #!/bin/bash
+        set -e
+        if [ "$1" = "whoami" ]; then
+          printf 'Logged in with Google\\nEmail: person@example.com\\n'
+          exit 0
+        fi
+
+        if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+          python3 -c 'import os, time; open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w").write(str(os.getpid())); time.sleep(5)' &
+          printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+          printf 'Credits (12.50 of 50 covered in plan)\\n'
+          printf '████████████████████ 25%%\\n'
+          exit 0
+        fi
+
+        if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+          exit 0
+        fi
+
+        exit 1
+        """
+        try script.write(to: cliURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
+
+        let previousPIDFile = ProcessInfo.processInfo.environment["CODEXBAR_TEST_CHILD_PID_FILE"]
+        setenv("CODEXBAR_TEST_CHILD_PID_FILE", childPIDFile.path, 1)
+        defer {
+            if let previousPIDFile {
+                setenv("CODEXBAR_TEST_CHILD_PID_FILE", previousPIDFile, 1)
+            } else {
+                unsetenv("CODEXBAR_TEST_CHILD_PID_FILE")
+            }
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let start = Date()
+        let snapshot = try await probe.fetch()
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(elapsed < 3, "Kiro usage capture should not wait for inherited pipe EOF, took \(elapsed)s")
+    }
+
     // MARK: - Happy Path Parsing
 
     @Test

@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 public struct KiroUsageSnapshot: Sendable {
     public let planName: String
@@ -219,7 +224,15 @@ public enum KiroStatusProbeError: LocalizedError, Sendable {
 }
 
 public struct KiroStatusProbe: Sendable {
-    public init() {}
+    private let cliBinaryResolver: @Sendable () -> String?
+
+    public init() {
+        self.cliBinaryResolver = { TTYCommandRunner.which("kiro-cli") }
+    }
+
+    init(cliBinaryResolver: @escaping @Sendable () -> String?) {
+        self.cliBinaryResolver = cliBinaryResolver
+    }
 
     private static let logger = CodexBarLog.logger(LogCategories.kiro)
 
@@ -388,7 +401,7 @@ public struct KiroStatusProbe: Sendable {
         timeout: TimeInterval,
         idleTimeout: TimeInterval = 5.0) async throws -> KiroCLIResult
     {
-        guard let binary = TTYCommandRunner.which("kiro-cli") else {
+        guard let binary = self.cliBinaryResolver() else {
             throw KiroStatusProbeError.cliNotFound
         }
 
@@ -450,8 +463,6 @@ public struct KiroStatusProbe: Sendable {
         }
 
         let state = ActivityState()
-
-        // Set up readability handlers to track activity
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty {
@@ -465,67 +476,66 @@ public struct KiroStatusProbe: Sendable {
             }
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global().async {
-                do {
-                    try process.run()
-                } catch {
-                    stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                    stderrPipe.fileHandleForReading.readabilityHandler = nil
-                    continuation.resume(throwing: error)
-                    return
-                }
+        do {
+            try process.run()
+        } catch {
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            throw error
+        }
 
-                let deadline = Date().addingTimeInterval(timeout)
-                var didHitDeadline = false
-                var didTerminateForIdle = false
+        let deadline = Date().addingTimeInterval(timeout)
+        var didHitDeadline = false
+        var didTerminateForIdle = false
 
-                while process.isRunning {
-                    if Date() >= deadline {
-                        didHitDeadline = true
-                        break
-                    }
-                    // Idle timeout: if we got output but then it went silent
-                    if state.hasReceivedOutput,
-                       Date().timeIntervalSince(state.lastActivityAt) >= idleTimeout
-                    {
-                        // Process went idle after producing output - likely done or stuck
-                        didTerminateForIdle = true
-                        break
-                    }
-                    Thread.sleep(forTimeInterval: 0.1)
-                }
+        while process.isRunning {
+            if Date() >= deadline {
+                didHitDeadline = true
+                break
+            }
+            if state.hasReceivedOutput,
+               Date().timeIntervalSince(state.lastActivityAt) >= idleTimeout
+            {
+                didTerminateForIdle = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
 
-                // Clean up handlers
+        if process.isRunning {
+            Self.terminateProcess(process)
+            if didHitDeadline || !state.hasReceivedOutput {
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
-
-                if process.isRunning {
-                    process.terminate()
-                    process.waitUntilExit()
-                    if didHitDeadline || !state.hasReceivedOutput {
-                        continuation.resume(throwing: KiroStatusProbeError.timeout)
-                        return
-                    }
-                }
-
-                // Read any remaining data
-                let remainingStdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let remainingStderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
-                var output = state.getOutput()
-                output.stdout.append(remainingStdout)
-                output.stderr.append(remainingStderr)
-
-                let stdoutOutput = String(data: output.stdout, encoding: .utf8) ?? ""
-                let stderrOutput = String(data: output.stderr, encoding: .utf8) ?? ""
-                continuation.resume(returning: KiroCLIResult(
-                    stdout: stdoutOutput,
-                    stderr: stderrOutput,
-                    terminationStatus: process.terminationStatus,
-                    terminatedForIdle: didTerminateForIdle))
+                throw KiroStatusProbeError.timeout
             }
         }
+
+        try await Task.sleep(for: .milliseconds(100))
+        stdoutPipe.fileHandleForReading.readabilityHandler = nil
+        stderrPipe.fileHandleForReading.readabilityHandler = nil
+
+        let output = state.getOutput()
+        let stdoutOutput = String(data: output.stdout, encoding: .utf8) ?? ""
+        let stderrOutput = String(data: output.stderr, encoding: .utf8) ?? ""
+        return KiroCLIResult(
+            stdout: stdoutOutput,
+            stderr: stderrOutput,
+            terminationStatus: process.terminationStatus,
+            terminatedForIdle: didTerminateForIdle)
+    }
+
+    private static func terminateProcess(_ process: Process) {
+        guard process.isRunning else { return }
+        process.terminate()
+        let deadline = Date().addingTimeInterval(0.4)
+        while process.isRunning, Date() < deadline {
+            usleep(50_000)
+        }
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
+        }
+        process.waitUntilExit()
     }
 
     func parse(
