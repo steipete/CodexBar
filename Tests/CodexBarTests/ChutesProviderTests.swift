@@ -136,6 +136,62 @@ struct ChutesProviderTests {
     }
 
     @Test
+    func `partial subscription usage fills missing rolling window from quotas`() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            switch url.path {
+            case "/users/me/subscription_usage":
+                return Self.makeResponse(url: url, body: #"""
+                {
+                  "subscription": {
+                    "active": true,
+                    "plan_name": "Pro",
+                    "current_period_end": "2026-07-01T00:00:00Z"
+                  },
+                  "monthly": {
+                    "used": 250,
+                    "limit": 1000,
+                    "unit": "credits"
+                  }
+                }
+                """#)
+            case "/users/me/quotas":
+                return Self.makeResponse(url: url, body: #"""
+                {
+                  "rolling_window": {
+                    "requests": 40,
+                    "limit": 100,
+                    "window_minutes": 240,
+                    "unit": "requests"
+                  }
+                }
+                """#)
+            default:
+                throw URLError(.badURL)
+            }
+        }
+
+        let snapshot = try await ChutesUsageFetcher.fetchUsage(
+            apiKey: "chutes-key",
+            environment: [ChutesSettingsReader.apiURLEnvironmentKey: "https://chutes.test"],
+            transport: transport,
+            now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 40)
+        #expect(usage.primary?.windowMinutes == 240)
+        #expect(usage.primary?.resetDescription == "40/100 requests")
+        #expect(usage.secondary?.usedPercent == 25)
+        #expect(usage.secondary?.resetDescription == "250/1000 credits")
+        #expect(usage.loginMethod(for: .chutes) == "Pro")
+
+        let requests = await transport.requests()
+        let paths = requests.compactMap { $0.url?.path }
+        #expect(paths == ["/users/me/subscription_usage", "/users/me/quotas"])
+    }
+
+    @Test
     func `missing usage fields returns no data snapshot without decode failure`() throws {
         let data = Data(#"{"subscription":{"active":true},"unexpected":{"nested":true}}"#.utf8)
         let snapshot = try ChutesUsageParser.parse(data: data, now: Date(timeIntervalSince1970: 123))

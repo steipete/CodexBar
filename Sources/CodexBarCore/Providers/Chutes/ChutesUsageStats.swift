@@ -197,13 +197,13 @@ public struct ChutesUsageSnapshot: Sendable, Equatable {
 
     func preservingSubscriptionContext(from fallback: ChutesUsageSnapshot) -> ChutesUsageSnapshot {
         ChutesUsageSnapshot(
-            rollingWindow: self.rollingWindow,
-            monthlyWindow: self.monthlyWindow,
-            fallbackWindows: self.fallbackWindows,
-            subscriptionState: self.subscriptionState == .unknown ? fallback.subscriptionState : self.subscriptionState,
-            planName: self.planName ?? fallback.planName,
-            subscriptionRenewsAt: self.subscriptionRenewsAt ?? fallback.subscriptionRenewsAt,
-            updatedAt: self.updatedAt)
+            rollingWindow: fallback.rollingWindow ?? self.rollingWindow,
+            monthlyWindow: fallback.monthlyWindow ?? self.monthlyWindow,
+            fallbackWindows: fallback.fallbackWindows + self.fallbackWindows,
+            subscriptionState: fallback.subscriptionState,
+            planName: fallback.planName,
+            subscriptionRenewsAt: fallback.subscriptionRenewsAt,
+            updatedAt: fallback.updatedAt)
     }
 
     private func loginMethod(hasWindows: Bool) -> String? {
@@ -246,7 +246,9 @@ public struct ChutesUsageFetcher: Sendable {
             transport: transport,
             now: now)
 
-        guard !subscription.hasUsageData else { return subscription }
+        guard subscription.rollingWindow == nil || subscription.monthlyWindow == nil else {
+            return subscription
+        }
 
         do {
             let quotas = try await self.fetchSnapshot(
