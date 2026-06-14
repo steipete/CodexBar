@@ -23,6 +23,10 @@ codexbar_sparkle_version_dir() {
   local sparkle="$1"
   local versions_dir="${sparkle}/Versions"
 
+  if [[ -L "$sparkle" ]]; then
+    echo "ERROR: Sparkle framework root must not be a symlink: ${sparkle}" >&2
+    return 1
+  fi
   if [[ -L "$versions_dir" ]]; then
     echo "ERROR: Sparkle versions directory must not be a symlink: ${versions_dir}" >&2
     return 1

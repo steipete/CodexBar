@@ -87,6 +87,14 @@ if codexbar_sparkle_version_dir "$SYMLINKED_VERSIONS" 2>"$TEMP_DIR/symlinked-ver
 fi
 grep -Fq "versions directory must not be a symlink" "$TEMP_DIR/symlinked-versions.log"
 
+SYMLINKED_FRAMEWORK="$TEMP_DIR/Symlinked Sparkle.framework"
+ln -s "$OUTSIDE_SPARKLE" "$SYMLINKED_FRAMEWORK"
+if codexbar_sparkle_version_dir "$SYMLINKED_FRAMEWORK" 2>"$TEMP_DIR/symlinked-framework.log"; then
+  echo "ERROR: Symlinked Sparkle framework root was accepted." >&2
+  exit 1
+fi
+grep -Fq "framework root must not be a symlink" "$TEMP_DIR/symlinked-framework.log"
+
 ESCAPING_SINGLE="$TEMP_DIR/Escaping Single Sparkle.framework"
 mkdir -p "$ESCAPING_SINGLE/Versions"
 ln -s "$OUTSIDE_SPARKLE/Versions/C" "$ESCAPING_SINGLE/Versions/B"
