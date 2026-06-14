@@ -207,6 +207,7 @@ struct CodexManualSubscriptionSectionView: View {
                 self.hasExpiresAt = isEnabled
                 if isEnabled {
                     self.hasRenewsAt = false
+                    self.status = Self.effectiveStatusForSave(hasExpiresAt: true, status: self.status)
                 }
             })
     }
@@ -234,15 +235,27 @@ struct CodexManualSubscriptionSectionView: View {
     }
 
     private func makeSnapshotForSave(now: Date) -> ProviderSubscriptionSnapshot {
-        ProviderSubscriptionSnapshot(
+        let effectiveStatus = Self.effectiveStatusForSave(hasExpiresAt: self.hasExpiresAt, status: self.status)
+
+        return ProviderSubscriptionSnapshot(
             provider: .codex,
             planName: self.planName,
-            status: self.status,
+            status: effectiveStatus,
             subscriptionRenewsAt: self.hasRenewsAt ? self.renewsAt : nil,
             subscriptionExpiresAt: self.hasExpiresAt ? self.expiresAt : nil,
             source: .manual,
             confidence: .manual,
             updatedAt: now)
+    }
+
+    static func effectiveStatusForSave(
+        hasExpiresAt: Bool,
+        status: ProviderSubscriptionStatus) -> ProviderSubscriptionStatus
+    {
+        if hasExpiresAt {
+            return .canceled
+        }
+        return status
     }
 
     private static func statusTitle(_ status: ProviderSubscriptionStatus) -> String {

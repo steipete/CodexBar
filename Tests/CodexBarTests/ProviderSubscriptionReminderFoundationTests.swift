@@ -244,6 +244,22 @@ struct ProviderSubscriptionReminderFoundationTests {
     }
 
     @Test
+    func `manual reminder expiry saves as canceled status`() {
+        #expect(
+            CodexManualSubscriptionSectionView.effectiveStatusForSave(
+                hasExpiresAt: true,
+                status: .active) == .canceled)
+        #expect(
+            CodexManualSubscriptionSectionView.effectiveStatusForSave(
+                hasExpiresAt: true,
+                status: .trialing) == .canceled)
+        #expect(
+            CodexManualSubscriptionSectionView.effectiveStatusForSave(
+                hasExpiresAt: false,
+                status: .trialing) == .trialing)
+    }
+
+    @Test
     func `reminder logic emits threshold events once and dedupes`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_720_000_000)
