@@ -171,16 +171,23 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         return snapshot.withZenBalanceUSD(zenBalance)
     }
 
-    private static func requiredZenBalanceFallback(
+    static func requiredZenBalanceFallback(
         from task: Task<Double?, Error>?,
         for error: OpenCodeGoUsageError,
         now: Date) async throws -> OpenCodeGoUsageSnapshot
     {
         guard case let .parseFailed(message) = error,
               message.contains("Missing usage fields"),
-              let task,
-              let zenBalance = try await task.value
+              let task
         else {
+            throw error
+        }
+        let zenBalance = try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        guard let zenBalance else {
             throw error
         }
         return OpenCodeGoUsageSnapshot.zenBalanceOnly(balanceUSD: zenBalance, updatedAt: now)

@@ -304,6 +304,46 @@ struct OpenCodeGoUsageFetcherErrorTests {
     }
 
     @Test
+    func `zen only fallback promptly cancels the required balance task`() async throws {
+        let balanceStarted = AsyncStream<Void>.makeStream(of: Void.self)
+        let balanceTask = Task<Double?, Error> {
+            balanceStarted.continuation.yield(())
+            try await Task.sleep(for: .seconds(2))
+            return 42.5
+        }
+        let fallbackTask = Task {
+            try await OpenCodeGoUsageFetcher.requiredZenBalanceFallback(
+                from: balanceTask,
+                for: .parseFailed("Missing usage fields."),
+                now: Date())
+        }
+
+        var iterator = balanceStarted.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        let start = ContinuousClock.now
+        fallbackTask.cancel()
+
+        do {
+            _ = try await fallbackTask.value
+            Issue.record("Expected cancellation to propagate.")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            Issue.record("Expected CancellationError, got: \(error)")
+        }
+
+        #expect(start.duration(to: .now) < .milliseconds(500))
+        do {
+            _ = try await balanceTask.value
+            Issue.record("Expected required balance task to be canceled.")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            Issue.record("Expected CancellationError, got: \(error)")
+        }
+    }
+
+    @Test
     func `normalizes workspace override from URL into go page path`() async throws {
         defer {
             OpenCodeGoStubURLProtocol.handler = nil
