@@ -244,14 +244,13 @@ extension StatusItemController {
 
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
-        let resolved = snapshot.map {
-            IconRemainingResolver.resolvedPercents(
-                snapshot: $0,
-                style: style,
-                showUsed: showUsed)
-        }
-        var primary = resolved?.primary
-        var weekly = resolved?.secondary
+        let resolved = self.store.menuBarIconPercents(
+            for: primaryProvider,
+            snapshot: snapshot,
+            style: style,
+            showUsed: showUsed)
+        var primary = resolved.primary
+        var weekly = resolved.secondary
         if showUsed,
            primaryProvider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -451,14 +450,13 @@ extension StatusItemController {
         self.setButtonTitle(nil, for: button)
 
         // OpenRouter always gets a meter here — the brand-logo fallback was removed on purpose.
-        let resolved = snapshot.map {
-            IconRemainingResolver.resolvedPercents(
-                snapshot: $0,
-                style: style,
-                showUsed: showUsed)
-        }
-        var primary = resolved?.primary
-        var weekly = resolved?.secondary
+        let resolved = self.store.menuBarIconPercents(
+            for: provider,
+            snapshot: snapshot,
+            style: style,
+            showUsed: showUsed)
+        var primary = resolved.primary
+        var weekly = resolved.secondary
         if showUsed,
            provider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
@@ -702,6 +700,7 @@ extension StatusItemController {
 
         if mode == .percent,
            !self.settings.usageBarsShowUsed,
+           self.store.importedCodexMenuBarMetricWindows().isEmpty,
            codexProjection?.menuBarFallback == .creditsBalance,
            let creditsRemaining = codexProjection?.credits?.remaining,
            creditsRemaining > 0

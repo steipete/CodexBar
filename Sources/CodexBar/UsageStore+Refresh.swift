@@ -33,6 +33,10 @@ extension UsageStore {
         self.refreshingProviders.insert(provider)
         defer { self.refreshingProviders.remove(provider) }
 
+        if provider == .codex {
+            await self.refreshImportedCodexAccounts()
+        }
+
         if provider == .codex, self.shouldFetchAllCodexVisibleAccounts() {
             await self.refreshCodexVisibleAccountsForMenu()
             return
@@ -173,6 +177,7 @@ extension UsageStore {
             self.accountSnapshots.removeValue(forKey: provider)
             if provider == .codex {
                 self.codexAccountSnapshots = []
+                self.importedCodexAccountSnapshots = []
             }
             if provider == .kilo {
                 self.kiloScopeSnapshots = []

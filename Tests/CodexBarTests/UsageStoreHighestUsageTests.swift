@@ -118,6 +118,137 @@ struct UsageStoreHighestUsageTests {
     }
 
     @Test
+    func `codex imported account average participates in highest usage selection`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-codex-imported-average"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let codexSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        let claudeSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store._setSnapshotForTesting(codexSnapshot, provider: .codex)
+        store._setSnapshotForTesting(claudeSnapshot, provider: .claude)
+        store.importedCodexAccountSnapshots = [
+            Self.importedCodexSnapshot(id: "borrowed:one:path", usedPercent: 95),
+            Self.importedCodexSnapshot(id: "borrowed:two:path", usedPercent: 70),
+        ]
+
+        let highest = store.providerWithHighestUsage()
+
+        #expect(highest?.provider == .codex)
+        #expect(abs((highest?.usedPercent ?? 0) - 61.666666666666664) < 0.0001)
+    }
+
+    @Test
+    func `codex imported account average participates without native snapshot`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-codex-imported-only-average"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let claudeSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        store._setSnapshotForTesting(claudeSnapshot, provider: .claude)
+        store.importedCodexAccountSnapshots = [
+            Self.importedCodexSnapshot(id: "borrowed:one:path", usedPercent: 80),
+            Self.importedCodexSnapshot(id: "borrowed:two:path", usedPercent: 60),
+        ]
+
+        let highest = store.providerWithHighestUsage()
+        let iconPercents = store.menuBarIconPercents(
+            for: .codex,
+            snapshot: nil,
+            style: store.style(for: .codex),
+            showUsed: true)
+
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 70)
+        #expect(iconPercents.primary == 70)
+        #expect(iconPercents.secondary == nil)
+    }
+
+    @Test
+    func `codex without native snapshot or imported accounts is excluded from highest usage`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-codex-empty-excluded"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let highest = store.providerWithHighestUsage()
+
+        #expect(highest == nil)
+    }
+
+    @Test
+    func `codex selection metric matches legacy resolver when no imported accounts exist`() throws {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-codex-no-imported-legacy"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let expected = try #require(MenuBarMetricWindowResolver.rateWindow(
+            preference: settings.menuBarMetricPreference(for: .codex, snapshot: snapshot),
+            provider: .codex,
+            snapshot: snapshot,
+            supportsAverage: settings.menuBarMetricSupportsAverage(for: .codex)))
+        let actual = try #require(store.codexMenuBarMetricWindowIncludingImported(activeSnapshot: snapshot))
+
+        #expect(actual == expected)
+    }
+
+    @Test
     func `automatic metric uses antigravity tertiary when leading lanes are missing`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-tertiary"),
@@ -620,5 +751,28 @@ struct UsageStoreHighestUsageTests {
         let highest = store.providerWithHighestUsage()
         #expect(highest?.provider == .cursor)
         #expect(highest?.usedPercent == 100)
+    }
+
+    private static func importedCodexSnapshot(id: String, usedPercent: Double) -> ImportedCodexAccountUsageSnapshot {
+        ImportedCodexAccountUsageSnapshot(
+            account: BorrowedCodexAccount(
+                id: id,
+                email: "\(id)@example.com",
+                accountId: id,
+                credentials: CodexOAuthCredentials(
+                    accessToken: "access-token",
+                    refreshToken: "refresh-token",
+                    idToken: nil,
+                    accountId: id,
+                    lastRefresh: nil),
+                expired: nil,
+                isExpired: false,
+                sourcePath: "/tmp/\(id).json"),
+            snapshot: UsageSnapshot(
+                primary: RateWindow(usedPercent: usedPercent, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            error: nil,
+            sourceLabel: "borrowed")
     }
 }

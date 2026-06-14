@@ -5,10 +5,31 @@ public struct CodexBarConfig: Codable, Sendable {
 
     public var version: Int
     public var providers: [ProviderConfig]
+    public var importedCredentialSources: [ImportedCredentialSource]
 
-    public init(version: Int = Self.currentVersion, providers: [ProviderConfig]) {
+    public init(
+        version: Int = Self.currentVersion,
+        providers: [ProviderConfig],
+        importedCredentialSources: [ImportedCredentialSource] = [])
+    {
         self.version = version
         self.providers = providers
+        self.importedCredentialSources = importedCredentialSources
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case providers
+        case importedCredentialSources
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decode(Int.self, forKey: .version)
+        self.providers = try container.decode([ProviderConfig].self, forKey: .providers)
+        self.importedCredentialSources = try container.decodeIfPresent(
+            [ImportedCredentialSource].self,
+            forKey: .importedCredentialSources) ?? []
     }
 
     public static func makeDefault(
@@ -43,7 +64,8 @@ public struct CodexBarConfig: Codable, Sendable {
 
         return CodexBarConfig(
             version: Self.currentVersion,
-            providers: normalized)
+            providers: normalized,
+            importedCredentialSources: self.importedCredentialSources)
     }
 
     public func orderedProviders() -> [UsageProvider] {

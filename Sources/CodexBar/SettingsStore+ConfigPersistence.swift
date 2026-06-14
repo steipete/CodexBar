@@ -34,7 +34,7 @@ private struct ConfigChangeContext {
 }
 
 extension SettingsStore {
-    private func updateConfig(reason: String, mutate: (inout CodexBarConfig) -> Void) {
+    func updateConfig(reason: String, mutate: (inout CodexBarConfig) -> Void) {
         guard !self.configLoading else { return }
         var config = self.config
         mutate(&config)

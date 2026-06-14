@@ -3,6 +3,7 @@ import Foundation
 
 enum CodexAccountHealth: Equatable {
     case ok
+    case importedCredentialExpired
     case needsReauth
     case workspaceDeactivated
     case missingAuth
@@ -12,6 +13,8 @@ enum CodexAccountHealth: Equatable {
         switch self {
         case .ok:
             nil
+        case .importedCredentialExpired:
+            "Imported Codex credential expired. Refresh it in the source tool."
         case .needsReauth:
             "Needs re-auth"
         case .workspaceDeactivated:
@@ -35,6 +38,9 @@ enum CodexAccountHealth: Equatable {
 
     static func status(forError error: String) -> CodexAccountHealth {
         let normalized = error.lowercased()
+        if normalized.contains("imported"), normalized.contains("credential"), normalized.contains("expired") {
+            return .importedCredentialExpired
+        }
         if normalized.contains("deactivated") {
             return .workspaceDeactivated
         }

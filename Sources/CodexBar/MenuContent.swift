@@ -182,23 +182,26 @@ struct StatusIconView: View {
 
     private var accessibilityValue: String {
         let snapshot = self.store.snapshot(for: self.provider)
-        guard let snap = snapshot else {
-            return L("No data")
+        let percents = self.store.menuBarIconPercents(
+            for: self.provider,
+            snapshot: snapshot,
+            style: self.store.style(for: self.provider),
+            showUsed: false)
+        guard let primary = percents.primary else {
+            return snapshot == nil ? L("No data") : L("Unknown")
         }
-        let remaining = IconRemainingResolver.resolvedRemaining(
-            snapshot: snap,
-            style: self.store.style(for: self.provider))
-        let primary = remaining.primary
-        let percent = primary.map { String(format: L("%d percent remaining"), Int($0 * 100)) } ?? L("Unknown")
+        let percent = String(format: L("%d percent remaining"), Int(primary))
         let stale = self.store.isStale(provider: self.provider)
         return stale ? "\(percent), \(L("stale data"))" : percent
     }
 
     private var icon: NSImage {
         let snapshot = self.store.snapshot(for: self.provider)
-        let remaining = snapshot.map {
-            IconRemainingResolver.resolvedRemaining(snapshot: $0, style: self.store.style(for: self.provider))
-        }
+        let remaining = self.store.menuBarIconPercents(
+            for: self.provider,
+            snapshot: snapshot,
+            style: self.store.style(for: self.provider),
+            showUsed: false)
         let creditsProjection = self.store.codexConsumerProjectionIfNeeded(
             for: self.provider,
             surface: .menuBar,
@@ -210,8 +213,8 @@ struct StatusIconView: View {
                 now: snapshot?.updatedAt ?? Date())
             : nil
         return IconRenderer.makeIcon(
-            primaryRemaining: remaining?.primary,
-            weeklyRemaining: remaining?.secondary,
+            primaryRemaining: remaining.primary,
+            weeklyRemaining: remaining.secondary,
             creditsRemaining: creditsRemaining,
             stale: self.store.isStale(provider: self.provider),
             style: self.store.style(for: self.provider),

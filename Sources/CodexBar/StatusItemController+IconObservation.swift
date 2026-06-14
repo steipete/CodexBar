@@ -37,20 +37,19 @@ extension StatusItemController {
     private func providerStoreIconObservationSignature(for provider: UsageProvider, showBrandPercent: Bool) -> String {
         let snapshot = self.store.snapshot(for: provider)
         let style = self.store.style(for: provider)
-        let resolved = snapshot.map {
-            IconRemainingResolver.resolvedPercents(
-                snapshot: $0,
-                style: style,
-                showUsed: self.settings.usageBarsShowUsed)
-        }
+        let resolved = self.store.menuBarIconPercents(
+            for: provider,
+            snapshot: snapshot,
+            style: style,
+            showUsed: self.settings.usageBarsShowUsed)
         let creditsRemaining = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
         let displayText = showBrandPercent ? self.menuBarDisplayText(for: provider, snapshot: snapshot) : nil
 
         return [
             provider.rawValue,
             "style=\(style.rawValue)",
-            "primary=\(Self.iconSignatureValue(resolved?.primary))",
-            "weekly=\(Self.iconSignatureValue(resolved?.secondary))",
+            "primary=\(Self.iconSignatureValue(resolved.primary))",
+            "weekly=\(Self.iconSignatureValue(resolved.secondary))",
             "credits=\(Self.iconSignatureValue(creditsRemaining))",
             "stale=\(self.store.isStale(provider: provider) ? "1" : "0")",
             "status=\(self.store.statusIndicator(for: provider).rawValue)",

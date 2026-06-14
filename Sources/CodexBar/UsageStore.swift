@@ -15,6 +15,7 @@ extension UsageStore {
         _ = self.lastFetchAttempts
         _ = self.accountSnapshots
         _ = self.codexAccountSnapshots
+        _ = self.importedCodexAccountSnapshots
         _ = self.kiloScopeSnapshots
         _ = self.tokenSnapshots
         _ = self.tokenErrors
@@ -39,6 +40,7 @@ extension UsageStore {
 
     var iconObservationToken: Int {
         _ = self.snapshots
+        _ = self.importedCodexAccountSnapshots
         _ = self.errors
         _ = self.credits
         _ = self.lastCreditsError
@@ -137,6 +139,7 @@ final class UsageStore {
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
     var codexAccountSnapshots: [CodexAccountUsageSnapshot] = []
+    var importedCodexAccountSnapshots: [ImportedCodexAccountUsageSnapshot] = []
     var kiloScopeSnapshots: [KiloScopeSnapshot] = []
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
@@ -201,6 +204,7 @@ final class UsageStore {
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
+    @ObservationIgnored var _test_importedCodexUsageFetchOverride: ImportedCodexUsageFetchOverride?
     @ObservationIgnored var _test_providerStatusFetchOverride: (@MainActor (
         UsageProvider) async throws -> ProviderStatus)?
     @ObservationIgnored var _test_startupConnectivityRetryScheduled: (@MainActor (Int, TimeInterval) -> Void)?

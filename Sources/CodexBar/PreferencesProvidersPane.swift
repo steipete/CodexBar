@@ -111,6 +111,7 @@ struct ProvidersPane: View {
                                         await self.addManagedCodexAccount()
                                     }
                                 })
+                            ImportedCredentialsSectionView(settings: self.settings, store: self.store)
                         }
                     })
             } else {

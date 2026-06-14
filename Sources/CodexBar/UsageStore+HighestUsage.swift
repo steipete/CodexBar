@@ -8,9 +8,12 @@ extension UsageStore {
     func providerWithHighestUsage() -> (provider: UsageProvider, usedPercent: Double)? {
         var highest: (provider: UsageProvider, usedPercent: Double)?
         for provider in self.enabledProviders() {
-            guard let snapshot = self.snapshots[provider] else { continue }
+            let snapshot = self.snapshots[provider]
+            if provider != .codex, snapshot == nil { continue }
             let window = self.menuBarMetricWindowForHighestUsage(provider: provider, snapshot: snapshot)
+            if provider == .codex, snapshot == nil, window == nil { continue }
             let percent = window?.usedPercent ?? 0
+            if provider == .codex, !percent.isFinite { continue }
             guard !self.shouldExcludeFromHighestUsage(
                 provider: provider,
                 snapshot: snapshot,
@@ -25,8 +28,12 @@ extension UsageStore {
         return highest
     }
 
-    private func menuBarMetricWindowForHighestUsage(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
-        MenuBarMetricWindowResolver.rateWindow(
+    private func menuBarMetricWindowForHighestUsage(provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
+        if provider == .codex {
+            return self.codexMenuBarMetricWindowIncludingImported(activeSnapshot: snapshot)
+        }
+        guard let snapshot else { return nil }
+        return MenuBarMetricWindowResolver.rateWindow(
             preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
             provider: provider,
             snapshot: snapshot,
@@ -35,7 +42,7 @@ extension UsageStore {
 
     private func shouldExcludeFromHighestUsage(
         provider: UsageProvider,
-        snapshot: UsageSnapshot,
+        snapshot: UsageSnapshot?,
         metricPercent: Double)
         -> Bool
     {
@@ -43,8 +50,8 @@ extension UsageStore {
         guard metricPercent >= 100 else { return false }
         if provider == .copilot,
            effectivePreference == .automatic,
-           let primary = snapshot.primary,
-           let secondary = snapshot.secondary
+           let primary = snapshot?.primary,
+           let secondary = snapshot?.secondary
         {
             // In automatic mode Copilot can have one depleted lane while another still has quota.
             return primary.usedPercent >= 100 && secondary.usedPercent >= 100
@@ -53,9 +60,9 @@ extension UsageStore {
            effectivePreference == .automatic
         {
             let percents = [
-                snapshot.primary?.usedPercent,
-                snapshot.secondary?.usedPercent,
-                snapshot.tertiary?.usedPercent,
+                snapshot?.primary?.usedPercent,
+                snapshot?.secondary?.usedPercent,
+                snapshot?.tertiary?.usedPercent,
             ].compactMap(\.self)
             guard !percents.isEmpty else { return true }
             return percents.allSatisfy { $0 >= 100 }
@@ -64,9 +71,9 @@ extension UsageStore {
            effectivePreference == .automatic
         {
             let percents = [
-                snapshot.primary?.usedPercent,
-                snapshot.secondary?.usedPercent,
-                snapshot.tertiary?.usedPercent,
+                snapshot?.primary?.usedPercent,
+                snapshot?.secondary?.usedPercent,
+                snapshot?.tertiary?.usedPercent,
             ].compactMap(\.self)
             guard !percents.isEmpty else { return true }
             return percents.allSatisfy { $0 >= 100 }

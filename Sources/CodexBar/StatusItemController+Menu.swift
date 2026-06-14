@@ -689,6 +689,12 @@ extension StatusItemController {
                 provider: context.currentProvider,
                 width: context.menuWidth,
                 webItems: webItems)
+            if context.currentProvider == .codex, !self.store.importedCodexAccountSnapshots.isEmpty {
+                menu.addItem(.separator())
+            }
+            if self.addImportedCodexMenuCards(to: menu, context: context) {
+                menu.addItem(.separator())
+            }
             return true
         }
 
@@ -698,13 +704,16 @@ extension StatusItemController {
             width: context.menuWidth,
             heightCacheScope: context.currentProvider.rawValue,
             heightCacheFingerprint: model.heightFingerprint(section: "card")))
+        menu.addItem(.separator())
+        if self.addImportedCodexMenuCards(to: menu, context: context) {
+            menu.addItem(.separator())
+        }
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
         }
         if context.openAIContext.canShowBuyCredits {
             menu.addItem(self.makeBuyCreditsItem())
         }
-        menu.addItem(.separator())
         return false
     }
 
@@ -1368,14 +1377,13 @@ extension StatusItemController {
         let snapshot = self.store.snapshot(for: provider)
         let showUsed = self.settings.usageBarsShowUsed
         let style = self.store.style(for: provider)
-        let resolved = snapshot.map {
-            IconRemainingResolver.resolvedPercents(
-                snapshot: $0,
-                style: style,
-                showUsed: showUsed)
-        }
-        let primary = resolved?.primary
-        var weekly = resolved?.secondary
+        let resolved = self.store.menuBarIconPercents(
+            for: provider,
+            snapshot: snapshot,
+            style: style,
+            showUsed: showUsed)
+        let primary = resolved.primary
+        var weekly = resolved.secondary
         if showUsed,
            provider == .warp,
            let remaining = snapshot?.secondary?.remainingPercent,
