@@ -74,6 +74,10 @@ struct DocumentationLinkTests {
         ![query](docs/query.png?raw=1#preview)
         ![title](docs/title.png "Title")
         ![angle](<docs/with space.png>)
+        `![inline code](docs/not-an-image.png)`
+        ~~~markdown
+        ![fenced code](docs/not-an-image-either.png)
+        ~~~
         """
 
         #expect(Self.markdownImageLinks(in: markdown) == [
@@ -91,6 +95,10 @@ struct DocumentationLinkTests {
         <a href='docs/single.md#section'>single</a>
         <img src=docs/unquoted.png alt=unquoted>
         <a href="https://example.com/docs/remote.md">external</a>
+        `<img src="docs/not-an-image.png">`
+        ~~~html
+        <img src="docs/not-an-image-either.png">
+        ~~~
         """
 
         #expect(Self.htmlLinks(in: html) == [
@@ -131,12 +139,18 @@ struct DocumentationLinkTests {
         ## T3 Chat
         ## Repeated
         ## Repeated
+        ~~~markdown
+        ## Code Only
+        ~~~
         """.write(to: guide, atomically: true, encoding: .utf8)
 
         try Self.validateLocalDocLink("docs/guide.md#t3-chat", existsUnder: root)
         try Self.validateLocalDocLink("docs/guide.md#repeated-1", existsUnder: root)
         #expect(throws: DocumentationLinkError.missingAnchor("docs/guide.md#renamed")) {
             try Self.validateLocalDocLink("docs/guide.md#renamed", existsUnder: root)
+        }
+        #expect(throws: DocumentationLinkError.missingAnchor("docs/guide.md#code-only")) {
+            try Self.validateLocalDocLink("docs/guide.md#code-only", existsUnder: root)
         }
     }
 
@@ -165,11 +179,12 @@ struct DocumentationLinkTests {
             #"\!\[(?:\\.|[^\]\\])*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))"# +
             #"(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.matches(in: text, range: range).compactMap { match in
+        let source = Self.markdownTextOutsideCode(in: text)
+        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        return regex.matches(in: source, range: range).compactMap { match in
             for index in 1...2 {
-                if let linkRange = Range(match.range(at: index), in: text) {
-                    return String(text[linkRange])
+                if let linkRange = Range(match.range(at: index), in: source) {
+                    return String(source[linkRange])
                 }
             }
             return nil
@@ -180,11 +195,12 @@ struct DocumentationLinkTests {
         let pattern =
             #"<\s*(?:a|img)\b[^>]*?\b(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return [] }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.matches(in: text, range: range).compactMap { match in
+        let source = Self.markdownTextOutsideCode(in: text)
+        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        return regex.matches(in: source, range: range).compactMap { match in
             for index in 1...3 {
-                if let linkRange = Range(match.range(at: index), in: text) {
-                    return String(text[linkRange])
+                if let linkRange = Range(match.range(at: index), in: source) {
+                    return String(source[linkRange])
                 }
             }
             return nil
@@ -254,7 +270,8 @@ struct DocumentationLinkTests {
     private static func markdownHeadingAnchors(in markdown: String) -> Set<String> {
         var occurrences: [String: Int] = [:]
         var anchors: Set<String> = []
-        for line in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
+        let source = Self.markdownTextOutsideCode(in: markdown)
+        for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
             let markerCount = trimmed.prefix(while: { $0 == "#" }).count
             guard (1...6).contains(markerCount),
@@ -282,6 +299,54 @@ struct DocumentationLinkTests {
             }
         }
         return slug
+    }
+
+    private static func markdownTextOutsideCode(in markdown: String) -> String {
+        var fence: (marker: Character, count: Int)?
+        return markdown.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+            if let activeFence = fence {
+                if Self.isClosingFence(line, marker: activeFence.marker, minimumCount: activeFence.count) {
+                    fence = nil
+                }
+                return ""
+            }
+            if let openingFence = Self.openingFence(in: line) {
+                fence = openingFence
+                return ""
+            }
+            return Self.removingInlineCode(from: String(line))
+        }.joined(separator: "\n")
+    }
+
+    private static func openingFence(in line: Substring) -> (marker: Character, count: Int)? {
+        let leadingSpaces = line.prefix(while: { $0 == " " }).count
+        guard leadingSpaces <= 3 else { return nil }
+        let candidate = line.dropFirst(leadingSpaces)
+        guard let marker = candidate.first, marker == "`" || marker == "~" else { return nil }
+        let count = candidate.prefix(while: { $0 == marker }).count
+        guard count >= 3 else { return nil }
+        let suffix = candidate.dropFirst(count)
+        guard marker != "`" || !suffix.contains("`") else { return nil }
+        return (marker, count)
+    }
+
+    private static func isClosingFence(
+        _ line: Substring,
+        marker: Character,
+        minimumCount: Int) -> Bool
+    {
+        let leadingSpaces = line.prefix(while: { $0 == " " }).count
+        guard leadingSpaces <= 3 else { return false }
+        let candidate = line.dropFirst(leadingSpaces)
+        let count = candidate.prefix(while: { $0 == marker }).count
+        return count >= minimumCount && candidate.dropFirst(count).allSatisfy(\.isWhitespace)
+    }
+
+    private static func removingInlineCode(from line: String) -> String {
+        let pattern = #"(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return line }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        return regex.stringByReplacingMatches(in: line, range: range, withTemplate: "")
     }
 
     private static func repoRoot() throws -> URL {
