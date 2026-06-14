@@ -95,6 +95,28 @@ if codexbar_sparkle_version_dir "$SYMLINKED_FRAMEWORK" 2>"$TEMP_DIR/symlinked-fr
 fi
 grep -Fq "framework root must not be a symlink" "$TEMP_DIR/symlinked-framework.log"
 
+SYMLINKED_TARGET="$TEMP_DIR/Symlinked Target Sparkle.framework"
+make_sparkle_version "$SYMLINKED_TARGET" B
+rm "$SYMLINKED_TARGET/Versions/B/Autoupdate"
+ln -s "$OUTSIDE_SPARKLE/Versions/C/Autoupdate" "$SYMLINKED_TARGET/Versions/B/Autoupdate"
+if codexbar_sparkle_signing_targets \
+  "$SYMLINKED_TARGET" >"$TEMP_DIR/symlinked-target.out" 2>"$TEMP_DIR/symlinked-target.log"; then
+  echo "ERROR: Symlinked Sparkle signing target was accepted." >&2
+  exit 1
+fi
+grep -Fq "signing target must not be a symlink" "$TEMP_DIR/symlinked-target.log"
+
+ESCAPING_TARGET_PARENT="$TEMP_DIR/Escaping Target Parent Sparkle.framework"
+make_sparkle_version "$ESCAPING_TARGET_PARENT" B
+mv "$ESCAPING_TARGET_PARENT/Versions/B/XPCServices" "$TEMP_DIR/displaced-xpc-services"
+ln -s "$OUTSIDE_SPARKLE/Versions/C/XPCServices" "$ESCAPING_TARGET_PARENT/Versions/B/XPCServices"
+if codexbar_sparkle_signing_targets \
+  "$ESCAPING_TARGET_PARENT" >"$TEMP_DIR/escaping-target-parent.out" 2>"$TEMP_DIR/escaping-target-parent.log"; then
+  echo "ERROR: Sparkle signing target with an escaping parent was accepted." >&2
+  exit 1
+fi
+grep -Fq "signing target resolves outside its trusted root" "$TEMP_DIR/escaping-target-parent.log"
+
 ESCAPING_SINGLE="$TEMP_DIR/Escaping Single Sparkle.framework"
 mkdir -p "$ESCAPING_SINGLE/Versions"
 ln -s "$OUTSIDE_SPARKLE/Versions/C" "$ESCAPING_SINGLE/Versions/B"

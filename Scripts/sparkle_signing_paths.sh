@@ -78,13 +78,35 @@ codexbar_sparkle_version_dir() {
 codexbar_require_sparkle_signing_target() {
   local path="$1"
   local label="$2"
+  local trusted_root="$3"
+  local resolved trusted_root_resolved
+
+  if [[ -L "$path" ]]; then
+    echo "ERROR: Sparkle signing target must not be a symlink (${label}): ${path}" >&2
+    return 1
+  fi
 
   if [[ ! -e "$path" ]]; then
     echo "ERROR: Missing Sparkle signing target (${label}): ${path}" >&2
     return 1
   fi
 
-  printf '%s\n' "$path"
+  if ! trusted_root_resolved=$(cd "$trusted_root" 2>/dev/null && pwd -P); then
+    echo "ERROR: Sparkle signing root does not resolve (${label}): ${trusted_root}" >&2
+    return 1
+  fi
+  if [[ -d "$path" ]]; then
+    resolved=$(cd "$path" && pwd -P)
+  else
+    resolved="$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")"
+  fi
+  if [[ "$resolved" != "$trusted_root_resolved" &&
+    "${resolved#"$trusted_root_resolved"/}" == "$resolved" ]]; then
+    echo "ERROR: Sparkle signing target resolves outside its trusted root (${label}): ${path}" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$resolved"
 }
 
 codexbar_sparkle_signing_targets() {
@@ -94,15 +116,22 @@ codexbar_sparkle_signing_targets() {
     return 1
   fi
 
-  codexbar_require_sparkle_signing_target "$sparkle" "framework root" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/Sparkle" "framework binary" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/Autoupdate" "autoupdate tool" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/Updater.app" "updater app" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/Updater.app/Contents/MacOS/Updater" "updater executable" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/XPCServices/Downloader.xpc" "downloader xpc" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/XPCServices/Downloader.xpc/Contents/MacOS/Downloader" "downloader executable" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/XPCServices/Installer.xpc" "installer xpc" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/XPCServices/Installer.xpc/Contents/MacOS/Installer" "installer executable" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir" "framework version" || return 1
-  codexbar_require_sparkle_signing_target "$sparkle" "framework root" || return 1
+  codexbar_require_sparkle_signing_target "$sparkle" "framework root" "$sparkle" || return 1
+  codexbar_require_sparkle_signing_target "$version_dir/Sparkle" "framework binary" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target "$version_dir/Autoupdate" "autoupdate tool" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target "$version_dir/Updater.app" "updater app" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target \
+    "$version_dir/Updater.app/Contents/MacOS/Updater" "updater executable" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target \
+    "$version_dir/XPCServices/Downloader.xpc" "downloader xpc" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target \
+    "$version_dir/XPCServices/Downloader.xpc/Contents/MacOS/Downloader" \
+    "downloader executable" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target \
+    "$version_dir/XPCServices/Installer.xpc" "installer xpc" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target \
+    "$version_dir/XPCServices/Installer.xpc/Contents/MacOS/Installer" \
+    "installer executable" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target "$version_dir" "framework version" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target "$sparkle" "framework root" "$sparkle" || return 1
 }
