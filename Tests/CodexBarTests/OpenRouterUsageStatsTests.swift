@@ -202,6 +202,27 @@ struct OpenRouterUsageStatsTests {
     }
 
     @Test
+    func `key enrichment timeout does not wait for operation that ignores cancellation`() async throws {
+        let startedAt = ContinuousClock.now
+
+        let fetched = try await OpenRouterUsageFetcher._boundedKeyFetchForTesting(
+            timeout: .milliseconds(20))
+        {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                    continuation.resume()
+                }
+            }
+        }
+
+        let elapsed = startedAt.duration(to: .now)
+        #expect(!fetched)
+        #expect(elapsed < .milliseconds(300))
+
+        try await Task.sleep(for: .milliseconds(550))
+    }
+
+    @Test
     func `usage snapshot round trip persists open router usage metadata`() throws {
         let openRouter = OpenRouterUsageSnapshot(
             totalCredits: 50,

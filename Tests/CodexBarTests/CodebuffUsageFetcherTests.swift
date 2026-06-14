@@ -82,6 +82,90 @@ struct CodebuffUsageFetcherTests {
     }
 
     @Test
+    func `subscription grace does not wait for transport that ignores cancellation`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path == "/api/v1/usage" {
+                let response = try Self.makeResponse(
+                    url: url,
+                    body: #"{"usage":25,"quota":100,"remainingBalance":75}"#)
+                return (response.1, response.0)
+            }
+            let response = try Self.makeResponse(
+                url: url,
+                body: #"{"subscription":{"displayName":"Pro","status":"active"}}"#)
+            return await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                    continuation.resume(returning: (response.1, response.0))
+                }
+            }
+        }
+
+        let startedAt = ContinuousClock.now
+        let snapshot = try await CodebuffUsageFetcher._fetchUsageForTesting(
+            apiKey: "cb-test",
+            transport: transport,
+            subscriptionGrace: .milliseconds(20))
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(snapshot.creditsUsed == 25)
+        #expect(snapshot.tier == nil)
+        #expect(elapsed < .milliseconds(300), "Subscription enrichment delayed usage: \(elapsed)")
+
+        // Let the deliberately cancellation-ignoring test task drain before the test exits.
+        try await Task.sleep(for: .milliseconds(550))
+    }
+
+    @Test
+    func `cancellation stops subscription while usage transport ignores cancellation`() async throws {
+        let usageStarted = CodebuffRequestGate()
+        let subscriptionStarted = CodebuffRequestGate()
+        let subscriptionCancelled = CodebuffRequestGate()
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path == "/api/v1/usage" {
+                await usageStarted.open()
+                let response = try Self.makeResponse(
+                    url: url,
+                    body: #"{"usage":25,"quota":100,"remainingBalance":75}"#)
+                return await withCheckedContinuation { continuation in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                        continuation.resume(returning: (response.1, response.0))
+                    }
+                }
+            }
+
+            await subscriptionStarted.open()
+            do {
+                try await Task.sleep(for: .seconds(10))
+            } catch {
+                await subscriptionCancelled.open()
+                throw error
+            }
+            let response = try Self.makeResponse(
+                url: url,
+                body: #"{"subscription":{"displayName":"Pro","status":"active"}}"#)
+            return (response.1, response.0)
+        }
+        let task = Task {
+            try await CodebuffUsageFetcher.fetchUsage(
+                apiKey: "cb-test",
+                session: transport)
+        }
+
+        await usageStarted.wait()
+        await subscriptionStarted.wait()
+        let cancellationStartedAt = ContinuousClock.now
+        task.cancel()
+
+        await subscriptionCancelled.wait()
+        #expect(cancellationStartedAt.duration(to: .now) < .milliseconds(300))
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
     func `api strategy only fetches subscription for credentials file tokens`() {
         let envResolution = ProviderTokenResolution(token: "env-token", source: .environment)
         let fileResolution = ProviderTokenResolution(token: "file-token", source: .authFile)
@@ -328,6 +412,27 @@ struct CodebuffUsageFetcherTests {
             throw URLError(.badServerResponse)
         }
         return (response, Data(body.utf8))
+    }
+}
+
+private actor CodebuffRequestGate {
+    private var isOpen = false
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !self.isOpen else { return }
+        await withCheckedContinuation { continuation in
+            self.continuations.append(continuation)
+        }
+    }
+
+    func open() {
+        self.isOpen = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
     }
 }
 

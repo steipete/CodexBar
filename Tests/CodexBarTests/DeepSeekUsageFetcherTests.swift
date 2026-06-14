@@ -9,6 +9,7 @@ struct DeepSeekUsageFetcherTests {
         private var started = false
         private var cancelled = false
         private var startedWaiters: [CheckedContinuation<Void, Never>] = []
+        private var cancelledWaiters: [CheckedContinuation<Void, Never>] = []
 
         func markStarted() {
             self.started = true
@@ -27,6 +28,17 @@ struct DeepSeekUsageFetcherTests {
 
         func markCancelled() {
             self.cancelled = true
+            for waiter in self.cancelledWaiters {
+                waiter.resume()
+            }
+            self.cancelledWaiters.removeAll()
+        }
+
+        func waitUntilCancelled() async {
+            if self.cancelled { return }
+            await withCheckedContinuation { continuation in
+                self.cancelledWaiters.append(continuation)
+            }
         }
 
         func wasCancelled() -> Bool {
@@ -505,6 +517,48 @@ struct DeepSeekUsageFetcherTests {
             Issue.record("Expected cancellation")
         } catch is CancellationError {
             #expect(await probe.wasCancelled())
+        }
+    }
+
+    @Test
+    func `parent cancellation stops summary while balance transport ignores cancellation`() async throws {
+        let balanceStarted = AsyncStream<Void>.makeStream(of: Void.self)
+        let probe = SummaryCancellationProbe()
+        let task = Task {
+            try await DeepSeekUsageFetcher._fetchUsageForTesting(
+                apiKey: "test-key",
+                includeOptionalUsage: true,
+                optionalSummaryJoinGrace: .seconds(30),
+                fetchBalanceData: { _ in
+                    balanceStarted.continuation.yield(())
+                    return await withCheckedContinuation { continuation in
+                        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                            continuation.resume(returning: Data(Self.sampleBalanceJSON.utf8))
+                        }
+                    }
+                },
+                fetchSummary: { _ in
+                    await probe.markStarted()
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                        return Self.sampleSummary()
+                    } catch is CancellationError {
+                        await probe.markCancelled()
+                        throw CancellationError()
+                    }
+                })
+        }
+
+        var balanceIterator = balanceStarted.stream.makeAsyncIterator()
+        _ = await balanceIterator.next()
+        await probe.waitUntilStarted()
+        let cancellationStartedAt = ContinuousClock.now
+        task.cancel()
+
+        await probe.waitUntilCancelled()
+        #expect(cancellationStartedAt.duration(to: .now) < .milliseconds(300))
+        await #expect(throws: CancellationError.self) {
+            try await task.value
         }
     }
 

@@ -22,9 +22,36 @@ public enum CommandCodeUsageFetcher {
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> CommandCodeUsageSnapshot
     {
+        try await self.fetchUsage(
+            cookieHeader: cookieHeader,
+            transport: transport,
+            now: now,
+            subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
+    }
+
+    static func _fetchUsageForTesting(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport,
+        now: Date = Date(),
+        subscriptionGrace: Duration) async throws -> CommandCodeUsageSnapshot
+    {
+        try await self.fetchUsage(
+            cookieHeader: cookieHeader,
+            transport: transport,
+            now: now,
+            subscriptionGrace: subscriptionGrace)
+    }
+
+    private static func fetchUsage(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport,
+        now: Date,
+        subscriptionGrace: Duration) async throws -> CommandCodeUsageSnapshot
+    {
         let (credits, subscription) = try await self.fetchPayloads(
             cookieHeader: cookieHeader,
-            transport: transport)
+            transport: transport,
+            subscriptionGrace: subscriptionGrace)
 
         let plan: CommandCodePlanCatalog.Plan? = subscription.flatMap { sub in
             CommandCodePlanCatalog.plan(forID: sub.planID)
@@ -48,84 +75,46 @@ public enum CommandCodeUsageFetcher {
             updatedAt: now)
     }
 
-    private enum FetchPart {
-        case credits(CreditsPayload)
-        case subscription(SubscriptionPayload?)
-        case subscriptionFailure(String)
-        case subscriptionTimeout
-    }
-
     private static func fetchPayloads(
         cookieHeader: String,
-        transport: any ProviderHTTPTransport) async throws -> (CreditsPayload, SubscriptionPayload?)
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> (CreditsPayload, SubscriptionPayload?)
     {
-        try await withThrowingTaskGroup(of: FetchPart.self) { group in
-            group.addTask {
-                try await .credits(self.fetchCredits(cookieHeader: cookieHeader, transport: transport))
+        let subscriptionTask = Task<SubscriptionPayload?, Error> {
+            try await self.fetchSubscription(cookieHeader: cookieHeader, transport: transport)
+        }
+        let credits: CreditsPayload
+        do {
+            credits = try await withTaskCancellationHandler {
+                try await self.fetchCredits(cookieHeader: cookieHeader, transport: transport)
+            } onCancel: {
+                subscriptionTask.cancel()
             }
-            group.addTask {
-                do {
-                    return try await .subscription(self.fetchSubscription(
-                        cookieHeader: cookieHeader,
-                        transport: transport))
-                } catch is CancellationError {
-                    throw CancellationError()
-                } catch {
-                    return .subscriptionFailure(error.localizedDescription)
-                }
-            }
+        } catch {
+            subscriptionTask.cancel()
+            throw error
+        }
 
-            var credits: CreditsPayload?
-            var subscription: SubscriptionPayload?
-            var subscriptionFinished = false
-            var timeoutStarted = false
-
-            while let part = try await group.next() {
-                switch part {
-                case let .credits(payload):
-                    credits = payload
-                    if subscriptionFinished {
-                        try Task.checkCancellation()
-                        group.cancelAll()
-                        return (payload, subscription)
-                    }
-                    if !timeoutStarted {
-                        timeoutStarted = true
-                        group.addTask {
-                            try await Task.sleep(for: .seconds(Self.subscriptionGraceSeconds))
-                            return .subscriptionTimeout
-                        }
-                    }
-
-                case let .subscription(payload):
-                    subscription = payload
-                    subscriptionFinished = true
-                    if let credits {
-                        try Task.checkCancellation()
-                        group.cancelAll()
-                        return (credits, payload)
-                    }
-
-                case let .subscriptionFailure(message):
-                    Self.log.warning("Command Code subscription enrichment failed: \(message)")
-                    subscriptionFinished = true
-                    if let credits {
-                        try Task.checkCancellation()
-                        group.cancelAll()
-                        return (credits, subscription)
-                    }
-
-                case .subscriptionTimeout:
-                    if let credits {
-                        Self.log.warning("Command Code subscription enrichment timed out")
-                        try Task.checkCancellation()
-                        group.cancelAll()
-                        return (credits, subscription)
-                    }
-                }
-            }
-
-            throw CommandCodeUsageError.networkError("Credits request did not complete")
+        do {
+            try Task.checkCancellation()
+        } catch {
+            subscriptionTask.cancel()
+            throw error
+        }
+        let race = BoundedTaskJoin(sourceTask: subscriptionTask)
+        switch await race.value(joinGrace: subscriptionGrace) {
+        case let .value(subscription):
+            try Task.checkCancellation()
+            return (credits, subscription)
+        case .timedOut:
+            try Task.checkCancellation()
+            Self.log.warning("Command Code subscription enrichment timed out")
+            return (credits, nil)
+        case let .failure(error):
+            subscriptionTask.cancel()
+            try Task.checkCancellation()
+            Self.log.warning("Command Code subscription enrichment failed: \(error.localizedDescription)")
+            return (credits, nil)
         }
     }
 

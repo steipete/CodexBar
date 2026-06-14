@@ -123,80 +123,6 @@ public enum DeepSeekUsageError: LocalizedError, Sendable {
 
 // MARK: - Fetcher
 
-private final class DeepSeekOptionalSummaryRace: @unchecked Sendable {
-    private let lock = NSLock()
-    private let sourceTask: Task<DeepSeekUsageSummary, Error>
-    private var result: Result<DeepSeekUsageSummary?, Error>?
-    private var continuation: CheckedContinuation<DeepSeekUsageSummary?, Error>?
-    private var observerTask: Task<Void, Never>?
-    private var timeoutTask: Task<Void, Never>?
-
-    init(sourceTask: Task<DeepSeekUsageSummary, Error>) {
-        self.sourceTask = sourceTask
-    }
-
-    func value(joinGrace: Duration) async throws -> DeepSeekUsageSummary? {
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                self.lock.lock()
-                if let result = self.result {
-                    self.lock.unlock()
-                    continuation.resume(with: result)
-                    return
-                }
-
-                self.continuation = continuation
-                let sourceTask = self.sourceTask
-                self.observerTask = Task { [weak self] in
-                    do {
-                        let value = try await sourceTask.value
-                        self?.resolve(.success(value), cancelSource: false)
-                    } catch {
-                        self?.resolve(.failure(error), cancelSource: false)
-                    }
-                }
-                self.timeoutTask = Task { [weak self] in
-                    do {
-                        if joinGrace > .zero {
-                            try await Task.sleep(for: joinGrace)
-                        }
-                        self?.resolve(.success(nil), cancelSource: true)
-                    } catch {
-                        // The source completed or the caller canceled the race.
-                    }
-                }
-                self.lock.unlock()
-            }
-        } onCancel: {
-            self.resolve(.failure(CancellationError()), cancelSource: true)
-        }
-    }
-
-    private func resolve(_ result: Result<DeepSeekUsageSummary?, Error>, cancelSource: Bool) {
-        self.lock.lock()
-        guard self.result == nil else {
-            self.lock.unlock()
-            return
-        }
-
-        self.result = result
-        let continuation = self.continuation
-        self.continuation = nil
-        let observerTask = self.observerTask
-        let timeoutTask = self.timeoutTask
-        self.observerTask = nil
-        self.timeoutTask = nil
-        self.lock.unlock()
-
-        if cancelSource {
-            self.sourceTask.cancel()
-        }
-        observerTask?.cancel()
-        timeoutTask?.cancel()
-        continuation?.resume(with: result)
-    }
-}
-
 public struct DeepSeekUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.deepSeekUsage)
     private static let balanceURL = URL(string: "https://api.deepseek.com/user/balance")!
@@ -265,7 +191,11 @@ public struct DeepSeekUsageFetcher: Sendable {
 
         let balanceData: Data
         do {
-            balanceData = try await fetchBalanceData(apiKey)
+            balanceData = try await withTaskCancellationHandler {
+                try await fetchBalanceData(apiKey)
+            } onCancel: {
+                summaryTask?.cancel()
+            }
         } catch {
             summaryTask?.cancel()
             throw error
@@ -318,10 +248,15 @@ public struct DeepSeekUsageFetcher: Sendable {
         from task: Task<DeepSeekUsageSummary, Error>,
         joinGrace: Duration) async throws -> DeepSeekUsageSummary?
     {
-        let race = DeepSeekOptionalSummaryRace(sourceTask: task)
-        do {
-            return try await race.value(joinGrace: joinGrace)
-        } catch {
+        let race = BoundedTaskJoin(sourceTask: task)
+        switch await race.value(joinGrace: joinGrace) {
+        case let .value(summary):
+            try Task.checkCancellation()
+            return summary
+        case .timedOut:
+            try Task.checkCancellation()
+            return nil
+        case let .failure(error):
             task.cancel()
             if Task.isCancelled {
                 throw error

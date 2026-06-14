@@ -96,6 +96,36 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
+    func `subscription grace does not wait for transport that ignores cancellation`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/credits") {
+                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+            }
+            let response = try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
+            return await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                    continuation.resume(returning: response)
+                }
+            }
+        }
+
+        let startedAt = ContinuousClock.now
+        let snapshot = try await CommandCodeUsageFetcher._fetchUsageForTesting(
+            cookieHeader: "session=valid",
+            transport: transport,
+            subscriptionGrace: .milliseconds(20))
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+        #expect(snapshot.plan == nil)
+        #expect(elapsed < .milliseconds(300), "Subscription enrichment delayed credits: \(elapsed)")
+
+        // Let the deliberately cancellation-ignoring test task drain before the test exits.
+        try await Task.sleep(for: .milliseconds(550))
+    }
+
+    @Test
     func `cancellation after credits complete does not return partial snapshot`() async throws {
         let subscriptionStarted = CommandCodeRequestGate()
         let transport = ProviderHTTPTransportStub { request in
@@ -117,6 +147,49 @@ struct CommandCodeUsageFetcherTests {
         try await Task.sleep(for: .milliseconds(50))
         task.cancel()
 
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
+    func `cancellation cleans up subscription when credits transport ignores cancellation`() async throws {
+        let creditsStarted = CommandCodeRequestGate()
+        let subscriptionStarted = CommandCodeRequestGate()
+        let subscriptionCancelled = CommandCodeRequestGate()
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/credits") {
+                await creditsStarted.open()
+                let response = try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+                return await withCheckedContinuation { continuation in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                        continuation.resume(returning: response)
+                    }
+                }
+            }
+            await subscriptionStarted.open()
+            do {
+                try await Task.sleep(for: .seconds(10))
+            } catch {
+                await subscriptionCancelled.open()
+                throw error
+            }
+            return try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
+        }
+        let task = Task {
+            try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport)
+        }
+
+        await creditsStarted.wait()
+        await subscriptionStarted.wait()
+        let cancellationStartedAt = ContinuousClock.now
+        task.cancel()
+
+        await subscriptionCancelled.wait()
+        #expect(cancellationStartedAt.duration(to: .now) < .milliseconds(300))
         await #expect(throws: CancellationError.self) {
             try await task.value
         }
