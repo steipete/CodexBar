@@ -709,20 +709,17 @@ public struct AntigravityStatusProbe: Sendable {
         self.processScope = processScope
     }
 
-    public func fetch() async throws -> AntigravityStatusSnapshot {
+    public func fetch(matchingAccountEmail expectedAccountEmail: String? = nil) async throws
+        -> AntigravityStatusSnapshot
+    {
         let processInfos = try await Self.detectProcessInfos(timeout: self.timeout, scope: self.processScope)
-        var bestSnapshot: AntigravityStatusSnapshot?
-        var bestScore = Int.min
+        var snapshots: [AntigravityStatusSnapshot] = []
         var lastError: Error?
 
         for processInfo in processInfos {
             do {
                 let snapshot = try await Self.fetch(processInfo: processInfo, timeout: self.timeout)
-                let score = Self.localSnapshotScore(snapshot)
-                if score > bestScore {
-                    bestSnapshot = snapshot
-                    bestScore = score
-                }
+                snapshots.append(snapshot)
             } catch {
                 lastError = error
                 Self.log.debug("Antigravity local process probe failed", metadata: [
@@ -732,7 +729,10 @@ public struct AntigravityStatusProbe: Sendable {
             }
         }
 
-        if let bestSnapshot {
+        if let bestSnapshot = Self.preferredLocalSnapshot(
+            snapshots,
+            matchingAccountEmail: expectedAccountEmail)
+        {
             return bestSnapshot
         }
         throw lastError ?? AntigravityStatusProbeError.notRunning

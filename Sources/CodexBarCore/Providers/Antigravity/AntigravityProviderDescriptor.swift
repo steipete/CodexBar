@@ -73,7 +73,7 @@ public enum AntigravityProviderDescriptor {
 }
 
 struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
-    enum Source: Sendable {
+    enum Source {
         case app
         case ide
 
@@ -116,7 +116,12 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = AntigravityStatusProbe(processScope: self.source.processScope)
-        let snap = try await probe.fetch()
+        let selectedAccountEmail: String? = if context.sourceMode == .auto, context.selectedTokenAccountID != nil {
+            AntigravitySelectedAccountGuard.selectedAccountEmail(context: context)
+        } else {
+            nil
+        }
+        let snap = try await probe.fetch(matchingAccountEmail: selectedAccountEmail)
         let usage = try snap.toUsageSnapshot()
         try AntigravitySelectedAccountGuard.validate(usage, context: context)
         return self.makeResult(
