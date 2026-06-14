@@ -9,7 +9,9 @@ struct ProviderSubscriptionReminderFoundationTests {
     @Test
     func `provider config round-trips manual subscription snapshot`() throws {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
-        let renewsAt = now.addingTimeInterval(7 * 24 * 60 * 60)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let renewsAt = try #require(calendar.date(from: DateComponents(year: 2024, month: 7, day: 10, hour: 2)))
         let snapshot = ProviderSubscriptionSnapshot(
             provider: .codex,
             planName: "Codex Plus",
@@ -30,7 +32,12 @@ struct ProviderSubscriptionReminderFoundationTests {
         #expect(restored.provider == .codex)
         #expect(restored.planName == "Codex Plus")
         #expect(restored.status == .active)
-        #expect(restored.subscriptionRenewsAt == renewsAt)
+        let restoredLine = ProviderSubscriptionFormatter.menuLine(
+            from: restored,
+            now: now,
+            calendar: calendar,
+            locale: Locale(identifier: "en_US"))
+        #expect(restoredLine == "Renews Jul 10, 2024")
         #expect(restored.subscriptionExpiresAt == nil)
         #expect(restored.source == .manual)
         #expect(restored.confidence == .manual)
@@ -63,6 +70,66 @@ struct ProviderSubscriptionReminderFoundationTests {
 
         #expect(snapshot.subscriptionRenewsAt != nil)
         #expect(snapshot.updatedAt != Date(timeIntervalSince1970: 0))
+    }
+
+    @Test
+    func `manual subscription dates preserve calendar day across negative UTC offsets`() throws {
+        let json = """
+        {
+          "version": 1,
+          "providers": [
+            {
+              "id": "codex",
+              "subscriptionSnapshot": {
+                "provider": "codex",
+                "planName": "Codex Plus",
+                "status": "active",
+                "subscriptionRenewsAt": "2026-06-24T00:00:00Z",
+                "subscriptionExpiresAt": null,
+                "source": "manual",
+                "confidence": "manual",
+                "updatedAt": "2026-05-24T00:00:00Z"
+              }
+            }
+          ]
+        }
+        """
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: Data(json.utf8))
+        let snapshot = try #require(decoded.providerConfig(for: .codex)?.subscriptionSnapshot)
+        let locale = Locale(identifier: "en_US")
+        var losAngelesCalendar = Calendar(identifier: .gregorian)
+        losAngelesCalendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let now = Date(timeIntervalSince1970: 1_718_928_000) // 2024-06-22T12:00:00Z
+
+        let line = ProviderSubscriptionFormatter.menuLine(
+            from: snapshot,
+            now: now,
+            calendar: losAngelesCalendar,
+            locale: locale)
+
+        #expect(line == "Renews Jun 24, 2026")
+    }
+
+    @Test
+    func `manual subscription dates encode as calendar day strings`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let date = try #require(calendar.date(from: DateComponents(year: 2026, month: 6, day: 24, hour: 0)))
+        let snapshot = ProviderSubscriptionSnapshot(
+            provider: .codex,
+            planName: "Codex Plus",
+            status: .active,
+            subscriptionRenewsAt: date,
+            subscriptionExpiresAt: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_720_000_000))
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .codex, subscriptionSnapshot: snapshot),
+        ])
+
+        let encoded = try JSONEncoder().encode(config)
+        let json = try #require(String(data: encoded, encoding: .utf8))
+
+        #expect(json.contains("\"subscriptionRenewsAt\":\"2026-06-24\""))
     }
 
     @Test

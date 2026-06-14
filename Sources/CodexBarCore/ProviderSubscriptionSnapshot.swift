@@ -17,6 +17,16 @@ public enum ProviderSubscriptionConfidence: String, Codable, Sendable, CaseItera
 }
 
 public struct ProviderSubscriptionSnapshot: Codable, Sendable, Equatable {
+    private static let manualDateCalendar = Calendar(identifier: .gregorian)
+    private static let manualDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Self.manualDateCalendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
     public let provider: UsageProvider
     public let planName: String?
     public let status: ProviderSubscriptionStatus
@@ -39,8 +49,8 @@ public struct ProviderSubscriptionSnapshot: Codable, Sendable, Equatable {
         self.provider = provider
         self.planName = Self.normalized(planName)
         self.status = status
-        self.subscriptionRenewsAt = subscriptionRenewsAt
-        self.subscriptionExpiresAt = subscriptionExpiresAt
+        self.subscriptionRenewsAt = Self.normalizedManualDate(subscriptionRenewsAt)
+        self.subscriptionExpiresAt = Self.normalizedManualDate(subscriptionExpiresAt)
         self.source = source
         self.confidence = confidence
         self.updatedAt = updatedAt
@@ -132,6 +142,9 @@ public struct ProviderSubscriptionSnapshot: Codable, Sendable, Equatable {
     }
 
     private static func parseDateString(_ value: String) -> Date? {
+        if let date = self.parseManualDateString(value) {
+            return date
+        }
         let withFractionalSeconds = ISO8601DateFormatter()
         withFractionalSeconds.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = withFractionalSeconds.date(from: value) {
@@ -159,13 +172,67 @@ public struct ProviderSubscriptionSnapshot: Codable, Sendable, Equatable {
             try container.encodeNil(forKey: key)
             return
         }
-        try self.encodeDate(value, to: &container, forKey: key)
+        try container.encode(self.manualDateString(from: value), forKey: key)
     }
 
     private static func iso8601String(from date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
+    }
+
+    private static func normalizedManualDate(_ date: Date?) -> Date? {
+        guard let date else { return nil }
+        let components = self.manualDateCalendar.dateComponents(in: .current, from: date)
+        guard let year = components.year, let month = components.month, let day = components.day else {
+            return date
+        }
+        return self.manualDateCalendar.date(
+            from: DateComponents(timeZone: .gmt, year: year, month: month, day: day, hour: 12))
+    }
+
+    private static func manualDateString(from date: Date) -> String {
+        self.manualDateFormatter.string(from: date)
+    }
+
+    private static func parseManualDateString(_ value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if Self.isCalendarDayLiteral(trimmed) {
+            return self.dateFromCalendarDayLiteral(trimmed)
+        }
+
+        if let literal = Self.extractMidnightUTCCalendarDay(trimmed) {
+            return self.dateFromCalendarDayLiteral(literal)
+        }
+
+        return nil
+    }
+
+    private static func isCalendarDayLiteral(_ value: String) -> Bool {
+        guard value.count == 10 else { return false }
+        let bytes = Array(value.utf8)
+        return bytes[4] == 45 && bytes[7] == 45
+            && bytes.enumerated().allSatisfy { index, byte in
+                if index == 4 || index == 7 { return true }
+                return byte >= 48 && byte <= 57
+            }
+    }
+
+    private static func extractMidnightUTCCalendarDay(_ value: String) -> String? {
+        let suffixes = [
+            "T00:00:00Z",
+            "T00:00:00.000Z",
+            "T00:00:00.000000Z",
+        ]
+        guard let suffix = suffixes.first(where: { value.hasSuffix($0) }) else { return nil }
+        let prefix = String(value.dropLast(suffix.count))
+        return Self.isCalendarDayLiteral(prefix) ? prefix : nil
+    }
+
+    private static func dateFromCalendarDayLiteral(_ value: String) -> Date? {
+        guard let startOfDayUTC = self.manualDateFormatter.date(from: value) else { return nil }
+        return self.manualDateCalendar.date(byAdding: .hour, value: 12, to: startOfDayUTC)
     }
 }
 
