@@ -270,9 +270,11 @@ struct OpenCodeGoUsageFetcherErrorTests {
             OpenCodeGoStubURLProtocol.handler = nil
         }
 
+        var rootTimeout: TimeInterval?
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             if url.path == "/workspace/wrk_TEST123" {
+                rootTimeout = request.timeoutInterval
                 return Self.makeResponse(
                     url: url,
                     body: #"<html><body><h2>Current balance $17.25</h2></body></html>"#,
@@ -288,7 +290,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
 
         let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
             cookieHeader: "auth=test",
-            timeout: 2,
+            timeout: 12,
             workspaceIDOverride: "wrk_TEST123",
             session: self.makeSession())
         let usage = snapshot.toUsageSnapshot()
@@ -298,6 +300,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
         #expect(usage.primary == nil)
         #expect(usage.secondary == nil)
         #expect(usage.providerCost?.used == 17.25)
+        #expect(rootTimeout == 12)
     }
 
     @Test
@@ -427,7 +430,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
 
         #expect(snapshot.rollingUsagePercent == 17)
         #expect(snapshot.zenBalanceUSD == nil)
-        #expect(rootTimeout == 5)
+        #expect(rootTimeout == 60)
     }
 
     @Test

@@ -130,7 +130,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             try await self.fetchOptionalZenBalance(
                 workspaceID: workspaceID,
                 cookieHeader: requestCookieHeader,
-                timeout: min(timeout, self.optionalZenBalanceTimeout),
+                timeout: timeout,
                 session: session)
         } : nil
         defer {
