@@ -97,8 +97,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let store: UsageStore
     let settings: SettingsStore
     lazy var menuCardRefreshMonitor = MenuCardRefreshMonitor { [weak self] provider in
-        guard let model = self?.menuCardModel(for: provider) else { return nil }
-        return MenuCardLiveSubtitle(text: model.subtitleText, style: model.subtitleStyle)
+        self?.menuCardModel(for: provider)
     }
 
     let account: AccountInfo

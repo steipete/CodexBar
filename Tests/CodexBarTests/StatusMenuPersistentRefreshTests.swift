@@ -101,6 +101,16 @@ struct StatusMenuPersistentRefreshTests {
             statusBar: .system)
     }
 
+    private static func makeTokenSnapshot() -> CostUsageTokenSnapshot {
+        CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 456,
+            last30DaysCostUSD: 1.23,
+            daily: [],
+            updatedAt: Date())
+    }
+
     @Test
     func `refresh menu item is view backed so mouse activation keeps the menu open`() throws {
         let settings = self.makeSettings()
@@ -289,6 +299,104 @@ struct StatusMenuPersistentRefreshTests {
 
         monitor.isManualRefreshInFlight = true
         #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .loading)
+    }
+
+    @Test
+    func `refresh monitor updates compatible usage values after manual refresh completes`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        let now = Date()
+        controller.store.snapshots[.claude] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7200),
+                resetDescription: nil),
+            updatedAt: now)
+        let fallback = try #require(controller.menuCardModel(for: .claude))
+        controller.menuCardRefreshMonitor.isManualRefreshInFlight = true
+
+        controller.store.snapshots[.claude] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 65,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 75,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7200),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(1))
+
+        let inFlight = controller.menuCardRefreshMonitor.model(for: .claude, fallback: fallback)
+        #expect(inFlight.metrics.map(\.percent) == fallback.metrics.map(\.percent))
+
+        controller.menuCardRefreshMonitor.isManualRefreshInFlight = false
+        let refreshed = controller.menuCardRefreshMonitor.model(for: .claude, fallback: fallback)
+        let expected = try #require(controller.menuCardModel(for: .claude))
+
+        #expect(refreshed.metrics.map(\.percent) == expected.metrics.map(\.percent))
+        #expect(refreshed.metrics.map(\.percent) != fallback.metrics.map(\.percent))
+    }
+
+    @Test
+    func `refresh monitor preserves tracked layout when refresh adds usage sections`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        let fallback = try #require(controller.menuCardModel(for: .claude))
+        #expect(fallback.metrics.isEmpty)
+
+        controller.store.snapshots[.claude] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: Date().addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+
+        let refreshed = controller.menuCardRefreshMonitor.model(for: .claude, fallback: fallback)
+
+        #expect(refreshed.metrics.isEmpty)
+        #expect(refreshed.placeholder == fallback.placeholder)
+    }
+
+    @Test
+    func `refresh monitor preserves tracked layout when token error appears`() throws {
+        let settings = self.makeSettings()
+        settings.costUsageEnabled = true
+        let controller = self.makeController(settings: settings)
+        controller.store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(), provider: .claude)
+        let fallback = try #require(controller.menuCardModel(for: .claude))
+        #expect(fallback.tokenUsage?.errorLine == nil)
+
+        controller.store._setTokenErrorForTesting("New token usage error", provider: .claude)
+        let refreshed = controller.menuCardRefreshMonitor.model(for: .claude, fallback: fallback)
+
+        #expect(refreshed.tokenUsage?.errorLine == nil)
+    }
+
+    @Test
+    func `refresh monitor preserves tracked layout when token error text changes`() throws {
+        let settings = self.makeSettings()
+        settings.costUsageEnabled = true
+        let controller = self.makeController(settings: settings)
+        controller.store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(), provider: .claude)
+        controller.store._setTokenErrorForTesting("Old token usage error", provider: .claude)
+        let fallback = try #require(controller.menuCardModel(for: .claude))
+
+        controller.store._setTokenErrorForTesting(
+            "A longer replacement error that could occupy more lines",
+            provider: .claude)
+        let refreshed = controller.menuCardRefreshMonitor.model(for: .claude, fallback: fallback)
+
+        #expect(refreshed.tokenUsage?.errorLine == "Old token usage error")
     }
 
     @Test

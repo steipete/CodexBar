@@ -1,37 +1,6 @@
 import AppKit
 import CodexBarCore
-import Observation
 import SwiftUI
-
-struct MenuCardLiveSubtitle {
-    let text: String
-    let style: UsageMenuCardView.Model.SubtitleStyle
-}
-
-/// Narrow observable bridge for updating an already-hosted card subtitle without rebuilding
-/// the tracked NSMenu.
-@MainActor
-@Observable
-final class MenuCardRefreshMonitor {
-    typealias SubtitleResolver = @MainActor (UsageProvider) -> MenuCardLiveSubtitle?
-
-    private let resolveSubtitle: SubtitleResolver
-    var isManualRefreshInFlight = false
-
-    init(resolveSubtitle: @escaping SubtitleResolver) {
-        self.resolveSubtitle = resolveSubtitle
-    }
-
-    func subtitle(
-        for provider: UsageProvider,
-        fallback: MenuCardLiveSubtitle) -> MenuCardLiveSubtitle
-    {
-        if self.isManualRefreshInFlight {
-            return MenuCardLiveSubtitle(text: "\(L("Refreshing"))…", style: .loading)
-        }
-        return self.resolveSubtitle(provider) ?? fallback
-    }
-}
 
 enum UsageMenuCardLayout {
     static let horizontalPadding: CGFloat = 20
@@ -159,6 +128,7 @@ struct UsageMenuCardView: View {
     let model: Model
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
         if provider == .openrouter, metric.id == "primary" {
@@ -168,43 +138,44 @@ struct UsageMenuCardView: View {
     }
 
     var body: some View {
+        let liveModel = self.liveModel
         VStack(alignment: .leading, spacing: 6) {
             UsageMenuCardHeaderView(model: self.model)
 
-            if self.hasDetails {
+            if self.hasDetails(model: liveModel) {
                 Divider()
             }
 
-            if !self.model.usesStackedDetailLayout {
-                if let dashboard = self.model.inlineUsageDashboard {
+            if !liveModel.usesStackedDetailLayout {
+                if let dashboard = liveModel.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
-                } else if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                } else if let placeholder = self.model.placeholder {
+                } else if !liveModel.usageNotes.isEmpty {
+                    UsageNotesContent(notes: liveModel.usageNotes)
+                } else if let placeholder = liveModel.placeholder {
                     Text(placeholder)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .font(.subheadline)
                 }
             } else {
-                let hasUsage = self.model.hasUsageContent
-                let hasCredits = self.model.creditsText != nil
-                let hasProviderCost = self.model.providerCost != nil
-                let hasCost = self.model.tokenUsage != nil || hasProviderCost
+                let hasUsage = liveModel.hasUsageContent
+                let hasCredits = liveModel.creditsText != nil
+                let hasProviderCost = liveModel.providerCost != nil
+                let hasCost = liveModel.tokenUsage != nil || hasProviderCost
 
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(self.model.metrics, id: \.id) { metric in
+                            ForEach(liveModel.metrics, id: \.id) { metric in
                                 MetricRow(
                                     metric: metric,
-                                    title: Self.popupMetricTitle(provider: self.model.provider, metric: metric),
-                                    progressColor: self.model.progressColor)
+                                    title: Self.popupMetricTitle(provider: liveModel.provider, metric: metric),
+                                    progressColor: liveModel.progressColor)
                             }
-                            if let dashboard = self.model.inlineUsageDashboard {
+                            if let dashboard = liveModel.inlineUsageDashboard {
                                 InlineUsageDashboardContent(model: dashboard)
-                            } else if !self.model.usageNotes.isEmpty {
-                                UsageNotesContent(notes: self.model.usageNotes)
-                            } else if let placeholder = self.model.placeholder {
+                            } else if !liveModel.usageNotes.isEmpty {
+                                UsageNotesContent(notes: liveModel.usageNotes)
+                            } else if let placeholder = liveModel.placeholder {
                                 Text(placeholder)
                                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                                     .font(.subheadline)
@@ -214,34 +185,36 @@ struct UsageMenuCardView: View {
                     if hasUsage, hasCredits || hasCost {
                         Divider()
                     }
-                    if let credits = self.model.creditsText {
+                    if let credits = liveModel.creditsText {
                         CreditsBarContent(
                             creditsText: credits,
-                            creditsRemaining: self.model.creditsRemaining,
-                            hintText: self.model.creditsHintText,
-                            hintCopyText: self.model.creditsHintCopyText,
-                            progressColor: self.model.progressColor)
+                            creditsRemaining: liveModel.creditsRemaining,
+                            hintText: liveModel.creditsHintText,
+                            hintCopyText: liveModel.creditsHintCopyText,
+                            progressColor: liveModel.progressColor)
                     }
                     if hasCredits, hasCost {
                         Divider()
                     }
-                    if let providerCost = self.model.providerCost {
+                    if let providerCost = liveModel.providerCost {
                         ProviderCostContent(
                             section: providerCost,
-                            progressColor: self.model.progressColor)
+                            progressColor: liveModel.progressColor)
                     }
-                    if hasProviderCost, self.model.tokenUsage != nil {
+                    if hasProviderCost, liveModel.tokenUsage != nil {
                         Divider()
                     }
-                    if let tokenUsage = self.model.tokenUsage {
+                    if let tokenUsage = liveModel.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(L("cost_header_estimated"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
                                 .font(.footnote)
+                                .lineLimit(1)
                             Text(tokenUsage.monthLine)
                                 .font(.footnote)
+                                .lineLimit(1)
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)
@@ -262,25 +235,30 @@ struct UsageMenuCardView: View {
                         }
                     }
                 }
-                .padding(.bottom, self.model.creditsText == nil ? 6 : 0)
+                .padding(.bottom, liveModel.creditsText == nil ? 6 : 0)
             }
         }
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(
             .top,
-            self.hasDetails
+            self.hasDetails(model: liveModel)
                 ? UsageMenuCardLayout.sectionTopPadding
                 : UsageMenuCardLayout.headerOnlyVerticalPadding)
         .padding(
             .bottom,
-            self.hasDetails
+            self.hasDetails(model: liveModel)
                 ? UsageMenuCardLayout.sectionBottomPadding
                 : UsageMenuCardLayout.headerOnlyVerticalPadding)
         .frame(width: self.width, alignment: .leading)
     }
 
-    private var hasDetails: Bool {
-        self.model.hasUsageContent || self.model.usesStackedDetailLayout
+    private var liveModel: Model {
+        guard self.model.usesLiveSubtitle else { return self.model }
+        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
+    }
+
+    private func hasDetails(model: Model) -> Bool {
+        model.hasUsageContent || model.usesStackedDetailLayout
     }
 }
 
@@ -431,13 +409,13 @@ private struct ProviderCostContent: View {
                     accessibilityLabel: L("Extra usage spent"))
             }
             HStack(alignment: .firstTextBaseline) {
-                Text(self.section.spendLine)
-                    .font(.footnote)
+                Text(self.section.spendLine).font(.footnote).lineLimit(1)
                 Spacer()
                 if let percentLine = self.section.percentLine {
                     Text(percentLine)
                         .font(.footnote)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
                 }
             }
         }
@@ -568,30 +546,32 @@ struct UsageMenuCardUsageSectionView: View {
     let bottomPadding: CGFloat
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
+        let liveModel = self.liveModel
         VStack(alignment: .leading, spacing: 12) {
-            if self.model.metrics.isEmpty {
-                if let dashboard = self.model.inlineUsageDashboard {
+            if liveModel.metrics.isEmpty {
+                if let dashboard = liveModel.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
-                } else if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
-                } else if let placeholder = self.model.placeholder {
+                } else if !liveModel.usageNotes.isEmpty {
+                    UsageNotesContent(notes: liveModel.usageNotes)
+                } else if let placeholder = liveModel.placeholder {
                     Text(placeholder)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .font(.subheadline)
                 }
             } else {
-                ForEach(self.model.metrics, id: \.id) { metric in
+                ForEach(liveModel.metrics, id: \.id) { metric in
                     MetricRow(
                         metric: metric,
-                        title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
-                        progressColor: self.model.progressColor)
+                        title: UsageMenuCardView.popupMetricTitle(provider: liveModel.provider, metric: metric),
+                        progressColor: liveModel.progressColor)
                 }
-                if let dashboard = self.model.inlineUsageDashboard {
+                if let dashboard = liveModel.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
-                } else if !self.model.usageNotes.isEmpty {
-                    UsageNotesContent(notes: self.model.usageNotes)
+                } else if !liveModel.usageNotes.isEmpty {
+                    UsageNotesContent(notes: liveModel.usageNotes)
                 }
             }
             if self.showBottomDivider {
@@ -603,6 +583,11 @@ struct UsageMenuCardUsageSectionView: View {
         .padding(.bottom, self.bottomPadding)
         .frame(width: self.width, alignment: .leading)
     }
+
+    private var liveModel: UsageMenuCardView.Model {
+        guard self.model.usesLiveSubtitle else { return self.model }
+        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
+    }
 }
 
 struct UsageMenuCardCreditsSectionView: View {
@@ -611,16 +596,18 @@ struct UsageMenuCardCreditsSectionView: View {
     let topPadding: CGFloat
     let bottomPadding: CGFloat
     let width: CGFloat
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
-        if let credits = self.model.creditsText {
+        let liveModel = self.liveModel
+        if let credits = liveModel.creditsText {
             VStack(alignment: .leading, spacing: 6) {
                 CreditsBarContent(
                     creditsText: credits,
-                    creditsRemaining: self.model.creditsRemaining,
-                    hintText: self.model.creditsHintText,
-                    hintCopyText: self.model.creditsHintCopyText,
-                    progressColor: self.model.progressColor)
+                    creditsRemaining: liveModel.creditsRemaining,
+                    hintText: liveModel.creditsHintText,
+                    hintCopyText: liveModel.creditsHintCopyText,
+                    progressColor: liveModel.progressColor)
                 if self.showBottomDivider {
                     Divider()
                 }
@@ -630,6 +617,11 @@ struct UsageMenuCardCreditsSectionView: View {
             .padding(.bottom, self.bottomPadding)
             .frame(width: self.width, alignment: .leading)
         }
+    }
+
+    private var liveModel: UsageMenuCardView.Model {
+        guard self.model.usesLiveSubtitle else { return self.model }
+        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
     }
 }
 
@@ -696,21 +688,25 @@ struct UsageMenuCardCostSectionView: View {
     let bottomPadding: CGFloat
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
-        let hasTokenCost = self.model.tokenUsage != nil
+        let liveModel = self.liveModel
+        let hasTokenCost = liveModel.tokenUsage != nil
         return Group {
             if hasTokenCost {
                 VStack(alignment: .leading, spacing: 10) {
-                    if let tokenUsage = self.model.tokenUsage {
+                    if let tokenUsage = liveModel.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(L("cost_header_estimated"))
                                 .font(.body)
                                 .fontWeight(.medium)
                             Text(tokenUsage.sessionLine)
                                 .font(.caption)
+                                .lineLimit(1)
                             Text(tokenUsage.monthLine)
                                 .font(.caption)
+                                .lineLimit(1)
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)
@@ -738,6 +734,11 @@ struct UsageMenuCardCostSectionView: View {
             }
         }
     }
+
+    private var liveModel: UsageMenuCardView.Model {
+        guard self.model.usesLiveSubtitle else { return self.model }
+        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
+    }
 }
 
 struct UsageMenuCardExtraUsageSectionView: View {
@@ -745,19 +746,26 @@ struct UsageMenuCardExtraUsageSectionView: View {
     let topPadding: CGFloat
     let bottomPadding: CGFloat
     let width: CGFloat
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
+        let liveModel = self.liveModel
         Group {
-            if let providerCost = self.model.providerCost {
+            if let providerCost = liveModel.providerCost {
                 ProviderCostContent(
                     section: providerCost,
-                    progressColor: self.model.progressColor)
+                    progressColor: liveModel.progressColor)
                     .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
                     .padding(.top, self.topPadding)
                     .padding(.bottom, self.bottomPadding)
                     .frame(width: self.width, alignment: .leading)
             }
         }
+    }
+
+    private var liveModel: UsageMenuCardView.Model {
+        guard self.model.usesLiveSubtitle else { return self.model }
+        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
     }
 }
 
