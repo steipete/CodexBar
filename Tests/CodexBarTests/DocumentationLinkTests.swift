@@ -13,7 +13,10 @@ struct DocumentationLinkTests {
     func `readme local documentation destinations resolve`() throws {
         let root = try Self.repoRoot()
         let readme = try String(contentsOf: root.appending(path: "README.md"), encoding: .utf8)
-        let links = try (Self.markdownLinks(in: readme) + Self.markdownImageLinks(in: readme))
+        let links = try (
+            Self.markdownLinks(in: readme) +
+                Self.markdownImageLinks(in: readme) +
+                Self.htmlLinks(in: readme))
             .filter(Self.isRepositoryDocReference)
 
         #expect(!links.isEmpty)
@@ -78,6 +81,23 @@ struct DocumentationLinkTests {
             "docs/query.png?raw=1#preview",
             "docs/title.png",
             "docs/with space.png",
+        ])
+    }
+
+    @Test
+    func `html links support quoted and unquoted destinations`() {
+        let html = """
+        <img src="docs/double.png" alt="double">
+        <a href='docs/single.md#section'>single</a>
+        <img src=docs/unquoted.png alt=unquoted>
+        <a href="https://example.com/docs/remote.md">external</a>
+        """
+
+        #expect(Self.htmlLinks(in: html) == [
+            "docs/double.png",
+            "docs/single.md#section",
+            "docs/unquoted.png",
+            "https://example.com/docs/remote.md",
         ])
     }
 
@@ -148,6 +168,21 @@ struct DocumentationLinkTests {
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return regex.matches(in: text, range: range).compactMap { match in
             for index in 1...2 {
+                if let linkRange = Range(match.range(at: index), in: text) {
+                    return String(text[linkRange])
+                }
+            }
+            return nil
+        }
+    }
+
+    private static func htmlLinks(in text: String) -> [String] {
+        let pattern =
+            #"<\s*(?:a|img)\b[^>]*?\b(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range).compactMap { match in
+            for index in 1...3 {
                 if let linkRange = Range(match.range(at: index), in: text) {
                     return String(text[linkRange])
                 }
