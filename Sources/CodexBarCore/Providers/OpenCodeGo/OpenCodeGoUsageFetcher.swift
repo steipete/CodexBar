@@ -126,17 +126,6 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 timeout: timeout,
                 session: session)
         }
-        let subscriptionText: String
-        do {
-            subscriptionText = try await self.fetchUsagePage(
-                workspaceID: workspaceID,
-                cookieHeader: requestCookieHeader,
-                timeout: timeout,
-                session: session)
-        } catch {
-            throw error
-        }
-        let snapshot = try self.parseSubscription(text: subscriptionText, now: now)
         let zenBalanceTask = includeZenBalance ? Task {
             try await self.fetchOptionalZenBalance(
                 workspaceID: workspaceID,
@@ -144,6 +133,33 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 timeout: min(timeout, self.optionalZenBalanceTimeout),
                 session: session)
         } : nil
+        let subscriptionText: String
+        do {
+            subscriptionText = try await self.fetchUsagePage(
+                workspaceID: workspaceID,
+                cookieHeader: requestCookieHeader,
+                timeout: timeout,
+                session: session)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch let error as OpenCodeGoUsageError {
+            guard case let .parseFailed(message) = error,
+                  message.contains("Missing usage fields"),
+                  let zenBalanceTask
+            else {
+                throw error
+            }
+            let zenBalance = try await self.completedOptionalZenBalance(from: zenBalanceTask)
+            guard let zenBalance else {
+                throw error
+            }
+            return OpenCodeGoUsageSnapshot.zenBalanceOnly(balanceUSD: zenBalance, updatedAt: now)
+        } catch {
+            throw error
+        }
+        let snapshot = try self.parseSubscription(text: subscriptionText, now: now)
         guard let zenBalanceTask else {
             return snapshot
         }

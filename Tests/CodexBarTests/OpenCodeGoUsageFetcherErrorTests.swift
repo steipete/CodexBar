@@ -202,7 +202,48 @@ struct OpenCodeGoUsageFetcherErrorTests {
             }
         }
 
-        #expect(methods == ["GET"])
+        #expect(methods == ["GET", "GET"])
+    }
+
+    @Test
+    func `zen only account returns balance without subscription usage windows`() async throws {
+        defer {
+            OpenCodeGoStubURLProtocol.handler = nil
+        }
+
+        var observedPaths: [String] = []
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            observedPaths.append(url.path)
+            if url.path == "/workspace/wrk_TEST123" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"<html><body><h2>現在の残高 $42.50</h2></body></html>"#,
+                    statusCode: 200,
+                    contentType: "text/html")
+            }
+            return Self.makeResponse(
+                url: url,
+                body: "<html><title>opencode</title><body>No Go subscription usage</body></html>",
+                statusCode: 200,
+                contentType: "text/html")
+        }
+
+        let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
+            cookieHeader: "auth=test",
+            timeout: 2,
+            workspaceIDOverride: "wrk_TEST123",
+            session: self.makeSession())
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.isBalanceOnly)
+        #expect(snapshot.zenBalanceUSD == 42.5)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+        #expect(usage.providerCost?.used == 42.5)
+        #expect(usage.providerCost?.period == "Zen balance")
+        #expect(observedPaths.count == 2)
+        #expect(Set(observedPaths) == ["/workspace/wrk_TEST123/go", "/workspace/wrk_TEST123"])
     }
 
     @Test
@@ -232,7 +273,8 @@ struct OpenCodeGoUsageFetcherErrorTests {
             workspaceIDOverride: "https://opencode.ai/workspace/wrk_URL123/billing",
             session: self.makeSession())
 
-        #expect(observedPaths == ["/workspace/wrk_URL123/go", "/workspace/wrk_URL123"])
+        #expect(observedPaths.count == 2)
+        #expect(Set(observedPaths) == ["/workspace/wrk_URL123/go", "/workspace/wrk_URL123"])
     }
 
     @Test
