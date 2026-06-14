@@ -510,12 +510,19 @@ public struct AntigravityStatusProbe: Sendable {
         guard !ports.isEmpty else {
             throw AntigravityStatusProbeError.portDetectionFailed("no listening ports found")
         }
-        let endpoints = ports.map {
-            AntigravityConnectionEndpoint(
-                scheme: "https",
-                port: $0,
-                csrfToken: "",
-                source: .cliHTTPS)
+        let endpoints = ports.flatMap { port in
+            [
+                AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: port,
+                    csrfToken: "",
+                    source: .cliHTTPS),
+                AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: port,
+                    csrfToken: "",
+                    source: .cliHTTPS)
+            ]
         }
         let context = RequestContext(endpoints: endpoints, timeout: self.timeout, deadline: deadline)
         return try await Self.fetchSnapshot(context: context)
@@ -887,12 +894,19 @@ public struct AntigravityStatusProbe: Sendable {
         listeningPorts: [Int],
         languageServerCSRFToken: String) -> [AntigravityConnectionEndpoint]
     {
-        listeningPorts.map {
-            AntigravityConnectionEndpoint(
-                scheme: "https",
-                port: $0,
-                csrfToken: languageServerCSRFToken,
-                source: .languageServer)
+        listeningPorts.flatMap { port in
+            [
+                AntigravityConnectionEndpoint(
+                    scheme: "https",
+                    port: port,
+                    csrfToken: languageServerCSRFToken,
+                    source: .languageServer),
+                AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: port,
+                    csrfToken: languageServerCSRFToken,
+                    source: .languageServer)
+            ]
         }
     }
 

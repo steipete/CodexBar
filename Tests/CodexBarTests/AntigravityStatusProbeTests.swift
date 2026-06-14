@@ -273,6 +273,11 @@ extension AntigravityStatusProbeTests {
                     source: .languageServer),
                 AntigravityStatusProbe.AntigravityConnectionEndpoint(
                     scheme: "http",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
                     port: 64432,
                     csrfToken: "extension-token",
                     source: .extensionServer),
@@ -285,7 +290,7 @@ extension AntigravityStatusProbeTests {
     }
 
     @Test
-    func `connection candidates restrict plain http probing to the declared extension port`() {
+    func `connection candidates include plain http probing for language server ports`() {
         let candidates = AntigravityStatusProbe.connectionCandidates(
             listeningPorts: [64440, 64441],
             languageServerCSRFToken: "language-token",
@@ -300,7 +305,17 @@ extension AntigravityStatusProbeTests {
                     csrfToken: "language-token",
                     source: .languageServer),
                 AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
                     scheme: "https",
+                    port: 64441,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
                     port: 64441,
                     csrfToken: "language-token",
                     source: .languageServer),
@@ -324,6 +339,11 @@ extension AntigravityStatusProbeTests {
             candidates == [
                 AntigravityStatusProbe.AntigravityConnectionEndpoint(
                     scheme: "https",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
                     port: 64440,
                     csrfToken: "language-token",
                     source: .languageServer),
@@ -354,7 +374,7 @@ extension AntigravityStatusProbeTests {
                     scheme: "http",
                     port: 64432,
                     csrfToken: "language-token",
-                    source: .extensionServer),
+                    source: .languageServer),
             ])
     }
 
@@ -376,6 +396,11 @@ extension AntigravityStatusProbeTests {
         #expect(
             endpoints == [
                 resolvedEndpoint,
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
                 AntigravityStatusProbe.AntigravityConnectionEndpoint(
                     scheme: "http",
                     port: 64432,
@@ -407,6 +432,11 @@ extension AntigravityStatusProbeTests {
         #expect(
             endpoints == [
                 resolvedEndpoint,
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
                 AntigravityStatusProbe.AntigravityConnectionEndpoint(
                     scheme: "http",
                     port: 64432,
@@ -443,6 +473,11 @@ extension AntigravityStatusProbeTests {
                     port: 64440,
                     csrfToken: "language-token",
                     source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
             ])
     }
 
@@ -470,7 +505,17 @@ extension AntigravityStatusProbeTests {
                     csrfToken: "language-token",
                     source: .languageServer),
                 AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
+                    port: 64432,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
                     scheme: "https",
+                    port: 64440,
+                    csrfToken: "language-token",
+                    source: .languageServer),
+                AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                    scheme: "http",
                     port: 64440,
                     csrfToken: "language-token",
                     source: .languageServer),

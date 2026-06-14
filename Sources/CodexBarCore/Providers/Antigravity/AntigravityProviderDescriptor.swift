@@ -123,11 +123,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     }
 
     private static var supportsLocalhostServerTrust: Bool {
-        #if os(Linux)
-        false
-        #else
         true
-        #endif
     }
 
     private func fetchUsingWarmSession(

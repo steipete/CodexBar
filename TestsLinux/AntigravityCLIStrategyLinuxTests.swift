@@ -28,7 +28,7 @@ struct AntigravityCLIStrategyLinuxTests {
             browserDetection: BrowserDetection(cacheTTL: 0))
         let isAvailable = await AntigravityCLIHTTPSFetchStrategy().isAvailable(context)
 
-        #expect(!isAvailable)
+        #expect(isAvailable)
     }
 
     private struct StubClaudeFetcher: ClaudeUsageFetching {
