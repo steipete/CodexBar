@@ -55,6 +55,23 @@ enum RollingWindowAutoStartSupport {
         }
     }
 
+    static func isActiveRollingWindow(_ window: RateWindow, now: Date = Date()) -> Bool {
+        if let resetsAt = window.resetsAt, resetsAt > now {
+            return true
+        }
+        if window.usedPercent > 0 {
+            return true
+        }
+        return self.hasResetDescription(window)
+    }
+
+    static func hasResetDescription(_ window: RateWindow) -> Bool {
+        guard let resetDescription = window.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+        return !resetDescription.isEmpty
+    }
+
     static func sourceSupportsAutoStart(provider: UsageProvider, sourceLabel: String?) -> Bool {
         let normalized = sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         switch provider {
@@ -104,6 +121,7 @@ enum RollingWindowAutoStartSupport {
 final class RollingWindowAutoStartRuntimeState {
     var inFlight: Set<RollingWindowAutoStartRoute> = []
     var attemptedResetAt: [RollingWindowAutoStartRoute: Date] = [:]
+    var attemptedInactiveWithoutReset: Set<RollingWindowAutoStartRoute> = []
     #if DEBUG
     var testRunnerOverride: (any RollingWindowPingRunning)?
     #endif
@@ -125,7 +143,7 @@ enum RollingWindowAutoStartRoute: Hashable {
 }
 
 struct RollingWindowAutoStartDecision: Equatable {
-    let resetAt: Date
+    let resetAt: Date?
 
     static func shouldStart(
         provider: UsageProvider,
@@ -137,26 +155,22 @@ struct RollingWindowAutoStartDecision: Equatable {
     {
         guard RollingWindowAutoStartSupport.sourceCanReportRollingWindow(
             provider: provider,
-            sourceLabel: previousSourceLabel),
-            RollingWindowAutoStartSupport.sourceCanReportRollingWindow(
+            sourceLabel: sourceLabel),
+            let currentWindow = RollingWindowAutoStartSupport.rollingWindow(
                 provider: provider,
-                sourceLabel: sourceLabel),
-            let previousWindow = previous.flatMap({ RollingWindowAutoStartSupport.rollingWindow(
-                provider: provider,
-                snapshot: $0) }),
-            let previousResetAt = previousWindow.resetsAt,
-            previousResetAt <= now
+                snapshot: currentProviderData)
         else {
+            return nil
+        }
+        if previous != nil,
+           !RollingWindowAutoStartSupport.sourceCanReportRollingWindow(
+               provider: provider,
+               sourceLabel: previousSourceLabel)
+        {
             return nil
         }
 
-        guard let currentWindow = RollingWindowAutoStartSupport.rollingWindow(
-            provider: provider,
-            snapshot: currentProviderData)
-        else {
-            return nil
-        }
-        if let currentResetAt = currentWindow.resetsAt, currentResetAt > now {
+        if RollingWindowAutoStartSupport.isActiveRollingWindow(currentWindow, now: now) {
             return nil
         }
         guard !RollingWindowAutoStartSupport.hasExhaustedBlockingWindow(
@@ -166,7 +180,25 @@ struct RollingWindowAutoStartDecision: Equatable {
             return nil
         }
 
-        return RollingWindowAutoStartDecision(resetAt: previousResetAt)
+        if let previousWindow = previous.flatMap({ RollingWindowAutoStartSupport.rollingWindow(
+            provider: provider,
+            snapshot: $0) }),
+            let previousResetAt = previousWindow.resetsAt
+        {
+            guard previousResetAt <= now else { return nil }
+            return RollingWindowAutoStartDecision(resetAt: previousResetAt)
+        }
+
+        guard currentWindow.usedPercent <= 0,
+              !RollingWindowAutoStartSupport.hasResetDescription(currentWindow)
+        else {
+            return nil
+        }
+        if let currentResetAt = currentWindow.resetsAt {
+            guard currentResetAt <= now else { return nil }
+            return RollingWindowAutoStartDecision(resetAt: currentResetAt)
+        }
+        return RollingWindowAutoStartDecision(resetAt: nil)
     }
 }
 

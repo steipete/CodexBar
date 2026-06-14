@@ -12,6 +12,9 @@ extension UsageStore {
             .filter { $0.provider != provider }
         self.rollingWindowAutoStartRuntime.attemptedResetAt = self.rollingWindowAutoStartRuntime.attemptedResetAt
             .filter { $0.key.provider != provider }
+        self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset =
+            self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset
+                .filter { $0.provider != provider }
     }
 
     @MainActor
@@ -67,14 +70,21 @@ extension UsageStore {
             return
         }
 
-        if let attempted = self.rollingWindowAutoStartRuntime.attemptedResetAt[route],
-           // Reset timestamps can be rounded differently across adjacent snapshots.
-           abs(attempted.timeIntervalSince(decision.resetAt)) < Self.rollingWindowAutoStartSameResetTolerance
-        {
-            return
+        if let resetAt = decision.resetAt {
+            if let attempted = self.rollingWindowAutoStartRuntime.attemptedResetAt[route],
+               // Reset timestamps can be rounded differently across adjacent snapshots.
+               abs(attempted.timeIntervalSince(resetAt)) < Self.rollingWindowAutoStartSameResetTolerance
+            {
+                return
+            }
+            self.rollingWindowAutoStartRuntime.attemptedResetAt[route] = resetAt
+        } else {
+            guard !self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.contains(route) else {
+                return
+            }
+            self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.insert(route)
         }
 
-        self.rollingWindowAutoStartRuntime.attemptedResetAt[route] = decision.resetAt
         self.rollingWindowAutoStartRuntime.inFlight.insert(route)
         self.rollingWindowAutoStartStatus[provider] = "Starting a new rolling window..."
         self.providerLogger.info(
@@ -112,22 +122,28 @@ extension UsageStore {
                 let refreshedWindow = self.snapshots[provider].flatMap {
                     RollingWindowAutoStartSupport.rollingWindow(provider: provider, snapshot: $0)
                 }
-                if let resetsAt = refreshedWindow?.resetsAt, resetsAt > Date() {
+                let verified = refreshedWindow.map {
+                    RollingWindowAutoStartSupport.isActiveRollingWindow($0)
+                } ?? false
+                if verified {
                     self.rollingWindowAutoStartStatus.removeValue(forKey: provider)
                     self.providerLogger.info(
                         "Rolling window auto-start verified new rolling window",
                         metadata: metadata.merging([
-                            "verifiedResetAt": Self.rollingWindowAutoStartTimestamp(resetsAt),
+                            "verifiedResetAt": Self.rollingWindowAutoStartTimestamp(refreshedWindow?.resetsAt),
+                            "verifiedResetDescription": Self.rollingWindowAutoStartResetDescription(refreshedWindow),
                         ], uniquingKeysWith: { _, new in new }))
                 } else {
                     self.providerLogger.warning(
                         "Rolling window auto-start could not verify new rolling window",
                         metadata: metadata.merging([
                             "verifiedResetAt": Self.rollingWindowAutoStartTimestamp(refreshedWindow?.resetsAt),
+                            "verifiedResetDescription": Self.rollingWindowAutoStartResetDescription(refreshedWindow),
                         ], uniquingKeysWith: { _, new in new }))
                 }
             } catch {
                 self.rollingWindowAutoStartRuntime.attemptedResetAt.removeValue(forKey: route)
+                self.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.remove(route)
                 self.rollingWindowAutoStartStatus[provider] = error.localizedDescription
                 self.providerLogger.warning(
                     "Rolling window auto-start failed",
@@ -257,7 +273,7 @@ extension UsageStore {
         route: RollingWindowAutoStartRoute,
         previousSourceLabel: String?,
         sourceLabel: String?,
-        previousResetAt: Date) -> [String: String]
+        previousResetAt: Date?) -> [String: String]
     {
         [
             "provider": provider.rawValue,
@@ -265,6 +281,7 @@ extension UsageStore {
             "previousSource": previousSourceLabel ?? "none",
             "source": sourceLabel ?? "none",
             "previousResetAt": self.rollingWindowAutoStartTimestamp(previousResetAt),
+            "trigger": previousResetAt == nil ? "inactive-without-previous-reset" : "expired-previous-reset",
         ]
     }
 
@@ -282,6 +299,15 @@ extension UsageStore {
     static func rollingWindowAutoStartTimestamp(_ date: Date?) -> String {
         guard let date else { return "none" }
         return Self.rollingWindowAutoStartTimestampFormat.format(date)
+    }
+
+    static func rollingWindowAutoStartResetDescription(_ window: RateWindow?) -> String {
+        guard let resetDescription = window?.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !resetDescription.isEmpty
+        else {
+            return "none"
+        }
+        return resetDescription
     }
 
     private static func redactedRollingWindowAutoStartAccountID(_ id: UUID) -> String {

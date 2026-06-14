@@ -74,6 +74,24 @@ struct RollingWindowAutoStartTests {
     }
 
     @Test
+    func `decision starts for inactive codex OpenAI web snapshot without previous reset`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        let decision = RollingWindowAutoStartDecision.shouldStart(
+            provider: .codex,
+            previousSourceLabel: nil,
+            sourceLabel: "openai-web",
+            previous: nil,
+            currentProviderData: current,
+            now: now)
+
+        #expect(decision?.resetAt == nil)
+    }
+
+    @Test
     func `decision skips when provider data already has active rolling window`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let previous = Self.snapshot(
@@ -432,6 +450,41 @@ struct RollingWindowAutoStartTests {
         #expect(await runner.count == 1)
         #expect(refreshCount == 1)
         #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == expired)
+    }
+
+    @Test
+    func `scheduler starts codex ping for inactive OpenAI web snapshot without prior reset`() async throws {
+        let settings = try Self.makeSettingsStore(suite: "RollingWindowAutoStartTests-scheduler-openai-web-no-reset")
+        settings.setRollingWindowAutoStartEnabled(provider: .codex, enabled: true)
+        settings._test_liveSystemCodexAccount = Self.liveSystemCodexAccount(email: "codex@example.com")
+        defer { settings._test_liveSystemCodexAccount = nil }
+        let store = Self.makeUsageStore(settings: settings)
+        let runner = RecordingRollingWindowPingRunner()
+        store.rollingWindowAutoStartRuntime.testRunnerOverride = runner
+        var refreshCount = 0
+        store._test_providerRefreshOverride = { _ in
+            refreshCount += 1
+        }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let current = Self.snapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            accountEmail: "codex@example.com",
+            updatedAt: now)
+
+        store.scheduleRollingWindowAutoStartIfNeeded(
+            provider: .codex,
+            previousSourceLabel: nil,
+            sourceLabel: "openai-web",
+            previousSnapshot: nil,
+            currentProviderData: current,
+            now: now)
+
+        try await Self.waitForAutoStartToFinish(store: store, provider: .codex)
+        #expect(await runner.count == 1)
+        #expect(refreshCount == 1)
+        #expect(store.rollingWindowAutoStartRuntime.attemptedInactiveWithoutReset.contains(.codexLiveSystem))
+        #expect(store.rollingWindowAutoStartRuntime.attemptedResetAt[.codexLiveSystem] == nil)
     }
 
     @Test
