@@ -413,6 +413,7 @@
 "language_dutch" = "Olandese";
 "language_ukrainian" = "Ucraino";
 "language_vietnamese" = "Vietnamita";
+"language_indonesian" = "Indonesiano";
 "start_at_login_title" = "Avvia all'accesso";
 "start_at_login_subtitle" = "Apre automaticamente CodexBar quando avvii il Mac.";
 "show_cost_summary" = "Mostra riepilogo costi";
