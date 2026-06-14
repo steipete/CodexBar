@@ -223,26 +223,38 @@ extension UsageMenuCardView.Model {
 
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
-        var metrics = [
-            Self.antigravityMetric(
+        if Self.hasAntigravityQuotaSummaryWindows(snapshot) {
+            return Self.extraRateWindowMetrics(
+                snapshot: snapshot,
+                input: input,
+                percentStyle: percentStyle)
+        }
+
+        var metrics: [Metric] = []
+        if let primary = snapshot.primary {
+            metrics.append(Self.antigravityMetric(
                 id: "primary",
                 title: L(input.metadata.sessionLabel),
-                window: snapshot.primary,
+                window: primary,
                 input: input,
-                percentStyle: percentStyle),
-            Self.antigravityMetric(
+                percentStyle: percentStyle))
+        }
+        if let secondary = snapshot.secondary {
+            metrics.append(Self.antigravityMetric(
                 id: "secondary",
                 title: L(input.metadata.weeklyLabel),
-                window: snapshot.secondary,
+                window: secondary,
                 input: input,
-                percentStyle: percentStyle),
-            Self.antigravityMetric(
+                percentStyle: percentStyle))
+        }
+        if input.metadata.supportsOpus, let tertiary = snapshot.tertiary {
+            metrics.append(Self.antigravityMetric(
                 id: "tertiary",
                 title: input.metadata.opusLabel.map(L) ?? L("Gemini Flash"),
-                window: snapshot.tertiary,
+                window: tertiary,
                 input: input,
-                percentStyle: percentStyle),
-        ]
+                percentStyle: percentStyle))
+        }
         metrics.append(contentsOf: Self.extraRateWindowMetrics(
             snapshot: snapshot,
             input: input,
@@ -271,10 +283,9 @@ extension UsageMenuCardView.Model {
                 window: namedWindow.window,
                 input: input)
             let usageKnown = namedWindow.usageKnown
-            let resetText = Self.resetText(
-                for: namedWindow.window,
-                style: input.resetTimeDisplayStyle,
-                now: input.now)
+            let resetText = Self.extraRateWindowResetText(
+                namedWindow: namedWindow,
+                input: input)
             let statusText: String? = if usageKnown {
                 nil
             } else if let resetText {
@@ -298,6 +309,49 @@ extension UsageMenuCardView.Model {
                 pacePercent: usageKnown ? paceDetail?.pacePercent : nil,
                 paceOnTop: paceDetail?.paceOnTop ?? true)
         }
+    }
+
+    private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
+
+    private static func hasAntigravityQuotaSummaryWindows(_ snapshot: UsageSnapshot) -> Bool {
+        snapshot.extraRateWindows?.contains(where: self.isAntigravityQuotaSummaryWindow) == true
+    }
+
+    private static func isAntigravityQuotaSummaryWindow(_ namedWindow: NamedRateWindow) -> Bool {
+        namedWindow.id.hasPrefix(self.antigravityQuotaSummaryWindowIDPrefix)
+    }
+
+    private static func extraRateWindowResetText(
+        namedWindow: NamedRateWindow,
+        input: Input) -> String?
+    {
+        if input.provider == .antigravity,
+           self.isAntigravityQuotaSummaryWindow(namedWindow)
+        {
+            return self.antigravityQuotaSummaryResetText(namedWindow.window.resetDescription)
+        }
+        return self.resetText(
+            for: namedWindow.window,
+            style: input.resetTimeDisplayStyle,
+            now: input.now)
+    }
+
+    private static func antigravityQuotaSummaryResetText(_ description: String?) -> String? {
+        guard let description = description?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !description.isEmpty
+        else { return nil }
+
+        if let range = description.range(of: "fully refresh in ", options: .caseInsensitive) {
+            var suffix = String(description[range.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            while suffix.last == "." {
+                suffix.removeLast()
+            }
+            guard !suffix.isEmpty else { return description }
+            return String(format: L("Resets in %@"), suffix)
+        }
+
+        return description
     }
 
     private static func extraRateWindowPaceDetail(

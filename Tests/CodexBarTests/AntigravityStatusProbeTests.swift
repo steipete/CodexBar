@@ -78,6 +78,20 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
+    func `process detection accepts platform suffixed antigravity language server`() throws {
+        let output = """
+          101 /Applications/Antigravity.app/Contents/Resources/bin/language_server_macos_arm \
+          --csrf_token ide-token --app_data_dir antigravity --extension_server_port 54977
+        """
+
+        let result = try AntigravityStatusProbe.processInfo(fromProcessListOutput: output, scope: .appOnly)
+
+        #expect(result.pid == 101)
+        #expect(result.csrfToken == "ide-token")
+        #expect(result.extensionPort == 54977)
+    }
+
+    @Test
     func `process detection accepts antigravity cli without csrf token`() {
         // The CLI launches its language server without a `--csrf_token` flag.
         let node = """
@@ -111,11 +125,16 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
-    func `process kind distinguishes ide language server from cli`() {
-        let ide = """
+    func `process kind distinguishes app ide language server and cli`() {
+        let app = """
         /Applications/Antigravity.app/Contents/Resources/bin/language_server \
         --csrf_token token --app_data_dir antigravity
         """
+        let ide = """
+        /Applications/Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm \
+        --csrf_token token --app_data_dir antigravity-ide
+        """
+        #expect(AntigravityStatusProbe.antigravityProcessKind(app) == .app)
         #expect(AntigravityStatusProbe.antigravityProcessKind(ide) == .ide)
         #expect(AntigravityStatusProbe.antigravityProcessKind("/Users/test/.local/bin/agy -p hi") == .cli)
         #expect(
@@ -126,20 +145,20 @@ struct AntigravityStatusProbeTests {
 
     @Test
     func `csrf token stays required for ide but optional for cli`() {
-        // IDE with a token returns it.
-        let ideWithToken = """
+        // Desktop app/IDE with a token returns it.
+        let appWithToken = """
         /Applications/Antigravity.app/Contents/Resources/bin/language_server \
         --csrf_token ide-token --app_data_dir antigravity
         """
-        #expect(AntigravityStatusProbe.resolvedCSRFToken(forKind: .ide, command: ideWithToken) == "ide-token")
+        #expect(AntigravityStatusProbe.resolvedCSRFToken(forKind: .app, command: appWithToken) == "ide-token")
 
-        // Tokenless IDE is skipped (nil) so detection keeps scanning for a valid
-        // server and preserves the missing-token diagnostic — no empty-token probe.
-        let ideNoToken = """
+        // Tokenless desktop app is skipped (nil) so detection keeps scanning for a valid
+        // server and preserves the missing-token diagnostic - no empty-token probe.
+        let appNoToken = """
         /Applications/Antigravity.app/Contents/Resources/bin/language_server \
         --app_data_dir antigravity
         """
-        #expect(AntigravityStatusProbe.resolvedCSRFToken(forKind: .ide, command: ideNoToken) == nil)
+        #expect(AntigravityStatusProbe.resolvedCSRFToken(forKind: .app, command: appNoToken) == nil)
 
         // CLI without a token resolves to an empty token (its server needs none).
         #expect(
@@ -170,6 +189,89 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
+    func `process scan returns all valid app candidates`() throws {
+        let firstApp = "  101 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+            "--csrf_token first-token --app_data_dir antigravity"
+        let secondApp = "  102 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+            "--csrf_token second-token --app_data_dir antigravity " +
+            "--extension_server_port 64432 --extension_server_csrf_token extension-token"
+        let output = [firstApp, secondApp].joined(separator: "\n")
+
+        let results = try AntigravityStatusProbe.processInfos(fromProcessListOutput: output, scope: .appOnly)
+
+        #expect(results.map(\.pid) == [101, 102])
+        #expect(results.map(\.csrfToken) == ["first-token", "second-token"])
+        #expect(results.last?.extensionPort == 64432)
+        #expect(results.last?.extensionServerCSRFToken == "extension-token")
+    }
+
+    @Test
+    func `local snapshot score prefers quota summary over legacy model quotas`() {
+        let legacy = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3 Pro Low",
+                    modelId: "gemini-3-pro-low",
+                    remainingFraction: 0.9,
+                    resetTime: Date(timeIntervalSince1970: 1_700_000_000),
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Claude Sonnet",
+                    modelId: "claude-sonnet",
+                    remainingFraction: 0.5,
+                    resetTime: Date(timeIntervalSince1970: 1_700_000_000),
+                    resetDescription: nil),
+            ],
+            accountEmail: "user@example.com",
+            accountPlan: "Pro",
+            source: .local)
+        let summary = AntigravityStatusSnapshot(
+            quotaSummary: AntigravityQuotaSummary(
+                description: nil,
+                groups: [
+                    AntigravityQuotaSummaryGroup(
+                        displayName: "Gemini Models",
+                        description: nil,
+                        buckets: [
+                            AntigravityQuotaSummaryBucket(
+                                bucketId: "gemini-5h",
+                                displayName: "Five Hour Limit",
+                                remainingFraction: 0.9,
+                                resetDescription: nil,
+                                disabled: false),
+                            AntigravityQuotaSummaryBucket(
+                                bucketId: "gemini-weekly",
+                                displayName: "Weekly Limit",
+                                remainingFraction: 0.8,
+                                resetDescription: nil,
+                                disabled: false),
+                        ]),
+                    AntigravityQuotaSummaryGroup(
+                        displayName: "Claude and GPT models",
+                        description: nil,
+                        buckets: [
+                            AntigravityQuotaSummaryBucket(
+                                bucketId: "3p-5h",
+                                displayName: "Five Hour Limit",
+                                remainingFraction: 0.7,
+                                resetDescription: nil,
+                                disabled: false),
+                            AntigravityQuotaSummaryBucket(
+                                bucketId: "3p-weekly",
+                                displayName: "Weekly Limit",
+                                remainingFraction: 0.6,
+                                resetDescription: nil,
+                                disabled: false),
+                        ]),
+                ]),
+            accountEmail: "user@example.com",
+            accountPlan: "Pro",
+            source: .local)
+
+        #expect(AntigravityStatusProbe.localSnapshotScore(summary) > AntigravityStatusProbe.localSnapshotScore(legacy))
+    }
+
+    @Test
     func `process scan reports missing csrf when only tokenless ide matches`() {
         let output = """
           100 /Applications/Antigravity.app/Contents/Resources/bin/language_server --app_data_dir antigravity
@@ -194,25 +296,49 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
-    func `ideOnly scope skips cli processes and reports not running`() {
+    func `ideOnly scope skips app and cli processes and reports not running`() {
         let output = "  200 /Users/test/.local/bin/agy -p hello"
 
         #expect(throws: AntigravityStatusProbeError.notRunning) {
             try AntigravityStatusProbe.processInfo(fromProcessListOutput: output, scope: .ideOnly)
         }
+
+        let app = "  101 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+            "--csrf_token app-token --app_data_dir antigravity"
+        #expect(throws: AntigravityStatusProbeError.notRunning) {
+            try AntigravityStatusProbe.processInfo(fromProcessListOutput: app, scope: .ideOnly)
+        }
     }
 
     @Test
-    func `ideOnly scope still matches ide server listed after cli process`() throws {
+    func `ideOnly scope still matches ide server listed after cli and app processes`() throws {
         let cli = "  200 /Users/test/.local/bin/agy -p hello"
-        let ide = "  101 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+        let app = "  101 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+            "--csrf_token app-token --app_data_dir antigravity"
+        let ide = "  102 /Applications/Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin/" +
+            "language_server_macos_arm " +
             "--csrf_token ide-token --app_data_dir antigravity"
-        let output = cli + "\n" + ide
+        let output = cli + "\n" + app + "\n" + ide
 
         let result = try AntigravityStatusProbe.processInfo(fromProcessListOutput: output, scope: .ideOnly)
 
-        #expect(result.pid == 101)
+        #expect(result.pid == 102)
         #expect(result.csrfToken == "ide-token")
+    }
+
+    @Test
+    func `appOnly scope skips ide and cli processes`() throws {
+        let cli = "  200 /Users/test/.local/bin/agy -p hello"
+        let ide = "  102 /Applications/Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin/" +
+            "language_server_macos_arm --csrf_token ide-token --app_data_dir antigravity-ide"
+        let app = "  101 /Applications/Antigravity.app/Contents/Resources/bin/language_server " +
+            "--csrf_token app-token --app_data_dir antigravity"
+        let output = cli + "\n" + ide + "\n" + app
+
+        let result = try AntigravityStatusProbe.processInfo(fromProcessListOutput: output, scope: .appOnly)
+
+        #expect(result.pid == 101)
+        #expect(result.csrfToken == "app-token")
     }
 }
 
@@ -633,9 +759,9 @@ extension AntigravityStatusProbeTests {
         guard let primary = usage.primary else {
             return
         }
-        #expect(primary.remainingPercent.rounded() == 50)
-        #expect(usage.secondary?.remainingPercent.rounded() == 80)
-        #expect(usage.tertiary?.remainingPercent.rounded() == 20)
+        #expect(primary.remainingPercent.rounded() == 20)
+        #expect(usage.secondary?.remainingPercent.rounded() == 50)
+        #expect(usage.tertiary == nil)
     }
 
     @Test
@@ -703,7 +829,7 @@ extension AntigravityStatusProbeTests {
     }
 
     @Test
-    func `claude bar can use thinking variants`() throws {
+    func `claude gpt pool can use thinking variants`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -723,11 +849,12 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.primary?.remainingPercent.rounded() == 30)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary?.remainingPercent.rounded() == 30)
     }
 
     @Test
-    func `claude bar uses thinking model when it is the only claude option`() throws {
+    func `claude gpt pool uses thinking model when it is the only claude option`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -747,12 +874,12 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.primary?.remainingPercent.rounded() == 70)
-        #expect(usage.secondary?.remainingPercent.rounded() == 40)
+        #expect(usage.primary?.remainingPercent.rounded() == 40)
+        #expect(usage.secondary?.remainingPercent.rounded() == 70)
     }
 
     @Test
-    func `gemini pro bar unavailable when only excluded variants exist`() throws {
+    func `gemini pool unavailable when only excluded variants exist`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -772,12 +899,12 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.secondary == nil)
-        #expect(usage.primary?.remainingPercent.rounded() == 30)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary?.remainingPercent.rounded() == 30)
     }
 
     @Test
-    func `gemini pro chooses pro low model`() throws {
+    func `gemini pool chooses most constrained pro variant`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -797,11 +924,12 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.secondary?.remainingPercent.rounded() == 40)
+        #expect(usage.primary?.remainingPercent.rounded() == 40)
+        #expect(usage.secondary == nil)
     }
 
     @Test
-    func `gemini pro low wins over standard pro when both exist`() throws {
+    func `gemini pool chooses standard pro when it is more constrained than low variant`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -821,11 +949,12 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.secondary?.remainingPercent.rounded() == 90)
+        #expect(usage.primary?.remainingPercent.rounded() == 10)
+        #expect(usage.secondary == nil)
     }
 
     @Test
-    func `gemini pro prefers model with remaining data over low priority placeholder`() throws {
+    func `gemini pool ignores reset only placeholder when remaining data exists`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -845,11 +974,12 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.secondary?.remainingPercent.rounded() == 100)
+        #expect(usage.primary?.remainingPercent.rounded() == 100)
+        #expect(usage.secondary == nil)
     }
 
     @Test
-    func `gemini flash does not fallback to lite variant`() throws {
+    func `gemini pool does not fallback to lite flash variant`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -870,7 +1000,8 @@ extension AntigravityStatusProbeTests {
 
         let usage = try snapshot.toUsageSnapshot()
         #expect(usage.tertiary == nil)
-        #expect(usage.primary?.remainingPercent.rounded() == 30)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary?.remainingPercent.rounded() == 30)
     }
 
     @Test
@@ -900,9 +1031,9 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.primary?.remainingPercent.rounded() == 30)
-        #expect(usage.secondary?.remainingPercent.rounded() == 40)
-        #expect(usage.tertiary?.remainingPercent.rounded() == 100)
+        #expect(usage.primary?.remainingPercent.rounded() == 40)
+        #expect(usage.secondary?.remainingPercent.rounded() == 30)
+        #expect(usage.tertiary == nil)
     }
 
     @Test
@@ -953,14 +1084,14 @@ extension AntigravityStatusProbeTests {
         let usage = try snapshot.toUsageSnapshot()
         #expect(usage.primary?.remainingPercent.rounded() == 100)
         #expect(usage.secondary?.remainingPercent.rounded() == 100)
-        #expect(usage.tertiary?.remainingPercent.rounded() == 100)
+        #expect(usage.tertiary == nil)
         #expect(usage.identity?.accountEmail == "user@example.com")
     }
 }
 
 extension AntigravityStatusProbeTests {
     @Test
-    func `extra rate windows preserve all model quotas in stable family order`() throws {
+    func `known model quota rows collapse into two usage pools`() throws {
         let resetTime = Date(timeIntervalSince1970: 1_775_000_000)
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
@@ -994,23 +1125,9 @@ extension AntigravityStatusProbeTests {
             source: .local)
 
         let usage = try snapshot.toUsageSnapshot()
-        let extraWindows = try #require(usage.extraRateWindows)
-
-        // Local source shows all models. Order: Claude → Gemini Pro (High before Low) → GPT-OSS (unknown, last)
-        #expect(extraWindows.map(\.id) == [
-            "MODEL_PLACEHOLDER_M50",
-            "MODEL_PLACEHOLDER_M52",
-            "MODEL_PLACEHOLDER_M53",
-            "MODEL_PLACEHOLDER_M55",
-        ])
-        #expect(extraWindows.map(\.title) == [
-            "Claude Opus 4.6 (Thinking)",
-            "Gemini 3 Pro (High)",
-            "Gemini 3 Pro (Low)",
-            "GPT-OSS 120B (Medium)",
-        ])
-        #expect(extraWindows.map { $0.window.remainingPercent.rounded() } == [75, 100, 50, 25])
-        #expect(extraWindows.last?.window.resetDescription == "tomorrow")
+        #expect(usage.primary?.remainingPercent.rounded() == 50)
+        #expect(usage.secondary?.remainingPercent.rounded() == 25)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test
@@ -1035,17 +1152,34 @@ extension AntigravityStatusProbeTests {
             accountPlan: nil)
 
         let usage = try snapshot.toUsageSnapshot()
+        #expect(usage.primary?.remainingPercent.rounded() == 100)
         #expect(usage.secondary == nil)
-        #expect(usage.tertiary?.remainingPercent.rounded() == 100)
-        let modelWindow = try #require(usage.extraRateWindows?.first {
-            $0.id == "MODEL_PLACEHOLDER_M36"
-        })
+        #expect(usage.tertiary == nil)
+        #expect(usage.extraRateWindows == nil)
+    }
+
+    @Test
+    func `group without remaining fraction preserves reset metadata as unavailable grouped window`() throws {
+        let resetTime = Date(timeIntervalSince1970: 1_735_000_000)
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (Low)",
+                    modelId: "MODEL_PLACEHOLDER_M36",
+                    remainingFraction: nil,
+                    resetTime: resetTime,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil)
+
+        let usage = try snapshot.toUsageSnapshot()
+        #expect(usage.primary == nil)
+        let modelWindow = try #require(usage.extraRateWindows?.first)
+        #expect(modelWindow.id == "antigravity-gemini")
+        #expect(modelWindow.title == "Gemini")
         #expect(modelWindow.window.resetsAt == resetTime)
         #expect(modelWindow.usageKnown == false)
-        let knownModelWindow = try #require(usage.extraRateWindows?.first {
-            $0.id == "MODEL_PLACEHOLDER_M47"
-        })
-        #expect(knownModelWindow.usageKnown)
     }
 
     @Test
@@ -1070,7 +1204,7 @@ extension AntigravityStatusProbeTests {
     }
 
     @Test
-    func `filtered variants fall back to a visible primary snapshot`() throws {
+    func `filtered variants stay out of summary but remain distinct extras`() throws {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -1097,9 +1231,14 @@ extension AntigravityStatusProbeTests {
             source: .local)
 
         let usage = try snapshot.toUsageSnapshot()
-        #expect(usage.primary?.remainingPercent.rounded() == 20)
+        #expect(usage.primary == nil)
         #expect(usage.secondary == nil)
         #expect(usage.tertiary == nil)
+        #expect(usage.extraRateWindows?.map(\.id) == [
+            "gemini-3-pro-lite",
+            "gemini-3-flash-lite",
+            "tab_autocomplete_model",
+        ])
         #expect(usage.accountEmail(for: .antigravity) == "test@example.com")
         #expect(usage.loginMethod(for: .antigravity) == "Pro")
     }
@@ -1107,8 +1246,8 @@ extension AntigravityStatusProbeTests {
     // MARK: - Source-aware filter + sort tests
 
     @Test
-    func `local source shows all models including gpt oss at full remaining fraction`() throws {
-        // Fixture A: 8 opaque-ID models, source .local → all shown (show-all path)
+    func `local source collapses opaque model ids into two usage pools`() throws {
+        // Fixture A: 8 opaque-ID models, source .local -> two grouped quota pools
         let resetTime = Date(timeIntervalSince1970: 1_775_000_000)
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
@@ -1154,7 +1293,7 @@ extension AntigravityStatusProbeTests {
                     remainingFraction: 0.5,
                     resetTime: resetTime,
                     resetDescription: nil),
-                // GPT-OSS pinned at remainingFraction == 1.0 — shown by local show-all
+                // GPT-OSS pinned at remainingFraction == 1.0 - shown by local show-all
                 AntigravityModelQuota(
                     label: "GPT-OSS 120B (Medium)",
                     modelId: "MODEL_PLACEHOLDER_M55",
@@ -1167,46 +1306,15 @@ extension AntigravityStatusProbeTests {
             source: .local)
 
         let usage = try snapshot.toUsageSnapshot()
-        let extraWindows = try #require(usage.extraRateWindows)
-        let ids = extraWindows.map(\.id)
-
-        // All 8 models present
-        #expect(ids.count == 8)
-        // GPT-OSS shown despite remainingFraction == 1.0 (local show-all regression guard)
-        #expect(ids.contains("MODEL_PLACEHOLDER_M55"))
-
-        // Order: Claude (version 4.6 → both at same version, Opus vs Sonnet by label)
-        //        → Gemini Pro 3.1 (High before Low)
-        //        → Gemini Flash 3.5 (High, Medium, Low by tier)
-        //        → GPT-OSS (unknown bucket, last)
-        let titles = extraWindows.map(\.title)
-        // Claude family first
-        let claudeRange = titles.prefix(2)
-        #expect(claudeRange.allSatisfy { $0.lowercased().contains("claude") })
-        // Gemini Pro next
-        let geminiProRange = titles.dropFirst(2).prefix(2)
-        #expect(geminiProRange.allSatisfy { $0.lowercased().contains("gemini") && $0.lowercased().contains("pro") })
-        // Gemini Flash next
-        let geminiFlashRange = titles.dropFirst(4).prefix(3)
-        #expect(geminiFlashRange.allSatisfy { $0.lowercased().contains("gemini") && $0.lowercased().contains("flash") })
-        // GPT-OSS last
-        #expect(titles.last == "GPT-OSS 120B (Medium)")
-
-        // Within Gemini Pro 3.1: High before Low
-        let proTitles = Array(geminiProRange)
-        #expect(proTitles[0].contains("High"))
-        #expect(proTitles[1].contains("Low"))
-
-        // Within Gemini Flash 3.5: High(0) → Medium(1) → Low(2)
-        let flashTitles = Array(geminiFlashRange)
-        #expect(flashTitles[0].contains("High"))
-        #expect(flashTitles[1].contains("Medium"))
-        #expect(flashTitles[2].contains("Low"))
+        #expect(usage.primary?.remainingPercent.rounded() == 30)
+        #expect(usage.secondary?.remainingPercent.rounded() == 70)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test
-    func `remote source filters junk models and keeps family recognized ones`() throws {
-        // Fixture B: verified 13 remote models; 6 junk hidden, 7 survivors present
+    func `remote source collapses recognized family models and hides unconsumed junk`() throws {
+        // Fixture B: verified 13 remote models; recognized text models collapse into Gemini,
+        // and unconsumed junk stays hidden.
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 // junk: image
@@ -1306,35 +1414,9 @@ extension AntigravityStatusProbeTests {
             source: .remote)
 
         let usage = try snapshot.toUsageSnapshot()
-        let extraWindows = try #require(usage.extraRateWindows)
-        let ids = extraWindows.map(\.id)
-
-        // 6 junk IDs must be absent
-        #expect(!ids.contains("gemini-2-5-flash-image"))
-        #expect(!ids.contains("tab_flash_lite_vertex"))
-        #expect(!ids.contains("gemini-2-5-flash-lite"))
-        #expect(!ids.contains("gemini-3-pro-image"))
-        #expect(!ids.contains("gemini-3-1-flash-lite"))
-        #expect(!ids.contains("tab_jump_flash_lite_vertex"))
-
-        // 7 survivors must be present by ID
-        #expect(ids.contains("gemini-2-5-pro"))
-        #expect(ids.contains("gemini-3-pro-high"))
-        #expect(ids.contains("gemini-3-flash"))
-        #expect(ids.contains("gemini-3-1-pro-low"))
-        #expect(ids.contains("gemini-3-1-pro-high"))
-        #expect(ids.contains("gemini-3-pro-low"))
-        #expect(ids.contains("gemini-2-5-flash"))
-
-        // Version-descending within Gemini Pro: 3.1 before 3 before 2.5
-        let proIds = ids.filter { $0.contains("pro") && !$0.contains("image") }
-        let proIndexOf: (String) -> Int = { id in proIds.firstIndex(of: id) ?? Int.max }
-        #expect(proIndexOf("gemini-3-1-pro-high") < proIndexOf("gemini-3-pro-high"))
-        #expect(proIndexOf("gemini-3-pro-high") < proIndexOf("gemini-2-5-pro"))
-
-        // Within same version, High before Low
-        #expect(proIndexOf("gemini-3-1-pro-high") < proIndexOf("gemini-3-1-pro-low"))
-        #expect(proIndexOf("gemini-3-pro-high") < proIndexOf("gemini-3-pro-low"))
+        #expect(usage.primary?.remainingPercent.rounded() == 100)
+        #expect(usage.secondary == nil)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test
@@ -1342,21 +1424,21 @@ extension AntigravityStatusProbeTests {
         // Fixture C: junk models with remainingFraction < 0.999 must be shown
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
-                // consumed tab — should be shown
+                // consumed tab - should be shown
                 AntigravityModelQuota(
                     label: "Tab Flash Lite Vertex",
                     modelId: "tab_flash_lite_vertex",
                     remainingFraction: 0.4,
                     resetTime: nil,
                     resetDescription: nil),
-                // consumed image — should be shown
+                // consumed image - should be shown
                 AntigravityModelQuota(
                     label: "Gemini 3 Pro Image",
                     modelId: "gemini-3-pro-image",
                     remainingFraction: 0.4,
                     resetTime: nil,
                     resetDescription: nil),
-                // unconsumed sibling tab (0.9995 >= 0.999) — should be hidden
+                // unconsumed sibling tab (0.9995 >= 0.999) - should be hidden
                 AntigravityModelQuota(
                     label: "Tab Jump Flash Lite Vertex",
                     modelId: "tab_jump_flash_lite_vertex",
@@ -1422,15 +1504,15 @@ extension AntigravityStatusProbeTests {
 
         let usage = try snapshot.toUsageSnapshot()
 
-        #expect(usage.secondary?.usedPercent == 10)
-        #expect(usage.tertiary?.usedPercent == 20)
+        #expect(usage.primary?.usedPercent == 20)
+        #expect(usage.secondary == nil)
         #expect(usage.extraRateWindows?.map(\.id).contains("gemini-3-pro-image") == true)
         #expect(usage.extraRateWindows?.map(\.id).contains("gemini-3-flash-image") == true)
     }
 
     @Test
     func `remote source yields nil extra windows when all models are unconsumed junk`() throws {
-        // Fixture D: all-junk-unconsumed → extraRateWindows nil
+        // Fixture D: all-junk-unconsumed -> extraRateWindows nil
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -1470,9 +1552,9 @@ extension AntigravityStatusProbeTests {
     }
 
     @Test
-    func `ordering edge cases with unparseable version and equal version differing tier`() throws {
-        // Fixture F: local source; unparseable-version Gemini Pro lands last in pro group;
-        // same-version High precedes Low
+    func `ordering edge cases collapse to most constrained usage pool`() throws {
+        // Fixture F: local source; known Gemini Pro rows collapse into the Gemini pool
+        // using the most constrained remaining fraction.
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -1505,17 +1587,9 @@ extension AntigravityStatusProbeTests {
             source: .local)
 
         let usage = try snapshot.toUsageSnapshot()
-        let extraWindows = try #require(usage.extraRateWindows)
-        let titles = extraWindows.map(\.title)
-
-        // Claude first
-        #expect(titles[0] == "Claude Sonnet 4")
-        // Within Gemini Pro: version-3 models before unparseable-version model
-        // High before Low at same version
-        let proIndex: (String) -> Int = { t in titles.firstIndex(of: t) ?? Int.max }
-        #expect(proIndex("Gemini 3 Pro (High)") < proIndex("Gemini 3 Pro (Low)"))
-        #expect(proIndex("Gemini 3 Pro (High)") < proIndex("Gemini Pro Experimental"))
-        #expect(proIndex("Gemini 3 Pro (Low)") < proIndex("Gemini Pro Experimental"))
+        #expect(usage.primary?.remainingPercent.rounded() == 30)
+        #expect(usage.secondary?.remainingPercent.rounded() == 90)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test
@@ -1545,14 +1619,14 @@ extension AntigravityStatusProbeTests {
         let extraWindows = try #require(usage.extraRateWindows)
         let titles = extraWindows.map(\.title)
 
-        // Deterministic: label tiebreaker → Alpha before Zebra
+        // Deterministic: label tiebreaker -> Alpha before Zebra
         #expect(titles == ["Alpha Unknown Model", "Zebra Unknown Model"])
     }
 
     @Test
-    func `hyphenated raw model ids without display name parse minor version`() throws {
+    func `hyphenated raw model ids without display name still map to gemini group`() throws {
         // When the remote catalog omits displayName/label, the raw hyphenated model id
-        // becomes the label. The newer 3.1 entry must still sort before the 3.0 entry.
+        // becomes the label and still participates in the Gemini group.
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -1573,10 +1647,8 @@ extension AntigravityStatusProbeTests {
             source: .remote)
 
         let usage = try snapshot.toUsageSnapshot()
-        let titles = try #require(usage.extraRateWindows).map(\.title)
-
-        // 3.1 parses from the hyphenated id and sorts newest-first, ahead of 3.0.
-        #expect(titles == ["gemini-3-1-pro-low", "gemini-3-pro-high"])
+        #expect(usage.primary?.remainingPercent.rounded() == 100)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test

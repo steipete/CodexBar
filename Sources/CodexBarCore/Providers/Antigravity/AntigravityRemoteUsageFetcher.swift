@@ -210,14 +210,15 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 timeout: timeout,
                 dataLoader: dataLoader)
             let modelQuotas = try Self.parseModelQuotas(response)
-            if Self.shouldVerifyFullRemoteQuotas(modelQuotas),
-               let quotaBuckets = try? await Self.fetchQuotaBucketsIfPermitted(
-                   accessToken: accessToken,
-                   projectId: projectId,
-                   timeout: timeout,
-                   dataLoader: dataLoader),
-               Self.hasConsumedQuota(quotaBuckets)
-            {
+            if Self.shouldVerifyFullRemoteQuotas(modelQuotas) {
+                let quotaBuckets = try await Self.fetchQuotaBucketsIfPermitted(
+                    accessToken: accessToken,
+                    projectId: projectId,
+                    timeout: timeout,
+                    dataLoader: dataLoader)
+                guard let quotaBuckets, Self.hasQuotaFractionData(quotaBuckets) else {
+                    return []
+                }
                 return Self.mergeVerifiedQuotas(modelQuotas: modelQuotas, verifiedQuotas: quotaBuckets)
             }
             return modelQuotas
@@ -273,10 +274,9 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         }
     }
 
-    private static func hasConsumedQuota(_ quotas: [AntigravityModelQuota]) -> Bool {
+    private static func hasQuotaFractionData(_ quotas: [AntigravityModelQuota]) -> Bool {
         quotas.contains { quota in
-            guard let remaining = quota.remainingFraction else { return false }
-            return remaining < 0.999
+            quota.remainingFraction != nil
         }
     }
 
@@ -442,9 +442,10 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     }
 
     private static func parseQuotaBuckets(_ response: RetrieveUserQuotaResponse) throws -> [AntigravityModelQuota] {
-        guard let buckets = response.buckets, !buckets.isEmpty else {
+        guard let buckets = response.buckets else {
             throw AntigravityRemoteFetchError.parseFailed("No quota buckets in response")
         }
+        guard !buckets.isEmpty else { return [] }
 
         var modelQuotaMap: [String: (fraction: Double?, resetTime: String?)] = [:]
         for bucket in buckets {

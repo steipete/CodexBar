@@ -10,10 +10,10 @@ public enum AntigravityProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .antigravity,
                 displayName: "Antigravity",
-                sessionLabel: "Claude",
-                weeklyLabel: "Gemini Pro",
-                opusLabel: "Gemini Flash",
-                supportsOpus: true,
+                sessionLabel: "Gemini",
+                weeklyLabel: "Claude + GPT",
+                opusLabel: nil,
+                supportsOpus: false,
                 supportsCredits: false,
                 creditsHint: "",
                 toggleTitle: "Show Antigravity usage (experimental)",
@@ -41,16 +41,22 @@ public enum AntigravityProviderDescriptor {
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-        let local = AntigravityStatusFetchStrategy()
+        let app = AntigravityStatusFetchStrategy(source: .app)
         let cli = AntigravityCLIHTTPSFetchStrategy()
+        let ide = AntigravityStatusFetchStrategy(source: .ide)
         let oauth = AntigravityOAuthFetchStrategy()
         switch context.sourceMode {
         case .cli:
-            return [local, cli]
+            return [app, cli, ide]
         case .oauth:
             return [oauth]
         case .auto:
-            return [local, cli, oauth]
+            if context.selectedTokenAccountID != nil ||
+                context.env[AntigravityOAuthCredentialsStore.environmentCredentialsKey] != nil
+            {
+                return [app, cli, ide, oauth]
+            }
+            return [app, cli, ide]
         case .web, .api:
             return []
         }
@@ -58,25 +64,55 @@ public enum AntigravityProviderDescriptor {
 }
 
 struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
-    let id: String = "antigravity.local"
+    enum Source: Sendable {
+        case app
+        case ide
+
+        var id: String {
+            switch self {
+            case .app: "antigravity.app-local"
+            case .ide: "antigravity.ide-local"
+            }
+        }
+
+        var processScope: AntigravityStatusProbe.ProcessScope {
+            switch self {
+            case .app: .appOnly
+            case .ide: .ideOnly
+            }
+        }
+
+        var sourceLabel: String {
+            switch self {
+            case .app: "app"
+            case .ide: "ide"
+            }
+        }
+    }
+
+    let source: Source
+    var id: String {
+        self.source.id
+    }
+
     let kind: ProviderFetchKind = .localProbe
+
+    init(source: Source = .app) {
+        self.source = source
+    }
+
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        // IDE-only: `agy` is owned by AntigravityCLIHTTPSFetchStrategy, which
-        // waits for real API readiness. Probing a half-warmed `agy` here would
-        // burn the timeout on a process that is not yet answering, so the
-        // local probe only handles the running-desktop case and otherwise
-        // fails over to the CLI strategy.
-        let probe = AntigravityStatusProbe(processScope: .ideOnly)
+        let probe = AntigravityStatusProbe(processScope: self.source.processScope)
         let snap = try await probe.fetch()
         let usage = try snap.toUsageSnapshot()
         try AntigravitySelectedAccountGuard.validate(usage, context: context)
         return self.makeResult(
             usage: usage,
-            sourceLabel: "local")
+            sourceLabel: self.source.sourceLabel)
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
@@ -84,11 +120,11 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
     }
 }
 
-/// When the desktop Antigravity app is closed (no ``language_server`` running),
-/// this strategy spawns or reuses ``agy`` and talks to the HTTPS localhost
-/// server embedded in that CLI process. ``agy`` is an interactive REPL, not a
-/// query command, so CodexBar never scrapes TUI output here; it only keeps the
-/// process alive long enough for the server to answer ``GetUserStatus``.
+/// When the Antigravity 2.0 app is closed or unavailable, this strategy spawns
+/// or reuses ``agy`` and talks to the HTTPS localhost server embedded in that
+/// CLI process. ``agy`` is an interactive REPL, not a query command, so
+/// CodexBar never scrapes TUI output here; it only keeps the process alive long
+/// enough for the server to answer quota endpoints.
 struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     static let sourceLabel = "cli"
     let id: String = "antigravity.cli-https"
@@ -259,7 +295,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        context.sourceMode == .auto
+        context.sourceMode == .auto || context.sourceMode == .cli
     }
 }
 

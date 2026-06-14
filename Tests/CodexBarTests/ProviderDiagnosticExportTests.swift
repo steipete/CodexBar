@@ -184,7 +184,7 @@ struct ProviderDiagnosticExportTests {
             result: .failure(ProviderFetchError.noAvailableStrategy(.antigravity)),
             attempts: [
                 ProviderFetchAttempt(
-                    strategyID: "antigravity.local",
+                    strategyID: "antigravity.ide-local",
                     kind: .localProbe,
                     wasAvailable: true,
                     errorDescription: "unauthenticated local probe"),

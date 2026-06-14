@@ -130,7 +130,7 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
-    func `legacy widget usage rows include tertiary slot when supported`() {
+    func `legacy widget usage rows use antigravity grouped slots`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .antigravity,
@@ -145,9 +145,9 @@ struct CodexBarWidgetProviderTests {
 
         let rows = WidgetUsageRow.rows(for: entry)
 
-        #expect(rows.map(\.id) == ["primary", "secondary", "tertiary"])
-        #expect(rows.map(\.title) == ["Claude", "Gemini Pro", "Gemini Flash"])
-        #expect(rows.compactMap(\.percentLeft) == [90, 80, 70])
+        #expect(rows.map(\.id) == ["primary", "secondary"])
+        #expect(rows.map(\.title) == ["Gemini", "Claude + GPT"])
+        #expect(rows.compactMap(\.percentLeft) == [90, 80])
     }
 
     @Test

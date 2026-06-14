@@ -719,7 +719,7 @@ struct AntigravityCLISessionTests {
         let handle = try #require(fixture.launcher.handleSnapshot().first)
         handle.enqueueDrainOutput(Data([0xE2, 0x96]))
         let first = await fixture.session.drainOutput()
-        handle.enqueueDrainOutput(Data([0x84]) + Data("You are currently not signed in".utf8))
+        handle.enqueueDrainOutput(Data([0x84]) + Data("Select login method:".utf8))
         let second = await fixture.session.drainOutput()
         let third = await fixture.session.drainOutput()
 
@@ -732,13 +732,23 @@ struct AntigravityCLISessionTests {
     }
 
     @Test
+    func `authentication prompt matcher tolerates prompt casing and spacing`() {
+        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+            Data("select  LOGIN\nmethod :".utf8)))
+        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+            Data("Select login method:".utf8)))
+        #expect(!AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+            Data("You are currently not signed in".utf8)))
+    }
+
+    @Test
     func `session returns complete new output before retaining only its tail`() async throws {
         let fixture = self.makeFixture()
         fixture.identity.setIdentity(pid: 10, executablePath: "/bin/agy", startEpoch: 100)
 
         _ = try await fixture.session.beginProbe(binary: "/bin/agy")
         let handle = try #require(fixture.launcher.handleSnapshot().first)
-        let prompt = Data("You are currently not signed in".utf8)
+        let prompt = Data("Select login method:".utf8)
         let oversizedRedraw = prompt + Data(repeating: 0x20, count: 8192)
         handle.enqueueDrainOutput(oversizedRedraw)
 

@@ -113,11 +113,19 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
 
         let cliStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeFetchContext(sourceMode: .cli))
-        #expect(cliStrategies.map(\.id) == ["antigravity.local", "antigravity.cli-https"])
+        #expect(cliStrategies.map(\.id) == [
+            "antigravity.app-local",
+            "antigravity.cli-https",
+            "antigravity.ide-local",
+        ])
 
         let autoStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeFetchContext(sourceMode: .auto))
-        #expect(autoStrategies.map(\.id) == ["antigravity.local", "antigravity.cli-https", "antigravity.oauth"])
+        #expect(autoStrategies.map(\.id) == [
+            "antigravity.app-local",
+            "antigravity.cli-https",
+            "antigravity.ide-local",
+        ])
     }
 
     @Test
@@ -132,9 +140,35 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         let oauthStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeFetchContext(sourceMode: .oauth, selectedTokenAccountID: accountID))
 
-        #expect(autoStrategies.map(\.id) == ["antigravity.local", "antigravity.cli-https", "antigravity.oauth"])
-        #expect(cliStrategies.map(\.id) == ["antigravity.local", "antigravity.cli-https"])
+        #expect(autoStrategies.map(\.id) == [
+            "antigravity.app-local",
+            "antigravity.cli-https",
+            "antigravity.ide-local",
+            "antigravity.oauth",
+        ])
+        #expect(cliStrategies.map(\.id) == [
+            "antigravity.app-local",
+            "antigravity.cli-https",
+            "antigravity.ide-local",
+        ])
         #expect(oauthStrategies.map(\.id) == ["antigravity.oauth"])
+    }
+
+    @Test
+    func `auto strategy pipeline includes oauth when credentials are injected`() async {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .antigravity)
+
+        let autoStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeFetchContext(
+                sourceMode: .auto,
+                env: self.accountEnv(email: "selected@example.com")))
+
+        #expect(autoStrategies.map(\.id) == [
+            "antigravity.app-local",
+            "antigravity.cli-https",
+            "antigravity.ide-local",
+            "antigravity.oauth",
+        ])
     }
 
     // MARK: - Selected-account guard
@@ -274,7 +308,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
-    func `cli HTTPS falls back to command model configs when user status fails`() async throws {
+    func `cli HTTPS falls back to command model configs when quota summary and user status fail`() async throws {
         let endpoints = [
             AntigravityStatusProbe.AntigravityConnectionEndpoint(
                 scheme: "https",
@@ -292,6 +326,10 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             send: { payload, _, _ in
                 let attempt = attempts.increment()
                 if attempt == 1 {
+                    #expect(payload.path == "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary")
+                    throw AntigravityStatusProbeError.apiError("quota summary unavailable")
+                }
+                if attempt == 2 {
                     #expect(payload.path == "/exa.language_server_pb.LanguageServerService/GetUserStatus")
                     throw AntigravityStatusProbeError.apiError("user status unavailable")
                 }
@@ -310,7 +348,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             })
 
         #expect(snapshot.modelQuotas.first?.label == "Claude Sonnet")
-        #expect(attempts.value == 2)
+        #expect(attempts.value == 3)
     }
 
     @Test
@@ -461,6 +499,40 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         } catch {
             Issue.record("Expected authenticationRequired, got \(error)")
         }
+    }
+
+    @Test
+    func `cli HTTPS allows transient automatic sign in banner`() async throws {
+        let output = AntigravityCLIOutputSequence([
+            Data("Welcome. You are currently not signed in.\nSigning in...".utf8),
+            Data("user@example.com\nGemini 3.1 Pro (High)".utf8),
+        ])
+
+        let snapshot = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+            pid: 123,
+            deadline: Date().addingTimeInterval(2),
+            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                pollIntervalNanoseconds: 0,
+                listeningPorts: { _, _ in [50080] },
+                drainOutput: {
+                    output.next()
+                },
+                fetchSnapshot: { _ in
+                    AntigravityStatusSnapshot(
+                        modelQuotas: [
+                            AntigravityModelQuota(
+                                label: "Claude Sonnet",
+                                modelId: "claude-sonnet",
+                                remainingFraction: 1,
+                                resetTime: nil,
+                                resetDescription: nil),
+                        ],
+                        accountEmail: "user@example.com",
+                        accountPlan: "Pro",
+                        source: .local)
+                }))
+
+        #expect(snapshot.accountEmail == "user@example.com")
     }
 
     @Test

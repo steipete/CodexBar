@@ -63,6 +63,19 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `antigravity usage source picker clarifies local ide and agy`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-antigravity-source")
+        let context = fixture.settingsContext(provider: .antigravity)
+
+        let pickers = AntigravityProviderImplementation().settingsPickers(context: context)
+        let usagePicker = try #require(pickers.first(where: { $0.id == "antigravity-usage-source" }))
+
+        #expect(usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
+        #expect(usagePicker.subtitle ==
+            "Auto uses Antigravity app, then agy CLI, then IDE; OAuth is used for selected accounts.")
+    }
+
+    @Test
     func `codex exposes open AI web extras toggle as default off opt in`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex-openai-toggle")
         let context = fixture.settingsContext(provider: .codex)

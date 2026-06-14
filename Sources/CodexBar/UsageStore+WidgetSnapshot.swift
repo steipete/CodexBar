@@ -119,6 +119,13 @@ extension UsageStore {
                     percentLeft: window.remainingPercent)
             }
         }
+        if provider == .antigravity,
+           let rows = Self.antigravityQuotaSummaryWidgetRows(snapshot: snapshot),
+           !rows.isEmpty
+        {
+            return rows
+        }
+
         let primaryTitle: String = {
             if provider == .grok,
                let dyn = GrokProviderDescriptor.primaryLabel(window: snapshot.primary)
@@ -145,5 +152,23 @@ extension UsageStore {
                 percentLeft: snapshot.tertiary?.remainingPercent))
         }
         return rows.filter { $0.percentLeft != nil }
+    }
+
+    private nonisolated static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
+
+    private nonisolated static func antigravityQuotaSummaryWidgetRows(
+        snapshot: UsageSnapshot) -> [WidgetSnapshot.WidgetUsageRowSnapshot]?
+    {
+        guard let windows = snapshot.extraRateWindows?.filter({
+            $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix)
+        }), !windows.isEmpty else {
+            return nil
+        }
+        return windows.map { namedWindow in
+            WidgetSnapshot.WidgetUsageRowSnapshot(
+                id: namedWindow.id,
+                title: namedWindow.title,
+                percentLeft: namedWindow.usageKnown ? namedWindow.window.remainingPercent : nil)
+        }
     }
 }

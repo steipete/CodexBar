@@ -544,6 +544,67 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `removing last antigravity oauth account clears matching shared credentials`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("antigravity-shared-removal-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sharedStore = AntigravityOAuthCredentialsStore(
+            fileURL: root.appendingPathComponent("oauth_creds.json"))
+        let credentials = AntigravityOAuthCredentials(
+            accessToken: "shared-access",
+            refreshToken: "shared-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "user@example.com")
+        try sharedStore.save(credentials)
+        let settings = Self.makeSettingsStore(
+            suiteName: "SettingsStoreCoverageTests-antigravity-remove-shared",
+            antigravityOAuthCredentialsStore: sharedStore)
+
+        settings.upsertAntigravityOAuthAccount(credentials)
+        let account = try #require(settings.selectedTokenAccount(for: .antigravity))
+        settings.removeTokenAccount(provider: .antigravity, accountID: account.id)
+
+        #expect(settings.tokenAccounts(for: .antigravity).isEmpty)
+        let sharedCredentials = try await Self.waitForSharedAntigravityCredentials(in: sharedStore) { $0 == nil }
+        #expect(sharedCredentials == nil)
+    }
+
+    @Test
+    func `removing antigravity oauth account preserves different shared credentials`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("antigravity-shared-preserve-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sharedStore = AntigravityOAuthCredentialsStore(
+            fileURL: root.appendingPathComponent("oauth_creds.json"))
+        let removed = AntigravityOAuthCredentials(
+            accessToken: "removed-access",
+            refreshToken: "removed-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "removed@example.com")
+        let shared = AntigravityOAuthCredentials(
+            accessToken: "shared-access",
+            refreshToken: "shared-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "shared@example.com")
+        try sharedStore.save(shared)
+        let settings = Self.makeSettingsStore(
+            suiteName: "SettingsStoreCoverageTests-antigravity-preserve-shared",
+            antigravityOAuthCredentialsStore: sharedStore)
+
+        settings.upsertAntigravityOAuthAccount(removed)
+        let account = try #require(settings.selectedTokenAccount(for: .antigravity))
+        settings.removeTokenAccount(provider: .antigravity, accountID: account.id)
+
+        #expect(settings.tokenAccounts(for: .antigravity).isEmpty)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        #expect(try sharedStore.load() == shared)
+    }
+
+    @Test
     func `weekly progress work days defaults to nil and persists across store reload`() throws {
         let suite = "SettingsStoreCoverageTests-weekly-progress-work-days"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -575,17 +636,26 @@ struct SettingsStoreCoverageTests {
         #expect(reloaded4.weeklyProgressWorkDays == nil)
     }
 
-    private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {
+    private static func makeSettingsStore(
+        suiteName: String = "SettingsStoreCoverageTests",
+        antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore())
+        -> SettingsStore
+    {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(false, forKey: "debugDisableKeychainAccess")
         let configStore = testConfigStore(suiteName: suiteName)
-        return Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        return Self.makeSettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            antigravityOAuthCredentialsStore: antigravityOAuthCredentialsStore)
     }
 
     private static func makeSettingsStore(
         userDefaults: UserDefaults,
-        configStore: CodexBarConfigStore) -> SettingsStore
+        configStore: CodexBarConfigStore,
+        antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore())
+        -> SettingsStore
     {
         SettingsStore(
             userDefaults: userDefaults,
@@ -604,6 +674,22 @@ struct SettingsStoreCoverageTests {
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
-            tokenAccountStore: InMemoryTokenAccountStore())
+            tokenAccountStore: InMemoryTokenAccountStore(),
+            antigravityOAuthCredentialsStore: antigravityOAuthCredentialsStore)
+    }
+
+    private static func waitForSharedAntigravityCredentials(
+        in store: AntigravityOAuthCredentialsStore,
+        matches predicate: (AntigravityOAuthCredentials?) -> Bool) async throws
+        -> AntigravityOAuthCredentials?
+    {
+        for _ in 0..<100 {
+            let credentials = try store.load()
+            if predicate(credentials) {
+                return credentials
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return try store.load()
     }
 }

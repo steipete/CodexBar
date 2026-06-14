@@ -28,13 +28,22 @@ protocol AntigravityCLIProcessLaunching: Sendable {
 }
 
 enum AntigravityCLIAuthenticationPrompt {
-    static let evidence = Data("You are currently not signed in".utf8)
+    static let evidence = Data("Select login method:".utf8)
+    private static let promptPattern = #"select\s+login\s+method\s*:?"#
 
     static func contains(_ output: Data) -> Bool {
-        [
-            self.evidence,
-            Data("Select login method:".utf8),
-        ].contains { output.range(of: $0) != nil }
+        // `agy` briefly prints "You are currently not signed in" before it
+        // auto-refreshes an existing login. The actual blocking state is the
+        // interactive login-method prompt. The exact prompt is a CLI-owned TUI
+        // string, so keep matching tolerant to casing and whitespace changes.
+        if output.range(of: self.evidence) != nil {
+            return true
+        }
+        let asciiBytes = output.map { $0 < 0x80 ? $0 : 0x20 }
+        let text = String(bytes: asciiBytes, encoding: .utf8) ?? ""
+        return text.range(
+            of: self.promptPattern,
+            options: [.regularExpression, .caseInsensitive]) != nil
     }
 }
 
@@ -93,7 +102,7 @@ protocol AntigravityCLISessionLaunchLocking: Sendable {
 /// Manages a bounded background ``agy`` process whose embedded localhost server
 /// provides the same ``GetUserStatus`` endpoint as the desktop Antigravity app's
 /// ``language_server``. The CLI is kept alive in a PTY so its daemon stays bound
-/// to a local port — this lets CodexBar read Claude + Gemini quotas even when
+/// to a local port - this lets CodexBar read Claude + Gemini quotas even when
 /// the desktop Antigravity app is closed.
 ///
 /// The session intentionally does not scrape TUI output. It only launches and

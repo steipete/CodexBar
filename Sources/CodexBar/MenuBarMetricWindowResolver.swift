@@ -84,6 +84,9 @@ enum MenuBarMetricWindowResolver {
 
     private static func automaticWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
         if provider == .antigravity {
+            if let window = mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot) {
+                return window
+            }
             return self.mostConstrainedWindow(
                 primary: snapshot.primary,
                 secondary: snapshot.secondary,
@@ -120,6 +123,16 @@ enum MenuBarMetricWindowResolver {
             return extraUsage
         }
         return snapshot.primary ?? snapshot.secondary
+    }
+
+    private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
+
+    private static func mostConstrainedAntigravityQuotaSummaryWindow(snapshot: UsageSnapshot) -> RateWindow? {
+        let windows = snapshot.extraRateWindows?
+            .filter { $0.usageKnown && $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix) }
+            .map(\.window) ?? []
+        guard !windows.isEmpty else { return nil }
+        return windows.max(by: { $0.usedPercent < $1.usedPercent })
     }
 
     private static func window(in snapshot: UsageSnapshot, following lanes: [Lane]) -> RateWindow? {

@@ -145,6 +145,7 @@ extension SettingsStore {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let activeAccountID = data.accounts[data.clampedActiveIndex()].id
         guard let removedIndex = data.accounts.firstIndex(where: { $0.id == accountID }) else { return }
+        let removedAccount = data.accounts[removedIndex]
         let filtered = data.accounts.filter { $0.id != accountID }
         self.updateProviderConfig(provider: provider) { entry in
             if filtered.isEmpty {
@@ -166,6 +167,10 @@ extension SettingsStore {
                 entry.apiKey = nil
             }
         }
+        self.applyTokenAccountRemovalSideEffectsIfNeeded(
+            provider: provider,
+            removedAccount: removedAccount,
+            remainingAccounts: filtered)
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account removed",
             metadata: [
@@ -211,5 +216,91 @@ extension SettingsStore {
               support.requiresManualCookieSource
         else { return }
         ProviderCatalog.implementation(for: provider)?.applyTokenAccountCookieSource(settings: self)
+    }
+
+    private func applyTokenAccountRemovalSideEffectsIfNeeded(
+        provider: UsageProvider,
+        removedAccount: ProviderTokenAccount,
+        remainingAccounts: [ProviderTokenAccount])
+    {
+        guard provider == .antigravity else { return }
+        guard let removedCredentials = AntigravityOAuthCredentialsStore.credentials(
+            fromTokenAccountValue: removedAccount.token)
+        else {
+            return
+        }
+        let hasMatchingRemainingAccount = remainingAccounts.contains { account in
+            guard let credentials = AntigravityOAuthCredentialsStore.credentials(fromTokenAccountValue: account.token)
+            else {
+                return false
+            }
+            return Self.antigravityCredentialsMatchAccount(credentials, removedCredentials)
+        }
+        guard !hasMatchingRemainingAccount else { return }
+
+        let store = self.antigravityOAuthCredentialsStore
+        Self.clearMatchingAntigravitySharedCredentials(
+            store: store,
+            removedCredentials: removedCredentials)
+    }
+
+    private nonisolated static func clearMatchingAntigravitySharedCredentials(
+        store: AntigravityOAuthCredentialsStore,
+        removedCredentials: AntigravityOAuthCredentials)
+    {
+        Task.detached(priority: .utility) {
+            do {
+                guard let sharedCredentials = try store.load(),
+                      antigravityCredentialsMatchAccount(sharedCredentials, removedCredentials)
+                else {
+                    return
+                }
+                try store.deleteIfPresent()
+            } catch {
+                CodexBarLog.logger(LogCategories.tokenAccounts).warning(
+                    "Failed to clear Antigravity OAuth cache after account removal",
+                    metadata: ["error": error.localizedDescription])
+            }
+        }
+    }
+
+    private nonisolated static func antigravityCredentialsMatchAccount(
+        _ lhs: AntigravityOAuthCredentials,
+        _ rhs: AntigravityOAuthCredentials) -> Bool
+    {
+        if let lhsEmail = self.normalizedAntigravityAccountEmail(lhs.resolvedAccountEmail),
+           let rhsEmail = self.normalizedAntigravityAccountEmail(rhs.resolvedAccountEmail)
+        {
+            return lhsEmail == rhsEmail
+        }
+        if let lhsRefreshToken = self.normalizedAntigravityCredentialToken(lhs.refreshToken),
+           let rhsRefreshToken = self.normalizedAntigravityCredentialToken(rhs.refreshToken)
+        {
+            return lhsRefreshToken == rhsRefreshToken
+        }
+        if let lhsAccessToken = self.normalizedAntigravityCredentialToken(lhs.accessToken),
+           let rhsAccessToken = self.normalizedAntigravityCredentialToken(rhs.accessToken)
+        {
+            return lhsAccessToken == rhsAccessToken
+        }
+        return false
+    }
+
+    private nonisolated static func normalizedAntigravityAccountEmail(_ email: String?) -> String? {
+        guard let value = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !value.isEmpty
+        else {
+            return nil
+        }
+        return value
+    }
+
+    private nonisolated static func normalizedAntigravityCredentialToken(_ token: String?) -> String? {
+        guard let value = token?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else {
+            return nil
+        }
+        return value
     }
 }
