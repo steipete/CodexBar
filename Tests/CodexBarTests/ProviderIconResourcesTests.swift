@@ -79,6 +79,35 @@ struct ProviderIconResourcesTests {
 
         #expect(image.size == NSSize(width: 16, height: 16))
         #expect(image.isTemplate)
+
+        let bitmap = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 16,
+            pixelsHigh: 16,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.clear(CGRect(x: 0, y: 0, width: 16, height: 16))
+        image.draw(in: NSRect(x: 0, y: 0, width: 16, height: 16))
+        NSGraphicsContext.restoreGraphicsState()
+
+        var visiblePixels = 0
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide
+                where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0
+            {
+                visiblePixels += 1
+            }
+        }
+        #expect(visiblePixels > 40)
+        #expect(visiblePixels < 240)
     }
 
     private static func repoRoot() throws -> URL {
