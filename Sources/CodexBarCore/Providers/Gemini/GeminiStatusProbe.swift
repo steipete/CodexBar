@@ -2,6 +2,11 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 public struct GeminiModelQuota: Sendable {
     public let modelId: String
@@ -590,9 +595,38 @@ public struct GeminiStatusProbe: Sendable {
         process.environment = mergedEnvironment
 
         let stdout = Pipe()
+        let stderr = Pipe()
         process.standardOutput = stdout
-        process.standardError = Pipe()
+        process.standardError = stderr
         process.standardInput = nil
+
+        final class OutputState: @unchecked Sendable {
+            private let lock = NSLock()
+            private var data = Data()
+
+            func append(_ chunk: Data) {
+                self.lock.lock()
+                self.data.append(chunk)
+                self.lock.unlock()
+            }
+
+            func snapshot() -> Data {
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                return self.data
+            }
+        }
+
+        let output = OutputState()
+        stdout.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty {
+                output.append(data)
+            }
+        }
+        stderr.fileHandleForReading.readabilityHandler = { handle in
+            _ = handle.availableData
+        }
 
         let exitSemaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in
@@ -602,6 +636,8 @@ public struct GeminiStatusProbe: Sendable {
         do {
             try process.run()
         } catch {
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
             return nil
         }
 
@@ -609,12 +645,20 @@ public struct GeminiStatusProbe: Sendable {
         if !didExit {
             if process.isRunning {
                 process.terminate()
-                _ = exitSemaphore.wait(timeout: .now() + 0.5)
+                if exitSemaphore.wait(timeout: .now() + 0.4) != .success, process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                    _ = exitSemaphore.wait(timeout: .now() + 1.0)
+                }
             }
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
             return nil
         }
 
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        Thread.sleep(forTimeInterval: 0.1)
+        stdout.fileHandleForReading.readabilityHandler = nil
+        stderr.fileHandleForReading.readabilityHandler = nil
+        let data = output.snapshot()
         guard process.terminationStatus == 0,
               let output = String(data: data, encoding: .utf8)?
                   .trimmingCharacters(in: .whitespacesAndNewlines),
