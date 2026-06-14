@@ -57,10 +57,10 @@ All provider fields are optional unless noted.
 - `workspaceID`: provider-specific workspace/deployment/project ID (e.g. Azure OpenAI deployment, OpenAI API project,
   `opencode`).
 - `tokenAccounts`: multi-account tokens for providers in `TokenAccountSupportCatalog`.
-- `subscriptionSnapshot`: optional Codex-only manual subscription metadata for local renewal/expiration reminders.
+- `subscriptionSnapshot`: optional Codex-only manual reminder metadata for local renewal/expiration reminders.
 
 ### manual `subscriptionSnapshot`
-`subscriptionSnapshot` stores Codex account metadata for a manual reminder fallback. The first version is manual and Codex-only.
+`subscriptionSnapshot` stores Codex manual reminder metadata for a local fallback. The first version is manual and Codex-only.
 
 ```json
 {
@@ -79,6 +79,8 @@ Notes:
 - This is local-only manual metadata. CodexBar does not sync it from Codex and it only affects menu display and reminder notifications on the current Mac.
 - This is not quota reset timing and does not change usage-window math.
 - Renewal/expiry values are calendar days (`YYYY-MM-DD`), not timestamps.
+- The in-app UI intentionally saves only the minimal fallback reminder semantics: renewal dates save as `active`,
+  expiry dates save as `canceled`, and the UI does not edit `planName`.
 - If both renewal and expiry are set, expiry takes precedence for display and reminder evaluation.
 - `source` and `confidence` are manual-only in this release.
 - Leave both dates empty to disable the Codex reminder display.

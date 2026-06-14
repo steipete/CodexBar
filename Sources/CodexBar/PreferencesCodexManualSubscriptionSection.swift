@@ -7,8 +7,6 @@ struct CodexManualSubscriptionSectionView: View {
     let onSave: (ProviderSubscriptionSnapshot) -> Void
     let onClear: () -> Void
 
-    @State private var planName: String
-    @State private var status: ProviderSubscriptionStatus
     @State private var hasRenewsAt: Bool
     @State private var renewsAt: Date
     @State private var hasExpiresAt: Bool
@@ -28,8 +26,6 @@ struct CodexManualSubscriptionSectionView: View {
         let now = Date()
         let source = snapshot
         let prefersExpiry = source?.subscriptionExpiresAt != nil
-        self._planName = State(initialValue: source?.planName ?? "")
-        self._status = State(initialValue: source?.status ?? .active)
         self._hasRenewsAt = State(initialValue: source?.subscriptionRenewsAt != nil && !prefersExpiry)
         self._renewsAt = State(initialValue: source?.subscriptionRenewsAt ?? now)
         self._hasExpiresAt = State(initialValue: source?.subscriptionExpiresAt != nil)
@@ -60,17 +56,6 @@ struct CodexManualSubscriptionSectionView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(L("Plan name (optional)"))
-                            .font(.subheadline.weight(.semibold))
-                            .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
-                        Spacer(minLength: 0)
-                        TextField(L("Codex Plus"), text: self.$planName)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.footnote)
-                            .frame(maxWidth: 280)
-                    }
-
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Text(L("Renewal date"))
                             .font(.subheadline.weight(.semibold))
                             .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
@@ -92,21 +77,6 @@ struct CodexManualSubscriptionSectionView: View {
                                 .datePickerStyle(.field)
                                 .environment(\.locale, codexBarLocalizedLocale())
                                 .environment(\.calendar, Calendar(identifier: .gregorian))
-                        }
-
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text(L("Status"))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
-                            Spacer(minLength: 0)
-                            Picker("", selection: self.$status) {
-                                Text(Self.statusTitle(.active)).tag(ProviderSubscriptionStatus.active)
-                                Text(Self.statusTitle(.trialing)).tag(ProviderSubscriptionStatus.trialing)
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
                         }
                     }
 
@@ -201,9 +171,6 @@ struct CodexManualSubscriptionSectionView: View {
                 self.hasRenewsAt = isEnabled
                 if isEnabled {
                     self.hasExpiresAt = false
-                    if self.status != .active, self.status != .trialing {
-                        self.status = .active
-                    }
                 }
             })
     }
@@ -215,7 +182,6 @@ struct CodexManualSubscriptionSectionView: View {
                 self.hasExpiresAt = isEnabled
                 if isEnabled {
                     self.hasRenewsAt = false
-                    self.status = Self.effectiveStatusForSave(hasExpiresAt: true, status: self.status)
                 }
             })
     }
@@ -232,8 +198,6 @@ struct CodexManualSubscriptionSectionView: View {
 
     private func clearSnapshot() {
         let now = Date()
-        self.planName = ""
-        self.status = .active
         self.hasRenewsAt = false
         self.renewsAt = now
         self.hasExpiresAt = false
@@ -243,11 +207,11 @@ struct CodexManualSubscriptionSectionView: View {
     }
 
     private func makeSnapshotForSave(now: Date) -> ProviderSubscriptionSnapshot {
-        let effectiveStatus = Self.effectiveStatusForSave(hasExpiresAt: self.hasExpiresAt, status: self.status)
+        let effectiveStatus = Self.effectiveStatusForSave(hasExpiresAt: self.hasExpiresAt)
 
         return ProviderSubscriptionSnapshot(
             provider: .codex,
-            planName: self.planName,
+            planName: nil,
             status: effectiveStatus,
             subscriptionRenewsAt: self.hasRenewsAt ? self.renewsAt : nil,
             subscriptionExpiresAt: self.hasExpiresAt ? self.expiresAt : nil,
@@ -257,22 +221,11 @@ struct CodexManualSubscriptionSectionView: View {
     }
 
     static func effectiveStatusForSave(
-        hasExpiresAt: Bool,
-        status: ProviderSubscriptionStatus) -> ProviderSubscriptionStatus
+        hasExpiresAt: Bool) -> ProviderSubscriptionStatus
     {
         if hasExpiresAt {
             return .canceled
         }
-        return status
-    }
-
-    private static func statusTitle(_ status: ProviderSubscriptionStatus) -> String {
-        switch status {
-        case .active: L("Active")
-        case .trialing: L("Trialing")
-        case .canceled: L("Canceled")
-        case .pastDue: L("Past due")
-        case .unknown: L("Unknown")
-        }
+        return .active
     }
 }

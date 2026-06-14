@@ -33,7 +33,8 @@ read_when:
 - Optional Codex subscription metadata can show a separate subscription reminder row (for example, `Renews Jun 24` or
   `Expires in 6 days`) when Codex has manual `subscriptionSnapshot` data.
 - The manual reminder UI is a local-only fallback tool, not a Codex-synced subscription source. It presents one active
-  reminder mode at a time; if both renewal and expiry exist in config, expiry wins.
+  reminder mode at a time; the in-app UI only captures the reminder date mode itself and always saves minimal fallback
+  metadata (`renewal -> active`, `expiry -> canceled`). If both renewal and expiry exist in config, expiry wins.
 - Subscription reminder rows are distinct from quota reset rows and do not affect usage percentages, pace, or reset
   calculations.
 - Codex credits can add a separate “Buy Credits…” menu action.

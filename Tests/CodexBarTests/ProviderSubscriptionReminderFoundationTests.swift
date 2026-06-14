@@ -282,19 +282,11 @@ struct ProviderSubscriptionReminderFoundationTests {
     }
 
     @Test
-    func `manual reminder expiry saves as canceled status`() {
+    func `manual reminder save semantics collapse to active or canceled`() {
         #expect(
-            CodexManualSubscriptionSectionView.effectiveStatusForSave(
-                hasExpiresAt: true,
-                status: .active) == .canceled)
+            CodexManualSubscriptionSectionView.effectiveStatusForSave(hasExpiresAt: false) == .active)
         #expect(
-            CodexManualSubscriptionSectionView.effectiveStatusForSave(
-                hasExpiresAt: true,
-                status: .trialing) == .canceled)
-        #expect(
-            CodexManualSubscriptionSectionView.effectiveStatusForSave(
-                hasExpiresAt: false,
-                status: .trialing) == .trialing)
+            CodexManualSubscriptionSectionView.effectiveStatusForSave(hasExpiresAt: true) == .canceled)
     }
 
     @Test
