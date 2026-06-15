@@ -40,13 +40,18 @@ struct ClaudeWebCookieRenewalTests {
                 cookieHeader: "sessionKey=sk-ant-cache-token",
                 sourceLabel: "Chrome")
             defer { CookieHeaderCache.clear(provider: .claude) }
+            let usageCookies = RequestHeaderLog()
 
             try await self.withClaudeWebStub { request in
-                try Self.response(for: request, setCookie: Self.renewedSessionCookie)
+                if request.url?.path == "/api/organizations/org-123/usage" {
+                    usageCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                }
+                return try Self.response(for: request, setCookie: Self.renewedSessionCookie)
             } operation: {
                 let usage = try await ClaudeWebAPIFetcher.fetchUsage(cookieHeader: "sessionKey=sk-ant-manual-token")
 
                 #expect(usage.sessionPercentUsed == 11)
+                #expect(usageCookies.values == ["sessionKey=sk-ant-renewed-token"])
                 let cached = try #require(CookieHeaderCache.load(provider: .claude))
                 #expect(cached.cookieHeader == "sessionKey=sk-ant-cache-token")
                 #expect(cached.sourceLabel == "Chrome")

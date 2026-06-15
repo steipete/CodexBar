@@ -222,9 +222,7 @@ public enum ClaudeWebAPIFetcher {
     {
         let log: (String) -> Void = { msg in logger?(msg) }
         let sessionKey = sessionKeyInfo.key
-        let renewalTracker = cacheSourceLabel.map { _ in
-            ClaudeWebSessionKeyRenewalTracker(initialSessionKey: sessionKey)
-        }
+        let renewalTracker = ClaudeWebSessionKeyRenewalTracker(initialSessionKey: sessionKey)
 
         // Fetch organization info
         let organization = try await fetchOrganizationInfo(
@@ -234,17 +232,16 @@ public enum ClaudeWebAPIFetcher {
             renewalTracker: renewalTracker)
         log("Organization resolved")
 
-        let usageSessionKey = renewalTracker?.sessionKey ?? sessionKey
         var usage = try await fetchUsageData(
             orgId: organization.id,
-            sessionKey: usageSessionKey,
+            sessionKey: renewalTracker.sessionKey,
             logger: log,
             renewalTracker: renewalTracker)
         if usage.extraUsageCost == nil,
            let extra = await ClaudeWebExtraUsageCost.fetch(
                baseURL: Self.baseURL,
                orgId: organization.id,
-               sessionKey: renewalTracker?.sessionKey ?? sessionKey,
+               sessionKey: renewalTracker.sessionKey,
                logger: log,
                renewalTracker: renewalTracker)
         {
@@ -261,7 +258,7 @@ public enum ClaudeWebAPIFetcher {
                 loginMethod: usage.loginMethod)
         }
         if let account = await fetchAccountInfo(
-            sessionKey: renewalTracker?.sessionKey ?? sessionKey,
+            sessionKey: renewalTracker.sessionKey,
             orgId: organization.id,
             logger: log,
             renewalTracker: renewalTracker)
@@ -292,7 +289,7 @@ public enum ClaudeWebAPIFetcher {
                 loginMethod: usage.loginMethod)
         }
         if let cacheSourceLabel {
-            let renewedCookieHeader = renewalTracker?.renewedCookieHeader
+            let renewedCookieHeader = renewalTracker.renewedCookieHeader
             CookieHeaderCache.store(
                 provider: .claude,
                 cookieHeader: renewedCookieHeader ?? "sessionKey=\(sessionKey)",
