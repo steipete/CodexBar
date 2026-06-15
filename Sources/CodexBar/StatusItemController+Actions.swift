@@ -316,6 +316,15 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return
         }
 
+        if self.usePopoverMenu,
+           self.providerPopoverControllers.values.contains(where: \.isShown)
+        {
+            // A per-provider popover is already visible (e.g. mouse-opened). The shortcut should
+            // dismiss it (toggle-off), not resolve a possibly-stale `lastMenuProvider` and toggle a
+            // different provider — that would close the visible panel and open the wrong one.
+            self.closeAllProviderPopovers()
+            return
+        }
         let provider = self.resolvedShortcutProvider()
         // Use the lazy accessor to ensure the item exists
         let item = self.lazyStatusItem(for: provider)
