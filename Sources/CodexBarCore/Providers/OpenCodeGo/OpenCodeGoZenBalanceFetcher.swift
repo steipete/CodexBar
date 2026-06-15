@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-private final class OpenCodeGoOptionalZenBalanceRace: @unchecked Sendable {
+private final class OpenCodeGoZenBalanceTaskRace: @unchecked Sendable {
     private let lock = NSLock()
     private let sourceTask: Task<Double?, Error>
     private var result: Result<Double?, Error>?
@@ -15,7 +15,7 @@ private final class OpenCodeGoOptionalZenBalanceRace: @unchecked Sendable {
         self.sourceTask = sourceTask
     }
 
-    func value(timeout: Duration) async throws -> Double? {
+    func value(timeout: Duration? = nil) async throws -> Double? {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 self.lock.lock()
@@ -35,12 +35,14 @@ private final class OpenCodeGoOptionalZenBalanceRace: @unchecked Sendable {
                         self?.resolve(.failure(error), cancelSource: false)
                     }
                 }
-                self.timeoutTask = Task { [weak self] in
-                    do {
-                        try await Task.sleep(for: timeout)
-                        self?.resolve(.success(nil), cancelSource: true)
-                    } catch {
-                        // The source completed or the caller canceled the race.
+                if let timeout {
+                    self.timeoutTask = Task { [weak self] in
+                        do {
+                            try await Task.sleep(for: timeout)
+                            self?.resolve(.success(nil), cancelSource: true)
+                        } catch {
+                            // The source completed or the caller canceled the race.
+                        }
                     }
                 }
                 self.lock.unlock()
@@ -114,8 +116,13 @@ extension OpenCodeGoUsageFetcher {
     }
 
     static func completedOptionalZenBalance(from task: Task<Double?, Error>) async throws -> Double? {
-        let race = OpenCodeGoOptionalZenBalanceRace(sourceTask: task)
+        let race = OpenCodeGoZenBalanceTaskRace(sourceTask: task)
         return try await race.value(timeout: self.optionalZenBalanceJoinGrace)
+    }
+
+    static func completedRequiredZenBalance(from task: Task<Double?, Error>) async throws -> Double? {
+        let race = OpenCodeGoZenBalanceTaskRace(sourceTask: task)
+        return try await race.value()
     }
 
     static func parseZenBalance(text: String) -> Double? {

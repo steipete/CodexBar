@@ -19,6 +19,28 @@ private final class OpenCodeGoRequestRecorder<Value: Sendable>: @unchecked Senda
     }
 }
 
+private final class OpenCodeGoContinuationBox<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    func wait(onReady: @Sendable () -> Void) async -> Value {
+        await withCheckedContinuation { continuation in
+            self.lock.lock()
+            self.continuation = continuation
+            self.lock.unlock()
+            onReady()
+        }
+    }
+
+    func resume(returning value: Value) {
+        self.lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        self.lock.unlock()
+        continuation?.resume(returning: value)
+    }
+}
+
 @Suite(.serialized)
 struct OpenCodeGoUsageFetcherErrorTests {
     @Test
@@ -270,6 +292,42 @@ struct OpenCodeGoUsageFetcherErrorTests {
     }
 
     @Test
+    func `zen only account fetches required balance when optional usage is disabled`() async throws {
+        defer {
+            OpenCodeGoStubURLProtocol.handler = nil
+        }
+
+        let observedPaths = OpenCodeGoRequestRecorder<String>()
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            observedPaths.append(url.path)
+            if url.path == "/workspace/wrk_TEST123" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"<html><body><h2>Current balance $23.75</h2></body></html>"#,
+                    statusCode: 200,
+                    contentType: "text/html")
+            }
+            return Self.makeResponse(
+                url: url,
+                body: "<html><title>opencode</title><body>No Go subscription usage</body></html>",
+                statusCode: 200,
+                contentType: "text/html")
+        }
+
+        let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
+            cookieHeader: "auth=test",
+            timeout: 2,
+            workspaceIDOverride: "wrk_TEST123",
+            includeZenBalance: false,
+            session: self.makeSession())
+
+        #expect(snapshot.isBalanceOnly)
+        #expect(snapshot.zenBalanceUSD == 23.75)
+        #expect(observedPaths.values == ["/workspace/wrk_TEST123/go", "/workspace/wrk_TEST123"])
+    }
+
+    @Test
     func `zen only account falls back after final subscription parse failure`() async throws {
         defer {
             OpenCodeGoStubURLProtocol.handler = nil
@@ -309,17 +367,23 @@ struct OpenCodeGoUsageFetcherErrorTests {
     }
 
     @Test
-    func `zen only fallback promptly cancels the required balance task`() async throws {
+    func `zen only fallback promptly cancels when balance task ignores cancellation`() async throws {
         let balanceStarted = AsyncStream<Void>.makeStream(of: Void.self)
+        let balanceContinuation = OpenCodeGoContinuationBox<Double?>()
         let balanceTask = Task<Double?, Error> {
-            balanceStarted.continuation.yield(())
-            try await Task.sleep(for: .seconds(2))
-            return 42.5
+            await balanceContinuation.wait {
+                balanceStarted.continuation.yield(())
+            }
         }
         let fallbackTask = Task {
             try await OpenCodeGoUsageFetcher.requiredZenBalanceFallback(
                 from: balanceTask,
                 for: .parseFailed("Missing usage fields."),
+                request: OpenCodeGoUsageFetcher.ZenBalanceRequest(
+                    workspaceID: "wrk_TEST123",
+                    cookieHeader: "auth=test",
+                    timeout: 2,
+                    session: self.makeSession()),
                 now: Date())
         }
 
@@ -338,14 +402,9 @@ struct OpenCodeGoUsageFetcherErrorTests {
         }
 
         #expect(start.duration(to: .now) < .milliseconds(500))
-        do {
-            _ = try await balanceTask.value
-            Issue.record("Expected required balance task to be canceled.")
-        } catch is CancellationError {
-            // Expected.
-        } catch {
-            Issue.record("Expected CancellationError, got: \(error)")
-        }
+        #expect(balanceTask.isCancelled)
+        balanceContinuation.resume(returning: 42.5)
+        #expect(try await balanceTask.value == 42.5)
     }
 
     @Test

@@ -59,6 +59,13 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         let referer: URL
     }
 
+    struct ZenBalanceRequest: Sendable {
+        let workspaceID: String
+        let cookieHeader: String
+        let timeout: TimeInterval
+        let session: URLSession
+    }
+
     private static let percentKeys = [
         "usagePercent",
         "usedPercent",
@@ -126,6 +133,11 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 timeout: timeout,
                 session: session)
         }
+        let zenBalanceRequest = ZenBalanceRequest(
+            workspaceID: workspaceID,
+            cookieHeader: requestCookieHeader,
+            timeout: timeout,
+            session: session)
         let subscriptionTask = Task {
             try await self.fetchUsagePage(
                 workspaceID: workspaceID,
@@ -161,6 +173,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             return try await self.requiredZenBalanceFallback(
                 from: zenBalanceTask,
                 for: error,
+                request: zenBalanceRequest,
                 now: now)
         } catch {
             throw error
@@ -172,6 +185,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             return try await self.requiredZenBalanceFallback(
                 from: zenBalanceTask,
                 for: error,
+                request: zenBalanceRequest,
                 now: now)
         }
         guard let zenBalanceTask else {
@@ -184,19 +198,25 @@ public struct OpenCodeGoUsageFetcher: Sendable {
     static func requiredZenBalanceFallback(
         from task: Task<Double?, Error>?,
         for error: OpenCodeGoUsageError,
+        request: ZenBalanceRequest,
         now: Date) async throws -> OpenCodeGoUsageSnapshot
     {
         guard case let .parseFailed(message) = error,
-              message.contains("Missing usage fields"),
-              let task
+              message.contains("Missing usage fields")
         else {
             throw error
         }
-        let zenBalance = try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
+        let task = task ?? Task {
+            try await self.fetchOptionalZenBalance(
+                workspaceID: request.workspaceID,
+                cookieHeader: request.cookieHeader,
+                timeout: request.timeout,
+                session: request.session)
+        }
+        defer {
             task.cancel()
         }
+        let zenBalance = try await self.completedRequiredZenBalance(from: task)
         guard let zenBalance else {
             throw error
         }
