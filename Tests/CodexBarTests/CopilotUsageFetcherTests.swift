@@ -80,6 +80,7 @@ struct CopilotUsageFetcherTests {
                 """
                 {
                   "copilot_plan": "individual",
+                  "quota_reset_date": "2026-07-01",
                   "quota_snapshots": {
                     "chat_messages": {
                       "entitlement": 0,
@@ -98,6 +99,7 @@ struct CopilotUsageFetcherTests {
 
         #expect(snapshot.primary == nil)
         #expect(snapshot.secondary?.usedPercent == 0)
+        #expect(snapshot.secondary?.resetsAt == nil)
         #expect(snapshot.identity?.loginMethod == "Individual")
     }
 

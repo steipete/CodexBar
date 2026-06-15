@@ -149,11 +149,12 @@ public struct CopilotUsageFetcher: Sendable {
         let overQuotaDescription = snapshot.overQuotaUsedPercent.map { used in
             String(format: "%.0f%% used", used)
         }
+        let effectiveResetsAt = snapshot.unlimited ? nil : resetsAt
 
         return RateWindow(
             usedPercent: usedPercent,
             windowMinutes: nil,
-            resetsAt: resetsAt,
+            resetsAt: effectiveResetsAt,
             resetDescription: overQuotaDescription)
     }
 
