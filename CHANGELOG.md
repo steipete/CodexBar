@@ -24,6 +24,7 @@
 - Provider probes: stop waiting indefinitely for inherited output pipes after subprocesses or CLI version checks exit (fixes #1531).
 - Menu bar: update visible usage values in place when a manual refresh completes instead of leaving the open provider card stale until the menu is reopened (fixes #1516).
 - Gemini: recognize the current `gemini-api-key` CLI auth setting so API-key sessions show the supported OAuth guidance instead of a misleading not-logged-in error (fixes #1511).
+- Claude: offer the "Re-login at claude.ai" recovery action when no fetch strategy is available, instead of showing only the generic "No available fetch strategy" error (fixes #1425). Thanks @LeoLin990405!
 - Kiro: keep usage refreshes bounded when CLI helpers retain output pipes, ignore termination, or are cancelled (fixes #1533). Thanks @kiranmagic7!
 - Xiaomi MiMo: cancel optional token-plan requests when the required balance request fails instead of delaying the error for up to 30 seconds.
 - Settings: make the cost history window directly editable by keyboard while preserving the existing stepper and 1–365 day bounds (fixes #1499). Thanks @kiranmagic7!

@@ -229,8 +229,25 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         if self.shouldOpenBrowserForWebSessionError(context: context) {
             return ("Re-login at claude.ai", .loginToProvider(url: "https://claude.ai/"))
         }
-        guard self.shouldOpenTerminalForOAuthError(store: context.store) else { return nil }
-        return ("Open Terminal", .openTerminal(command: "claude"))
+        if self.shouldOpenTerminalForOAuthError(store: context.store) {
+            return ("Open Terminal", .openTerminal(command: "claude"))
+        }
+        // A fully unconfigured Claude provider resolves to no fetch strategy at all
+        // (OAuth, CLI, and web are each unavailable). Without this fallback the menu
+        // surfaces only the generic "No available fetch strategy" error with no next
+        // step; offer the claude.ai sign-in entry point so the user can recover.
+        if Self.isNoAvailableStrategyError(context.store.error(for: .claude)) {
+            return ("Re-login at claude.ai", .loginToProvider(url: "https://claude.ai/"))
+        }
+        return nil
+    }
+
+    /// Whether the surfaced Claude error is the generic "no available fetch
+    /// strategy" outcome produced when every source (OAuth, CLI, web) is
+    /// unavailable. Exposed as a pure seam so recovery routing stays testable
+    /// without constructing live provider state.
+    static func isNoAvailableStrategyError(_ error: String?) -> Bool {
+        error == ProviderFetchError.noAvailableStrategy(.claude).localizedDescription
     }
 
     @MainActor
