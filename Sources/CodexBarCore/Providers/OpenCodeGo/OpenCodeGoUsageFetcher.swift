@@ -148,7 +148,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         }
         let zenBalanceTask = includeZenBalance ? Task {
             try await Task.sleep(for: self.optionalZenBalanceStartDelay)
-            return try await self.fetchOptionalZenBalance(
+            return try await self.fetchZenBalance(
                 workspaceID: workspaceID,
                 cookieHeader: requestCookieHeader,
                 timeout: timeout,
@@ -208,7 +208,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             throw error
         }
         let task = task ?? Task {
-            try await self.fetchOptionalZenBalance(
+            try await self.fetchZenBalance(
                 workspaceID: request.workspaceID,
                 cookieHeader: request.cookieHeader,
                 timeout: request.timeout,

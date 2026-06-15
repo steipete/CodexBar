@@ -117,7 +117,13 @@ extension OpenCodeGoUsageFetcher {
 
     static func completedOptionalZenBalance(from task: Task<Double?, Error>) async throws -> Double? {
         let race = OpenCodeGoZenBalanceTaskRace(sourceTask: task)
-        return try await race.value(timeout: self.optionalZenBalanceJoinGrace)
+        do {
+            return try await race.value(timeout: self.optionalZenBalanceJoinGrace)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return nil
+        }
     }
 
     static func completedRequiredZenBalance(from task: Task<Double?, Error>) async throws -> Double? {
@@ -129,7 +135,7 @@ extension OpenCodeGoUsageFetcher {
         OpenCodeGoZenBalanceParser.parse(text: text)
     }
 
-    private static func fetchZenBalance(
+    static func fetchZenBalance(
         workspaceID: String,
         cookieHeader: String,
         timeout: TimeInterval,

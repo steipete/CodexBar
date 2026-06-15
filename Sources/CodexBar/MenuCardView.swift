@@ -882,9 +882,10 @@ extension UsageMenuCardView.Model {
         let creditsText = PersonalInfoRedactor.redactEmails(in: rawCreditsText, isEnabled: input.hidePersonalInfo)
         let isClaudeAdminAPI = input.provider == .claude &&
             input.snapshot?.identity?.loginMethod == "Admin API"
+        let isRequiredOpenCodeZenBalance = Self.isRequiredOpenCodeZenBalance(input.snapshot)
         let hidesOptionalProviderCost = ((input.provider == .claude && !isClaudeAdminAPI) ||
             input.provider == .factory ||
-            input.provider == .opencodego) &&
+            (input.provider == .opencodego && !isRequiredOpenCodeZenBalance)) &&
             !input.showOptionalCreditsAndExtraUsage
         let providerCost: ProviderCostSection? = if hidesOptionalProviderCost ||
             (input.provider == .openai && openAIAPIUsage != nil)

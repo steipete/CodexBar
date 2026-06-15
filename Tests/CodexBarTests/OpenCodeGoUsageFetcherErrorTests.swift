@@ -328,6 +328,42 @@ struct OpenCodeGoUsageFetcherErrorTests {
     }
 
     @Test
+    func `zen only account propagates invalid credentials from required balance fetch`() async throws {
+        defer {
+            OpenCodeGoStubURLProtocol.handler = nil
+        }
+
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/workspace/wrk_TEST123" {
+                return Self.makeResponse(
+                    url: url,
+                    body: "Unauthorized",
+                    statusCode: 401,
+                    contentType: "text/plain")
+            }
+            return Self.makeResponse(
+                url: url,
+                body: "<html><title>opencode</title><body>No Go subscription usage</body></html>",
+                statusCode: 200,
+                contentType: "text/html")
+        }
+
+        do {
+            _ = try await OpenCodeGoUsageFetcher.fetchUsage(
+                cookieHeader: "auth=stale",
+                timeout: 2,
+                workspaceIDOverride: "wrk_TEST123",
+                session: self.makeSession())
+            Issue.record("Expected invalid credentials to propagate.")
+        } catch OpenCodeGoUsageError.invalidCredentials {
+            // Expected.
+        } catch {
+            Issue.record("Expected invalidCredentials, got: \(error)")
+        }
+    }
+
+    @Test
     func `zen only account falls back after final subscription parse failure`() async throws {
         defer {
             OpenCodeGoStubURLProtocol.handler = nil
