@@ -6,26 +6,8 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
-        if provider == .openai {
-            return self.applyOpenAIOverrides(base: base, config: config)
-        }
-        if provider == .bedrock {
-            return self.applyBedrockOverrides(base: base, config: config)
-        }
-        if provider == .deepgram {
-            return self.applyDeepgramOverrides(base: base, config: config)
-        }
-        if self.supportsAPIKeyAndBaseURLOverride(provider) {
-            return self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
-        }
-        if provider == .azureopenai {
-            return self.applyAzureOpenAIOverrides(base: base, config: config)
-        }
-        if provider == .kimi {
-            return self.applyKimiOverrides(base: base, config: config)
-        }
-        if provider == .poe {
-            return self.applyPoeOverrides(base: base, config: config)
+        if let env = self.applyDedicatedProviderOverrides(base: base, provider: provider, config: config) {
+            return env
         }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
@@ -95,6 +77,31 @@ public enum ProviderConfigEnvironment {
         self.baseURLEnvironmentKey(for: provider) != nil
     }
 
+    private static func applyDedicatedProviderOverrides(
+        base: [String: String],
+        provider: UsageProvider,
+        config: ProviderConfig?) -> [String: String]?
+    {
+        switch provider {
+        case .openai:
+            self.applyOpenAIOverrides(base: base, config: config)
+        case .bedrock:
+            self.applyBedrockOverrides(base: base, config: config)
+        case .deepgram:
+            self.applyDeepgramOverrides(base: base, config: config)
+        case .llmproxy, .litellm:
+            self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
+        case .azureopenai:
+            self.applyAzureOpenAIOverrides(base: base, config: config)
+        case .poe:
+            self.applyPoeOverrides(base: base, config: config)
+        case .kimi:
+            self.applyKimiOverrides(base: base, config: config)
+        default:
+            nil
+        }
+    }
+
     private static func directAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
         switch provider {
         case .amp:
@@ -133,10 +140,19 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .litellm:
-            LiteLLMSettingsReader.apiKeyEnvironmentKey
+        case .poe, .litellm:
+            self.proxyAPIKeyEnvironmentKey(for: provider)
+        default:
+            nil
+        }
+    }
+
+    private static func proxyAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
+        switch provider {
         case .poe:
             PoeSettingsReader.apiKeyEnvironmentKey
+        case .litellm:
+            LiteLLMSettingsReader.apiKeyEnvironmentKey
         default:
             nil
         }
