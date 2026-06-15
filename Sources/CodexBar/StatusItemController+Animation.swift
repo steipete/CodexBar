@@ -762,6 +762,18 @@ extension StatusItemController {
                 now: now)
         }
 
+        if mode == .percent || mode == .allMetrics,
+           !self.settings.usageBarsShowUsed,
+           codexProjection?.menuBarFallback == .creditsBalance,
+           let creditsRemaining = codexProjection?.credits?.remaining,
+           creditsRemaining > 0
+        {
+            return
+                UsageFormatter
+                    .creditsString(from: creditsRemaining)
+                    .replacingOccurrences(of: " left", with: "")
+        }
+
         if mode == .allMetrics,
            let codexProjection
         {
@@ -780,25 +792,11 @@ extension StatusItemController {
                 now: now)
         }
 
-        let displayText = MenuBarDisplayText.displayText(
+        return MenuBarDisplayText.displayText(
             mode: mode,
             percentWindow: percentWindow,
             pace: pace,
             showUsed: self.settings.usageBarsShowUsed)
-
-        if mode == .percent,
-           !self.settings.usageBarsShowUsed,
-           codexProjection?.menuBarFallback == .creditsBalance,
-           let creditsRemaining = codexProjection?.credits?.remaining,
-           creditsRemaining > 0
-        {
-            return
-                UsageFormatter
-                    .creditsString(from: creditsRemaining)
-                    .replacingOccurrences(of: " left", with: "")
-        }
-
-        return displayText
     }
 
     nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {

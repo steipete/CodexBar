@@ -639,13 +639,13 @@
 "display_mode_both_desc" = "Mostra porcentagem e ritmo (ex.: 45% · +5%)";
 "display_mode_all_metrics_desc" = "Para Codex, mostra sessão, semana, ritmo e tempo de redefinição (ex.: 5h 45% · W 60% · P +5% · ↻ em 3d)";
 "display_mode_reset_time_desc" = "Mostra o tempo de redefinição da métrica selecionada (ex.: ↻ 3:56 PM)";
-"codex_all_metrics_settings_title" = "Codex all metrics";
-"codex_all_metrics_show_session" = "Show session";
-"codex_all_metrics_show_weekly" = "Show weekly";
-"codex_all_metrics_show_pace" = "Show pace";
-"codex_all_metrics_show_reset" = "Show reset";
-"codex_all_metrics_pace_label" = "Pace label";
-"codex_all_metrics_reset_format" = "Reset format";
+"codex_all_metrics_settings_title" = "Todas as métricas do Codex";
+"codex_all_metrics_show_session" = "Mostrar sessão";
+"codex_all_metrics_show_weekly" = "Mostrar semanal";
+"codex_all_metrics_show_pace" = "Mostrar ritmo";
+"codex_all_metrics_show_reset" = "Mostrar redefinição";
+"codex_all_metrics_pace_label" = "Rótulo de ritmo";
+"codex_all_metrics_reset_format" = "Formato de redefinição";
 
 /* Provider status */
 "status_operational" = "Operacional";

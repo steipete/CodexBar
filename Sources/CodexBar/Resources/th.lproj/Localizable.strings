@@ -642,13 +642,13 @@
 "display_mode_both_desc" = "แสดงทั้งเปอร์เซ็นต์และความเร็ว (เช่น 45% · +5%)";
 "display_mode_all_metrics_desc" = "สำหรับ Codex แสดงเซสชัน รายสัปดาห์ อัตราการก้าว และเวลารีเซ็ต (เช่น 5h 45% · W 60% · P +5% · ↻ ใน 3d)";
 "display_mode_reset_time_desc" = "แสดงเวลารีเซ็ตสําหรับเมตริกที่เลือก (เช่น ↻ 15:56 น.)";
-"codex_all_metrics_settings_title" = "Codex all metrics";
-"codex_all_metrics_show_session" = "Show session";
-"codex_all_metrics_show_weekly" = "Show weekly";
-"codex_all_metrics_show_pace" = "Show pace";
-"codex_all_metrics_show_reset" = "Show reset";
-"codex_all_metrics_pace_label" = "Pace label";
-"codex_all_metrics_reset_format" = "Reset format";
+"codex_all_metrics_settings_title" = "เมตริก Codex ทั้งหมด";
+"codex_all_metrics_show_session" = "แสดงเซสชัน";
+"codex_all_metrics_show_weekly" = "แสดงรายสัปดาห์";
+"codex_all_metrics_show_pace" = "แสดงอัตรา";
+"codex_all_metrics_show_reset" = "แสดงการรีเซ็ต";
+"codex_all_metrics_pace_label" = "ป้ายกำกับอัตรา";
+"codex_all_metrics_reset_format" = "รูปแบบการรีเซ็ต";
 
 /* Provider status */
 "status_operational" = "การดําเนินงาน";

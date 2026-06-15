@@ -75,7 +75,7 @@ enum CodexAllMetricsResetFormat: String, CaseIterable, Identifiable {
 
     var previewLabel: String {
         switch self {
-        case .default: "Default"
+        case .default: L("Default")
         case .weekdayTime: "Thu 6:10a"
         case .monthDayTime: "Jun 18 6:10a"
         case .weekdayMonthDay: "Thu Jun 18"
