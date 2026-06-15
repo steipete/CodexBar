@@ -414,6 +414,7 @@
 "language_vietnamese" = "Tiếng Việt";
 "language_italian" = "Italiano";
 "language_indonesian" = "Bahasa Indonesia";
+"language_polish" = "Bahasa Polandia";
 "start_at_login_title" = "Mulai saat Login";
 "start_at_login_subtitle" = "Otomatis membuka CodexBar saat Anda menyalakan Mac.";
 "show_cost_summary" = "Tampilkan ringkasan biaya";
