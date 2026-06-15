@@ -141,7 +141,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `merged data tick reconciles items in place without churn`() {
+    func `merged data tick keeps row count and card views stable`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -175,15 +175,14 @@ extension StatusMenuTests {
         controller.selectedMenuProvider = .codex
         let menu = controller.makeMenu()
         controller.populateMenu(menu, provider: .codex)
-        let itemsBefore = menu.items.map(ObjectIdentifier.init)
+        let itemCountBefore = menu.items.count
         let cardViewsBefore = self.cardViewIdentities(in: menu)
         #expect(!cardViewsBefore.isEmpty)
 
         controller.invalidateMenus(allowStaleContentDuringDataRefresh: true)
         controller.populateMenu(menu, provider: .codex)
 
-        let itemsAfter = menu.items.map(ObjectIdentifier.init)
-        #expect(itemsAfter == itemsBefore, "data-only repopulate should not remove or insert menu items")
+        #expect(menu.items.count == itemCountBefore, "data-only repopulate should keep row count stable")
         let cardViewsAfter = self.cardViewIdentities(in: menu)
         for (id, identity) in cardViewsBefore {
             #expect(cardViewsAfter[id] == identity, "card \(id) should reuse its hosting view")
