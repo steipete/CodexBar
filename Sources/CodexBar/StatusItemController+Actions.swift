@@ -548,11 +548,6 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.presentLoginAlert(title: info.title, message: info.message)
     }
 
-    func presentPoeLoginResult(_ result: PoeLoginRunner.Result) {
-        guard let info = Self.poeLoginAlertInfo(for: result) else { return }
-        self.presentLoginAlert(title: info.title, message: info.message)
-    }
-
     struct LoginAlertInfo: Equatable {
         let title: String
         let message: String
@@ -585,23 +580,6 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 message: String(format: L("Open this URL manually to continue login:\n\n%@"), message))
         case let .failed(message):
             LoginAlertInfo(title: L("Antigravity login failed"), message: message)
-        }
-    }
-
-    nonisolated static func poeLoginAlertInfo(for result: PoeLoginRunner.Result) -> LoginAlertInfo? {
-        switch result.outcome {
-        case .success, .cancelled:
-            nil
-        case .timedOut:
-            LoginAlertInfo(
-                title: L("Poe login timed out"),
-                message: L("The browser login did not complete in time. Try Poe login again."))
-        case let .launchFailed(message):
-            LoginAlertInfo(
-                title: L("Could not open browser for Poe"),
-                message: String(format: L("Open this URL manually to continue login:\n\n%@"), message))
-        case let .failed(message):
-            LoginAlertInfo(title: L("Poe login failed"), message: message)
         }
     }
 
@@ -645,21 +623,6 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         case .success: "success"
         case .cancelled: "cancelled"
         case let .failed(message): "failed(\(message))"
-        }
-    }
-
-    func describe(_ outcome: PoeLoginRunner.Result.Outcome) -> String {
-        switch outcome {
-        case let .success(expiresInSeconds):
-            "success(expiresInSeconds: \(expiresInSeconds.map(String.init) ?? "nil"))"
-        case .cancelled:
-            "cancelled"
-        case .timedOut:
-            "timedOut"
-        case let .launchFailed(message):
-            "launchFailed(\(message))"
-        case let .failed(message):
-            "failed(\(message))"
         }
     }
 }

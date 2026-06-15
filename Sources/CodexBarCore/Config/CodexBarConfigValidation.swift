@@ -35,7 +35,6 @@ public enum CodexBarConfigValidator {
         .opencodego,
         .devin,
         .deepgram,
-        .poe,
     ]
 
     public static func validate(_ config: CodexBarConfig) -> [CodexBarConfigIssue] {
@@ -179,7 +178,7 @@ public enum CodexBarConfigValidator {
     private static func validateSecretKey(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
         guard let secretKey = entry.secretKey,
               !secretKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              ![.bedrock, .poe].contains(entry.id)
+              entry.id != .bedrock
         else {
             return
         }
@@ -189,7 +188,7 @@ public enum CodexBarConfigValidator {
             provider: entry.id,
             field: "secretKey",
             code: "secret_key_unused",
-            message: "secretKey is set but only bedrock and poe use secretKey."))
+            message: "secretKey is set but only bedrock uses secretKey."))
     }
 
     private static func providerSupportsWorkspaceID(_ provider: UsageProvider) -> Bool {

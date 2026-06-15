@@ -102,19 +102,6 @@ struct ConfigValidationTests {
     }
 
     @Test
-    func `allows Poe OAuth token and expiry fields`() {
-        var config = CodexBarConfig.makeDefault()
-        config.setProviderConfig(ProviderConfig(
-            id: .poe,
-            secretKey: "oauth-issued-api-key",
-            workspaceID: "1798761600"))
-        let issues = CodexBarConfigValidator.validate(config)
-
-        #expect(!issues.contains(where: { $0.provider == .poe && $0.code == "secret_key_unused" }))
-        #expect(!issues.contains(where: { $0.provider == .poe && $0.code == "workspace_unused" }))
-    }
-
-    @Test
     func `warns on unsupported workspace ID`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .gemini, workspaceID: "workspace-123"))

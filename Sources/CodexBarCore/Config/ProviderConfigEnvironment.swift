@@ -53,7 +53,7 @@ public enum ProviderConfigEnvironment {
     public static func supportsAPIKeyOverride(for provider: UsageProvider) -> Bool {
         if self.directAPIKeyEnvironmentKey(for: provider) != nil { return true }
         switch provider {
-        case .copilot, .kimik2, .warp, .codebuff, .crof, .doubao, .poe:
+        case .copilot, .kimik2, .warp, .codebuff, .crof, .doubao:
             return true
         case .azureopenai:
             return true
@@ -93,8 +93,6 @@ public enum ProviderConfigEnvironment {
             self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
         case .azureopenai:
             self.applyAzureOpenAIOverrides(base: base, config: config)
-        case .poe:
-            self.applyPoeOverrides(base: base, config: config)
         case .kimi:
             self.applyKimiOverrides(base: base, config: config)
         default:
@@ -169,24 +167,6 @@ public enum ProviderConfigEnvironment {
         }
         if let projectID = config.sanitizedWorkspaceID {
             env[OpenAIAPISettingsReader.projectIDEnvironmentKey] = projectID
-        }
-        return env
-    }
-
-    private static func applyPoeOverrides(
-        base: [String: String],
-        config: ProviderConfig?) -> [String: String]
-    {
-        guard let config else { return base }
-        var env = base
-        if let apiKey = config.sanitizedAPIKey {
-            env[PoeSettingsReader.apiKeyEnvironmentKey] = apiKey
-        }
-        if let oauthKey = config.sanitizedSecretKey {
-            env[PoeSettingsReader.oauthAPIKeyEnvironmentKey] = oauthKey
-        }
-        if let expiresAt = config.sanitizedWorkspaceID {
-            env[PoeSettingsReader.oauthAPIKeyExpiresAtEnvironmentKey] = expiresAt
         }
         return env
     }

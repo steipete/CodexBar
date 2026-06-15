@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum PoeProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .poe,
@@ -22,7 +21,7 @@ public enum PoeProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
-                dashboardURL: "https://poe.com/usage",
+                dashboardURL: "https://poe.com/api/keys",
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
@@ -31,7 +30,7 @@ public enum PoeProviderDescriptor {
                 color: ProviderColor(red: 0.15, green: 0.68, blue: 0.38)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Poe point balance history is not available via API." }),
+                noDataMessage: { "Poe usage history is unavailable." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [PoeAPIFetchStrategy()] })),

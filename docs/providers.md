@@ -392,6 +392,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Accepts base URLs with or without a `/v1` suffix; management requests are sent to the proxy root.
 - Details: `docs/litellm.md`.
 
+## Poe
+- API key from config or `POE_API_KEY`.
+- Reads the current point balance and recent points history from Poe's official usage API.
+- History failures are non-fatal; the current balance remains available.
+- Details: `docs/poe.md`.
+
 ## StepFun
 - Username/password login or manual Oasis-Token.
 - Reads Step Plan 5-hour and weekly rate-limit windows from `platform.stepfun.com`.

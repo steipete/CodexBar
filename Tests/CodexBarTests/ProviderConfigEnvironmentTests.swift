@@ -513,21 +513,4 @@ struct ProviderConfigEnvironmentTests {
     func `poe supports API key override`() {
         #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .poe) == true)
     }
-
-    @Test
-    func `poe config projects oauth token and expiry into environment`() {
-        let config = ProviderConfig(
-            id: .poe,
-            apiKey: "manual-token",
-            secretKey: "oauth-token",
-            workspaceID: "4102444800")
-        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: [:],
-            provider: .poe,
-            config: config)
-
-        #expect(env[PoeSettingsReader.apiKeyEnvironmentKey] == "manual-token")
-        #expect(env[PoeSettingsReader.oauthAPIKeyEnvironmentKey] == "oauth-token")
-        #expect(env[PoeSettingsReader.oauthAPIKeyExpiresAtEnvironmentKey] == "4102444800")
-    }
 }

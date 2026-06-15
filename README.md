@@ -121,6 +121,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [LLM Proxy](docs/llm-proxy.md) — API key + base URL for aggregate proxy quota stats and provider breakdowns.
 - [LiteLLM](docs/litellm.md) — Virtual key + proxy URL for personal and team budget/spend tracking.
 - [Deepgram](docs/deepgram.md) — API key usage summaries across speech, agent, token, and TTS metrics.
+- [Poe](docs/poe.md) — API key for current point balance and recent points history.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot

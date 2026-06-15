@@ -184,12 +184,7 @@ public enum ProviderTokenResolver {
     public static func poeResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
-        if let oauthToken = PoeSettingsReader.oauthAPIKey(environment: environment),
-           !PoeSettingsReader.oauthAPIKeyIsExpired(environment: environment)
-        {
-            return ProviderTokenResolution(token: oauthToken, source: .environment)
-        }
-        return self.resolveEnv(PoeSettingsReader.apiKey(environment: environment))
+        self.resolveEnv(PoeSettingsReader.apiKey(environment: environment))
     }
 
     public static func crofResolution(
