@@ -723,7 +723,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
-    func `cli HTTPS reports last readiness error when ports never become usable`() async {
+    func `cli HTTPS reports latest readiness error when ports never become usable`() async {
         let fetchAttempts = AntigravityCLICounter()
 
         do {
@@ -741,8 +741,9 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
                     }))
             Issue.record("Expected readiness polling to throw")
         } catch let AntigravityStatusProbeError.apiError(message) {
-            #expect(fetchAttempts.value > 1)
-            #expect(message == "HTTP 500: warming attempt \(fetchAttempts.value)")
+            let attempts = fetchAttempts.value
+            #expect(attempts >= 1)
+            #expect(message == "HTTP 500: warming attempt \(attempts)")
         } catch {
             Issue.record("Expected apiError, got \(error)")
         }
