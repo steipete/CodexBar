@@ -143,6 +143,18 @@ extension OpenCodeGoUsageFetcher {
         if self.looksSignedOut(text: text) {
             throw OpenCodeGoUsageError.invalidCredentials
         }
-        return self.parseZenBalance(text: text)
+        if let balance = self.parseZenBalance(text: text) {
+            return balance
+        }
+
+        let billingText = try await self.fetchZenBillingText(
+            workspaceID: workspaceID,
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            session: session)
+        if self.looksSignedOut(text: billingText) {
+            throw OpenCodeGoUsageError.invalidCredentials
+        }
+        return OpenCodeGoZenBalanceParser.parseBillingServerResponse(text: billingText)
     }
 }

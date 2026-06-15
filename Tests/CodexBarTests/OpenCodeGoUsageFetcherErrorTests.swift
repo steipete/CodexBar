@@ -246,7 +246,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
             }
         }
 
-        #expect(methods.values == ["GET", "GET"])
+        #expect(methods.values == ["GET", "GET", "GET"])
     }
 
     @Test
@@ -434,8 +434,12 @@ struct OpenCodeGoUsageFetcherErrorTests {
             workspaceIDOverride: "https://opencode.ai/workspace/wrk_URL123/billing",
             session: self.makeSession())
 
-        #expect(observedPaths.values.count == 2)
-        #expect(Set(observedPaths.values) == ["/workspace/wrk_URL123/go", "/workspace/wrk_URL123"])
+        #expect(observedPaths.values.count == 3)
+        #expect(Set(observedPaths.values) == [
+            "/workspace/wrk_URL123/go",
+            "/workspace/wrk_URL123",
+            "/_server",
+        ])
     }
 
     @Test
@@ -472,6 +476,58 @@ struct OpenCodeGoUsageFetcherErrorTests {
 
         #expect(snapshot.zenBalanceUSD == 98.76)
         #expect(snapshot.toUsageSnapshot().providerCost?.period == "Zen balance")
+    }
+
+    @Test
+    func `fetcher falls back to billing server when workspace page omits balance`() async throws {
+        defer {
+            OpenCodeGoStubURLProtocol.handler = nil
+        }
+
+        let observedRequests = OpenCodeGoRequestRecorder<URLRequest>()
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            observedRequests.append(request)
+            if url.path == "/workspace/wrk_TEST123" {
+                return Self.makeResponse(
+                    url: url,
+                    body: "<html><body>Workspace dashboard without hydrated billing data</body></html>",
+                    statusCode: 200,
+                    contentType: "text/html")
+            }
+            if url.path == "/_server" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"$R[0]={customerID:"cus_test",balance:$R[1]=9876000000,reload:!1}"#,
+                    statusCode: 200,
+                    contentType: "text/javascript")
+            }
+            return Self.makeResponse(
+                url: url,
+                body: Self.goUsagePageHTML(
+                    workspaceID: "wrk_TEST123",
+                    rolling: UsageWindow(percent: 17, resetInSec: 600),
+                    weekly: UsageWindow(percent: 75, resetInSec: 7200),
+                    monthly: nil),
+                statusCode: 200,
+                contentType: "text/html")
+        }
+
+        let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
+            cookieHeader: "auth=test",
+            timeout: 2,
+            workspaceIDOverride: "wrk_TEST123",
+            session: self.makeSession())
+
+        #expect(snapshot.zenBalanceUSD == 98.76)
+        let billingRequest = try #require(observedRequests.values.first { $0.url?.path == "/_server" })
+        let billingURL = try #require(billingRequest.url)
+        let components = try #require(URLComponents(url: billingURL, resolvingAgainstBaseURL: false))
+        let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        #expect(query["id"] == "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d")
+        #expect(query["args"] == #"["wrk_TEST123"]"#)
+        #expect(billingRequest.value(forHTTPHeaderField: "Cookie") == "auth=test")
+        #expect(billingRequest.value(forHTTPHeaderField: "Referer") == "https://opencode.ai/workspace/wrk_TEST123")
     }
 
     @Test
