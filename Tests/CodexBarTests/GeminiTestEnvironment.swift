@@ -308,11 +308,22 @@ struct GeminiTestEnvironment {
 
         let fnmPath = binDir.appendingPathComponent("fnm")
         let stdoutHolder = holdNpmRootStdoutOpen
-            ? [
-                "python3 -c 'import os, time; ",
-                #"open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w").write(str(os.getpid())); "#,
-                "time.sleep(5)' &",
-            ].joined()
+            ? #"""
+            python3 - <<'PY'
+            import os
+            import subprocess
+            import sys
+
+            child = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(5)"],
+                stdin=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            with open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w") as handle:
+                handle.write(str(child.pid))
+            PY
+            """#
             : ":"
         let script = if let npmRoot {
             """
