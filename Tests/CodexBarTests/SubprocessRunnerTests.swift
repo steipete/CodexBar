@@ -98,6 +98,51 @@ struct SubprocessRunnerTests {
         #expect(elapsed < 3, "Timeout should fire in ~1s, not wait for process to exit naturally")
     }
 
+    @Test
+    func `timeout kills descendants that escape the process group`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-subprocess-tree-\(UUID().uuidString)", isDirectory: true)
+        let childPIDFile = root.appendingPathComponent("child.pid")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["CODEXBAR_TEST_CHILD_PID_FILE"] = childPIDFile.path
+        let script = """
+        import os
+        import subprocess
+        import sys
+        import time
+
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            start_new_session=True,
+        )
+        with open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w") as handle:
+            handle.write(str(child.pid))
+        time.sleep(30)
+        """
+
+        await #expect(throws: SubprocessRunnerError.self) {
+            try await SubprocessRunner.run(
+                binary: "/usr/bin/python3",
+                arguments: ["-c", script],
+                environment: environment,
+                timeout: 0.5,
+                label: "escaped-descendant")
+        }
+
+        let text = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(childPID, SIGKILL) }
+
+        let deadline = Date().addingTimeInterval(1)
+        while kill(childPID, 0) == 0, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(kill(childPID, 0) == -1)
+    }
+
     /// Multiple concurrent hung subprocesses must all time out independently, proving that
     /// one blocked subprocess does not starve the timeout mechanism of others.
     /// This is the core scenario that caused the original permanent-refresh-stall bug.

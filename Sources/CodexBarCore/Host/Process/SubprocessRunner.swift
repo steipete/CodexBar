@@ -112,22 +112,33 @@ public enum SubprocessRunner {
     @discardableResult
     package static func terminateProcess(_ process: Process, processGroup: pid_t?) -> Bool {
         guard process.isRunning else { return false }
-        process.terminate()
-        if let pgid = processGroup {
-            kill(-pgid, SIGTERM)
-        }
+        let descendants = TTYProcessTreeTerminator.descendantPIDs(of: process.processIdentifier)
+        let descendantIdentities = descendants.compactMap(TTYProcessTreeTerminator.processIdentity(for:))
+        TTYProcessTreeTerminator.terminateProcessTree(
+            rootPID: process.processIdentifier,
+            processGroup: processGroup,
+            signal: SIGTERM,
+            knownDescendants: descendants)
         let killDeadline = Date().addingTimeInterval(0.4)
         while process.isRunning, Date() < killDeadline {
             usleep(50000)
         }
         if process.isRunning {
-            if let pgid = processGroup {
-                kill(-pgid, SIGKILL)
-            }
-            kill(process.processIdentifier, SIGKILL)
+            let currentDescendants = descendantIdentities
+                .filter(TTYProcessTreeTerminator.isCurrent(_:))
+                .map(\.pid)
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: process.processIdentifier,
+                processGroup: processGroup,
+                signal: SIGKILL,
+                knownDescendants: currentDescendants)
             let reapDeadline = Date().addingTimeInterval(0.4)
             while process.isRunning, Date() < reapDeadline {
                 usleep(50000)
+            }
+        } else {
+            for identity in descendantIdentities where TTYProcessTreeTerminator.isCurrent(identity) {
+                kill(identity.pid, SIGKILL)
             }
         }
         return true

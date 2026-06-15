@@ -105,6 +105,11 @@ private enum TTYCommandRunnerActiveProcessRegistry {
 }
 
 enum TTYProcessTreeTerminator {
+    struct ProcessIdentity: Equatable {
+        let pid: pid_t
+        let startToken: UInt64
+    }
+
     static func descendantPIDs(
         of rootPID: pid_t,
         childResolver: (pid_t) -> [pid_t] = Self.currentChildPIDs(of:)) -> [pid_t]
@@ -134,8 +139,47 @@ enum TTYProcessTreeTerminator {
         guard childCount > 0 else { return [] }
         return Array(pids.prefix(min(Int(childCount), pids.count))).filter { $0 > 0 }
         #else
-        return []
+        let taskPath = "/proc/\(parentPID)/task"
+        guard let taskIDs = try? FileManager.default.contentsOfDirectory(atPath: taskPath) else { return [] }
+
+        var children: Set<pid_t> = []
+        for taskID in taskIDs {
+            let childrenPath = "\(taskPath)/\(taskID)/children"
+            guard let text = try? String(contentsOfFile: childrenPath, encoding: .utf8) else { continue }
+            children.formUnion(text.split(whereSeparator: \.isWhitespace).compactMap { pid_t($0) })
+        }
+        return children.sorted()
         #endif
+    }
+
+    static func processIdentity(for pid: pid_t) -> ProcessIdentity? {
+        guard pid > 0 else { return nil }
+
+        #if canImport(Darwin)
+        var info = proc_bsdinfo()
+        let size = proc_pidinfo(
+            pid,
+            PROC_PIDTBSDINFO,
+            0,
+            &info,
+            Int32(MemoryLayout<proc_bsdinfo>.stride))
+        guard size == Int32(MemoryLayout<proc_bsdinfo>.stride) else { return nil }
+        let startToken = UInt64(info.pbi_start_tvsec) * 1_000_000 + UInt64(info.pbi_start_tvusec)
+        return ProcessIdentity(pid: pid, startToken: startToken)
+        #else
+        guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+              let commandEnd = stat.lastIndex(of: ")")
+        else {
+            return nil
+        }
+        let fields = stat[stat.index(after: commandEnd)...].split(whereSeparator: \.isWhitespace)
+        guard fields.count > 19, let startToken = UInt64(fields[19]) else { return nil }
+        return ProcessIdentity(pid: pid, startToken: startToken)
+        #endif
+    }
+
+    static func isCurrent(_ identity: ProcessIdentity) -> Bool {
+        self.processIdentity(for: identity.pid) == identity
     }
 
     static func terminateProcessTree(
