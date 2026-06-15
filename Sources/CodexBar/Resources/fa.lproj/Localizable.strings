@@ -635,10 +635,12 @@
 "display_mode_percent" = "درصد";
 "display_mode_pace" = "سرعت";
 "display_mode_both" = "هر دو";
+"display_mode_all_metrics" = "همه معیارها";
 "display_mode_reset_time" = "زمان بازنشانی";
 "display_mode_percent_desc" = "درصد باقی مانده /used را نشان دهید (مثلا 45%)";
 "display_mode_pace_desc" = "نمایش شاخص سرعت (مثلا +5%)";
 "display_mode_both_desc" = "هم درصد و هم سرعت را نشان دهید (مثلا 45% · +5%)";
+"display_mode_all_metrics_desc" = "برای Codex، جلسه، هفتگی، سرعت و زمان بازنشانی را نشان دهید (مثلاً 5h 45% · W 60% · P +5% · ↻ در 3d)";
 "display_mode_reset_time_desc" = "زمان بازنشانی متریک انتخاب شده را نشان دهید (مثلا ↻ ساعت ۳:۵۶ بعدازظهر)";
 
 /* Provider status */

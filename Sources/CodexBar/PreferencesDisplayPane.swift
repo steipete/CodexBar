@@ -65,6 +65,9 @@ struct DisplayPane: View {
                     }
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
+                    if self.showsCodexAllMetricsOptions {
+                        self.codexAllMetricsOptions
+                    }
                 }
 
                 Divider()
@@ -188,6 +191,84 @@ struct DisplayPane: View {
                     .lineLimit(2)
                     .truncationMode(.tail)
             }
+        }
+    }
+
+    private var showsCodexAllMetricsOptions: Bool {
+        self.settings.menuBarShowsBrandIconWithPercent && self.settings.menuBarDisplayMode == .allMetrics
+    }
+
+    private var codexAllMetricsOptions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Codex all metrics")
+                .font(.subheadline.weight(.semibold))
+                .padding(.top, 2)
+            HStack(alignment: .top, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    PreferenceToggleRow(
+                        title: "Show session",
+                        subtitle: nil,
+                        binding: self.$settings.codexAllMetricsShowsSession)
+                    PreferenceToggleRow(
+                        title: "Show weekly",
+                        subtitle: nil,
+                        binding: self.$settings.codexAllMetricsShowsWeekly)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    PreferenceToggleRow(
+                        title: "Show pace",
+                        subtitle: nil,
+                        binding: self.$settings.codexAllMetricsShowsPace)
+                    PreferenceToggleRow(
+                        title: "Show reset",
+                        subtitle: nil,
+                        binding: self.$settings.codexAllMetricsShowsReset)
+                }
+            }
+            self.codexAllMetricsPacePicker
+            self.codexAllMetricsResetPicker
+        }
+        .padding(.leading, 14)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(.tertiary.opacity(0.45))
+                .frame(width: 2)
+        }
+    }
+
+    private var codexAllMetricsPacePicker: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("Pace label")
+                .font(.body)
+            Spacer()
+            Picker("Pace label", selection: self.$settings.codexAllMetricsPaceLabelStyle) {
+                ForEach(CodexAllMetricsPaceLabelStyle.allCases) { style in
+                    Text(style.previewLabel).tag(style)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(maxWidth: 160)
+            .disabled(!self.settings.codexAllMetricsShowsPace)
+            .opacity(self.settings.codexAllMetricsShowsPace ? 1 : 0.5)
+        }
+    }
+
+    private var codexAllMetricsResetPicker: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("Reset format")
+                .font(.body)
+            Spacer()
+            Picker("Reset format", selection: self.$settings.codexAllMetricsResetFormat) {
+                ForEach(CodexAllMetricsResetFormat.allCases) { format in
+                    Text(format.previewLabel).tag(format)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(maxWidth: 160)
+            .disabled(!self.settings.codexAllMetricsShowsReset)
+            .opacity(self.settings.codexAllMetricsShowsReset ? 1 : 0.5)
         }
     }
 

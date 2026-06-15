@@ -741,7 +741,7 @@ extension StatusItemController {
         switch mode {
         case .percent:
             pace = nil
-        case .pace, .both:
+        case .pace, .both, .allMetrics:
             let paceWindow: RateWindow? = if let codexProjection {
                 codexProjection.rateWindow(for: .weekly)
             } else if provider == .abacus {
@@ -761,6 +761,25 @@ extension StatusItemController {
                 resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
                 now: now)
         }
+
+        if mode == .allMetrics,
+           let codexProjection
+        {
+            return MenuBarDisplayText.codexAllMetricsText(
+                sessionWindow: codexProjection.rateWindow(for: .session),
+                weeklyWindow: codexProjection.rateWindow(for: .weekly),
+                weeklyPace: pace,
+                showUsed: self.settings.usageBarsShowUsed,
+                showsSession: self.settings.codexAllMetricsShowsSession,
+                showsWeekly: self.settings.codexAllMetricsShowsWeekly,
+                showsPace: self.settings.codexAllMetricsShowsPace,
+                showsReset: self.settings.codexAllMetricsShowsReset,
+                paceLabelStyle: self.settings.codexAllMetricsPaceLabelStyle,
+                resetFormat: self.settings.codexAllMetricsResetFormat,
+                resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+                now: now)
+        }
+
         let displayText = MenuBarDisplayText.displayText(
             mode: mode,
             percentWindow: percentWindow,

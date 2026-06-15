@@ -9,16 +9,14 @@ extension StatusItemController {
         self.menuBarCountdownRefreshTask = nil
 
         guard self.settings.menuBarShowsBrandIconWithPercent,
-              self.settings.menuBarDisplayMode == .resetTime,
-              self.settings.resetTimeDisplayStyle == .countdown
+              self.settings.menuBarDisplayMode == .resetTime || self.settings.menuBarDisplayMode == .allMetrics
         else {
             return
         }
+        guard self.menuBarDisplayNeedsCountdownRefresh() else { return }
 
-        let resetDates = self.menuBarCountdownProviders().compactMap { provider in
-            self.menuBarMetricWindow(
-                for: provider,
-                snapshot: self.store.snapshot(for: provider))?.resetsAt
+        let resetDates = self.menuBarCountdownProviders().flatMap { provider in
+            self.menuBarCountdownResetDates(for: provider)
         }
         guard let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDates, now: now) else {
             return
@@ -57,6 +55,36 @@ extension StatusItemController {
             return [self.primaryProviderForUnifiedIcon()]
         }
         return UsageProvider.allCases.filter(self.isVisible)
+    }
+
+    private func menuBarCountdownResetDates(for provider: UsageProvider) -> [Date] {
+        let snapshot = self.store.snapshot(for: provider)
+        if self.settings.menuBarDisplayMode == .allMetrics {
+            guard provider == .codex,
+                  let projection = self.store.codexConsumerProjectionIfNeeded(
+                      for: provider,
+                      surface: .menuBar,
+                      snapshotOverride: snapshot),
+                  let reset = projection.rateWindow(for: .weekly)?.resetsAt
+            else {
+                return []
+            }
+            return [reset]
+        }
+        return self.menuBarMetricWindow(for: provider, snapshot: snapshot).flatMap(\.resetsAt).map { [$0] } ?? []
+    }
+
+    private func menuBarDisplayNeedsCountdownRefresh() -> Bool {
+        switch self.settings.menuBarDisplayMode {
+        case .resetTime:
+            self.settings.resetTimeDisplayStyle == .countdown
+        case .allMetrics:
+            self.settings.codexAllMetricsShowsReset &&
+                self.settings.codexAllMetricsResetFormat.usesCountdown(
+                    globalStyle: self.settings.resetTimeDisplayStyle)
+        case .percent, .pace, .both:
+            false
+        }
     }
 
     #if DEBUG

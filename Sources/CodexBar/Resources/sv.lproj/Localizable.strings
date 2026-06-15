@@ -634,10 +634,12 @@
 "display_mode_percent" = "Procent";
 "display_mode_pace" = "Takt";
 "display_mode_both" = "Båda";
+"display_mode_all_metrics" = "Alla mått";
 "display_mode_reset_time" = "Återställningstid";
 "display_mode_percent_desc" = "Visa återstående/förbrukad procent (t.ex. 45 %)";
 "display_mode_pace_desc" = "Visa taktindikator (t.ex. +5 %)";
 "display_mode_both_desc" = "Visa både procent och takt (t.ex. 45 % · +5 %)";
+"display_mode_all_metrics_desc" = "För Codex, visa session, vecka, takt och återställningstid (t.ex. 5h 45% · W 60% · P +5% · ↻ om 3d)";
 "display_mode_reset_time_desc" = "Visa återställningstiden för valt mått (t.ex. ↻ 3:56 PM)";
 
 /* Provider status */

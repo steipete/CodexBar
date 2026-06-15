@@ -635,10 +635,12 @@
 "display_mode_percent" = "النسبة المئوية";
 "display_mode_pace" = "السرعة";
 "display_mode_both" = "كلاهما";
+"display_mode_all_metrics" = "كل المقاييس";
 "display_mode_reset_time" = "وقت إعادة الضبط";
 "display_mode_percent_desc" = "أظهر النسبة المتبقية /used (مثلا 45%)";
 "display_mode_pace_desc" = "مؤشر السرعة (مثلا +5%)";
 "display_mode_both_desc" = "أظهر كل من النسبة المئوية والسرعة (مثلا 45% · +5%)";
+"display_mode_all_metrics_desc" = "بالنسبة إلى Codex، اعرض الجلسة، والأسبوعي، والوتيرة، ووقت إعادة الضبط (مثلاً 5h 45% · W 60% · P +5% · ↻ خلال 3d)";
 "display_mode_reset_time_desc" = "عرض وقت إعادة الضبط للمقياس المحدد (مثلا ↻ 3:56 مساء)";
 
 /* Provider status */

@@ -632,10 +632,12 @@
 "display_mode_percent" = "Porcentagem";
 "display_mode_pace" = "Ritmo";
 "display_mode_both" = "Ambos";
+"display_mode_all_metrics" = "Todas as métricas";
 "display_mode_reset_time" = "Tempo de redefinição";
 "display_mode_percent_desc" = "Mostra a porcentagem restante/usada (ex.: 45%)";
 "display_mode_pace_desc" = "Mostra o indicador de ritmo (ex.: +5%)";
 "display_mode_both_desc" = "Mostra porcentagem e ritmo (ex.: 45% · +5%)";
+"display_mode_all_metrics_desc" = "Para Codex, mostra sessão, semana, ritmo e tempo de redefinição (ex.: 5h 45% · W 60% · P +5% · ↻ em 3d)";
 "display_mode_reset_time_desc" = "Mostra o tempo de redefinição da métrica selecionada (ex.: ↻ 3:56 PM)";
 
 /* Provider status */

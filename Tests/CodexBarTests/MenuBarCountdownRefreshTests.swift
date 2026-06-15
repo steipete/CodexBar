@@ -99,4 +99,86 @@ struct MenuBarCountdownRefreshTests {
         controller.prepareForAppShutdown()
         #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
     }
+
+    @Test
+    func `all metrics mode schedules countdown refresh for codex weekly reset`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "MenuBarCountdownRefreshTests-all-metrics"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .allMetrics
+        settings.resetTimesShowAbsolute = false
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 42,
+                    windowMinutes: 300,
+                    resetsAt: Date().addingTimeInterval(90),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 55,
+                    windowMinutes: 10080,
+                    resetsAt: Date().addingTimeInterval(4 * 24 * 3600),
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .codex)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        settings.codexAllMetricsResetFormat = .weekdayMonthDay
+        controller.updateIcons()
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+
+        settings.codexAllMetricsResetFormat = .compactCountdown
+        controller.updateIcons()
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        settings.codexAllMetricsResetFormat = .monthDayTimeCompactCountdown
+        controller.updateIcons()
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        settings.codexAllMetricsShowsReset = false
+        controller.updateIcons()
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+
+        settings.codexAllMetricsShowsReset = true
+        settings.codexAllMetricsResetFormat = .default
+        controller.updateIcons()
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 42,
+                    windowMinutes: 300,
+                    resetsAt: Date().addingTimeInterval(90),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .codex)
+        controller.updateIcons()
+
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+    }
 }

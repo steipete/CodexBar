@@ -616,10 +616,12 @@
 "display_mode_percent" = "백분율";
 "display_mode_pace" = "사용 속도";
 "display_mode_both" = "둘 다";
+"display_mode_all_metrics" = "모든 지표";
 "display_mode_reset_time" = "재설정 시간";
 "display_mode_percent_desc" = "남은/사용한 백분율 표시(예: 45%)";
 "display_mode_pace_desc" = "사용 속도 표시기 표시(예: +5%)";
 "display_mode_both_desc" = "백분율과 사용 속도 모두 표시(예: 45% · +5%)";
+"display_mode_all_metrics_desc" = "Codex의 세션, 주간, 사용 속도, 재설정 시간을 표시합니다(예: 5h 45% · W 60% · P +5% · ↻ 3d 후)";
 "display_mode_reset_time_desc" = "선택한 지표의 재설정 시간 표시(예: ↻ 오후 3:56)";
 "status_operational" = "정상 작동";
 "status_partial_outage" = "부분 장애";

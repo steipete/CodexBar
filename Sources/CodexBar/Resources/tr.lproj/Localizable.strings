@@ -635,9 +635,11 @@
 "display_mode_percent" = "Yüzde";
 "display_mode_pace" = "Hız";
 "display_mode_both" = "İkisi de";
+"display_mode_all_metrics" = "Tüm metrikler";
 "display_mode_percent_desc" = "Kalan/harcanan yüzdesini göster (ör. %45)";
 "display_mode_pace_desc" = "Hız göstergesini göster (ör. +%5)";
 "display_mode_both_desc" = "Hem yüzdeyi hem hızı göster (ör. %45 · +%5)";
+"display_mode_all_metrics_desc" = "Codex için oturum, haftalık, hız ve sıfırlama zamanını göster (örn. 5h 45% · W 60% · P +5% · ↻ 3d içinde)";
 
 /* Provider status */
 "status_operational" = "Çalışır durumda";

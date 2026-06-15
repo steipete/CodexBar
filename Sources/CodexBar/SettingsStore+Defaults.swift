@@ -250,6 +250,72 @@ extension SettingsStore {
         set { self.menuBarDisplayModeRaw = newValue.rawValue }
     }
 
+    var codexAllMetricsShowsSession: Bool {
+        get { self.defaultsState.codexAllMetricsShowsSession }
+        set {
+            self.defaultsState.codexAllMetricsShowsSession = newValue
+            self.userDefaults.set(newValue, forKey: "codexAllMetricsShowsSession")
+        }
+    }
+
+    var codexAllMetricsShowsWeekly: Bool {
+        get { self.defaultsState.codexAllMetricsShowsWeekly }
+        set {
+            self.defaultsState.codexAllMetricsShowsWeekly = newValue
+            self.userDefaults.set(newValue, forKey: "codexAllMetricsShowsWeekly")
+        }
+    }
+
+    var codexAllMetricsShowsPace: Bool {
+        get { self.defaultsState.codexAllMetricsShowsPace }
+        set {
+            self.defaultsState.codexAllMetricsShowsPace = newValue
+            self.userDefaults.set(newValue, forKey: "codexAllMetricsShowsPace")
+        }
+    }
+
+    var codexAllMetricsShowsReset: Bool {
+        get { self.defaultsState.codexAllMetricsShowsReset }
+        set {
+            self.defaultsState.codexAllMetricsShowsReset = newValue
+            self.userDefaults.set(newValue, forKey: "codexAllMetricsShowsReset")
+        }
+    }
+
+    private var codexAllMetricsPaceLabelStyleRaw: String? {
+        get { self.defaultsState.codexAllMetricsPaceLabelStyleRaw }
+        set {
+            self.defaultsState.codexAllMetricsPaceLabelStyleRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "codexAllMetricsPaceLabelStyle")
+            } else {
+                self.userDefaults.removeObject(forKey: "codexAllMetricsPaceLabelStyle")
+            }
+        }
+    }
+
+    var codexAllMetricsPaceLabelStyle: CodexAllMetricsPaceLabelStyle {
+        get { CodexAllMetricsPaceLabelStyle(rawValue: self.codexAllMetricsPaceLabelStyleRaw ?? "") ?? .abbreviated }
+        set { self.codexAllMetricsPaceLabelStyleRaw = newValue.rawValue }
+    }
+
+    private var codexAllMetricsResetFormatRaw: String? {
+        get { self.defaultsState.codexAllMetricsResetFormatRaw }
+        set {
+            self.defaultsState.codexAllMetricsResetFormatRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "codexAllMetricsResetFormat")
+            } else {
+                self.userDefaults.removeObject(forKey: "codexAllMetricsResetFormat")
+            }
+        }
+    }
+
+    var codexAllMetricsResetFormat: CodexAllMetricsResetFormat {
+        get { CodexAllMetricsResetFormat(rawValue: self.codexAllMetricsResetFormatRaw ?? "") ?? .default }
+        set { self.codexAllMetricsResetFormatRaw = newValue.rawValue }
+    }
+
     private var kiroMenuBarDisplayModeRaw: String? {
         get { self.defaultsState.kiroMenuBarDisplayModeRaw }
         set {

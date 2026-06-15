@@ -637,10 +637,12 @@
 "display_mode_percent" = "Procent";
 "display_mode_pace" = "Tempo";
 "display_mode_both" = "Oba";
+"display_mode_all_metrics" = "Wszystkie metryki";
 "display_mode_reset_time" = "Godzina resetu";
 "display_mode_percent_desc" = "Pokaż procent pozostałego/wykorzystanego limitu (np. 45%)";
 "display_mode_pace_desc" = "Pokaż wskaźnik tempa (np. +5%)";
 "display_mode_both_desc" = "Pokaż jednocześnie procent i tempo (np. 45% · +5%)";
+"display_mode_all_metrics_desc" = "Dla Codex pokaż sesję, tydzień, tempo i godzinę resetu (np. 5h 45% · W 60% · P +5% · ↻ za 3d)";
 "display_mode_reset_time_desc" = "Pokaż godzinę resetu dla wybranej metryki (np. ↻ 15:56)";
 
 /* Provider status */

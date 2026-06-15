@@ -637,10 +637,12 @@
 "display_mode_percent" = "Persen";
 "display_mode_pace" = "Pace";
 "display_mode_both" = "Keduanya";
+"display_mode_all_metrics" = "Semua metrik";
 "display_mode_reset_time" = "Waktu reset";
 "display_mode_percent_desc" = "Tampilkan persentase sisa/terpakai (mis. 45%)";
 "display_mode_pace_desc" = "Tampilkan indikator pace (mis. +5%)";
 "display_mode_both_desc" = "Tampilkan persentase dan pace (mis. 45% · +5%)";
+"display_mode_all_metrics_desc" = "Untuk Codex, tampilkan sesi, mingguan, pace, dan waktu reset (mis. 5h 45% · W 60% · P +5% · ↻ dalam 3d)";
 "display_mode_reset_time_desc" = "Tampilkan waktu reset untuk metrik yang dipilih (mis. ↻ 3:56 PM)";
 
 /* Provider status */

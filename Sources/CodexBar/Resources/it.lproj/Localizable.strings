@@ -637,10 +637,12 @@
 "display_mode_percent" = "Percentuale";
 "display_mode_pace" = "Andamento";
 "display_mode_both" = "Entrambi";
+"display_mode_all_metrics" = "Tutte le metriche";
 "display_mode_reset_time" = "Ora di reimpostazione";
 "display_mode_percent_desc" = "Mostra percentuale residua/consumata (es. 45%)";
 "display_mode_pace_desc" = "Mostra indicatore andamento (es. +5%)";
 "display_mode_both_desc" = "Mostra percentuale e andamento (es. 45% · +5%)";
+"display_mode_all_metrics_desc" = "Per Codex, mostra sessione, settimana, andamento e ora di reimpostazione (es. 5h 45% · W 60% · P +5% · ↻ tra 3d)";
 "display_mode_reset_time_desc" = "Mostra l'ora di reimpostazione per la metrica selezionata (es. ↻ 15:56)";
 
 /* Provider status */

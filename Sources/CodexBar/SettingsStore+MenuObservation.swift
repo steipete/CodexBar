@@ -27,6 +27,12 @@ extension SettingsStore {
         _ = self.menuBarHidesCritters
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode
+        _ = self.codexAllMetricsShowsSession
+        _ = self.codexAllMetricsShowsWeekly
+        _ = self.codexAllMetricsShowsPace
+        _ = self.codexAllMetricsShowsReset
+        _ = self.codexAllMetricsPaceLabelStyle
+        _ = self.codexAllMetricsResetFormat
         _ = self.kiroMenuBarDisplayMode
         _ = self.historicalTrackingEnabled
         _ = self.multiAccountMenuLayout

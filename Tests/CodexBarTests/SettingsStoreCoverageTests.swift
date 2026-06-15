@@ -75,6 +75,35 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `codex all metrics preferences persist`() throws {
+        let suite = "SettingsStoreCoverageTests-codex-all-metrics"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(initial.codexAllMetricsShowsSession)
+        #expect(initial.codexAllMetricsShowsWeekly)
+        #expect(initial.codexAllMetricsShowsPace)
+        #expect(initial.codexAllMetricsShowsReset)
+        #expect(initial.codexAllMetricsPaceLabelStyle == .abbreviated)
+        #expect(initial.codexAllMetricsResetFormat == .default)
+
+        initial.codexAllMetricsShowsSession = false
+        initial.codexAllMetricsShowsPace = false
+        initial.codexAllMetricsPaceLabelStyle = .valueOnly
+        initial.codexAllMetricsResetFormat = .weekdayMonthDay
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(!reloaded.codexAllMetricsShowsSession)
+        #expect(reloaded.codexAllMetricsShowsWeekly)
+        #expect(!reloaded.codexAllMetricsShowsPace)
+        #expect(reloaded.codexAllMetricsShowsReset)
+        #expect(reloaded.codexAllMetricsPaceLabelStyle == .valueOnly)
+        #expect(reloaded.codexAllMetricsResetFormat == .weekdayMonthDay)
+    }
+
+    @Test
     func `minimax settings snapshot uses selected token account as manual cookie`() {
         let settings = Self.makeSettingsStore(suiteName: "SettingsStoreCoverageTests-minimax-token-account")
         settings.minimaxCookieSource = .auto

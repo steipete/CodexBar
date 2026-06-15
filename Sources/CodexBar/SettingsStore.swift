@@ -365,6 +365,7 @@ extension SettingsStore {
         let menuBarHidesCritters = userDefaults.object(forKey: "menuBarHidesCritters") as? Bool ?? false
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
             ?? MenuBarDisplayMode.percent.rawValue
+        let codexAllMetricsDefaults = Self.loadCodexAllMetricsDefaults(userDefaults: userDefaults)
         let kiroMenuBarDisplayModeRaw = userDefaults.string(forKey: "kiroMenuBarDisplayMode")
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
@@ -441,6 +442,12 @@ extension SettingsStore {
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarHidesCritters: menuBarHidesCritters,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
+            codexAllMetricsShowsSession: codexAllMetricsDefaults.showsSession,
+            codexAllMetricsShowsWeekly: codexAllMetricsDefaults.showsWeekly,
+            codexAllMetricsShowsPace: codexAllMetricsDefaults.showsPace,
+            codexAllMetricsShowsReset: codexAllMetricsDefaults.showsReset,
+            codexAllMetricsPaceLabelStyleRaw: codexAllMetricsDefaults.paceLabelStyleRaw,
+            codexAllMetricsResetFormatRaw: codexAllMetricsDefaults.resetFormatRaw,
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
@@ -470,6 +477,27 @@ extension SettingsStore {
             providersSortedAlphabetically: providersSortedAlphabetically,
             appLanguageRaw: appLanguageRaw,
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"))
+    }
+
+    private struct CodexAllMetricsDefaults {
+        let showsSession: Bool
+        let showsWeekly: Bool
+        let showsPace: Bool
+        let showsReset: Bool
+        let paceLabelStyleRaw: String
+        let resetFormatRaw: String
+    }
+
+    private static func loadCodexAllMetricsDefaults(userDefaults: UserDefaults) -> CodexAllMetricsDefaults {
+        CodexAllMetricsDefaults(
+            showsSession: userDefaults.object(forKey: "codexAllMetricsShowsSession") as? Bool ?? true,
+            showsWeekly: userDefaults.object(forKey: "codexAllMetricsShowsWeekly") as? Bool ?? true,
+            showsPace: userDefaults.object(forKey: "codexAllMetricsShowsPace") as? Bool ?? true,
+            showsReset: userDefaults.object(forKey: "codexAllMetricsShowsReset") as? Bool ?? true,
+            paceLabelStyleRaw: userDefaults.string(forKey: "codexAllMetricsPaceLabelStyle")
+                ?? CodexAllMetricsPaceLabelStyle.abbreviated.rawValue,
+            resetFormatRaw: userDefaults.string(forKey: "codexAllMetricsResetFormat")
+                ?? CodexAllMetricsResetFormat.default.rawValue)
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {

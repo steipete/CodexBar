@@ -635,10 +635,12 @@
 "display_mode_percent" = "เปอร์เซ็นต์";
 "display_mode_pace" = "ก้าว";
 "display_mode_both" = "ทั้งสองอย่าง";
+"display_mode_all_metrics" = "เมตริกทั้งหมด";
 "display_mode_reset_time" = "รีเซ็ตเวลา";
 "display_mode_percent_desc" = "แสดงเปอร์เซ็นต์ที่เหลือ /used (เช่น 45%)";
 "display_mode_pace_desc" = "แสดงตัวบ่งชี้อัตราการก้าว (เช่น +5%)";
 "display_mode_both_desc" = "แสดงทั้งเปอร์เซ็นต์และความเร็ว (เช่น 45% · +5%)";
+"display_mode_all_metrics_desc" = "สำหรับ Codex แสดงเซสชัน รายสัปดาห์ อัตราการก้าว และเวลารีเซ็ต (เช่น 5h 45% · W 60% · P +5% · ↻ ใน 3d)";
 "display_mode_reset_time_desc" = "แสดงเวลารีเซ็ตสําหรับเมตริกที่เลือก (เช่น ↻ 15:56 น.)";
 
 /* Provider status */
