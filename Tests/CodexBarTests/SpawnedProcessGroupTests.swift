@@ -225,6 +225,90 @@ struct SpawnedProcessGroupTests {
     }
 
     @Test
+    func `residual termination cleans same group helpers spawned during SIGTERM`() async throws {
+        let readyFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-process-group-term-\(UUID().uuidString).ready")
+        let childPIDFile = readyFile.appendingPathExtension("pid")
+        let heartbeatFile = readyFile.appendingPathExtension("heartbeat")
+        defer {
+            try? FileManager.default.removeItem(at: readyFile)
+            try? FileManager.default.removeItem(at: childPIDFile)
+            try? FileManager.default.removeItem(at: heartbeatFile)
+        }
+
+        let script = """
+        import os
+        import signal
+        import sys
+        import time
+
+        def handle_term(_signal, _frame):
+            reader, writer = os.pipe()
+            child = os.fork()
+            if child == 0:
+                os.close(reader)
+                os.close(1)
+                os.close(2)
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                with open(sys.argv[2], "w") as handle:
+                    handle.write(str(os.getpid()))
+                with open(sys.argv[3], "w") as heartbeat:
+                    heartbeat.write("1")
+                    heartbeat.flush()
+                    os.write(writer, b"1")
+                    os.close(writer)
+                    counter = 1
+                    while True:
+                        counter += 1
+                        heartbeat.seek(0)
+                        heartbeat.write(str(counter))
+                        heartbeat.truncate()
+                        heartbeat.flush()
+                        time.sleep(0.02)
+            os.close(writer)
+            os.read(reader, 1)
+            os.close(reader)
+            os._exit(0)
+
+        signal.signal(signal.SIGTERM, handle_term)
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+        with open(sys.argv[1], "w") as handle:
+            handle.write("ready")
+        time.sleep(30)
+        """
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        let process = try SpawnedProcessGroup.launch(
+            binary: "/usr/bin/python3",
+            arguments: ["-c", script, readyFile.path, childPIDFile.path, heartbeatFile.path],
+            environment: ProcessInfo.processInfo.environment,
+            stdoutPipe: stdoutPipe,
+            stderrPipe: stderrPipe)
+
+        for _ in 0..<100 where !FileManager.default.fileExists(atPath: readyFile.path) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(FileManager.default.fileExists(atPath: readyFile.path))
+
+        await process.terminateResidualProcesses(grace: 0.2)
+
+        var childPID: pid_t?
+        for _ in 0..<100 {
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
+                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let resolvedChildPID = try #require(childPID)
+        defer { _ = kill(resolvedChildPID, SIGKILL) }
+        let heartbeatAfterCleanup = try String(contentsOf: heartbeatFile, encoding: .utf8)
+        try await Task.sleep(for: .milliseconds(200))
+        let heartbeatAfterSettle = try String(contentsOf: heartbeatFile, encoding: .utf8)
+        #expect(heartbeatAfterSettle == heartbeatAfterCleanup)
+    }
+
+    @Test
     func `normal exit cleans a session escaped output holder`() async throws {
         let childPIDFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-process-holder-\(UUID().uuidString).pid")
@@ -258,21 +342,32 @@ struct SpawnedProcessGroupTests {
         while process.isRunning {
             try await Task.sleep(for: .milliseconds(20))
         }
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        defer { _ = kill(childPID, SIGKILL) }
-        #expect(kill(childPID, 0) == 0)
+        var childPID: pid_t?
+        for _ in 0..<100 {
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
+                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let resolvedChildPID = try #require(childPID)
+        defer { _ = kill(resolvedChildPID, SIGKILL) }
+        #expect(kill(resolvedChildPID, 0) == 0)
 
         await process.terminateResidualProcesses(grace: 0.2)
 
-        #expect(kill(childPID, 0) == -1)
+        #expect(kill(resolvedChildPID, 0) == -1)
     }
 
     @Test
     func `normal exit cleans a same group helper without output pipes`() async throws {
         let childPIDFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-process-group-normal-exit-\(UUID().uuidString).pid")
-        defer { try? FileManager.default.removeItem(at: childPIDFile) }
+            .appendingPathComponent("codexbar-process-group-holder-\(UUID().uuidString).pid")
+        let heartbeatFile = childPIDFile.appendingPathExtension("heartbeat")
+        defer {
+            try? FileManager.default.removeItem(at: childPIDFile)
+            try? FileManager.default.removeItem(at: heartbeatFile)
+        }
 
         let script = """
         import os
@@ -287,16 +382,22 @@ struct SpawnedProcessGroupTests {
             signal.signal(signal.SIGTERM, signal.SIG_IGN)
             with open(sys.argv[1], "w") as handle:
                 handle.write(str(os.getpid()))
-            time.sleep(30)
+            counter = 0
+            with open(sys.argv[2], "w") as heartbeat:
+                while True:
+                    counter += 1
+                    heartbeat.seek(0)
+                    heartbeat.write(str(counter))
+                    heartbeat.truncate()
+                    heartbeat.flush()
+                    time.sleep(0.02)
             os._exit(0)
-
-        os._exit(0)
         """
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         let process = try SpawnedProcessGroup.launch(
             binary: "/usr/bin/python3",
-            arguments: ["-c", script, childPIDFile.path],
+            arguments: ["-c", script, childPIDFile.path, heartbeatFile.path],
             environment: ProcessInfo.processInfo.environment,
             stdoutPipe: stdoutPipe,
             stderrPipe: stderrPipe)
@@ -304,14 +405,32 @@ struct SpawnedProcessGroupTests {
         while process.isRunning {
             try await Task.sleep(for: .milliseconds(20))
         }
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        defer { _ = kill(childPID, SIGKILL) }
-        #expect(kill(childPID, 0) == 0)
-        #expect(getpgid(childPID) == process.processGroup)
+        var childPID: pid_t?
+        for _ in 0..<100 {
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
+                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let resolvedChildPID = try #require(childPID)
+        defer { _ = kill(resolvedChildPID, SIGKILL) }
+        #expect(getpgid(resolvedChildPID) == process.processGroup)
+        #expect(kill(resolvedChildPID, 0) == 0)
+        for _ in 0..<100 where !FileManager.default.fileExists(atPath: heartbeatFile.path) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let heartbeatBefore = try String(contentsOf: heartbeatFile, encoding: .utf8)
+        try await Task.sleep(for: .milliseconds(100))
+        let heartbeatWhileRunning = try String(contentsOf: heartbeatFile, encoding: .utf8)
+        #expect(heartbeatWhileRunning != heartbeatBefore)
 
         await process.terminateResidualProcesses(grace: 0.2)
 
-        #expect(kill(childPID, 0) == -1)
+        try await Task.sleep(for: .milliseconds(100))
+        let heartbeatAfterCleanup = try String(contentsOf: heartbeatFile, encoding: .utf8)
+        try await Task.sleep(for: .milliseconds(200))
+        let heartbeatAfterSettle = try String(contentsOf: heartbeatFile, encoding: .utf8)
+        #expect(heartbeatAfterSettle == heartbeatAfterCleanup)
     }
 }
