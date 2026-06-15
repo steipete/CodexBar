@@ -70,6 +70,32 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `menu bar display text uses negative zen balance when open code is in deficit`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-opencodego-zen-deficit",
+            provider: .opencodego)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: -4.25,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Zen balance",
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .opencodego)
+        store._setErrorForTesting(nil, provider: .opencodego)
+
+        let displayText = controller.menuBarDisplayText(for: .opencodego, snapshot: snapshot)
+
+        #expect(displayText == "-$4.25")
+    }
+
+    @Test
     func `menu bar display text keeps open code subscription percentage`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-opencodego-subscription",

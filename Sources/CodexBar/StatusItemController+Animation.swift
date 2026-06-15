@@ -829,8 +829,7 @@ extension StatusItemController {
         guard snapshot?.primary == nil,
               snapshot?.secondary == nil,
               let cost = snapshot?.providerCost,
-              cost.period == "Zen balance",
-              cost.used >= 0
+              cost.period == "Zen balance"
         else {
             return nil
         }
