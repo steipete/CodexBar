@@ -36,15 +36,12 @@ extension UsageStore {
         -> (primary: Double?, secondary: Double?)
     {
         if provider == .codex {
-            let importedWindows = self.importedCodexMenuBarMetricWindows()
-            if !importedWindows.isEmpty,
-               let window = CodexMenuBarMetricAverage.averageWindow(
-                   active: self.codexMenuBarMetricWindow(snapshot: snapshot, includeLiveAdjuncts: true),
-                   imported: importedWindows)
-            {
-                return (
-                    primary: showUsed ? window.usedPercent : window.remainingPercent,
-                    secondary: nil)
+            let importedSnapshots = self.importedCodexAccountSnapshots.compactMap(\.snapshot)
+            if !importedSnapshots.isEmpty {
+                return Self.codexMenuBarIconPercentsIncludingImported(
+                    activeSnapshot: snapshot,
+                    importedSnapshots: importedSnapshots,
+                    showUsed: showUsed)
             }
         }
 
@@ -128,5 +125,28 @@ extension UsageStore {
         case .automatic, .primary:
             return first
         }
+    }
+
+    private static func codexMenuBarIconPercentsIncludingImported(
+        activeSnapshot: UsageSnapshot?,
+        importedSnapshots: [UsageSnapshot],
+        showUsed: Bool)
+        -> (primary: Double?, secondary: Double?)
+    {
+        let windows = ([activeSnapshot].compactMap(\.self) + importedSnapshots).map {
+            IconRemainingResolver.resolvedWindows(snapshot: $0, style: .codex)
+        }
+        return (
+            primary: self.averagePercent(windows.compactMap {
+                showUsed ? $0.primary?.usedPercent : $0.primary?.remainingPercent
+            }),
+            secondary: self.averagePercent(windows.compactMap {
+                showUsed ? $0.secondary?.usedPercent : $0.secondary?.remainingPercent
+            }))
+    }
+
+    private static func averagePercent(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 }
