@@ -530,7 +530,7 @@ public struct KiroStatusProbe: Sendable {
         process.terminate()
         let deadline = Date().addingTimeInterval(0.4)
         while process.isRunning, Date() < deadline {
-            usleep(50_000)
+            usleep(50000)
         }
         if process.isRunning {
             kill(process.processIdentifier, SIGKILL)

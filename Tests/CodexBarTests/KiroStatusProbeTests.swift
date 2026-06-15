@@ -33,7 +33,13 @@ struct KiroStatusProbeTests {
         fi
 
         if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
-          python3 -c 'import os, time; open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w").write(str(os.getpid())); time.sleep(5)' &
+          python3 - <<'PY' &
+        import os
+        import time
+
+        open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w").write(str(os.getpid()))
+        time.sleep(5)
+        PY
           printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
           printf 'Credits (12.50 of 50 covered in plan)\\n'
           printf '████████████████████ 25%%\\n'
