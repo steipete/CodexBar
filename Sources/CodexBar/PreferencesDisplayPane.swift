@@ -200,27 +200,27 @@ struct DisplayPane: View {
 
     private var codexAllMetricsOptions: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Codex all metrics")
+            Text(L("codex_all_metrics_settings_title"))
                 .font(.subheadline.weight(.semibold))
                 .padding(.top, 2)
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
                     PreferenceToggleRow(
-                        title: "Show session",
+                        title: L("codex_all_metrics_show_session"),
                         subtitle: nil,
                         binding: self.$settings.codexAllMetricsShowsSession)
                     PreferenceToggleRow(
-                        title: "Show weekly",
+                        title: L("codex_all_metrics_show_weekly"),
                         subtitle: nil,
                         binding: self.$settings.codexAllMetricsShowsWeekly)
                 }
                 VStack(alignment: .leading, spacing: 6) {
                     PreferenceToggleRow(
-                        title: "Show pace",
+                        title: L("codex_all_metrics_show_pace"),
                         subtitle: nil,
                         binding: self.$settings.codexAllMetricsShowsPace)
                     PreferenceToggleRow(
-                        title: "Show reset",
+                        title: L("codex_all_metrics_show_reset"),
                         subtitle: nil,
                         binding: self.$settings.codexAllMetricsShowsReset)
                 }
@@ -238,10 +238,10 @@ struct DisplayPane: View {
 
     private var codexAllMetricsPacePicker: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text("Pace label")
+            Text(L("codex_all_metrics_pace_label"))
                 .font(.body)
             Spacer()
-            Picker("Pace label", selection: self.$settings.codexAllMetricsPaceLabelStyle) {
+            Picker(L("codex_all_metrics_pace_label"), selection: self.$settings.codexAllMetricsPaceLabelStyle) {
                 ForEach(CodexAllMetricsPaceLabelStyle.allCases) { style in
                     Text(style.previewLabel).tag(style)
                 }
@@ -256,10 +256,10 @@ struct DisplayPane: View {
 
     private var codexAllMetricsResetPicker: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text("Reset format")
+            Text(L("codex_all_metrics_reset_format"))
                 .font(.body)
             Spacer()
-            Picker("Reset format", selection: self.$settings.codexAllMetricsResetFormat) {
+            Picker(L("codex_all_metrics_reset_format"), selection: self.$settings.codexAllMetricsResetFormat) {
                 ForEach(CodexAllMetricsResetFormat.allCases) { format in
                     Text(format.previewLabel).tag(format)
                 }

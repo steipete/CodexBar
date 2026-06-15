@@ -642,6 +642,13 @@
 "display_mode_both_desc" = "هم درصد و هم سرعت را نشان دهید (مثلا 45% · +5%)";
 "display_mode_all_metrics_desc" = "برای Codex، جلسه، هفتگی، سرعت و زمان بازنشانی را نشان دهید (مثلاً 5h 45% · W 60% · P +5% · ↻ در 3d)";
 "display_mode_reset_time_desc" = "زمان بازنشانی متریک انتخاب شده را نشان دهید (مثلا ↻ ساعت ۳:۵۶ بعدازظهر)";
+"codex_all_metrics_settings_title" = "Codex all metrics";
+"codex_all_metrics_show_session" = "Show session";
+"codex_all_metrics_show_weekly" = "Show weekly";
+"codex_all_metrics_show_pace" = "Show pace";
+"codex_all_metrics_show_reset" = "Show reset";
+"codex_all_metrics_pace_label" = "Pace label";
+"codex_all_metrics_reset_format" = "Reset format";
 
 /* Provider status */
 "status_operational" = "عملیاتی";

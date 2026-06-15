@@ -629,6 +629,13 @@
 "display_mode_both_desc" = "同時顯示百分比和進度（例如 45% · +5%）";
 "display_mode_all_metrics_desc" = "對於 Codex，顯示工作階段、每週、進度和重置時間（例如 5h 45% · W 60% · P +5% · ↻ 3d 後）";
 "display_mode_reset_time_desc" = "顯示所選指標的重置時間（例如 ↻ 3:56 PM）";
+"codex_all_metrics_settings_title" = "Codex all metrics";
+"codex_all_metrics_show_session" = "Show session";
+"codex_all_metrics_show_weekly" = "Show weekly";
+"codex_all_metrics_show_pace" = "Show pace";
+"codex_all_metrics_show_reset" = "Show reset";
+"codex_all_metrics_pace_label" = "Pace label";
+"codex_all_metrics_reset_format" = "Reset format";
 "status_operational" = "運作正常";
 "status_partial_outage" = "部分服務中斷";
 "status_major_outage" = "重大服務中斷";

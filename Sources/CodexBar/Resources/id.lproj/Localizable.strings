@@ -644,6 +644,13 @@
 "display_mode_both_desc" = "Tampilkan persentase dan pace (mis. 45% · +5%)";
 "display_mode_all_metrics_desc" = "Untuk Codex, tampilkan sesi, mingguan, pace, dan waktu reset (mis. 5h 45% · W 60% · P +5% · ↻ dalam 3d)";
 "display_mode_reset_time_desc" = "Tampilkan waktu reset untuk metrik yang dipilih (mis. ↻ 3:56 PM)";
+"codex_all_metrics_settings_title" = "Codex all metrics";
+"codex_all_metrics_show_session" = "Show session";
+"codex_all_metrics_show_weekly" = "Show weekly";
+"codex_all_metrics_show_pace" = "Show pace";
+"codex_all_metrics_show_reset" = "Show reset";
+"codex_all_metrics_pace_label" = "Pace label";
+"codex_all_metrics_reset_format" = "Reset format";
 
 /* Provider status */
 "status_operational" = "Operasional";
