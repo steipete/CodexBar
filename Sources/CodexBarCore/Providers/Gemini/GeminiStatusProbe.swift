@@ -1086,7 +1086,7 @@ public struct GeminiStatusProbe: Sendable {
 }
 
 extension GeminiStatusProbe {
-    fileprivate static func runProcess(
+    package static func runProcess(
         executable: String,
         arguments: [String],
         environment: [String: String],
@@ -1109,33 +1109,8 @@ extension GeminiStatusProbe {
         process.standardError = stderr
         process.standardInput = nil
 
-        final class OutputState: @unchecked Sendable {
-            private let lock = NSLock()
-            private var data = Data()
-
-            func append(_ chunk: Data) {
-                self.lock.lock()
-                self.data.append(chunk)
-                self.lock.unlock()
-            }
-
-            func snapshot() -> Data {
-                self.lock.lock()
-                defer { self.lock.unlock() }
-                return self.data
-            }
-        }
-
-        let output = OutputState()
-        stdout.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if !data.isEmpty {
-                output.append(data)
-            }
-        }
-        stderr.fileHandleForReading.readabilityHandler = { handle in
-            _ = handle.availableData
-        }
+        let stdoutCapture = ProcessPipeCapture(pipe: stdout)
+        let stderrCapture = ProcessPipeCapture(pipe: stderr)
 
         let exitSemaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in
@@ -1145,29 +1120,26 @@ extension GeminiStatusProbe {
         do {
             try process.run()
         } catch {
-            stdout.fileHandleForReading.readabilityHandler = nil
-            stderr.fileHandleForReading.readabilityHandler = nil
+            process.terminationHandler = nil
+            stdoutCapture.stop()
+            stderrCapture.stop()
             return nil
         }
+        stdoutCapture.start()
+        stderrCapture.start()
+        let pid = process.processIdentifier
+        let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
         let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
         if !didExit {
-            if process.isRunning {
-                process.terminate()
-                if exitSemaphore.wait(timeout: .now() + 0.4) != .success, process.isRunning {
-                    kill(process.processIdentifier, SIGKILL)
-                    _ = exitSemaphore.wait(timeout: .now() + 1.0)
-                }
-            }
-            stdout.fileHandleForReading.readabilityHandler = nil
-            stderr.fileHandleForReading.readabilityHandler = nil
+            SubprocessRunner.terminateProcess(process, processGroup: processGroup)
+            stdoutCapture.stop()
+            stderrCapture.stop()
             return nil
         }
 
-        Thread.sleep(forTimeInterval: 0.1)
-        stdout.fileHandleForReading.readabilityHandler = nil
-        stderr.fileHandleForReading.readabilityHandler = nil
-        let data = output.snapshot()
+        let data = stdoutCapture.finishSynchronously(timeout: 1)
+        stderrCapture.stop()
         guard process.terminationStatus == 0,
               let output = String(data: data, encoding: .utf8)?
                   .trimmingCharacters(in: .whitespacesAndNewlines),

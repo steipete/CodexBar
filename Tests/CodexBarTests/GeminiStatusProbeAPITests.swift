@@ -403,6 +403,58 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
+    func `fnm helper timeout hard stops a process that ignores SIGTERM`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let pidFile = env.homeURL.appendingPathComponent("fnm-timeout.pid")
+        let helper = env.homeURL.appendingPathComponent("fnm-timeout")
+        try """
+        #!/bin/sh
+        printf '%s\\n' "$$" > "$1"
+        trap '' TERM
+        while true; do sleep 1; done
+        """.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+
+        let start = Date()
+        let result = GeminiStatusProbe.runProcess(
+            executable: helper.path,
+            arguments: [pidFile.path],
+            environment: [:],
+            timeout: 0.5)
+        let elapsed = Date().timeIntervalSince(start)
+        let text = try String(contentsOf: pidFile, encoding: .utf8)
+        let processID = try #require(pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(processID, SIGKILL) }
+
+        #expect(result == nil)
+        #expect(kill(processID, 0) == -1)
+        #expect(elapsed < 2, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
+    }
+
+    @Test
+    func `fnm helper completed no-output failure returns promptly`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let helper = env.homeURL.appendingPathComponent("fnm-failure")
+        try """
+        #!/bin/sh
+        exit 23
+        """.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+
+        let start = Date()
+        let result = GeminiStatusProbe.runProcess(
+            executable: helper.path,
+            arguments: [],
+            environment: [:],
+            timeout: 2)
+
+        #expect(result == nil)
+        #expect(Date().timeIntervalSince(start) < 1)
+    }
+
+    @Test
     func `refreshes expired token with homebrew bundle layout`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
