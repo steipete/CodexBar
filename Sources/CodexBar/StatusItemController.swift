@@ -135,6 +135,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var menuIdentitySignatures: [ObjectIdentifier: String] = [:]
     var codexAccountMenuProjectionRevalidationTask: Task<Void, Never>?
     var openMenuRebuildsClosingHostedSubviewMenus: Set<ObjectIdentifier> = []
+    var parentMenuRebuildPendingAfterHostedSubviewClose = false
     var deferredMenuInteractionRefreshProviders: Set<UsageProvider> = []
     var deferredMenuInteractionRefreshPending: Bool {
         !self.deferredMenuInteractionRefreshProviders.isEmpty
@@ -512,6 +513,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             refreshOpenMenus: refreshOpenMenus,
             deferOpenParentMenuRebuild: true,
             allowStaleContentDuringDataRefresh: true)
+        self.completeParentMenuRebuildAfterHostedSubviewCloseIfNeeded()
     }
 
     private func observeStoreIconChanges() {

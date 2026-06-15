@@ -405,7 +405,19 @@ extension StatusItemController {
     func refreshOpenMenusAfterHostedSubviewClose() {
         guard self.isMenuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
+        if self.isMenuDataRefreshInFlight {
+            self.parentMenuRebuildPendingAfterHostedSubviewClose = true
+            return
+        }
+        self.parentMenuRebuildPendingAfterHostedSubviewClose = false
         self.refreshOpenMenusIfNeeded(allowsParentRebuild: true)
+    }
+
+    func completeParentMenuRebuildAfterHostedSubviewCloseIfNeeded() {
+        guard self.parentMenuRebuildPendingAfterHostedSubviewClose else { return }
+        guard !self.isMenuDataRefreshInFlight else { return }
+        guard !self.hasOpenHostedSubviewMenu() else { return }
+        self.refreshOpenMenusAfterHostedSubviewClose()
     }
 
     func refreshOpenMenusAllowingParentRebuild(deferParentRebuildDuringTracking: Bool = false) {
