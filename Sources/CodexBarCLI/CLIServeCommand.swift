@@ -744,10 +744,16 @@ extension CodexBarCLI {
         var payload: [CostPayload] = []
         for provider in providers {
             do {
+                let remoteSources = Self.remoteCodexCostSources(from: config, provider: provider)
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
-                    forceRefresh: false)
-                payload.append(Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil))
+                    forceRefresh: false,
+                    remoteCodexCostSources: remoteSources)
+                payload.append(Self.makeCostPayload(
+                    provider: provider,
+                    snapshot: snapshot,
+                    error: nil,
+                    source: RemoteCodexCostSource.enabled(remoteSources).isEmpty ? "local" : "local+remote"))
             } catch {
                 payload.append(Self.makeCostPayload(provider: provider, snapshot: nil, error: error))
             }

@@ -18,6 +18,11 @@ struct CodexProviderImplementation: ProviderImplementation {
         _ = settings.codexUsageDataSource
         _ = settings.codexCookieSource
         _ = settings.codexCookieHeader
+        _ = settings.codexRemoteCostEnabled
+        _ = settings.codexRemoteCostLabel
+        _ = settings.codexRemoteCostSSHTarget
+        _ = settings.codexRemoteCostSSHPort
+        _ = settings.codexRemoteCostHome
     }
 
     @MainActor
@@ -78,6 +83,27 @@ struct CodexProviderImplementation: ProviderImplementation {
                 subtitle: "Stores local Codex usage history (8 weeks) to personalize Pace predictions.",
                 binding: context.boolBinding(\.historicalTrackingEnabled),
                 statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "codex-remote-cost-logs",
+                title: "Remote cost logs",
+                subtitle: [
+                    "Merge Codex session JSONL logs from one SSH host into the local cost summary.",
+                    "Use ~/.ssh/config for aliases, keys, and advanced SSH options.",
+                ].joined(separator: " "),
+                binding: context.boolBinding(\.codexRemoteCostEnabled),
+                statusText: {
+                    guard context.settings.codexRemoteCostEnabled else { return nil }
+                    let target = context.settings.codexRemoteCostSSHTarget
+                    guard !target.isEmpty else { return "SSH target is required." }
+                    let port = context.settings.codexRemoteCostSSHPort
+                    let targetText = port.isEmpty ? target : "\(target) (port \(port))"
+                    return "Remote source: \(targetText): \(context.settings.codexRemoteCostHome)"
+                },
                 actions: [],
                 isVisible: nil,
                 onChange: nil,
@@ -177,6 +203,54 @@ struct CodexProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
+            ProviderSettingsFieldDescriptor(
+                id: "codex-remote-cost-label",
+                title: "Remote label",
+                subtitle: "Optional label shown in diagnostics and config files.",
+                kind: .plain,
+                placeholder: "Remote",
+                binding: context.stringBinding(\.codexRemoteCostLabel),
+                actions: [],
+                isVisible: {
+                    context.settings.codexRemoteCostEnabled
+                },
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "codex-remote-cost-ssh-target",
+                title: "SSH target",
+                subtitle: "Host alias or user@host. Put ports, keys, and proxy jumps in ~/.ssh/config when possible.",
+                kind: .plain,
+                placeholder: "user@example.com",
+                binding: context.stringBinding(\.codexRemoteCostSSHTarget),
+                actions: [],
+                isVisible: {
+                    context.settings.codexRemoteCostEnabled
+                },
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "codex-remote-cost-ssh-port",
+                title: "SSH port",
+                subtitle: "Optional. Leave empty for the SSH default or an ~/.ssh/config alias.",
+                kind: .plain,
+                placeholder: "22",
+                binding: context.stringBinding(\.codexRemoteCostSSHPort),
+                actions: [],
+                isVisible: {
+                    context.settings.codexRemoteCostEnabled
+                },
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "codex-remote-cost-home",
+                title: "Remote Codex home",
+                subtitle: "Directory containing sessions/ and archived_sessions/. Default: ~/.codex.",
+                kind: .plain,
+                placeholder: "~/.codex",
+                binding: context.stringBinding(\.codexRemoteCostHome),
+                actions: [],
+                isVisible: {
+                    context.settings.codexRemoteCostEnabled
+                },
+                onActivate: nil),
             ProviderSettingsFieldDescriptor(
                 id: "codex-cookie-header",
                 title: "",

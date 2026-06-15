@@ -40,17 +40,28 @@ extension CodexBarCLI {
 
         for provider in providers {
             do {
-                // Cost usage is local-only; it does not require web/CLI provider fetches.
+                let remoteSources = Self.remoteCodexCostSources(from: config, provider: provider)
+                let source = RemoteCodexCostSource.enabled(remoteSources).isEmpty ? "local" : "local+remote"
+                // Cost usage is log-based; Codex may merge optional SSH-mirrored logs.
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
                     forceRefresh: forceRefresh,
+                    remoteCodexCostSources: remoteSources,
                     historyDays: historyDays,
                     refreshPricingInBackground: false)
                 switch format {
                 case .text:
-                    sections.append(Self.renderCostText(provider: provider, snapshot: snapshot, useColor: useColor))
+                    sections.append(Self.renderCostText(
+                        provider: provider,
+                        snapshot: snapshot,
+                        useColor: useColor,
+                        source: source))
                 case .json:
-                    payload.append(Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil))
+                    payload.append(Self.makeCostPayload(
+                        provider: provider,
+                        snapshot: snapshot,
+                        error: nil,
+                        source: source))
                 }
             } catch {
                 exitCode = Self.mapError(error)
@@ -79,7 +90,8 @@ extension CodexBarCLI {
     static func renderCostText(
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot,
-        useColor: Bool) -> String
+        useColor: Bool,
+        source: String = "local") -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         let header = Self.costHeaderLine("\(name) Cost (API-rate estimate)", useColor: useColor)
@@ -98,7 +110,9 @@ extension CodexBarCLI {
             "\(historyLabel): \(monthCost) · \($0) tokens"
         } ?? "\(historyLabel): \(monthCost)"
 
-        let hintLine = UsageFormatter.costEstimateHint(provider: provider)
+        let hintLine = source == "local+remote"
+            ? "Estimated from local + remote logs · may differ from your bill"
+            : UsageFormatter.costEstimateHint(provider: provider)
         return [header, todayLine, monthLine, hintLine].joined(separator: "\n")
     }
 
@@ -114,7 +128,8 @@ extension CodexBarCLI {
     static func makeCostPayload(
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot?,
-        error: Error?) -> CostPayload
+        error: Error?,
+        source: String = "local") -> CostPayload
     {
         let daily = snapshot?.daily.map { entry in
             CostDailyEntryPayload(
@@ -136,7 +151,7 @@ extension CodexBarCLI {
 
         return CostPayload(
             provider: provider.rawValue,
-            source: "local",
+            source: source,
             updatedAt: snapshot?.updatedAt ?? (error == nil ? nil : Date()),
             currencyCode: snapshot?.currencyCode,
             sessionTokens: snapshot?.sessionTokens,
@@ -147,6 +162,14 @@ extension CodexBarCLI {
             daily: daily,
             totals: snapshot.flatMap(Self.costTotals(from:)),
             error: error.map { Self.makeErrorPayload($0) })
+    }
+
+    static func remoteCodexCostSources(
+        from config: CodexBarConfig,
+        provider: UsageProvider) -> [RemoteCodexCostSource]
+    {
+        guard provider == .codex else { return [] }
+        return config.providerConfig(for: .codex)?.remoteCodexCostSources ?? []
     }
 
     private static func costTotals(from snapshot: CostUsageTokenSnapshot) -> CostTotalsPayload? {

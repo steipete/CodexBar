@@ -31,11 +31,13 @@ public struct CostUsageFetcher: Sendable {
     public func loadCachedCodexTokenSnapshot(
         now: Date = Date(),
         codexHomePath: String? = nil,
+        remoteCodexCostSources: [RemoteCodexCostSource] = [],
         historyDays: Int = 30) async -> CostUsageTokenSnapshot?
     {
         await Self.loadCachedCodexTokenSnapshot(
             now: now,
             codexHomePath: codexHomePath,
+            remoteCodexCostSources: remoteCodexCostSources,
             historyDays: historyDays,
             scannerOptions: self.scannerOptionsOverride())
     }
@@ -47,6 +49,7 @@ public struct CostUsageFetcher: Sendable {
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
+        remoteCodexCostSources: [RemoteCodexCostSource] = [],
         historyDays: Int = 30,
         refreshPricingInBackground: Bool = true) async throws -> CostUsageTokenSnapshot
     {
@@ -57,6 +60,7 @@ public struct CostUsageFetcher: Sendable {
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             codexHomePath: codexHomePath,
+            remoteCodexCostSources: remoteCodexCostSources,
             historyDays: historyDays,
             refreshPricingInBackground: refreshPricingInBackground,
             scannerOptions: self.scannerOptionsOverride())
@@ -70,6 +74,7 @@ public struct CostUsageFetcher: Sendable {
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
+        remoteCodexCostSources: [RemoteCodexCostSource] = [],
         historyDays: Int = 30,
         refreshPricingInBackground: Bool = true,
         automaticCodexScanByteLimit _: Int64?) async throws -> CostUsageTokenSnapshot
@@ -81,6 +86,7 @@ public struct CostUsageFetcher: Sendable {
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             codexHomePath: codexHomePath,
+            remoteCodexCostSources: remoteCodexCostSources,
             historyDays: historyDays,
             refreshPricingInBackground: refreshPricingInBackground)
     }
@@ -96,6 +102,7 @@ public struct CostUsageFetcher: Sendable {
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
+        remoteCodexCostSources: [RemoteCodexCostSource] = [],
         historyDays: Int = 30,
         refreshPricingInBackground: Bool = true,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
@@ -154,6 +161,20 @@ public struct CostUsageFetcher: Sendable {
             resolvedPiOptions.refreshMinIntervalSeconds = 0
         }
         let piOptions = resolvedPiOptions
+        let remoteCodexMirrors: [RemoteCodexCostMirror]
+        if provider == .codex {
+            let sources = RemoteCodexCostSource.enabled(remoteCodexCostSources)
+            if sources.isEmpty {
+                remoteCodexMirrors = []
+            } else {
+                remoteCodexMirrors = try await RemoteCodexCostSyncer(cacheRoot: options.cacheRoot)
+                    .syncEnabledSources(
+                        sources,
+                        window: RemoteCodexCostSyncWindow(since: since, until: until))
+            }
+        } else {
+            remoteCodexMirrors = []
+        }
 
         try Task.checkCancellation()
         // The corpus scans below are synchronous and can run for minutes on large session
@@ -162,6 +183,7 @@ public struct CostUsageFetcher: Sendable {
         // scanner-level checks.
         let scanOptions = options
         let daily = try await CostUsageScanExecutor.run { checkCancellation in
+            var reports: [CostUsageDailyReport] = []
             var daily = try CostUsageScanner.loadDailyReportCancellable(
                 provider: provider,
                 since: since,
@@ -169,7 +191,28 @@ public struct CostUsageFetcher: Sendable {
                 now: now,
                 options: scanOptions,
                 checkCancellation: checkCancellation)
+            reports.append(daily)
             try checkCancellation()
+
+            if provider == .codex, !remoteCodexMirrors.isEmpty {
+                for mirror in remoteCodexMirrors {
+                    var remoteOptions = scanOptions
+                    remoteOptions.codexSessionsRoot = mirror.codexHomeMirror
+                        .appendingPathComponent("sessions", isDirectory: true)
+                    remoteOptions.cacheRoot = mirror.scanCacheRoot
+                    remoteOptions.codexTraceDatabaseURL = nil
+                    let remoteDaily = try CostUsageScanner.loadDailyReportCancellable(
+                        provider: provider,
+                        since: since,
+                        until: until,
+                        now: now,
+                        options: remoteOptions,
+                        checkCancellation: checkCancellation)
+                    reports.append(remoteDaily)
+                    try checkCancellation()
+                }
+                daily = CostUsageDailyReport.merged(reports)
+            }
 
             if provider == .vertexai,
                !allowVertexClaudeFallback,
@@ -208,9 +251,13 @@ public struct CostUsageFetcher: Sendable {
     static func loadCachedCodexTokenSnapshot(
         now: Date = Date(),
         codexHomePath: String? = nil,
+        remoteCodexCostSources: [RemoteCodexCostSource] = [],
         historyDays: Int = 30,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async -> CostUsageTokenSnapshot?
     {
+        if !RemoteCodexCostSource.enabled(remoteCodexCostSources).isEmpty {
+            return nil
+        }
         if let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !codexHomePath.isEmpty
         {

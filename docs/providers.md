@@ -80,7 +80,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Battery saver toggle (currently off by default): reduces routine OpenAI web refreshes but still allows explicit manual refreshes.
 - CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
 - CLI PTY: manual diagnostics/parser coverage only; automatic refresh does not launch bare Codex TUI.
-- Local cost usage: scans `CODEX_HOME` (or `~/.codex`) `sessions` and sibling `archived_sessions` JSONL files for the configured history window.
+- Cost usage: scans local `CODEX_HOME` (or `~/.codex`) logs and can merge optional SSH-mirrored remote Codex logs.
 - Status: Statuspage.io (OpenAI).
 - Details: `docs/codex.md`.
 

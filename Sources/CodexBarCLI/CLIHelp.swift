@@ -63,7 +63,8 @@ extension CodexBarCLI {
                        [--no-color] [--pretty] [--refresh]
 
         Description:
-          Print local token cost usage from Claude/Codex native logs plus supported pi sessions.
+          Print token cost usage from Claude/Codex native logs plus supported pi sessions.
+          Codex can also merge optional SSH-mirrored remote session logs from config.
           This does not require web or CLI access and uses cached scan results unless --refresh is provided.
 
         Examples:

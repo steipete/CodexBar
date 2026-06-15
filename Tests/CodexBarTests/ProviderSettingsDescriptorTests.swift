@@ -63,6 +63,42 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `codex exposes writable remote cost settings when enabled`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex-remote-cost")
+        let context = fixture.settingsContext(provider: .codex)
+        let implementation = CodexProviderImplementation()
+
+        let toggles = implementation.settingsToggles(context: context)
+        let remoteToggle = try #require(toggles.first(where: { $0.id == "codex-remote-cost-logs" }))
+        #expect(remoteToggle.binding.wrappedValue == false)
+
+        remoteToggle.binding.wrappedValue = true
+        let fields = implementation.settingsFields(context: context).filter { $0.isVisible?() ?? true }
+        let fieldIDs = Set(fields.map(\.id))
+        #expect(fieldIDs.contains("codex-remote-cost-label"))
+        #expect(fieldIDs.contains("codex-remote-cost-ssh-target"))
+        #expect(fieldIDs.contains("codex-remote-cost-ssh-port"))
+        #expect(fieldIDs.contains("codex-remote-cost-home"))
+
+        try #require(fields.first(where: { $0.id == "codex-remote-cost-label" }))
+            .binding.wrappedValue = "GPU host"
+        try #require(fields.first(where: { $0.id == "codex-remote-cost-ssh-target" }))
+            .binding.wrappedValue = "codex-gpu"
+        try #require(fields.first(where: { $0.id == "codex-remote-cost-ssh-port" }))
+            .binding.wrappedValue = "2200"
+        try #require(fields.first(where: { $0.id == "codex-remote-cost-home" }))
+            .binding.wrappedValue = "~/work/.codex"
+
+        let source = try #require(fixture.settings.codexRemoteCostSources.first)
+        #expect(source.enabled == true)
+        #expect(source.label == "GPU host")
+        #expect(source.sshTarget == "codex-gpu")
+        #expect(source.sshPort == 2200)
+        #expect(source.remoteCodexHome == "~/work/.codex")
+        #expect(remoteToggle.statusText?() == "Remote source: codex-gpu (port 2200): ~/work/.codex")
+    }
+
+    @Test
     func `antigravity usage source picker clarifies local ide and agy`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-antigravity-source")
         let context = fixture.settingsContext(provider: .antigravity)

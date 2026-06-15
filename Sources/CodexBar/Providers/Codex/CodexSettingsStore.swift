@@ -198,6 +198,103 @@ extension SettingsStore {
     }
 
     func ensureCodexCookieLoaded() {}
+
+    var codexRemoteCostSources: [RemoteCodexCostSource] {
+        get {
+            self.providerConfig(for: .codex)?.remoteCodexCostSources ?? []
+        }
+        set {
+            self.updateProviderConfig(provider: .codex) { entry in
+                entry.remoteCodexCostSources = newValue.isEmpty ? nil : newValue
+            }
+        }
+    }
+
+    var enabledCodexRemoteCostSources: [RemoteCodexCostSource] {
+        RemoteCodexCostSource.enabled(self.codexRemoteCostSources)
+    }
+
+    var codexRemoteCostEnabled: Bool {
+        get { self.primaryRemoteCodexCostSource.isEnabled }
+        set {
+            self.updatePrimaryRemoteCodexCostSource { source in
+                source.enabled = newValue
+            }
+        }
+    }
+
+    var codexRemoteCostLabel: String {
+        get { self.primaryRemoteCodexCostSource.sanitizedLabel ?? "" }
+        set {
+            self.updatePrimaryRemoteCodexCostSource { source in
+                source.label = self.normalizedConfigValue(newValue)
+            }
+        }
+    }
+
+    var codexRemoteCostSSHTarget: String {
+        get { self.primaryRemoteCodexCostSource.sanitizedSSHTarget ?? "" }
+        set {
+            self.updatePrimaryRemoteCodexCostSource { source in
+                source.sshTarget = self.normalizedConfigValue(newValue)
+            }
+        }
+    }
+
+    var codexRemoteCostSSHPort: String {
+        get {
+            guard let port = self.primaryRemoteCodexCostSource.sshPort, port > 0 else { return "" }
+            return String(port)
+        }
+        set {
+            self.updatePrimaryRemoteCodexCostSource { source in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                source.sshPort = Int(trimmed)
+            }
+        }
+    }
+
+    var codexRemoteCostHome: String {
+        get { self.primaryRemoteCodexCostSource.sanitizedRemoteCodexHome }
+        set {
+            self.updatePrimaryRemoteCodexCostSource { source in
+                source.remoteCodexHome = self.normalizedConfigValue(newValue) ?? "~/.codex"
+            }
+        }
+    }
+
+    private var primaryRemoteCodexCostSource: RemoteCodexCostSource {
+        var source = self.codexRemoteCostSources.first ?? RemoteCodexCostSource(
+            id: "default",
+            enabled: false,
+            label: "Remote",
+            remoteCodexHome: "~/.codex")
+        if source.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            source.id = "default"
+        }
+        return source
+    }
+
+    private func updatePrimaryRemoteCodexCostSource(_ mutate: (inout RemoteCodexCostSource) -> Void) {
+        self.updateProviderConfig(provider: .codex) { entry in
+            var sources = entry.remoteCodexCostSources ?? []
+            var source = sources.first ?? RemoteCodexCostSource(
+                id: "default",
+                enabled: false,
+                label: "Remote",
+                remoteCodexHome: "~/.codex")
+            if source.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                source.id = "default"
+            }
+            mutate(&source)
+            if sources.isEmpty {
+                sources = [source]
+            } else {
+                sources[0] = source
+            }
+            entry.remoteCodexCostSources = sources
+        }
+    }
 }
 
 extension SettingsStore {

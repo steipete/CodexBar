@@ -1476,6 +1476,7 @@ extension UsageStore {
         let now = Date()
         let historyDays = self.settings.costUsageHistoryDays
         let costScope = self.tokenCostScope(for: provider)
+        let remoteCodexCostSources = provider == .codex ? self.settings.enabledCodexRemoteCostSources : []
         let costScopeSignature = "\(costScope.signature)|historyDays=\(historyDays)"
         if !force,
            let last = self.lastTokenFetchAt[provider],
@@ -1518,6 +1519,7 @@ extension UsageStore {
                         forceRefresh: force,
                         allowVertexClaudeFallback: !self.isEnabled(.claude),
                         codexHomePath: costScope.codexHomePath,
+                        remoteCodexCostSources: remoteCodexCostSources,
                         historyDays: historyDays)
                 }
                 group.addTask {

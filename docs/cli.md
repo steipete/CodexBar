@@ -44,7 +44,8 @@ See `docs/configuration.md` for the schema.
 ## Command
 - `codexbar` defaults to the `usage` command.
   - `--format text|json` (default: text).
-- `codexbar cost` prints local token cost usage for Claude + Codex without web/CLI access.
+- `codexbar cost` prints token cost usage for Claude + Codex without web/CLI access.
+  - Codex can merge optional SSH-mirrored remote session logs from config.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
 - `codexbar serve` starts a foreground localhost-only HTTP server for usage and cost JSON.

@@ -1,15 +1,15 @@
 ---
-summary: "Codex provider data sources: OpenAI web dashboard, Codex CLI RPC, credits, and local cost usage."
+summary: "Codex provider data sources: OpenAI web dashboard, Codex CLI RPC, credits, and local/remote cost usage."
 read_when:
   - Debugging Codex usage/credits parsing
   - Updating OpenAI dashboard scraping or cookie import
   - Changing Codex CLI RPC or diagnostic PTY behavior
-  - Reviewing local cost usage scanning
+  - Reviewing local or remote cost usage scanning
 ---
 
 # Codex provider
 
-Codex has three automatic usage data paths (OAuth API, web dashboard, CLI RPC) plus a manual CLI PTY diagnostic parser and a local cost-usage scanner.
+Codex has three automatic usage data paths (OAuth API, web dashboard, CLI RPC) plus a manual CLI PTY diagnostic parser and a local/remote cost-usage scanner.
 The OAuth API is the default app source when credentials are available; web access is optional for dashboard extras.
 
 ## Data sources + fallback order
@@ -111,7 +111,7 @@ Usage source picker:
 - CLI RPC: `account/rateLimits/read` → credits balance.
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 
-## Cost usage (local log scan)
+## Cost usage (local + optional remote log scan)
 - Source files:
   - Native Codex logs:
     - `~/.codex/sessions/YYYY/MM/DD/*.jsonl`
@@ -125,9 +125,17 @@ Usage source picker:
   - pi sessions count assistant-message usage rows and attribute `openai-codex` assistant usage to Codex.
   - pi assistant usage is bucketed by assistant-turn timestamp, so mixed-model pi sessions can contribute to multiple
     days/models correctly.
+- Remote Codex logs:
+  - Enable in Preferences -> Providers -> Codex -> Remote cost logs.
+  - `SSH target` accepts a Host alias or `user@host`. Put keys, proxy jumps, and advanced SSH settings in
+    `~/.ssh/config`; use the optional `SSH port` field only when needed.
+  - `Remote Codex home` defaults to `~/.codex` and should contain `sessions/` plus optional `archived_sessions/`.
+  - Sync uses `/usr/bin/rsync` over `/usr/bin/ssh` in batch mode, mirrors only `*.jsonl`, and keeps per-source scan
+    caches isolated before merging totals with local Codex and supported pi sessions.
 - Cache:
   - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v2.json`
   - pi session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v1.json`
+  - Remote mirrors and scan caches: `~/Library/Caches/CodexBar/cost-usage/remote-codex/`
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
 
 ## Key files

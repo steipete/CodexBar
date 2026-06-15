@@ -39,6 +39,26 @@ struct CLICostTests {
     }
 
     @Test
+    func `renders remote cost source hint`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 1200,
+            sessionCostUSD: 1.25,
+            last30DaysTokens: 9000,
+            last30DaysCostUSD: 9.99,
+            historyDays: 30,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .codex,
+            snapshot: snap,
+            useColor: false,
+            source: "local+remote")
+
+        #expect(output.contains("Estimated from local + remote logs"))
+    }
+
+    @Test
     func `encodes cost payload JSON`() throws {
         let payload = CostPayload(
             provider: "claude",

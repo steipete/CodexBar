@@ -22,12 +22,14 @@ extension UsageStore {
 
         let scope = self.tokenCostScope(for: .codex)
         let historyDays = self.settings.costUsageHistoryDays
+        let remoteSources = self.settings.enabledCodexRemoteCostSources
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.tokenSnapshots[.codex] == nil else { return }
             guard let snapshot = await self.costUsageFetcher.loadCachedCodexTokenSnapshot(
                 now: now,
                 codexHomePath: scope.codexHomePath,
+                remoteCodexCostSources: remoteSources,
                 historyDays: historyDays)
             else {
                 return
@@ -54,10 +56,15 @@ extension UsageStore {
         }
         let homePath = self.settings.activeManagedCodexRemoteHomePath?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let remoteSignature = self.settings.enabledCodexRemoteCostSources
+            .map(\.signature)
+            .sorted()
+            .joined(separator: ",")
+        let remotePart = remoteSignature.isEmpty ? "" : "|remote=\(remoteSignature)"
         guard let homePath, !homePath.isEmpty else {
-            return (nil, "codex:ambient")
+            return (nil, "codex:ambient\(remotePart)")
         }
-        return (homePath, "codex:managed:\(homePath)")
+        return (homePath, "codex:managed:\(homePath)\(remotePart)")
     }
 
     func tokenSnapshot(
