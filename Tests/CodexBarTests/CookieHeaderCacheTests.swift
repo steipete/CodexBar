@@ -776,6 +776,10 @@ struct CookieHeaderCacheTests {
 
     private func withIsolatedCookieCache<T>(_ operation: () -> T) -> T {
         KeychainCacheStore.withServiceOverrideForTesting("cookie-isolation-\(UUID().uuidString)") {
+            let legacyBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBase)
+            defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
             CookieHeaderCache.resetDisplayCacheForTesting()
