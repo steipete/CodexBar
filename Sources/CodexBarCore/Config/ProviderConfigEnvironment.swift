@@ -138,17 +138,17 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes:
-            ChutesSettingsReader.apiKeyEnvironmentKey
-        case .poe, .litellm:
-            self.proxyAPIKeyEnvironmentKey(for: provider)
+        case .chutes, .poe, .litellm:
+            self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
         }
     }
 
-    private static func proxyAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
+    private static func additionalAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
         switch provider {
+        case .chutes:
+            ChutesSettingsReader.apiKeyEnvironmentKey
         case .poe:
             PoeSettingsReader.apiKeyEnvironmentKey
         case .litellm:

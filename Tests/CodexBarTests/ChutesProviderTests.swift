@@ -102,15 +102,19 @@ struct ChutesProviderTests {
                 """#)
             case "/users/me/quotas":
                 return Self.makeResponse(url: url, body: #"""
+                [
+                  {
+                    "chute_id": "0",
+                    "is_default": true,
+                    "quota": 100
+                  }
+                ]
+                """#)
+            case "/users/me/quota_usage/0":
+                return Self.makeResponse(url: url, body: #"""
                 {
-                  "quotas": [
-                    {
-                      "name": "Free quota",
-                      "used": 10,
-                      "limit": 100,
-                      "unit": "credits"
-                    }
-                  ]
+                  "quota": 100,
+                  "used": 10
                 }
                 """#)
             default:
@@ -132,7 +136,11 @@ struct ChutesProviderTests {
 
         let requests = await transport.requests()
         let paths = requests.compactMap { $0.url?.path }
-        #expect(paths == ["/users/me/subscription_usage", "/users/me/quotas"])
+        #expect(paths == [
+            "/users/me/subscription_usage",
+            "/users/me/quotas",
+            "/users/me/quota_usage/0",
+        ])
     }
 
     @Test

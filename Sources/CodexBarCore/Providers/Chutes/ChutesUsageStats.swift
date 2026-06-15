@@ -251,8 +251,7 @@ public struct ChutesUsageFetcher: Sendable {
         }
 
         do {
-            let quotas = try await self.fetchSnapshot(
-                pathComponents: ["users", "me", "quotas"],
+            let quotas = try await self.fetchQuotaSnapshot(
                 apiKey: token,
                 baseURL: baseURL,
                 transport: transport,
@@ -271,6 +270,73 @@ public struct ChutesUsageFetcher: Sendable {
         baseURL: URL,
         transport: any ProviderHTTPTransport,
         now: Date) async throws -> ChutesUsageSnapshot
+    {
+        let data = try await self.fetchData(
+            pathComponents: pathComponents,
+            apiKey: apiKey,
+            baseURL: baseURL,
+            transport: transport)
+        do {
+            return try ChutesUsageParser.parse(data: data, now: now)
+        } catch let error as ChutesUsageError {
+            throw error
+        } catch {
+            throw ChutesUsageError.parseFailed(error.localizedDescription)
+        }
+    }
+
+    private static func fetchQuotaSnapshot(
+        apiKey: String,
+        baseURL: URL,
+        transport: any ProviderHTTPTransport,
+        now: Date) async throws -> ChutesUsageSnapshot
+    {
+        let data = try await self.fetchData(
+            pathComponents: ["users", "me", "quotas"],
+            apiKey: apiKey,
+            baseURL: baseURL,
+            transport: transport)
+        let fallback = try ChutesUsageParser.parse(data: data, now: now)
+        let definitions = try self.quotaDefinitions(from: data)
+        guard !definitions.isEmpty else { return fallback }
+
+        var enrichedDefinitions: [[String: Any]] = []
+        for definition in definitions {
+            guard let identifier = self.quotaIdentifier(from: definition) else {
+                enrichedDefinitions.append(definition)
+                continue
+            }
+
+            do {
+                let usageData = try await self.fetchData(
+                    pathComponents: ["users", "me", "quota_usage", identifier],
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    transport: transport)
+                guard let usage = try self.responseDictionary(from: usageData) else {
+                    enrichedDefinitions.append(definition)
+                    continue
+                }
+                enrichedDefinitions.append(definition.merging(usage) { _, usageValue in usageValue })
+            } catch ChutesUsageError.invalidCredentials {
+                throw ChutesUsageError.invalidCredentials
+            } catch {
+                enrichedDefinitions.append(definition)
+            }
+        }
+
+        let enrichedData = try JSONSerialization.data(
+            withJSONObject: ["quotas": enrichedDefinitions],
+            options: [])
+        let enriched = try ChutesUsageParser.parse(data: enrichedData, now: now)
+        return enriched.hasUsageData ? enriched : fallback
+    }
+
+    private static func fetchData(
+        pathComponents: [String],
+        apiKey: String,
+        baseURL: URL,
+        transport: any ProviderHTTPTransport) async throws -> Data
     {
         let url = pathComponents.reduce(baseURL) { partial, component in
             partial.appendingPathComponent(component)
@@ -292,14 +358,46 @@ public struct ChutesUsageFetcher: Sendable {
             }
             throw ChutesUsageError.apiError("HTTP \(response.statusCode): \(Self.responseSummary(response.data))")
         }
+        return response.data
+    }
 
-        do {
-            return try ChutesUsageParser.parse(data: response.data, now: now)
-        } catch let error as ChutesUsageError {
-            throw error
-        } catch {
-            throw ChutesUsageError.parseFailed(error.localizedDescription)
+    private static func quotaDefinitions(from data: Data) throws -> [[String: Any]] {
+        let object = try JSONSerialization.jsonObject(with: data, options: [])
+        if let array = object as? [Any] {
+            return array.compactMap { $0 as? [String: Any] }
         }
+        guard let dictionary = object as? [String: Any] else { return [] }
+        if let quotas = dictionary["quotas"] as? [Any] {
+            return quotas.compactMap { $0 as? [String: Any] }
+        }
+        if let data = dictionary["data"] as? [String: Any],
+           let quotas = data["quotas"] as? [Any]
+        {
+            return quotas.compactMap { $0 as? [String: Any] }
+        }
+        return []
+    }
+
+    private static func quotaIdentifier(from definition: [String: Any]) -> String? {
+        for key in ["chute_id", "chuteId", "id"] {
+            if let value = definition[key] as? String {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            if let value = definition[key] as? NSNumber {
+                return value.stringValue
+            }
+        }
+        return nil
+    }
+
+    private static func responseDictionary(from data: Data) throws -> [String: Any]? {
+        guard let dictionary = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+            return nil
+        }
+        return dictionary["data"] as? [String: Any]
+            ?? dictionary["result"] as? [String: Any]
+            ?? dictionary
     }
 
     private static func responseSummary(_ data: Data) -> String {

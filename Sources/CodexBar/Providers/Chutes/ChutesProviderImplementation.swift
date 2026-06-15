@@ -1,8 +1,6 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct ChutesProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .chutes
 

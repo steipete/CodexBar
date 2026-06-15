@@ -1060,11 +1060,11 @@ extension UsageStore {
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
-                 case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .devin,
-                      .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
-                      .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
+                case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .devin,
+                     .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
+                     .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
                      .grok, .groq, .t3chat, .llmproxy, .litellm, .deepgram, .poe, .chutes:
-                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
+                    return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
             return await claudeDebugExecutionContext.apply {

@@ -4,6 +4,7 @@
 
 ### Added
 - Poe: add current point balance and recent points history from a configured API key (#1191). Thanks @Yuxin-Qiao!
+- Chutes: add subscription, quota-window, and pay-as-you-go usage tracking from a configured API key (#1496). Thanks @mvanhorn!
 
 ## 0.36.0 — 2026-06-16
 
