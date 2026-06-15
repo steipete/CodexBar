@@ -405,9 +405,7 @@ extension StatusItemController {
     func refreshOpenMenusAfterHostedSubviewClose() {
         guard self.isMenuRefreshEnabled else { return }
         guard !self.openMenus.isEmpty else { return }
-        self.refreshOpenMenusIfNeeded(
-            allowsParentRebuild: true,
-            respectsParentRebuildDeferral: true)
+        self.refreshOpenMenusIfNeeded(allowsParentRebuild: true)
     }
 
     func refreshOpenMenusAllowingParentRebuild(deferParentRebuildDuringTracking: Bool = false) {

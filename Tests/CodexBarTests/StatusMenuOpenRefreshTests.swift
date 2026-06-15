@@ -627,7 +627,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `explicit refresh keeps stale parent deferred after hosted submenu closes`() async {
+    func `explicit refresh rebuilds stale parent after hosted submenu closes`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -670,14 +670,14 @@ extension StatusMenuTests {
         #expect(controller.menuVersions[menuKey] == openedVersion)
 
         controller.menuDidClose(submenu)
-        for _ in 0..<20 {
+        for _ in 0..<20 where rebuildCount == 0 {
             await Task.yield()
         }
 
         #expect(controller.openMenus[submenuKey] == nil)
-        #expect(rebuildCount == 0)
-        #expect(controller.menuVersions[menuKey] == openedVersion)
-        #expect(controller.parentMenuRebuildsDeferredDuringTracking.contains(menuKey))
+        #expect(rebuildCount == 1)
+        #expect(controller.menuVersions[menuKey] == controller.menuContentVersion)
+        #expect(!controller.parentMenuRebuildsDeferredDuringTracking.contains(menuKey))
     }
 
     @Test
