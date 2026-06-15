@@ -45,6 +45,15 @@ struct AntigravityQuotaSummaryTests {
         #expect(windows.map(\.window.windowMinutes) == [300, 10080, 300, 10080])
         #expect(windows.map { $0.window.remainingPercent.rounded() } == [91, 82, 73, 64])
         #expect(windows.map(\.usageKnown) == [true, true, true, true])
+
+        let expectedDates = [
+            ISO8601DateFormatter().date(from: "2026-06-15T11:39:34Z"),
+            ISO8601DateFormatter().date(from: "2026-06-19T08:45:39Z"),
+            ISO8601DateFormatter().date(from: "2026-06-15T12:52:10Z"),
+            ISO8601DateFormatter().date(from: "2026-06-20T00:39:54Z"),
+        ]
+        #expect(windows.map(\.window.resetsAt) == expectedDates)
+
         #expect(usage.primary?.remainingPercent.rounded() == 82)
         #expect(usage.secondary?.remainingPercent.rounded() == 64)
         #expect(usage.tertiary == nil)
@@ -267,13 +276,15 @@ private func antigravityQuotaSummaryJSON() -> String {
                 "bucketId": "gemini-weekly",
                 "displayName": "Weekly Limit",
                 "remaining": { "remainingFraction": 0.82 },
-                "description": "You have used some of your weekly limit, it will fully refresh in 5 days, 11 hours."
+                "description": "You have used some of your weekly limit, it will fully refresh in 5 days, 11 hours.",
+                "resetTime": "2026-06-19T08:45:39Z"
               },
               {
                 "bucketId": "gemini-5h",
                 "displayName": "Five Hour Limit",
                 "remaining": { "remainingFraction": 0.91 },
-                "description": "You have used some of your 5-hour limit, it will fully refresh in 4 hours."
+                "description": "You have used some of your 5-hour limit, it will fully refresh in 4 hours.",
+                "resetTime": "2026-06-15T11:39:34Z"
               }
             ]
           },
@@ -285,13 +296,15 @@ private func antigravityQuotaSummaryJSON() -> String {
                 "bucketId": "3p-weekly",
                 "displayName": "Weekly Limit",
                 "remaining": { "remainingFraction": 0.64 },
-                "description": "You have used some of your weekly limit, it will fully refresh in 6 days, 22 hours."
+                "description": "You have used some of your weekly limit, it will fully refresh in 6 days, 22 hours.",
+                "resetTime": "2026-06-20T00:39:54Z"
               },
               {
                 "bucketId": "3p-5h",
                 "displayName": "Five Hour Limit",
                 "remaining": { "remainingFraction": 0.73 },
-                "description": "You have used some of your 5-hour limit, it will fully refresh in 3 hours, 38 minutes."
+                "description": "You have used some of your 5-hour limit, it will fully refresh in 3 hours, 38 minutes.",
+                "resetTime": "2026-06-15T12:52:10Z"
               }
             ]
           }

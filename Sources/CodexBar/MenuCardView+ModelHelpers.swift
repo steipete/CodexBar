@@ -430,6 +430,12 @@ extension UsageMenuCardView.Model {
         namedWindow: NamedRateWindow,
         input: Input) -> String?
     {
+        if namedWindow.window.resetsAt != nil {
+            return self.resetText(
+                for: namedWindow.window,
+                style: input.resetTimeDisplayStyle,
+                now: input.now)
+        }
         if input.provider == .antigravity,
            self.isAntigravityQuotaSummaryWindow(namedWindow)
         {
