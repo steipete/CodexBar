@@ -115,7 +115,10 @@ extension StatusItemController {
             let index = fromIndex + offset
             let liveItem = liveItems[offset]
             let newItem = newItems[offset]
-            if liveItem.isSeparatorItem == newItem.isSeparatorItem {
+            let requiresNativeImageReplacement =
+                self.shouldReplaceNativeImageItemDuringReconcile(liveItem) ||
+                self.shouldReplaceNativeImageItemDuringReconcile(newItem)
+            if liveItem.isSeparatorItem == newItem.isSeparatorItem, !requiresNativeImageReplacement {
                 if !liveItem.isSeparatorItem {
                     self.swapMenuItemContents(liveItem, newItem)
                 }

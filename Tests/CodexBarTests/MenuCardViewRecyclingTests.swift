@@ -238,6 +238,37 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `cached provider content replaces native image rows and preserves switch back items`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let outgoing = NSMenuItem(title: "Status Page", action: nil, keyEquivalent: "")
+        outgoing.image = NSImage(size: NSSize(width: 16, height: 16))
+        let incoming = NSMenuItem(title: "Dashboard", action: nil, keyEquivalent: "")
+        incoming.image = NSImage(size: NSSize(width: 16, height: 16))
+        let menu = NSMenu()
+        menu.addItem(outgoing)
+
+        let displacedOutgoing = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: [incoming])
+
+        #expect(menu.items.first === incoming)
+        #expect(displacedOutgoing.first === outgoing)
+
+        let displacedIncoming = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: displacedOutgoing)
+
+        #expect(menu.items.first === outgoing)
+        #expect(displacedIncoming.first === incoming)
+    }
+
+    @Test
     func `cached provider content swap preserves both item sets for switch back`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
