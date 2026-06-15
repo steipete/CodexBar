@@ -1106,3 +1106,6 @@
 "Expires today." = "Verloopt vandaag.";
 "Expires in 1 day." = "Verloopt over 1 dag.";
 "Expires in %d days." = "Verloopt over %d dagen.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

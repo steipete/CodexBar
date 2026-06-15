@@ -1081,7 +1081,6 @@
 "language_indonesian" = "Bahasa Indonesia";
 
 "Request quota: %@ / %@" = "Request quota: %@ / %@";
-
 "Subscription" = "Subscription";
 "Manual reminder" = "Manual reminder";
 "Plan name" = "Plan name";
@@ -1125,3 +1124,6 @@
 "Expires today." = "Expires today.";
 "Expires in 1 day." = "Expires in 1 day.";
 "Expires in %d days." = "Expires in %d days.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

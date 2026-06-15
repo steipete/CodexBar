@@ -1,6 +1,7 @@
 import Foundation
 
 public struct OpenCodeGoUsageSnapshot: Sendable {
+    public let isBalanceOnly: Bool
     public let hasMonthlyUsage: Bool
     public let rollingUsagePercent: Double
     public let weeklyUsagePercent: Double
@@ -13,6 +14,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
     public let updatedAt: Date
 
     public init(
+        isBalanceOnly: Bool = false,
         hasMonthlyUsage: Bool,
         rollingUsagePercent: Double,
         weeklyUsagePercent: Double,
@@ -24,6 +26,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         renewsAt: Date? = nil,
         updatedAt: Date)
     {
+        self.isBalanceOnly = isBalanceOnly
         self.hasMonthlyUsage = hasMonthlyUsage
         self.rollingUsagePercent = rollingUsagePercent
         self.weeklyUsagePercent = weeklyUsagePercent
@@ -36,7 +39,30 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
     }
 
+    public static func zenBalanceOnly(balanceUSD: Double, updatedAt: Date) -> OpenCodeGoUsageSnapshot {
+        OpenCodeGoUsageSnapshot(
+            isBalanceOnly: true,
+            hasMonthlyUsage: false,
+            rollingUsagePercent: 0,
+            weeklyUsagePercent: 0,
+            monthlyUsagePercent: 0,
+            rollingResetInSec: 0,
+            weeklyResetInSec: 0,
+            monthlyResetInSec: 0,
+            zenBalanceUSD: balanceUSD,
+            updatedAt: updatedAt)
+    }
+
     public func toUsageSnapshot() -> UsageSnapshot {
+        if self.isBalanceOnly {
+            return UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                providerCost: self.providerCostSnapshot,
+                updatedAt: self.updatedAt,
+                identity: nil)
+        }
+
         let rollingReset = self.updatedAt.addingTimeInterval(TimeInterval(self.rollingResetInSec))
         let weeklyReset = self.updatedAt.addingTimeInterval(TimeInterval(self.weeklyResetInSec))
 
@@ -77,20 +103,25 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
             secondary: secondary,
             tertiary: tertiary,
             extraRateWindows: extraWindows,
-            providerCost: self.zenBalanceUSD.map {
-                ProviderCostSnapshot(
-                    used: $0,
-                    limit: 0,
-                    currencyCode: "USD",
-                    period: "Zen balance",
-                    updatedAt: self.updatedAt)
-            },
+            providerCost: self.providerCostSnapshot,
             updatedAt: self.updatedAt,
             identity: nil)
     }
 
+    private var providerCostSnapshot: ProviderCostSnapshot? {
+        self.zenBalanceUSD.map {
+            ProviderCostSnapshot(
+                used: $0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Zen balance",
+                updatedAt: self.updatedAt)
+        }
+    }
+
     public func withZenBalanceUSD(_ balance: Double?) -> OpenCodeGoUsageSnapshot {
         OpenCodeGoUsageSnapshot(
+            isBalanceOnly: self.isBalanceOnly,
             hasMonthlyUsage: self.hasMonthlyUsage,
             rollingUsagePercent: self.rollingUsagePercent,
             weeklyUsagePercent: self.weeklyUsagePercent,

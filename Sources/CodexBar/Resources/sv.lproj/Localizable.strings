@@ -1105,3 +1105,6 @@
 "Expires today." = "Löper ut idag.";
 "Expires in 1 day." = "Löper ut om 1 dag.";
 "Expires in %d days." = "Löper ut om %d dagar.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

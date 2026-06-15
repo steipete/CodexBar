@@ -1107,3 +1107,6 @@
 "Expires today." = "Hết hạn hôm nay.";
 "Expires in 1 day." = "Hết hạn sau 1 ngày.";
 "Expires in %d days." = "Hết hạn sau %d ngày.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

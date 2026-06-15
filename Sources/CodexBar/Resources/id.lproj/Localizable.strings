@@ -1124,3 +1124,6 @@
 "Expires in 1 day." = "Kedaluwarsa dalam 1 hari.";
 "Expires in %d days." = "Kedaluwarsa dalam %d hari.";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar akan meminta macOS Keychain untuk “%@” agar dapat mendekripsi cookie browser dan mengautentikasi akun Anda. Klik OK untuk melanjutkan.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

@@ -966,3 +966,6 @@
 "Expires today." = "Venç avui.";
 "Expires in 1 day." = "Venç d'aquí a 1 dia.";
 "Expires in %d days." = "Venç d'aquí a %d dies.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

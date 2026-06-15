@@ -1077,3 +1077,6 @@
 "Expires today." = "오늘 만료됩니다.";
 "Expires in 1 day." = "1일 후 만료됩니다.";
 "Expires in %d days." = "%d일 후 만료됩니다.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

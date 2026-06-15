@@ -666,6 +666,11 @@ extension StatusItemController {
         {
             return UsageFormatter.usdString(balance)
         }
+        if provider == .opencodego,
+           let balance = Self.openCodeGoZenBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
         if provider == .deepseek,
            let balance = Self.deepSeekBalanceDisplayText(snapshot: snapshot)
         {
@@ -814,6 +819,17 @@ extension StatusItemController {
         guard let cost = snapshot?.providerCost,
               cost.limit > 0,
               cost.used >= 0
+        else {
+            return nil
+        }
+        return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+    }
+
+    nonisolated static func openCodeGoZenBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        guard snapshot?.primary == nil,
+              snapshot?.secondary == nil,
+              let cost = snapshot?.providerCost,
+              cost.period == "Zen balance"
         else {
             return nil
         }

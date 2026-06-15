@@ -23,6 +23,9 @@ struct LocalizationLanguageCatalogTests {
         "language_turkish",
         "language_indonesian",
         "language_polish",
+        "language_arabic",
+        "language_persian",
+        "language_thai",
     ]
 
     @Test
@@ -59,6 +62,50 @@ struct LocalizationLanguageCatalogTests {
     func `app language catalog includes Polish`() {
         #expect(AppLanguage.allCases.contains(.polish))
         #expect(AppLanguage.polish.rawValue == "pl")
+    }
+
+    @Test
+    func `app language catalog includes Arabic Persian and Thai`() {
+        #expect(AppLanguage.arabic.rawValue == "ar")
+        #expect(AppLanguage.persian.rawValue == "fa")
+        #expect(AppLanguage.thai.rawValue == "th")
+    }
+
+    @Test
+    func `new language bundles include representative native labels`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let expectations: [String: [String: String]] = [
+            "ar": [
+                "language_arabic": "العربية",
+                "tab_general": "عام",
+                "quit_app": "إنهاء CodexBar",
+                "usage_percent_suffix_left": "متبقٍ",
+            ],
+            "fa": [
+                "language_persian": "فارسی",
+                "tab_general": "عمومی",
+                "quit_app": "خروج از CodexBar",
+                "usage_percent_suffix_left": "باقی مانده",
+            ],
+            "th": [
+                "language_thai": "ไทย",
+                "tab_general": "ทั่วไป",
+                "quit_app": "ออกจาก CodexBar",
+                "usage_percent_suffix_left": "คงเหลือ",
+            ],
+        ]
+
+        for (locale, expectedValues) in expectations {
+            let url = resourcesURL.appendingPathComponent("\(locale).lproj/Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: url) as? [String: String])
+            for (key, expectedValue) in expectedValues {
+                #expect(catalog[key] == expectedValue, "\(locale).\(key)")
+            }
+        }
     }
 
     @Test
@@ -225,7 +272,10 @@ struct LocalizationLanguageCatalogTests {
             "Password",
             "Provider",
             "Token",
+            "language_arabic",
             "language_italian",
+            "language_persian",
+            "language_thai",
             "link_email",
             "link_github",
             "ory_session_…=…; csrftoken=…",

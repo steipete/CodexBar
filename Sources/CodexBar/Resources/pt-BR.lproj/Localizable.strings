@@ -1107,3 +1107,6 @@
 "Expires today." = "Expira hoje.";
 "Expires in 1 day." = "Expira em 1 dia.";
 "Expires in %d days." = "Expira em %d dias.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

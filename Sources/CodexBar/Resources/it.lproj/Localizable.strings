@@ -1123,3 +1123,6 @@
 "Expires today." = "Scade oggi.";
 "Expires in 1 day." = "Scade tra 1 giorno.";
 "Expires in %d days." = "Scade tra %d giorni.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

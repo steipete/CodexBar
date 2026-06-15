@@ -1107,3 +1107,6 @@
 "Expires today." = "本日失効です。";
 "Expires in 1 day." = "1日後に失効です。";
 "Expires in %d days." = "%d日後に失効です。";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

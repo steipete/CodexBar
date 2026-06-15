@@ -1123,3 +1123,6 @@
 "Expires today." = "Wygasa dzisiaj.";
 "Expires in 1 day." = "Wygasa za 1 dzień.";
 "Expires in %d days." = "Wygasa za %d dni.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

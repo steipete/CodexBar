@@ -1083,3 +1083,6 @@
 "Expires today." = "今日到期。";
 "Expires in 1 day." = "1 天后到期。";
 "Expires in %d days." = "%d 天后到期。";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

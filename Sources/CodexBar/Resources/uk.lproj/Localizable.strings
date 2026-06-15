@@ -1106,3 +1106,6 @@
 "Expires today." = "Термін дії спливає сьогодні.";
 "Expires in 1 day." = "Термін дії спливає через 1 день.";
 "Expires in %d days." = "Термін дії спливає через %d днів.";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

@@ -385,8 +385,10 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## LiteLLM
 - API key from config or `LITELLM_API_KEY`; base URL from config `enterpriseHost` or `LITELLM_BASE_URL`.
-- Reads `/key/info` first to discover the `user_id`, then `/user/info?user_id=...` for personal spend and budget.
-- Shows personal budget usage as the primary window and the first matching team budget as the secondary window.
+- Reads `/key/info` first, then `/user/info?user_id=...` for user-bound keys or `/team/info?team_id=...` for team-only keys.
+- User-bound keys show personal budget usage as the primary window and the key's exact matching team as the secondary window.
+- Team-only keys show the team budget as their sole usage window. Automatic menu-bar selection prefers the enforced team budget.
+- Spend remains visible in the API-spend row when LiteLLM has no budget limit configured.
 - Accepts base URLs with or without a `/v1` suffix; management requests are sent to the proxy root.
 - Details: `docs/litellm.md`.
 

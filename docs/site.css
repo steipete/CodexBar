@@ -78,6 +78,18 @@
   box-sizing: border-box;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 html,
 body {
   min-height: 100%;
@@ -315,6 +327,50 @@ code {
 .nav a:hover {
   color: var(--ink-1);
   text-decoration: none;
+}
+
+.language-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-2);
+}
+
+.language-control svg {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+}
+
+.language-select {
+  max-width: 136px;
+  height: 36px;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-1);
+  background: var(--bg-elev);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.language-select:hover,
+.language-select:focus-visible {
+  border-color: var(--ink-2);
+  outline: none;
+}
+
+[dir="rtl"] .language-control svg {
+  right: auto;
+  left: 10px;
+}
+
+[dir="rtl"] .language-select {
+  padding-right: 12px;
+  padding-left: 30px;
 }
 
 .theme-toggle {
@@ -671,6 +727,11 @@ code {
   letter-spacing: 0;
 }
 
+[dir="rtl"] .provider .chip-logo {
+  left: auto;
+  right: 18px;
+}
+
 .provider.add {
   border-style: dashed;
   background: transparent;
@@ -720,6 +781,13 @@ code {
 .showcase .features article {
   padding-left: 14px;
   border-left: 2px solid var(--line);
+}
+
+[dir="rtl"] .showcase .features article {
+  padding-right: 14px;
+  padding-left: 0;
+  border-right: 2px solid var(--line);
+  border-left: 0;
 }
 
 .showcase .features article h3 {
@@ -823,6 +891,31 @@ code {
   }
   .nav {
     gap: 8px;
+  }
+  .language-select {
+    width: 44px;
+    padding-left: 12px;
+    color: transparent;
+  }
+  .language-control::before {
+    content: "文";
+    position: absolute;
+    left: 14px;
+    z-index: 1;
+    color: var(--ink-1);
+    font-size: 13px;
+    pointer-events: none;
+  }
+  [dir="rtl"] .language-select {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  [dir="rtl"] .language-control::before {
+    right: 14px;
+    left: auto;
+  }
+  .language-control svg {
+    display: none;
   }
   .nav-link {
     display: none;

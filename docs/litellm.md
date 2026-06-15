@@ -40,9 +40,13 @@ The provider calls:
 
 All requests use `Authorization: Bearer <apiKey>`. CodexBar does not request or store a LiteLLM master key.
 
-Personal usage is shown as the primary window. If the authenticated key has a team, its exact matching team budget is
-shown as the secondary window and becomes the automatic menu bar metric because that budget is enforced for the key.
-Spend remains visible as an API-spend row when LiteLLM does not configure a budget.
+For user-bound keys, personal usage is shown as the primary window. If the key has a team, its exact matching team
+budget is shown as the secondary window and becomes the automatic menu bar metric because that budget is enforced for
+the key. Team-only keys show that team budget as their sole usage window. Spend remains visible as an API-spend row
+when LiteLLM does not configure a budget.
+
+The virtual key must be allowed to read its own `/key/info` data and the corresponding user or team information
+endpoint. CodexBar validates returned user and team IDs against `/key/info` before displaying usage.
 
 ## Security
 

@@ -28,6 +28,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
     private static let baseURL = URL(string: "https://opencode.ai")!
     private static let serverURL = URL(string: "https://opencode.ai/_server")!
     private static let workspacesServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
+    private static let billingServerID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
 
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
@@ -57,6 +58,13 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         let args: String?
         let method: String
         let referer: URL
+    }
+
+    struct ZenBalanceRequest: Sendable {
+        let workspaceID: String
+        let cookieHeader: String
+        let timeout: TimeInterval
+        let session: URLSession
     }
 
     private static let percentKeys = [
@@ -126,29 +134,94 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 timeout: timeout,
                 session: session)
         }
-        let subscriptionText: String
-        do {
-            subscriptionText = try await self.fetchUsagePage(
+        let zenBalanceRequest = ZenBalanceRequest(
+            workspaceID: workspaceID,
+            cookieHeader: requestCookieHeader,
+            timeout: timeout,
+            session: session)
+        let subscriptionTask = Task {
+            try await self.fetchUsagePage(
                 workspaceID: workspaceID,
                 cookieHeader: requestCookieHeader,
                 timeout: timeout,
                 session: session)
+        }
+        let zenBalanceTask = includeZenBalance ? Task {
+            try await Task.sleep(for: self.optionalZenBalanceStartDelay)
+            return try await self.fetchZenBalance(
+                workspaceID: workspaceID,
+                cookieHeader: requestCookieHeader,
+                timeout: timeout,
+                session: session)
+        } : nil
+        defer {
+            subscriptionTask.cancel()
+            zenBalanceTask?.cancel()
+        }
+        let subscriptionText: String
+        do {
+            subscriptionText = try await withTaskCancellationHandler {
+                try await subscriptionTask.value
+            } onCancel: {
+                subscriptionTask.cancel()
+                zenBalanceTask?.cancel()
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch let error as OpenCodeGoUsageError {
+            return try await self.requiredZenBalanceFallback(
+                from: zenBalanceTask,
+                for: error,
+                request: zenBalanceRequest,
+                now: now)
         } catch {
             throw error
         }
-        let snapshot = try self.parseSubscription(text: subscriptionText, now: now)
-        let zenBalanceTask = includeZenBalance ? Task {
-            try await self.fetchOptionalZenBalance(
-                workspaceID: workspaceID,
-                cookieHeader: requestCookieHeader,
-                timeout: min(timeout, self.optionalZenBalanceTimeout),
-                session: session)
-        } : nil
+        let snapshot: OpenCodeGoUsageSnapshot
+        do {
+            snapshot = try self.parseSubscription(text: subscriptionText, now: now)
+        } catch let error as OpenCodeGoUsageError {
+            return try await self.requiredZenBalanceFallback(
+                from: zenBalanceTask,
+                for: error,
+                request: zenBalanceRequest,
+                now: now)
+        }
         guard let zenBalanceTask else {
             return snapshot
         }
         let zenBalance = try await self.completedOptionalZenBalance(from: zenBalanceTask)
         return snapshot.withZenBalanceUSD(zenBalance)
+    }
+
+    static func requiredZenBalanceFallback(
+        from task: Task<Double?, Error>?,
+        for error: OpenCodeGoUsageError,
+        request: ZenBalanceRequest,
+        now: Date) async throws -> OpenCodeGoUsageSnapshot
+    {
+        guard case let .parseFailed(message) = error,
+              message.contains("Missing usage fields")
+        else {
+            throw error
+        }
+        let task = task ?? Task {
+            try await self.fetchZenBalance(
+                workspaceID: request.workspaceID,
+                cookieHeader: request.cookieHeader,
+                timeout: request.timeout,
+                session: request.session)
+        }
+        defer {
+            task.cancel()
+        }
+        let zenBalance = try await self.completedRequiredZenBalance(from: task)
+        guard let zenBalance else {
+            throw error
+        }
+        return OpenCodeGoUsageSnapshot.zenBalanceOnly(balanceUSD: zenBalance, updatedAt: now)
     }
 
     static func fetchOptionalZenBalance(
@@ -196,6 +269,27 @@ public struct OpenCodeGoUsageFetcher: Sendable {
 }
 
 extension OpenCodeGoUsageFetcher {
+    static func fetchZenBillingText(
+        workspaceID: String,
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
+    {
+        let argsData = try JSONSerialization.data(withJSONObject: [workspaceID])
+        guard let args = String(data: argsData, encoding: .utf8) else {
+            throw OpenCodeGoUsageError.parseFailed("Could not encode billing request.")
+        }
+        return try await self.fetchServerText(
+            request: ServerRequest(
+                serverID: self.billingServerID,
+                args: args,
+                method: "GET",
+                referer: self.zenDashboardURL(workspaceID: workspaceID)),
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            session: session)
+    }
+
     private static func fetchWorkspaceID(
         cookieHeader: String,
         timeout: TimeInterval,
