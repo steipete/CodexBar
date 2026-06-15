@@ -44,6 +44,58 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `menu bar display text uses zen balance when open code has no subscription`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-opencodego-zen-only",
+            provider: .opencodego)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 23.75,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Zen balance",
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .opencodego)
+        store._setErrorForTesting(nil, provider: .opencodego)
+
+        let displayText = controller.menuBarDisplayText(for: .opencodego, snapshot: snapshot)
+
+        #expect(displayText == "$23.75")
+    }
+
+    @Test
+    func `menu bar display text keeps open code subscription percentage`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-opencodego-subscription",
+            provider: .opencodego)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 34, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            providerCost: ProviderCostSnapshot(
+                used: 23.75,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Zen balance",
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .opencodego)
+        store._setErrorForTesting(nil, provider: .opencodego)
+
+        let displayText = controller.menuBarDisplayText(for: .opencodego, snapshot: snapshot)
+
+        #expect(displayText == "12%")
+    }
+
+    @Test
     func `reset time mode preserves balance when provider has no quota window`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-moonshot-reset-time",
