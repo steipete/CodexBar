@@ -21,6 +21,7 @@ struct LocalizationLanguageCatalogTests {
         "language_japanese",
         "language_korean",
         "language_turkish",
+        "language_indonesian",
     ]
 
     @Test
@@ -45,6 +46,12 @@ struct LocalizationLanguageCatalogTests {
     func `app language catalog includes Italian`() {
         #expect(AppLanguage.allCases.contains(.italian))
         #expect(AppLanguage.italian.rawValue == "it")
+    }
+
+    @Test
+    func `app language catalog includes Indonesian`() {
+        #expect(AppLanguage.allCases.contains(.indonesian))
+        #expect(AppLanguage.indonesian.rawValue == "id")
     }
 
     @Test
@@ -194,7 +201,7 @@ struct LocalizationLanguageCatalogTests {
         #expect(italian["ory_session_…=…; csrftoken=…"] == "ory_session_…=…; csrftoken=…")
         #expect(italian["quota_warning_notifications_subtitle"]?.contains("scende sotto") == true)
 
-        let intentionallyUnchanged: Set<String> = [
+        let intentionallyUnchanged: Set = [
             "Account",
             "Build",
             "Chrome",
@@ -232,6 +239,49 @@ struct LocalizationLanguageCatalogTests {
             locale: Locale(identifier: "it_IT"),
             arguments: ["Codex", "settimanale"])
         #expect(title == "Quota settimanale di Codex quasi esaurita")
+    }
+
+    @Test
+    func `indonesian localization matches English catalog and preserves format placeholders`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let enURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
+        let idURL = resourcesURL.appendingPathComponent("id.lproj/Localizable.strings")
+        let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
+        let indonesian = try #require(NSDictionary(contentsOf: idURL) as? [String: String])
+
+        #expect(Set(indonesian.keys) == Set(english.keys))
+        #expect(indonesian["language_indonesian"] == "Bahasa Indonesia")
+        #expect(indonesian["tab_general"] == "Umum")
+        #expect(indonesian["quit_app"] == "Keluar CodexBar")
+        #expect(indonesian["30d"] == "30 hari")
+        #expect(indonesian["On"] == "Aktif")
+        #expect(indonesian["Off"] == "Nonaktif")
+
+        let warningFormat = try #require(indonesian["quota_warning_notification_body"])
+        let warning = String(
+            format: warningFormat,
+            locale: Locale(identifier: "id_ID"),
+            arguments: ["20%", 15, "sesi"])
+        #expect(warning.contains("15%"))
+        #expect(!warning.contains("%2$d"))
+
+        let historyFormat = try #require(indonesian["%@: %@%% used"])
+        let historyLabel = String(
+            format: historyFormat,
+            locale: Locale(identifier: "id_ID"),
+            arguments: ["12 Jun", "45"])
+        #expect(historyLabel == "12 Jun: 45% terpakai")
+
+        let daysFormat = try #require(indonesian["%dd"])
+        let daysLabel = String(
+            format: daysFormat,
+            locale: Locale(identifier: "id_ID"),
+            arguments: [30])
+        #expect(daysLabel == "30 hari")
     }
 
     @Test

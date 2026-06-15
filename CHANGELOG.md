@@ -5,6 +5,8 @@
 - Ollama: replace the bundled provider icon with the cleaner official mark while preserving native template tinting. Thanks @mattab178!
 - Menu bar: avoid a one-time visible menu rebuild after first-open background data arrives.
 - Settings: use high-contrast selected-content colors for provider sidebar text and icons.
+- Localization: add Italian as a selectable app language (#1248). Thanks @Yuxin-Qiao!
+- Localization: add Indonesian as a selectable app language (#1513). Thanks @StevanusPangau!
 
 ### Changed
 - Antigravity: prefer app and `agy` quota summaries, group usage into Gemini and Claude + GPT session/weekly pools, and preserve IDE and OAuth fallbacks. Thanks @Zihao-Qi!
@@ -60,7 +62,6 @@
 - Menu bar: add an optional reset-time display for the selected quota metric, with percent fallback when reset metadata is unavailable (#1223, fixes #1185). Thanks @Yuxin-Qiao!
 - Cursor: include application data, extensions, settings, and caches in optional local storage tracking (fixes #1403). Thanks @dhruv-anand-aintech!
 - Menu bar: move the highlighted Overview provider with trackpad or mouse-wheel scrolling while preserving native submenu and keyboard behavior (#1436). Thanks @joshuavial!
-- Localization: add Italian as a selectable app language (#1248). Thanks @Yuxin-Qiao!
 
 ### Fixed
 - CLI: keep Ollama API credentials scoped to Ollama when deciding whether another provider requires macOS web support (#1466). Thanks @WadydX!

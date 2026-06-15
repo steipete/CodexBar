@@ -100,6 +100,15 @@ struct PreferencesPaneSmokeTests {
             #expect(L("start_at_login_title") == "ログイン時に起動")
             #expect(L("quit_app") == "CodexBar を終了")
         }
+
+        settings.appLanguage = "id"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "id")
+        CodexBarLocalizationOverride.$appLanguage.withValue("id") {
+            #expect(L("language_title") == "Bahasa")
+            #expect(L("start_at_login_title") == "Mulai saat Login")
+            #expect(L("quit_app") == "Keluar CodexBar")
+        }
     }
 
     @Test
