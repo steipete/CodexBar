@@ -13,7 +13,8 @@ API keys, manual cookie headers, source selection, ordering, and token accounts 
 
 ## Location
 - `CODEXBAR_CONFIG=/path/to/config.json` when set.
-- `$XDG_CONFIG_HOME/codexbar/config.json` when `XDG_CONFIG_HOME` is set.
+- `$XDG_CONFIG_HOME/codexbar/config.json` when `XDG_CONFIG_HOME` is set to an absolute path. Relative values are
+  ignored.
 - `~/.config/codexbar/config.json` by default for new installs.
 - `~/.codexbar/config.json` for existing legacy installs when no XDG config exists.
 - The directory is created if missing.

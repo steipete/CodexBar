@@ -141,6 +141,24 @@ struct ConfigValidationTests {
     }
 
     @Test
+    func `config store default url ignores relative xdg config home`() throws {
+        let fileManager = FileManager.default
+        let home = try Self.makeTemporaryHome()
+        defer { try? fileManager.removeItem(at: home) }
+        let legacy = Self.legacyConfigURL(in: home)
+        try Self.touch(legacy, fileManager: fileManager)
+
+        let url = CodexBarConfigStore.defaultURL(
+            home: home,
+            environment: [
+                CodexBarConfigStore.xdgConfigHomeEnvironmentKey: "relative-config",
+            ],
+            fileManager: fileManager)
+
+        #expect(url == legacy)
+    }
+
+    @Test
     func `config store default url creates in xdg default for new installs`() throws {
         let fileManager = FileManager.default
         let home = try Self.makeTemporaryHome()

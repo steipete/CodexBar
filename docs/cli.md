@@ -36,7 +36,7 @@ tar -xzf CodexBarCLI-v0.17.0-macos-x86_64.tar.gz
 
 ## Configuration
 CodexBar reads the resolved config file for provider settings, secrets, and ordering. New installs use
-`~/.config/codexbar/config.json`; `XDG_CONFIG_HOME` and `CODEXBAR_CONFIG` are supported, and existing
+`~/.config/codexbar/config.json`; absolute `XDG_CONFIG_HOME` paths and `CODEXBAR_CONFIG` are supported, and existing
 `~/.codexbar/config.json` installs keep using the legacy file when no XDG config exists.
 See `docs/configuration.md` for the schema.
 

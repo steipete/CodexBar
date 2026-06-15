@@ -90,9 +90,11 @@ public struct CodexBarConfigStore: @unchecked Sendable {
             !xdgConfigHome.isEmpty
         {
             let expanded = (xdgConfigHome as NSString).expandingTildeInPath
-            return URL(fileURLWithPath: expanded, isDirectory: true)
-                .appendingPathComponent("codexbar", isDirectory: true)
-                .appendingPathComponent("config.json")
+            if (expanded as NSString).isAbsolutePath {
+                return URL(fileURLWithPath: expanded, isDirectory: true)
+                    .appendingPathComponent("codexbar", isDirectory: true)
+                    .appendingPathComponent("config.json")
+            }
         }
 
         let xdgDefault = home

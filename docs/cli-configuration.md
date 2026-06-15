@@ -9,8 +9,8 @@ read_when:
 # CLI configuration
 
 `codexbar config` edits the same resolved config file used by the app's Settings → Providers pane.
-New installs use `~/.config/codexbar/config.json`; `XDG_CONFIG_HOME` and `CODEXBAR_CONFIG` are supported, and
-existing `~/.codexbar/config.json` installs keep using the legacy file when no XDG config exists.
+New installs use `~/.config/codexbar/config.json`; absolute `XDG_CONFIG_HOME` paths and `CODEXBAR_CONFIG` are
+supported, and existing `~/.codexbar/config.json` installs keep using the legacy file when no XDG config exists.
 The CLI writes the file with `0600` permissions.
 
 ## Providers
