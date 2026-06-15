@@ -577,100 +577,6 @@ public struct GeminiStatusProbe: Sendable {
         return nil
     }
 
-    private static func runProcess(
-        executable: String,
-        arguments: [String],
-        environment: [String: String],
-        timeout: TimeInterval) -> String?
-    {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-
-        var mergedEnvironment = environment
-        mergedEnvironment["PATH"] = PathBuilder.effectivePATH(
-            purposes: [.tty, .nodeTooling],
-            env: environment,
-            loginPATH: LoginShellPathCache.shared.current)
-        process.environment = mergedEnvironment
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-        process.standardInput = nil
-
-        final class OutputState: @unchecked Sendable {
-            private let lock = NSLock()
-            private var data = Data()
-
-            func append(_ chunk: Data) {
-                self.lock.lock()
-                self.data.append(chunk)
-                self.lock.unlock()
-            }
-
-            func snapshot() -> Data {
-                self.lock.lock()
-                defer { self.lock.unlock() }
-                return self.data
-            }
-        }
-
-        let output = OutputState()
-        stdout.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if !data.isEmpty {
-                output.append(data)
-            }
-        }
-        stderr.fileHandleForReading.readabilityHandler = { handle in
-            _ = handle.availableData
-        }
-
-        let exitSemaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            exitSemaphore.signal()
-        }
-
-        do {
-            try process.run()
-        } catch {
-            stdout.fileHandleForReading.readabilityHandler = nil
-            stderr.fileHandleForReading.readabilityHandler = nil
-            return nil
-        }
-
-        let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
-        if !didExit {
-            if process.isRunning {
-                process.terminate()
-                if exitSemaphore.wait(timeout: .now() + 0.4) != .success, process.isRunning {
-                    kill(process.processIdentifier, SIGKILL)
-                    _ = exitSemaphore.wait(timeout: .now() + 1.0)
-                }
-            }
-            stdout.fileHandleForReading.readabilityHandler = nil
-            stderr.fileHandleForReading.readabilityHandler = nil
-            return nil
-        }
-
-        Thread.sleep(forTimeInterval: 0.1)
-        stdout.fileHandleForReading.readabilityHandler = nil
-        stderr.fileHandleForReading.readabilityHandler = nil
-        let data = output.snapshot()
-        guard process.terminationStatus == 0,
-              let output = String(data: data, encoding: .utf8)?
-                  .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !output.isEmpty
-        else {
-            return nil
-        }
-
-        return output.components(separatedBy: .newlines).first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private static func findGeminiPackageRoot(startingAt path: String) -> String? {
         let fileManager = FileManager.default
         var currentURL = URL(fileURLWithPath: path).standardizedFileURL
@@ -1176,5 +1082,101 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         return quotas
+    }
+}
+
+extension GeminiStatusProbe {
+    fileprivate static func runProcess(
+        executable: String,
+        arguments: [String],
+        environment: [String: String],
+        timeout: TimeInterval) -> String?
+    {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+
+        var mergedEnvironment = environment
+        mergedEnvironment["PATH"] = PathBuilder.effectivePATH(
+            purposes: [.tty, .nodeTooling],
+            env: environment,
+            loginPATH: LoginShellPathCache.shared.current)
+        process.environment = mergedEnvironment
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        process.standardInput = nil
+
+        final class OutputState: @unchecked Sendable {
+            private let lock = NSLock()
+            private var data = Data()
+
+            func append(_ chunk: Data) {
+                self.lock.lock()
+                self.data.append(chunk)
+                self.lock.unlock()
+            }
+
+            func snapshot() -> Data {
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                return self.data
+            }
+        }
+
+        let output = OutputState()
+        stdout.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty {
+                output.append(data)
+            }
+        }
+        stderr.fileHandleForReading.readabilityHandler = { handle in
+            _ = handle.availableData
+        }
+
+        let exitSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            exitSemaphore.signal()
+        }
+
+        do {
+            try process.run()
+        } catch {
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
+            return nil
+        }
+
+        let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
+        if !didExit {
+            if process.isRunning {
+                process.terminate()
+                if exitSemaphore.wait(timeout: .now() + 0.4) != .success, process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                    _ = exitSemaphore.wait(timeout: .now() + 1.0)
+                }
+            }
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
+            return nil
+        }
+
+        Thread.sleep(forTimeInterval: 0.1)
+        stdout.fileHandleForReading.readabilityHandler = nil
+        stderr.fileHandleForReading.readabilityHandler = nil
+        let data = output.snapshot()
+        guard process.terminationStatus == 0,
+              let output = String(data: data, encoding: .utf8)?
+                  .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !output.isEmpty
+        else {
+            return nil
+        }
+
+        return output.components(separatedBy: .newlines).first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
