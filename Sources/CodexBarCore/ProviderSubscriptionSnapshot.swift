@@ -348,7 +348,7 @@ public enum ProviderSubscriptionFormatter {
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
         formatter.locale = locale
-        formatter.dateFormat = "MMM d, yyyy"
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
         return formatter.string(from: date)
     }
 

@@ -344,6 +344,46 @@ struct ProviderSubscriptionReminderFoundationTests {
     }
 
     @Test
+    func `subscription formatter localizes calendar date ordering for Japanese`() throws {
+        let now = Date(timeIntervalSince1970: 1_782_180_000)
+        let expiresAt = Date(timeIntervalSince1970: 1_784_772_800) // 2026-07-23T00:00:00Z
+        let snapshot = ProviderSubscriptionSnapshot(
+            provider: .codex,
+            planName: "Codex Plus",
+            status: .canceled,
+            subscriptionRenewsAt: nil,
+            subscriptionExpiresAt: expiresAt,
+            updatedAt: now)
+
+        let line = try #require(ProviderSubscriptionFormatter.menuLine(
+            from: snapshot,
+            now: now,
+            locale: Locale(identifier: "ja_JP")))
+
+        #expect(line == "Expires 2026年7月23日")
+    }
+
+    @Test
+    func `subscription formatter localizes calendar date ordering for Vietnamese`() throws {
+        let now = Date(timeIntervalSince1970: 1_782_180_000)
+        let expiresAt = Date(timeIntervalSince1970: 1_784_772_800) // 2026-07-23T00:00:00Z
+        let snapshot = ProviderSubscriptionSnapshot(
+            provider: .codex,
+            planName: "Codex Plus",
+            status: .canceled,
+            subscriptionRenewsAt: nil,
+            subscriptionExpiresAt: expiresAt,
+            updatedAt: now)
+
+        let line = try #require(ProviderSubscriptionFormatter.menuLine(
+            from: snapshot,
+            now: now,
+            locale: Locale(identifier: "vi_VN")))
+
+        #expect(line == "Expires 23 thg 7, 2026")
+    }
+
+    @Test
     func `reminder logic emits threshold events once and dedupes`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_720_000_000)
