@@ -22,6 +22,159 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
         return Data(json.utf8)
     }
 
+    private func withClaudeOAuthTokenRefreshStub<T>(
+        handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data),
+        operation: () async throws -> T) async rethrows -> T
+    {
+        let registered = URLProtocol.registerClass(ClaudeOAuthTokenRefreshStubURLProtocol.self)
+        ClaudeOAuthTokenRefreshStubURLProtocol.reset()
+        ClaudeOAuthTokenRefreshStubURLProtocol.handler = handler
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(ClaudeOAuthTokenRefreshStubURLProtocol.self)
+            }
+            ClaudeOAuthTokenRefreshStubURLProtocol.reset()
+        }
+        return try await operation()
+    }
+
+    private func requestBodyString(_ request: URLRequest) -> String {
+        if let body = request.httpBody {
+            return String(data: body, encoding: .utf8) ?? ""
+        }
+
+        guard let stream = request.httpBodyStream else { return "" }
+        stream.open()
+        defer { stream.close() }
+
+        var data = Data()
+        let bufferSize = 1024
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+
+        while stream.hasBytesAvailable {
+            let count = stream.read(buffer, maxLength: bufferSize)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    @Test
+    func `successful codexbar refresh is re-owned when Claude CLI storage appears`() async throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+            defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
+
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            let fileURL = tempDir.appendingPathComponent("credentials.json")
+            try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                try await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                        try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
+                            ClaudeOAuthCredentialsStore.invalidateCache()
+                            let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                            defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                            let expiredData = self.makeCredentialsData(
+                                accessToken: "expired-codexbar-only",
+                                expiresAt: Date(timeIntervalSinceNow: -3600),
+                                refreshToken: "cached-refresh-token")
+                            KeychainCacheStore.store(
+                                key: cacheKey,
+                                entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                    data: expiredData,
+                                    storedAt: Date(timeIntervalSinceNow: 60),
+                                    owner: .codexbar))
+
+                            var tokenRefreshRequestCount = 0
+                            let refreshed = try await self.withClaudeOAuthTokenRefreshStub(handler: { request in
+                                tokenRefreshRequestCount += 1
+                                #expect(request.url?.host == "platform.claude.com")
+                                #expect(request.url?.path == "/v1/oauth/token")
+                                #expect(request.httpMethod == "POST")
+                                #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+                                #expect(
+                                    request.value(forHTTPHeaderField: "Content-Type") ==
+                                        "application/x-www-form-urlencoded")
+
+                                let body = self.requestBodyString(request)
+                                #expect(body.contains("grant_type=refresh_token"))
+                                #expect(body.contains("refresh_token=cached-refresh-token"))
+                                #expect(body.contains("client_id=\(ClaudeOAuthCredentialsStore.defaultOAuthClientID)"))
+
+                                let response = try HTTPURLResponse(
+                                    url: #require(request.url),
+                                    statusCode: 200,
+                                    httpVersion: "HTTP/1.1",
+                                    headerFields: ["Content-Type": "application/json"])!
+                                let json = """
+                                {
+                                  "access_token": "fresh-codexbar-token",
+                                  "refresh_token": "fresh-refresh-token",
+                                  "expires_in": 3600,
+                                  "token_type": "Bearer"
+                                }
+                                """
+                                return (response, Data(json.utf8))
+                            }, operation: {
+                                try await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(true) {
+                                    try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                        environment: [:],
+                                        allowKeychainPrompt: false,
+                                        respectKeychainPromptCooldown: true)
+                                }
+                            })
+
+                            #expect(refreshed.accessToken == "fresh-codexbar-token")
+                            #expect(refreshed.refreshToken == "fresh-refresh-token")
+                            #expect(tokenRefreshRequestCount == 1)
+
+                            switch KeychainCacheStore.load(
+                                key: cacheKey,
+                                as: ClaudeOAuthCredentialsStore.CacheEntry.self)
+                            {
+                            case let .found(entry):
+                                #expect(entry.owner == .codexbar)
+                                let parsed = try ClaudeOAuthCredentials.parse(data: entry.data)
+                                #expect(parsed.accessToken == "fresh-codexbar-token")
+                                #expect(parsed.refreshToken == "fresh-refresh-token")
+                            default:
+                                Issue.record("Expected refreshed CodexBar-owned cache entry")
+                            }
+
+                            let keychainData = self.makeCredentialsData(
+                                accessToken: "claude-keychain",
+                                expiresAt: Date(timeIntervalSinceNow: 3600),
+                                refreshToken: "keychain-refresh-token")
+
+                            let recordAfterCLIStorageAppears = try ClaudeOAuthCredentialsStore
+                                .withClaudeKeychainOverridesForTesting(data: keychainData, fingerprint: nil) {
+                                    try ClaudeOAuthCredentialsStore.loadRecord(
+                                        environment: [:],
+                                        allowKeychainPrompt: false,
+                                        respectKeychainPromptCooldown: true,
+                                        allowClaudeKeychainRepairWithoutPrompt: false)
+                                }
+
+                            #expect(recordAfterCLIStorageAppears.credentials.accessToken == "fresh-codexbar-token")
+                            #expect(recordAfterCLIStorageAppears.owner == .claudeCLI)
+                            #expect(recordAfterCLIStorageAppears.source == .memoryCache)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     func `load record treats codexbar cache as claude CLI owned when credentials file exists`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
@@ -251,4 +404,38 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
             }
         }
     }
+}
+
+private final class ClaudeOAuthTokenRefreshStubURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    static func reset() {
+        self.handler = nil
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "platform.claude.com" && request.url?.path == "/v1/oauth/token"
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (response, data) = try handler(self.request)
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            self.client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }
