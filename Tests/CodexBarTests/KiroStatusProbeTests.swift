@@ -75,6 +75,86 @@ struct KiroStatusProbeTests {
         #expect(elapsed < 3, "Kiro usage capture should not wait for inherited pipe EOF, took \(elapsed)s")
     }
 
+    @Test
+    func `run command hard stops a process that ignores SIGTERM`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            trap '' TERM
+            printf 'partial output\\n'
+            while true; do sleep 1; done
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let start = Date()
+        let result = try await probe.runCommand(arguments: [], timeout: 2, idleTimeout: 0.1)
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(result.terminatedForIdle)
+        #expect(result.stdout.contains("partial output"))
+        #expect(result.terminationStatus != 0)
+        #expect(elapsed < 2, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
+    }
+
+    @Test
+    func `run command preserves completed no-output failure status`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            exit 23
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let result = try await probe.runCommand(arguments: [], timeout: 2)
+
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.isEmpty)
+        #expect(result.terminationStatus == 23)
+        #expect(!result.terminatedForIdle)
+    }
+
+    @Test
+    func `run command cancellation terminates the process`() async throws {
+        let pidFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-cancel-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            printf '%s\\n' "$$" > "$1"
+            trap '' TERM
+            while true; do sleep 1; done
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: pidFile)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let task = Task {
+            try await probe.runCommand(arguments: [pidFile.path], timeout: 20)
+        }
+        defer { task.cancel() }
+
+        var capturedProcessID: pid_t?
+        for _ in 0..<100 {
+            if let text = try? String(contentsOf: pidFile, encoding: .utf8) {
+                capturedProcessID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let processID = try #require(capturedProcessID)
+        defer { _ = kill(processID, SIGKILL) }
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        #expect(kill(processID, 0) == -1)
+    }
+
     // MARK: - Happy Path Parsing
 
     @Test
@@ -97,6 +177,16 @@ struct KiroStatusProbeTests {
         #expect(snapshot.bonusCreditsTotal == nil)
         #expect(snapshot.bonusExpiryDays == nil)
         #expect(snapshot.resetsAt != nil)
+    }
+
+    private func makeCLI(_ script: String) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-cli-\(UUID().uuidString)", isDirectory: true)
+        let cliURL = root.appendingPathComponent("kiro-cli")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try script.write(to: cliURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
+        return cliURL
     }
 
     @Test

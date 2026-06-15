@@ -110,7 +110,7 @@ public enum SubprocessRunner {
     /// Terminates a process and its process group, escalating from SIGTERM to SIGKILL.
     /// Returns `true` if the process was actually killed, `false` if it had already exited.
     @discardableResult
-    private static func terminateProcess(_ process: Process, processGroup: pid_t?) -> Bool {
+    package static func terminateProcess(_ process: Process, processGroup: pid_t?) -> Bool {
         guard process.isRunning else { return false }
         process.terminate()
         if let pgid = processGroup {
@@ -125,6 +125,10 @@ public enum SubprocessRunner {
                 kill(-pgid, SIGKILL)
             }
             kill(process.processIdentifier, SIGKILL)
+            let reapDeadline = Date().addingTimeInterval(0.4)
+            while process.isRunning, Date() < reapDeadline {
+                usleep(50000)
+            }
         }
         return true
     }

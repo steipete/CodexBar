@@ -2,6 +2,7 @@ import Foundation
 
 package final class ProcessPipeCapture: @unchecked Sendable {
     private let handle: FileHandle
+    private let onData: (@Sendable () -> Void)?
     private let condition = NSCondition()
     private var data = Data()
     private var activeCallbacks = 0
@@ -9,8 +10,9 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     private var isStopping = false
     private var continuation: CheckedContinuation<Void, Never>?
 
-    package init(pipe: Pipe) {
+    package init(pipe: Pipe, onData: (@Sendable () -> Void)? = nil) {
         self.handle = pipe.fileHandleForReading
+        self.onData = onData
     }
 
     package func start() {
@@ -70,6 +72,8 @@ package final class ProcessPipeCapture: @unchecked Sendable {
 
         if chunk.isEmpty {
             handle.readabilityHandler = nil
+        } else {
+            self.onData?()
         }
         continuation?.resume()
     }

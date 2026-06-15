@@ -269,7 +269,7 @@ public struct KiroStatusProbe: Sendable {
             contextUsage: contextUsage)
     }
 
-    private struct KiroCLIResult {
+    struct KiroCLIResult {
         let stdout: String
         let stderr: String
         let terminationStatus: Int32
@@ -396,7 +396,7 @@ public struct KiroStatusProbe: Sendable {
         return self.parseContextUsage(output: output)
     }
 
-    private func runCommand(
+    func runCommand(
         arguments: [String],
         timeout: TimeInterval,
         idleTimeout: TimeInterval = 5.0) async throws -> KiroCLIResult
@@ -419,123 +419,100 @@ public struct KiroStatusProbe: Sendable {
         env["TERM"] = "xterm-256color"
         process.environment = env
 
-        // Thread-safe state for activity tracking
         final class ActivityState: @unchecked Sendable {
             private let lock = NSLock()
             private var _lastActivityAt = Date()
             private var _hasReceivedOutput = false
-            private var _stdoutData = Data()
-            private var _stderrData = Data()
 
             var lastActivityAt: Date {
-                self.lock.lock()
-                defer { lock.unlock() }
-                return self._lastActivityAt
+                self.lock.withLock { self._lastActivityAt }
             }
 
             var hasReceivedOutput: Bool {
-                self.lock.lock()
-                defer { lock.unlock() }
-                return self._hasReceivedOutput
+                self.lock.withLock { self._hasReceivedOutput }
             }
 
-            func appendStdout(_ data: Data) {
-                self.lock.lock()
-                defer { lock.unlock() }
-                self._stdoutData.append(data)
-                self._lastActivityAt = Date()
-                self._hasReceivedOutput = true
-            }
-
-            func appendStderr(_ data: Data) {
-                self.lock.lock()
-                defer { lock.unlock() }
-                self._stderrData.append(data)
-                self._lastActivityAt = Date()
-                self._hasReceivedOutput = true
-            }
-
-            func getOutput() -> (stdout: Data, stderr: Data) {
-                self.lock.lock()
-                defer { lock.unlock() }
-                return (self._stdoutData, self._stderrData)
+            func markActivity() {
+                self.lock.withLock {
+                    self._lastActivityAt = Date()
+                    self._hasReceivedOutput = true
+                }
             }
         }
 
         let state = ActivityState()
-        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if !data.isEmpty {
-                state.appendStdout(data)
-            }
-        }
-        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if !data.isEmpty {
-                state.appendStderr(data)
-            }
-        }
+        let stdoutCapture = ProcessPipeCapture(pipe: stdoutPipe, onData: { state.markActivity() })
+        let stderrCapture = ProcessPipeCapture(pipe: stderrPipe, onData: { state.markActivity() })
 
         do {
             try process.run()
         } catch {
-            stdoutPipe.fileHandleForReading.readabilityHandler = nil
-            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            stdoutCapture.stop()
+            stderrCapture.stop()
             throw error
         }
+        stdoutCapture.start()
+        stderrCapture.start()
+        let pid = process.processIdentifier
+        let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
         let deadline = Date().addingTimeInterval(timeout)
         var didHitDeadline = false
         var didTerminateForIdle = false
 
-        while process.isRunning {
-            if Date() >= deadline {
-                didHitDeadline = true
-                break
+        do {
+            while process.isRunning {
+                try Task.checkCancellation()
+                if Date() >= deadline {
+                    didHitDeadline = true
+                    break
+                }
+                if state.hasReceivedOutput,
+                   Date().timeIntervalSince(state.lastActivityAt) >= idleTimeout
+                {
+                    didTerminateForIdle = true
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(100))
             }
-            if state.hasReceivedOutput,
-               Date().timeIntervalSince(state.lastActivityAt) >= idleTimeout
-            {
-                didTerminateForIdle = true
-                break
-            }
-            try await Task.sleep(for: .milliseconds(100))
+        } catch {
+            await Self.terminateProcess(process, processGroup: processGroup)
+            stdoutCapture.stop()
+            stderrCapture.stop()
+            throw error
         }
 
         if process.isRunning {
-            Self.terminateProcess(process)
+            await Self.terminateProcess(process, processGroup: processGroup)
+            guard !process.isRunning else {
+                stdoutCapture.stop()
+                stderrCapture.stop()
+                throw KiroStatusProbeError.timeout
+            }
             if didHitDeadline || !state.hasReceivedOutput {
-                stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                stderrPipe.fileHandleForReading.readabilityHandler = nil
+                stdoutCapture.stop()
+                stderrCapture.stop()
                 throw KiroStatusProbeError.timeout
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
-        stdoutPipe.fileHandleForReading.readabilityHandler = nil
-        stderrPipe.fileHandleForReading.readabilityHandler = nil
-
-        let output = state.getOutput()
-        let stdoutOutput = String(data: output.stdout, encoding: .utf8) ?? ""
-        let stderrOutput = String(data: output.stderr, encoding: .utf8) ?? ""
+        async let stdoutData = stdoutCapture.finish(timeout: .seconds(1))
+        async let stderrData = stderrCapture.finish(timeout: .seconds(1))
+        let output = await (stdout: stdoutData, stderr: stderrData)
         return KiroCLIResult(
-            stdout: stdoutOutput,
-            stderr: stderrOutput,
+            stdout: String(data: output.stdout, encoding: .utf8) ?? "",
+            stderr: String(data: output.stderr, encoding: .utf8) ?? "",
             terminationStatus: process.terminationStatus,
             terminatedForIdle: didTerminateForIdle)
     }
 
-    private static func terminateProcess(_ process: Process) {
-        guard process.isRunning else { return }
-        process.terminate()
-        let deadline = Date().addingTimeInterval(0.4)
-        while process.isRunning, Date() < deadline {
-            usleep(50000)
+    private static func terminateProcess(_ process: Process, processGroup: pid_t?) async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                SubprocessRunner.terminateProcess(process, processGroup: processGroup)
+                continuation.resume()
+            }
         }
-        if process.isRunning {
-            kill(process.processIdentifier, SIGKILL)
-        }
-        process.waitUntilExit()
     }
 
     func parse(
