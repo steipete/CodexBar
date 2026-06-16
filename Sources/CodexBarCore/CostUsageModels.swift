@@ -734,27 +734,32 @@ private struct CostUsageAnyCodingKey: CodingKey {
 }
 
 enum CostUsageDateParser {
+    private static let isoWithFractionalSecondsKey = "CostUsageDateParser.isoWithFractionalSeconds"
+    private static let isoInternetDateTimeKey = "CostUsageDateParser.isoInternetDateTime"
+    private static let dayFormatterKey = "CostUsageDateParser.dayFormatter"
+    private static let monthDayYearFormatterKey = "CostUsageDateParser.monthDayYearFormatter"
+    private static let monthYearFormatterKey = "CostUsageDateParser.monthYearFormatter"
+    private static let fullMonthYearFormatterKey = "CostUsageDateParser.fullMonthYearFormatter"
+    private static let yearMonthFormatterKey = "CostUsageDateParser.yearMonthFormatter"
+
     static func parse(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = iso.date(from: trimmed) { return d }
-        iso.formatOptions = [.withInternetDateTime]
-        if let d = iso.date(from: trimmed) { return d }
-
-        let day = DateFormatter()
-        day.locale = Locale(identifier: "en_US_POSIX")
-        day.timeZone = TimeZone.current
-        day.dateFormat = "yyyy-MM-dd"
-        if let d = day.date(from: trimmed) { return d }
-
-        let monthDayYear = DateFormatter()
-        monthDayYear.locale = Locale(identifier: "en_US_POSIX")
-        monthDayYear.timeZone = TimeZone.current
-        monthDayYear.dateFormat = "MMM d, yyyy"
-        if let d = monthDayYear.date(from: trimmed) { return d }
+        if let d = self.isoFormatter(
+            key: self.isoWithFractionalSecondsKey,
+            options: [.withInternetDateTime, .withFractionalSeconds])
+            .date(from: trimmed)
+        { return d }
+        if let d = self.isoFormatter(key: self.isoInternetDateTimeKey, options: [.withInternetDateTime])
+            .date(from: trimmed)
+        { return d }
+        if let d = self.dateFormatter(key: self.dayFormatterKey, format: "yyyy-MM-dd").date(from: trimmed) {
+            return d
+        }
+        if let d = self.dateFormatter(key: self.monthDayYearFormatterKey, format: "MMM d, yyyy")
+            .date(from: trimmed)
+        { return d }
 
         return nil
     }
@@ -763,24 +768,45 @@ enum CostUsageDateParser {
         guard let text, !text.isEmpty else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let monthYear = DateFormatter()
-        monthYear.locale = Locale(identifier: "en_US_POSIX")
-        monthYear.timeZone = TimeZone.current
-        monthYear.dateFormat = "MMM yyyy"
-        if let d = monthYear.date(from: trimmed) { return d }
-
-        let fullMonthYear = DateFormatter()
-        fullMonthYear.locale = Locale(identifier: "en_US_POSIX")
-        fullMonthYear.timeZone = TimeZone.current
-        fullMonthYear.dateFormat = "MMMM yyyy"
-        if let d = fullMonthYear.date(from: trimmed) { return d }
-
-        let ym = DateFormatter()
-        ym.locale = Locale(identifier: "en_US_POSIX")
-        ym.timeZone = TimeZone.current
-        ym.dateFormat = "yyyy-MM"
-        if let d = ym.date(from: trimmed) { return d }
+        if let d = self.dateFormatter(key: self.monthYearFormatterKey, format: "MMM yyyy").date(from: trimmed) {
+            return d
+        }
+        if let d = self.dateFormatter(key: self.fullMonthYearFormatterKey, format: "MMMM yyyy").date(from: trimmed) {
+            return d
+        }
+        if let d = self.dateFormatter(key: self.yearMonthFormatterKey, format: "yyyy-MM").date(from: trimmed) {
+            return d
+        }
 
         return nil
+    }
+
+    private static func isoFormatter(
+        key: String,
+        options: ISO8601DateFormatter.Options) -> ISO8601DateFormatter
+    {
+        let threadDict = Thread.current.threadDictionary
+        if let cached = threadDict[key] as? ISO8601DateFormatter {
+            return cached
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = options
+        threadDict[key] = formatter
+        return formatter
+    }
+
+    private static func dateFormatter(key: String, format: String) -> DateFormatter {
+        let threadDict = Thread.current.threadDictionary
+        let timeZone = TimeZone.current
+        let cacheKey = "\(key).\(timeZone.identifier)"
+        if let cached = threadDict[cacheKey] as? DateFormatter {
+            return cached
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = format
+        threadDict[cacheKey] = formatter
+        return formatter
     }
 }

@@ -332,6 +332,25 @@ struct CostUsageDecodingTests {
     }
 
     @Test
+    func `selects most recent supported month format`() throws {
+        let json = """
+        {
+          "type": "monthly",
+          "data": [
+            { "month": "Dec 2025", "totalTokens": 100, "costUSD": 1.00 },
+            { "month": "January 2026", "totalTokens": 200, "costUSD": 2.00 },
+            { "month": "2026-02", "totalTokens": 300, "costUSD": 3.00 }
+          ]
+        }
+        """
+
+        let report = try JSONDecoder().decode(CostUsageMonthlyReport.self, from: Data(json.utf8))
+        let selected = CostUsageFetcher.selectMostRecentMonth(from: report.data)
+        #expect(selected?.month == "2026-02")
+        #expect(selected?.totalTokens == 300)
+    }
+
+    @Test
     func `token snapshot selects most recent day`() throws {
         let json = """
         {
