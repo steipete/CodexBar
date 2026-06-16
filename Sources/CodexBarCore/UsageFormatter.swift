@@ -241,11 +241,7 @@ public enum UsageFormatter {
             return "\(sign)\(formatted)\(unit.suffix)"
         }
 
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return "\(value)"
     }
 
     public static func byteCountString(_ bytes: Int64) -> String {

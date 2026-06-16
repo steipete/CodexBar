@@ -231,6 +231,13 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `token count string formats small values without grouping`() {
+        #expect(UsageFormatter.tokenCountString(0) == "0")
+        #expect(UsageFormatter.tokenCountString(987) == "987")
+        #expect(UsageFormatter.tokenCountString(-42) == "-42")
+    }
+
+    @Test
     func `clean plan maps O auth to ollama`() {
         #expect(UsageFormatter.cleanPlanName("oauth") == "Ollama")
     }
