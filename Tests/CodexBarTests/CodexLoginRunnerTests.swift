@@ -80,7 +80,8 @@ struct CodexLoginRunnerTests {
         let start = Date()
         let result = await CodexLoginRunner.run(
             homePath: homeDir.path,
-            timeout: 1,
+            // Cold Python startup can exceed one second on x86 CI runners.
+            timeout: 3,
             outputDrainTimeout: 0.2,
             environment: [
                 "CODEXBAR_TEST_CHILD_PID_FILE": childPIDFile.path,
@@ -91,6 +92,6 @@ struct CodexLoginRunnerTests {
 
         #expect(result.outcome == .timedOut)
         #expect(result.output.contains("login-started"))
-        #expect(elapsed < 3.0, "Output drain should stay bounded, took \(elapsed)s")
+        #expect(elapsed < 5.0, "Output drain should stay bounded, took \(elapsed)s")
     }
 }
