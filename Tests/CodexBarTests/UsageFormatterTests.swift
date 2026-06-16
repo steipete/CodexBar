@@ -10,6 +10,7 @@ struct UsageFormatterTests {
         "Resets %@",
         "Resets in %@",
         "Resets now",
+        "reset_tomorrow_format",
         "Updated %@",
         "Updated %@h ago",
         "Updated %@m ago",
@@ -103,6 +104,37 @@ struct UsageFormatterTests {
 
         let restored = UsageFormatter.updatedString(from: old, now: now)
         #expect(restored == baseline)
+    }
+
+    @Test
+    func `tomorrow reset description uses localized format`() throws {
+        UsageFormatter.setLocalizationProvider { key in
+            key == "reset_tomorrow_format" ? "明日 %@" : key
+        }
+        UsageFormatter.setLocaleProvider { Locale(identifier: "ja_JP") }
+        defer {
+            UsageFormatter.clearLocalizationProvider()
+            UsageFormatter.clearLocaleProvider()
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 16,
+            hour: 12)))
+        let reset = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 17,
+            hour: 10,
+            minute: 50)))
+
+        let output = UsageFormatter.resetDescription(from: reset, now: now)
+        #expect(output.hasPrefix("明日 "))
+        #expect(!output.contains("tomorrow"))
+        #expect(!output.contains("%@"))
     }
 
     @Test

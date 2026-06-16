@@ -707,6 +707,7 @@
 "Resets %@" = "ریست %@";
 "Resets in %@" = "ریست ها در %@";
 "Resets now" = "اکنون بازنشانی می شود";
+"reset_tomorrow_format" = "فردا، %@";
 "Lasts until reset" = "تا زمان ریست ادامه دارد";
 "Updated %@" = "به روزرسانی %@";
 "Updated %@h ago" = "%@h پیش به روزرسانی شده است";
