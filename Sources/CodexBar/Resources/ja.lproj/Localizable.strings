@@ -307,8 +307,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "System" = "システム";
 "Temporarily shows the loading animation after the next refresh." = "次回の更新後に読み込みアニメーションを一時的に表示します。";
-"Tertiary (\\(label))" = "第 3（\\(label)）";
-"Tertiary (\\(tertiaryTitle))" = "第 3（\\(tertiaryTitle)）";
+"Tertiary (\\(label))" = "第3（\\(label)）";
+"Tertiary (\\(tertiaryTitle))" = "第3（\\(tertiaryTitle)）";
 "The default Codex account on this Mac." = "この Mac のデフォルトの Codex アカウントです。";
 "Toggle" = "切り替え";
 "Toggle subtitle" = "サブタイトルを切り替え";
@@ -378,7 +378,7 @@
 "metric_average" = "平均（%1$@ + %2$@）";
 "metric_primary" = "プライマリ（%@）";
 "metric_secondary" = "セカンダリ（%@）";
-"metric_tertiary" = "第 3（%@）";
+"metric_tertiary" = "第3（%@）";
 "multiple_workspaces_found" = "CodexBar は %@ の複数のワークスペースを見つけました。追加するワークスペースを選択してください。";
 "ory_session_…=…; csrftoken=…" = "ory_session_…=…; csrftoken=…";
 "overview_choose_providers" = "最大 %@ 個のプロバイダを選択";
@@ -408,7 +408,7 @@
 "language_ukrainian" = "ウクライナ語";
 "language_japanese" = "日本語";
 "language_korean" = "韓国語";
-"language_italian" = "Italiano";
+"language_italian" = "イタリア語";
 "language_polish" = "ポーランド語";
 "start_at_login_title" = "ログイン時に起動";
 "start_at_login_subtitle" = "Mac の起動時に CodexBar を自動的に開きます。";
@@ -549,7 +549,7 @@
 /* About Pane */
 "about_tagline" = "トークンが尽きませんように—エージェントの上限を常に見守りましょう。";
 "link_github" = "GitHub";
-"link_website" = "Webサイト";
+"link_website" = "ウェブサイト";
 "link_twitter" = "Twitter";
 "link_email" = "メール";
 "check_updates_auto" = "アップデートを自動的に確認";
@@ -620,7 +620,7 @@
 "metric_pref_automatic" = "自動";
 "metric_pref_primary" = "プライマリ";
 "metric_pref_secondary" = "セカンダリ";
-"metric_pref_tertiary" = "ターシャリ";
+"metric_pref_tertiary" = "第3";
 "metric_pref_extra_usage" = "追加使用量";
 "metric_pref_average" = "平均";
 
@@ -684,8 +684,8 @@
 "No available fetch strategy for %@." = "%@ に利用可能な取得戦略がありません。";
 "Today" = "今日";
 "Today tokens" = "今日のトークン";
-"30d cost" = "30日間のコスト";
-"30d tokens" = "30日間のトークン";
+"30d cost" = "過去30日間のコスト";
+"30d tokens" = "過去30日間のトークン";
 "Latest tokens" = "最新のトークン";
 "Top model" = "最多使用モデル";
 "Storage" = "ストレージ";
@@ -728,7 +728,7 @@
 "Latest hour" = "直近1時間";
 "Peak hour" = "ピーク時間帯";
 "Top method" = "最多使用メソッド";
-"30d cash" = "30日間の支出";
+"30d cash" = "過去30日間の支出";
 "30d billing history from MiniMax web session" = "MiniMax Web セッションからの30日間の請求履歴";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer の請求情報は反映が遅れることがあります。";
 "Rate limit: %d / %@" = "レート制限: %d / %@";
@@ -821,13 +821,13 @@
 "Hourly Usage" = "時間別使用量";
 "Usage remaining" = "残りの使用量";
 "Usage used" = "使用済みの使用量";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "APIキーを確認しました。OllamaはAPI経由でCloudクォータ上限を公開していません。";
+"API key verified. Ollama does not expose Cloud quota limits through the API." = "API キーを確認しました。OllamaはAPI経由でCloudクォータ上限を公開していません。";
 "Last 30 days: %@ tokens" = "過去30日間: %@ トークン";
 "7d spend" = "7日間の支出";
-"30d spend" = "30日間の支出";
+"30d spend" = "過去30日間の支出";
 "Cache read" = "キャッシュ読み取り";
 "Claude Admin API 30 day spend trend" = "Claude Admin API の30日間支出推移";
-"OpenRouter API key spend trend" = "OpenRouter APIキーの支出推移";
+"OpenRouter API key spend trend" = "OpenRouter API キーの支出推移";
 "z.ai hourly token trend" = "z.ai の時間別トークン推移";
 "MiniMax 30 day token usage trend" = "MiniMax の30日間トークン使用量推移";
 "Today cash" = "本日の現金";
@@ -874,7 +874,7 @@
 "Cleanup ideas" = "クリーンアップの候補";
 "%d unreadable item(s) skipped" = "読み取れない項目 %d 件をスキップしました";
 
-"API key limit" = "APIキー上限";
+"API key limit" = "API キー上限";
 "Auth" = "認証";
 "Auto" = "自動";
 "Disabled — no recent data" = "無効 — 最近のデータなし";
@@ -903,11 +903,11 @@
 "%@ is waiting for permission" = "%@ は許可を待っています";
 "%@ requests" = "%@ リクエスト";
 "%@: %@ credits" = "%@: %@ クレジット";
-"30d requests" = "30日間のリクエスト";
+"30d requests" = "過去30日間のリクエスト";
 "4 days" = "4日間";
 "5 days" = "5日間";
 "7 days" = "7日間";
-"API key verifies Ollama Cloud access; cookies still expose quota limits." = "APIキーで Ollama Cloud へのアクセスを確認できますが、クォータ上限の取得には引き続き Cookie が必要です。";
+"API key verifies Ollama Cloud access; cookies still expose quota limits." = "API キーで Ollama Cloud へのアクセスを確認できますが、クォータ上限の取得には引き続き Cookie が必要です。";
 "AWS access key ID. Can also be set with AWS_ACCESS_KEY_ID." = "AWS アクセスキー ID。AWS_ACCESS_KEY_ID でも設定できます。";
 "AWS region. Can also be set with AWS_REGION." = "AWS リージョン。AWS_REGION でも設定できます。";
 "AWS secret access key. Can also be set with AWS_SECRET_ACCESS_KEY." = "AWS シークレットアクセスキー。AWS_SECRET_ACCESS_KEY でも設定できます。";
@@ -934,7 +934,7 @@
 "Capacity Start" = "キャパシティ開始";
 "Changelog" = "変更履歴";
 "Choose the Moonshot/Kimi API host for international or China mainland accounts." = "国際アカウントまたは中国本土アカウント用の Moonshot/Kimi API ホストを選択します。";
-"CodexBar can't replace a system account that is signed in with an API key only setup." = "CodexBar は、APIキーのみの構成でサインインしているシステムアカウントを置き換えることはできません。";
+"CodexBar can't replace a system account that is signed in with an API key only setup." = "CodexBar は、API キーのみの構成でサインインしているシステムアカウントを置き換えることはできません。";
 "CodexBar could not find saved auth for that account. Re-authenticate it and try again." = "CodexBar はそのアカウントの保存済み認証情報を見つけられませんでした。再認証してからやり直してください。";
 "CodexBar could not read managed account storage. Recover the store before adding another account." = "CodexBar は管理アカウントのストレージを読み取れませんでした。別のアカウントを追加する前にストアを復旧してください。";
 "CodexBar could not read saved auth for that account. Re-authenticate it and try again." = "CodexBar はそのアカウントの保存済み認証情報を読み取れませんでした。再認証してからやり直してください。";
@@ -952,13 +952,13 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Cursor の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Factory の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに GitHub Copilot のトークンへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Kimi K2 の APIキーへのアクセスを求めます。続けるには OK をクリックしてください。";
+"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Kimi K2 の API キーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Kimi の認証トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに MiniMax の API トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに MiniMax の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar は Codex ダッシュボードの追加情報を取得するために、macOS キーチェーンに OpenAI の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに OpenCode の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Synthetic の APIキーへのアクセスを求めます。続けるには OK をクリックしてください。";
+"CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Synthetic の API キーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに z.ai の API トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "Could not open Cursor login in your browser." = "ブラウザで Cursor のログイン画面を開けませんでした。";
 "Could not open browser for Antigravity" = "Antigravity 用のブラウザを開けませんでした";
@@ -972,7 +972,7 @@
 "Keychain Access Required" = "キーチェーンへのアクセスが必要です";
 "Kiro menu bar value" = "Kiro メニューバー表示値";
 "Label" = "ラベル";
-"No organizations loaded. Click Refresh after setting your API key." = "組織が読み込まれていません。APIキーを設定してから「更新」をクリックしてください。";
+"No organizations loaded. Click Refresh after setting your API key." = "組織が読み込まれていません。API キーを設定してから「更新」をクリックしてください。";
 "No output captured." = "出力は取得されませんでした。";
 "No system account" = "システムアカウントなし";
 "Oasis-Token" = "Oasis-Token";
@@ -983,7 +983,7 @@
 "Open Manus" = "Manus を開く";
 "Open MiMo Balance" = "MiMo 残高を開く";
 "Open Moonshot Console" = "Moonshot コンソールを開く";
-"Open Ollama API Keys" = "Ollama APIキーを開く";
+"Open Ollama API Keys" = "Ollama API キーを開く";
 "Open StepFun Platform" = "StepFun プラットフォームを開く";
 "Open T3 Chat Settings" = "T3 Chat 設定を開く";
 "Open Volcengine Ark Console" = "Volcengine Ark コンソールを開く";
@@ -991,9 +991,9 @@
 "Open projects" = "プロジェクトを開く";
 "Open this URL manually to continue login:\n\n%@" = "ログインを続けるには、この URL を手動で開いてください:\n\n%@";
 "Optional organization ID for accounts linked to multiple Anthropic organizations." = "複数の Anthropic 組織にリンクされたアカウント用のオプションの組織 ID。";
-"Optional. Applies to the configured Admin API key; selected token accounts do not inherit OPENAI_PROJECT_ID." = "オプション。設定済みの Admin APIキーに適用されます。選択したトークンアカウントには OPENAI_PROJECT_ID は引き継がれません。";
+"Optional. Applies to the configured Admin API key; selected token accounts do not inherit OPENAI_PROJECT_ID." = "オプション。設定済みの Admin API キーに適用されます。選択したトークンアカウントには OPENAI_PROJECT_ID は引き継がれません。";
 "Optional. Enter your GitHub Enterprise host, for example octocorp.ghe.com. Leave blank for github.com." = "オプション。GitHub Enterprise のホストを入力してください(例: octocorp.ghe.com)。github.com の場合は空欄のままにしてください。";
-"Optional. Leave blank to discover and aggregate projects visible to the API key." = "オプション。空欄のままにすると、APIキーから参照できるプロジェクトを検出して集計します。";
+"Optional. Leave blank to discover and aggregate projects visible to the API key." = "オプション。空欄のままにすると、API キーから参照できるプロジェクトを検出して集計します。";
 "Org ID (optional)" = "組織 ID(オプション)";
 "Organizations" = "組織";
 "Password" = "パスワード";
@@ -1035,15 +1035,15 @@
 "Stored in ~/.codexbar/config.json." = "~/.codexbar/config.json に保存されます。";
 "Stored in ~/.codexbar/config.json. AZURE_OPENAI_API_KEY is also supported." = "~/.codexbar/config.json に保存されます。AZURE_OPENAI_API_KEY もサポートされています。";
 "Stored in ~/.codexbar/config.json. For the official Kimi API, use Moonshot / Kimi API." = "~/.codexbar/config.json に保存されます。公式の Kimi API には Moonshot / Kimi API を使用してください。";
-"Stored in ~/.codexbar/config.json. Get your API key from the Volcengine Ark console." = "~/.codexbar/config.json に保存されます。APIキーは Volcengine Ark コンソールから取得してください。";
+"Stored in ~/.codexbar/config.json. Get your API key from the Volcengine Ark console." = "~/.codexbar/config.json に保存されます。API キーは Volcengine Ark コンソールから取得してください。";
 "Stored in ~/.codexbar/config.json. Get your key from Ollama settings." = "~/.codexbar/config.json に保存されます。キーは Ollama の設定から取得してください。";
 "Stored in ~/.codexbar/config.json. Get your key from console.deepgram.com." = "~/.codexbar/config.json に保存されます。キーは console.deepgram.com から取得してください。";
 "Stored in ~/.codexbar/config.json. Get your key from elevenlabs.io/app/settings/api-keys." = "~/.codexbar/config.json に保存されます。キーは elevenlabs.io/app/settings/api-keys から取得してください。";
-"Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and set a key spending limit there to enable API key quota tracking." = "~/.codexbar/config.json に保存されます。キーは openrouter.ai/settings/keys から取得し、そこでキーの支出上限を設定すると APIキーのクォータ追跡が有効になります。";
+"Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and set a key spending limit there to enable API key quota tracking." = "~/.codexbar/config.json に保存されます。キーは openrouter.ai/settings/keys から取得し、そこでキーの支出上限を設定すると API キーのクォータ追跡が有効になります。";
 "Stored in ~/.codexbar/config.json. In Warp, open Settings > Platform > API Keys, then create one." = "~/.codexbar/config.json に保存されます。Warp で「Settings」>「Platform」>「API Keys」を開いて作成してください。";
 "Stored in ~/.codexbar/config.json. Metrics require Groq Enterprise Prometheus access." = "~/.codexbar/config.json に保存されます。メトリクスには Groq Enterprise の Prometheus アクセスが必要です。";
 "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is preferred; OPENAI_API_KEY still works." = "~/.codexbar/config.json に保存されます。OPENAI_ADMIN_KEY が推奨されますが、OPENAI_API_KEY も引き続き使用できます。";
-"Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "~/.codexbar/config.json に保存されます。Anthropic の Admin APIキーが必要です。";
+"Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "~/.codexbar/config.json に保存されます。Anthropic の Admin API キーが必要です。";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "~/.codexbar/config.json に保存されます。/v1/quota-stats に使用されます。";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "~/.codexbar/config.json に保存されます。CODEBUFF_API_KEY を指定するか、CodexBar に ~/.config/manicode/credentials.json(`codebuff login` で作成)を読み込ませることもできます。";
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "~/.codexbar/config.json に保存されます。CROF_API_KEY を指定することもできます。";
@@ -1075,7 +1075,7 @@
 "Search providers" = "プロバイダを検索";
 
 "language_vietnamese" = "ベトナム語";
-"language_turkish" = "Türkçe";
+"language_turkish" = "トルコ語";
 "language_indonesian" = "インドネシア語";
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
