@@ -117,19 +117,11 @@ struct UsageFormatterTests {
             UsageFormatter.clearLocaleProvider()
         }
 
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-        let now = try #require(calendar.date(from: DateComponents(
-            year: 2026,
-            month: 6,
-            day: 16,
-            hour: 12)))
-        let reset = try #require(calendar.date(from: DateComponents(
-            year: 2026,
-            month: 6,
-            day: 17,
-            hour: 10,
-            minute: 50)))
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_750_000_000))
+        let now = try #require(calendar.date(byAdding: .hour, value: 12, to: today))
+        let tomorrow = try #require(calendar.date(byAdding: .day, value: 1, to: today))
+        let reset = try #require(calendar.date(byAdding: .minute, value: 10 * 60 + 50, to: tomorrow))
 
         let output = UsageFormatter.resetDescription(from: reset, now: now)
         #expect(output.hasPrefix("明日 "))
