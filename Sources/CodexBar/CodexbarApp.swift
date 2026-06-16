@@ -353,7 +353,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let updaterController: UpdaterProviding = makeUpdaterController()
     private let confettiOverlayController = ScreenConfettiOverlayController()
     private let confettiLogger = CodexBarLog.logger(LogCategories.confetti)
-    private let memoryPressureMonitor = MemoryPressureMonitor()
+    private lazy var memoryPressureMonitor = MemoryPressureMonitor(trimAppCaches: { [weak self] in
+        self?.trimRebuildableCachesForMemoryPressure() ?? MemoryPressureCacheTrimSummary()
+    })
+
     private var statusController: StatusItemControlling?
     private var store: UsageStore?
     private var settings: SettingsStore?
@@ -513,6 +516,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fallbackCodexAccountPromotionCoordinator)
     }
 
+    private func trimRebuildableCachesForMemoryPressure() -> MemoryPressureCacheTrimSummary {
+        var summary = MemoryPressureCacheTrimSummary()
+        let statusSummary = self.statusController?.trimRebuildableCachesForMemoryPressure()
+            ?? MemoryPressureCacheTrimSummary()
+        let storeSummary = self.store?.trimRebuildableCachesForMemoryPressure()
+            ?? MemoryPressureCacheTrimSummary()
+        summary.merge(statusSummary)
+        summary.merge(storeSummary)
+        return summary
+    }
+
     #if DEBUG
     private func installDebugMemoryPressureObserverIfNeeded() {
         guard self.debugMemoryPressureObserver == nil else { return }
@@ -541,6 +555,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let isCritical = rawLevel?.caseInsensitiveCompare("critical") == .orderedSame
         if shouldSeedCaches {
             OpenAIDashboardFetcher.seedCachedWebViewsForMemoryPressureProof()
+            self.statusController?.seedRebuildableCachesForMemoryPressureProof()
+            self.store?.seedRebuildableCachesForMemoryPressureProof()
         }
         CodexBarLog.logger(LogCategories.memoryPressure).info(
             "Debug memory pressure notification received",

@@ -3,14 +3,57 @@ import Dispatch
 import Foundation
 
 @MainActor
+struct MemoryPressureCacheTrimSummary: Equatable {
+    var menuCardHeights = 0
+    var menuWidths = 0
+    var mergedSwitcherSelections = 0
+    var recycledMenuCardViews = 0
+    var openAIWebDebugLines = 0
+
+    var total: Int {
+        self.menuCardHeights +
+            self.menuWidths +
+            self.mergedSwitcherSelections +
+            self.recycledMenuCardViews +
+            self.openAIWebDebugLines
+    }
+
+    var metadata: [String: String] {
+        [
+            "menuCardHeights": "\(self.menuCardHeights)",
+            "menuWidths": "\(self.menuWidths)",
+            "mergedSwitcherSelections": "\(self.mergedSwitcherSelections)",
+            "recycledMenuCardViews": "\(self.recycledMenuCardViews)",
+            "openAIWebDebugLines": "\(self.openAIWebDebugLines)",
+            "total": "\(self.total)",
+        ]
+    }
+
+    mutating func merge(_ other: MemoryPressureCacheTrimSummary) {
+        self.menuCardHeights += other.menuCardHeights
+        self.menuWidths += other.menuWidths
+        self.mergedSwitcherSelections += other.mergedSwitcherSelections
+        self.recycledMenuCardViews += other.recycledMenuCardViews
+        self.openAIWebDebugLines += other.openAIWebDebugLines
+    }
+}
+
+@MainActor
 final class MemoryPressureMonitor {
+    typealias CacheTrimHandler = @MainActor () -> MemoryPressureCacheTrimSummary
+
     private let logger = CodexBarLog.logger(LogCategories.memoryPressure)
     private let releaseFreeMallocPages: @Sendable () -> Void
+    private let trimAppCaches: CacheTrimHandler
     private var source: DispatchSourceMemoryPressure?
 
-    init(releaseFreeMallocPages: @escaping @Sendable () -> Void = {
-        MemoryPressureRelief.releaseFreeMallocPages()
-    }) {
+    init(
+        trimAppCaches: @escaping CacheTrimHandler = { MemoryPressureCacheTrimSummary() },
+        releaseFreeMallocPages: @escaping @Sendable () -> Void = {
+            MemoryPressureRelief.releaseFreeMallocPages()
+        })
+    {
+        self.trimAppCaches = trimAppCaches
         self.releaseFreeMallocPages = releaseFreeMallocPages
     }
 
@@ -70,6 +113,10 @@ final class MemoryPressureMonitor {
                 "evicted": "\(max(0, cachedWebViewsBefore - cachedWebViewsAfter))",
             ])
         #endif
+        let trimSummary = self.trimAppCaches()
+        if trimSummary.total > 0 {
+            self.logger.info("Trimmed app caches for memory pressure", metadata: trimSummary.metadata)
+        }
         let releaseFreeMallocPages = self.releaseFreeMallocPages
         Task.detached(priority: .utility) {
             releaseFreeMallocPages()

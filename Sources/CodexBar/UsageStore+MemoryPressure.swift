@@ -16,4 +16,14 @@ extension UsageStore {
             }
         }
     }
+
+    func trimRebuildableCachesForMemoryPressure() -> MemoryPressureCacheTrimSummary {
+        let openAIWebDebugLineCount = self.openAIWebDebugLines.count
+        let summary = MemoryPressureCacheTrimSummary(openAIWebDebugLines: openAIWebDebugLineCount)
+
+        self.openAIWebDebugLines.removeAll(keepingCapacity: false)
+        self.openAIDashboardCookieImportDebugLog = nil
+
+        return summary
+    }
 }

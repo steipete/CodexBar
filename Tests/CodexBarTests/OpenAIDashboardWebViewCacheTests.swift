@@ -446,9 +446,9 @@ struct OpenAIDashboardWebViewCacheTests {
     @Test
     func `Memory pressure malloc relief runs off the main thread`() async {
         let probe = MemoryPressureThreadProbe()
-        let monitor = MemoryPressureMonitor {
+        let monitor = MemoryPressureMonitor(releaseFreeMallocPages: {
             probe.recordCurrentThread()
-        }
+        })
 
         monitor.handleMemoryPressureForTesting(isWarning: true, isCritical: false)
 
