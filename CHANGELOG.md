@@ -9,6 +9,7 @@
 
 ### Changed
 - Website: add Poe, Chutes, and Zed to the provider gallery with matching icons and setup documentation.
+- Menu bar: reuse the icon-observation signature during provider refreshes instead of computing it twice. Thanks @abe238!
 
 ### Fixed
 - Provider switcher: use a continuous menu background instead of a separate light-mode tinted band. Thanks @Zihao-Qi!
