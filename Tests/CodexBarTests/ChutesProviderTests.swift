@@ -144,6 +144,45 @@ struct ChutesProviderTests {
     }
 
     @Test
+    func `wrapped quota list fetches per quota usage`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            switch url.path {
+            case "/users/me/subscription_usage":
+                return Self.makeResponse(url: url, body: #"{"subscription":{"active":false}}"#)
+            case "/users/me/quotas":
+                return Self.makeResponse(url: url, body: #"""
+                {
+                  "data": [
+                    {
+                      "chute_id": "wrapped",
+                      "quota": 200
+                    }
+                  ]
+                }
+                """#)
+            case "/users/me/quota_usage/wrapped":
+                return Self.makeResponse(url: url, body: #"{"quota":200,"used":50}"#)
+            default:
+                throw URLError(.badURL)
+            }
+        }
+
+        let snapshot = try await ChutesUsageFetcher.fetchUsage(
+            apiKey: "chutes-key",
+            environment: [ChutesSettingsReader.apiURLEnvironmentKey: "https://chutes.test"],
+            transport: transport)
+
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 25)
+        let requests = await transport.requests()
+        #expect(requests.compactMap { $0.url?.path } == [
+            "/users/me/subscription_usage",
+            "/users/me/quotas",
+            "/users/me/quota_usage/wrapped",
+        ])
+    }
+
+    @Test
     func `partial subscription usage fills missing rolling window from quotas`() async throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let transport = ProviderHTTPTransportStub { request in

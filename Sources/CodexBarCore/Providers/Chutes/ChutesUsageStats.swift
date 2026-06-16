@@ -370,6 +370,9 @@ public struct ChutesUsageFetcher: Sendable {
         if let quotas = dictionary["quotas"] as? [Any] {
             return quotas.compactMap { $0 as? [String: Any] }
         }
+        if let data = dictionary["data"] as? [Any] {
+            return data.compactMap { $0 as? [String: Any] }
+        }
         if let data = dictionary["data"] as? [String: Any],
            let quotas = data["quotas"] as? [Any]
         {
