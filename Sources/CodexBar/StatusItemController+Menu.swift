@@ -1083,7 +1083,8 @@ extension StatusItemController {
         if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
             self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
         }
-        Task { @MainActor in
+        Task { @MainActor [weak self, weak menu] in
+            guard let self else { return }
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await self.store.refreshCodexAccountScopedState(
                     allowDisabled: true,
