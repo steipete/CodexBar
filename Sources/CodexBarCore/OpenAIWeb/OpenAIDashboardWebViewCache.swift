@@ -469,6 +469,21 @@ final class OpenAIDashboardWebViewCache {
         }
     }
 
+    func evictIdle() {
+        let idleEntries = self.entries.filter { _, entry in
+            !entry.isBusy
+        }
+        guard !idleEntries.isEmpty else { return }
+
+        for (key, entry) in idleEntries {
+            entry.clearPreservedPage()
+            entry.host.close()
+            self.entries.removeValue(forKey: key)
+        }
+        Self.log.debug("OpenAI idle webviews evicted", metadata: ["count": "\(idleEntries.count)"])
+        self.scheduleNextIdlePrune()
+    }
+
     private func prepareCachedWebViewForIdle(
         _ webView: WKWebView,
         host: OffscreenWebViewHost,

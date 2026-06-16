@@ -401,6 +401,25 @@ struct OpenAIDashboardWebViewCacheTests {
         #expect(!cache.hasCachedEntry(for: store2), "Second store should be evicted")
     }
 
+    @Test
+    func `Evict idle removes idle WebViews without interrupting busy WebViews`() {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache()
+        let idleStore = WKWebsiteDataStore.nonPersistent()
+        let busyStore = WKWebsiteDataStore.nonPersistent()
+
+        cache.cacheEntryForTesting(websiteDataStore: idleStore)
+        cache.cacheEntryForTesting(websiteDataStore: busyStore, isBusy: true)
+
+        cache.evictIdle()
+
+        #expect(!cache.hasCachedEntry(for: idleStore), "Idle WebView should be evicted")
+        #expect(cache.hasCachedEntry(for: busyStore), "Busy WebView should remain cached")
+        #expect(cache.entryCount == 1, "Only the busy entry should remain")
+
+        cache.clearAllForTesting()
+    }
+
     // MARK: - Busy WebView Tests
 
     @Test

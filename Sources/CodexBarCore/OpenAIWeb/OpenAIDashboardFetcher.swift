@@ -423,6 +423,10 @@ public struct OpenAIDashboardFetcher {
         OpenAIDashboardWebViewCache.shared.evictAll()
     }
 
+    public static func evictIdleCachedWebViews() {
+        OpenAIDashboardWebViewCache.shared.evictIdle()
+    }
+
     public func probeUsagePage(
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)? = nil,

@@ -48,6 +48,7 @@ public enum LogCategories {
     public static let manusAPI = "manus-api"
     public static let manusCookie = "manus-cookie"
     public static let manusWeb = "manus-web"
+    public static let memoryPressure = "memory-pressure"
     public static let minimaxAPITokenStore = "minimax-api-token-store"
     public static let minimaxCookie = "minimax-cookie"
     public static let minimaxCookieStore = "minimax-cookie-store"
