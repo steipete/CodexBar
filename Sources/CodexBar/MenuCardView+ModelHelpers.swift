@@ -328,7 +328,7 @@ extension UsageMenuCardView.Model {
         }
         return Self.displayableWeeklyPace(UsagePace.weekly(
             window: window,
-            now: input.now,
+            now: input.quotaDisplayNow,
             defaultWindowMinutes: 10080,
             workDays: input.workDaysPerWeek))
     }
@@ -348,13 +348,13 @@ extension UsageMenuCardView.Model {
         else { return nil }
         let resolved = pace ?? UsagePace.weekly(
             window: window,
-            now: input.now,
+            now: input.quotaDisplayNow,
             defaultWindowMinutes: 10080,
             workDays: input.workDaysPerWeek)
         guard let resolved = Self.displayableWeeklyPace(resolved) else { return nil }
         return Self.weeklyPaceDetail(
             window: window,
-            now: input.now,
+            now: input.quotaDisplayNow,
             pace: resolved,
             showUsed: input.usageBarsShowUsed)
     }
@@ -467,7 +467,7 @@ extension UsageMenuCardView.Model {
             return self.resetText(
                 for: namedWindow.window,
                 style: input.resetTimeDisplayStyle,
-                now: input.now)
+                now: input.quotaDisplayNow)
         }
         if input.provider == .antigravity,
            self.isAntigravityQuotaSummaryWindow(namedWindow)
@@ -477,7 +477,7 @@ extension UsageMenuCardView.Model {
         return self.resetText(
             for: namedWindow.window,
             style: input.resetTimeDisplayStyle,
-            now: input.now)
+            now: input.quotaDisplayNow)
     }
 
     private static func antigravityQuotaSummaryResetText(_ description: String?) -> String? {
@@ -509,17 +509,17 @@ extension UsageMenuCardView.Model {
             return self.sessionPaceDetail(
                 provider: provider,
                 window: window,
-                now: input.now,
+                now: input.quotaDisplayNow,
                 showUsed: input.usageBarsShowUsed)
         case 10080:
             let pace = Self.displayableWeeklyPace(UsagePace.weekly(
                 window: window,
-                now: input.now,
+                now: input.quotaDisplayNow,
                 defaultWindowMinutes: 10080,
                 workDays: input.workDaysPerWeek))
             return Self.weeklyPaceDetail(
                 window: window,
-                now: input.now,
+                now: input.quotaDisplayNow,
                 pace: pace,
                 showUsed: input.usageBarsShowUsed)
         default:
@@ -555,7 +555,7 @@ extension UsageMenuCardView.Model {
             title: title,
             percent: Self.clamped(percent),
             percentStyle: percentStyle,
-            resetText: Self.resetText(for: window, style: input.resetTimeDisplayStyle, now: input.now),
+            resetText: Self.resetText(for: window, style: input.resetTimeDisplayStyle, now: input.quotaDisplayNow),
             detailText: nil,
             detailLeftText: nil,
             detailRightText: nil,

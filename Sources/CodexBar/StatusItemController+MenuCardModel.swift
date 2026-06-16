@@ -30,12 +30,18 @@ extension StatusItemController {
             ? nil
             : self.store.tokenSnapshot(for: target)
         let now = Date()
+        let isRefreshing = self.store.shouldShowRefreshingMenuCardIndicator(for: target)
+        let quotaEvaluationNow = if isRefreshing, let updatedAt = snapshot?.updatedAt {
+            updatedAt
+        } else {
+            now
+        }
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: target,
             surface: surface,
             snapshotOverride: snapshotOverride,
             errorOverride: errorOverride,
-            now: now)
+            now: quotaEvaluationNow)
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
@@ -79,10 +85,10 @@ extension StatusItemController {
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {
-            self.store.weeklyPace(provider: target, window: weekly, now: now)
+            self.store.weeklyPace(provider: target, window: weekly, now: quotaEvaluationNow)
         } else {
             paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: target, window: window, now: now)
+                self.store.weeklyPace(provider: target, window: window, now: quotaEvaluationNow)
             }
         }
         let fallbackAccount = accountOverride
@@ -101,7 +107,7 @@ extension StatusItemController {
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
             account: fallbackAccount,
-            isRefreshing: self.store.shouldShowRefreshingMenuCardIndicator(for: target),
+            isRefreshing: isRefreshing,
             lastError: errorOverride
                 ?? codexProjection?.userFacingErrors.usage
                 ?? self.store.userFacingError(for: target),

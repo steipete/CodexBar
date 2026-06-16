@@ -54,11 +54,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
               !self.store.isRefreshing
         else { return }
 
+        let frozenModels = self.frozenManualRefreshMenuCardModels()
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
                 self.manualRefreshTask = nil
-                self.menuCardRefreshMonitor.isManualRefreshInFlight = false
+                self.menuCardRefreshMonitor.endManualRefresh()
                 self.updatePersistentRefreshRowsInProgress()
             }
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
@@ -75,8 +76,28 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 interaction: .userInitiated)
         }
         self.manualRefreshTask = task
-        self.menuCardRefreshMonitor.isManualRefreshInFlight = true
+        self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels)
         self.updatePersistentRefreshRowsInProgress()
+    }
+
+    private func frozenManualRefreshMenuCardModels() -> [UsageProvider: UsageMenuCardView.Model] {
+        var providers = self.store.enabledProvidersForDisplay()
+        if let lastMenuProvider,
+           !providers.contains(lastMenuProvider)
+        {
+            providers.append(lastMenuProvider)
+        }
+        if providers.isEmpty,
+           let defaultProvider = self.settings.orderedProviders().first ?? UsageProvider.allCases.first
+        {
+            providers.append(defaultProvider)
+        }
+
+        var models: [UsageProvider: UsageMenuCardView.Model] = [:]
+        for provider in providers {
+            models[provider] = self.menuCardModel(for: provider)
+        }
+        return models
     }
 
     nonisolated func performPersistentRefreshAction() {

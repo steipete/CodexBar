@@ -30,7 +30,7 @@ extension StatusItemController {
         self.loginTask = nil
         self.manualRefreshTask?.cancel()
         self.manualRefreshTask = nil
-        self.menuCardRefreshMonitor.isManualRefreshInFlight = false
+        self.menuCardRefreshMonitor.endManualRefresh()
         self.screenChangeVisibilityTask?.cancel()
         self.screenChangeVisibilityTask = nil
         self.pendingScreenChangePreviousCount = nil

@@ -619,10 +619,16 @@ struct ProvidersPane: View {
         let metadata = self.store.metadata(for: provider)
         let snapshot = self.store.snapshot(for: provider)
         let now = Date()
+        let isRefreshing = self.store.refreshingProviders.contains(provider)
+        let quotaEvaluationNow = if isRefreshing, let updatedAt = snapshot?.updatedAt {
+            updatedAt
+        } else {
+            now
+        }
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: provider,
             surface: .liveCard,
-            now: now)
+            now: quotaEvaluationNow)
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
@@ -657,10 +663,10 @@ struct ProvidersPane: View {
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {
-            self.store.weeklyPace(provider: provider, window: weekly, now: now)
+            self.store.weeklyPace(provider: provider, window: weekly, now: quotaEvaluationNow)
         } else {
             paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: provider, window: window, now: now)
+                self.store.weeklyPace(provider: provider, window: window, now: quotaEvaluationNow)
             }
         }
         let input = UsageMenuCardView.Model.Input(
@@ -675,7 +681,7 @@ struct ProvidersPane: View {
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
             account: self.store.accountInfo(for: provider),
-            isRefreshing: self.store.refreshingProviders.contains(provider),
+            isRefreshing: isRefreshing,
             lastError: codexProjection?.userFacingErrors.usage ?? self.store.userFacingError(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
