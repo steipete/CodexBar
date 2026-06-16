@@ -34,6 +34,12 @@ final class MemoryPressureMonitor {
         self.source?.cancel()
     }
 
+    #if DEBUG
+    func handleMemoryPressureForTesting(isWarning: Bool, isCritical: Bool) {
+        self.handleMemoryPressure(isWarning: isWarning, isCritical: isCritical)
+    }
+    #endif
+
     private func handleMemoryPressure(isWarning: Bool, isCritical: Bool) {
         let level = if isCritical {
             "critical"

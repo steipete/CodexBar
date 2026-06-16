@@ -420,6 +420,29 @@ struct OpenAIDashboardWebViewCacheTests {
         cache.clearAllForTesting()
     }
 
+    @Test
+    func `Memory pressure monitor evicts idle shared WebViews without interrupting busy WebViews`() {
+        if self.shouldSkipOnCI() { return }
+        let cache = OpenAIDashboardWebViewCache.shared
+        cache.clearAllForTesting()
+        defer { cache.clearAllForTesting() }
+
+        let idleStore = WKWebsiteDataStore.nonPersistent()
+        let busyStore = WKWebsiteDataStore.nonPersistent()
+
+        cache.cacheEntryForTesting(websiteDataStore: idleStore)
+        cache.cacheEntryForTesting(websiteDataStore: busyStore, isBusy: true)
+
+        #expect(cache.entryCount == 2, "Should have one idle entry and one busy entry before pressure")
+
+        let monitor = MemoryPressureMonitor()
+        monitor.handleMemoryPressureForTesting(isWarning: true, isCritical: false)
+
+        #expect(!cache.hasCachedEntry(for: idleStore), "Memory pressure should evict the idle shared WebView")
+        #expect(cache.hasCachedEntry(for: busyStore), "Memory pressure should not interrupt a busy shared WebView")
+        #expect(cache.entryCount == 1, "Only the busy shared entry should remain")
+    }
+
     // MARK: - Busy WebView Tests
 
     @Test
