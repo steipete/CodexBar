@@ -945,6 +945,7 @@
 "Search providers" = "搜尋提供者";
 
 "language_vietnamese" = "越南語";
+"reset_tomorrow_format" = "明天 %@";
 
 "Request quota: %@ / %@" = "請求額度：%@ / %@";
 "language_turkish" = "Türkçe";

@@ -60,6 +60,7 @@ public enum UsageFormatter {
         switch key {
         case "usage_percent_suffix_left": return "left"
         case "usage_percent_suffix_used": return "used"
+        case "reset_tomorrow_format": return "tomorrow, %@"
         default: return key
         }
     }
@@ -107,7 +108,8 @@ public enum UsageFormatter {
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(date, inSameDayAs: tomorrow)
         {
-            return "tomorrow, \(date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))"
+            let timeStr = date.formatted(.dateTime.hour().minute().locale(self.currentLocale()))
+            return self.localized("reset_tomorrow_format", timeStr)
         }
         return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(self.currentLocale()))
     }

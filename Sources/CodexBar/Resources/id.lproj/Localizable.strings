@@ -709,6 +709,7 @@
 "Resets %@" = "Reset %@";
 "Resets in %@" = "Reset dalam %@";
 "Resets now" = "Reset sekarang";
+"reset_tomorrow_format" = "besok, %@";
 "Lasts until reset" = "Bertahan hingga reset";
 "Updated %@" = "Diperbarui %@";
 "Updated %@h ago" = "Diperbarui %@ jam lalu";

@@ -703,6 +703,7 @@
 "Resets %@" = "Đặt lại %@";
 "Resets in %@" = "Đặt lại sau %@";
 "Resets now" = "Đặt lại ngay";
+"reset_tomorrow_format" = "ngày mai, %@";
 "Lasts until reset" = "Kéo dài cho đến Đặt lại";
 "Updated %@" = "Đã cập nhật %@";
 "Updated %@h ago" = "Đã cập nhật %@ h trước";

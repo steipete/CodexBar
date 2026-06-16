@@ -704,6 +704,7 @@
 "Resets %@" = "%@ にリセット";
 "Resets in %@" = "%@ 後にリセット";
 "Resets now" = "まもなくリセット";
+"reset_tomorrow_format" = "明日 %@";
 "Lasts until reset" = "リセットまで持続";
 "Updated %@" = "%@ に更新";
 "Updated %@h ago" = "%@時間前に更新";

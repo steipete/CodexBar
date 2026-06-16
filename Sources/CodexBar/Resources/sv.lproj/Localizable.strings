@@ -706,6 +706,7 @@
 "Resets %@" = "Återställs %@";
 "Resets in %@" = "Återställs om %@";
 "Resets now" = "Återställs nu";
+"reset_tomorrow_format" = "imorgon %@";
 "Lasts until reset" = "Räcker till återställning";
 "Updated %@" = "Uppdaterad %@";
 "Updated %@h ago" = "Uppdaterad för %@ h sedan";

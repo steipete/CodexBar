@@ -259,6 +259,7 @@
 "Replay selected animation" = "Reproducir la animación seleccionada";
 "Requires authentication via GitHub Device Flow." = "Requiere autenticación mediante el flujo de dispositivo de GitHub.";
 "Resets: \\(reset)" = "Se reinicia: \\(reset)";
+"reset_tomorrow_format" = "mañana, %@";
 "Rolling five-hour limit" = "Límite móvil de cinco horas";
 "Search hourly" = "Búsquedas por hora";
 "Secondary (\\(label))" = "Secundario (\\(label))";
