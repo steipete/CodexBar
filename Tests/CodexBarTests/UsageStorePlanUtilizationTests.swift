@@ -1025,6 +1025,55 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `generic provider weekly lane is persisted to provider history json`() async throws {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let accountLabel = "zai-history-org"
+        let firstDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 42, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: firstDate,
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: accountLabel,
+                loginMethod: "pro"))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 58, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            updatedAt: firstDate.addingTimeInterval(3600),
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: accountLabel,
+                loginMethod: "pro"))
+
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: after, now: after.updatedAt)
+
+        let histories = store.planUtilizationHistory(for: .zai)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.map(\.usedPercent) == [42, 58])
+
+        let providerURL = try #require(store.planUtilizationHistoryStore.directoryURL?
+            .appendingPathComponent("zai.json", isDirectory: false))
+        var persistedBuckets: PlanUtilizationHistoryBuckets?
+        for _ in 0..<20 {
+            persistedBuckets = store.planUtilizationHistoryStore.load()[.zai]
+            if persistedBuckets?.histories(for: persistedBuckets?.preferredAccountKey).flatMap(\.entries).count == 2 {
+                break
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        #expect(FileManager.default.fileExists(atPath: providerURL.path))
+        let persisted = try #require(persistedBuckets)
+        #expect(persisted.histories(for: persisted.preferredAccountKey)
+            .flatMap(\.entries)
+            .map(\.usedPercent) == [42, 58])
+    }
+
+    @MainActor
+    @Test
     func `concurrent plan history writes coalesce within single hour bucket per series`() async throws {
         let store = Self.makeStore()
         let snapshot = Self.makeSnapshot(provider: .codex, email: "alice@example.com")

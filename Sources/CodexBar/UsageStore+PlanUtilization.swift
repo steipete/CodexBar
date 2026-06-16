@@ -16,7 +16,16 @@ extension UsageStore {
         case .codex, .claude:
             true
         default:
-            false
+            if self.planUtilizationHistory[provider]?.isEmpty == false {
+                true
+            } else if let snapshot = self.snapshots[provider] {
+                !self.planUtilizationSeriesSamples(
+                    provider: provider,
+                    snapshot: snapshot,
+                    capturedAt: snapshot.updatedAt).isEmpty
+            } else {
+                false
+            }
         }
     }
 
@@ -129,7 +138,6 @@ extension UsageStore {
                 samples: samples)
         }
 
-        guard self.supportsPlanUtilizationHistory(for: provider) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
 
         var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?
