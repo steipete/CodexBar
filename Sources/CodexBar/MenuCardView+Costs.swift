@@ -211,6 +211,10 @@ extension UsageMenuCardView.Model {
                 percentLine: nil)
         }
 
+        if provider == .litellm {
+            return nil
+        }
+
         guard cost.limit > 0 else { return nil }
 
         let used: String
