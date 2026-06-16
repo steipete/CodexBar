@@ -59,20 +59,12 @@ struct CodexLoginRunnerTests {
 
         let codex = binDir.appendingPathComponent("codex")
         let script = """
-        #!/usr/bin/python3
-        import os
-        import subprocess
-        import sys
-        import time
-
-        child = subprocess.Popen(
-            [sys.executable, "-c", "import time; time.sleep(5)"],
-            start_new_session=True,
-        )
-        with open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w") as handle:
-            handle.write(str(child.pid))
-        print("login-started", flush=True)
-        time.sleep(5)
+        #!/bin/sh
+        /bin/sh -c 'trap "" TERM; /bin/sleep 5' &
+        child_pid=$!
+        printf '%s\\n' "$child_pid" > "$CODEXBAR_TEST_CHILD_PID_FILE"
+        printf 'login-started\\n'
+        /bin/sleep 5
         """
         try script.write(to: codex, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: codex.path)
@@ -80,8 +72,7 @@ struct CodexLoginRunnerTests {
         let start = Date()
         let result = await CodexLoginRunner.run(
             homePath: homeDir.path,
-            // Cold Python startup can exceed one second on x86 CI runners.
-            timeout: 3,
+            timeout: 1,
             outputDrainTimeout: 0.2,
             environment: [
                 "CODEXBAR_TEST_CHILD_PID_FILE": childPIDFile.path,
@@ -92,6 +83,6 @@ struct CodexLoginRunnerTests {
 
         #expect(result.outcome == .timedOut)
         #expect(result.output.contains("login-started"))
-        #expect(elapsed < 5.0, "Output drain should stay bounded, took \(elapsed)s")
+        #expect(elapsed < 3.0, "Output drain should stay bounded, took \(elapsed)s")
     }
 }
