@@ -141,7 +141,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `merged data tick reconciles items in place without churn`() {
+    func `merged data tick keeps row count and card views stable`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -175,15 +175,14 @@ extension StatusMenuTests {
         controller.selectedMenuProvider = .codex
         let menu = controller.makeMenu()
         controller.populateMenu(menu, provider: .codex)
-        let itemsBefore = menu.items.map(ObjectIdentifier.init)
+        let itemCountBefore = menu.items.count
         let cardViewsBefore = self.cardViewIdentities(in: menu)
         #expect(!cardViewsBefore.isEmpty)
 
         controller.invalidateMenus(allowStaleContentDuringDataRefresh: true)
         controller.populateMenu(menu, provider: .codex)
 
-        let itemsAfter = menu.items.map(ObjectIdentifier.init)
-        #expect(itemsAfter == itemsBefore, "data-only repopulate should not remove or insert menu items")
+        #expect(menu.items.count == itemCountBefore, "data-only repopulate should keep row count stable")
         let cardViewsAfter = self.cardViewIdentities(in: menu)
         for (id, identity) in cardViewsBefore {
             #expect(cardViewsAfter[id] == identity, "card \(id) should reuse its hosting view")
@@ -236,6 +235,37 @@ extension StatusMenuTests {
         #expect(menu.items[0].view === cardView, "card hosting view should be recycled in place")
         #expect(menu.items[4] === settingsItem, "shared trailing row should be updated in place")
         #expect(menu.items[2].title == "New Provider Action")
+    }
+
+    @Test
+    func `cached provider content replaces native image rows and preserves switch back items`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let outgoing = NSMenuItem(title: "Status Page", action: nil, keyEquivalent: "")
+        outgoing.image = NSImage(size: NSSize(width: 16, height: 16))
+        let incoming = NSMenuItem(title: "Dashboard", action: nil, keyEquivalent: "")
+        incoming.image = NSImage(size: NSSize(width: 16, height: 16))
+        let menu = NSMenu()
+        menu.addItem(outgoing)
+
+        let displacedOutgoing = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: [incoming])
+
+        #expect(menu.items.first === incoming)
+        #expect(displacedOutgoing.first === outgoing)
+
+        let displacedIncoming = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: displacedOutgoing)
+
+        #expect(menu.items.first === outgoing)
+        #expect(displacedIncoming.first === incoming)
     }
 
     @Test

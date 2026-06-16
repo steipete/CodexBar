@@ -224,6 +224,68 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
+    func `native image menu rows are replaced during reconciliation`() {
+        let settings = Self.makeSettings()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let liveItem = Self.nativeImageItem(title: "Status Page")
+        menu.addItem(liveItem)
+        let shapes = controller.menuContentShapes(in: menu, fromIndex: 0)
+
+        let scratch = NSMenu()
+        let freshItem = Self.nativeImageItem(title: "Status Page")
+        scratch.addItem(freshItem)
+
+        controller.reconcileMenuContent(menu, fromIndex: 0, shapes: shapes, with: scratch)
+
+        #expect(menu.items.count == 1)
+        #expect(ObjectIdentifier(menu.items[0]) == ObjectIdentifier(freshItem))
+        #expect(ObjectIdentifier(menu.items[0]) != ObjectIdentifier(liveItem))
+    }
+
+    @Test
+    func `native image submenu rows reconcile in place`() {
+        let settings = Self.makeSettings()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let liveItem = Self.nativeImageItem(title: "System Account")
+        liveItem.submenu = NSMenu(title: "System Account")
+        menu.addItem(liveItem)
+        let shapes = controller.menuContentShapes(in: menu, fromIndex: 0)
+
+        let scratch = NSMenu()
+        let freshItem = Self.nativeImageItem(title: "System Account")
+        freshItem.submenu = NSMenu(title: "System Account")
+        scratch.addItem(freshItem)
+
+        controller.reconcileMenuContent(menu, fromIndex: 0, shapes: shapes, with: scratch)
+
+        #expect(menu.items.count == 1)
+        #expect(ObjectIdentifier(menu.items[0]) == ObjectIdentifier(liveItem))
+        #expect(ObjectIdentifier(menu.items[0]) != ObjectIdentifier(freshItem))
+    }
+
+    @Test
     func `provider switch does not cache stale rows after required invalidation`() async throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = false
@@ -384,5 +446,11 @@ struct StatusMenuSwitcherRefreshTests {
         switcherView.subviews
             .compactMap { $0 as? NSButton }
             .sorted { $0.tag < $1.tag }
+    }
+
+    private static func nativeImageItem(title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.image = NSImage(size: NSSize(width: 16, height: 16))
+        return item
     }
 }

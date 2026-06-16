@@ -267,7 +267,7 @@ public struct AntigravityStatusSnapshot: Sendable {
                 let window = RateWindow(
                     usedPercent: usedPercent,
                     windowMinutes: Self.windowMinutes(forQuotaBucket: bucket),
-                    resetsAt: nil,
+                    resetsAt: bucket.resetTime,
                     resetDescription: bucket.resetDescription)
                 return NamedRateWindow(
                     id: Self.quotaSummaryWindowID(for: bucket),
@@ -905,7 +905,7 @@ public struct AntigravityStatusProbe: Sendable {
         return "\(code.rawValue)"
     }
 
-    private static func parseDate(_ value: String) -> Date? {
+    static func parseDate(_ value: String) -> Date? {
         if let date = ISO8601DateFormatter().date(from: value) {
             return date
         }

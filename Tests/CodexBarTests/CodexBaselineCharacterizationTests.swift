@@ -9,9 +9,19 @@ struct CodexBaselineCharacterizationTests {
         sourceMode: ProviderSourceMode,
         env: [String: String] = [:],
         settings: ProviderSettingsSnapshot? = nil,
-        includeCredits: Bool = false) -> ProviderFetchContext
+        includeCredits: Bool = false,
+        codexArguments: [String]? = nil) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
+        let fetcher = if let codexArguments {
+            UsageFetcher(
+                environment: env,
+                initializeTimeoutSeconds: 20.0,
+                requestTimeoutSeconds: 3.0,
+                codexArguments: codexArguments)
+        } else {
+            UsageFetcher(environment: env, initializeTimeoutSeconds: 20.0, requestTimeoutSeconds: 3.0)
+        }
         return ProviderFetchContext(
             runtime: runtime,
             sourceMode: sourceMode,
@@ -21,7 +31,7 @@ struct CodexBaselineCharacterizationTests {
             verbose: false,
             env: env,
             settings: settings,
-            fetcher: UsageFetcher(environment: env, initializeTimeoutSeconds: 20.0, requestTimeoutSeconds: 3.0),
+            fetcher: fetcher,
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection)
     }
@@ -43,7 +53,8 @@ struct CodexBaselineCharacterizationTests {
         sourceMode: ProviderSourceMode,
         env: [String: String] = [:],
         settings: ProviderSettingsSnapshot? = nil,
-        includeCredits: Bool = false) async -> ProviderFetchOutcome
+        includeCredits: Bool = false,
+        codexArguments: [String]? = nil) async -> ProviderFetchOutcome
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .codex)
         let context = self.makeContext(
@@ -51,81 +62,52 @@ struct CodexBaselineCharacterizationTests {
             sourceMode: sourceMode,
             env: env,
             settings: settings,
-            includeCredits: includeCredits)
+            includeCredits: includeCredits,
+            codexArguments: codexArguments)
         return await descriptor.fetchPlan.fetchOutcome(context: context, provider: .codex)
     }
 
-    private func makeStubCodexCLI() throws -> String {
+    private struct StubCodexCLI {
+        let executable: String
+        let arguments: [String]
+    }
+
+    private func makeStubCodexCLI() -> StubCodexCLI {
         let script = """
-        #!/usr/bin/python3 -S
-        import json
-        import os
-        import sys
+        if [ -n "${CODEXBAR_STUB_COUNTER:-}" ]; then
+          printf '%s\\n' start >> "$CODEXBAR_STUB_COUNTER"
+        fi
 
-        counter = os.environ.get("CODEXBAR_STUB_COUNTER")
-        if counter:
-            with open(counter, "a") as f:
-                f.write("start\\n")
-        credits_only = os.environ.get("CODEXBAR_STUB_CREDITS_ONLY") == "1"
-
-        for line in sys.stdin:
-            if not line.strip():
-                continue
-            message = json.loads(line)
-            method = message.get("method")
-            if method == "initialized":
-                continue
-
-            identifier = message.get("id")
-            if method == "initialize":
-                payload = {"id": identifier, "result": {}}
-            elif method == "account/rateLimits/read":
-                rate_limits = {
-                    "credits": {
-                        "hasCredits": True,
-                        "unlimited": False,
-                        "balance": "7"
-                    }
-                }
-                if not credits_only:
-                    rate_limits["primary"] = {
-                        "usedPercent": 12,
-                        "windowDurationMins": 300,
-                        "resetsAt": 1766948068
-                    }
-                    rate_limits["secondary"] = {
-                        "usedPercent": 43,
-                        "windowDurationMins": 10080,
-                        "resetsAt": 1767407914
-                    }
-                payload = {
-                    "id": identifier,
-                    "result": {
-                        "rateLimits": rate_limits
-                    }
-                }
-            elif method == "account/read":
-                payload = {
-                    "id": identifier,
-                    "result": {
-                        "account": {
-                            "type": "chatgpt",
-                            "email": "stub@example.com",
-                            "planType": "pro"
-                        },
-                        "requiresOpenaiAuth": False
-                    }
-                }
-            else:
-                payload = {"id": identifier, "result": {}}
-
-            print(json.dumps(payload), flush=True)
+        while IFS= read -r line; do
+          case "$line" in
+            *'"method":"initialized"'*|*'"method": "initialized"'*)
+              ;;
+            *'"method":"initialize"'*|*'"method": "initialize"'*)
+              printf '%s\\n' '{"id":1,"result":{}}'
+              ;;
+            *'"method"'*account*rateLimits*read*)
+              if [ "${CODEXBAR_STUB_CREDITS_ONLY:-}" = "1" ]; then
+                response='{"id":2,"result":{"rateLimits":{"credits":'
+                response="${response}"'{"hasCredits":true,"unlimited":false,"balance":"7"}}}}'
+                printf '%s\\n' "$response"
+              else
+                response='{"id":2,"result":{"rateLimits":{"credits":'
+                response="${response}"'{"hasCredits":true,"unlimited":false,"balance":"7"},'
+                response="${response}"'"primary":{"usedPercent":12,"windowDurationMins":300,"resetsAt":1766948068},'
+                response="${response}"'"secondary":{"usedPercent":43,"windowDurationMins":10080,'
+                response="${response}"'"resetsAt":1767407914}}}}'
+                printf '%s\\n' "$response"
+              fi
+              ;;
+            *'"method"'*account*read*)
+              response='{"id":3,"result":{"account":{"type":"chatgpt","email":"stub@example.com",'
+              response="${response}"'"planType":"pro"},"requiresOpenaiAuth":false}}'
+              printf '%s\\n' "$response"
+              ;;
+          esac
+        done
         """
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-stub-\(UUID().uuidString)", isDirectory: false)
-        try Data(script.utf8).write(to: url)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        return url.path
+        return StubCodexCLI(executable: "/bin/sh", arguments: ["-c", script])
     }
 
     private func makeEmptyCodexHome() throws -> URL {
@@ -187,15 +169,19 @@ struct CodexBaselineCharacterizationTests {
 
     @Test
     func `app auto records unavailable OAuth before successful CLI fallback`() async throws {
-        let stubCLIPath = try self.makeStubCodexCLI()
+        let stubCLI = self.makeStubCodexCLI()
         let codexHome = try self.makeEmptyCodexHome()
         defer { try? FileManager.default.removeItem(at: codexHome) }
         let env = [
-            "CODEX_CLI_PATH": stubCLIPath,
+            "CODEX_CLI_PATH": stubCLI.executable,
             "CODEX_HOME": codexHome.path,
         ]
 
-        let outcome = await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env)
+        let outcome = await self.fetchOutcome(
+            runtime: .app,
+            sourceMode: .auto,
+            env: env,
+            codexArguments: stubCLI.arguments)
 
         #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth", "codex.cli"])
         #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
@@ -212,16 +198,20 @@ struct CodexBaselineCharacterizationTests {
 
     @Test
     func `app auto does not fall back from non auth failing OAuth`() async throws {
-        let stubCLIPath = try self.makeStubCodexCLI()
+        let stubCLI = self.makeStubCodexCLI()
         let oauthHome = try self.makeUnavailableOAuthHome()
         defer { try? FileManager.default.removeItem(at: oauthHome) }
 
         let env = [
-            "CODEX_CLI_PATH": stubCLIPath,
+            "CODEX_CLI_PATH": stubCLI.executable,
             "CODEX_HOME": oauthHome.path,
         ]
 
-        let outcome = await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env)
+        let outcome = await self.fetchOutcome(
+            runtime: .app,
+            sourceMode: .auto,
+            env: env,
+            codexArguments: stubCLI.arguments)
 
         #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth"])
         #expect(outcome.attempts.map(\.wasAvailable) == [true])
@@ -243,15 +233,14 @@ struct CodexBaselineCharacterizationTests {
     }
 
     @Test
-    func `Codex CLI strategy fetches usage and credits with one app-server process`() async throws {
-        let stubCLIPath = try self.makeStubCodexCLI()
-        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+    func `Codex CLI strategy fetches usage and credits with one app-server process`() async {
+        let stubCLI = self.makeStubCodexCLI()
         let counterURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-stub-counter-\(UUID().uuidString)", isDirectory: false)
         defer { try? FileManager.default.removeItem(at: counterURL) }
 
         let env = [
-            "CODEX_CLI_PATH": stubCLIPath,
+            "CODEX_CLI_PATH": stubCLI.executable,
             "CODEXBAR_STUB_COUNTER": counterURL.path,
         ]
 
@@ -259,7 +248,8 @@ struct CodexBaselineCharacterizationTests {
             runtime: .app,
             sourceMode: .cli,
             env: env,
-            includeCredits: true)
+            includeCredits: true,
+            codexArguments: stubCLI.arguments)
 
         switch outcome.result {
         case let .success(result):
@@ -277,18 +267,18 @@ struct CodexBaselineCharacterizationTests {
     }
 
     @Test
-    func `Codex CLI strategy keeps credits when rate limit windows are absent`() async throws {
-        let stubCLIPath = try self.makeStubCodexCLI()
-        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+    func `Codex CLI strategy keeps credits when rate limit windows are absent`() async {
+        let stubCLI = self.makeStubCodexCLI()
 
         let outcome = await self.fetchOutcome(
             runtime: .app,
             sourceMode: .cli,
             env: [
-                "CODEX_CLI_PATH": stubCLIPath,
+                "CODEX_CLI_PATH": stubCLI.executable,
                 "CODEXBAR_STUB_CREDITS_ONLY": "1",
             ],
-            includeCredits: true)
+            includeCredits: true,
+            codexArguments: stubCLI.arguments)
 
         switch outcome.result {
         case let .success(result):
@@ -303,7 +293,7 @@ struct CodexBaselineCharacterizationTests {
 
     @Test
     func `CLI auto records unavailable web and OAuth before successful CLI`() async throws {
-        let stubCLIPath = try self.makeStubCodexCLI()
+        let stubCLI = self.makeStubCodexCLI()
         let codexHome = try self.makeEmptyCodexHome()
         defer { try? FileManager.default.removeItem(at: codexHome) }
         let settings = ProviderSettingsSnapshot.make(
@@ -317,10 +307,11 @@ struct CodexBaselineCharacterizationTests {
             runtime: .cli,
             sourceMode: .auto,
             env: [
-                "CODEX_CLI_PATH": stubCLIPath,
+                "CODEX_CLI_PATH": stubCLI.executable,
                 "CODEX_HOME": codexHome.path,
             ],
-            settings: settings)
+            settings: settings,
+            codexArguments: stubCLI.arguments)
 
         #expect(outcome.attempts.map(\.strategyID) == ["codex.web.dashboard", "codex.oauth", "codex.cli"])
         #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])

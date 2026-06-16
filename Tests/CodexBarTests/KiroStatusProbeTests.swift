@@ -33,13 +33,23 @@ struct KiroStatusProbeTests {
         fi
 
         if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
-          python3 - <<'PY' &
+          /usr/bin/python3 -c '
         import os
+        import signal
         import time
 
-        open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w").write(str(os.getpid()))
-        time.sleep(5)
-        PY
+        os.setsid()
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        with open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w") as handle:
+            handle.write(str(os.getpid()))
+        time.sleep(30)
+        ' &
+          for _ in {1..100}; do
+            [ -s "$CODEXBAR_TEST_CHILD_PID_FILE" ] && break
+            sleep 0.01
+          done
+          test -s "$CODEXBAR_TEST_CHILD_PID_FILE"
           printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
           printf 'Credits (12.50 of 50 covered in plan)\\n'
           printf '████████████████████ 25%%\\n'
@@ -72,7 +82,15 @@ struct KiroStatusProbeTests {
 
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50)
-        #expect(elapsed < 3, "Kiro usage capture should not wait for inherited pipe EOF, took \(elapsed)s")
+        #expect(elapsed < 5, "Kiro usage capture should not wait for inherited pipe EOF, took \(elapsed)s")
+
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let cleanupDeadline = Date().addingTimeInterval(1)
+        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(kill(childPID, 0) == -1, "Kiro usage capture should terminate pipe-holding helpers")
     }
 
     @Test
@@ -95,6 +113,99 @@ struct KiroStatusProbeTests {
         #expect(result.stdout.contains("partial output"))
         #expect(result.terminationStatus != 0)
         #expect(elapsed < 2, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
+    }
+
+    @Test
+    func `run command kills a pipe holder that escapes the process group`() async throws {
+        let childPIDFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-escaped-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/usr/bin/python3
+            import subprocess
+            import sys
+            import time
+
+            child = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)",
+                ],
+                start_new_session=True,
+            )
+            with open(sys.argv[1], "w") as handle:
+                handle.write(str(child.pid))
+            print("partial output", flush=True)
+            time.sleep(30)
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: childPIDFile)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let result = try await probe.runCommand(
+            arguments: [childPIDFile.path],
+            timeout: 2,
+            idleTimeout: 0.1)
+
+        #expect(result.terminatedForIdle)
+        #expect(result.stdout.contains("partial output"))
+
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(childPID, SIGKILL) }
+
+        let cleanupDeadline = Date().addingTimeInterval(1)
+        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(kill(childPID, 0) == -1)
+    }
+
+    @Test
+    func `run command cleans a same group helper after normal exit`() async throws {
+        let childPIDFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-normal-exit-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/usr/bin/python3
+            import os
+            import signal
+            import sys
+            import time
+
+            child = os.fork()
+            if child == 0:
+                os.close(1)
+                os.close(2)
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                with open(sys.argv[1], "w") as handle:
+                    handle.write(str(os.getpid()))
+                time.sleep(30)
+                os._exit(0)
+
+            while not os.path.exists(sys.argv[1]):
+                time.sleep(0.01)
+            print("parent complete", flush=True)
+            os._exit(0)
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: childPIDFile)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let result = try await probe.runCommand(arguments: [childPIDFile.path], timeout: 2)
+
+        #expect(result.terminationStatus == 0)
+        #expect(result.stdout.contains("parent complete"))
+
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(childPID, SIGKILL) }
+        #expect(kill(childPID, 0) == -1)
     }
 
     @Test

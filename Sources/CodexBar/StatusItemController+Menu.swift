@@ -163,6 +163,9 @@ extension StatusItemController {
 
         self.clearMergedSwitcherContentCache(for: menu)
         self.openMenus.removeValue(forKey: key)
+        if self.openMenus.isEmpty {
+            self.parentMenuRebuildPendingAfterHostedSubviewClose = false
+        }
         self.cancelMenuWork(key)
         self.clearMenuHighlight(key)
 

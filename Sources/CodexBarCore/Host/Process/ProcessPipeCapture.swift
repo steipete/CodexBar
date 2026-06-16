@@ -7,6 +7,7 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     private var data = Data()
     private var activeCallbacks = 0
     private var isFinished = false
+    private var didReachEOF = false
     private var isStopping = false
     private var continuation: CheckedContinuation<Void, Never>?
 
@@ -44,6 +45,12 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         _ = self.stopAndSnapshot()
     }
 
+    package var reachedEOF: Bool {
+        self.condition.lock()
+        defer { self.condition.unlock() }
+        return self.didReachEOF
+    }
+
     private func handleReadableData(from handle: FileHandle) {
         self.condition.lock()
         guard !self.isStopping else {
@@ -59,6 +66,7 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         self.condition.lock()
         if chunk.isEmpty {
             self.isFinished = true
+            self.didReachEOF = true
             continuation = self.continuation
             self.continuation = nil
         } else {

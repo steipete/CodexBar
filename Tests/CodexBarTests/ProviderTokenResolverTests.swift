@@ -135,6 +135,14 @@ struct ProviderTokenResolverTests {
         #expect(resolution == nil)
     }
 
+    @Test
+    func `poe resolution uses manual api key`() {
+        let env = [PoeSettingsReader.apiKeyEnvironmentKey: "manual-key"]
+        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        #expect(resolution?.token == "manual-key")
+        #expect(resolution?.source == .environment)
+    }
+
     private func makeCodebuffCredentialsFile(contents: String) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

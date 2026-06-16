@@ -5,14 +5,7 @@ import Testing
 struct AmpUsageParserTests {
     @Test
     func `amp cli probe runs usage and parses balances`() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-amp-cli-\(UUID().uuidString)", isDirectory: true)
-        let executable = directory.appendingPathComponent("amp")
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let script = """
-        #!/bin/sh
         [ "$1" = "usage" ] || exit 2
         cat <<'EOF'
         Signed in as cli@example.com (team)
@@ -21,12 +14,10 @@ struct AmpUsageParserTests {
         Workspace Test Team: $7.25 remaining
         EOF
         """
-        try script.write(to: executable, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
 
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let snapshot = try await AmpCLIProbe().fetch(
-            environment: ["AMP_CLI_PATH": executable.path],
+        let snapshot = try await AmpCLIProbe(arguments: ["-c", script, "amp", "usage"]).fetch(
+            environment: ["AMP_CLI_PATH": "/bin/sh"],
             now: now)
 
         #expect(snapshot.freeUsed == 4)

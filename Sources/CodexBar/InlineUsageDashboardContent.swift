@@ -19,6 +19,7 @@ struct InlineUsageDashboardModel: Equatable {
         case currencyUSD
         case currency(symbol: String)
         case tokens
+        case points
     }
 
     let accessibilityLabel: String
@@ -69,6 +70,12 @@ extension UsageMenuCardView.Model {
             ]
         }
 
+        if input.provider == .poe,
+           let usage = input.snapshot?.poeUsage
+        {
+            return self.poeUsageNotes(usage)
+        }
+
         if input.provider == .ollama,
            input.snapshot?.identity?.loginMethod == "API key"
         {
@@ -99,6 +106,36 @@ extension UsageMenuCardView.Model {
         ]
         if let topModel = usage.topModels.first {
             notes.append("\(L("Top model")): \(topModel.name)")
+        }
+        return notes
+    }
+
+    static func poeUsageNotes(_ usage: PoeUsageHistorySnapshot) -> [String] {
+        let today = usage.latestDay
+        let week = usage.last7Days
+        let month = usage.last30Days
+        let todayUSD = today.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
+        let weekUSD = week.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
+        let monthUSD = month.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
+        let todayLine = "Today: \(Self.pointsSummary(today.points)) · " +
+            "\(UsageFormatter.tokenCountString(today.requests)) \(L("requests"))\(todayUSD)"
+        let weekLine = "7d: \(Self.pointsSummary(week.points)) · " +
+            "\(UsageFormatter.tokenCountString(week.requests)) \(L("requests"))\(weekUSD)"
+        let monthLine = "30d: \(Self.pointsSummary(month.points)) · " +
+            "\(UsageFormatter.tokenCountString(month.requests)) \(L("requests"))\(monthUSD)"
+        var notes = [
+            todayLine,
+            weekLine,
+            monthLine,
+        ]
+        if let topModel = usage.topModels.first {
+            notes.append("\(L("Top model")): \(topModel.name) (\(Self.pointsSummary(topModel.points)))")
+        }
+        if !usage.topUsageTypes.isEmpty {
+            let mix = usage.topUsageTypes.prefix(2)
+                .map { "\($0.name): \(Self.pointsSummary($0.points))" }
+                .joined(separator: " · ")
+            notes.append("Usage mix: \(mix)")
         }
         return notes
     }
@@ -139,6 +176,12 @@ extension UsageMenuCardView.Model {
         {
             return Self.deepseekInlineDashboard(usage)
         }
+        if input.provider == .poe,
+           let usage = input.snapshot?.poeUsage,
+           !usage.daily.isEmpty
+        {
+            return Self.poeInlineDashboard(usage)
+        }
         if [.codex, .claude, .vertexai, .bedrock].contains(input.provider),
            input.tokenCostUsageEnabled,
            let tokenSnapshot = input.tokenSnapshot,
@@ -168,6 +211,62 @@ extension UsageMenuCardView.Model {
         default:
             return input.tokenSnapshot
         }
+    }
+
+    static func poeInlineDashboard(_ usage: PoeUsageHistorySnapshot) -> InlineUsageDashboardModel {
+        let today = usage.latestDay
+        let week = usage.last7Days
+        let month = usage.last30Days
+        let points = usage.daily.suffix(30).map {
+            InlineUsageDashboardModel.Point(
+                id: $0.day,
+                label: Self.shortDayLabel($0.day),
+                value: $0.points,
+                accessibilityValue: "\($0.day): \(Self.pointsSummary($0.points))")
+        }
+        var details = ["30d requests: \(UsageFormatter.tokenCountString(month.requests))"]
+        if let topModel = usage.topModel {
+            details.append("\(L("Top model")): \(topModel)")
+        }
+        if !usage.topUsageTypes.isEmpty {
+            let mix = usage.topUsageTypes.prefix(3)
+                .map { "\($0.name): \(Self.pointsSummary($0.points))" }
+                .joined(separator: " · ")
+            details.append("Usage mix: \(mix)")
+        }
+        if let usd = today.costUSD, usd > 0 {
+            details.append("Today USD: \(UsageFormatter.usdString(usd))")
+        }
+        if let usd = week.costUSD, usd > 0 {
+            details.append("7d USD: \(UsageFormatter.usdString(usd))")
+        }
+        if let usd = month.costUSD, usd > 0 {
+            details.append("30d USD: \(UsageFormatter.usdString(usd))")
+        }
+        let recent = usage.recentEntries(limit: 2)
+        if !recent.isEmpty {
+            let text = recent.map { "\($0.model) \(Self.pointsSummary($0.points))" }.joined(separator: " · ")
+            details.append("Recent: \(text)")
+        }
+        return InlineUsageDashboardModel(
+            accessibilityLabel: "Poe points usage trend",
+            valueStyle: .points,
+            kpis: [
+                .init(title: L("Today"), value: Self.pointsSummary(today.points), emphasis: true),
+                .init(title: "7d", value: Self.pointsSummary(week.points), emphasis: false),
+                .init(title: "30d", value: Self.pointsSummary(month.points), emphasis: false),
+                .init(title: L("Requests"), value: UsageFormatter.tokenCountString(month.requests), emphasis: false),
+            ],
+            points: points,
+            detailLines: details)
+    }
+
+    static func pointsSummary(_ value: Double) -> String {
+        let clamped = max(0, value)
+        if clamped.rounded() == clamped {
+            return "\(UsageFormatter.tokenCountString(Int(clamped))) points"
+        }
+        return "\(String(format: "%.1f", clamped)) points"
     }
 
     private static func costHistoryInlineDashboard(
@@ -663,6 +762,8 @@ struct InlineUsageDashboardContent: View {
                 return Color(red: 0.81, green: 0.56, blue: 0.24).opacity(0.42 + ratio * 0.58)
             case .tokens:
                 return Color(red: 0.48, green: 0.41, blue: 0.86).opacity(0.42 + ratio * 0.58)
+            case .points:
+                return Color(red: 0.16, green: 0.62, blue: 0.36).opacity(0.42 + ratio * 0.58)
             }
         }
     }

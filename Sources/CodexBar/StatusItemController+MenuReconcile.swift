@@ -4,6 +4,7 @@ import AppKit
 /// into the recycle pool so reconciliation can still compare row shapes afterwards.
 struct MenuRowShape {
     let isSeparator: Bool
+    let requiresNativeImageReplacement: Bool
     let id: String?
     let viewClassName: String?
 }
@@ -14,9 +15,20 @@ extension StatusItemController {
         return menu.items[fromIndex...].map { item in
             MenuRowShape(
                 isSeparator: item.isSeparatorItem,
+                requiresNativeImageReplacement: self.shouldReplaceNativeImageItemDuringReconcile(item),
                 id: item.representedObject as? String,
                 viewClassName: item.view.map { String(describing: type(of: $0)) })
         }
+    }
+
+    /// Identifies leaf AppKit image items that should be replaced instead of updated in place.
+    ///
+    /// AppKit can retain stale layout state for standard image-backed menu items after repeated
+    /// in-place updates, which makes rows such as "Status Page" drift horizontally. Submenu rows
+    /// stay on the normal reconciliation path because replacing their parent item can disturb an
+    /// active submenu.
+    private func shouldReplaceNativeImageItemDuringReconcile(_ item: NSMenuItem) -> Bool {
+        !item.isSeparatorItem && item.view == nil && item.image != nil && item.submenu == nil
     }
 
     /// Position-wise in-place reconciliation: live rows whose shape matches the freshly
@@ -44,6 +56,9 @@ extension StatusItemController {
         func updatable(_ shape: MenuRowShape, _ newItem: NSMenuItem) -> Bool {
             guard shape.isSeparator == newItem.isSeparatorItem else { return false }
             if shape.isSeparator { return true }
+            guard !shape.requiresNativeImageReplacement,
+                  !self.shouldReplaceNativeImageItemDuringReconcile(newItem)
+            else { return false }
             guard shape.id == newItem.representedObject as? String else { return false }
             return shape.viewClassName == newItem.view.map { String(describing: type(of: $0)) }
         }
@@ -100,7 +115,10 @@ extension StatusItemController {
             let index = fromIndex + offset
             let liveItem = liveItems[offset]
             let newItem = newItems[offset]
-            if liveItem.isSeparatorItem == newItem.isSeparatorItem {
+            let requiresNativeImageReplacement =
+                self.shouldReplaceNativeImageItemDuringReconcile(liveItem) ||
+                self.shouldReplaceNativeImageItemDuringReconcile(newItem)
+            if liveItem.isSeparatorItem == newItem.isSeparatorItem, !requiresNativeImageReplacement {
                 if !liveItem.isSeparatorItem {
                     self.swapMenuItemContents(liveItem, newItem)
                 }

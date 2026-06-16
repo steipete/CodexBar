@@ -60,6 +60,9 @@ enum UsagePaceText {
         guard let runOutProbability = pace.runOutProbability else { return etaLabel }
         let roundedRisk = self.roundedRiskPercent(runOutProbability)
         let riskLabel = L("≈ %d%% run-out risk", roundedRisk)
+        if pace.willLastToReset, roundedRisk > 0 {
+            return riskLabel
+        }
         if let etaLabel {
             return L("%@ · %@", etaLabel, riskLabel)
         }

@@ -220,6 +220,39 @@ extension UsageMenuCardView.Model {
         ] + subscriptionNotes
     }
 
+    static func subscriptionMetadataNotes(snapshot: UsageSnapshot?, provider: UsageProvider) -> [String] {
+        guard let snapshot else { return [] }
+        if let renewsAt = snapshot.subscriptionRenewsAt {
+            return [String(format: L("Renews: %@"), self.subscriptionDateString(renewsAt, provider: provider))]
+        }
+        if let expiresAt = snapshot.subscriptionExpiresAt {
+            return [String(format: L("Plan expires: %@"), self.subscriptionDateString(expiresAt, provider: provider))]
+        }
+        return []
+    }
+
+    private static func subscriptionDateString(_ date: Date, provider: UsageProvider) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.timeZone = self.subscriptionDateTimeZone(provider: provider)
+        formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
+        return formatter.string(from: date)
+    }
+
+    private static func subscriptionDateTimeZone(provider: UsageProvider) -> TimeZone {
+        switch provider {
+        case .minimax:
+            TimeZone(identifier: "Asia/Shanghai") ?? .current
+        default:
+            .current
+        }
+    }
+
+    static func poeBalanceDetailText(input: Input) -> String? {
+        guard input.provider == .poe else { return nil }
+        return StatusItemController.poeBalanceDisplayText(snapshot: input.snapshot)
+    }
+
     private static func hasLocalCodexTokenUsage(_ input: Input) -> Bool {
         input.provider == .codex &&
             input.tokenCostUsageEnabled &&
@@ -430,6 +463,12 @@ extension UsageMenuCardView.Model {
         namedWindow: NamedRateWindow,
         input: Input) -> String?
     {
+        if namedWindow.window.resetsAt != nil {
+            return self.resetText(
+                for: namedWindow.window,
+                style: input.resetTimeDisplayStyle,
+                now: input.now)
+        }
         if input.provider == .antigravity,
            self.isAntigravityQuotaSummaryWindow(namedWindow)
         {

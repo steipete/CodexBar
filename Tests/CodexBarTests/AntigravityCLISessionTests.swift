@@ -674,9 +674,7 @@ struct AntigravityCLISessionTests {
         defer { close(inheritedFD) }
 
         let outputURL = tempDirectory.appendingPathComponent("result.txt")
-        let scriptURL = tempDirectory.appendingPathComponent("probe.sh")
         let script = """
-        #!/bin/sh
         pwd > \(outputURL.path)
         if [ -e /dev/fd/\(inheritedFD) ] || [ -e /proc/self/fd/\(inheritedFD) ]; then
           echo inherited >> \(outputURL.path)
@@ -684,11 +682,10 @@ struct AntigravityCLISessionTests {
           echo closed >> \(outputURL.path)
         fi
         """
-        // Direct writes close the executable before spawn; atomic replacement can race with exec on Linux.
-        try Data(script.utf8).write(to: scriptURL)
-        #expect(chmod(scriptURL.path, 0o700) == 0)
 
-        let handle = try AntigravityPTYProcessLauncher().launch(binary: scriptURL.path)
+        let handle = try AntigravityPTYProcessLauncher().launch(
+            binary: "/bin/sh",
+            arguments: ["-c", script])
         defer {
             handle.killRoot()
             handle.terminateTree(signal: SIGKILL, knownDescendants: [])

@@ -177,6 +177,11 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `provider choice excludes unsupported Chutes widgets`() {
+        #expect(ProviderChoice(provider: .chutes) == nil)
+    }
+
+    @Test
     func `supported providers fall back to codex when snapshot is empty`() {
         let snapshot = WidgetSnapshot(entries: [], enabledProviders: [], generatedAt: Date())
 

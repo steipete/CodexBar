@@ -128,7 +128,7 @@ struct SettingsStoreAdditionalTests {
     func `menu bar metric preference restricts text only balance providers to automatic`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-text-only-metric")
 
-        for provider in [UsageProvider.deepseek, .mistral, .kimik2] {
+        for provider in [UsageProvider.deepseek, .mistral, .kimik2, .poe] {
             settings.setMenuBarMetricPreference(.primary, for: provider)
             #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
 

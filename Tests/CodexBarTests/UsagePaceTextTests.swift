@@ -83,6 +83,24 @@ struct UsagePaceTextTests {
         #expect(detail.rightLabel == "Runs out in 2d · ≈ 70% run-out risk")
     }
 
+    @Test
+    func `weekly pace detail does not combine lasts until reset with run out risk`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let pace = UsagePace(
+            stage: .slightlyBehind,
+            deltaPercent: -9,
+            expectedUsedPercent: 21,
+            actualUsedPercent: 12,
+            etaSeconds: nil,
+            willLastToReset: true,
+            runOutProbability: 0.45)
+
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+
+        #expect(detail.leftLabel == "9% in reserve")
+        #expect(detail.rightLabel == "≈ 45% run-out risk")
+    }
+
     // MARK: - Session pace (5-hour window)
 
     @Test

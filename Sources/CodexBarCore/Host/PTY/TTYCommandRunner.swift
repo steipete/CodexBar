@@ -105,7 +105,7 @@ private enum TTYCommandRunnerActiveProcessRegistry {
 }
 
 enum TTYProcessTreeTerminator {
-    struct ProcessIdentity: Equatable {
+    struct ProcessIdentity: Hashable {
         let pid: pid_t
         let startToken: UInt64
     }

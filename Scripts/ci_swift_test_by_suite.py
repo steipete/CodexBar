@@ -26,6 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--limit-groups", type=int)
     parser.add_argument("--list-only", action="store_true")
+    parser.add_argument("--swift-command", default="swift")
+    parser.add_argument("--swift-command-arg", action="append", default=[])
     return parser.parse_args()
 
 
@@ -45,8 +47,8 @@ def run_command(command: list[str], timeout: int | None = None) -> int:
         return 124
 
 
-def swift_test_list() -> list[TestSelection]:
-    result = subprocess.run(["swift", "test", "list"], check=True, capture_output=True, text=True)
+def swift_test_list(swift_command: list[str]) -> list[TestSelection]:
+    result = subprocess.run([*swift_command, "test", "list"], check=True, capture_output=True, text=True)
     selections: set[TestSelection] = set()
     unknown: list[str] = []
     for line in result.stdout.splitlines():
@@ -113,8 +115,11 @@ def filter_for(suites: list[TestSelection]) -> str:
     return rf"({'|'.join(suite.filter_pattern for suite in suites)})"
 
 
-def run_group(suites: list[TestSelection], timeout: int) -> int:
-    return run_command(["swift", "test", "--no-parallel", "--filter", filter_for(suites)], timeout=timeout)
+def run_group(suites: list[TestSelection], timeout: int, swift_command: list[str]) -> int:
+    return run_command(
+        [*swift_command, "test", "--no-parallel", "--filter", filter_for(suites)],
+        timeout=timeout,
+    )
 
 
 def main() -> int:
@@ -123,7 +128,8 @@ def main() -> int:
         print("--group-size must be positive", file=sys.stderr)
         return 2
 
-    suites = prioritized_suites(filtered_suites_for_environment(swift_test_list()))
+    swift_command = [args.swift_command, *args.swift_command_arg]
+    suites = prioritized_suites(filtered_suites_for_environment(swift_test_list(swift_command)))
     print(f"Discovered {len(suites)} test selections", flush=True)
     if args.list_only:
         for suite in suites:
@@ -140,7 +146,7 @@ def main() -> int:
             f"({len(group)} selections)",
             flush=True,
         )
-        result = run_group(group, args.timeout)
+        result = run_group(group, args.timeout, swift_command)
         print("::endgroup::", flush=True)
         if result == 0:
             continue
@@ -149,7 +155,7 @@ def main() -> int:
 
         if result != 124:
             print(f"Shard {group_index} failed with exit code {result}; retrying shard once", flush=True)
-            retry_result = run_group(group, args.timeout)
+            retry_result = run_group(group, args.timeout, swift_command)
             if retry_result == 0:
                 continue
             return retry_result
@@ -157,7 +163,7 @@ def main() -> int:
         print(f"Shard {group_index} timed out; retrying suites one at a time", flush=True)
         for suite in group:
             print(f"::group::Swift test retry {suite.name}", flush=True)
-            retry_result = run_group([suite], args.timeout)
+            retry_result = run_group([suite], args.timeout, swift_command)
             print("::endgroup::", flush=True)
             if retry_result != 0:
                 return retry_result

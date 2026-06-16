@@ -496,4 +496,21 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[ZaiSettingsReader.apiTokenKey] == "existing")
     }
+
+    @Test
+    func `applies API key override for poe`() {
+        let config = ProviderConfig(id: .poe, apiKey: "poe-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .poe,
+            config: config)
+
+        #expect(env[PoeSettingsReader.apiKeyEnvironmentKey] == "poe-token")
+        #expect(ProviderTokenResolver.poeToken(environment: env) == "poe-token")
+    }
+
+    @Test
+    func `poe supports API key override`() {
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .poe) == true)
+    }
 }

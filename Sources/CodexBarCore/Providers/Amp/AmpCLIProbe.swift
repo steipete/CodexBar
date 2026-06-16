@@ -2,8 +2,15 @@ import Foundation
 
 public struct AmpCLIProbe: Sendable {
     private static let commandTimeout: TimeInterval = 15
+    private let arguments: [String]
 
-    public init() {}
+    public init() {
+        self.arguments = ["usage"]
+    }
+
+    init(arguments: [String]) {
+        self.arguments = arguments
+    }
 
     public func fetch(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -23,7 +30,7 @@ public struct AmpCLIProbe: Sendable {
 
         let result = try await SubprocessRunner.run(
             binary: executable,
-            arguments: ["usage"],
+            arguments: self.arguments,
             environment: commandEnvironment,
             timeout: Self.commandTimeout,
             standardInput: FileHandle.nullDevice,

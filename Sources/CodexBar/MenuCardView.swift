@@ -2,8 +2,6 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
-// swiftlint:disable file_length
-
 enum UsageMenuCardLayout {
     static let horizontalPadding: CGFloat = 20
     static let headerOnlyVerticalPadding: CGFloat = 7
@@ -991,34 +989,6 @@ extension UsageMenuCardView.Model {
         return notes + subscriptionNotes
     }
 
-    private static func subscriptionMetadataNotes(snapshot: UsageSnapshot?, provider: UsageProvider) -> [String] {
-        guard let snapshot else { return [] }
-        if let renewsAt = snapshot.subscriptionRenewsAt {
-            return [String(format: L("Renews: %@"), self.subscriptionDateString(renewsAt, provider: provider))]
-        }
-        if let expiresAt = snapshot.subscriptionExpiresAt {
-            return [String(format: L("Plan expires: %@"), self.subscriptionDateString(expiresAt, provider: provider))]
-        }
-        return []
-    }
-
-    private static func subscriptionDateString(_ date: Date, provider: UsageProvider) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.timeZone = self.subscriptionDateTimeZone(provider: provider)
-        formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
-        return formatter.string(from: date)
-    }
-
-    private static func subscriptionDateTimeZone(provider: UsageProvider) -> TimeZone {
-        switch provider {
-        case .minimax:
-            TimeZone(identifier: "Asia/Shanghai") ?? .current
-        default:
-            .current
-        }
-    }
-
     private static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {
         var parts: [String] = []
         if let daily = usage.keyUsageDaily {
@@ -1357,6 +1327,9 @@ extension UsageMenuCardView.Model {
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
+        }
+        if let balance = Self.poeBalanceDetailText(input: input) {
+            primaryDetailText = balance
         }
         if input.provider == .kiro,
            let kiroUsage = input.snapshot?.kiroUsage,

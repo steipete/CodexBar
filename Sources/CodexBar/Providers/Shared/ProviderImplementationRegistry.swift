@@ -46,6 +46,7 @@ enum ProviderImplementationRegistry {
         case .elevenlabs: ElevenLabsProviderImplementation()
         case .warp: WarpProviderImplementation()
         case .windsurf: WindsurfProviderImplementation()
+        case .zed: ZedProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
         case .mimo: MiMoProviderImplementation()
         case .doubao: DoubaoProviderImplementation()
@@ -63,6 +64,8 @@ enum ProviderImplementationRegistry {
         case .llmproxy: LLMProxyProviderImplementation()
         case .litellm: LiteLLMProviderImplementation()
         case .deepgram: DeepgramProviderImplementation()
+        case .poe: PoeProviderImplementation()
+        case .chutes: ChutesProviderImplementation()
         }
     }
 

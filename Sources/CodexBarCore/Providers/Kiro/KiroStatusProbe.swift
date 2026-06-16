@@ -405,19 +405,11 @@ public struct KiroStatusProbe: Sendable {
             throw KiroStatusProbeError.cliNotFound
         }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: binary)
-        process.arguments = arguments
-
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        process.standardInput = FileHandle.nullDevice
 
         var env = ProcessInfo.processInfo.environment
         env["TERM"] = "xterm-256color"
-        process.environment = env
 
         final class ActivityState: @unchecked Sendable {
             private let lock = NSLock()
@@ -443,18 +435,22 @@ public struct KiroStatusProbe: Sendable {
         let state = ActivityState()
         let stdoutCapture = ProcessPipeCapture(pipe: stdoutPipe, onData: { state.markActivity() })
         let stderrCapture = ProcessPipeCapture(pipe: stderrPipe, onData: { state.markActivity() })
+        stdoutCapture.start()
+        stderrCapture.start()
 
+        let process: SpawnedProcessGroup
         do {
-            try process.run()
+            process = try SpawnedProcessGroup.launch(
+                binary: binary,
+                arguments: arguments,
+                environment: env,
+                stdoutPipe: stdoutPipe,
+                stderrPipe: stderrPipe)
         } catch {
             stdoutCapture.stop()
             stderrCapture.stop()
             throw error
         }
-        stdoutCapture.start()
-        stderrCapture.start()
-        let pid = process.processIdentifier
-        let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
         let deadline = Date().addingTimeInterval(timeout)
         var didHitDeadline = false
@@ -476,14 +472,14 @@ public struct KiroStatusProbe: Sendable {
                 try await Task.sleep(for: .milliseconds(100))
             }
         } catch {
-            await Self.terminateProcess(process, processGroup: processGroup)
+            await process.terminate()
             stdoutCapture.stop()
             stderrCapture.stop()
             throw error
         }
 
         if process.isRunning {
-            await Self.terminateProcess(process, processGroup: processGroup)
+            await process.terminate()
             guard !process.isRunning else {
                 stdoutCapture.stop()
                 stderrCapture.stop()
@@ -495,24 +491,25 @@ public struct KiroStatusProbe: Sendable {
                 throw KiroStatusProbeError.timeout
             }
         }
+        if process.hasResidualProcessGroup {
+            await process.terminateResidualProcesses()
+        }
 
         async let stdoutData = stdoutCapture.finish(timeout: .seconds(1))
         async let stderrData = stderrCapture.finish(timeout: .seconds(1))
         let output = await (stdout: stdoutData, stderr: stderrData)
+        if !stdoutCapture.reachedEOF || !stderrCapture.reachedEOF {
+            await process.terminateResidualProcesses()
+        }
+        await process.finish()
+        guard let terminationStatus = process.terminationStatus else {
+            throw KiroStatusProbeError.timeout
+        }
         return KiroCLIResult(
             stdout: String(data: output.stdout, encoding: .utf8) ?? "",
             stderr: String(data: output.stderr, encoding: .utf8) ?? "",
-            terminationStatus: process.terminationStatus,
+            terminationStatus: terminationStatus,
             terminatedForIdle: didTerminateForIdle)
-    }
-
-    private static func terminateProcess(_ process: Process, processGroup: pid_t?) async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                SubprocessRunner.terminateProcess(process, processGroup: processGroup)
-                continuation.resume()
-            }
-        }
     }
 
     func parse(

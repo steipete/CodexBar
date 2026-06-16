@@ -3,6 +3,59 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.36.0</title>
+            <pubDate>Tue, 16 Jun 2026 00:50:52 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>87</sparkle:version>
+            <sparkle:shortVersionString>0.36.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.36.0</h2>
+<ul>
+<li>Ollama: replace the bundled provider icon with the cleaner official mark while preserving native template tinting. Thanks @mattab178!</li>
+<li>Menu bar: avoid a one-time visible menu rebuild after first-open background data arrives.</li>
+<li>Settings: use high-contrast selected-content colors for provider sidebar text and icons.</li>
+<li>Localization: align the app and website on the same 21-language catalog, adding Italian (#1248), Indonesian (#1513), Polish (#1253), Arabic, Persian, and Thai as selectable app languages, plus automatic website detection, persistent pickers, and right-to-left layouts for Arabic and Persian. Thanks @Yuxin-Qiao and @StevanusPangau!</li>
+<li>Website: replace the remaining provider letter tiles with the canonical Devin, LiteLLM, and T3 Chat logos.</li>
+<li>Website: keep localized mobile navigation, calls to action, package commands, and right-to-left layouts inside narrow viewports.</li>
+</ul>
+<h3>Added</h3>
+<ul>
+<li>LiteLLM: add personal and team budget tracking from a configured virtual key and proxy URL (#1542). Thanks @hololee!</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Antigravity: prefer app and <code>agy</code> quota summaries, group usage into Gemini and Claude + GPT session/weekly pools, and preserve IDE and OAuth fallbacks. Thanks @Zihao-Qi!</li>
+<li>Antigravity: show structured quota reset timestamps from the current <code>resetTime</code> field (#1553). Thanks @akunzai!</li>
+<li>Configuration: honor absolute <code>XDG_CONFIG_HOME</code> paths while rejecting relative paths, preserving existing standard and legacy config precedence (#1562). Thanks @kiranmagic7!</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Menu bar: preserve native AppKit image-row alignment when returning to cached provider content in the open merged menu (#1560). Thanks @Zihao-Qi!</li>
+<li>Menu bar: defer hosted submenu reconstruction until an active refresh finishes so partial provider data cannot replace the visible menu (#1556). Thanks @Yuxin-Qiao!</li>
+<li>Weekly pace: suppress the “Lasts until reset” label when the projected run-out risk is nonzero (#1561). Thanks @kiranmagic7!</li>
+<li>Antigravity: retry transient <code>Text file busy</code> launch failures while the CLI executable is being replaced.</li>
+<li>Antigravity: fall back to loopback HTTP for local CLI and language-server probes on Linux, where self-signed localhost TLS cannot be trusted (fixes #1508). Thanks @zodiacfireworks!</li>
+<li>Codebuff: enforce the optional subscription grace period even when the transport ignores cancellation.</li>
+<li>Copilot: show the shared quota reset date for limited premium and chat usage windows. Thanks @Zihao-Qi!</li>
+<li>Codex: keep managed login timeouts bounded while preserving captured output when detached helpers retain stdout or stderr.</li>
+<li>Claude: keep segmented multi-account menus scoped to the selected account while its refresh is in flight (fixes #1527).</li>
+<li>Command Code: keep showing available credits after the bounded optional subscription grace, including when the transport ignores cancellation (fixes #1131).</li>
+<li>DeepSeek: keep balance refreshes responsive when optional usage-summary work ignores cancellation.</li>
+<li>OpenRouter: keep credit refreshes responsive when optional key-quota enrichment ignores cancellation.</li>
+<li>Provider probes: stop waiting indefinitely for inherited output pipes after subprocesses or CLI version checks exit (fixes #1531).</li>
+<li>Menu bar: update visible usage values in place when a manual refresh completes instead of leaving the open provider card stale until the menu is reopened (fixes #1516).</li>
+<li>Gemini: recognize the current <code>gemini-api-key</code> CLI auth setting so API-key sessions show the supported OAuth guidance instead of a misleading not-logged-in error (fixes #1511).</li>
+<li>Kiro: keep usage refreshes bounded and clean up CLI helpers when they retain output pipes, ignore termination, or are cancelled (fixes #1533). Thanks @kiranmagic7!</li>
+<li>Gemini: keep fnm package discovery bounded when helper descendants retain output pipes or ignore termination (fixes #1534). Thanks @kiranmagic7!</li>
+<li>Xiaomi MiMo: cancel optional token-plan requests when the required balance request fails instead of delaying the error for up to 30 seconds.</li>
+<li>Settings: make the cost history window directly editable by keyboard while preserving the existing stepper and 1–365 day bounds (fixes #1499). Thanks @kiranmagic7!</li>
+<li>OpenCode Go: show Zen balances for accounts without subscription usage windows, including when the balance request takes longer than optional enrichment (fixes #1476). Thanks @kiranmagic7!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.36.0/CodexBar-macos-universal-0.36.0.zip" length="50246159" type="application/octet-stream" sparkle:edSignature="oWtXMyIwj/+qjrT6MS34gViOfx2kVr/8CshxOhAQbPq4S7tmr73QPfqyKS9w7oeFqnTOWOSswfQEmgTVtM3sDA=="/>
+        </item>
+        <item>
             <title>0.35.0</title>
             <pubDate>Sun, 14 Jun 2026 02:41:43 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -90,50 +143,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.34.0/CodexBar-macos-universal-0.34.0.zip" length="48142694" type="application/octet-stream" sparkle:edSignature="8ONIR0p+maIuxZAn3AKl0n4F4ASXBHJ/kO9z6qNnfhetl/qp9YzDLQ5aQPelqYIgbPZI+ImL+hTJLQpIa7rFDw=="/>
-        </item>
-        <item>
-            <title>0.33.0</title>
-            <pubDate>Thu, 11 Jun 2026 06:35:11 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>81</sparkle:version>
-            <sparkle:shortVersionString>0.33.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.33.0</h2>
-<h3>Added</h3>
-<ul>
-<li>Settings: choose Terminal.app or iTerm for Open Terminal actions, including Vertex AI login commands (#1225, fixes #1147). Thanks @Yuxin-Qiao!</li>
-<li>Localization: add Japanese as a selectable app language (#1385). Thanks @naoterumaker!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Menu bar: keep large dynamic Cost totals inside the fixed-width hosted row so switching providers no longer widens the menu or misaligns submenu arrows.</li>
-<li>Cost history: keep all per-day model breakdown rows available in a bounded scrolling detail area instead of hiding models after the first four (#1370). Thanks @MoollaMore!</li>
-<li>Cost usage: run local session-corpus scans and cache decoding on a dedicated serial queue instead of the Swift cooperative thread pool, so multi-minute scans of large archives no longer starve the app&#x27;s async work or freeze menus (#1387, #1392). Thanks @ProspectOre!</li>
-<li>Copilot: keep explicitly unlimited chat quotas visible instead of dropping their zero-entitlement payload as unavailable (#1320). Thanks @soumikbhatta!</li>
-<li>Security: block credentialed provider redirects that leave the original HTTPS origin while preserving same-origin redirects (#1237). Thanks @Hinotoi-agent!</li>
-<li>Codex: keep local token and cost history visible when remote quota data is unavailable (#1390). Thanks @vaibhavarora14!</li>
-<li>Doubao: confirm zero-remaining HTTP 200 request limits before falling back, preserving genuine exhaustion and avoiding false 100% usage (#1383). Thanks @LeoLin990405 and @foobra!</li>
-<li>Menu bar: defer pasteboard writes and copy feedback outside the <code>NSMenu</code> tracking callback so in-menu copy buttons no longer beachball on macOS 26 (#1388). Thanks @LeoLin990405!</li>
-<li>Menu bar: defer merged status-icon redraws until the tracked menu closes while preserving animation lifecycle and quota-warning timing, reducing WindowServer churn during long menu sessions (#1409, fixes #1399). Thanks @kiranmagic7!</li>
-<li>Provider status: decode status feeds on the concurrent executor and reuse ISO8601 formatters, removing a measured main-thread stall during refreshes (#1406). Thanks @ProspectOre!</li>
-<li>Menu bar: keep one stable width across merged provider tabs and resize every hosted card row to AppKit&#x27;s final menu width so provider switching no longer leaves a widened menu with inset submenu arrows (#1410).</li>
-<li>Menu bar: keep Codex <code>auth.json</code> reads, JWT parsing, and fingerprint hashing off the menu-build path by rendering a cached account snapshot and revalidating it asynchronously (#1401). Thanks @ProspectOre!</li>
-<li>Menu bar: defer Overview-row provider transitions out of AppKit&#x27;s click callback so opening provider detail no longer performs a full synchronous menu rebuild (#1325).</li>
-<li>Menu bar: open cached menus immediately after data-only invalidations, then refresh missing or stale provider data asynchronously without queuing redundant work on close (#1398). Thanks @joshuavial!</li>
-<li>Menu bar: recycle SwiftUI card hosting views across data refreshes and provider switches, and reconcile matching menu rows in place instead of removing and reinserting every row, cutting open-click, switch, and idle rebuild cost (#1394). Thanks @bcssewl!</li>
-<li>Menu bar: gate the provider-switcher shortcut monitor&#x27;s event-queue peek behind session event counters so hover-driven menu tracking no longer calls <code>NSApp.nextEvent</code> on every run-loop pass (#1397). Thanks @bcssewl!</li>
-<li>Development: disable Keychain access for unbundled executables to avoid repeated password prompts while preserving packaged app behavior (#1271). Thanks @Yuxin-Qiao!</li>
-<li>Antigravity: exclude model quotas without a remaining fraction from family summaries so they no longer mask tracked usage in the automatic menu-bar metric (#1369). Thanks @Martin-Hausleitner!</li>
-<li>Claude: add bundled Fable 5 pricing, account for native 1-hour cache-write usage, and refresh Sonnet 4.6 full-context rates (#1368). Thanks @MoollaMore!</li>
-<li>Claude: show a direct claude.ai re-login action when a configured web session expires or becomes invalid (#1377). Thanks @LeoLin990405!</li>
-<li>Menu: reuse unchanged hosted chart submenus and precompute utilization history models to reduce expand and hover stalls (#1379). Thanks @hhh2210!</li>
-<li>Menu bar: defer data-refresh rebuilds until the tracked menu closes, avoiding multi-second WindowServer stalls with slower providers such as Grok (#1376). Thanks @jangisaac-dev!</li>
-<li>OpenAI Web: evict cached dashboard WebViews after their idle timeout even when no later cache activity occurs, releasing hidden WebKit helper processes (#1386). Thanks @naoterumaker!</li>
-<li>Xiaomi MiMo: import automatic session cookies from Safari, Chrome variants, Firefox, and Edge instead of limiting discovery to Chrome (#1304). Thanks @Yuxin-Qiao!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.33.0/CodexBar-macos-universal-0.33.0.zip" length="46233872" type="application/octet-stream" sparkle:edSignature="yQIOwCn0uEKXpLUvbo1Mxk6GxTBESLIxqb/P6vt5tqxR4gEb49YVFKoA2c4xOlJZ7J+X9xIsM8gvLvdrqPLgBg=="/>
         </item>
         <item>
             <title>0.14.0</title>
