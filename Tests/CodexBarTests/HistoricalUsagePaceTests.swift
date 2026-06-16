@@ -749,4 +749,62 @@ struct HistoricalUsagePaceTests {
         try await Task.sleep(for: .milliseconds(250))
         #expect(store.codexHistoricalDataset == nil)
     }
+
+    @Test
+    func `exhausted historical weeks extend linearly and don't flatline at 100`() throws {
+        // Build a historical dataset where a week reaches 100% at u = 0.5
+        var earlyExhaustedCurve = [Double]()
+        for i in 0..<CodexHistoricalDataset.gridPointCount {
+            let u = Double(i) / Double(CodexHistoricalDataset.gridPointCount - 1)
+            if u <= 0.5 {
+                earlyExhaustedCurve.append((u / 0.5) * 100)
+            } else {
+                earlyExhaustedCurve.append(100)
+            }
+        }
+        let now = Date()
+        let resetsAt = now.addingTimeInterval(3600)
+        let week = HistoricalWeekProfile(
+            resetsAt: now.addingTimeInterval(-10080 * 60),
+            windowMinutes: 10080,
+            curve: earlyExhaustedCurve)
+        let dataset = CodexHistoricalDataset(weeks: [week, week, week, week, week])
+
+        let window = RateWindow(
+            usedPercent: 80,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(0.25 * 10080 * 60),
+            resetDescription: nil)
+
+        let pace = try #require(CodexHistoricalPaceEvaluator.evaluate(
+            window: window,
+            now: now,
+            dataset: dataset))
+
+        #expect(pace.willLastToReset == false)
+        #expect(pace.runOutProbability != nil)
+        #expect(try #require(pace.runOutProbability) > 0)
+    }
+
+    @Test
+    func exhaustedActualReturnsZeroEta() {
+        let now = Date()
+        let resetsAt = now.addingTimeInterval(3600)
+        let week = HistoricalWeekProfile(
+            resetsAt: now.addingTimeInterval(-10080 * 60),
+            windowMinutes: 10080,
+            curve: Array(repeating: 100.0, count: 169))
+        let dataset = CodexHistoricalDataset(weeks: [week, week, week])
+
+        let window = RateWindow(
+            usedPercent: 100, // Exhausted
+            windowMinutes: 10080,
+            resetsAt: resetsAt,
+            resetDescription: nil,
+            nextRegenPercent: nil)
+
+        let pace = CodexHistoricalPaceEvaluator.evaluate(window: window, now: now, dataset: dataset)
+        #expect(pace?.willLastToReset == false)
+        #expect(pace?.etaSeconds == 0)
+    }
 }
