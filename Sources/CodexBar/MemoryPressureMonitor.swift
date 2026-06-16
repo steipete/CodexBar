@@ -49,7 +49,20 @@ final class MemoryPressureMonitor {
             "normal"
         }
         self.logger.warning("System memory pressure", metadata: ["level": level])
+        #if DEBUG
+        let cachedWebViewsBefore = OpenAIDashboardFetcher.cachedWebViewCountForTesting()
+        #endif
         OpenAIDashboardFetcher.evictIdleCachedWebViews()
+        #if DEBUG
+        let cachedWebViewsAfter = OpenAIDashboardFetcher.cachedWebViewCountForTesting()
+        self.logger.info(
+            "Memory pressure OpenAI webview cache",
+            metadata: [
+                "before": "\(cachedWebViewsBefore)",
+                "after": "\(cachedWebViewsAfter)",
+                "evicted": "\(max(0, cachedWebViewsBefore - cachedWebViewsAfter))",
+            ])
+        #endif
         MemoryPressureRelief.releaseFreeMallocPages()
     }
 }

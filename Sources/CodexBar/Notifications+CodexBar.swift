@@ -7,6 +7,10 @@ extension Notification.Name {
     static let codexbarWeeklyLimitReset = Notification.Name("codexbarWeeklyLimitReset")
     static let codexbarProviderConfigDidChange = Notification.Name("codexbarProviderConfigDidChange")
     static let codexbarQuotaWarningDidPost = Notification.Name("codexbarQuotaWarningDidPost")
+    #if DEBUG
+    static let codexbarDebugSimulateMemoryPressure =
+        Notification.Name("com.steipete.codexbar.debug.simulateMemoryPressure")
+    #endif
 }
 
 @MainActor

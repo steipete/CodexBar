@@ -427,6 +427,18 @@ public struct OpenAIDashboardFetcher {
         OpenAIDashboardWebViewCache.shared.evictIdle()
     }
 
+    #if DEBUG
+    public static func seedCachedWebViewsForMemoryPressureProof() {
+        OpenAIDashboardWebViewCache.shared.clearAllForTesting()
+        OpenAIDashboardWebViewCache.shared.cacheEntryForTesting(websiteDataStore: .nonPersistent())
+        OpenAIDashboardWebViewCache.shared.cacheEntryForTesting(websiteDataStore: .nonPersistent(), isBusy: true)
+    }
+
+    public static func cachedWebViewCountForTesting() -> Int {
+        OpenAIDashboardWebViewCache.shared.entryCount
+    }
+    #endif
+
     public func probeUsagePage(
         websiteDataStore: WKWebsiteDataStore,
         logger: ((String) -> Void)? = nil,
