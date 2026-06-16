@@ -6,7 +6,7 @@
 - Menu bar: reuse the icon-observation signature during provider refreshes instead of computing it twice. Thanks @abe238!
 
 ### Fixed
-- Localization: improve Japanese terminology consistency. Thanks @tukuyomil032!
+- Localization: improve Japanese terminology consistency and localize next-day reset times across all 21 app languages. Thanks @tukuyomil032!
 
 ## 0.36.1 — 2026-06-16
 
