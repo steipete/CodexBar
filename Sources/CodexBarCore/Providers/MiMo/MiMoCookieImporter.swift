@@ -161,7 +161,10 @@ public enum MiMoCookieImporter {
             do {
                 let query = BrowserCookieQuery(domains: self.cookieDomains)
                 let sources = try loadRecords(browserSource, query, log)
-                let resolvedSources = self.recordsIncludingFirefoxSessionCookies(from: sources, logger: log)
+                let resolvedSources = self.recordsIncludingFirefoxSessionCookies(
+                    from: sources,
+                    browser: browserSource,
+                    logger: log)
                 let recordCount = sources.reduce(0) { $0 + $1.records.count }
                 let resolvedRecordCount = resolvedSources.reduce(0) { $0 + $1.records.count }
                 if resolvedRecordCount == recordCount {
@@ -169,7 +172,8 @@ public enum MiMoCookieImporter {
                 } else {
                     log(
                         "\(browserSource.displayName): \(sources.count) store(s), " +
-                            "\(recordCount) persisted record(s), \(resolvedRecordCount) record(s) after session restore")
+                            "\(recordCount) persisted record(s), \(resolvedRecordCount) " +
+                            "record(s) after session restore")
                 }
                 sessions.append(contentsOf: self.sessionInfos(from: resolvedSources, origin: query.origin))
             } catch let error as BrowserCookieError {
@@ -194,24 +198,49 @@ public enum MiMoCookieImporter {
 
     static func recordsIncludingFirefoxSessionCookies(
         from sources: [BrowserCookieStoreRecords],
+        browser: Browser,
+        homeDirectories: [URL] = BrowserCookieClient.defaultHomeDirectories(),
         logger: ((String) -> Void)? = nil) -> [BrowserCookieStoreRecords]
     {
-        sources.map { source in
-            guard source.store.browser.usesGeckoProfileStore else { return source }
-            let profileDirectory = URL(fileURLWithPath: source.store.profile.id, isDirectory: true)
+        guard browser.usesGeckoProfileStore else { return sources }
+
+        var resolvedByProfileID = Dictionary(uniqueKeysWithValues: sources.map { ($0.store.profile.id, $0) })
+        var orderedProfileIDs = sources.map(\.store.profile.id)
+
+        for store in self.geckoProfileStores(for: browser, homeDirectories: homeDirectories) {
+            let profileID = store.profile.id
+            let source = resolvedByProfileID[profileID] ?? BrowserCookieStoreRecords(store: store, records: [])
+            let profileDirectory = URL(fileURLWithPath: profileID, isDirectory: true)
             let sessionRecords = MiMoFirefoxSessionCookieImporter.records(
                 profileDirectory: profileDirectory,
                 logger: logger)
-            guard !sessionRecords.isEmpty else { return source }
+            guard !sessionRecords.isEmpty else {
+                if resolvedByProfileID[profileID] == nil {
+                    continue
+                }
+                resolvedByProfileID[profileID] = source
+                continue
+            }
 
             let existingKeys = Set(source.records.map(self.recordKey))
             let additionalRecords = sessionRecords.filter { !existingKeys.contains(self.recordKey($0)) }
-            guard !additionalRecords.isEmpty else { return source }
-            logger?(
-                "\(source.label): recovered \(additionalRecords.count) MiMo session cookie(s) " +
-                    "from Firefox session restore")
-            return BrowserCookieStoreRecords(store: source.store, records: source.records + additionalRecords)
+            if additionalRecords.isEmpty {
+                resolvedByProfileID[profileID] = source
+            } else {
+                logger?(
+                    "\(source.label): recovered \(additionalRecords.count) MiMo session cookie(s) " +
+                        "from Firefox session restore")
+                resolvedByProfileID[profileID] = BrowserCookieStoreRecords(
+                    store: source.store,
+                    records: source.records + additionalRecords)
+            }
+
+            if !orderedProfileIDs.contains(profileID) {
+                orderedProfileIDs.append(profileID)
+            }
         }
+
+        return orderedProfileIDs.compactMap { resolvedByProfileID[$0] }
     }
 
     public static func hasSession(
@@ -301,6 +330,61 @@ public enum MiMoCookieImporter {
             false
         }
     }
+
+    private static func geckoProfileStores(
+        for browser: Browser,
+        homeDirectories: [URL]) -> [BrowserCookieStore]
+    {
+        guard let profilesFolder = browser.geckoProfilesFolder else { return [] }
+
+        let roots = homeDirectories.map { home in
+            home
+                .appendingPathComponent("Library")
+                .appendingPathComponent("Application Support")
+                .appendingPathComponent(profilesFolder)
+                .appendingPathComponent("Profiles")
+        }
+
+        var stores: [BrowserCookieStore] = []
+        for root in roots {
+            guard let entries = try? FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles])
+            else {
+                continue
+            }
+
+            let profileDirectories = entries.filter { url in
+                (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            }
+            .sorted { lhs, rhs in
+                let left = self.geckoProfileSortKey(lhs.lastPathComponent)
+                let right = self.geckoProfileSortKey(rhs.lastPathComponent)
+                if left.rank != right.rank { return left.rank < right.rank }
+                return left.name < right.name
+            }
+
+            stores.append(contentsOf: profileDirectories.map { directory in
+                let profileName = directory.lastPathComponent
+                return BrowserCookieStore(
+                    browser: browser,
+                    profile: BrowserProfile(id: directory.path, name: profileName),
+                    kind: .primary,
+                    label: "\(browser.displayName) \(profileName)",
+                    databaseURL: directory.appendingPathComponent("cookies.sqlite"))
+            })
+        }
+
+        return stores
+    }
+
+    private static func geckoProfileSortKey(_ name: String) -> (rank: Int, name: String) {
+        let lowercased = name.lowercased()
+        if lowercased.contains("default-release") { return (0, lowercased) }
+        if lowercased.contains("default") { return (1, lowercased) }
+        return (2, lowercased)
+    }
 }
 
 enum MiMoFirefoxSessionCookieImporter {
@@ -324,7 +408,9 @@ enum MiMoFirefoxSessionCookieImporter {
                 let jsonData = try self.decodeSessionRestoreData(data)
                 let records = try self.cookieRecords(fromJSONData: jsonData, now: now)
                 if !records.isEmpty {
-                    logger?("\(profileDirectory.lastPathComponent): found MiMo session cookies in \(file.lastPathComponent)")
+                    logger?(
+                        "\(profileDirectory.lastPathComponent): found MiMo session cookies in " +
+                            "\(file.lastPathComponent)")
                     return records
                 }
             } catch {
@@ -471,7 +557,7 @@ enum MiMoFirefoxSessionCookieImporter {
             guard index + literalLength <= bytes.count else {
                 throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Invalid LZ4 literal length"))
             }
-            output.append(contentsOf: bytes[index ..< index + literalLength])
+            output.append(contentsOf: bytes[index..<index + literalLength])
             index += literalLength
 
             guard index < bytes.count else { break }
@@ -490,7 +576,7 @@ enum MiMoFirefoxSessionCookieImporter {
                 matchLength += self.readExtendedLength(bytes: bytes, index: &index)
             }
 
-            for _ in 0 ..< matchLength {
+            for _ in 0..<matchLength {
                 output.append(output[output.count - offset])
             }
         }

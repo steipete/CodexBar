@@ -1123,6 +1123,35 @@ extension MiMoProviderTests {
     }
 
     @Test
+    func `mimo importer enumerates firefox profiles with session restore cookies only`() throws {
+        let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-empty-store")
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let json = """
+        {
+          "cookies": [
+            {"host": ".platform.xiaomimimo.com", "path": "/", "name": "api-platform_serviceToken", "value": "svc-token"},
+            {"host": ".xiaomimimo.com", "path": "/", "name": "userId", "value": "1863175063"}
+          ]
+        }
+        """
+        try self.mozillaLZ4LiteralFile(json).write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+
+        let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(
+            from: [],
+            browser: .firefox,
+            homeDirectories: [temp])
+
+        #expect(resolved.count == 1)
+        #expect(
+            URL(fileURLWithPath: resolved.first?.store.profile.id ?? "").standardizedFileURL.path ==
+                profile.standardizedFileURL.path)
+        #expect(MiMoCookieImporter.sessionInfos(from: resolved).map(\.cookieHeader) == [
+            "api-platform_serviceToken=svc-token; userId=1863175063",
+        ])
+    }
+
+    @Test
     func `mimo importer merges firefox session restore cookies with persisted cookies`() throws {
         let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-merge")
         defer { try? FileManager.default.removeItem(at: temp) }
@@ -1149,7 +1178,10 @@ extension MiMoProviderTests {
                 isHTTPOnly: false),
         ])
 
-        let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(from: [persisted])
+        let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(
+            from: [persisted],
+            browser: .firefox,
+            homeDirectories: [temp])
         let sessions = MiMoCookieImporter.sessionInfos(from: resolved)
 
         #expect(sessions.map(\.cookieHeader) == ["api-platform_serviceToken=svc-token; userId=1863175063"])
