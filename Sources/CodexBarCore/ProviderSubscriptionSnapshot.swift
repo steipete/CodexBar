@@ -72,12 +72,12 @@ public struct ProviderSubscriptionSnapshot: Codable, Sendable, Equatable {
         self.provider = try container.decode(UsageProvider.self, forKey: .provider)
         self.planName = try Self.normalized(container.decodeIfPresent(String.self, forKey: .planName))
         self.status = try container.decode(ProviderSubscriptionStatus.self, forKey: .status)
-        self.subscriptionRenewsAt = try Self.decodeDateIfPresent(container, forKey: .subscriptionRenewsAt)
-        self.subscriptionExpiresAt = try Self.decodeDateIfPresent(container, forKey: .subscriptionExpiresAt)
+        self.subscriptionRenewsAt = try Self.decodeSubscriptionDateIfPresent(container, forKey: .subscriptionRenewsAt)
+        self.subscriptionExpiresAt = try Self.decodeSubscriptionDateIfPresent(container, forKey: .subscriptionExpiresAt)
         self.source = try container.decodeIfPresent(ProviderSubscriptionSource.self, forKey: .source) ?? .manual
         self.confidence = try container
             .decodeIfPresent(ProviderSubscriptionConfidence.self, forKey: .confidence) ?? .manual
-        self.updatedAt = try Self.decodeDate(container, forKey: .updatedAt)
+        self.updatedAt = try Self.decodeTimestamp(container, forKey: .updatedAt)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -114,21 +114,33 @@ public struct ProviderSubscriptionSnapshot: Codable, Sendable, Equatable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private static func decodeDateIfPresent(
+    private static func decodeSubscriptionDateIfPresent(
         _ container: KeyedDecodingContainer<CodingKeys>,
         forKey key: CodingKeys) throws -> Date?
     {
         guard container.contains(key) else { return nil }
         if try container.decodeNil(forKey: key) { return nil }
-        return try self.decodeDate(container, forKey: key)
+        return try self.decodeSubscriptionDate(container, forKey: key)
     }
 
-    private static func decodeDate(
+    private static func decodeSubscriptionDate(
         _ container: KeyedDecodingContainer<CodingKeys>,
         forKey key: CodingKeys) throws -> Date
     {
         if let rawString = try? container.decodeIfPresent(String.self, forKey: key),
-           let parsed = parseDateString(rawString)
+           let parsed = parseSubscriptionDateString(rawString)
+        {
+            return parsed
+        }
+        return try self.decodeTimestamp(container, forKey: key)
+    }
+
+    private static func decodeTimestamp(
+        _ container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys) throws -> Date
+    {
+        if let rawString = try? container.decodeIfPresent(String.self, forKey: key),
+           let parsed = parseTimestampString(rawString)
         {
             return parsed
         }
@@ -141,10 +153,14 @@ public struct ProviderSubscriptionSnapshot: Codable, Sendable, Equatable {
             debugDescription: "Expected ISO-8601 date string or unix-seconds number")
     }
 
-    private static func parseDateString(_ value: String) -> Date? {
+    private static func parseSubscriptionDateString(_ value: String) -> Date? {
         if let date = self.parseManualDateString(value) {
             return date
         }
+        return self.parseTimestampString(value)
+    }
+
+    private static func parseTimestampString(_ value: String) -> Date? {
         let withFractionalSeconds = ISO8601DateFormatter()
         withFractionalSeconds.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = withFractionalSeconds.date(from: value) {

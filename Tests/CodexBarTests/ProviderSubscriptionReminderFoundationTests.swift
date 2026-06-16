@@ -67,9 +67,10 @@ struct ProviderSubscriptionReminderFoundationTests {
         """
         let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: Data(json.utf8))
         let snapshot = try #require(decoded.providerConfig(for: .codex)?.subscriptionSnapshot)
+        let updatedAt = try #require(Self.iso8601("2026-05-24T00:00:00Z"))
 
         #expect(snapshot.subscriptionRenewsAt != nil)
-        #expect(snapshot.updatedAt != Date(timeIntervalSince1970: 0))
+        #expect(snapshot.updatedAt == updatedAt)
     }
 
     @Test
@@ -644,6 +645,12 @@ struct ProviderSubscriptionReminderFoundationTests {
                 return nil
             }
         }
+    }
+
+    private static func iso8601(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
     }
 }
 
