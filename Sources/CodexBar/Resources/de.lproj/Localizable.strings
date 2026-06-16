@@ -8,14 +8,14 @@
 "API region" = "API-Region";
 "API token" = "API-Token";
 "API tokens" = "API-Tokens";
-"About" = "Um";
+"About" = "Über";
 "Account" = "Konto";
 "Accounts" = "Konten";
 "Accounts subtitle" = "Untertitel \"Konten\".";
 "Active" = "Aktiv";
 "Add" = "Hinzufügen";
 "Add Workspace" = "Arbeitsbereich hinzufügen";
-"Advanced" = "Fortschrittlich";
+"Advanced" = "Erweitert";
 "All" = "Alle";
 "Always allow prompts" = "Erlauben Sie immer Aufforderungen";
 "Animation pattern" = "Animationsmuster";
@@ -45,7 +45,7 @@
 "Balance" = "Gleichgewicht";
 "Battery Saver" = "Batteriesparmodus";
 "Bordered" = "Umrandet";
-"Build" = "Bauen";
+"Build" = "Build";
 "Built \\(buildTimestamp)" = "Gebaut \\\\(buildTimestamp)";
 "Buy Credits..." = "Credits kaufen...";
 "Buy Credits…" = "Credits kaufen…";
@@ -65,10 +65,10 @@
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Wählen Sie aus, was in der Menüleiste angezeigt werden soll (Pace zeigt die Nutzung im Vergleich zur erwarteten).";
 "Choose which Codex account CodexBar should follow." = "Wählen Sie aus, welchem ​​Codex-Konto CodexBar folgen soll.";
 "Choose which window drives the menu bar percent." = "Wählen Sie aus, welches Fenster den Prozentwert der Menüleiste steuert.";
-"Chrome" = "Chrom";
+"Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI nicht gefunden";
 "Claude binary" = "Claude binär";
-"Claude cookies" = "Claude-Kekse";
+"Claude cookies" = "Claude-Cookies";
 "Claude login failed" = "Die Anmeldung von Claude ist fehlgeschlagen";
 "Claude login timed out" = "Zeitüberschreitung beim Claude-Login";
 "Close" = "Schließen";
@@ -86,11 +86,11 @@
 "Controls how much detail is logged." = "Steuert, wie viele Details protokolliert werden.";
 "Cookie header" = "Cookie-Header";
 "Cookie source" = "Cookie-Quelle";
-"Cookie: ..." = "Keks: ...";
+"Cookie: ..." = "Cookie: ...";
 "Cookie: \\u{2026}\\\n\\\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: \\u{2026}\\\n\\\noder fügen Sie eine cURL-Erfassung aus dem Abacus AI-Dashboard ein";
 "Cookie: \\u{2026}\\\n\\\nor paste the __Secure-next-auth.session-token value" = "Cookie: \\u{2026}\\\n\\\noder fügen Sie den __Secure-next-auth.session-token-Wert ein";
 "Cookie: \\u{2026}\\\n\\\nor paste the kimi-auth token value" = "Cookie: \\u{2026}\\\n\\\noder fügen Sie den Kimi-Auth-Token-Wert ein";
-"Cookie: …" = "Keks: …";
+"Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Kosten";
 "Could not add Codex account" = "Codex-Konto konnte nicht hinzugefügt werden";
@@ -101,7 +101,7 @@
 "Credits" = "Credits";
 "Credits history" = "Credits-Geschichte";
 "Cursor login failed" = "Die Cursor-Anmeldung ist fehlgeschlagen";
-"Custom" = "Brauch";
+"Custom" = "Benutzerdefiniert";
 "Custom Path" = "Benutzerdefinierter Pfad";
 "Daily Routines" = "Tägliche Routinen";
 "Debug" = "Debuggen";
@@ -228,7 +228,7 @@
 "Paste the Cookie header from a request to admin.mistral.ai. " = "Fügen Sie den Cookie-Header aus einer Anfrage in admin.mistral.ai ein.";
 "Paste token…" = "Token einfügen…";
 "Personal" = "Persönlich";
-"Picker" = "Pflücker";
+"Picker" = "Auswahl";
 "Picker subtitle" = "Picker-Untertitel";
 "Placeholder" = "Platzhalter";
 "Plan" = "Planen";
@@ -247,7 +247,7 @@
 "Reads local usage logs. Shows today + last 30 days cost in the menu." = "Liest lokale Nutzungsprotokolle. Zeigt heute + das ausgewählte Verlaufsfenster im Menü an.";
 "Refresh" = "Aktualisieren";
 "Refresh cadence" = "Trittfrequenz aktualisieren";
-"Remote" = "Fernbedienung";
+"Remote" = "Remote";
 "Remove" = "Entfernen";
 "Remove Codex account?" = "Codex-Konto entfernen?";
 "Remove \\(account.email) from CodexBar? Its managed Codex home will be deleted." = "\\\\(account.email) aus CodexBar entfernen? Das verwaltete Codex-Heim wird gelöscht.";
@@ -275,7 +275,7 @@
 "Show most-used provider" = "Meistgenutzten Anbieter anzeigen";
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Anbietersymbole im Umschalter anzeigen (andernfalls eine wöchentliche Fortschrittslinie anzeigen).";
 "Show reset time as clock" = "Reset-Zeit als Uhr anzeigen";
-"Show usage as used" = "Nutzung als gebraucht anzeigen";
+"Show usage as used" = "Nutzung als verbraucht anzeigen";
 "Sign in via button below" = "Melden Sie sich über die Schaltfläche unten an";
 "Skip teardown between probes (debug-only)." = "Teardown zwischen Probes überspringen (nur Debug).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Stapeln Sie Token-Konten im Menü (andernfalls wird eine Kontowechselleiste angezeigt).";
@@ -503,7 +503,7 @@
 "display_mode_title" = "Anzeigemodus";
 "display_mode_subtitle" = "Wählen Sie aus, was in der Menüleiste angezeigt werden soll (Pace zeigt die Nutzung im Vergleich zur erwarteten).";
 "section_menu_content" = "Menüinhalt";
-"show_usage_as_used_title" = "Nutzung als gebraucht anzeigen";
+"show_usage_as_used_title" = "Nutzung als verbraucht anzeigen";
 "show_usage_as_used_subtitle" = "Fortschrittsbalken füllen sich, wenn Sie das Kontingent verbrauchen (anstatt die verbleibende Menge anzuzeigen).";
 "show_quota_warning_markers_title" = "Quotenwarnmarkierungen anzeigen";
 "show_quota_warning_markers_subtitle" = "Zeichnen Sie Schwellenwertmarkierungen auf Nutzungsbalken, wenn Kontingentwarnungen konfiguriert sind.";
@@ -693,13 +693,13 @@
 "30d tokens" = "30d-Token";
 "Latest tokens" = "Neueste Token";
 "Top model" = "Topmodell";
-"Storage" = "Lagerung";
+"Storage" = "Speicher";
 "Add Account..." = "Konto hinzufügen...";
 "Usage Dashboard" = "Nutzungs-Dashboard";
 "Status Page" = "Statusseite";
 "Settings..." = "Einstellungen...";
 "About CodexBar" = "About CodexBar";
-"Quit" = "Aufhören";
+"Quit" = "Beenden";
 "Last %d day" = "Letzter %d Tag";
 "Last %d days" = "Letzte %d Tage";
 "%@ tokens" = "%@ Token";
@@ -723,8 +723,8 @@
 "≈ %d%% run-out risk" = "≈ %d%% Auslaufrisiko";
 "%d%% in deficit" = "%d%% im Defizit";
 "%d%% in reserve" = "%d%% in Reserve";
-"usage_percent_suffix_left" = "links";
-"usage_percent_suffix_used" = "gebraucht";
+"usage_percent_suffix_left" = "übrig";
+"usage_percent_suffix_used" = "verbraucht";
 "Store multiple DeepSeek API keys." = "Speichern Sie mehrere DeepSeek-API-Schlüssel.";
 "This week" = "Diese Woche";
 "Week" = "Woche";
@@ -732,7 +732,7 @@
 "Models" = "Modelle";
 "24h tokens" = "24-Stunden-Token";
 "Latest hour" = "Letzte Stunde";
-"Peak hour" = "Hauptverkehrszeit";
+"Peak hour" = "Spitzenstunde";
 "Top method" = "Top-Methode";
 "30d cash" = "30 Tage Bargeld";
 "30d billing history from MiniMax web session" = "30-tägiger Abrechnungsverlauf aus der MiniMax-Websitzung";
@@ -774,7 +774,7 @@
 
 /* Popup panels */
 "No usage configured." = "Keine Nutzung konfiguriert.";
-"Quota" = "Quote";
+"Quota" = "Kontingent";
 "tokens" = "Token";
 "requests" = "Anfragen";
 "Latest" = "Letzte";
@@ -794,7 +794,7 @@
 "%@ of %@ bonus credits left" = "%@ von %@ Bonusguthaben übrig";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ verbleibend)";
 "%@/%@ left" = "%@/%@ übrig";
-"Gemini Flash" = "Zwillingsblitz";
+"Gemini Flash" = "Gemini Flash";
 "Regenerates %@" = "Regeneriert %@";
 "used after next regen" = "Wird nach der nächsten Regenerierung verwendet";
 "after next regen" = "nach der nächsten Regeneration";
@@ -826,7 +826,7 @@
 "%d utilization samples" = "%d Nutzungsbeispiele";
 "Hourly Usage" = "Stündliche Nutzung";
 "Usage remaining" = "Verbleibende Nutzung";
-"Usage used" = "Verwendung verwendet";
+"Usage used" = "Verbraucht";
 "API key verified. Ollama does not expose Cloud quota limits through the API." = "API-Schlüssel überprüft. Ollama legt über die API keine Cloud-Kontingentgrenzen offen.";
 "Last 30 days: %@ tokens" = "Letzte 30 Tage: %@ Token";
 "7d spend" = "7d ausgeben";
@@ -836,7 +836,7 @@
 "OpenRouter API key spend trend" = "Trend zu Ausgaben für OpenRouter-API-Schlüssel";
 "z.ai hourly token trend" = "z.ai stündlicher Token-Trend";
 "MiniMax 30 day token usage trend" = "MiniMax 30-Tage-Token-Nutzungstrend";
-"Today cash" = "Heute Bargeld";
+"Today cash" = "Heutige Kosten";
 "DeepSeek 30 day token usage trend" = "Trend zur 30-Tage-Token-Nutzung von DeepSeek";
 "cache-hit input" = "Cache-Hit-Eingabe";
 "cache-miss input" = "Cache-Miss-Eingabe";
@@ -896,7 +896,7 @@
 "not detected" = "nicht erkannt";
 "Estimated from local Codex logs for the selected account." = "Geschätzt aus lokalen Codex-Protokollen für das ausgewählte Konto.";
 "minimax_usage_amount_format" = "Verwendung: %@ / %@";
-"minimax_used_percent_format" = "Gebraucht %@";
+"minimax_used_percent_format" = "Verbraucht %@";
 "minimax_service_text_generation" = "Textgenerierung";
 "minimax_service_text_to_speech" = "Text-to-Speech";
 "minimax_service_music_generation" = "Musikgeneration";
