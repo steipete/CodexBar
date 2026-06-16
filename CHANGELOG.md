@@ -12,6 +12,7 @@
 
 ### Fixed
 - Provider switcher: use a continuous menu background instead of a separate light-mode tinted band. Thanks @Zihao-Qi!
+- Localization: improve Japanese terminology consistency. Thanks @tukuyomil032!
 
 ## 0.36.0 — 2026-06-16
 
