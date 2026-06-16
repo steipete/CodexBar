@@ -103,6 +103,33 @@ struct StatusMenuTests {
     }
 
     @Test
+    func `zai dashboard action follows selected region`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        settings.zaiAPIRegion = .global
+        #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.global.dashboardURL)
+        #expect(controller.dashboardURL(for: .zai)?.absoluteString == "https://z.ai/manage-apikey/subscription")
+
+        settings.zaiAPIRegion = .bigmodelCN
+        #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.bigmodelCN.dashboardURL)
+        #expect(controller.dashboardURL(for: .zai)?.absoluteString == "https://bigmodel.cn/coding-plan/personal/usage")
+    }
+
+    @Test
     func `opencode go dashboard action follows configured workspace`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()

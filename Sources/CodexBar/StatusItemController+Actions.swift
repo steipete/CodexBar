@@ -164,6 +164,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return self.settings.opencodegoDashboardURL
         }
 
+        if provider == .zai {
+            return self.settings.zaiAPIRegion.dashboardURL
+        }
+
         let meta = self.store.metadata(for: provider)
         let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL
