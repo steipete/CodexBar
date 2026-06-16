@@ -384,6 +384,43 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `manual refresh uses fallback when frozen quota layout is incompatible`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        let now = Date()
+        controller.store.snapshots[.claude] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 21,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        let frozen = try #require(controller.menuCardModel(for: .claude))
+        controller.menuCardRefreshMonitor.beginManualRefresh(frozenModels: [.claude: frozen])
+
+        controller.store.snapshots[.claude] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 18,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(1))
+        let rebuiltFallback = try #require(controller.menuCardModel(for: .claude))
+        let inFlight = controller.menuCardRefreshMonitor.model(for: .claude, fallback: rebuiltFallback)
+
+        #expect(frozen.metrics.count == 1)
+        #expect(rebuiltFallback.metrics.count == 2)
+        #expect(inFlight.metrics.count == 2)
+        #expect(inFlight.metrics.map(\.id) == rebuiltFallback.metrics.map(\.id))
+    }
+
+    @Test
     func `refreshing card evaluates weekly pace at snapshot timestamp`() throws {
         let settings = self.makeSettings()
         let controller = self.makeController(settings: settings)
