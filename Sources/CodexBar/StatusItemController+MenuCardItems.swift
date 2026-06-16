@@ -31,7 +31,7 @@ extension StatusItemController {
     {
         if !self.menuCardRenderingEnabledForController {
             let item = NSMenuItem()
-            item.isEnabled = true
+            item.isEnabled = submenu != nil || onClick != nil
             item.representedObject = id
             item.submenu = submenu
             if submenu != nil {
@@ -82,7 +82,7 @@ extension StatusItemController {
 
         let item = NSMenuItem()
         item.view = hosting
-        item.isEnabled = true
+        item.isEnabled = submenu != nil || onClick != nil
         item.representedObject = id
         item.submenu = submenu
         if submenu != nil {
