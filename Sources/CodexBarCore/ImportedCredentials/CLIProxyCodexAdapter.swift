@@ -65,7 +65,7 @@ public enum CLIProxyCodexAdapter {
     private static func credentialFiles(from url: URL, fileManager: FileManager) -> [URL] {
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return [] }
-        guard isDirectory.boolValue else { return [url] }
+        guard isDirectory.boolValue else { return self.isCredentialFile(url) ? [url] : [] }
 
         guard let contents = try? fileManager.contentsOfDirectory(
             at: url,
@@ -76,10 +76,12 @@ public enum CLIProxyCodexAdapter {
         }
 
         return contents
-            .filter { candidate in
-                candidate.lastPathComponent.hasPrefix("codex-") && candidate.pathExtension == "json"
-            }
+            .filter(self.isCredentialFile)
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    private static func isCredentialFile(_ url: URL) -> Bool {
+        url.lastPathComponent.hasPrefix("codex-") && url.pathExtension == "json"
     }
 
     private static func loadAccount(from url: URL, now: Date) -> BorrowedCodexAccount? {

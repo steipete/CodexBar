@@ -146,6 +146,36 @@ struct ImportedCredentialsTests {
     }
 
     @Test
+    func `cliproxyapi direct file import applies codex json filename filter`() throws {
+        let directory = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let valid = directory.appendingPathComponent("codex-valid.json")
+        let sidecar = directory.appendingPathComponent("codex-valid.json.dead-rt123")
+        let nonCodexJSON = directory.appendingPathComponent("manual.json")
+        try Self.writeCLIProxyCodexFile(
+            to: valid,
+            email: "valid@example.com",
+            accountID: "account-valid")
+        try Self.writeCLIProxyCodexFile(
+            to: sidecar,
+            email: "sidecar@example.com",
+            accountID: "account-sidecar")
+        try Self.writeCLIProxyCodexFile(
+            to: nonCodexJSON,
+            email: "manual@example.com",
+            accountID: "account-manual")
+
+        let now = try Self.date("2026-06-14T00:00:00Z")
+
+        #expect(CLIProxyCodexAdapter.loadAccounts(from: sidecar.path, now: now).isEmpty)
+        #expect(CLIProxyCodexAdapter.previewAccounts(from: sidecar.path, now: now).isEmpty)
+        #expect(CLIProxyCodexAdapter.loadAccounts(from: nonCodexJSON.path, now: now).isEmpty)
+        #expect(CLIProxyCodexAdapter.previewAccounts(from: nonCodexJSON.path, now: now).isEmpty)
+        #expect(CLIProxyCodexAdapter.loadAccounts(from: valid.path, now: now).map(\.email) == ["valid@example.com"])
+        #expect(CLIProxyCodexAdapter.previewAccounts(from: valid.path, now: now).map(\.email) == ["valid@example.com"])
+    }
+
+    @Test
     func `cliproxyapi preview includes disabled and expired account statuses`() throws {
         let directory = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
