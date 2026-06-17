@@ -326,6 +326,38 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.api, provider: .kilo))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
+            provider: .opencodego,
+            settings: ProviderSettingsSnapshot.make(
+                opencodego: .init(
+                    cookieSource: .manual,
+                    manualCookieHeader: "auth=manual",
+                    workspaceID: nil))))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .opencodego,
+            settings: ProviderSettingsSnapshot.make(
+                opencodego: .init(
+                    cookieSource: .manual,
+                    manualCookieHeader: "auth=manual",
+                    workspaceID: nil))))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .opencodego,
+            settings: ProviderSettingsSnapshot.make(
+                opencodego: .init(
+                    cookieSource: .auto,
+                    manualCookieHeader: nil,
+                    workspaceID: nil))))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .opencode,
+            settings: ProviderSettingsSnapshot.make(
+                opencode: .init(
+                    cookieSource: .manual,
+                    manualCookieHeader: "auth=manual",
+                    workspaceID: nil))))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
             provider: .ollama,
             environment: ["OLLAMA_API_KEY": "ollama-test"]))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
