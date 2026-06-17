@@ -51,8 +51,8 @@ private enum AntigravityUsagePool: Hashable {
 
     var title: String {
         switch self {
-        case .gemini: "Gemini"
-        case .claudeGPT: "Claude + GPT"
+        case .gemini: "Gemini Models"
+        case .claudeGPT: "Claude and GPT models"
         }
     }
 
@@ -207,8 +207,12 @@ public struct AntigravityStatusSnapshot: Sendable {
             throw AntigravityStatusProbeError.parseFailed("No quota buckets available")
         }
 
-        let primary = Self.quotaSummaryRepresentative(title: "Gemini", in: namedWindows)
-        let secondary = Self.quotaSummaryRepresentative(title: "Claude + GPT", in: namedWindows)
+        let primary = Self.quotaSummaryRepresentative(
+            matching: { $0.lowercased().contains("gemini") },
+            in: namedWindows)
+        let secondary = Self.quotaSummaryRepresentative(
+            matching: { $0.lowercased().contains("claude") || $0.lowercased().contains("gpt") },
+            in: namedWindows)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
@@ -225,11 +229,11 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func quotaSummaryRepresentative(
-        title: String,
+        matching predicate: (String) -> Bool,
         in windows: [NamedRateWindow]) -> RateWindow?
     {
         windows
-            .filter { $0.usageKnown && $0.title.hasPrefix("\(title) ") }
+            .filter { $0.usageKnown && predicate($0.title) }
             .max { lhs, rhs in
                 if lhs.window.usedPercent != rhs.window.usedPercent {
                     return lhs.window.usedPercent < rhs.window.usedPercent
@@ -295,29 +299,11 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func displayTitle(forQuotaGroup group: AntigravityQuotaSummaryGroup) -> String {
         let title = group.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = title.lowercased()
-        if lower.contains("gemini") {
-            return "Gemini"
-        }
-        if lower.contains("claude") || lower.contains("gpt") {
-            return "Claude + GPT"
-        }
-        let stripped = title.replacingOccurrences(
-            of: #"(?i)\s+models?$"#,
-            with: "",
-            options: .regularExpression)
-        return stripped.isEmpty ? title : stripped
+        return title.isEmpty ? "Quota" : title
     }
 
     private static func displayTitle(forQuotaBucket bucket: AntigravityQuotaSummaryBucket) -> String {
-        switch self.quotaBucketKind(for: bucket) {
-        case .session:
-            "Session"
-        case .weekly:
-            "Weekly"
-        case .other:
-            bucket.displayName
-        }
+        bucket.displayName
     }
 
     private static func windowMinutes(forQuotaBucket bucket: AntigravityQuotaSummaryBucket) -> Int? {

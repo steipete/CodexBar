@@ -1177,7 +1177,7 @@ extension AntigravityStatusProbeTests {
         #expect(usage.primary == nil)
         let modelWindow = try #require(usage.extraRateWindows?.first)
         #expect(modelWindow.id == "antigravity-gemini")
-        #expect(modelWindow.title == "Gemini")
+        #expect(modelWindow.title == "Gemini Models")
         #expect(modelWindow.window.resetsAt == resetTime)
         #expect(modelWindow.usageKnown == false)
     }

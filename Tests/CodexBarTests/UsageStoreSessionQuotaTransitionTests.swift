@@ -828,7 +828,7 @@ struct UsageStoreSessionQuotaTransitionTests {
             extraRateWindows: [
                 NamedRateWindow(
                     id: "antigravity-quota-summary-gemini-5h",
-                    title: "Gemini Session",
+                    title: "Gemini Models Five Hour Limit",
                     window: RateWindow(
                         usedPercent: sessionUsed,
                         windowMinutes: 5 * 60,
@@ -836,7 +836,7 @@ struct UsageStoreSessionQuotaTransitionTests {
                         resetDescription: nil)),
                 NamedRateWindow(
                     id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
+                    title: "Gemini Models Weekly Limit",
                     window: RateWindow(
                         usedPercent: weeklyUsed,
                         windowMinutes: 7 * 24 * 60,

@@ -82,6 +82,41 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
+    func `automatic metric skips exhausted antigravity five hour bucket when another remains usable`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 30, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 67, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini Models Five Hour Limit",
+                    window: RateWindow(usedPercent: 71, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini Models Weekly Limit",
+                    window: RateWindow(usedPercent: 30, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude and GPT models Five Hour Limit",
+                    window: RateWindow(usedPercent: 100, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude and GPT models Weekly Limit",
+                    window: RateWindow(usedPercent: 67, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.remainingPercent == 29)
+        #expect(window?.windowMinutes == 300)
+    }
+
+    @Test
     func `automatic metric uses recognized antigravity gemini pool when claude gpt is reset only`() throws {
         let resetOnlyReset = Date(timeIntervalSince1970: 1000)
         let exhaustedReset = Date(timeIntervalSince1970: 2000)

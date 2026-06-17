@@ -44,7 +44,7 @@ struct UsageStoreWidgetSnapshotTests {
 
         let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .antigravity })
         #expect(entry.usageRows?.map(\.id) == ["primary", "secondary"])
-        #expect(entry.usageRows?.map(\.title) == ["Gemini", "Claude + GPT"])
+        #expect(entry.usageRows?.map(\.title) == ["Gemini Models", "Claude and GPT"])
         #expect(entry.usageRows?.compactMap(\.percentLeft) == [90, 80])
     }
 
@@ -72,19 +72,19 @@ struct UsageStoreWidgetSnapshotTests {
             extraRateWindows: [
                 NamedRateWindow(
                     id: "antigravity-quota-summary-gemini-5h",
-                    title: "Gemini Session",
+                    title: "Gemini Models Five Hour Limit",
                     window: RateWindow(usedPercent: 9, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
                 NamedRateWindow(
                     id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
+                    title: "Gemini Models Weekly Limit",
                     window: RateWindow(usedPercent: 18, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
                 NamedRateWindow(
                     id: "antigravity-quota-summary-3p-5h",
-                    title: "Claude + GPT Session",
+                    title: "Claude and GPT models Five Hour Limit",
                     window: RateWindow(usedPercent: 27, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
                 NamedRateWindow(
                     id: "antigravity-quota-summary-3p-weekly",
-                    title: "Claude + GPT Weekly",
+                    title: "Claude and GPT models Weekly Limit",
                     window: RateWindow(usedPercent: 36, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
             ],
             updatedAt: Date(),
@@ -105,10 +105,10 @@ struct UsageStoreWidgetSnapshotTests {
 
         let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .antigravity })
         #expect(entry.usageRows?.map(\.title) == [
-            "Gemini Session",
-            "Gemini Weekly",
-            "Claude + GPT Session",
-            "Claude + GPT Weekly",
+            "Gemini Models Five Hour Limit",
+            "Gemini Models Weekly Limit",
+            "Claude and GPT models Five Hour Limit",
+            "Claude and GPT models Weekly Limit",
         ])
         #expect(entry.usageRows?.compactMap(\.percentLeft) == [91, 82, 73, 64])
     }

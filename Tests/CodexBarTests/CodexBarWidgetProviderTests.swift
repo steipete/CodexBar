@@ -38,19 +38,19 @@ struct CodexBarWidgetProviderTests {
             usageRows: [
                 WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: "antigravity-quota-summary-gemini-session",
-                    title: "Gemini Session",
+                    title: "Gemini Models Five Hour Limit",
                     percentLeft: 80),
                 WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
+                    title: "Gemini Models Weekly Limit",
                     percentLeft: 20),
                 WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: "antigravity-quota-summary-third-party-session",
-                    title: "Claude + GPT Session",
+                    title: "Claude and GPT models Five Hour Limit",
                     percentLeft: 5),
                 WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: "antigravity-quota-summary-third-party-weekly",
-                    title: "Claude + GPT Weekly",
+                    title: "Claude and GPT models Weekly Limit",
                     percentLeft: 60),
             ],
             creditsRemaining: nil,
@@ -60,7 +60,7 @@ struct CodexBarWidgetProviderTests {
 
         let rows = WidgetUsageRow.rows(for: entry, limit: 2)
 
-        #expect(rows.map(\.title) == ["Gemini Weekly", "Claude + GPT Session"])
+        #expect(rows.map(\.title) == ["Gemini Models Weekly Limit", "Claude and GPT models Five Hour Limit"])
         #expect(rows.compactMap(\.percentLeft) == [20, 5])
         #expect(WidgetUsageRow.smallWidgetRowLimit(for: entry) == 2)
         #expect(WidgetUsageRow.mediumWidgetRowLimit(for: entry) == 3)
@@ -68,9 +68,48 @@ struct CodexBarWidgetProviderTests {
             for: entry,
             limit: WidgetUsageRow.mediumWidgetRowLimit(for: entry))
         #expect(mediumRows.map(\.title) == [
-            "Gemini Weekly",
-            "Claude + GPT Session",
-            "Claude + GPT Weekly",
+            "Gemini Models Weekly Limit",
+            "Claude and GPT models Five Hour Limit",
+            "Claude and GPT models Weekly Limit",
+        ])
+    }
+
+    @Test
+    func `small antigravity widget keeps claude gpt family when fallback rows are more constrained`() {
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .antigravity,
+            updatedAt: Date(),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            usageRows: [
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini Models Five Hour Limit",
+                    percentLeft: 40),
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini Models Weekly Limit",
+                    percentLeft: 70),
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude and GPT models Five Hour Limit",
+                    percentLeft: 60),
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: "antigravity-quota-summary-other-5h",
+                    title: "Other Five Hour Limit",
+                    percentLeft: 1),
+            ],
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+
+        let rows = WidgetUsageRow.rows(for: entry, limit: 2)
+
+        #expect(rows.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-3p-5h",
         ])
     }
 
@@ -109,15 +148,15 @@ struct CodexBarWidgetProviderTests {
             usageRows: [
                 WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: "antigravity-quota-summary-gemini-session",
-                    title: "Gemini Session",
+                    title: "Gemini Models Five Hour Limit",
                     percentLeft: nil),
                 WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
+                    title: "Gemini Models Weekly Limit",
                     percentLeft: 100),
                 WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: "antigravity-quota-summary-third-party-session",
-                    title: "Claude + GPT Session",
+                    title: "Claude and GPT models Five Hour Limit",
                     percentLeft: 80),
             ],
             creditsRemaining: nil,
@@ -127,7 +166,7 @@ struct CodexBarWidgetProviderTests {
 
         let rows = WidgetUsageRow.rows(for: entry, limit: 2)
 
-        #expect(rows.map(\.title) == ["Gemini Weekly", "Claude + GPT Session"])
+        #expect(rows.map(\.title) == ["Gemini Models Weekly Limit", "Claude and GPT models Five Hour Limit"])
     }
 
     @Test
@@ -305,7 +344,7 @@ struct CodexBarWidgetProviderTests {
         let rows = WidgetUsageRow.rows(for: entry)
 
         #expect(rows.map(\.id) == ["primary", "secondary"])
-        #expect(rows.map(\.title) == ["Gemini", "Claude + GPT"])
+        #expect(rows.map(\.title) == ["Gemini Models", "Claude and GPT"])
         #expect(rows.compactMap(\.percentLeft) == [90, 80])
     }
 

@@ -9,8 +9,8 @@ public enum AntigravityProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .antigravity,
                 displayName: "Antigravity",
-                sessionLabel: "Gemini",
-                weeklyLabel: "Claude + GPT",
+                sessionLabel: "Gemini Models",
+                weeklyLabel: "Claude and GPT",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,

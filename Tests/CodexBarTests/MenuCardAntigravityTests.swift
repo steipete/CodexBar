@@ -45,7 +45,7 @@ struct MenuCardAntigravityTests {
             now: now))
 
         #expect(model.metrics.count == 1)
-        #expect(model.metrics.map(\.title) == ["Gemini"])
+        #expect(model.metrics.map(\.title) == ["Gemini Models"])
         #expect(model.metrics[0].percent == 95)
         #expect(model.metrics[0].percentLabel == "95% left")
     }
@@ -100,7 +100,7 @@ struct MenuCardAntigravityTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.title) == ["Gemini", "Claude + GPT"])
+        #expect(model.metrics.map(\.title) == ["Gemini Models", "Claude and GPT"])
         #expect(!model.metrics.contains { $0.title == "Gemini 3.1 Pro (Low)" })
     }
 
@@ -162,8 +162,8 @@ struct MenuCardAntigravityTests {
             now: now))
 
         #expect(model.metrics.map(\.title) == [
-            "Gemini",
-            "Claude + GPT",
+            "Gemini Models",
+            "Claude and GPT",
         ])
         #expect(model.metrics.map(\.percentLabel) == [
             "50% left",
@@ -219,7 +219,7 @@ struct MenuCardAntigravityTests {
 
         // Distinct extra windows remain visible even with optional extras disabled.
         #expect(model.metrics.contains { $0.title == "Experimental Tool" })
-        #expect(model.metrics.contains { $0.title == "Gemini" })
+        #expect(model.metrics.contains { $0.title == "Gemini Models" })
     }
 
     @Test
@@ -240,7 +240,7 @@ struct MenuCardAntigravityTests {
             extraRateWindows: [
                 NamedRateWindow(
                     id: "antigravity-quota-summary-gemini-5h",
-                    title: "Gemini Session",
+                    title: "Gemini Models Five Hour Limit",
                     window: RateWindow(
                         usedPercent: 9,
                         windowMinutes: 300,
@@ -249,7 +249,7 @@ struct MenuCardAntigravityTests {
                             + "4 hours.")),
                 NamedRateWindow(
                     id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
+                    title: "Gemini Models Weekly Limit",
                     window: RateWindow(
                         usedPercent: 18,
                         windowMinutes: 10080,
@@ -257,7 +257,7 @@ struct MenuCardAntigravityTests {
                         resetDescription: "You have used some of your weekly limit, it will fully refresh in 5 days.")),
                 NamedRateWindow(
                     id: "antigravity-quota-summary-3p-5h",
-                    title: "Claude + GPT Session",
+                    title: "Claude and GPT models Five Hour Limit",
                     window: RateWindow(
                         usedPercent: 27,
                         windowMinutes: 300,
@@ -266,7 +266,7 @@ struct MenuCardAntigravityTests {
                             + "3 hours.")),
                 NamedRateWindow(
                     id: "antigravity-quota-summary-3p-weekly",
-                    title: "Claude + GPT Weekly",
+                    title: "Claude and GPT models Weekly Limit",
                     window: RateWindow(
                         usedPercent: 36,
                         windowMinutes: 10080,
@@ -308,10 +308,10 @@ struct MenuCardAntigravityTests {
             "antigravity-quota-summary-3p-weekly",
         ])
         #expect(model.metrics.map(\.title) == [
-            "Gemini Session",
-            "Gemini Weekly",
-            "Claude + GPT Session",
-            "Claude + GPT Weekly",
+            "Gemini Models Five Hour Limit",
+            "Gemini Models Weekly Limit",
+            "Claude and GPT models Five Hour Limit",
+            "Claude and GPT models Weekly Limit",
         ])
         #expect(model.metrics.map(\.percentLabel) == [
             "91% left",
@@ -363,7 +363,7 @@ struct MenuCardAntigravityTests {
             now: now))
 
         #expect(model.metrics.count == 1)
-        #expect(model.metrics[0].title == "Gemini")
+        #expect(model.metrics[0].title == "Gemini Models")
         #expect(model.metrics[0].percent == 5)
         #expect(model.metrics[0].percentLabel == "5% used")
     }

@@ -37,10 +37,10 @@ struct AntigravityQuotaSummaryTests {
             "antigravity-quota-summary-3p-weekly",
         ])
         #expect(windows.map(\.title) == [
-            "Gemini Session",
-            "Gemini Weekly",
-            "Claude + GPT Session",
-            "Claude + GPT Weekly",
+            "Gemini Models Five Hour Limit",
+            "Gemini Models Weekly Limit",
+            "Claude and GPT models Five Hour Limit",
+            "Claude and GPT models Weekly Limit",
         ])
         #expect(windows.map(\.window.windowMinutes) == [300, 10080, 300, 10080])
         #expect(windows.map { $0.window.remainingPercent.rounded() } == [91, 82, 73, 64])

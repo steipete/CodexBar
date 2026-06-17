@@ -861,7 +861,7 @@ struct UsageStorePlanUtilizationTests {
                 extraRateWindows: [
                     NamedRateWindow(
                         id: "antigravity-quota-summary-gemini-weekly",
-                        title: "Gemini Weekly",
+                        title: "Gemini Models Weekly Limit",
                         window: RateWindow(
                             usedPercent: geminiWeeklyUsed,
                             windowMinutes: 10080,
@@ -869,7 +869,7 @@ struct UsageStorePlanUtilizationTests {
                             resetDescription: nil)),
                     NamedRateWindow(
                         id: "antigravity-quota-summary-3p-weekly",
-                        title: "Claude + GPT Weekly",
+                        title: "Claude and GPT models Weekly Limit",
                         window: RateWindow(
                             usedPercent: thirdPartyWeeklyUsed,
                             windowMinutes: 10080,

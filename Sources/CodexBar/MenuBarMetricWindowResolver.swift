@@ -146,6 +146,11 @@ enum MenuBarMetricWindowResolver {
             .filter { $0.usageKnown && $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix) }
             .map(\.window) ?? []
         guard !windows.isEmpty else { return nil }
+
+        let usableWindows = windows.filter { $0.usedPercent < 100 }
+        if let maxUsable = usableWindows.max(by: { $0.usedPercent < $1.usedPercent }) {
+            return maxUsable
+        }
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
     }
 
@@ -156,6 +161,11 @@ enum MenuBarMetricWindowResolver {
             }
             .map(\.window) ?? []
         guard !windows.isEmpty else { return nil }
+
+        let usableWindows = windows.filter { $0.usedPercent < 100 }
+        if let maxUsable = usableWindows.max(by: { $0.usedPercent < $1.usedPercent }) {
+            return maxUsable
+        }
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
     }
 
