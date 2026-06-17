@@ -42,6 +42,7 @@ struct CostHistoryChartMenuView: View {
     private let historyDays: Int
     private let windowLabel: String?
     private let width: CGFloat
+    private let onHeightChange: ((CGFloat) -> Void)?
     @State private var selectedDateKey: String?
 
     init(
@@ -51,6 +52,7 @@ struct CostHistoryChartMenuView: View {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         windowLabel: String? = nil,
+        onHeightChange: ((CGFloat) -> Void)? = nil,
         width: CGFloat)
     {
         self.provider = provider
@@ -59,12 +61,14 @@ struct CostHistoryChartMenuView: View {
         self.currencyCode = currencyCode
         self.historyDays = max(1, min(365, historyDays))
         self.windowLabel = windowLabel
+        self.onHeightChange = onHeightChange
         self.width = width
     }
 
     var body: some View {
         let model = Self.makeModel(provider: self.provider, daily: self.daily)
-        VStack(alignment: .leading, spacing: 10) {
+        let selectedDateKey = self.selectedDateKey ?? Self.defaultSelectedDateKey(model: model)
+        VStack(alignment: .leading, spacing: Self.outerSpacing) {
             if model.points.isEmpty {
                 Text(L("No cost history data."))
                     .font(.footnote)
@@ -98,7 +102,7 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
                 .chartLegend(.hidden)
-                .frame(height: 130)
+                .frame(height: Self.chartHeight)
                 .accessibilityLabel(L("Cost history chart"))
                 .accessibilityValue(
                     model.points.isEmpty
@@ -123,7 +127,7 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
 
-                let detail = self.detailContent(model: model)
+                let detail = self.detailContent(selectedDateKey: selectedDateKey, model: model)
                 VStack(alignment: .leading, spacing: Self.detailSpacing) {
                     Text(detail.primary)
                         .font(.caption)
@@ -131,7 +135,7 @@ struct CostHistoryChartMenuView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                    if model.maxRenderedBreakdownRows > 0 {
+                    if !detail.rows.isEmpty {
                         ScrollView(.vertical) {
                             VStack(alignment: .leading, spacing: Self.detailSpacing) {
                                 ForEach(detail.rows) { row in
@@ -174,31 +178,18 @@ struct CostHistoryChartMenuView: View {
                                     }
                                     .frame(height: Self.detailRowHeight(for: row), alignment: .leading)
                                 }
-                                ForEach(
-                                    0..<max(model.maxRenderedBreakdownRows - detail.rows.count, 0),
-                                    id: \.self)
-                                { _ in
-                                    Text(" ")
-                                        .font(.caption)
-                                        .frame(height: Self.compactDetailRowHeight, alignment: .leading)
-                                        .opacity(0)
-                                }
                             }
                         }
                         .scrollIndicators(
                             Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
                         .frame(
-                            height: Self.detailRowsViewportHeight(
-                                maxBreakdownRows: model.maxRenderedBreakdownRows,
-                                maxRowsHeight: model.maxDetailRowsHeight),
+                            height: Self.detailRowsViewportHeight(rows: detail.rows),
                             alignment: .topLeading)
-                        .id(self.selectedDateKey)
+                        .id(selectedDateKey)
                     }
                 }
                 .frame(
-                    height: Self.detailBlockHeight(
-                        maxBreakdownRows: model.maxRenderedBreakdownRows,
-                        maxRowsHeight: model.maxDetailRowsHeight),
+                    height: Self.detailBlockHeight(rows: detail.rows),
                     alignment: .topLeading)
             }
 
@@ -211,11 +202,12 @@ struct CostHistoryChartMenuView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.head)
+                    .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(minWidth: self.width, maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Self.verticalPadding)
+        .frame(minWidth: self.width, maxWidth: .infinity, alignment: .top)
     }
 
     private struct Model {
@@ -227,8 +219,6 @@ struct CostHistoryChartMenuView: View {
         let barColor: Color
         let peakKey: String?
         let maxCostUSD: Double
-        let maxRenderedBreakdownRows: Int
-        let maxDetailRowsHeight: CGFloat
     }
 
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
@@ -239,6 +229,25 @@ struct CostHistoryChartMenuView: View {
     private static let compactDetailRowHeight: CGFloat = 36
     private static let expandedDetailRowHeight: CGFloat = 44
     private static let detailSpacing: CGFloat = 6
+    private static let chartHeight: CGFloat = 130
+    private static let outerSpacing: CGFloat = 10
+    static let verticalPadding: CGFloat = 10
+
+    /// Deterministic total height of the rendered card for a given selection. NSMenu's modal
+    /// tracking run loop never delivers SwiftUI `onPreferenceChange`, so the live height can't be
+    /// measured via a GeometryReader while the menu is open. Every component height is fixed, so
+    /// we compute the total directly and resize from the hover handler instead.
+    private static func totalCardHeight(rows: [DetailRow], hasTotal: Bool) -> CGFloat {
+        var height = self.verticalPadding * 2
+        height += self.chartHeight
+        height += self.outerSpacing
+        height += self.detailBlockHeight(rows: rows)
+        if hasTotal {
+            height += self.outerSpacing
+            height += self.detailPrimaryLineHeight
+        }
+        return height
+    }
 
     static func windowLabel(days: Int) -> String {
         if days == 1 {
@@ -279,8 +288,6 @@ struct CostHistoryChartMenuView: View {
 
         var peak: (key: String, costUSD: Double)?
         var maxCostUSD: Double = 0
-        var maxRenderedBreakdownRows = 0
-        var detailRowMetrics: [(count: Int, height: CGFloat)] = []
         for entry in sorted {
             guard let costUSD = entry.costUSD, costUSD >= 0 else { continue }
             guard let date = self.dateFromDayKey(entry.date) else { continue }
@@ -293,9 +300,6 @@ struct CostHistoryChartMenuView: View {
             pointsByKey[entry.date] = point
             entriesByKey[entry.date] = entry
             dateKeys.append((entry.date, date))
-            let rowMetric = Self.renderedBreakdownRowsMetric(for: entry)
-            detailRowMetrics.append(rowMetric)
-            maxRenderedBreakdownRows = max(maxRenderedBreakdownRows, rowMetric.count)
             if let cur = peak {
                 if costUSD > cur.costUSD { peak = (entry.date, costUSD) }
             } else {
@@ -311,11 +315,6 @@ struct CostHistoryChartMenuView: View {
         }()
 
         let barColor = Self.barColor(for: provider)
-        let maxDetailRowsHeight = detailRowMetrics.reduce(CGFloat(0)) { currentMax, metric in
-            let fillerRows = max(maxRenderedBreakdownRows - metric.count, 0)
-            let filledHeight = metric.height + (CGFloat(fillerRows) * Self.compactDetailRowHeight)
-            return max(currentMax, filledHeight)
-        }
         return Model(
             points: points,
             pointsByDateKey: pointsByKey,
@@ -324,9 +323,7 @@ struct CostHistoryChartMenuView: View {
             axisDates: axisDates,
             barColor: barColor,
             peakKey: maxCostUSD > 0 ? peak?.key : nil,
-            maxCostUSD: maxCostUSD,
-            maxRenderedBreakdownRows: maxRenderedBreakdownRows,
-            maxDetailRowsHeight: maxDetailRowsHeight)
+            maxCostUSD: maxCostUSD)
     }
 
     private static func barColor(for provider: UsageProvider) -> Color {
@@ -356,36 +353,28 @@ struct CostHistoryChartMenuView: View {
         return model.pointsByDateKey[key]
     }
 
-    private static func renderedBreakdownRowsMetric(for entry: DailyEntry) -> (count: Int, height: CGFloat) {
-        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return (0, 0) }
-        let renderedRows = Array(
-            self.orderedBreakdownItems(breakdown)
-                .prefix(self.detailViewportRowCount(itemCount: breakdown.count)))
-        let height = renderedRows.reduce(CGFloat(0)) { total, item in
-            total + self.detailRowHeight(hasModeSubtitle: Self.hasModeSubtitle(item))
-        }
-        return (renderedRows.count, height)
-    }
-
     private static func hasModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> Bool {
         item.standardCostUSD != nil || item.priorityCostUSD != nil
     }
 
-    private static func detailBlockHeight(maxBreakdownRows: Int, maxRowsHeight: CGFloat) -> CGFloat {
-        guard maxBreakdownRows > 0 else { return self.detailPrimaryLineHeight }
-        return self.detailPrimaryLineHeight +
-            self.detailRowsViewportHeight(
-                maxBreakdownRows: maxBreakdownRows,
-                maxRowsHeight: maxRowsHeight) +
-            self.detailSpacing
+    private static func detailBlockHeight(rows: [DetailRow]) -> CGFloat {
+        guard !rows.isEmpty else { return self.detailPrimaryLineHeight }
+        return self.detailPrimaryLineHeight + self.detailRowsViewportHeight(rows: rows) + self.detailSpacing
     }
 
-    private static func detailRowsViewportHeight(
-        maxBreakdownRows: Int,
-        maxRowsHeight: CGFloat) -> CGFloat
-    {
-        guard maxBreakdownRows > 0 else { return 0 }
-        return maxRowsHeight + (CGFloat(maxBreakdownRows - 1) * self.detailSpacing)
+    private static func detailRowsViewportHeight(rows: [DetailRow]) -> CGFloat {
+        let visibleRows = Array(rows.prefix(self.maxVisibleDetailLines))
+        guard !visibleRows.isEmpty else { return 0 }
+
+        let rowHeights = visibleRows.reduce(CGFloat(0)) { total, row in
+            total + self.detailRowHeight(for: row)
+        }
+        let spacing = CGFloat(max(visibleRows.count - 1, 0)) * self.detailSpacing
+        return rowHeights + spacing
+    }
+
+    private static func defaultSelectedDateKey(model: Model) -> String? {
+        model.dateKeys.last?.key
     }
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
@@ -445,7 +434,17 @@ struct CostHistoryChartMenuView: View {
 
         if self.selectedDateKey != nearest {
             self.selectedDateKey = nearest
+            // Resize directly from the hover handler: this runs synchronously inside NSMenu's
+            // tracking run loop, unlike SwiftUI preference callbacks which are never delivered
+            // while the menu is open.
+            self.notifyHeightChange(selectedDateKey: nearest, model: model)
         }
+    }
+
+    private func notifyHeightChange(selectedDateKey: String?, model: Model) {
+        guard let onHeightChange = self.onHeightChange else { return }
+        let rows = selectedDateKey.map { self.breakdownRows(key: $0, model: model) } ?? []
+        onHeightChange(Self.totalCardHeight(rows: rows, hasTotal: self.totalCostUSD != nil))
     }
 
     private func nearestDateKey(to date: Date, model: Model) -> String? {
@@ -462,8 +461,8 @@ struct CostHistoryChartMenuView: View {
         return best?.key
     }
 
-    private func detailContent(model: Model) -> DetailContent {
-        guard let key = self.selectedDateKey,
+    private func detailContent(selectedDateKey: String?, model: Model) -> DetailContent {
+        guard let key = selectedDateKey,
               let point = model.pointsByDateKey[key],
               let date = Self.dateFromDayKey(key)
         else {
@@ -558,5 +557,47 @@ struct CostHistoryChartMenuView: View {
     private static func breakdownAccentOpacity(for index: Int) -> Double {
         let opacity = 0.75 - (Double(index) * 0.12)
         return max(0.3, opacity)
+    }
+}
+
+extension CostHistoryChartMenuView {
+    static func _defaultSelectedDateKeyForTesting(provider: UsageProvider, daily: [DailyEntry]) -> String? {
+        self.defaultSelectedDateKey(model: self.makeModel(provider: provider, daily: daily))
+    }
+
+    static func _detailViewportHeightForTesting(modeSubtitlePresence: [Bool]) -> CGFloat {
+        let rows = modeSubtitlePresence.enumerated().map { index, hasModeSubtitle in
+            DetailRow(
+                id: "\(index)",
+                title: "Row \(index)",
+                subtitle: "Subtitle",
+                modeSubtitle: hasModeSubtitle ? "Mode" : nil,
+                accentColor: .blue)
+        }
+        return self.detailRowsViewportHeight(rows: rows)
+    }
+
+    static func _detailBlockHeightForTesting(modeSubtitlePresence: [Bool]) -> CGFloat {
+        let rows = modeSubtitlePresence.enumerated().map { index, hasModeSubtitle in
+            DetailRow(
+                id: "\(index)",
+                title: "Row \(index)",
+                subtitle: "Subtitle",
+                modeSubtitle: hasModeSubtitle ? "Mode" : nil,
+                accentColor: .blue)
+        }
+        return self.detailBlockHeight(rows: rows)
+    }
+
+    static func _totalCardHeightForTesting(modeSubtitlePresence: [Bool], hasTotal: Bool) -> CGFloat {
+        let rows = modeSubtitlePresence.enumerated().map { index, hasModeSubtitle in
+            DetailRow(
+                id: "\(index)",
+                title: "Row \(index)",
+                subtitle: "Subtitle",
+                modeSubtitle: hasModeSubtitle ? "Mode" : nil,
+                accentColor: .blue)
+        }
+        return self.totalCardHeight(rows: rows, hasTotal: hasTotal)
     }
 }

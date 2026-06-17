@@ -82,8 +82,33 @@ final class MenuCardHighlightState {
 }
 
 final class MenuHostingView<Content: View>: NSHostingView<Content> {
+    /// The height AppKit should give this item's menu row. NSMenu reads `intrinsicContentSize`
+    /// (not the explicit `frame`) when it lays out custom-view rows, so a measured height that
+    /// only lives in `frame` is silently reverted to the open-time row height — leaving the
+    /// SwiftUI content centered in a stale, oversized row. Routing the height through the
+    /// intrinsic size is the channel the menu actually honors.
+    private var measuredHeight: CGFloat?
+
     override var allowsVibrancy: Bool {
         true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard let measuredHeight else { return super.intrinsicContentSize }
+        return NSSize(width: NSView.noIntrinsicMetric, height: measuredHeight)
+    }
+
+    func applyMeasuredHeight(width: CGFloat, height: CGFloat) {
+        let resolvedHeight = max(1, ceil(height))
+        guard self.measuredHeight != resolvedHeight || self.frame.height != resolvedHeight else { return }
+
+        self.measuredHeight = resolvedHeight
+        self.frame = NSRect(
+            origin: self.frame.origin,
+            size: NSSize(width: width, height: resolvedHeight))
+        self.invalidateIntrinsicContentSize()
+        self.layoutSubtreeIfNeeded()
+        self.superview?.layoutSubtreeIfNeeded()
     }
 }
 
