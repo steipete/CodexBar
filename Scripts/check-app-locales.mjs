@@ -8,6 +8,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const resources = path.join(repoRoot, "Sources/CodexBar/Resources");
 const english = readCatalog("en");
 const englishKeys = Object.keys(english).sort();
+const strictLocales = ["ar", "fa", "th"];
+const languageKeys = ["language_arabic", "language_persian", "language_thai"];
 
 function readCatalog(locale) {
   const file = path.join(resources, `${locale}.lproj/Localizable.strings`);
@@ -16,15 +18,25 @@ function readCatalog(locale) {
   return JSON.parse(output);
 }
 
-function tokens(value) {
+function tokenSignature(value) {
   // Exclude explicit `%%` which don't require parameters
   const withoutEscapedPercents = value.replace(/%%/g, "");
   const printfRaw = withoutEscapedPercents.match(/%(?:\d+\$)?(?:\.\d+)?(?:@|d|f)/g) ?? [];
-  // Normalize printf tokens so positional specifiers like %1$@ are compared as %@
-  const printf = printfRaw.map(t => t.replace(/\d+\$/, ""));
+  
+  const printfMap = {};
+  let implicitIndex = 1;
+  for (const t of printfRaw) {
+    const match = t.match(/%(\d+)\$.*?([@df])/);
+    if (match) {
+      printfMap[parseInt(match[1], 10)] = match[2];
+    } else {
+      const type = t.slice(-1);
+      printfMap[implicitIndex++] = type;
+    }
+  }
 
   const swift = value.match(/\\\([^)]*\)/g) ?? [];
-  return [...printf, ...swift].sort();
+  return { printf: printfMap, swift: swift.sort() };
 }
 
 let hasErrors = false;
@@ -43,7 +55,20 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
   // 1. Missing keys
   const missingKeys = englishKeys.filter(k => !catalogKeys.includes(k));
   if (missingKeys.length > 0) {
-    console.warn(`\x1b[33m[${locale}] Warning: Missing ${missingKeys.length} keys.\x1b[0m`);
+    if (strictLocales.includes(locale)) {
+      console.error(`\x1b[31m[${locale}] Error: Missing ${missingKeys.length} keys in strict locale.\x1b[0m`);
+      hasErrors = true;
+    } else {
+      console.warn(`\x1b[33m[${locale}] Warning: Missing ${missingKeys.length} keys.\x1b[0m`);
+    }
+  }
+
+  // Ensure critical language keys are present in ALL locales
+  for (const key of languageKeys) {
+    if (!catalog[key] || !catalog[key].trim()) {
+      console.error(`\x1b[31m[${locale}] Error: Missing critical language key "${key}".\x1b[0m`);
+      hasErrors = true;
+    }
   }
 
   // 2. Identical values count
@@ -58,8 +83,8 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
     }
 
     // 3. Format placeholder mismatch
-    const tEn = tokens(english[key]);
-    const tLoc = tokens(catalog[key]);
+    const tEn = tokenSignature(english[key]);
+    const tLoc = tokenSignature(catalog[key]);
     if (JSON.stringify(tEn) !== JSON.stringify(tLoc)) {
       console.error(`\x1b[31m[${locale}] Error: Token mismatch for key "${key}"\x1b[0m`);
       console.error(`  en: ${english[key]}  Tokens: ${JSON.stringify(tEn)}`);
