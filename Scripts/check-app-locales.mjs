@@ -36,8 +36,26 @@ function tokenSignature(value) {
     }
   }
 
-  const swift = value.match(/\\\([^)]*\)/g) ?? [];
-  return { printf, swift: swift.sort() };
+  return { printf, swift: swiftInterpolationTokens(value).sort() };
+}
+
+function swiftInterpolationTokens(value) {
+  const tokens = [];
+  for (let index = 0; index < value.length - 1; index += 1) {
+    if (value[index] !== "\\" || value[index + 1] !== "(") continue;
+
+    const start = index;
+    let depth = 1;
+    index += 2;
+    while (index < value.length && depth > 0) {
+      if (value[index] === "(") depth += 1;
+      if (value[index] === ")") depth -= 1;
+      index += 1;
+    }
+    tokens.push(value.slice(start, index));
+    index -= 1;
+  }
+  return tokens;
 }
 
 if (isTest) {
@@ -45,6 +63,14 @@ if (isTest) {
   assertNotEqual(tokenSignature("%1$@ · %2$d"), tokenSignature("%1$d · %2$@"), "positional type swap");
   assertEqual(tokenSignature("%.0f%% used"), tokenSignature("%.0f%% verbraucht"), "escaped percent");
   assertNotEqual(tokenSignature("\\(name): \\(usage)"), tokenSignature("\\(name): \\(value)"), "Swift tokens");
+  assertEqual(
+    tokenSignature("\\(self.store.metadata(for: self.provider).displayName) failed"),
+    tokenSignature("Fehler: \\(self.store.metadata(for: self.provider).displayName)"),
+    "nested Swift interpolation");
+  assertNotEqual(
+    tokenSignature("\\(self.store.metadata(for: self.provider).displayName) failed"),
+    tokenSignature("\\(self.store.metadata(for: self.provider) failed"),
+    "truncated Swift interpolation");
   console.log("app locale checker tests OK");
   process.exit(0);
 }
