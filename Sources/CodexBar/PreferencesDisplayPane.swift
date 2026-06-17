@@ -41,8 +41,6 @@ struct DisplayPane: View {
                         title: L("hide_critters_title"),
                         subtitle: L("hide_critters_subtitle"),
                         binding: self.$settings.menuBarHidesCritters)
-                        .disabled(self.settings.mergeIcons)
-                        .opacity(self.settings.mergeIcons ? 0.5 : 1)
                     PreferenceToggleRow(
                         title: L("menu_bar_shows_percent_title"),
                         subtitle: L("menu_bar_shows_percent_subtitle"),
