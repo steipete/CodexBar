@@ -135,6 +135,50 @@ struct LiteLLMMenuCardModelTests {
     }
 
     @Test
+    func `litellm team-only budget stays on the team row`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let metadata = try #require(ProviderDefaults.metadata[.litellm])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60),
+                resetDescription: "Team Platform: $250.00 / $1,000.00"),
+            providerCost: ProviderCostSnapshot(
+                used: 250,
+                limit: 1000,
+                currencyCode: "USD",
+                period: "Team budget",
+                updatedAt: now),
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .litellm,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.map(\.id) == ["secondary"])
+        #expect(model.metrics.first?.detailText == "Team Platform: $250.00 / $1,000.00")
+        #expect(model.providerCost == nil)
+    }
+
+    @Test
     func `litellm spend without budget remains visible`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.litellm])
