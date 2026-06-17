@@ -91,7 +91,13 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
   let identicalCount = 0;
 
   for (const key of englishKeys) {
-    if (!catalog[key]) continue;
+    if (!catalog[key]?.trim()) {
+      if (strictLocales.includes(locale) && catalogKeys.includes(key)) {
+        console.error(`\x1b[31m[${locale}] Error: Blank value for strict locale key "${key}".\x1b[0m`);
+        hasErrors = true;
+      }
+      continue;
+    }
 
     if (catalog[key] === english[key]) {
       identicalCount++;
