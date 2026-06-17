@@ -36,6 +36,33 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `menu card enabled state follows interaction affordances`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        for renderingEnabled in [false, true] {
+            StatusItemController.menuCardRenderingEnabled = renderingEnabled
+
+            let informational = controller.makeMenuCardItem(Text("Info"), id: "info", width: 300)
+            let clickable = controller.makeMenuCardItem(Text("Click"), id: "click", width: 300, onClick: {})
+            let submenu = controller.makeMenuCardItem(
+                Text("Submenu"),
+                id: "submenu",
+                width: 300,
+                submenu: NSMenu())
+
+            #expect(!informational.isEnabled)
+            #expect(clickable.isEnabled)
+            #expect(submenu.isEnabled)
+        }
+    }
+
+    @Test
     func `merged menu width uses widest provider action set`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false

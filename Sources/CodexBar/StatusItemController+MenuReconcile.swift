@@ -179,7 +179,6 @@ extension StatusItemController {
         let submenu = newItem.submenu
         newItem.submenu = nil
         liveItem.view = view
-        (view as? MenuCardHighlighting)?.setHighlighted(remainsHighlighted)
         liveItem.submenu = submenu
         liveItem.title = newItem.title
         liveItem.attributedTitle = newItem.attributedTitle
