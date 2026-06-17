@@ -637,12 +637,13 @@ extension StatusItemController {
             return true
         }
 
+        let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
         menu.addItem(self.makeMenuCardItem(
-            UsageMenuCardView(model: model, width: context.menuWidth),
+            UsageMenuCardView(model: renderedModel, width: context.menuWidth),
             id: "menuCard",
             width: context.menuWidth,
             heightCacheScope: context.currentProvider.rawValue,
-            heightCacheFingerprint: model.heightFingerprint(section: "card"),
+            heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
             containsInteractiveControls: true))
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
@@ -660,12 +661,13 @@ extension StatusItemController {
         context: MenuCardContext)
     {
         if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
+            let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
             menu.addItem(self.makeMenuCardItem(
-                UsageMenuCardView(model: model, width: context.menuWidth),
+                UsageMenuCardView(model: renderedModel, width: context.menuWidth),
                 id: "menuCard",
                 width: context.menuWidth,
                 heightCacheScope: context.currentProvider.rawValue,
-                heightCacheFingerprint: model.heightFingerprint(section: "card"),
+                heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
                 containsInteractiveControls: true))
             menu.addItem(.separator())
         } else {

@@ -35,12 +35,16 @@ final class MenuCardRefreshMonitor {
         fallback: UsageMenuCardView.Model) -> UsageMenuCardView.Model
     {
         guard !self.isManualRefreshInFlight else {
-            guard let frozen = self.frozenManualRefreshModels[provider],
-                  fallback.hasCompatibleTrackedLayout(with: frozen)
-            else {
+            guard let frozen = self.frozenManualRefreshModels[provider] else {
                 return fallback
             }
-            return frozen
+            if fallback.hasCompatibleTrackedLayout(with: frozen) {
+                return frozen
+            }
+            if fallback.metrics.isEmpty, !frozen.metrics.isEmpty {
+                return frozen
+            }
+            return fallback
         }
 
         guard let resolved = self.resolveModel(provider),

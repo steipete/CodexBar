@@ -4,6 +4,31 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+private final class SwitcherRefreshManualGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+
+    func wait() async {
+        if self.isOpen {
+            self.isOpen = false
+            return
+        }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func resume() {
+        if let continuation = self.continuation {
+            continuation.resume()
+            self.continuation = nil
+        } else {
+            self.isOpen = true
+        }
+    }
+}
+
+@MainActor
 @Suite(.serialized)
 struct StatusMenuSwitcherRefreshTests {
     @Test
@@ -224,6 +249,89 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
+    func `manual refresh keeps codex quota visible after switching away and back`() async throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        Self.enableCodexAndClaude(settings)
+        Self.disableOverview(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        store._setSnapshotForTesting(Self.quotaSnapshot(usedPercent: 21, updatedAt: now), provider: .codex)
+        store._setSnapshotForTesting(Self.quotaSnapshot(usedPercent: 44, updatedAt: now), provider: .claude)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer {
+            controller.manualRefreshTask?.cancel()
+            controller.releaseStatusItemsForTesting()
+        }
+
+        let gate = SwitcherRefreshManualGate()
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+        }
+        defer { controller._test_manualRefreshOperation = nil }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let selectedButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .on })
+        let alternateButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .off })
+
+        controller.refreshNow()
+        #expect(controller.menuCardRefreshMonitor.isManualRefreshInFlight)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(primary: nil, secondary: nil, updatedAt: now.addingTimeInterval(1)),
+            provider: .codex)
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
+
+        let initialSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        #expect(initialSwitcher._test_simulateRuntimeClick(buttonTag: alternateButton.tag))
+        await Self.waitForRebuildCount(1, rebuildCount: { rebuildCount })
+
+        let alternateSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        #expect(alternateSwitcher._test_simulateRuntimeClick(buttonTag: selectedButton.tag))
+        await Self.waitForRebuildCount(2, rebuildCount: { rebuildCount })
+        #expect(settings.selectedMenuProvider == .codex)
+
+        let emptyFallback = try #require(controller.menuCardModel(for: .codex))
+        let inFlight = controller.menuCardRefreshMonitor.model(for: .codex, fallback: emptyFallback)
+        let subtitle = controller.menuCardRefreshMonitor.subtitle(
+            for: .codex,
+            fallback: MenuCardLiveSubtitle(text: emptyFallback.subtitleText, style: emptyFallback.subtitleStyle))
+
+        #expect(emptyFallback.metrics.isEmpty)
+        #expect(subtitle.text == "Refreshing…")
+        #expect(inFlight.metrics.first?.percentLabel == "79% left")
+
+        gate.resume()
+        await controller.manualRefreshTask?.value
+        #expect(!controller.menuCardRefreshMonitor.isManualRefreshInFlight)
+    }
+
+    @Test
     func `native image menu rows are replaced during reconciliation`() {
         let settings = Self.makeSettings()
         let fetcher = UsageFetcher()
@@ -425,6 +533,17 @@ struct StatusMenuSwitcherRefreshTests {
             provider: .claude,
             isSelected: false,
             activeProviders: activeProviders)
+    }
+
+    private static func quotaSnapshot(usedPercent: Double, updatedAt: Date) -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: 300,
+                resetsAt: updatedAt.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: updatedAt)
     }
 
     private static func waitForRebuildCount(
