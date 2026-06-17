@@ -60,7 +60,7 @@
 "Choose Codex workspace" = "Chọn không gian làm việc Codex";
 "Choose the MiniMax host (global .io or China mainland .com)." = "Chọn máy chủ MiniMax (toàn cầu .io hoặc Trung Quốc đại lục .com).";
 "Choose up to " = "Chọn tối đa";
-"Choose up to \\(Self.maxOverviewProviders) providers" = "Chọn tối đa nhà cung cấp \\(Self.maxOverviewProviders";
+"Choose up to \\(Self.maxOverviewProviders) providers" = "Chọn tối đa nhà cung cấp \\(Self.maxOverviewProviders)";
 "Choose up to \\(count) providers" = "Chọn tối đa \\(count) nhà cung cấp";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Chọn nội dung sẽ hiển thị trong thanh menu (Tốc độ hiển thị Mức sử dụng so với dự kiến).";
 "Choose which Codex account CodexBar should follow." = "Chọn tài khoản Codex mà CodexBar sẽ tuân theo.";
@@ -155,7 +155,7 @@
 "Keychain access" = "Keychain truy cập";
 "Keychain prompt policy" = "Keychain chính sách nhắc";
 "Last \\(name) fetch failed:" = "Tìm nạp \\(name) lần cuối không thành công:";
-"Last \\(self.store.metadata(for: self.provider).displayName) fetch failed:" = "Lần tìm nạp \\(self.store.metadata(for: self. Nhà cung cấp ) .displayName) lần cuối không thành công:";
+"Last \\(self.store.metadata(for: self.provider).displayName) fetch failed:" = "Lần tìm nạp \\(self.store.metadata(for: self.provider).displayName) lần cuối không thành công:";
 "Last attempt" = "Lần thử cuối cùng";
 "Link" = "Liên kết";
 "Loading animations" = "Đang tải hình động";
@@ -258,7 +258,7 @@
 "Replace critter bars with provider branding icons and a percentage." = "Thay thế các thanh sinh vật bằng Nhà cung cấp biểu tượng nhãn hiệu và tỷ lệ phần trăm.";
 "Replay selected animation" = "Phát lại hoạt ảnh đã chọn";
 "Requires authentication via GitHub Device Flow." = "Yêu cầu xác thực thông qua GitHub Device Flow.";
-"Resets: \\(reset)" = "Đặt lại: \\( Đặt lại )";
+"Resets: \\(reset)" = "Đặt lại: \\(reset)";
 "Rolling five-hour limit" = "Giới hạn 5 giờ liên tục";
 "Search hourly" = "Tìm kiếm hàng giờ";
 "Secondary (\\(label))" = "Phụ (\\(label))";
@@ -342,8 +342,8 @@
 "Window: \\(window)" = "Cửa sổ: \\(window)";
 "Write logs to \\(self.fileLogPath) for debugging." = "Ghi nhật ký vào \\(self.fileLogPath) để gỡ lỗi.";
 "Yes" = "Có";
-"\\(detail.modelCode): \\(usage)" = "\\(detail.modelCode): \\( Mức sử dụng )";
-"\\(name): \\(truncated)" = "\\(name): \\(cắt ngắn)";
+"\\(detail.modelCode): \\(usage)" = "\\(detail.modelCode): \\(usage)";
+"\\(name): \\(truncated)" = "\\(name): \\(truncated)";
 "\\(name): \\(updated) · 30d \\(cost)" = "\\(name): \\(updated) · 30d \\(cost)";
 "\\(name): fetching…\\(elapsed)" = "\\(name): đang tìm nạp…\\(elapsed)";
 "\\(name): last attempt \\(when)" = "\\(name): lần thử cuối cùng \\(when)";
