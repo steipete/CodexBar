@@ -10,6 +10,7 @@ const english = readCatalog("en");
 const englishKeys = Object.keys(english).sort();
 const strictLocales = ["ar", "fa", "th"];
 const languageKeys = ["language_arabic", "language_persian", "language_thai"];
+const isTest = process.argv.includes("--test");
 
 function readCatalog(locale) {
   const file = path.join(resources, `${locale}.lproj/Localizable.strings`);
@@ -19,24 +20,33 @@ function readCatalog(locale) {
 }
 
 function tokenSignature(value) {
-  // Exclude explicit `%%` which don't require parameters
+  // Exclude explicit `%%`, which does not consume an argument.
   const withoutEscapedPercents = value.replace(/%%/g, "");
   const printfRaw = withoutEscapedPercents.match(/%(?:\d+\$)?(?:\.\d+)?(?:@|d|f)/g) ?? [];
-  
-  const printfMap = {};
+
+  const printf = {};
   let implicitIndex = 1;
-  for (const t of printfRaw) {
-    const match = t.match(/%(\d+)\$.*?([@df])/);
+  for (const token of printfRaw) {
+    const match = token.match(/%(\d+)\$.*?([@df])/);
     if (match) {
-      printfMap[parseInt(match[1], 10)] = match[2];
+      printf[Number.parseInt(match[1], 10)] = match[2];
     } else {
-      const type = t.slice(-1);
-      printfMap[implicitIndex++] = type;
+      printf[implicitIndex] = token.at(-1);
+      implicitIndex += 1;
     }
   }
 
   const swift = value.match(/\\\([^)]*\)/g) ?? [];
-  return { printf: printfMap, swift: swift.sort() };
+  return { printf, swift: swift.sort() };
+}
+
+if (isTest) {
+  assertEqual(tokenSignature("%1$@ · %2$d"), tokenSignature("%2$d · %1$@"), "positional reorder");
+  assertNotEqual(tokenSignature("%1$@ · %2$d"), tokenSignature("%1$d · %2$@"), "positional type swap");
+  assertEqual(tokenSignature("%.0f%% used"), tokenSignature("%.0f%% verbraucht"), "escaped percent");
+  assertNotEqual(tokenSignature("\\(name): \\(usage)"), tokenSignature("\\(name): \\(value)"), "Swift tokens");
+  console.log("app locale checker tests OK");
+  process.exit(0);
 }
 
 let hasErrors = false;
@@ -51,9 +61,9 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
 
   checkedCount++;
   const catalogKeys = Object.keys(catalog);
-  
+
   // 1. Missing keys
-  const missingKeys = englishKeys.filter(k => !catalogKeys.includes(k));
+  const missingKeys = englishKeys.filter((key) => !catalogKeys.includes(key));
   if (missingKeys.length > 0) {
     if (strictLocales.includes(locale)) {
       console.error(`\x1b[31m[${locale}] Error: Missing ${missingKeys.length} keys in strict locale.\x1b[0m`);
@@ -61,6 +71,12 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
     } else {
       console.warn(`\x1b[33m[${locale}] Warning: Missing ${missingKeys.length} keys.\x1b[0m`);
     }
+  }
+
+  const extraKeys = catalogKeys.filter((key) => !englishKeys.includes(key));
+  if (strictLocales.includes(locale) && extraKeys.length > 0) {
+    console.error(`\x1b[31m[${locale}] Error: Found ${extraKeys.length} extra keys in strict locale.\x1b[0m`);
+    hasErrors = true;
   }
 
   // Ensure critical language keys are present in ALL locales
@@ -73,11 +89,10 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
 
   // 2. Identical values count
   let identicalCount = 0;
-  let mismatchedTokensCount = 0;
 
   for (const key of englishKeys) {
     if (!catalog[key]) continue;
-    
+
     if (catalog[key] === english[key]) {
       identicalCount++;
     }
@@ -89,7 +104,6 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
       console.error(`\x1b[31m[${locale}] Error: Token mismatch for key "${key}"\x1b[0m`);
       console.error(`  en: ${english[key]}  Tokens: ${JSON.stringify(tEn)}`);
       console.error(`  ${locale}: ${catalog[key]}  Tokens: ${JSON.stringify(tLoc)}`);
-      mismatchedTokensCount++;
       hasErrors = true;
     }
   }
@@ -97,14 +111,25 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
   // Warn if identical translation count exceeds 15% of the total keys (approx > 150 out of 1050)
   const identicalRatio = identicalCount / englishKeys.length;
   if (identicalRatio > 0.15) {
-     console.warn(`\x1b[33m[${locale}] Warning: High number of identical translations: ${identicalCount}/${englishKeys.length} (${(identicalRatio * 100).toFixed(1)}%)\x1b[0m`);
+    console.warn(`\x1b[33m[${locale}] Warning: High number of identical translations: ${identicalCount}/${englishKeys.length} (${(identicalRatio * 100).toFixed(1)}%)\x1b[0m`);
   }
 }
 
 if (hasErrors) {
-  console.error(`\n\x1b[31mi18n checks failed due to token mismatches.\x1b[0m`);
+  console.error("\n\x1b[31mApp locale checks failed.\x1b[0m");
   process.exit(1);
-} else {
-  console.log(`\n\x1b[32mApp locales OK: Checked ${checkedCount} catalogs, ${englishKeys.length} keys each.\x1b[0m`);
 }
 
+console.log(`\n\x1b[32mApp locales OK: Checked ${checkedCount} catalogs against ${englishKeys.length} English keys.\x1b[0m`);
+
+function assertEqual(actual, expected, label) {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+  }
+}
+
+function assertNotEqual(actual, expected, label) {
+  if (JSON.stringify(actual) === JSON.stringify(expected)) {
+    throw new Error(`${label}: signatures unexpectedly match`);
+  }
+}
