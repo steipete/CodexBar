@@ -252,7 +252,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         for descriptor in Self.pipeDescriptorsToClose([stdoutRead, stdoutWrite, stderrRead, stderrWrite]) {
             fileActionResults.append(posix_spawn_file_actions_addclose(&fileActions, descriptor))
         }
-        #if !canImport(Darwin)
+        #if canImport(Glibc)
         fileActionResults.append(posix_spawn_file_actions_addclosefrom_np(&fileActions, STDERR_FILENO + 1))
         #endif
         guard fileActionResults.allSatisfy({ $0 == 0 }) else {

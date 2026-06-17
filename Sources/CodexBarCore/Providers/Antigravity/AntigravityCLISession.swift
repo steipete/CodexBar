@@ -886,7 +886,7 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
         _ = homeDirectory.withCString { path in
             posix_spawn_file_actions_addchdir_np(&fileActions, path)
         }
-        #if !canImport(Darwin)
+        #if canImport(Glibc)
         posix_spawn_file_actions_addclosefrom_np(&fileActions, 3)
         #endif
 
