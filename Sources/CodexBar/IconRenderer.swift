@@ -129,8 +129,12 @@ enum IconRenderer {
                 let trackStrokeAlpha: CGFloat = stale ? 0.28 : 0.44
                 let fillColor = baseFill.withAlphaComponent(stale ? 0.55 : 1.0)
 
-                let barWidthPx = 30 // 15 pt at 2×, uses the slot better without touching edges.
-                let barXPx = (Self.canvasPx - barWidthPx) / 2
+                let baseBarWidthPx = 30 // 15 pt at 2×, uses the slot better without touching edges.
+                // When a status badge is present, reserve a right-edge gutter so the badge does not
+                // merge visually with the bottom usage bar fill.
+                let statusBadgeGutterPx = statusIndicator.hasIssue ? 4 : 0
+                let barWidthPx = baseBarWidthPx - statusBadgeGutterPx
+                let barXPx = (Self.canvasPx - baseBarWidthPx) / 2
 
                 func drawBar(
                     rectPx: RectPx,
@@ -938,30 +942,34 @@ enum IconRenderer {
 
         switch indicator {
         case .minor, .maintenance:
-            let size: CGFloat = 4
-            let rect = Self.snapRect(
-                x: Self.baseSize.width - size - 2,
-                y: 2,
-                width: size,
-                height: size)
+            // Pixel-space badge in the reserved right gutter (bars stop at x=29px when a badge shows).
+            let rect = Self.grid.rect(
+                x: Self.canvasPx - 5,
+                y: 3,
+                w: 4,
+                h: 4)
             let path = NSBezierPath(ovalIn: rect)
             color.setFill()
             path.fill()
         case .major, .critical, .unknown:
-            let lineRect = Self.snapRect(
-                x: Self.baseSize.width - 6,
-                y: 4,
-                width: 2.0,
-                height: 6)
-            let linePath = NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1)
+            // Keep the exclamation mark in the same right gutter, outside both bars.
+            let lineRect = Self.grid.rect(
+                x: Self.canvasPx - 5,
+                y: 7,
+                w: 2,
+                h: 6)
+            let linePath = NSBezierPath(
+                roundedRect: lineRect,
+                xRadius: Self.grid.pt(1),
+                yRadius: Self.grid.pt(1))
             color.setFill()
             linePath.fill()
 
-            let dotRect = Self.snapRect(
-                x: Self.baseSize.width - 6,
-                y: 2,
-                width: 2.0,
-                height: 2.0)
+            let dotRect = Self.grid.rect(
+                x: Self.canvasPx - 5,
+                y: 3,
+                w: 2,
+                h: 2)
             NSBezierPath(ovalIn: dotRect).fill()
         case .none:
             break
