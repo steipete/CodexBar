@@ -79,7 +79,7 @@ struct LiteLLMMenuCardModelTests {
     func `litellm budget row details redact team aliases when hiding personal info`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let metadata = try #require(ProviderDefaults.metadata[.litellm])
-        let teamAlias = "hidden-user" + "@" + "example.invalid"
+        let teamAlias = "Private Workspace"
         let json = """
         {
           "user_id": "user-123",

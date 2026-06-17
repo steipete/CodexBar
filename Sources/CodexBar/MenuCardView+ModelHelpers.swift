@@ -9,6 +9,46 @@ extension UsageMenuCardView.Model {
         let paceOnTop: Bool
     }
 
+    static func redactedMetricDetail(_ detail: String?, provider: UsageProvider, metricID: String) -> String? {
+        let redacted = PersonalInfoRedactor.redactEmails(in: detail, isEnabled: true)
+        guard provider == .litellm,
+              metricID == "secondary",
+              let redacted,
+              redacted.hasPrefix("Team "),
+              let separator = redacted.range(of: ": ", options: .backwards)
+        else {
+            return redacted
+        }
+        return "Team Hidden\(redacted[separator.lowerBound...])"
+    }
+
+    static func redactedMetrics(
+        _ metrics: [Metric],
+        provider: UsageProvider,
+        hidePersonalInfo: Bool) -> [Metric]
+    {
+        guard hidePersonalInfo else { return metrics }
+        return metrics.map { metric in
+            Metric(
+                id: metric.id,
+                title: PersonalInfoRedactor.redactEmails(in: metric.title, isEnabled: true) ?? metric.title,
+                percent: metric.percent,
+                percentStyle: metric.percentStyle,
+                statusText: PersonalInfoRedactor.redactEmails(in: metric.statusText, isEnabled: true),
+                resetText: PersonalInfoRedactor.redactEmails(in: metric.resetText, isEnabled: true),
+                detailText: Self.redactedMetricDetail(
+                    metric.detailText,
+                    provider: provider,
+                    metricID: metric.id),
+                detailLeftText: PersonalInfoRedactor.redactEmails(in: metric.detailLeftText, isEnabled: true),
+                detailRightText: PersonalInfoRedactor.redactEmails(in: metric.detailRightText, isEnabled: true),
+                pacePercent: metric.pacePercent,
+                paceOnTop: metric.paceOnTop,
+                warningMarkerPercents: metric.warningMarkerPercents,
+                cardStyle: metric.cardStyle)
+        }
+    }
+
     var isOverviewErrorOnly: Bool {
         self.subtitleStyle == .error &&
             self.metrics.isEmpty &&

@@ -864,7 +864,10 @@ extension UsageMenuCardView.Model {
             snapshot: input.snapshot,
             account: input.account,
             metadata: input.metadata)
-        let metrics = Self.redactedMetrics(Self.metrics(input: input), hidePersonalInfo: input.hidePersonalInfo)
+        let metrics = Self.redactedMetrics(
+            Self.metrics(input: input),
+            provider: input.provider,
+            hidePersonalInfo: input.hidePersonalInfo)
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
         let inlineUsageDashboard = Self.inlineUsageDashboard(input: input)
         let usageNotes = Self.usageNotes(input: input)
@@ -1146,26 +1149,6 @@ extension UsageMenuCardView.Model {
             subtitleText: subtitleText,
             creditsHintText: creditsHintText,
             creditsHintCopyText: creditsHintCopyText)
-    }
-
-    private static func redactedMetrics(_ metrics: [Metric], hidePersonalInfo: Bool) -> [Metric] {
-        guard hidePersonalInfo else { return metrics }
-        return metrics.map { metric in
-            Metric(
-                id: metric.id,
-                title: PersonalInfoRedactor.redactEmails(in: metric.title, isEnabled: true) ?? metric.title,
-                percent: metric.percent,
-                percentStyle: metric.percentStyle,
-                statusText: PersonalInfoRedactor.redactEmails(in: metric.statusText, isEnabled: true),
-                resetText: PersonalInfoRedactor.redactEmails(in: metric.resetText, isEnabled: true),
-                detailText: PersonalInfoRedactor.redactEmails(in: metric.detailText, isEnabled: true),
-                detailLeftText: PersonalInfoRedactor.redactEmails(in: metric.detailLeftText, isEnabled: true),
-                detailRightText: PersonalInfoRedactor.redactEmails(in: metric.detailRightText, isEnabled: true),
-                pacePercent: metric.pacePercent,
-                paceOnTop: metric.paceOnTop,
-                warningMarkerPercents: metric.warningMarkerPercents,
-                cardStyle: metric.cardStyle)
-        }
     }
 
     private static func creditsHintCopyText(dashboardError: String?, hidePersonalInfo: Bool) -> String? {
