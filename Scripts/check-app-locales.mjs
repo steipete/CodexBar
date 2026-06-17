@@ -78,6 +78,14 @@ if (isTest) {
 let hasErrors = false;
 let checkedCount = 0;
 
+for (const strictLocale of strictLocales) {
+  const dirPath = path.join(resources, `${strictLocale}.lproj`);
+  if (!fs.existsSync(dirPath)) {
+    console.error(`\x1b[31mError: Required strict locale catalog is completely missing: ${strictLocale}.lproj\x1b[0m`);
+    hasErrors = true;
+  }
+}
+
 for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith(".lproj"))) {
   const locale = directory.replace(/\.lproj$/, "");
   if (locale === "en" || locale === "Base") continue;
