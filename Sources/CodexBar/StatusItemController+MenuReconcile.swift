@@ -150,6 +150,13 @@ extension StatusItemController {
             (highlightedItem.view as? MenuCardHighlighting)?.setHighlighted(false)
             return
         }
+        guard highlightedItem.isEnabled,
+              (highlightedItem.view as? MenuCardHighlighting)?.allowsMenuHighlight != false
+        else {
+            self.highlightedMenuItems.removeValue(forKey: menuKey)
+            (highlightedItem.view as? MenuCardHighlighting)?.setHighlighted(false)
+            return
+        }
         (highlightedItem.view as? MenuCardHighlighting)?.setHighlighted(true)
     }
 
@@ -174,7 +181,6 @@ extension StatusItemController {
         let submenu = newItem.submenu
         newItem.submenu = nil
         liveItem.view = view
-        (view as? MenuCardHighlighting)?.setHighlighted(remainsHighlighted)
         liveItem.submenu = submenu
         liveItem.title = newItem.title
         liveItem.attributedTitle = newItem.attributedTitle
@@ -183,6 +189,8 @@ extension StatusItemController {
         liveItem.representedObject = newItem.representedObject
         liveItem.state = newItem.state
         liveItem.isEnabled = newItem.isEnabled
+        let allowsHighlight = (view as? MenuCardHighlighting)?.allowsMenuHighlight != false
+        (view as? MenuCardHighlighting)?.setHighlighted(newItem.isEnabled && allowsHighlight && remainsHighlighted)
         liveItem.image = newItem.image
         liveItem.toolTip = newItem.toolTip
         liveItem.keyEquivalent = newItem.keyEquivalent

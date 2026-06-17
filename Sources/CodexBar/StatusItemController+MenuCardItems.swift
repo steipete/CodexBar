@@ -27,11 +27,13 @@ extension StatusItemController {
         submenu: NSMenu? = nil,
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
+        containsInteractiveControls: Bool = false,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
+        let allowsMenuHighlight = submenu != nil || onClick != nil
         if !self.menuCardRenderingEnabledForController {
             let item = NSMenuItem()
-            item.isEnabled = true
+            item.isEnabled = allowsMenuHighlight
             item.representedObject = id
             item.submenu = submenu
             if submenu != nil {
@@ -55,7 +57,10 @@ extension StatusItemController {
             {
                 view
             }
-            recycled.prepareForReuse(rootView: wrapped, onClick: onClick)
+            recycled.prepareForReuse(
+                rootView: wrapped,
+                allowsMenuHighlight: allowsMenuHighlight,
+                onClick: onClick)
             hosting = recycled
         } else {
             let highlightState = MenuCardHighlightState()
@@ -68,7 +73,11 @@ extension StatusItemController {
             {
                 view
             }
-            hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState, onClick: onClick)
+            hosting = MenuCardItemHostingView(
+                rootView: wrapped,
+                highlightState: highlightState,
+                allowsMenuHighlight: allowsMenuHighlight,
+                onClick: onClick)
         }
         let height = self.cachedMenuCardHeight(
             for: id,
@@ -82,7 +91,7 @@ extension StatusItemController {
 
         let item = NSMenuItem()
         item.view = hosting
-        item.isEnabled = true
+        item.isEnabled = allowsMenuHighlight || containsInteractiveControls
         item.representedObject = id
         item.submenu = submenu
         if submenu != nil {
