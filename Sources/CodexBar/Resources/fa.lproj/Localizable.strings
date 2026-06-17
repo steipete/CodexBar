@@ -498,6 +498,8 @@
 "show_most_used_provider_subtitle" = "نوار منو به طور خودکار ارائه دهنده ای را نشان می دهد که به محدودیت نرخ خود نزدیک تر است.";
 "menu_bar_shows_percent_title" = "نوار منو درصد را نشان می دهد";
 "menu_bar_shows_percent_subtitle" = "بارهای کریتر را با آیکون های برندینگ ارائه دهنده و درصدی جایگزین کنید.";
+"hide_critters_title" = "پنهان کردن موجودات";
+"hide_critters_subtitle" = "نمایش نوارهای ساده بدون چهره و تزئینات.";
 "display_mode_title" = "حالت نمایش";
 "display_mode_subtitle" = "انتخاب کنید که در نوار منو چه چیزی نمایش داده شود (Pace میزان مصرف در مقابل مورد انتظار را نشان می دهد).";
 "section_menu_content" = "محتوای منو";

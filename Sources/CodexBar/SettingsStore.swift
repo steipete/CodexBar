@@ -360,6 +360,7 @@ extension SettingsStore {
             forKey: "providerChangelogLinksEnabled") as? Bool ?? false
         let menuBarShowsBrandIconWithPercent = userDefaults.object(
             forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false
+        let menuBarHidesCritters = userDefaults.object(forKey: "menuBarHidesCritters") as? Bool ?? false
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
             ?? MenuBarDisplayMode.percent.rawValue
         let kiroMenuBarDisplayModeRaw = userDefaults.string(forKey: "kiroMenuBarDisplayMode")
@@ -434,6 +435,7 @@ extension SettingsStore {
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             providerChangelogLinksEnabled: providerChangelogLinksEnabled,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
+            menuBarHidesCritters: menuBarHidesCritters,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,

@@ -498,6 +498,8 @@
 "show_most_used_provider_subtitle" = "شريط القوائم يعرض تلقائيا مزود الخدمة الأقرب إلى حد السعر.";
 "menu_bar_shows_percent_title" = "شريط القائمة يعرض النسبة المئوية";
 "menu_bar_shows_percent_subtitle" = "استبدل ألواح الحيوانات بأيقونات علامة مزودة ونسبة مئوية.";
+"hide_critters_title" = "إخفاء الكائنات الصغيرة";
+"hide_critters_subtitle" = "عرض أشرطة القياس البسيطة بدون الوجه والزخارف.";
 "display_mode_title" = "وضع العرض";
 "display_mode_subtitle" = "اختر ما تريد عرضه في شريط القائمة (Pace يظهر الاستخدام مقابل المتوقع).";
 "section_menu_content" = "محتوى القائمة";

@@ -308,6 +308,7 @@ extension StatusItemController {
                 "text=\(displayText ?? "nil")",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
+                "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 // AppKit can lose button title/image-position state independently of the cached render signature.
@@ -333,12 +334,16 @@ extension StatusItemController {
                 "status=\(statusIndicator.rawValue)",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
+                "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
-            let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
+            let image = IconRenderer.makeMorphIcon(
+                progress: morphProgress,
+                style: style,
+                hideCritters: self.settings.menuBarHidesCritters)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         } else {
@@ -356,6 +361,7 @@ extension StatusItemController {
                 "tilt=\(Self.iconSignatureValue(Double(tilt)))",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
+                "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 self.noteIconPerfRender(skipped: true)
@@ -370,7 +376,8 @@ extension StatusItemController {
                 blink: blink,
                 wiggle: wiggle,
                 tilt: tilt,
-                statusIndicator: statusIndicator)
+                statusIndicator: statusIndicator,
+                hideCritters: self.settings.menuBarHidesCritters)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         }
@@ -508,12 +515,16 @@ extension StatusItemController {
                 "status=\(statusIndicator.rawValue)",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "loading=\(isLoading ? "1" : "0")",
+                "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
-            let image = IconRenderer.makeMorphIcon(progress: morphProgress, style: style)
+            let image = IconRenderer.makeMorphIcon(
+                progress: morphProgress,
+                style: style,
+                hideCritters: self.settings.menuBarHidesCritters)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         } else {
@@ -531,6 +542,7 @@ extension StatusItemController {
                 "tilt=\(Self.iconSignatureValue(Double(tilt)))",
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "loading=\(isLoading ? "1" : "0")",
+                "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
                 self.noteIconPerfRender(skipped: true)
@@ -545,7 +557,8 @@ extension StatusItemController {
                 blink: blink,
                 wiggle: wiggle,
                 tilt: tilt,
-                statusIndicator: statusIndicator)
+                statusIndicator: statusIndicator,
+                hideCritters: self.settings.menuBarHidesCritters)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
         }

@@ -498,6 +498,8 @@
 "show_most_used_provider_subtitle" = "Menu bar auto-shows the provider closest to its rate limit.";
 "menu_bar_shows_percent_title" = "Menu bar shows percent";
 "menu_bar_shows_percent_subtitle" = "Replace critter bars with provider branding icons and a percentage.";
+"hide_critters_title" = "Hide critters";
+"hide_critters_subtitle" = "Show plain meter bars without the face and decorations.";
 "display_mode_title" = "Display mode";
 "display_mode_subtitle" = "Choose what to show in the menu bar (Pace shows usage vs. expected).";
 "section_menu_content" = "Menu content";

@@ -219,6 +219,7 @@ struct StatusIconView: View {
             creditsRemaining: creditsRemaining,
             stale: self.store.isStale(provider: self.provider),
             style: self.store.style(for: self.provider),
-            statusIndicator: self.store.statusIndicator(for: self.provider))
+            statusIndicator: self.store.statusIndicator(for: self.provider),
+            hideCritters: self.store.settings.menuBarHidesCritters)
     }
 }

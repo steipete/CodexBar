@@ -225,6 +225,14 @@ extension SettingsStore {
         }
     }
 
+    var menuBarHidesCritters: Bool {
+        get { self.defaultsState.menuBarHidesCritters }
+        set {
+            self.defaultsState.menuBarHidesCritters = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarHidesCritters")
+        }
+    }
+
     private var menuBarDisplayModeRaw: String? {
         get { self.defaultsState.menuBarDisplayModeRaw }
         set {

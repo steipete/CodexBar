@@ -24,6 +24,7 @@ extension SettingsStore {
         _ = self.resetTimesShowAbsolute
         _ = self.providerChangelogLinksEnabled
         _ = self.menuBarShowsBrandIconWithPercent
+        _ = self.menuBarHidesCritters
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode
         _ = self.kiroMenuBarDisplayMode
