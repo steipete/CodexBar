@@ -709,6 +709,7 @@
 "Resets %@" = "Si resetta %@";
 "Resets in %@" = "Si reimposta tra %@";
 "Resets now" = "Si resetta ora";
+"reset_tomorrow_format" = "domani, %@";
 "Lasts until reset" = "Valido fino al reset";
 "Updated %@" = "Aggiornato %@";
 "Updated %@h ago" = "Aggiornato %@ h fa";

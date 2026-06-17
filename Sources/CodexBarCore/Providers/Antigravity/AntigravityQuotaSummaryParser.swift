@@ -1,16 +1,19 @@
 import Foundation
 
+// swiftformat:disable:next redundantSendable
 struct AntigravityQuotaSummary: Sendable, Equatable {
     let description: String?
     let groups: [AntigravityQuotaSummaryGroup]
 }
 
+// swiftformat:disable:next redundantSendable
 struct AntigravityQuotaSummaryGroup: Sendable, Equatable {
     let displayName: String
     let description: String?
     let buckets: [AntigravityQuotaSummaryBucket]
 }
 
+// swiftformat:disable:next redundantSendable
 struct AntigravityQuotaSummaryBucket: Sendable, Equatable {
     let bucketId: String
     let displayName: String

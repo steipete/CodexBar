@@ -705,6 +705,7 @@
 "Resets %@" = "Sıfırlanma: %@";
 "Resets in %@" = "%@ içinde sıfırlanır";
 "Resets now" = "Şimdi sıfırlanır";
+"reset_tomorrow_format" = "yarın, %@";
 "Lasts until reset" = "Sıfırlamaya kadar sürer";
 "Updated %@" = "Güncellendi: %@";
 "Updated %@h ago" = "%@ saat önce güncellendi";

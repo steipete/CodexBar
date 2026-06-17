@@ -680,6 +680,7 @@
 "Resets %@" = "%@에 재설정";
 "Resets in %@" = "%@ 후 재설정";
 "Resets now" = "지금 재설정";
+"reset_tomorrow_format" = "내일 %@";
 "Lasts until reset" = "재설정까지 유지";
 "Updated %@" = "%@에 업데이트됨";
 "Updated %@h ago" = "%@시간 전 업데이트됨";

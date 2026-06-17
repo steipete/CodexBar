@@ -707,6 +707,7 @@
 "Resets %@" = "Réinitialise %@";
 "Resets in %@" = "Réinitialisé dans %@";
 "Resets now" = "Réinitialise maintenant";
+"reset_tomorrow_format" = "demain, %@";
 "Lasts until reset" = "Dure jusqu'à la réinitialisation";
 "Updated %@" = "%@ mis à jour";
 "Updated %@h ago" = "Mis à jour il y a %@h";

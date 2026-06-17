@@ -707,6 +707,7 @@
 "Resets %@" = "إعادة التعيين %@";
 "Resets in %@" = "إعادة التعيين في %@";
 "Resets now" = "إعادة التعيين الآن";
+"reset_tomorrow_format" = "غدًا، %@";
 "Lasts until reset" = "يستمر حتى إعادة التعيين";
 "Updated %@" = "تحديث %@";
 "Updated %@h ago" = "تم التحديث %@h قبل";

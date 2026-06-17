@@ -707,6 +707,7 @@
 "Resets %@" = "Setzt %@ zurück";
 "Resets in %@" = "Zurückgesetzt in %@";
 "Resets now" = "Wird jetzt zurückgesetzt";
+"reset_tomorrow_format" = "morgen, %@";
 "Lasts until reset" = "Hält bis zum Zurücksetzen an";
 "Updated %@" = "Aktualisiert %@";
 "Updated %@h ago" = "Vor %@h aktualisiert";

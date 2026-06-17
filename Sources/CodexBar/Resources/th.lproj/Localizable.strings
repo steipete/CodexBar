@@ -707,6 +707,7 @@
 "Resets %@" = "รีเซ็ต %@";
 "Resets in %@" = "รีเซ็ตใน %@";
 "Resets now" = "รีเซ็ตเดี๋ยวนี้";
+"reset_tomorrow_format" = "พรุ่งนี้ %@";
 "Lasts until reset" = "คงอยู่จนกว่าจะรีเซ็ต";
 "Updated %@" = "อัพเดท %@";
 "Updated %@h ago" = "อัพเดท %@h ที่ผ่านมา";

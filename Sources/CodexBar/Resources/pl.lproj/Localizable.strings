@@ -709,6 +709,7 @@
 "Resets %@" = "Reset %@";
 "Resets in %@" = "Reset za %@";
 "Resets now" = "Reset teraz";
+"reset_tomorrow_format" = "jutro, %@";
 "Lasts until reset" = "Wystarcza do resetu";
 "Updated %@" = "Zaktualizowano %@";
 "Updated %@h ago" = "Zaktualizowano %@ godz. temu";

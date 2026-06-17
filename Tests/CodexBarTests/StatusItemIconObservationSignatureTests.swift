@@ -225,6 +225,31 @@ struct StatusItemIconObservationSignatureTests {
         #expect(controller.storeIconObservationSignature() != baseline)
     }
 
+    @Test
+    func `updateIcons reuses a precomputed store icon signature instead of recomputing it`() {
+        let (_, _, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-precomputed-reuse")
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let precomputed = "precomputed-store-icon-signature-sentinel"
+        controller.updateIcons(precomputedStoreIconSignature: precomputed)
+
+        // A supplied signature must be stored verbatim; if updateIcons recomputed it, the gate would
+        // never equal the sentinel value.
+        #expect(controller.lastObservedStoreIconWorkSignature == precomputed)
+    }
+
+    @Test
+    func `updateIcons recomputes the store icon signature when none is provided`() {
+        let (_, _, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-recompute-default")
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.updateIcons()
+
+        #expect(controller.lastObservedStoreIconWorkSignature == controller.storeIconObservationSignature())
+    }
+
     private static func makeSnapshot(
         provider: UsageProvider,
         email: String,

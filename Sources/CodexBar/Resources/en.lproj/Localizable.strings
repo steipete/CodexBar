@@ -707,6 +707,7 @@
 "Resets %@" = "Resets %@";
 "Resets in %@" = "Resets in %@";
 "Resets now" = "Resets now";
+"reset_tomorrow_format" = "tomorrow, %@";
 "Lasts until reset" = "Lasts until reset";
 "Updated %@" = "Updated %@";
 "Updated %@h ago" = "Updated %@h ago";

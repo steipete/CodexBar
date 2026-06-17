@@ -681,6 +681,7 @@
 "Resets %@" = "重置于 %@";
 "Resets in %@" = "%@后重置";
 "Resets now" = "立即重置";
+"reset_tomorrow_format" = "明天 %@";
 "Lasts until reset" = "持续到重置";
 "Updated %@" = "更新于 %@";
 "Updated %@h ago" = "%@ 小时前更新";

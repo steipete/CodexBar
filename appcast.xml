@@ -3,6 +3,32 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.36.1</title>
+            <pubDate>Tue, 16 Jun 2026 00:47:04 -0400</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>88</sparkle:version>
+            <sparkle:shortVersionString>0.36.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.36.1</h2>
+<h3>Added</h3>
+<ul>
+<li>Poe: add current point balance and recent points history from a configured API key (#1191). Thanks @Yuxin-Qiao!</li>
+<li>Chutes: add subscription, quota-window, and pay-as-you-go usage tracking from a configured API key (#1496). Thanks @mvanhorn!</li>
+<li>Zed: add plan, edit-prediction quota, billing-cycle, and overdue-invoice tracking from the signed-in editor Keychain session (#1517). Thanks @enesteve0!</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Website: add Poe, Chutes, and Zed to the provider gallery with matching icons and setup documentation.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Provider switcher: use a continuous menu background instead of a separate light-mode tinted band. Thanks @Zihao-Qi!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.36.1/CodexBar-macos-universal-0.36.1.zip" length="51172568" type="application/octet-stream" sparkle:edSignature="tW74GvKbgGuT4yWPU0os8hHsdyxNM01x0bB8bn3lzOB3WwIF910tYK399egTbtB0sn38/s4ywBq3g7VIhT6+Bw=="/>
+        </item>
+        <item>
             <title>0.36.0</title>
             <pubDate>Tue, 16 Jun 2026 00:50:52 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -89,60 +115,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.35.0/CodexBar-macos-universal-0.35.0.zip" length="48598232" type="application/octet-stream" sparkle:edSignature="wx0RuMwESkRRO87c9KgUG4pQilNR8+cM6ZIcsvK65Y75cHDhrrEkMkHUBlLL2y3IN9HNl6RnLiqyhC6fE4rBAA=="/>
-        </item>
-        <item>
-            <title>0.34.0</title>
-            <pubDate>Fri, 12 Jun 2026 17:06:23 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>83</sparkle:version>
-            <sparkle:shortVersionString>0.34.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.34.0</h2>
-<h3>Added</h3>
-<ul>
-<li>Copilot: optionally import GitHub billing budget windows, bind them to the active account, and expose budget metrics in cards and menu bar icons (#1273). Thanks @Quicksaver!</li>
-<li>Localization: add native Korean language support across the app and language picker (#1460). Thanks @soohanpark!</li>
-<li>Localization: add German as a selectable app language (#1245). Thanks @Yuxin-Qiao!</li>
-<li>Localization: add Turkish as a selectable app language (#1232). Thanks @ykarateke!</li>
-<li>Devin: add daily and weekly quota tracking from the signed-in Chrome session or a manual Bearer token (#1264, fixes #800). Thanks @coygeek!</li>
-<li>Amp: add local <code>amp usage</code> support, including account identity and individual and workspace credit balances (fixes #1317). Thanks @3kh0!</li>
-<li>Menu bar: add an optional reset-time display for the selected quota metric, with percent fallback when reset metadata is unavailable (#1223, fixes #1185). Thanks @Yuxin-Qiao!</li>
-<li>Cursor: include application data, extensions, settings, and caches in optional local storage tracking (fixes #1403). Thanks @dhruv-anand-aintech!</li>
-<li>Menu bar: move the highlighted Overview provider with trackpad or mouse-wheel scrolling while preserving native submenu and keyboard behavior (#1436). Thanks @joshuavial!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>CLI: keep Ollama API credentials scoped to Ollama when deciding whether another provider requires macOS web support (#1466). Thanks @WadydX!</li>
-<li>Provider switcher: keep localized tab titles visible by tightening outer insets only when equal-width segments would otherwise truncate.</li>
-<li>OpenAI API: follow Admin usage pagination for costs and completions so multi-page organization usage totals are not undercounted (#1465). Thanks @rohitjavvadi!</li>
-<li>Settings: slightly increase the window height so standard panes fit without clipping their final controls or helper text.</li>
-<li>Menu bar: show immediate in-place feedback for manual refreshes, keep tracked-menu geometry stable, and coalesce repeated clicks until the active refresh succeeds or fails (#1458). Thanks @hhh2210!</li>
-<li>Grok: recover web billing from status-7 credential failures by combining current browser sessions with non-expired CLI auth, accept raw protobuf responses, and render current zero-use periods (#1452). Thanks @bcharleson!</li>
-<li>Amp: restore usage fetching with access-token authentication for the current balance endpoint and retain browser-cookie settings parsing as a fallback. Thanks @3kh0!</li>
-<li>Antigravity: detect current hyphenated IDE language-server processes inside Antigravity app bundles so local quota refreshes no longer report the IDE as unavailable (#1405). Thanks @lfmundim!</li>
-<li>Menu bar: avoid republishing unchanged provider storage footprints so background scans no longer trigger unnecessary menu observation work (#1416). Thanks @soohanpark!</li>
-<li>Cursor: show capped team Extra usage when no individual cap exists, and honor percent used/remaining menu bar display settings instead of always showing currency spend (#1426). Thanks @lpc-eol!</li>
-<li>Cursor: derive a first-party web session from the signed-in Cursor.app as a final fallback, preserving account precedence and legacy request quotas (#1295). Thanks @Jackie-Qin!</li>
-<li>Claude: explain that an unauthorized Web session requires signing in at claude.ai or refreshing imported cookies (#1287). Thanks @LeoLin990405!</li>
-<li>CLI server: reload provider config for every usage and cost request, invalidate config-dependent cache entries, and prune expired config variants without restarting <code>codexbar serve</code>. Thanks @enieuwy!</li>
-<li>Menu bar: reserve quota-bar space consistently across Overview and provider switcher segments so selection no longer changes segment height (#1445). Thanks @Zihao-Qi!</li>
-<li>Cost usage: accept normal models.dev catalog churn while retaining prior model prices as fallbacks, so newly priced models appear without requiring a manual cache reset (#1438). Thanks @tom-rigelblu!</li>
-<li>Menu bar: detect Tahoe Control Center proxy windows parked in the blocked offscreen slot during startup recovery, so hidden icons show the existing guidance without weakening menu-bar-manager safeguards (#1440).</li>
-<li>AWS Bedrock: treat Cost Explorer&#x27;s temporary data-unavailable response as zero usage instead of an HTTP 400 error (#1324). Thanks @enesteve0!</li>
-<li>Provider switcher: inset quota bars inside fixed-height segments so icons, labels, and selected pills remain vertically centered.</li>
-<li>Doubao: show an unavailable quota state when Ark omits trustworthy request-limit data instead of reporting 100% left.</li>
-<li>Menu bar: anchor merged provider dropdowns to the status item&#x27;s trailing edge without marking preserved in-flight refresh content fresh, preventing horizontal drift while keeping deferred updates visible (#1288). Thanks @Yuxin-Qiao!</li>
-<li>Antigravity: fall back to the CLI usage server when the desktop app is closed, keep helper sessions owned and bounded without hidden sign-in flows, and show model rows with missing usage as unavailable instead of exhausted (#1313). Thanks @enieuwy!</li>
-<li>Cost usage: replace repeated Foundation metadata/root checks with one portable file-stat pass so expired Codex history refreshes stay responsive on very large session archives (#1392). Thanks @TheAngryPit and @ProspectOre!</li>
-<li>Cursor: show the Safari Full Disk Access recovery hint before the long browser login list so permission guidance remains visible when menu errors truncate (#1419, fixes #1417). Thanks @hhh2210!</li>
-<li>Cursor: present legacy request-based plans as one Requests quota with the raw used/limit count instead of unrelated token-based Auto/API bars (#1420, fixes #1418). Thanks @hhh2210!</li>
-<li>Cost usage: memoize Codex priority-turn trace metadata incrementally so warm refreshes scan only appended rows instead of rescanning large trace databases (#1404). Thanks @ProspectOre!</li>
-<li>Security: reject insecure or malformed MiniMax and Alibaba endpoint overrides while preserving valid custom HTTPS deployments (#1269). Thanks @Hinotoi-agent!</li>
-<li>Security: reject insecure or malformed OpenRouter, Codebuff, Groq, and ElevenLabs endpoint overrides before sending provider credentials (#1256). Thanks @Hinotoi-agent!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.34.0/CodexBar-macos-universal-0.34.0.zip" length="48142694" type="application/octet-stream" sparkle:edSignature="8ONIR0p+maIuxZAn3AKl0n4F4ASXBHJ/kO9z6qNnfhetl/qp9YzDLQ5aQPelqYIgbPZI+ImL+hTJLQpIa7rFDw=="/>
         </item>
         <item>
             <title>0.14.0</title>

@@ -60,6 +60,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         let referer: URL
     }
 
+    // swiftformat:disable:next redundantSendable
     struct ZenBalanceRequest: Sendable {
         let workspaceID: String
         let cookieHeader: String
