@@ -763,7 +763,6 @@ struct HistoricalUsagePaceTests {
             }
         }
         let now = Date()
-        let resetsAt = now.addingTimeInterval(3600)
         let week = HistoricalWeekProfile(
             resetsAt: now.addingTimeInterval(-10080 * 60),
             windowMinutes: 10080,
@@ -796,15 +795,17 @@ struct HistoricalUsagePaceTests {
             curve: Array(repeating: 100.0, count: 169))
         let dataset = CodexHistoricalDataset(weeks: [week, week, week])
 
-        let window = RateWindow(
-            usedPercent: 100, // Exhausted
-            windowMinutes: 10080,
-            resetsAt: resetsAt,
-            resetDescription: nil,
-            nextRegenPercent: nil)
+        for usedPercent in [100.0, 120.0] {
+            let window = RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: 10080,
+                resetsAt: resetsAt,
+                resetDescription: nil,
+                nextRegenPercent: nil)
 
-        let pace = CodexHistoricalPaceEvaluator.evaluate(window: window, now: now, dataset: dataset)
-        #expect(pace?.willLastToReset == false)
-        #expect(pace?.etaSeconds == 0)
+            let pace = CodexHistoricalPaceEvaluator.evaluate(window: window, now: now, dataset: dataset)
+            #expect(pace?.willLastToReset == false)
+            #expect(pace?.etaSeconds == 0)
+        }
     }
 }

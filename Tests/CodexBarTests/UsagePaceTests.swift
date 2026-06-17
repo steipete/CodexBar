@@ -467,6 +467,23 @@ struct UsagePaceTests {
     }
 
     @Test
+    func `workdays off linear weekly pace keeps deficit sign`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 88,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(2 * 24 * 3600 + 19 * 3600),
+            resetDescription: nil)
+
+        let pace = try #require(UsagePace.weekly(window: window, now: now, workDays: nil))
+
+        #expect(abs(pace.expectedUsedPercent - (101.0 / 168.0 * 100.0)) < 0.01)
+        #expect(pace.deltaPercent > 25)
+        #expect(pace.stage == .farAhead)
+        #expect(pace.willLastToReset == false)
+    }
+
+    @Test
     func `workday aware pace ignores non weekly windows`() throws {
         let now = Date(timeIntervalSince1970: 0)
         // 300-minute session window — workDays should have no effect

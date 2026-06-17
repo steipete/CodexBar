@@ -351,6 +351,48 @@ extension HistoricalUsagePaceTests {
 
     @MainActor
     @Test
+    func `usage store preserves historical Codex pace when work days are off`() throws {
+        let suite = "HistoricalUsagePaceTests-workdays-off-preserve-history-\(UUID().uuidString)"
+        let store = try Self.makeUsageStoreForBackfillTests(
+            suite: suite,
+            historyFileURL: Self.makeTempURL())
+        store.settings.weeklyProgressWorkDays = nil
+
+        let now = Date(timeIntervalSince1970: 0)
+        let duration = TimeInterval(10080 * 60)
+        let resetsAt = now.addingTimeInterval(duration / 2)
+        let window = RateWindow(
+            usedPercent: 60,
+            windowMinutes: 10080,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+        let dataset = CodexHistoricalDataset(weeks: (0..<4).map { index in
+            HistoricalWeekProfile(
+                resetsAt: resetsAt.addingTimeInterval(-duration * Double(index + 1)),
+                windowMinutes: 10080,
+                curve: Self.linearCurve(end: 80))
+        })
+        let expected = try #require(CodexHistoricalPaceEvaluator.evaluate(
+            window: window,
+            now: now,
+            dataset: dataset))
+        let linear = try #require(UsagePace.weekly(window: window, now: now, workDays: nil))
+        store._setCodexHistoricalDatasetForTesting(
+            dataset,
+            accountKey: store.codexOwnershipContext().canonicalKey)
+
+        let computed = try #require(store.weeklyPace(provider: .codex, window: window, now: now))
+
+        #expect(abs(expected.expectedUsedPercent - linear.expectedUsedPercent) > 0.001)
+        #expect(abs(computed.expectedUsedPercent - expected.expectedUsedPercent) < 0.001)
+        #expect(abs(computed.deltaPercent - expected.deltaPercent) < 0.001)
+        #expect(computed.etaSeconds == expected.etaSeconds)
+        #expect(computed.willLastToReset == expected.willLastToReset)
+        #expect(computed.runOutProbability == expected.runOutProbability)
+    }
+
+    @MainActor
+    @Test
     func `usage store preserves historical Codex pace when work days are configured`() throws {
         let suite = "HistoricalUsagePaceTests-workdays-preserve-history-\(UUID().uuidString)"
         let store = try Self.makeUsageStoreForBackfillTests(

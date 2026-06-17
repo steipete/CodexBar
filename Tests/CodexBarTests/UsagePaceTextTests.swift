@@ -101,6 +101,40 @@ struct UsagePaceTextTests {
         #expect(detail.rightLabel == "≈ 45% run-out risk")
     }
 
+    @Test
+    func `weekly pace detail keeps lasts until reset only when rounded risk is zero`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let pace = UsagePace(
+            stage: .farBehind,
+            deltaPercent: -30,
+            expectedUsedPercent: 40,
+            actualUsedPercent: 10,
+            etaSeconds: nil,
+            willLastToReset: true,
+            runOutProbability: 0.02)
+
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+
+        #expect(detail.rightLabel == "Lasts until reset · ≈ 0% run-out risk")
+    }
+
+    @Test
+    func `weekly pace detail prefers risk over lasts until reset when rounded risk is material`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let pace = UsagePace(
+            stage: .slightlyBehind,
+            deltaPercent: -9,
+            expectedUsedPercent: 21,
+            actualUsedPercent: 12,
+            etaSeconds: nil,
+            willLastToReset: true,
+            runOutProbability: 0.03)
+
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+
+        #expect(detail.rightLabel == "≈ 5% run-out risk")
+    }
+
     // MARK: - Session pace (5-hour window)
 
     @Test
