@@ -34,7 +34,8 @@ extension StatusItemController {
                     id: "menuCard-\(cardIndex)",
                     width: context.menuWidth,
                     heightCacheScope: account.id,
-                    heightCacheFingerprint: model.heightFingerprint(section: "card")))
+                    heightCacheFingerprint: model.heightFingerprint(section: "card"),
+                    containsInteractiveControls: true))
                 cardIndex += 1
                 if account.id != section.accounts.last?.id {
                     menu.addItem(.separator())
@@ -52,7 +53,8 @@ extension StatusItemController {
                 id: "menuCard",
                 width: context.menuWidth,
                 heightCacheScope: context.currentProvider.rawValue,
-                heightCacheFingerprint: model.heightFingerprint(section: "card")))
+                heightCacheFingerprint: model.heightFingerprint(section: "card"),
+                containsInteractiveControls: true))
         }
         menu.addItem(.separator())
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {

@@ -60,7 +60,14 @@ extension StatusItemController {
 
 @MainActor
 protocol MenuCardHighlighting: AnyObject {
+    var allowsMenuHighlight: Bool { get }
     func setHighlighted(_ highlighted: Bool)
+}
+
+extension MenuCardHighlighting {
+    var allowsMenuHighlight: Bool {
+        true
+    }
 }
 
 @MainActor
@@ -83,6 +90,7 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
 @MainActor
 final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting, MenuCardMeasuring {
     let highlightState: MenuCardHighlightState
+    private(set) var allowsMenuHighlight: Bool
     private var onClick: (() -> Void)?
     private var hasClickRecognizer = false
 
@@ -96,8 +104,14 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         return NSSize(width: self.frame.width, height: size.height)
     }
 
-    init(rootView: Content, highlightState: MenuCardHighlightState, onClick: (() -> Void)? = nil) {
+    init(
+        rootView: Content,
+        highlightState: MenuCardHighlightState,
+        allowsMenuHighlight: Bool,
+        onClick: (() -> Void)? = nil)
+    {
         self.highlightState = highlightState
+        self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
         super.init(rootView: rootView)
         if onClick != nil {
@@ -109,8 +123,9 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     /// `rootView` is diffed in place by SwiftUI instead of tearing down and recreating the
     /// hosting view and its graph. Callers must construct `rootView` around this view's own
     /// `highlightState` so menu hover highlighting keeps driving the rendered content.
-    func prepareForReuse(rootView: Content, onClick: (() -> Void)?) {
+    func prepareForReuse(rootView: Content, allowsMenuHighlight: Bool, onClick: (() -> Void)?) {
         self.rootView = rootView
+        self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
         if onClick != nil, !self.hasClickRecognizer {
             self.installClickRecognizer()
@@ -126,6 +141,7 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
 
     required init(rootView: Content) {
         self.highlightState = MenuCardHighlightState()
+        self.allowsMenuHighlight = false
         self.onClick = nil
         super.init(rootView: rootView)
     }

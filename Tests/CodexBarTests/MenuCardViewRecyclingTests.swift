@@ -40,15 +40,19 @@ extension StatusMenuTests {
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
 
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        let controller = self.makeRecyclingController(settings: settings)
-        defer { controller.releaseStatusItemsForTesting() }
-
         for renderingEnabled in [false, true] {
             StatusItemController.menuCardRenderingEnabled = renderingEnabled
+            let settings = self.makeSettings()
+            settings.statusChecksEnabled = false
+            let controller = self.makeRecyclingController(settings: settings)
+            defer { controller.releaseStatusItemsForTesting() }
 
             let informational = controller.makeMenuCardItem(Text("Info"), id: "info", width: 300)
+            let embedded = controller.makeMenuCardItem(
+                Text("Embedded"),
+                id: "embedded",
+                width: 300,
+                containsInteractiveControls: true)
             let clickable = controller.makeMenuCardItem(Text("Click"), id: "click", width: 300, onClick: {})
             let submenu = controller.makeMenuCardItem(
                 Text("Submenu"),
@@ -57,9 +61,43 @@ extension StatusMenuTests {
                 submenu: NSMenu())
 
             #expect(!informational.isEnabled)
+            #expect(embedded.isEnabled == renderingEnabled)
             #expect(clickable.isEnabled)
             #expect(submenu.isEnabled)
         }
+    }
+
+    @Test
+    func `embedded controls stay enabled without highlighting the card`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let item = controller.makeMenuCardItem(
+            Text("Embedded"),
+            id: "embedded",
+            width: 300,
+            containsInteractiveControls: true)
+        menu.addItem(item)
+
+        controller.menu(menu, willHighlight: item)
+
+        #expect(item.isEnabled)
+        #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] == nil)
+        guard let hosting = item.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        else {
+            Issue.record("expected a card hosting view")
+            return
+        }
+        #expect(!hosting.allowsMenuHighlight)
+        #expect(!hosting.highlightState.isHighlighted)
     }
 
     @Test

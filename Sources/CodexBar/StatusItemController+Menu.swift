@@ -193,7 +193,10 @@ extension StatusItemController {
             (previous.view as? MenuCardHighlighting)?.setHighlighted(false)
         }
 
-        if let item, item.isEnabled {
+        if let item,
+           item.isEnabled,
+           (item.view as? MenuCardHighlighting)?.allowsMenuHighlight != false
+        {
             self.highlightedMenuItems[key] = item
             (item.view as? MenuCardHighlighting)?.setHighlighted(true)
         } else {
@@ -639,7 +642,8 @@ extension StatusItemController {
             id: "menuCard",
             width: context.menuWidth,
             heightCacheScope: context.currentProvider.rawValue,
-            heightCacheFingerprint: model.heightFingerprint(section: "card")))
+            heightCacheFingerprint: model.heightFingerprint(section: "card"),
+            containsInteractiveControls: true))
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
         }
@@ -661,7 +665,8 @@ extension StatusItemController {
                 id: "menuCard",
                 width: context.menuWidth,
                 heightCacheScope: context.currentProvider.rawValue,
-                heightCacheFingerprint: model.heightFingerprint(section: "card")))
+                heightCacheFingerprint: model.heightFingerprint(section: "card"),
+                containsInteractiveControls: true))
             menu.addItem(.separator())
         } else {
             for (index, model) in cards.enumerated() {
@@ -670,7 +675,8 @@ extension StatusItemController {
                     id: "menuCard-\(index)",
                     width: context.menuWidth,
                     heightCacheScope: "\(context.currentProvider.rawValue)-\(index)",
-                    heightCacheFingerprint: model.heightFingerprint(section: "card")))
+                    heightCacheFingerprint: model.heightFingerprint(section: "card"),
+                    containsInteractiveControls: true))
                 if index < cards.count - 1 {
                     menu.addItem(.separator())
                 }
@@ -1265,7 +1271,8 @@ extension StatusItemController {
                 width: width,
                 heightCacheScope: provider.rawValue,
                 heightCacheFingerprint: model.heightFingerprint(section: "usage"),
-                submenu: usageSubmenu))
+                submenu: usageSubmenu,
+                containsInteractiveControls: true))
         } else {
             let headerView = UsageMenuCardHeaderSectionView(
                 model: model,
@@ -1276,7 +1283,8 @@ extension StatusItemController {
                 id: "menuCardHeader",
                 width: width,
                 heightCacheScope: provider.rawValue,
-                heightCacheFingerprint: model.heightFingerprint(section: "header")))
+                heightCacheFingerprint: model.heightFingerprint(section: "header"),
+                containsInteractiveControls: true))
         }
 
         if hasStorage || hasCredits || hasExtraUsage || hasCost {
