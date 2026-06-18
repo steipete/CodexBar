@@ -443,6 +443,22 @@ struct OpenAIDashboardWebViewCacheTests {
         #expect(cache.entryCount == 1, "Only the busy shared entry should remain")
     }
 
+    @Test
+    func `Memory pressure malloc relief runs off the main thread`() async {
+        let probe = MemoryPressureThreadProbe()
+        let monitor = MemoryPressureMonitor {
+            probe.recordCurrentThread()
+        }
+
+        monitor.handleMemoryPressureForTesting(isWarning: true, isCritical: false)
+
+        let completed = await Task.detached {
+            probe.wait(timeout: .now() + 2)
+        }.value
+        #expect(completed)
+        #expect(probe.wasMainThread == false)
+    }
+
     // MARK: - Busy WebView Tests
 
     @Test
@@ -550,5 +566,26 @@ struct OpenAIDashboardWebViewCacheTests {
 
         cache.clearAllForTesting()
         OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
+    }
+}
+
+private final class MemoryPressureThreadProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var recordedMainThread: Bool?
+
+    var wasMainThread: Bool? {
+        self.lock.withLock { self.recordedMainThread }
+    }
+
+    func recordCurrentThread() {
+        self.lock.withLock {
+            self.recordedMainThread = Thread.isMainThread
+        }
+        self.semaphore.signal()
+    }
+
+    func wait(timeout: DispatchTime) -> Bool {
+        self.semaphore.wait(timeout: timeout) == .success
     }
 }

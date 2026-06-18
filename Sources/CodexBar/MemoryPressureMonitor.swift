@@ -5,7 +5,14 @@ import Foundation
 @MainActor
 final class MemoryPressureMonitor {
     private let logger = CodexBarLog.logger(LogCategories.memoryPressure)
+    private let releaseFreeMallocPages: @Sendable () -> Void
     private var source: DispatchSourceMemoryPressure?
+
+    init(releaseFreeMallocPages: @escaping @Sendable () -> Void = {
+        MemoryPressureRelief.releaseFreeMallocPages()
+    }) {
+        self.releaseFreeMallocPages = releaseFreeMallocPages
+    }
 
     func start() {
         guard self.source == nil else { return }
@@ -63,6 +70,9 @@ final class MemoryPressureMonitor {
                 "evicted": "\(max(0, cachedWebViewsBefore - cachedWebViewsAfter))",
             ])
         #endif
-        MemoryPressureRelief.releaseFreeMallocPages()
+        let releaseFreeMallocPages = self.releaseFreeMallocPages
+        Task.detached(priority: .utility) {
+            releaseFreeMallocPages()
+        }
     }
 }
