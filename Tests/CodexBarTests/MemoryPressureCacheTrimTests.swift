@@ -1,21 +1,31 @@
 import AppKit
 import CodexBarCore
+import Dispatch
 import Testing
 @testable import CodexBar
 
 @MainActor
 struct MemoryPressureCacheTrimTests {
     @Test
-    func `memory pressure monitor invokes app cache trim handler`() {
+    func `memory pressure monitor invokes app cache trim and allocator relief handlers`() async {
         var handlerCalls = 0
-        let monitor = MemoryPressureMonitor(trimAppCaches: {
-            handlerCalls += 1
-            return MemoryPressureCacheTrimSummary(menuCardHeights: 1)
-        })
+        let releaseProbe = MemoryPressureReleaseProbe()
+        let monitor = MemoryPressureMonitor(
+            trimAppCaches: {
+                handlerCalls += 1
+                return MemoryPressureCacheTrimSummary(menuCardHeights: 1)
+            },
+            releaseFreeMallocPages: {
+                releaseProbe.signal()
+            })
 
         monitor.handleMemoryPressureForTesting(isWarning: true, isCritical: false)
 
         #expect(handlerCalls == 1)
+        let releaseCompleted = await Task.detached {
+            releaseProbe.wait(timeout: .now() + 2)
+        }.value
+        #expect(releaseCompleted)
     }
 
     @Test
@@ -117,5 +127,17 @@ struct MemoryPressureCacheTrimTests {
         settings.mergeIcons = false
         settings.providerDetectionCompleted = true
         return settings
+    }
+}
+
+private final class MemoryPressureReleaseProbe: @unchecked Sendable {
+    private let semaphore = DispatchSemaphore(value: 0)
+
+    func signal() {
+        self.semaphore.signal()
+    }
+
+    func wait(timeout: DispatchTime) -> Bool {
+        self.semaphore.wait(timeout: timeout) == .success
     }
 }
