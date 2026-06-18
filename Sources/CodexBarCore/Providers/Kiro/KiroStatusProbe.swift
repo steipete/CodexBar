@@ -694,7 +694,7 @@ public struct KiroStatusProbe: Sendable {
 
         // Parse plan name from "Estimated Usage | resets on 2026-06-01 | KIRO FREE" (kiro-cli 2.x)
         if let estimatedMatch = text.range(
-            of: #"Estimated Usage\s*\|[^\n|]*\|\s*([A-Z][A-Z0-9 ]+)"#,
+            of: #"Estimated Usage[ \t]*\|[^\n|]*\|[ \t]*([A-Z][A-Z0-9 ]+)"#,
             options: .regularExpression)
         {
             let line = String(text[estimatedMatch])
@@ -706,7 +706,7 @@ public struct KiroStatusProbe: Sendable {
         }
 
         // Parse plan name from "Plan: Q Developer Pro" (new format, kiro-cli 1.24+)
-        if let newPlanMatch = text.range(of: #"Plan:\s*(.+)"#, options: .regularExpression) {
+        if let newPlanMatch = text.range(of: #"Plan:[ \t]*(.+)"#, options: .regularExpression) {
             let line = String(text[newPlanMatch])
             let planLine = line.replacingOccurrences(of: "Plan:", with: "").trimmingCharacters(in: .whitespaces)
             if let firstLine = planLine.split(separator: "\n").first {

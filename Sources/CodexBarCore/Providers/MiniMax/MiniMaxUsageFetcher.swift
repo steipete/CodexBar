@@ -1036,9 +1036,7 @@ enum MiniMaxUsageParser {
             self.extractFirst(pattern: #"(?i)"planName"\s*:\s*"([^"]+)""#, text: html),
             self.extractFirst(pattern: #"(?i)"plan"\s*:\s*"([^"]+)""#, text: html),
             self.extractFirst(pattern: #"(?i)"packageName"\s*:\s*"([^"]+)""#, text: html),
-            // Horizontal whitespace only ([ \t]); \s would let the capture span newlines and pull in
-            // unrelated text from a following line of the scraped page.
-            self.extractFirst(pattern: #"(?i)Coding[ \t]*Plan[ \t]*([A-Za-z0-9][A-Za-z0-9 \t._-]{0,32})"#, text: text),
+            self.extractFirst(pattern: #"(?i)Coding\s*Plan\s*([A-Za-z0-9][A-Za-z0-9\s._-]{0,32})"#, text: text),
         ]
             .compactMap(\.self)
             .map {
