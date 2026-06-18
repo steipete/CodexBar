@@ -259,28 +259,39 @@ public struct KiroStatusProbe: Sendable {
     }
 
     public func fetch() async throws -> KiroUsageSnapshot {
-        let accountTask = Task { await self.fetchAccountIfAvailable() }
+        let accountTask = Task { await self.fetchAccountStatus() }
+
+        let output: String
         do {
-            let output = try await self.runUsageCommand()
-            var contextUsage: KiroContextUsageSnapshot?
-            do {
-                contextUsage = try await self.fetchContextUsage()
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
-            }
-            let accountInfo = await accountTask.value
-            return try self.parse(
-                output: output,
-                accountEmail: accountInfo?.email,
-                authMethod: accountInfo?.authMethod,
-                contextUsage: contextUsage)
-        } catch {
+            output = try await self.runUsageCommand()
+        } catch is CancellationError {
             accountTask.cancel()
             _ = await accountTask.value
+            throw CancellationError()
+        } catch {
+            if await accountTask.value == .notLoggedIn {
+                throw KiroStatusProbeError.notLoggedIn
+            }
             throw error
         }
+
+        var contextUsage: KiroContextUsageSnapshot?
+        do {
+            contextUsage = try await self.fetchContextUsage()
+        } catch is CancellationError {
+            accountTask.cancel()
+            _ = await accountTask.value
+            throw CancellationError()
+        } catch {
+            Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
+        }
+
+        let accountInfo = await accountTask.value.account
+        return try self.parse(
+            output: output,
+            accountEmail: accountInfo?.email,
+            authMethod: accountInfo?.authMethod,
+            contextUsage: contextUsage)
     }
 
     struct KiroCLIResult {
@@ -295,12 +306,25 @@ public struct KiroStatusProbe: Sendable {
         let email: String?
     }
 
-    private func fetchAccountIfAvailable() async -> KiroAccountInfo? {
+    private enum KiroAccountProbeStatus: Equatable {
+        case account(KiroAccountInfo)
+        case notLoggedIn
+        case unavailable
+
+        var account: KiroAccountInfo? {
+            guard case let .account(info) = self else { return nil }
+            return info
+        }
+    }
+
+    private func fetchAccountStatus() async -> KiroAccountProbeStatus {
         do {
-            return try await self.ensureLoggedIn()
+            return try await .account(self.ensureLoggedIn())
+        } catch KiroStatusProbeError.notLoggedIn {
+            return .notLoggedIn
         } catch {
             Self.logger.debug("Kiro account probe failed: \(error.localizedDescription)")
-            return nil
+            return .unavailable
         }
     }
 
