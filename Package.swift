@@ -10,6 +10,14 @@ let sweetCookieKitDependency: Package.Dependency =
     ? .package(path: sweetCookieKitPath)
     : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.1")
 
+let sqlite3LibDir = ProcessInfo.processInfo.environment["CODEXBAR_SQLITE3_LIB_DIR"]?
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+let sqlite3LinkerSettings: [LinkerSetting] = if let sqlite3LibDir, !sqlite3LibDir.isEmpty {
+    [.unsafeFlags(["-L\(sqlite3LibDir)"], .when(platforms: [.linux]))]
+} else {
+    []
+}
+
 let package = Package(
     name: "CodexBar",
     defaultLocalization: "en",
@@ -53,7 +61,8 @@ let package = Package(
                 ],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
-                ]),
+                ],
+                linkerSettings: sqlite3LinkerSettings),
             .executableTarget(
                 name: "CodexBarCLI",
                 dependencies: [
@@ -63,7 +72,8 @@ let package = Package(
                 path: "Sources/CodexBarCLI",
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
-                ]),
+                ],
+                linkerSettings: sqlite3LinkerSettings),
             .testTarget(
                 name: "CodexBarLinuxTests",
                 dependencies: ["CodexBarCore", "CodexBarCLI"],
