@@ -19,6 +19,7 @@
 ### Fixed
 - Codex pace: extrapolate historically exhausted weeks for run-out forecasts and avoid contradictory reset headlines. Thanks @Yuxin-Qiao!
 - Localization: correct the German in-progress refresh label. Thanks @ChrisLauinger77!
+- Localization: correct misleading literal German UI translations. Thanks @madebyjulz!
 - Settings: switch tabs immediately before animated window resizing and reduce Providers sidebar work. Thanks @elijahfriedman!
 - Windsurf: import complete Devin sessions from the current app origin before legacy browser storage. Thanks @kiranmagic7!
 - Antigravity: humanize raw model identifiers while preserving server-provided quota labels. Thanks @bcharleson!
