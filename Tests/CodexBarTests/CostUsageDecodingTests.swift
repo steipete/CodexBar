@@ -351,6 +351,36 @@ struct CostUsageDecodingTests {
     }
 
     @Test
+    func `date parsers handle concurrent mixed formats`() async {
+        let dateInputs = [
+            "2026-02-03T04:05:06.789Z",
+            "2026-02-03T04:05:06Z",
+            "2026-02-03",
+            "Feb 3, 2026",
+        ]
+        let monthInputs = ["Feb 2026", "February 2026", "2026-02"]
+
+        await withTaskGroup(of: Bool.self) { group in
+            for _ in 0..<32 {
+                group.addTask {
+                    for _ in 0..<250 {
+                        guard dateInputs.allSatisfy({ CostUsageDateParser.parse($0) != nil }),
+                              monthInputs.allSatisfy({ CostUsageDateParser.parseMonth($0) != nil })
+                        else {
+                            return false
+                        }
+                    }
+                    return true
+                }
+            }
+
+            for await succeeded in group {
+                #expect(succeeded)
+            }
+        }
+    }
+
+    @Test
     func `token snapshot selects most recent day`() throws {
         let json = """
         {
