@@ -356,6 +356,49 @@ public struct AntigravityStatusSnapshot: Sendable {
         return .other
     }
 
+    static func quotaDisplayLabel(_ quota: AntigravityModelQuota) -> String {
+        let trimmed = quota.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty || trimmed == quota.modelId else { return quota.label }
+        return Self.humanizedModelID(quota.modelId)
+    }
+
+    static func humanizedModelID(_ modelId: String) -> String {
+        let parts = modelId.split(separator: "-").map(String.init)
+        var words: [String] = []
+        var index = 0
+
+        while index < parts.count {
+            let part = parts[index]
+            if Self.isSingleDigit(part), index + 1 < parts.count, Self.isSingleDigit(parts[index + 1]) {
+                var versionParts = [part]
+                index += 1
+                while index < parts.count, Self.isSingleDigit(parts[index]) {
+                    versionParts.append(parts[index])
+                    index += 1
+                }
+                words.append(versionParts.joined(separator: "."))
+                continue
+            }
+
+            if part.allSatisfy({ $0.isNumber || $0 == "." }) {
+                words.append(part)
+            } else if Self.modelLabelAcronyms.contains(part.lowercased()) {
+                words.append(part.uppercased())
+            } else {
+                words.append(part.prefix(1).uppercased() + part.dropFirst())
+            }
+            index += 1
+        }
+
+        return words.joined(separator: " ")
+    }
+
+    private static let modelLabelAcronyms: Set<String> = ["ai", "api", "gpt", "oss"]
+
+    private static func isSingleDigit(_ value: String) -> Bool {
+        value.count == 1 && value.allSatisfy(\.isNumber)
+    }
+
     private static func rateWindow(for quota: AntigravityModelQuota) -> RateWindow {
         RateWindow(
             usedPercent: 100 - quota.remainingPercent,
@@ -558,7 +601,7 @@ public struct AntigravityStatusSnapshot: Sendable {
                     id: m.quota.modelId == compactFallbackModelID
                         ? Self.compactFallbackWindowID(modelID: m.quota.modelId)
                         : m.quota.modelId,
-                    title: m.quota.label,
+                    title: Self.quotaDisplayLabel(m.quota),
                     window: Self.rateWindow(for: m.quota),
                     usageKnown: m.quota.remainingFraction != nil)
             }

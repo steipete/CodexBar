@@ -1630,14 +1630,14 @@ extension AntigravityStatusProbeTests {
         let snapshot = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
-                    label: "gemini-3-pro-high",
-                    modelId: "gemini-3-pro-high",
+                    label: "gemini-3-pro-preview",
+                    modelId: "gemini-3-pro-preview",
                     remainingFraction: 1,
                     resetTime: nil,
                     resetDescription: nil),
                 AntigravityModelQuota(
-                    label: "gemini-3-1-pro-low",
-                    modelId: "gemini-3-1-pro-low",
+                    label: "gemini-2.5-pro",
+                    modelId: "gemini-2.5-pro",
                     remainingFraction: 1,
                     resetTime: nil,
                     resetDescription: nil),
