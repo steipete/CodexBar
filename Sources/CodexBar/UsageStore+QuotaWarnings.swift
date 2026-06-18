@@ -28,7 +28,9 @@ extension UsageStore {
             window: .session,
             rateWindow: primaryWindow,
             source: source,
-            accountDisplayName: accountDisplayName)
+            accountDisplayName: accountDisplayName,
+            preserveMissingWindowState: provider == .commandcode &&
+                snapshot.commandCodeSubscriptionEnrichmentUnavailable)
         self.handleQuotaWarningTransition(
             provider: provider,
             window: .weekly,
@@ -42,7 +44,8 @@ extension UsageStore {
         window: QuotaWarningWindow,
         rateWindow: RateWindow?,
         source: SessionQuotaWindowSource?,
-        accountDisplayName: String?)
+        accountDisplayName: String?,
+        preserveMissingWindowState: Bool = false)
     {
         let key = QuotaWarningStateKey(provider: provider, window: window)
         guard self.settings.quotaWarningEnabled(provider: provider, window: window) else {
@@ -50,6 +53,7 @@ extension UsageStore {
             return
         }
         guard let rateWindow else {
+            if preserveMissingWindowState { return }
             self.quotaWarningState.removeValue(forKey: key)
             return
         }

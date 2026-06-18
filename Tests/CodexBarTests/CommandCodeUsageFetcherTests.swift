@@ -53,7 +53,7 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
-    func `successful free tier lookup is not marked unavailable`() async throws {
+    func `successful free tier lookup has no usage window`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             let path = try #require(request.url?.path)
             let body = if path.hasSuffix("/credits") {

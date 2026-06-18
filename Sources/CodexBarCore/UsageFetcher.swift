@@ -144,6 +144,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let deepgramUsage: DeepgramUsageSnapshot?
     public let poeUsage: PoeUsageHistorySnapshot?
     public let cursorRequests: CursorRequestUsage?
+    /// Live-only marker for optional Command Code subscription lookup failure.
+    public let commandCodeSubscriptionEnrichmentUnavailable: Bool
     public let subscriptionExpiresAt: Date?
     public let subscriptionRenewsAt: Date?
     public let updatedAt: Date
@@ -196,6 +198,7 @@ public struct UsageSnapshot: Codable, Sendable {
         deepgramUsage: DeepgramUsageSnapshot? = nil,
         poeUsage: PoeUsageHistorySnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
+        commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         subscriptionExpiresAt: Date? = nil,
         subscriptionRenewsAt: Date? = nil,
         updatedAt: Date,
@@ -221,6 +224,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepgramUsage = deepgramUsage
         self.poeUsage = poeUsage
         self.cursorRequests = cursorRequests
+        self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.subscriptionExpiresAt = subscriptionExpiresAt
         self.subscriptionRenewsAt = subscriptionRenewsAt
         self.updatedAt = updatedAt
@@ -267,6 +271,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepgramUsage = try container.decodeIfPresent(DeepgramUsageSnapshot.self, forKey: .deepgramUsage)
         self.poeUsage = try container.decodeIfPresent(PoeUsageHistorySnapshot.self, forKey: .poeUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
+        self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.subscriptionExpiresAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionExpiresAt)
         self.subscriptionRenewsAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionRenewsAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
@@ -490,6 +495,7 @@ public struct UsageSnapshot: Codable, Sendable {
             deepgramUsage: self.deepgramUsage,
             poeUsage: self.poeUsage,
             cursorRequests: self.cursorRequests,
+            commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt,
             updatedAt: self.updatedAt,

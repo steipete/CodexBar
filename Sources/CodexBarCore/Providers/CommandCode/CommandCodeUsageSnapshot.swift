@@ -67,6 +67,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
+            commandCodeSubscriptionEnrichmentUnavailable: self.subscriptionEnrichmentUnavailable,
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -81,13 +82,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
                     resetsAt: self.billingPeriodEnd,
                     resetDescription: nil)
             }
-            guard self.subscriptionEnrichmentUnavailable else { return nil }
-            // Preserve a depleted paid-plan window while optional subscription data is unavailable.
-            return RateWindow(
-                usedPercent: 100,
-                windowMinutes: nil,
-                resetsAt: self.billingPeriodEnd,
-                resetDescription: nil)
+            return nil
         }
         let used = self.monthlyCreditsUsed ?? 0
         let percent = min(100, max(0, (used / total) * 100))
