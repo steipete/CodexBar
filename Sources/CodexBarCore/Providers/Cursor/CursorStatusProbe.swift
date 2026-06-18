@@ -609,12 +609,16 @@ public struct CursorStatusSnapshot: Sendable {
         // Prefer a personal cap. Team accounts with no user cap expose only the shared on-demand budget.
         let resolvedOnDemandUsed: Double
         let resolvedOnDemandLimit: Double?
+        // Your own on-demand spend to surface alongside a shared team pool (nil when the budget is personal).
+        var personalOnDemandUsed: Double?
         if (self.onDemandLimitUSD ?? 0) > 0 {
             resolvedOnDemandUsed = self.onDemandUsedUSD
             resolvedOnDemandLimit = self.onDemandLimitUSD
         } else if (self.teamOnDemandLimitUSD ?? 0) > 0 {
             resolvedOnDemandUsed = self.teamOnDemandUsedUSD ?? 0
             resolvedOnDemandLimit = self.teamOnDemandLimitUSD
+            // The headline is the team pool; carry the user's own spend so the card can show it too.
+            personalOnDemandUsed = self.onDemandUsedUSD > 0 ? self.onDemandUsedUSD : nil
         } else {
             resolvedOnDemandUsed = self.onDemandUsedUSD
             resolvedOnDemandLimit = self.onDemandLimitUSD
@@ -630,6 +634,7 @@ public struct CursorStatusSnapshot: Sendable {
                 currencyCode: "USD",
                 period: "Monthly",
                 resetsAt: self.billingCycleEnd,
+                personalUsed: personalOnDemandUsed,
                 updatedAt: Date())
         } else {
             nil

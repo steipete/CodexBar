@@ -810,6 +810,7 @@
 "API spend" = "API ใช้จ่าย";
 "Extra usage" = "การใช้งานเพิ่มเติม";
 "Quota usage" = "การใช้โควต้า";
+"Your spend" = "การใช้จ่ายของคุณ";
 "%.0f%% used" = "%.0f%% ใช้แล้ว";
 "Usage history (today)" = "ประวัติการใช้งาน (วันนี้)";
 "Usage history (%d days)" = "ประวัติการใช้งาน (%d วัน)";

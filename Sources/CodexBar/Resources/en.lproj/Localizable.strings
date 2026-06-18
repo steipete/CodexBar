@@ -810,6 +810,7 @@
 "API spend" = "API spend";
 "Extra usage" = "Extra usage";
 "Quota usage" = "Quota usage";
+"Your spend" = "Your spend";
 "%.0f%% used" = "%.0f%% used";
 "Usage history (today)" = "Usage history (today)";
 "Usage history (%d days)" = "Usage history (%d days)";

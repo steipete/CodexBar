@@ -810,6 +810,7 @@
 "API spend" = "API تنفق";
 "Extra usage" = "الاستخدام الإضافي";
 "Quota usage" = "استخدام الحصص";
+"Your spend" = "إنفاقك";
 "%.0f%% used" = "%.0f%% مستخدمة";
 "Usage history (today)" = "تاريخ الاستخدام (اليوم)";
 "Usage history (%d days)" = "تاريخ الاستخدام (%d أيام)";

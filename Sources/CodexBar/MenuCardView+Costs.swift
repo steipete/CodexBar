@@ -276,11 +276,20 @@ extension UsageMenuCardView.Model {
         let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
         let periodLabel = Self.localizedPeriodLabel(cost.period ?? "This month")
 
+        // When the headline budget is a shared pool (e.g. Cursor team on-demand), show the
+        // account's own contribution underneath it.
+        let personalSpendLine: String? = cost.personalUsed.flatMap { personal in
+            personal > 0
+                ? "\(L("Your spend")): \(UsageFormatter.currencyString(personal, currencyCode: cost.currencyCode))"
+                : nil
+        }
+
         return ProviderCostSection(
             title: title,
             percentUsed: percentUsed,
             spendLine: "\(periodLabel): \(used) / \(limit)",
-            percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))))
+            percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))),
+            personalSpendLine: personalSpendLine)
     }
 
     private static func localizedPeriodLabel(_ label: String) -> String {

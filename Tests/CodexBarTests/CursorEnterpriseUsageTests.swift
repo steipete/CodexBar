@@ -127,6 +127,75 @@ struct CursorEnterpriseUsageTests {
     }
 
     @Test
+    func `team on-demand pool is the budget and personal spend rides along`() {
+        // Live team-plan payload (sanitized): the user's own on-demand spend has no personal limit,
+        // so the team pool is the headline budget. The personal spend must still be surfaced.
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: "2026-06-01T00:00:00.000Z",
+                    billingCycleEnd: "2026-07-01T00:00:00.000Z",
+                    membershipType: "enterprise",
+                    limitType: "team",
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 2000,
+                            limit: 2000,
+                            remaining: 0,
+                            breakdown: nil,
+                            autoPercentUsed: 0,
+                            apiPercentUsed: 100,
+                            totalPercentUsed: 100),
+                        onDemand: CursorOnDemandUsage(enabled: true, used: 4471, limit: nil, remaining: nil),
+                        overall: nil),
+                    teamUsage: CursorTeamUsage(
+                        onDemand: CursorOnDemandUsage(
+                            enabled: true,
+                            used: 1_311_125,
+                            limit: 2_000_000,
+                            remaining: 688_875),
+                        pooled: nil)),
+                userInfo: nil,
+                rawJSON: nil)
+
+        let cost = snapshot.toUsageSnapshot().providerCost
+        #expect(cost?.used == 13_111.25) // team pool used
+        #expect(cost?.limit == 20_000.0) // team pool limit
+        #expect(cost?.personalUsed == 44.71) // this account's own on-demand spend
+    }
+
+    @Test
+    func `personal on-demand limit keeps personal budget with no rider`() {
+        // When the user has their own on-demand limit, that is the budget and there is no separate rider.
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: "user",
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: nil,
+                        onDemand: CursorOnDemandUsage(enabled: true, used: 4471, limit: 10000, remaining: 5529),
+                        overall: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        let cost = snapshot.toUsageSnapshot().providerCost
+        #expect(cost?.used == 44.71)
+        #expect(cost?.limit == 100.0)
+        #expect(cost?.personalUsed == nil)
+    }
+
+    @Test
     func `existing plan block still wins over overall and pooled`() {
         // Guard against future drift: when Cursor sends both legacy `plan` and the newer `overall`
         // blocks, the existing percent precedence must remain intact.

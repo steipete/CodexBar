@@ -102,6 +102,7 @@ struct UsageMenuCardView: View {
             let percentUsed: Double?
             let spendLine: String
             let percentLine: String?
+            var personalSpendLine: String? = nil
         }
 
         let provider: UsageProvider
@@ -426,6 +427,12 @@ private struct ProviderCostContent: View {
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(1)
                 }
+            }
+            if let personalSpendLine = self.section.personalSpendLine {
+                Text(personalSpendLine)
+                    .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
             }
         }
     }
