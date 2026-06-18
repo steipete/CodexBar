@@ -46,6 +46,23 @@ private final class CookieOperationLog: @unchecked Sendable {
     }
 }
 
+private final class CookieTimeoutProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedFiredAt: Date?
+
+    var firedAt: Date? {
+        self.lock.withLock { self.storedFiredAt }
+    }
+
+    func record() {
+        self.lock.withLock {
+            if self.storedFiredAt == nil {
+                self.storedFiredAt = Date()
+            }
+        }
+    }
+}
+
 struct OpenAIDashboardBrowserCookieImporterTests {
     @Test
     func `shared deadline clamps each local timeout to remaining budget`() throws {
@@ -90,12 +107,14 @@ struct OpenAIDashboardBrowserCookieImporterTests {
     }
 
     @Test
-    func `blocking browser cookie load cannot exceed shared deadline`() async {
+    func `blocking browser cookie load cannot exceed shared deadline`() async throws {
         let start = Date()
+        let timeoutProbe = CookieTimeoutProbe()
 
         do {
             _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieLoad(
-                deadline: start.addingTimeInterval(0.05))
+                deadline: start.addingTimeInterval(0.05),
+                timeoutObserver: timeoutProbe.record)
             {
                 Thread.sleep(forTimeInterval: 0.5)
                 return true
@@ -103,10 +122,27 @@ struct OpenAIDashboardBrowserCookieImporterTests {
             Issue.record("Expected cookie load timeout")
         } catch let error as URLError {
             #expect(error.code == .timedOut)
-            #expect(Date().timeIntervalSince(start) < 0.3)
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
+        let firedAt = try #require(timeoutProbe.firedAt)
+        #expect(firedAt.timeIntervalSince(start) < 0.3)
+    }
+
+    @Test
+    func `timeout observer stays silent when operation wins`() async throws {
+        let timeoutProbe = CookieTimeoutProbe()
+
+        let value = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieLoad(
+            deadline: Date().addingTimeInterval(0.05),
+            timeoutObserver: timeoutProbe.record)
+        {
+            true
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(value)
+        #expect(timeoutProbe.firedAt == nil)
     }
 
     @Test
@@ -137,37 +173,51 @@ struct OpenAIDashboardBrowserCookieImporterTests {
     }
 
     @Test @MainActor
-    func `stalled callback cannot exceed shared deadline`() async {
+    func `slow callback times out before completion`() async throws {
         let start = Date()
+        let timeoutProbe = CookieTimeoutProbe()
 
         do {
             try await OpenAIDashboardBrowserCookieImporter.runBoundedCallback(
-                deadline: start.addingTimeInterval(0.05))
-            { _ in }
+                deadline: start.addingTimeInterval(0.05),
+                timeoutObserver: timeoutProbe.record)
+            { completion in
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
+                    completion()
+                }
+            }
             Issue.record("Expected callback timeout")
         } catch let error as URLError {
             #expect(error.code == .timedOut)
-            #expect(Date().timeIntervalSince(start) < 0.3)
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
+        let firedAt = try #require(timeoutProbe.firedAt)
+        #expect(firedAt.timeIntervalSince(start) < 0.3)
     }
 
     @Test @MainActor
-    func `stalled value callback cannot exceed shared deadline`() async {
+    func `slow value callback times out before completion`() async throws {
         let start = Date()
+        let timeoutProbe = CookieTimeoutProbe()
 
         do {
             let _: [String] = try await OpenAIDashboardBrowserCookieImporter.runBoundedValueCallback(
-                deadline: start.addingTimeInterval(0.05))
-            { _ in }
+                deadline: start.addingTimeInterval(0.05),
+                timeoutObserver: timeoutProbe.record)
+            { completion in
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
+                    completion([])
+                }
+            }
             Issue.record("Expected value callback timeout")
         } catch let error as URLError {
             #expect(error.code == .timedOut)
-            #expect(Date().timeIntervalSince(start) < 0.3)
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
+        let firedAt = try #require(timeoutProbe.firedAt)
+        #expect(firedAt.timeIntervalSince(start) < 0.3)
     }
 
     @Test @MainActor

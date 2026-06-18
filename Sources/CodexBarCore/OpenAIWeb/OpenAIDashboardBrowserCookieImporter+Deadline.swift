@@ -44,6 +44,7 @@ extension OpenAIDashboardBrowserCookieImporter {
 
     nonisolated static func runBoundedCookieLoad<T: Sendable>(
         deadline: Date?,
+        timeoutObserver: (@Sendable () -> Void)? = nil,
         operation: @escaping @Sendable () throws -> T) async throws -> T
     {
         guard let deadline else {
@@ -57,7 +58,10 @@ extension OpenAIDashboardBrowserCookieImporter {
                 completion.finish { continuation.resume(with: result) }
             }
             self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
-                completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
+                completion.finish {
+                    timeoutObserver?()
+                    continuation.resume(throwing: URLError(.timedOut))
+                }
             }
         }
     }
@@ -73,6 +77,7 @@ extension OpenAIDashboardBrowserCookieImporter {
 
     static func runBoundedCallback(
         deadline: Date?,
+        timeoutObserver: (@Sendable () -> Void)? = nil,
         start: (@escaping @Sendable () -> Void) -> Void) async throws
     {
         let completion = CookieLoadCompletion()
@@ -91,13 +96,17 @@ extension OpenAIDashboardBrowserCookieImporter {
                 completion.finish { continuation.resume() }
             }
             self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
-                completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
+                completion.finish {
+                    timeoutObserver?()
+                    continuation.resume(throwing: URLError(.timedOut))
+                }
             }
         }
     }
 
     static func runBoundedValueCallback<T: Sendable>(
         deadline: Date?,
+        timeoutObserver: (@Sendable () -> Void)? = nil,
         start: (@escaping @Sendable (T) -> Void) -> Void) async throws -> T
     {
         let completion = CookieLoadCompletion()
@@ -115,7 +124,10 @@ extension OpenAIDashboardBrowserCookieImporter {
                 completion.finish { continuation.resume(returning: value) }
             }
             self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
-                completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
+                completion.finish {
+                    timeoutObserver?()
+                    continuation.resume(throwing: URLError(.timedOut))
+                }
             }
         }
     }
