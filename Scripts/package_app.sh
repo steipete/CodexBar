@@ -432,18 +432,9 @@ elif [[ "$ALLOW_LLDB" == "1" ]]; then
   CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
 else
   CODESIGN_ID="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
-  CODESIGN_ARGS=(--force --options runtime --sign "$CODESIGN_ID")
+  CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
 fi
-TMP_APP="/tmp/CodexBar.app"
-rm -rf "$TMP_APP"
-cp -a "$APP" "$TMP_APP"
-rm -rf "$APP"
-APP="$TMP_APP"
-SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
-chmod -R u+w "$APP"
-  xattr -cr "$APP"; xattr -dr com.apple.FinderInfo "$APP" 2>/dev/null || true
-  find "$APP" -exec xattr -d com.apple.FinderInfo {} 2>/dev/null \; || true
-function resign() { xattr -cr "$1"; codesign "${CODESIGN_ARGS[@]}" "$1"; }
+function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
 # Validate Sparkle's nested layout before signing so framework layout drift fails clearly.
 SPARKLE_SIGNING_TARGETS=$(codexbar_sparkle_signing_targets "$SPARKLE")
 while IFS= read -r SPARKLE_TARGET; do
@@ -484,13 +475,10 @@ fi
 chmod -R u+w "$APP"
 
 # Strip extended attributes to prevent AppleDouble (._*) files that break code sealing
-chmod -R u+w "$APP"
-  xattr -cr "$APP"; xattr -dr com.apple.FinderInfo "$APP" 2>/dev/null || true
-  find "$APP" -exec xattr -d com.apple.FinderInfo {} 2>/dev/null \; || true
+xattr -cr "$APP"
 find "$APP" -name '._*' -delete
 
 # Sign helper binaries if present
-find "$APP" -exec xattr -d com.apple.FinderInfo {} 2>/dev/null \; || true
 if [[ -f "${APP}/Contents/Helpers/CodexBarCLI" ]]; then
   codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarCLI"
 fi
@@ -507,7 +495,6 @@ if [[ -d "${APP}/Contents/PlugIns/CodexBarWidget.appex" ]]; then
     --entitlements "$WIDGET_ENTITLEMENTS" \
     "$APP/Contents/PlugIns/CodexBarWidget.appex"
 fi
-xattr -dr com.apple.FinderInfo "${APP}" 2>/dev/null || true
 
 # Finally sign the app bundle itself
 codesign "${CODESIGN_ARGS[@]}" \
