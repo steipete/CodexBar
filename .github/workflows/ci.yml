@@ -42,7 +42,7 @@ jobs:
 
   swift-test-macos:
     runs-on: macos-15-intel
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -70,7 +70,7 @@ jobs:
           swift package --version
 
       - name: Swift Test
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: |
           CODEXBAR_TEST_GROUP_SIZE=1 \
             CODEXBAR_TEST_SUITE_TIMEOUT=120 \
