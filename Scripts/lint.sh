@@ -19,6 +19,10 @@ check_package_product_paths() {
   "${ROOT_DIR}/Scripts/test_package_product_paths.sh"
 }
 
+check_package_strip() {
+  "${ROOT_DIR}/Scripts/test_package_strip.sh"
+}
+
 check_release_dsym_paths() {
   "${ROOT_DIR}/Scripts/test_release_dsym_paths.sh"
 }
@@ -44,6 +48,7 @@ check_site_locales() {
 run_portable_checks() {
   check_codex_parser_hash
   check_package_product_paths
+  check_package_strip
   check_release_dsym_paths
   check_sparkle_signing_paths
   check_swift_test_sharding
