@@ -264,7 +264,7 @@ class CodexBarLimitsTests(unittest.TestCase):
     def test_include_identities_exposes_emails_but_masks_secret_tokens(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             env = base_env(Path(tmp))
-            env["FAKE_CODEXBAR_USAGE_CODEX_STDERR"] = "Authorization: Bearer TOKEN_PLACEHOLDER alice@example.com\n"
+            env["FAKE_CODEXBAR_USAGE_CODEX_STDERR"] = "Authorization: Bearer sk-live-token-123 alice@example.com\n"
             result = run_helper("usage", "--provider", "codex", "--json", "--include-identities", env=env)
 
         self.assertEqual(result.returncode, 0)
@@ -274,6 +274,8 @@ class CodexBarLimitsTests(unittest.TestCase):
         self.assertEqual(usage_entry["usage"]["identity"]["provider_id"], "user-12345")
         warning_message = payload["warnings"][0]["message"]
         self.assertIn(PLACEHOLDER_SECRET, warning_message)
+        self.assertNotIn("sk-live-token-123", warning_message)
+        self.assertNotIn("Bearer sk-live-token-123", warning_message)
         self.assertIn("alice@example.com", warning_message)
         self.assertEqual(payload["redacted"], {"identities": False, "secrets": True})
 

@@ -109,8 +109,8 @@ def strip_ansi(text: str) -> str:
 
 
 def redact_secret_substrings(text: str) -> str:
-    text = LABELED_SECRET_RE.sub(lambda match: f"{match.group(1)}{match.group(2)}{PLACEHOLDER_SECRET}", text)
     text = BEARER_RE.sub(f"Bearer {PLACEHOLDER_SECRET}", text)
+    text = LABELED_SECRET_RE.sub(lambda match: f"{match.group(1)}{match.group(2)}{PLACEHOLDER_SECRET}", text)
     text = WORD_SECRET_RE.sub(lambda match: f"{match.group(1)} {PLACEHOLDER_SECRET}", text)
     text = JWT_RE.sub(PLACEHOLDER_SECRET, text)
     return text
