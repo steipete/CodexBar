@@ -1101,7 +1101,7 @@ export const localeMessages = {
     "auth.deviceFlow": "Flux de dispositiu",
     "auth.bearerLocal": "Bearer / Local",
     "auth.apiKey": "Clau d'API",
-    "auth.token": "Testimoni",
+    "auth.token": "Token",
     "auth.legacyApi": "API antiga",
     "auth.local": "Local",
     "auth.apiKeyCookies": "Clau d'API + galetes",

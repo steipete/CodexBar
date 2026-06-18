@@ -27,8 +27,8 @@
 "Auto-refresh is off; use the menu's Refresh command." = "L'actualització automàtica està desactivada; feu servir l'ordre Actualitza del menú.";
 "Auto-refresh: hourly · Timeout: 10m" = "Actualització automàtica: cada hora · Temps d'espera: 10 min";
 "Automatic" = "Automàtic";
-"Automatic imports browser cookies and WorkOS tokens." = "El mode automàtic importa galetes del navegador i testimonis de WorkOS.";
-"Automatic imports browser cookies and local storage tokens." = "El mode automàtic importa galetes del navegador i testimonis de l'emmagatzematge local.";
+"Automatic imports browser cookies and WorkOS tokens." = "El mode automàtic importa galetes del navegador i tokens de WorkOS.";
+"Automatic imports browser cookies and local storage tokens." = "El mode automàtic importa galetes del navegador i tokens de l'emmagatzematge local.";
 "Automatic imports browser cookies for dashboard extras." = "El mode automàtic importa galetes del navegador per als extres del tauler.";
 "Automatic imports browser cookies for the web API." = "El mode automàtic importa galetes del navegador per a l'API web.";
 "Automatic imports browser cookies from Model Studio/Bailian." = "El mode automàtic importa galetes del navegador des de Model Studio/Bailian.";
@@ -88,7 +88,7 @@
 "Cookie: ..." = "Cookie: ...";
 "Cookie: \\u{2026}\\\n\\\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: \\u{2026}\\\n\\\no enganxa una captura cURL del tauler d'Abacus AI";
 "Cookie: \\u{2026}\\\n\\\nor paste the __Secure-next-auth.session-token value" = "Cookie: \\u{2026}\\\n\\\no enganxa el valor de __Secure-next-auth.session-token";
-"Cookie: \\u{2026}\\\n\\\nor paste the kimi-auth token value" = "Cookie: \\u{2026}\\\n\\\no enganxa el valor del testimoni kimi-auth";
+"Cookie: \\u{2026}\\\n\\\nor paste the kimi-auth token value" = "Cookie: \\u{2026}\\\n\\\no enganxa el valor del token kimi-auth";
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Cost";
@@ -168,7 +168,7 @@
 "Managed Codex accounts unavailable" = "Comptes gestionats de Codex no disponibles";
 "Managed account storage is unreadable. Live account access is still available, " = "L'emmagatzematge de comptes gestionats no es pot llegir. L'accés a comptes en directe encara està disponible, ";
 "Manual" = "Manual";
-"May your tokens never run out—keep agent limits in view." = "Que els vostres testimonis no s'esgotin mai: mantén els límits dels vostres agents a la vista.";
+"May your tokens never run out—keep agent limits in view." = "Que els vostres tokens no s'esgotin mai: mantingueu els límits dels vostres agents a la vista.";
 "Menu bar" = "Barra de menús";
 "Menu bar auto-shows the provider closest to its rate limit." = "La barra de menús mostra automàticament el proveïdor més a prop del seu límit.";
 "Menu bar metric" = "Mètrica de la barra de menús";
@@ -185,7 +185,7 @@
 "No data yet" = "Encara no hi ha dades";
 "No enabled providers available for Overview." = "No hi ha proveïdors activats disponibles per al Resum.";
 "No providers selected" = "No hi ha cap proveïdor seleccionat";
-"No token accounts yet." = "Encara no hi ha comptes amb testimoni.";
+"No token accounts yet." = "Encara no hi ha comptes amb token.";
 "No usage breakdown data." = "No hi ha dades de desglossament d'ús.";
 "None" = "Cap";
 "Notifications" = "Notificacions";
@@ -212,7 +212,7 @@
 "Open Usage Page" = "Obriu la pàgina d'ús";
 "Open Warp API Key Guide" = "Obriu la guia de la clau d'API de Warp";
 "Open menu" = "Obriu el menú";
-"Open token file" = "Obriu el fitxer de testimoni";
+"Open token file" = "Obriu el fitxer de token";
 "OpenAI cookies" = "Galetes d'OpenAI";
 "OpenAI web extras" = "Extres web d'OpenAI";
 "Option A" = "Opció A";
@@ -224,11 +224,11 @@
 "Overview rows always follow provider order." = "Les files del Resum sempre segueixen l'ordre dels proveïdors.";
 "Overview tab providers" = "Proveïdors de la pestanya Resum";
 "Paste API key…" = "Enganxeu la clau d'API…";
-"Paste API token…" = "Enganxeu el testimoni d'API…";
+"Paste API token…" = "Enganxeu el token d'API…";
 "Paste key…" = "Enganxeu la clau…";
-"Paste sessionKey or OAuth token…" = "Enganxeu la sessionKey o el testimoni OAuth…";
+"Paste sessionKey or OAuth token…" = "Enganxeu la sessionKey o el token OAuth…";
 "Paste the Cookie header from a request to admin.mistral.ai. " = "Enganxeu la capçalera Cookie d'una petició a admin.mistral.ai. ";
-"Paste token…" = "Enganxeu el testimoni…";
+"Paste token…" = "Enganxeu el token…";
 "Personal" = "Personal";
 "Picker" = "Selector";
 "Picker subtitle" = "Subtítol del selector";
@@ -271,7 +271,7 @@
 "Settings" = "Configuració";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Mostreu les seccions de Crèdits de Codex i Ús addicional de Claude al menú.";
 "Show Debug Settings" = "Mostreu la configuració de depuració";
-"Show all token accounts" = "Mostreu tots els comptes amb testimoni";
+"Show all token accounts" = "Mostreu tots els comptes amb token";
 "Show cost summary" = "Mostreu el resum de cost";
 "Show credits + extra usage" = "Mostreu crèdits + ús addicional";
 "Show details" = "Mostreu els detalls";
@@ -281,10 +281,10 @@
 "Show usage as used" = "Mostreu l'ús com a consumit";
 "Sign in via button below" = "Inicieu la sessió amb el botó de sota";
 "Skip teardown between probes (debug-only)." = "Ometeu el tancament entre sondeigs (només depuració).";
-"Stack token accounts in the menu (otherwise show an account switcher bar)." = "Apileu els comptes amb testimoni al menú (si no, mostreu una barra de canvi de compte).";
+"Stack token accounts in the menu (otherwise show an account switcher bar)." = "Apileu els comptes amb token al menú (si no, mostreu una barra de canvi de compte).";
 "Start at Login" = "Obrir en iniciar la sessió";
 "Status" = "Estat";
-"Store Claude sessionKey cookies or OAuth access tokens." = "Deseu galetes sessionKey de Claude o testimonis d'accés OAuth.";
+"Store Claude sessionKey cookies or OAuth access tokens." = "Deseu galetes sessionKey de Claude o tokens d'accés OAuth.";
 "Store multiple Abacus AI Cookie headers." = "Deseu diverses capçaleres Cookie d'Abacus AI.";
 "Store multiple Augment Cookie headers." = "Deseu diverses capçaleres Cookie d'Augment.";
 "Store multiple Cursor Cookie headers." = "Deseu diverses capçaleres Cookie de Cursor.";
@@ -337,7 +337,7 @@
 "Waiting for Authentication..." = "S'està esperant l'autenticació...";
 "Website" = "Lloc web";
 "Weekly limit confetti" = "Confeti del límit setmanal";
-"Weekly token limit" = "Límit setmanal de testimonis";
+"Weekly token limit" = "Límit setmanal de tokens";
 "Weekly usage" = "Ús setmanal";
 "Weekly usage unavailable for this account." = "Ús setmanal no disponible per a aquest compte.";
 "Window: \\(window)" = "Finestra: \\(window)";
@@ -504,8 +504,8 @@
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";
 "show_credits_extra_usage_title" = "Mostreu crèdits + ús addicional";
 "show_credits_extra_usage_subtitle" = "Mostreu les seccions de Crèdits de Codex i Ús addicional de Claude al menú.";
-"show_all_token_accounts_title" = "Mostreu tots els comptes amb testimoni";
-"show_all_token_accounts_subtitle" = "Apileu els comptes amb testimoni al menú (si no, mostreu una barra de canvi de compte).";
+"show_all_token_accounts_title" = "Mostreu tots els comptes amb token";
+"show_all_token_accounts_subtitle" = "Apileu els comptes amb token al menú (si no, mostreu una barra de canvi de compte).";
 "multi_account_layout_title" = "Disposició multicompte";
 "multi_account_layout_subtitle" = "Trieu el canvi de compte segmentat o targetes de compte apilades.";
 "multi_account_layout_segmented" = "Segmentat";
@@ -541,7 +541,7 @@
 "disable_keychain_access_subtitle" = "Impedeix qualsevol accés al Clauer mentre estigui activat.";
 
 /* About Pane */
-"about_tagline" = "Que els vostres testimonis no s'esgotin mai: mantingueu els límits dels vostres agents a la vista.";
+"about_tagline" = "Que els vostres tokens no s'esgotin mai: mantingueu els límits dels vostres agents a la vista.";
 "link_github" = "GitHub";
 "link_website" = "Lloc web";
 "link_twitter" = "Twitter";
@@ -1058,7 +1058,7 @@
 "not detected" = "no detectat";
 "On pace" = "Al ritme";
 "Open billing" = "Obriu la facturació";
-"Open Token Plan" = "Obriu el pla de testimonis";
+"Open Token Plan" = "Obriu el pla de tokens";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "Testimoni d'API d'OpenRouter no configurat. Definiu la variable d'entorn OPENROUTER_API_KEY o configureu-lo a Configuració.";
 "Pace: %@" = "Ritme: %@";
 "Pace: %@ · %@" = "Ritme: %@ · %@";
@@ -1105,5 +1105,5 @@
 "usage_percent_suffix_left" = "restant";
 "usage_percent_suffix_used" = "usat";
 "Weekly" = "Setmanal";
-"z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el testimoni d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
+"z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
