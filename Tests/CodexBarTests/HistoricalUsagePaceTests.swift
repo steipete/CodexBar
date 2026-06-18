@@ -791,7 +791,7 @@ struct HistoricalUsagePaceTests {
     }
 
     @Test
-    func exhaustedActualReturnsZeroEta() {
+    func exhaustedActualReturnsZeroEta() throws {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
         let week = HistoricalWeekProfile(
@@ -808,9 +808,16 @@ struct HistoricalUsagePaceTests {
                 resetDescription: nil,
                 nextRegenPercent: nil)
 
-            let pace = CodexHistoricalPaceEvaluator.evaluate(window: window, now: now, dataset: dataset)
-            #expect(pace?.willLastToReset == false)
-            #expect(pace?.etaSeconds == 0)
+            let pace = try #require(CodexHistoricalPaceEvaluator.evaluate(
+                window: window,
+                now: now,
+                dataset: dataset))
+            #expect(pace.willLastToReset == false)
+            #expect(pace.etaSeconds == 0)
+            #expect(pace.runOutProbability == 1)
+
+            let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+            #expect(detail.rightLabel == "Runs out now · ≈ 100% run-out risk")
         }
     }
 }

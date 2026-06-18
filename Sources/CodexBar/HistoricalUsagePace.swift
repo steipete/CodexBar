@@ -869,7 +869,7 @@ enum CodexHistoricalPaceEvaluator {
             (weightedRunOutMass + 0.5) / (totalWeight + 1),
             lower: 0,
             upper: 1)
-        let runOutProbability: Double? = scopedWeeks.count >= Self.minimumWeeksForRisk ? smoothedProbability : nil
+        var runOutProbability: Double? = scopedWeeks.count >= Self.minimumWeeksForRisk ? smoothedProbability : nil
 
         var willLastToReset = smoothedProbability < 0.5
         var etaSeconds: TimeInterval?
@@ -877,6 +877,7 @@ enum CodexHistoricalPaceEvaluator {
         if actual >= 100 {
             willLastToReset = false
             etaSeconds = 0
+            runOutProbability = 1
         } else if !willLastToReset {
             let values = crossingCandidates.map(\.etaSeconds)
             let weights = crossingCandidates.map(\.weight)
