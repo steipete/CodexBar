@@ -167,6 +167,9 @@ private struct ProviderSidebarRowView: View {
                         self.draggingProvider = self.provider
                         return NSItemProvider(object: self.provider.rawValue as NSString)
                     }
+            } else {
+                // Inset the icon a touch so rows don't hug the left edge once the drag handle is gone.
+                Color.clear.frame(width: 8, height: 1)
             }
 
             ProviderSidebarBrandIcon(provider: self.provider, color: palette.secondary)
