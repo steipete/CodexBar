@@ -149,8 +149,8 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(storeA.providersSortedAlphabetically == true)
-        storeA.providersSortedAlphabetically = false
+        #expect(storeA.providersSortedAlphabetically == false)
+        storeA.providersSortedAlphabetically = true
 
         let defaultsB = try #require(UserDefaults(suiteName: suite))
         let storeB = SettingsStore(
@@ -159,7 +159,7 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(storeB.providersSortedAlphabetically == false)
+        #expect(storeB.providersSortedAlphabetically == true)
     }
 
     @Test

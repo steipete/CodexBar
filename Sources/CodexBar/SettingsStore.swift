@@ -413,7 +413,7 @@ extension SettingsStore {
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
         let providersSortedAlphabetically = userDefaults.object(
-            forKey: "providersSortedAlphabetically") as? Bool ?? true
+            forKey: "providersSortedAlphabetically") as? Bool ?? false
         let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
