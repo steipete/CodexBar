@@ -71,6 +71,14 @@ struct BedrockMenuCardTests {
                     modelsUsed: ["Amazon Bedrock"],
                     modelBreakdowns: nil),
                 CostUsageDailyReport.Entry(
+                    date: "2026-06-31",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 40,
+                    costUSD: 99,
+                    modelsUsed: ["Amazon Bedrock"],
+                    modelBreakdowns: nil),
+                CostUsageDailyReport.Entry(
                     date: "2026-05-12",
                     inputTokens: nil,
                     outputTokens: nil,
