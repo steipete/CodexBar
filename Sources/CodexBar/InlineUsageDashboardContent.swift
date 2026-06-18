@@ -29,7 +29,7 @@ struct InlineUsageDashboardModel: Equatable {
     let detailLines: [String]
     /// Provider branding color used to fill the mini usage bars. When nil the bars fall back to a
     /// neutral palette derived from `valueStyle`.
-    var barColor: Color?
+    var barColor: Color? = nil
 }
 
 extension UsageMenuCardView.Model {
