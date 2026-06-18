@@ -17,6 +17,8 @@ enum MenuBarMetricWindowResolver {
     {
         guard let snapshot else { return nil }
         switch preference {
+        case .monthlyPlan:
+            return snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }?.window
         case .extraUsage:
             return Self.extraUsageWindow(snapshot: snapshot)
         case .tertiary:

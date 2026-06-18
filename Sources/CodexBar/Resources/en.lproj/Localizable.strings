@@ -628,6 +628,8 @@
 "metric_pref_tertiary" = "Tertiary";
 "metric_pref_extra_usage" = "Extra usage";
 "metric_pref_average" = "Average";
+"metric_mistral_payg" = "Pay-as-you-go";
+"metric_mistral_monthly_plan" = "Monthly Plan";
 
 /* Display modes */
 "display_mode_percent" = "Percent";

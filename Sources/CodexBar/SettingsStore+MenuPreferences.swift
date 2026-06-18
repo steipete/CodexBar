@@ -3,7 +3,7 @@ import Foundation
 
 extension SettingsStore {
     func menuBarMetricPreference(for provider: UsageProvider) -> MenuBarMetricPreference {
-        if Self.isBalanceOnlyProvider(provider) {
+        if Self.isBalanceOnlyProvider(provider), provider != .mistral {
             return .automatic
         }
         if provider == .openrouter {
@@ -12,7 +12,7 @@ extension SettingsStore {
             switch preference {
             case .automatic, .primary:
                 return preference
-            case .secondary, .average, .tertiary, .extraUsage:
+            case .secondary, .average, .tertiary, .extraUsage, .monthlyPlan:
                 return .automatic
             }
         }
@@ -31,7 +31,7 @@ extension SettingsStore {
     }
 
     func setMenuBarMetricPreference(_ preference: MenuBarMetricPreference, for provider: UsageProvider) {
-        if Self.isBalanceOnlyProvider(provider) {
+        if Self.isBalanceOnlyProvider(provider), provider != .mistral {
             self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
             return
         }
@@ -39,7 +39,7 @@ extension SettingsStore {
             switch preference {
             case .automatic, .primary:
                 self.menuBarMetricPreferencesRaw[provider.rawValue] = preference.rawValue
-            case .secondary, .average, .tertiary, .extraUsage:
+            case .secondary, .average, .tertiary, .extraUsage, .monthlyPlan:
                 self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
             }
             return

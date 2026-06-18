@@ -45,6 +45,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     case tertiary
     case extraUsage
     case average
+    case monthlyPlan
 
     var id: String {
         self.rawValue
@@ -58,6 +59,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
         case .tertiary: L("metric_pref_tertiary")
         case .extraUsage: L("metric_pref_extra_usage")
         case .average: L("metric_pref_average")
+        case .monthlyPlan: "Monthly Plan"
         }
     }
 }
@@ -493,7 +495,7 @@ extension SettingsStore {
             migrated[UsageProvider.antigravity.rawValue] = MenuBarMetricPreference.primary.rawValue
         case .tertiary:
             migrated[UsageProvider.antigravity.rawValue] = MenuBarMetricPreference.primary.rawValue
-        case .automatic, .extraUsage, .average, .none:
+        case .automatic, .extraUsage, .average, .monthlyPlan, .none:
             break
         }
         userDefaults.set(migrated, forKey: "menuBarMetricPreferences")

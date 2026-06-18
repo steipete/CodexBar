@@ -701,6 +701,7 @@ extension StatusItemController {
             return balance
         }
         if provider == .mistral,
+           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) != .monthlyPlan,
            let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
         {
             return spend
