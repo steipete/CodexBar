@@ -943,3 +943,42 @@ struct KiroStatusProbeTests {
         #expect(account.email == "user@example.com")
     }
 }
+
+extension KiroStatusProbeTests {
+    @Test
+    func `fetch cancellation while joining account after usage failure is preserved`() async throws {
+        let accountStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-failed-usage-account-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              : > '\(accountStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 1
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: accountStarted)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 2.0)
+        let task = Task { try await probe.fetch() }
+        defer { task.cancel() }
+
+        try await waitForFile(accountStarted)
+        try await Task.sleep(for: .milliseconds(300))
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+}

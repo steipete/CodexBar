@@ -269,7 +269,7 @@ public struct KiroStatusProbe: Sendable {
             _ = await accountTask.value
             throw CancellationError()
         } catch {
-            if await accountTask.value == .notLoggedIn {
+            if try await self.awaitAccountStatus(accountTask) == .notLoggedIn {
                 throw KiroStatusProbeError.notLoggedIn
             }
             throw error
@@ -286,13 +286,7 @@ public struct KiroStatusProbe: Sendable {
             Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
         }
 
-        let accountStatus = await withTaskCancellationHandler {
-            await accountTask.value
-        } onCancel: {
-            accountTask.cancel()
-        }
-        try Task.checkCancellation()
-
+        let accountStatus = try await self.awaitAccountStatus(accountTask)
         let accountInfo = accountStatus.account
         return try self.parse(
             output: output,
@@ -333,6 +327,18 @@ public struct KiroStatusProbe: Sendable {
             Self.logger.debug("Kiro account probe failed: \(error.localizedDescription)")
             return .unavailable
         }
+    }
+
+    private func awaitAccountStatus(
+        _ task: Task<KiroAccountProbeStatus, Never>) async throws -> KiroAccountProbeStatus
+    {
+        let status = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        try Task.checkCancellation()
+        return status
     }
 
     private func ensureLoggedIn() async throws -> KiroAccountInfo {
