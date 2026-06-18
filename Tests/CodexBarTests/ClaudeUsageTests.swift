@@ -783,6 +783,34 @@ struct ClaudeUsageTests {
     }
 
     @Test
+    func `does not mistake the usage panel toggle hint for a plan`() {
+        // Real `/usage` TUI tail after ANSI stripping: cursor-positioning escapes collapse the
+        // "d → today · w → week" view toggle into "dtoday·wtoweek", glued onto the preceding
+        // "…accumulates as you use Claude" line. The plan regex must not bridge the newline and
+        // capture "Claude\n\ndtoday" → "Dtoday".
+        let usageText = """
+        Skills, subagents, plugins, and MCP servers
+        Noattributiondatayet·accumulatesasyouuseClaude
+
+        dtoday·wtoweek
+
+        Usagecredits
+        Usagecreditsareoff·/usage-creditstoturnthemon
+        """
+        let identity = ClaudeStatusProbe.parseIdentity(usageText: usageText, statusText: nil)
+        #expect(identity.loginMethod != "Dtoday")
+        #expect(identity.loginMethod == nil)
+    }
+
+    @Test
+    func `still extracts a single-line Claude plan phrase`() {
+        // The fix must keep matching a real plan rendered on one line.
+        let statusText = "Sonnet 4.6 · Claude Max · you@example.com"
+        let identity = ClaudeStatusProbe.parseIdentity(usageText: nil, statusText: statusText)
+        #expect(identity.loginMethod == "Max")
+    }
+
+    @Test
     func `parses claude web API account info`() {
         let json = """
         {
