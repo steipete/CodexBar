@@ -1249,7 +1249,7 @@ extension StatusItemController {
     {
         let provider = layoutModel.provider
         let hasUsageBlock = layoutModel.hasUsageContent
-        let hasCredits = layoutModel.creditsText != nil || layoutModel.codexResetCreditsText != nil
+        let hasCredits = layoutModel.creditsText != nil
         let hasExtraUsage = layoutModel.providerCost != nil
         let hasCost = layoutModel.tokenUsage != nil
         let hasStorage = self.store.storageFootprintText(for: provider) != nil

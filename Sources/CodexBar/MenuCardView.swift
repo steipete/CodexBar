@@ -119,8 +119,8 @@ struct UsageMenuCardView: View {
         let creditsRemaining: Double?
         let creditsHintText: String?
         let creditsHintCopyText: String?
-        let codexResetCreditsText: String?
-        let codexResetCreditsDetailText: String?
+        var codexResetCreditsText: String? = nil
+        var codexResetCreditsDetailText: String? = nil
         let providerCost: ProviderCostSection?
         let tokenUsage: TokenUsageSection?
         let placeholder: String?
@@ -161,7 +161,7 @@ struct UsageMenuCardView: View {
                 }
             } else {
                 let hasUsage = liveModel.hasUsageContent
-                let hasCredits = liveModel.creditsText != nil || liveModel.codexResetCreditsText != nil
+                let hasCredits = liveModel.creditsText != nil
                 let hasProviderCost = liveModel.providerCost != nil
                 let hasCost = liveModel.tokenUsage != nil || hasProviderCost
 
@@ -173,6 +173,12 @@ struct UsageMenuCardView: View {
                                     metric: metric,
                                     title: Self.popupMetricTitle(provider: liveModel.provider, metric: metric),
                                     progressColor: liveModel.progressColor)
+                            }
+                            if let resetCredits = liveModel.codexResetCreditsText {
+                                Divider()
+                                CodexResetCreditsContent(
+                                    text: resetCredits,
+                                    detailText: liveModel.codexResetCreditsDetailText)
                             }
                             if let dashboard = liveModel.inlineUsageDashboard {
                                 InlineUsageDashboardContent(model: dashboard)
@@ -195,14 +201,6 @@ struct UsageMenuCardView: View {
                             hintText: liveModel.creditsHintText,
                             hintCopyText: liveModel.creditsHintCopyText,
                             progressColor: liveModel.progressColor)
-                    }
-                    if let resetCredits = liveModel.codexResetCreditsText {
-                        if liveModel.creditsText != nil {
-                            Divider()
-                        }
-                        CodexResetCreditsContent(
-                            text: resetCredits,
-                            detailText: liveModel.codexResetCreditsDetailText)
                     }
                     if hasCredits, hasCost {
                         Divider()
@@ -579,6 +577,12 @@ struct UsageMenuCardUsageSectionView: View {
                         title: UsageMenuCardView.popupMetricTitle(provider: liveModel.provider, metric: metric),
                         progressColor: liveModel.progressColor)
                 }
+                if let resetCredits = liveModel.codexResetCreditsText {
+                    Divider()
+                    CodexResetCreditsContent(
+                        text: resetCredits,
+                        detailText: liveModel.codexResetCreditsDetailText)
+                }
                 if let dashboard = liveModel.inlineUsageDashboard {
                     InlineUsageDashboardContent(model: dashboard)
                 } else if !liveModel.usageNotes.isEmpty {
@@ -611,24 +615,14 @@ struct UsageMenuCardCreditsSectionView: View {
 
     var body: some View {
         let liveModel = self.liveModel
-        if liveModel.creditsText != nil || liveModel.codexResetCreditsText != nil {
+        if let credits = liveModel.creditsText {
             VStack(alignment: .leading, spacing: 6) {
-                if let credits = liveModel.creditsText {
-                    CreditsBarContent(
-                        creditsText: credits,
-                        creditsRemaining: liveModel.creditsRemaining,
-                        hintText: liveModel.creditsHintText,
-                        hintCopyText: liveModel.creditsHintCopyText,
-                        progressColor: liveModel.progressColor)
-                }
-                if let resetCredits = liveModel.codexResetCreditsText {
-                    if liveModel.creditsText != nil {
-                        Divider()
-                    }
-                    CodexResetCreditsContent(
-                        text: resetCredits,
-                        detailText: liveModel.codexResetCreditsDetailText)
-                }
+                CreditsBarContent(
+                    creditsText: credits,
+                    creditsRemaining: liveModel.creditsRemaining,
+                    hintText: liveModel.creditsHintText,
+                    hintCopyText: liveModel.creditsHintCopyText,
+                    progressColor: liveModel.progressColor)
                 if self.showBottomDivider {
                     Divider()
                 }
@@ -653,22 +647,28 @@ private struct CodexResetCreditsContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(L("Rate-limit resets"))
-                .font(.body)
-                .fontWeight(.medium)
-            Text(self.text)
-                .font(.caption)
-                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline) {
+                Text(L("Limit Reset Credits"))
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                Spacer()
+                Text(self.text)
+                    .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+            }
             if let detailText, !detailText.isEmpty {
                 Text(detailText)
                     .font(.footnote)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(2)
+                    .lineLimit(1)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel([
-            L("Rate-limit resets"),
+            L("Limit Reset Credits"),
             self.text,
             self.detailText,
         ].compactMap(\.self).joined(separator: ", "))
@@ -1040,10 +1040,11 @@ extension UsageMenuCardView.Model {
         else {
             return nil
         }
-        if resetCredits.availableCount == 1 {
-            return L("1 manual reset available")
+        let count = resetCredits.availableCount
+        if count == 1 {
+            return L("1 Available")
         }
-        return String(format: L("%d manual resets available"), resetCredits.availableCount)
+        return String(format: L("%d Available"), count)
     }
 
     private static func codexResetCreditsDetailText(input: Input) -> String? {
@@ -1054,8 +1055,15 @@ extension UsageMenuCardView.Model {
         else {
             return nil
         }
-        let countdown = UsageFormatter.resetCountdownDescription(from: expiresAt, now: input.now)
-        return String(format: L("Next expires %@"), countdown)
+        let timeText: String
+        switch input.resetTimeDisplayStyle {
+        case .absolute:
+            timeText = UsageFormatter.resetDescription(from: expiresAt, now: input.now)
+        case .countdown:
+            let countdown = UsageFormatter.resetCountdownDescription(from: expiresAt, now: input.now)
+            timeText = countdown == "now" ? L("now") : countdown
+        }
+        return String(format: L("Next expires %@"), timeText)
     }
 
     private static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {

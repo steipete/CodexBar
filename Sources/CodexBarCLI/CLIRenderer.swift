@@ -238,7 +238,7 @@ enum CLIRenderer {
         } else {
             "\(resetCredits.availableCount) available"
         }
-        lines.append(self.labelValueLine("Rate-limit resets", value: value, useColor: useColor))
+        lines.append(self.labelValueLine("Limit Reset Credits", value: value, useColor: useColor))
         guard resetCredits.availableCount > 0,
               let expiresAt = resetCredits.nextExpiringAvailableCredit?.expiresAt
         else {
