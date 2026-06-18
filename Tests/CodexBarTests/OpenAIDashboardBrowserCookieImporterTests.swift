@@ -2,6 +2,37 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private final class CookieCallbackHarness: @unchecked Sendable {
+    private let lock = NSLock()
+    private var callback: (@Sendable () -> Void)?
+
+    func capture(_ callback: @escaping @Sendable () -> Void) {
+        self.lock.withLock { self.callback = callback }
+    }
+
+    func finish() {
+        let callback = self.lock.withLock {
+            let callback = self.callback
+            self.callback = nil
+            return callback
+        }
+        callback?()
+    }
+}
+
+private final class CookieCallbackFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue = false
+
+    var value: Bool {
+        self.lock.withLock { self.storedValue }
+    }
+
+    func set() {
+        self.lock.withLock { self.storedValue = true }
+    }
+}
+
 struct OpenAIDashboardBrowserCookieImporterTests {
     @Test
     func `shared deadline clamps each local timeout to remaining budget`() throws {
@@ -65,6 +96,57 @@ struct OpenAIDashboardBrowserCookieImporterTests {
         }
     }
 
+    @Test @MainActor
+    func `stalled callback cannot exceed shared deadline`() async {
+        let start = Date()
+
+        do {
+            try await OpenAIDashboardBrowserCookieImporter.runBoundedCallback(
+                deadline: start.addingTimeInterval(0.05))
+            { _ in }
+            Issue.record("Expected callback timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+            #expect(Date().timeIntervalSince(start) < 0.3)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test @MainActor
+    func `retry waits for timed out cookie store mutation`() async throws {
+        let keyOwner = NSObject()
+        let key = ObjectIdentifier(keyOwner)
+        let first = CookieCallbackHarness()
+
+        do {
+            try await OpenAIDashboardBrowserCookieImporter.runSerializedCallback(
+                key: key,
+                deadline: Date().addingTimeInterval(0.05),
+                start: first.capture)
+            Issue.record("Expected first mutation timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+        }
+
+        let secondStarted = CookieCallbackFlag()
+        let second = Task { @MainActor in
+            try await OpenAIDashboardBrowserCookieImporter.runSerializedCallback(
+                key: key,
+                deadline: Date().addingTimeInterval(1))
+            { completion in
+                secondStarted.set()
+                completion()
+            }
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(!secondStarted.value)
+        first.finish()
+        try await second.value
+        #expect(secondStarted.value)
+    }
+
     @Test
     func `mismatch error mentions source label`() {
         let err = OpenAIDashboardBrowserCookieImporter.ImportError.noMatchingAccount(
@@ -79,7 +161,14 @@ struct OpenAIDashboardBrowserCookieImporterTests {
 
     @Test
     func `timed out persistent validation keeps verified session`() {
+        let failure = OpenAIDashboardBrowserCookieImporter.persistentValidationFailure(URLError(.timedOut))
         #expect(OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(
+            afterPersistFailure: failure))
+    }
+
+    @Test
+    func `raw cookie mutation timeout is not trusted`() {
+        #expect(!OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(
             afterPersistFailure: URLError(.timedOut)))
     }
 

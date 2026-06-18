@@ -71,9 +71,16 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     private let browserDetection: BrowserDetection
 
+    struct PersistentValidationTimeout: Error {}
+
     nonisolated static func shouldTrustVerifiedSession(afterPersistFailure error: Error) -> Bool {
+        error is PersistentValidationTimeout
+    }
+
+    nonisolated static func persistentValidationFailure(_ error: Error) -> Error {
         let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
+        guard nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorTimedOut else { return error }
+        return PersistentValidationTimeout()
     }
 
     private struct ImportDiagnostics {
@@ -93,54 +100,6 @@ public struct OpenAIDashboardBrowserCookieImporter {
     private nonisolated static let cookieClient = BrowserCookieClient()
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.codex]?.browserCookieOrder ?? Browser.defaultImportOrder
-
-    private final class CookieLoadCompletion: @unchecked Sendable {
-        private let lock = NSLock()
-        private var didFinish = false
-
-        func finish(_ action: () -> Void) {
-            let shouldFinish = self.lock.withLock {
-                guard !self.didFinish else { return false }
-                self.didFinish = true
-                return true
-            }
-            if shouldFinish { action() }
-        }
-    }
-
-    nonisolated static func remainingTimeout(
-        until deadline: Date?,
-        cappedAt localLimit: TimeInterval? = nil,
-        now: Date = Date()) throws -> TimeInterval
-    {
-        guard let deadline else {
-            return localLimit.map(OpenAIDashboardFetcher.sanitizedTimeout) ?? .greatestFiniteMagnitude
-        }
-        let remaining = deadline.timeIntervalSince(now)
-        guard remaining > 0 else { throw URLError(.timedOut) }
-        guard let localLimit else { return remaining }
-        return min(OpenAIDashboardFetcher.sanitizedTimeout(localLimit), remaining)
-    }
-
-    nonisolated static func runBoundedCookieLoad<T: Sendable>(
-        deadline: Date?,
-        operation: @escaping @Sendable () throws -> T) async throws -> T
-    {
-        guard let deadline else {
-            return try await Task.detached(priority: .userInitiated, operation: operation).value
-        }
-        let timeout = try self.remainingTimeout(until: deadline)
-        let completion = CookieLoadCompletion()
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let result = Result(catching: operation)
-                completion.finish { continuation.resume(with: result) }
-            }
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
-                completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
-            }
-        }
-    }
 
     private enum CandidateEvaluation {
         case match(candidate: Candidate, signedInEmail: String)
@@ -471,9 +430,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
             _ = try Self.remainingTimeout(until: deadline)
             return nil
         case let .mismatch(candidate, signedInEmail):
-            await self.handleMismatch(
+            try await self.handleMismatch(
                 candidate: candidate,
                 signedInEmail: signedInEmail,
+                deadline: deadline,
                 log: log,
                 diagnostics: &diagnostics)
             _ = try Self.remainingTimeout(until: deadline)
@@ -547,8 +507,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
 
         let scratch = WKWebsiteDataStore.nonPersistent()
-        await self.setCookies(candidate.cookies, into: scratch)
-        _ = try Self.remainingTimeout(until: deadline)
+        try await self.setCookies(candidate.cookies, into: scratch, deadline: deadline)
 
         do {
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
@@ -594,15 +553,25 @@ public struct OpenAIDashboardBrowserCookieImporter {
     private func handleMismatch(
         candidate: Candidate,
         signedInEmail: String,
+        deadline: Date?,
         log: @escaping (String) -> Void,
-        diagnostics: inout ImportDiagnostics) async
+        diagnostics: inout ImportDiagnostics) async throws
     {
         log("Candidate \(candidate.label) mismatch (\(signedInEmail)); continuing browser search")
         diagnostics.mismatches.append(FoundAccount(sourceLabel: candidate.label, email: signedInEmail))
         // Mismatch still means we found a valid signed-in session. Persist it keyed by its email so if
         // the user switches Codex accounts later, we can reuse this session immediately without another
         // Keychain prompt.
-        await self.persistCookies(candidate: candidate, accountEmail: signedInEmail, logger: log)
+        do {
+            try await self.persistCookies(
+                candidate: candidate,
+                accountEmail: signedInEmail,
+                deadline: deadline,
+                logger: log)
+        } catch {
+            log("Could not cache mismatched session: \(error.localizedDescription)")
+            _ = try Self.remainingTimeout(until: deadline)
+        }
     }
 
     private func fetchSignedInEmailFromAPI(
@@ -707,9 +676,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
         logger: @escaping (String) -> Void) async throws -> ImportResult
     {
         let persistent = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: targetEmail)
-        await self.clearChatGPTCookies(in: persistent)
-        await self.setCookies(candidate.cookies, into: persistent)
-        _ = try Self.remainingTimeout(until: deadline)
+        try await self.clearChatGPTCookies(in: persistent, deadline: deadline)
+        try await self.setCookies(candidate.cookies, into: persistent, deadline: deadline)
 
         // Validate against the persistent store (login + email sync).
         do {
@@ -738,7 +706,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             throw ImportError.dashboardStillRequiresLogin
         } catch {
             OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
-            throw error
+            throw Self.persistentValidationFailure(error)
         }
     }
 
@@ -748,9 +716,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
         logger: @escaping (String) -> Void) async throws -> ImportResult
     {
         let persistent = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: nil)
-        await self.clearChatGPTCookies(in: persistent)
-        await self.setCookies(candidate.cookies, into: persistent)
-        _ = try Self.remainingTimeout(until: deadline)
+        try await self.clearChatGPTCookies(in: persistent, deadline: deadline)
+        try await self.setCookies(candidate.cookies, into: persistent, deadline: deadline)
 
         do {
             let probe = try await OpenAIDashboardFetcher().probeUsagePage(
@@ -813,31 +780,46 @@ public struct OpenAIDashboardBrowserCookieImporter {
 
     // MARK: - WebKit cookie store
 
-    private func persistCookies(candidate: Candidate, accountEmail: String, logger: (String) -> Void) async {
+    private func persistCookies(
+        candidate: Candidate,
+        accountEmail: String,
+        deadline: Date?,
+        logger: (String) -> Void) async throws
+    {
         let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
-        await self.clearChatGPTCookies(in: store)
-        await self.setCookies(candidate.cookies, into: store)
+        try await self.clearChatGPTCookies(in: store, deadline: deadline)
+        try await self.setCookies(candidate.cookies, into: store, deadline: deadline)
         logger("Persisted cookies for \(accountEmail) (source=\(candidate.label))")
     }
 
-    private func clearChatGPTCookies(in store: WKWebsiteDataStore) async {
-        await withCheckedContinuation { cont in
+    private func clearChatGPTCookies(in store: WKWebsiteDataStore, deadline: Date?) async throws {
+        try await Self.runSerializedCallback(
+            key: ObjectIdentifier(store),
+            deadline: deadline)
+        { completion in
             store.fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in
                 let filtered = records.filter { record in
                     let name = record.displayName.lowercased()
                     return name.contains("chatgpt.com") || name.contains("openai.com")
                 }
                 store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), for: filtered) {
-                    cont.resume()
+                    completion()
                 }
             }
         }
     }
 
-    private func setCookies(_ cookies: [HTTPCookie], into store: WKWebsiteDataStore) async {
+    private func setCookies(
+        _ cookies: [HTTPCookie],
+        into store: WKWebsiteDataStore,
+        deadline: Date?) async throws
+    {
         for cookie in cookies {
-            await withCheckedContinuation { cont in
-                store.httpCookieStore.setCookie(cookie) { cont.resume() }
+            try await Self.runSerializedCallback(
+                key: ObjectIdentifier(store),
+                deadline: deadline)
+            { completion in
+                store.httpCookieStore.setCookie(cookie, completionHandler: completion)
             }
         }
     }
