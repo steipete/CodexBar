@@ -19,6 +19,7 @@
 - LiteLLM: show personal and team spend amounts directly on budget rows while suppressing duplicate budget sections. Thanks @hololee!
 
 ### Fixed
+- Provider plans: keep Claude and Kiro plan matching on one rendered line to avoid bogus labels from adjacent usage hints. Thanks @elijahfriedman!
 - Codex web: keep cookie-import deadlines responsive when browser cookie work blocks the shared worker pool.
 - Codex pace: extrapolate historically exhausted weeks for run-out forecasts and avoid contradictory reset headlines. Thanks @Yuxin-Qiao!
 - Localization: correct the German in-progress refresh label. Thanks @ChrisLauinger77!
