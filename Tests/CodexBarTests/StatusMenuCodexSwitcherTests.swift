@@ -1085,6 +1085,89 @@ extension StatusMenuCodexSwitcherTests {
     }
 
     @Test
+    func `codex account scoped refresh does not retain status controller while in flight`() async throws {
+        self.disableMenuCardsForTesting()
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer { StatusItemController.setMenuRefreshEnabledForTesting(false) }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.multiAccountMenuLayout = .segmented
+
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .codex || provider == .claude)
+        }
+
+        let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managedAccount = ManagedCodexAccount(
+            id: managedAccountID,
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let storeURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .liveSystem
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(self.snapshot(email: "live@example.com", percent: 11), provider: .codex)
+        store.lastCodexAccountScopedRefreshGuard = store.currentCodexAccountScopedRefreshGuard(
+            preferCurrentSnapshot: false)
+        let blocker = BlockingStatusMenuCodexFetchStrategy()
+        self.installBlockingCodexProvider(on: store, blocker: blocker)
+
+        var controller: StatusItemController? = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        let releasedController = WeakStatusItemControllerReference(controller)
+
+        do {
+            let activeController = try #require(controller)
+            let menu = activeController.makeMenu()
+            activeController.menuWillOpen(menu)
+            let switcher = try #require(menu.items.compactMap { $0.view as? CodexAccountSwitcherView }.first)
+            let managedVisibleAccount = try #require(settings.codexVisibleAccountProjection.visibleAccounts
+                .first { $0.storedAccountID == managedAccountID })
+
+            switcher._test_selectAccount(id: managedVisibleAccount.id)
+        }
+
+        await blocker.waitUntilStarted()
+        controller?.releaseStatusItemsForTesting()
+        controller = nil
+        for _ in 0..<20 where releasedController.value != nil {
+            await Task.yield()
+        }
+        #expect(releasedController.value == nil)
+
+        await blocker.resume(with: .success(self.snapshot(email: "managed@example.com", percent: 17)))
+    }
+
+    @Test
     func `codex stacked refresh discards selected outcome when visible selection changes mid flight`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -1180,6 +1263,14 @@ extension StatusMenuCodexSwitcherTests {
         }
 
         return "\(base64URL(header)).\(base64URL(payload))."
+    }
+}
+
+private final class WeakStatusItemControllerReference {
+    weak var value: StatusItemController?
+
+    init(_ value: StatusItemController?) {
+        self.value = value
     }
 }
 

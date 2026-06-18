@@ -1083,18 +1083,19 @@ extension StatusItemController {
         if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
             self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
         }
-        Task { @MainActor [weak self, weak menu] in
-            guard let self else { return }
+        let store = self.store
+        let settings = self.settings
+        Task { @MainActor [weak controller = self, weak menu, store, settings] in
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                await self.store.refreshCodexAccountScopedState(
+                await store.refreshCodexAccountScopedState(
                     allowDisabled: true,
-                    phaseDidChange: { [weak self, weak menu] _ in
-                        guard let self, let menu else { return }
-                        guard self.settings.codexVisibleAccountProjection.activeVisibleAccountID == visibleAccountID
+                    phaseDidChange: { [weak controller, weak menu, settings] _ in
+                        guard let controller, let menu else { return }
+                        guard settings.codexVisibleAccountProjection.activeVisibleAccountID == visibleAccountID
                         else {
                             return
                         }
-                        self.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+                        controller.refreshOpenMenuIfStillVisible(menu, provider: .codex)
                     })
             }
         }
