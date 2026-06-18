@@ -7,6 +7,13 @@ import Darwin
 import Glibc
 #endif
 
+private func waitForFile(_ url: URL) async throws {
+    for _ in 0..<100 where !FileManager.default.fileExists(atPath: url.path) {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(FileManager.default.fileExists(atPath: url.path))
+}
+
 @Suite(.serialized)
 struct KiroStatusProbeTests {
     @Test
@@ -143,10 +150,50 @@ struct KiroStatusProbeTests {
         let task = Task { try await probe.fetch() }
         defer { task.cancel() }
 
-        for _ in 0..<100 where !FileManager.default.fileExists(atPath: contextStarted.path) {
-            try await Task.sleep(for: .milliseconds(20))
+        try await waitForFile(contextStarted)
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
         }
-        #expect(FileManager.default.fileExists(atPath: contextStarted.path))
+    }
+
+    @Test
+    func `fetch cancellation while waiting for account probe is preserved`() async throws {
+        let accountStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-account-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              : > '\(accountStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: accountStarted)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let task = Task { try await probe.fetch() }
+        defer { task.cancel() }
+
+        try await waitForFile(accountStarted)
 
         task.cancel()
         await #expect(throws: CancellationError.self) {

@@ -286,7 +286,14 @@ public struct KiroStatusProbe: Sendable {
             Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
         }
 
-        let accountInfo = await accountTask.value.account
+        let accountStatus = await withTaskCancellationHandler {
+            await accountTask.value
+        } onCancel: {
+            accountTask.cancel()
+        }
+        try Task.checkCancellation()
+
+        let accountInfo = accountStatus.account
         return try self.parse(
             output: output,
             accountEmail: accountInfo?.email,
