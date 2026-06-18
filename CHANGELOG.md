@@ -33,6 +33,7 @@
 - Usage bars: render values rounded to 0% or 100% as fully empty or full. Thanks @Zihao-Qi!
 - Codex web: keep cookie-import deadlines responsive when browser cookie work blocks the shared worker pool.
 - z.ai: open the usage dashboard for the configured global or China API region. Thanks @renbaoshuo!
+- Usage dashboards: tint inline history bars with each provider's branding color. Thanks @elijahfriedman!
 - Codex pace: extrapolate historically exhausted weeks for run-out forecasts and avoid contradictory reset headlines. Thanks @Yuxin-Qiao!
 - Localization: correct the German in-progress refresh label. Thanks @ChrisLauinger77!
 - Localization: correct misleading literal German UI translations. Thanks @madebyjulz!
