@@ -7,7 +7,7 @@ extension OpenAIDashboardBrowserCookieImporter {
         let task: Task<Void, Never>
     }
 
-    private static var pendingCookieStoreMutations: [ObjectIdentifier: PendingCookieStoreMutation] = [:]
+    @MainActor private static var pendingCookieStoreMutations: [ObjectIdentifier: PendingCookieStoreMutation] = [:]
 
     private final class CookieLoadCompletion: @unchecked Sendable {
         private let lock = NSLock()
