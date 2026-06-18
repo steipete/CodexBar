@@ -5,6 +5,14 @@ import Testing
 
 struct MenuCardQuotaWarningMarkerTests {
     @Test
+    func `progress fill matches rounded edge labels`() {
+        #expect(UsageProgressBar.renderedFillPercent(0.4) == 0)
+        #expect(UsageProgressBar.renderedFillPercent(0.6) == 0.6)
+        #expect(UsageProgressBar.renderedFillPercent(99.4) == 99.4)
+        #expect(UsageProgressBar.renderedFillPercent(99.6) == 100)
+    }
+
+    @Test
     func `quota warning marker geometry is inset and hairline`() {
         let rect = UsageProgressBar.warningMarkerRect(
             x: 50,

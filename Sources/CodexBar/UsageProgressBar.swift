@@ -48,7 +48,8 @@ struct UsageProgressBar: View {
         // which caused the status item icon to disappear (issue #805).
         Canvas { context, size in
             let scale = max(self.displayScale, 1)
-            let fillWidth = size.width * self.clamped / 100
+            let fillPercent = Self.renderedFillPercent(self.clamped)
+            let fillWidth = size.width * fillPercent / 100
             let paceWidth = size.width * Self.clampedPercent(self.pacePercent) / 100
             let tipWidth = max(25, size.height * 6.5)
             let stripeInset = 1 / scale
@@ -118,7 +119,16 @@ struct UsageProgressBar: View {
         }
         .frame(height: 6)
         .accessibilityLabel(self.accessibilityLabel)
-        .accessibilityValue("\(Int(self.clamped)) percent")
+        .accessibilityValue("\(Self.displayPercent(self.clamped)) percent")
+    }
+
+    /// Aligns edge rendering with the rounded percent label: sub-0.5% is empty and 99.5%+ is full.
+    nonisolated static func renderedFillPercent(_ percent: Double) -> Double {
+        let clamped = Self.clampedPercent(percent)
+        let displayPercent = Self.displayPercent(clamped)
+        if displayPercent <= 0 { return 0 }
+        if displayPercent >= 100 { return 100 }
+        return clamped
     }
 
     private static func paceStripePaths(size: CGSize, scale: CGFloat) -> (punched: Path, center: Path) {
@@ -188,7 +198,11 @@ struct UsageProgressBar: View {
         isHighlighted ? .white.opacity(0.72) : .primary.opacity(0.32)
     }
 
-    private static func clampedPercent(_ value: Double?) -> Double {
+    private nonisolated static func displayPercent(_ percent: Double) -> Int {
+        Int(self.clampedPercent(percent).rounded())
+    }
+
+    private nonisolated static func clampedPercent(_ value: Double?) -> Double {
         guard let value else { return 0 }
         return min(100, max(0, value))
     }
