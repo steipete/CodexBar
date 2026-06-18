@@ -587,6 +587,19 @@ struct ZaiThreeLimitTests {
 
 struct ZaiAPIRegionTests {
     @Test
+    func `dashboard URLs follow selected region`() {
+        #expect(
+            ZaiAPIRegion.global.dashboardURL.absoluteString ==
+                "https://z.ai/manage-apikey/coding-plan/personal/my-plan")
+        #expect(
+            ZaiAPIRegion.bigmodelCN.dashboardURL.absoluteString ==
+                "https://bigmodel.cn/coding-plan/personal/usage")
+        #expect(
+            ZaiProviderDescriptor.descriptor.metadata.dashboardURL ==
+                ZaiAPIRegion.global.dashboardURL.absoluteString)
+    }
+
+    @Test
     func `defaults to global endpoint`() {
         let url = ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: [:])
         #expect(url.absoluteString == "https://api.z.ai/api/monitor/usage/quota/limit")

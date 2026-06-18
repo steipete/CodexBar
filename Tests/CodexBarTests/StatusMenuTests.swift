@@ -122,7 +122,9 @@ struct StatusMenuTests {
 
         settings.zaiAPIRegion = .global
         #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.global.dashboardURL)
-        #expect(controller.dashboardURL(for: .zai)?.absoluteString == "https://z.ai/manage-apikey/subscription")
+        #expect(
+            controller.dashboardURL(for: .zai)?.absoluteString ==
+                "https://z.ai/manage-apikey/coding-plan/personal/my-plan")
 
         settings.zaiAPIRegion = .bigmodelCN
         #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.bigmodelCN.dashboardURL)

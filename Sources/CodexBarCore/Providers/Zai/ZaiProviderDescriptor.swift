@@ -20,7 +20,7 @@ public enum ZaiProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                dashboardURL: "https://z.ai/manage-apikey/subscription",
+                dashboardURL: ZaiAPIRegion.global.dashboardURL.absoluteString,
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .zai,
