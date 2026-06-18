@@ -10,6 +10,9 @@ extension OpenAIDashboardBrowserCookieImporter {
     @MainActor private static var pendingCookieStoreMutations: [ObjectIdentifier: PendingCookieStoreMutation] = [:]
     private nonisolated static let cookieCacheQueue = DispatchQueue(
         label: "com.steipete.codexbar.openai-cookie-cache")
+    private nonisolated static let deadlineQueue = DispatchQueue(
+        label: "com.steipete.codexbar.openai-cookie-deadline",
+        qos: .userInitiated)
 
     private final class CookieLoadCompletion: @unchecked Sendable {
         private let lock = NSLock()
@@ -53,7 +56,7 @@ extension OpenAIDashboardBrowserCookieImporter {
                 let result = Result(catching: operation)
                 completion.finish { continuation.resume(with: result) }
             }
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+            self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
                 completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
             }
         }
@@ -87,7 +90,7 @@ extension OpenAIDashboardBrowserCookieImporter {
             start {
                 completion.finish { continuation.resume() }
             }
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+            self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
                 completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
             }
         }
@@ -111,7 +114,7 @@ extension OpenAIDashboardBrowserCookieImporter {
             start { value in
                 completion.finish { continuation.resume(returning: value) }
             }
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+            self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
                 completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
             }
         }

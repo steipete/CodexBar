@@ -19,6 +19,7 @@
 - LiteLLM: show personal and team spend amounts directly on budget rows while suppressing duplicate budget sections. Thanks @hololee!
 
 ### Fixed
+- Codex web: keep cookie-import deadlines responsive when browser cookie work blocks the shared worker pool.
 - Codex pace: extrapolate historically exhausted weeks for run-out forecasts and avoid contradictory reset headlines. Thanks @Yuxin-Qiao!
 - Localization: correct the German in-progress refresh label. Thanks @ChrisLauinger77!
 - Localization: correct misleading literal German UI translations. Thanks @madebyjulz!
