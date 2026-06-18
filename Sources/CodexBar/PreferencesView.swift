@@ -34,6 +34,29 @@ enum PreferencesTab: String, CaseIterable, Hashable {
     }
 }
 
+struct PreferencesTabLayoutCoordinator {
+    private(set) var bindingHandledTab: PreferencesTab?
+
+    mutating func beginBindingSelection(from current: PreferencesTab, to requested: PreferencesTab) -> Bool {
+        guard current != requested else { return false }
+        self.bindingHandledTab = requested
+        return true
+    }
+
+    mutating func layoutForObservedSelection(
+        _ observed: PreferencesTab,
+        current: PreferencesTab) -> PreferencesTab?
+    {
+        guard observed == current else { return nil }
+        defer { self.bindingHandledTab = nil }
+        return self.bindingHandledTab == observed ? nil : observed
+    }
+
+    func layoutForDeferredSelection(_ requested: PreferencesTab, current: PreferencesTab) -> PreferencesTab? {
+        current == requested ? requested : nil
+    }
+}
+
 @MainActor
 struct PreferencesView: View {
     @Bindable var settings: SettingsStore
@@ -46,6 +69,7 @@ struct PreferencesView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var contentWidth: CGFloat = PreferencesTab.general.preferredWidth
     @State private var contentHeight: CGFloat = PreferencesTab.general.preferredHeight
+    @State private var tabLayoutCoordinator = PreferencesTabLayoutCoordinator()
 
     init(
         settings: SettingsStore,
@@ -70,7 +94,7 @@ struct PreferencesView: View {
     }
 
     var body: some View {
-        TabView(selection: self.$selection.tab) {
+        TabView(selection: self.tabSelectionBinding) {
             GeneralPane(settings: self.settings, store: self.store)
                 .tabItem { Label(L("tab_general"), systemImage: "gearshape") }
                 .tag(PreferencesTab.general)
@@ -115,11 +139,32 @@ struct PreferencesView: View {
             self.ensureValidTabSelection()
         }
         .onChange(of: self.selection.tab) { _, newValue in
-            self.updateLayout(for: newValue, animate: true)
+            guard let tab = self.tabLayoutCoordinator.layoutForObservedSelection(
+                newValue,
+                current: self.selection.tab)
+            else { return }
+            self.updateLayout(for: tab, animate: true)
         }
         .onChange(of: self.settings.debugMenuEnabled) { _, _ in
             self.ensureValidTabSelection()
         }
+    }
+
+    private var tabSelectionBinding: Binding<PreferencesTab> {
+        Binding(
+            get: { self.selection.tab },
+            set: { newValue in
+                let oldValue = self.selection.tab
+                guard self.tabLayoutCoordinator.beginBindingSelection(from: oldValue, to: newValue) else { return }
+                self.selection.tab = newValue
+                Task { @MainActor in
+                    guard let tab = self.tabLayoutCoordinator.layoutForDeferredSelection(
+                        newValue,
+                        current: self.selection.tab)
+                    else { return }
+                    self.updateLayout(for: tab, animate: true)
+                }
+            })
     }
 
     private func updateLayout(for tab: PreferencesTab, animate: Bool) {

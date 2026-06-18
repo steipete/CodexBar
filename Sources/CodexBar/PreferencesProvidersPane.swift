@@ -57,7 +57,7 @@ struct ProvidersPane: View {
                 orderedProviders: self.providers,
                 store: self.store,
                 isEnabled: { provider in self.binding(for: provider) },
-                subtitle: { provider in self.providerSubtitle(provider) },
+                subtitle: { provider in self.providerSidebarSubtitle(provider) },
                 searchText: self.$providerSearchText,
                 selection: self.$selectedProvider,
                 moveProviders: { fromOffsets, toOffset in
@@ -231,6 +231,27 @@ struct ProvidersPane: View {
             .presentation(context: presentationContext)
             ?? ProviderPresentation(detailLine: ProviderPresentation.standardDetailLine)
         let detailLine = presentation.detailLine(presentationContext)
+
+        return "\(detailLine)\n\(usageText)"
+    }
+
+    func providerSidebarSubtitle(_ provider: UsageProvider) -> String {
+        let meta = self.store.metadata(for: provider)
+        let usageText: String = if let snapshot = self.store.snapshot(for: provider) {
+            snapshot.updatedAt.relativeDescription()
+        } else if self.store.isStale(provider: provider) {
+            L("last_fetch_failed")
+        } else {
+            L("usage_not_fetched_yet")
+        }
+
+        let detailLine: String = if let sourceLabel = self.store.lastSourceLabels[provider], !sourceLabel.isEmpty {
+            sourceLabel
+        } else if let version = self.store.version(for: provider), !version.isEmpty {
+            "\(meta.cliName) \(version)"
+        } else {
+            meta.cliName
+        }
 
         return "\(detailLine)\n\(usageText)"
     }
