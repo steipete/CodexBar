@@ -26,15 +26,16 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
             throw OpenAIDashboardFetcher.FetchError.loginRequired
         }
 
+        let options = OpenAIWebOptions(
+            deadline: OpenAIDashboardFetcher.deadline(startingAt: Date(), timeout: context.webTimeout),
+            debugDumpHTML: context.webDebugDumpHTML,
+            verbose: context.verbose)
+
         // Ensure AppKit is initialized before using WebKit in a CLI.
         await MainActor.run {
             _ = NSApplication.shared
         }
 
-        let options = OpenAIWebOptions(
-            timeout: context.webTimeout,
-            debugDumpHTML: context.webDebugDumpHTML,
-            verbose: context.verbose)
         let result = try await Self.fetchOpenAIWebCodex(
             context: context,
             options: options,
@@ -107,7 +108,7 @@ enum OpenAIWebCodexError: LocalizedError, Equatable {
 }
 
 private struct OpenAIWebOptions {
-    let timeout: TimeInterval
+    let deadline: Date
     let debugDumpHTML: Bool
     let verbose: Bool
 }
@@ -165,6 +166,7 @@ extension CodexWebDashboardStrategy {
             guard Self.shouldRetryWithFreshBrowserImport(after: error) else {
                 throw error
             }
+            _ = try OpenAIDashboardBrowserCookieImporter.remainingTimeout(until: options.deadline)
             log("Retrying OpenAI web dashboard with a fresh browser cookie import.")
             let result = try await Self.fetchOpenAIWebDashboard(
                 context: context,
@@ -285,6 +287,7 @@ extension CodexWebDashboardStrategy {
                 intoAccountEmail: routingTargetEmail,
                 allowAnyAccount: allowAnyAccount,
                 preferCachedCookieHeader: preferCachedCookieHeader,
+                deadline: options.deadline,
                 logger: logger)
         let effectiveEmail = routingTargetEmail ?? importResult.signedInEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -293,7 +296,7 @@ extension CodexWebDashboardStrategy {
             accountEmail: effectiveEmail,
             logger: logger,
             debugDumpHTML: options.debugDumpHTML,
-            timeout: options.timeout)
+            timeout: OpenAIDashboardBrowserCookieImporter.remainingTimeout(until: options.deadline))
         return OpenAIWebDashboardFetchResult(
             dashboard: dashboard,
             routingTargetEmail: routingTargetEmail)

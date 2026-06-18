@@ -162,6 +162,15 @@ final class OpenAIDashboardWebViewCache {
         self.idleTimeout = idleTimeout
     }
 
+    nonisolated static func remainingNavigationTimeout(
+        until deadline: Date,
+        now: Date = Date()) throws -> TimeInterval
+    {
+        let remaining = deadline.timeIntervalSince(now)
+        guard remaining > 0 else { throw URLError(.timedOut) }
+        return remaining
+    }
+
     private func releaseCachedEntry(_ entry: Entry, preserveLoadedPage: Bool) {
         entry.isBusy = false
         let now = Date()
@@ -282,7 +291,7 @@ final class OpenAIDashboardWebViewCache {
         allowTimeoutRetry: Bool = true,
         preserveLoadedPageOnRelease: Bool = false) async throws -> OpenAIDashboardWebViewLease
     {
-        let deadline = Date().addingTimeInterval(max(navigationTimeout, 1))
+        let deadline = Date().addingTimeInterval(max(navigationTimeout, 0.01))
         return try await self.acquire(
             websiteDataStore: websiteDataStore,
             usageURL: usageURL,
@@ -307,7 +316,7 @@ final class OpenAIDashboardWebViewCache {
             logger?("[webview] \(message)")
         }
         let key = ObjectIdentifier(websiteDataStore)
-        let remainingTimeout = max(0.5, deadline.timeIntervalSince(now))
+        let remainingTimeout = try Self.remainingNavigationTimeout(until: deadline, now: now)
 
         if let entry = self.entries[key] {
             if entry.isBusy {
@@ -611,7 +620,7 @@ final class OpenAIDashboardWebViewCache {
         log: @escaping (String) -> Void,
         deadline: Date) async throws -> OpenAIDashboardWebViewLease
     {
-        let remainingTimeout = max(0.5, deadline.timeIntervalSinceNow)
+        let remainingTimeout = try Self.remainingNavigationTimeout(until: deadline)
         let (webView, host) = self.makeWebView(websiteDataStore: websiteDataStore)
         host.show()
         do {

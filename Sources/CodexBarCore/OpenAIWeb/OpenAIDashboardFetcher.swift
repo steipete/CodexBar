@@ -229,14 +229,16 @@ public struct OpenAIDashboardFetcher {
         let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
         let preflight = await Self.fetchDashboardAPIPreflight(
             websiteDataStore: websiteDataStore,
+            deadline: deadline,
             logger: { logger?($0) })
         try Task.checkCancellation()
         let (apiData, verifiedSignedInEmail) = (preflight.apiData, preflight.verifiedSignedInEmail)
+        let remainingTimeout = try Self.requiredRemainingTimeout(until: deadline)
 
         let lease = try await self.makeWebView(
             websiteDataStore: websiteDataStore,
             logger: logger,
-            timeout: Self.remainingTimeout(until: deadline),
+            timeout: remainingTimeout,
             allowNavigationTimeoutRetry: allowNavigationTimeoutRetry)
         defer { lease.release() }
         let webView = lease.webView
@@ -697,28 +699,6 @@ public struct OpenAIDashboardFetcher {
         return request
     }
 
-    nonisolated static func dashboardUsageAPIRequest(cookieHeader: String) -> URLRequest {
-        var request = URLRequest(url: Self.dashboardUsageAPIURL)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 4
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
-        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
-        return request
-    }
-
-    nonisolated static func dashboardIdentityAPIRequest(url: URL, cookieHeader: String) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 2
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
-        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
-        return request
-    }
-
     nonisolated static func dashboardAPIData(from response: CodexUsageResponse) -> DashboardAPIData {
         DashboardAPIData(
             primaryLimit: self.rateWindow(from: response.rateLimit?.primaryWindow),
@@ -731,13 +711,20 @@ public struct OpenAIDashboardFetcher {
 
     private static func fetchDashboardAPIPreflight(
         websiteDataStore: WKWebsiteDataStore,
+        deadline: Date,
         logger: @escaping (String) -> Void)
         async -> (apiData: DashboardAPIData?, verifiedSignedInEmail: String?)
     {
         let cookieHeader = await self.chatGPTCookieHeader(in: websiteDataStore)
-        let apiData = await self.fetchDashboardUsageAPI(cookieHeader: cookieHeader, logger: logger)
+        let apiData = await self.fetchDashboardUsageAPI(
+            cookieHeader: cookieHeader,
+            deadline: deadline,
+            logger: logger)
         let verifiedEmail: String? = if apiData?.hasUsageData == true {
-            await self.fetchSignedInEmailFromAPI(cookieHeader: cookieHeader, logger: logger)
+            await self.fetchSignedInEmailFromAPI(
+                cookieHeader: cookieHeader,
+                deadline: deadline,
+                logger: logger)
         } else {
             nil
         }
@@ -753,18 +740,21 @@ public struct OpenAIDashboardFetcher {
         logger: @escaping (String) -> Void) async -> DashboardAPIData?
     {
         let cookieHeader = await self.chatGPTCookieHeader(in: websiteDataStore)
-        return await self.fetchDashboardUsageAPI(cookieHeader: cookieHeader, logger: logger)
+        return await self.fetchDashboardUsageAPI(cookieHeader: cookieHeader, deadline: nil, logger: logger)
     }
 
     private static func fetchDashboardUsageAPI(
         cookieHeader: String,
+        deadline: Date?,
         logger: @escaping (String) -> Void) async -> DashboardAPIData?
     {
         guard !cookieHeader.isEmpty else { return nil }
+        let remaining = deadline.map { self.remainingTimeout(until: $0) } ?? 4
+        guard remaining > 0 else { return nil }
 
         do {
             let (data, response) = try await ProviderHTTPClient.shared.data(
-                for: self.dashboardUsageAPIRequest(cookieHeader: cookieHeader))
+                for: self.dashboardUsageAPIRequest(cookieHeader: cookieHeader, timeout: min(4, remaining)))
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             logger("usage api status=\(status)")
             guard status >= 200, status < 300 else { return nil }
@@ -782,6 +772,7 @@ public struct OpenAIDashboardFetcher {
 
     private static func fetchSignedInEmailFromAPI(
         cookieHeader: String,
+        deadline: Date?,
         logger: @escaping (String) -> Void) async -> String?
     {
         guard !cookieHeader.isEmpty else { return nil }
@@ -792,9 +783,14 @@ public struct OpenAIDashboardFetcher {
         ].compactMap(\.self)
 
         for url in endpoints {
+            let remaining = deadline.map { self.remainingTimeout(until: $0) } ?? 2
+            guard remaining > 0 else { return nil }
             do {
                 let (data, response) = try await ProviderHTTPClient.shared.data(
-                    for: self.dashboardIdentityAPIRequest(url: url, cookieHeader: cookieHeader))
+                    for: self.dashboardIdentityAPIRequest(
+                        url: url,
+                        cookieHeader: cookieHeader,
+                        timeout: min(2, remaining)))
                 let status = (response as? HTTPURLResponse)?.statusCode ?? -1
                 logger("identity api \(url.path) status=\(status)")
                 guard status >= 200, status < 300 else { continue }
@@ -978,6 +974,44 @@ extension OpenAIDashboardFetcher {
 }
 
 extension OpenAIDashboardFetcher {
+    nonisolated static func requiredRemainingTimeout(
+        until deadline: Date,
+        now: Date = Date()) throws -> TimeInterval
+    {
+        let remaining = self.remainingTimeout(until: deadline, now: now)
+        guard remaining > 0 else { throw URLError(.timedOut) }
+        return remaining
+    }
+
+    nonisolated static func dashboardUsageAPIRequest(
+        cookieHeader: String,
+        timeout: TimeInterval = 4) -> URLRequest
+    {
+        var request = URLRequest(url: Self.dashboardUsageAPIURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        return request
+    }
+
+    nonisolated static func dashboardIdentityAPIRequest(
+        url: URL,
+        cookieHeader: String,
+        timeout: TimeInterval = 2) -> URLRequest
+    {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        return request
+    }
+
     private static func logBlockingStateIfNeeded(_ scrape: ScrapeResult, logger: (String) -> Void) {
         guard scrape.loginRequired || scrape.cloudflareInterstitial else { return }
         let route = self.isUsageRoute(scrape.href) ? "usage" : "other"

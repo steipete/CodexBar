@@ -282,6 +282,21 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
     }
 
     @Test
+    func `dashboard api requests accept shared deadline timeout clamps`() throws {
+        let url = try #require(URL(string: "https://chatgpt.com/backend-api/me"))
+        let usageRequest = OpenAIDashboardFetcher.dashboardUsageAPIRequest(
+            cookieHeader: "a=b",
+            timeout: 1.25)
+        let identityRequest = OpenAIDashboardFetcher.dashboardIdentityAPIRequest(
+            url: url,
+            cookieHeader: "a=b",
+            timeout: 0.75)
+
+        #expect(usageRequest.timeoutInterval == 1.25)
+        #expect(identityRequest.timeoutInterval == 0.75)
+    }
+
+    @Test
     func `usage api data maps language independent rate limits and credits`() throws {
         let json = """
         {

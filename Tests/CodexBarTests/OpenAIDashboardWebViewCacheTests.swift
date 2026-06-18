@@ -20,6 +20,34 @@ struct OpenAIDashboardWebViewCacheTests {
     // MARK: - Data Store Identity Tests
 
     @Test
+    func `navigation retry uses only remaining shared deadline`() throws {
+        let start = Date(timeIntervalSinceReferenceDate: 1000)
+        let deadline = start.addingTimeInterval(10)
+
+        let remaining = try OpenAIDashboardWebViewCache.remainingNavigationTimeout(
+            until: deadline,
+            now: start.addingTimeInterval(9.75))
+
+        #expect(remaining == 0.25)
+    }
+
+    @Test
+    func `navigation retry refuses expired shared deadline`() {
+        let deadline = Date(timeIntervalSinceReferenceDate: 1000)
+
+        do {
+            _ = try OpenAIDashboardWebViewCache.remainingNavigationTimeout(
+                until: deadline,
+                now: deadline)
+            Issue.record("Expected deadline timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `WKWebsiteDataStore should return same instance for same email`() {
         if self.shouldSkipOnCI() { return }
         OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
