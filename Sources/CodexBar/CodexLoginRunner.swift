@@ -188,7 +188,6 @@ struct CodexLoginRunner {
     }
 
     private static func decode(_ data: Data) -> String {
-        guard let text = String(data: data, encoding: .utf8) else { return "" }
-        return text
+        String(decoding: data, as: UTF8.self)
     }
 }

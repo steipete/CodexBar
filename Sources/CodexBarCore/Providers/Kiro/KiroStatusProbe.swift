@@ -506,8 +506,8 @@ public struct KiroStatusProbe: Sendable {
             throw KiroStatusProbeError.timeout
         }
         return KiroCLIResult(
-            stdout: String(data: output.stdout, encoding: .utf8) ?? "",
-            stderr: String(data: output.stderr, encoding: .utf8) ?? "",
+            stdout: String(decoding: output.stdout, as: UTF8.self),
+            stderr: String(decoding: output.stderr, as: UTF8.self),
             terminationStatus: terminationStatus,
             terminatedForIdle: didTerminateForIdle)
     }

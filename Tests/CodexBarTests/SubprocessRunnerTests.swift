@@ -36,6 +36,45 @@ struct SubprocessRunnerTests {
     }
 
     @Test
+    func `preserves captured prefix when limit splits three byte scalar`() async throws {
+        let asciiCount = ProcessPipeCapture.defaultMaxBytes - 1
+        let script = "import sys; sys.stdout.buffer.write(b'x' * \(asciiCount) + bytes([0xe2, 0x82, 0xac]) + b'tail')"
+        let result = try await SubprocessRunner.run(
+            binary: "/usr/bin/python3",
+            arguments: ["-c", script],
+            environment: ProcessInfo.processInfo.environment,
+            timeout: 5,
+            label: "python split utf8 stdout")
+
+        #expect(result.stdout.count == ProcessPipeCapture.defaultMaxBytes)
+        #expect(result.stdout.first == "x")
+        #expect(result.stdout.last == "\u{FFFD}")
+        #expect(result.stdout.utf8.count == ProcessPipeCapture.defaultMaxBytes + 2)
+    }
+
+    @Test
+    func `bounds simultaneous oversized stdout and stderr while draining`() async throws {
+        let script = """
+        import sys
+        chunk = 2048
+        for _ in range(2000):
+            sys.stdout.write('o' * chunk)
+            sys.stdout.flush()
+            sys.stderr.write('e' * chunk)
+            sys.stderr.flush()
+        """
+        let result = try await SubprocessRunner.run(
+            binary: "/usr/bin/python3",
+            arguments: ["-c", script],
+            environment: ProcessInfo.processInfo.environment,
+            timeout: 10,
+            label: "python simultaneous oversized output")
+
+        #expect(result.stdout.utf8.count == ProcessPipeCapture.defaultMaxBytes)
+        #expect(result.stderr.utf8.count == ProcessPipeCapture.defaultMaxBytes)
+    }
+
+    @Test
     func `bounds oversized stderr on failure`() async throws {
         do {
             _ = try await SubprocessRunner.run(
