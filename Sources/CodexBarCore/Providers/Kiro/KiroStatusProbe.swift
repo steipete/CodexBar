@@ -227,13 +227,16 @@ public enum KiroStatusProbeError: LocalizedError, Sendable {
 
 public struct KiroStatusProbe: Sendable {
     private let cliBinaryResolver: @Sendable () -> String?
+    private let accountProbeTimeout: TimeInterval
 
     public init() {
         self.cliBinaryResolver = { TTYCommandRunner.which("kiro-cli") }
+        self.accountProbeTimeout = 3.0
     }
 
-    init(cliBinaryResolver: @escaping @Sendable () -> String?) {
+    init(cliBinaryResolver: @escaping @Sendable () -> String?, accountProbeTimeout: TimeInterval = 3.0) {
         self.cliBinaryResolver = cliBinaryResolver
+        self.accountProbeTimeout = accountProbeTimeout
     }
 
     private static let logger = CodexBarLog.logger(LogCategories.kiro)
@@ -256,19 +259,26 @@ public struct KiroStatusProbe: Sendable {
     }
 
     public func fetch() async throws -> KiroUsageSnapshot {
-        let account = try await self.ensureLoggedIn()
-        let output = try await self.runUsageCommand()
-        var contextUsage: KiroContextUsageSnapshot?
+        let accountTask = Task { await self.fetchAccountIfAvailable() }
         do {
-            contextUsage = try await self.fetchContextUsage()
+            let output = try await self.runUsageCommand()
+            var contextUsage: KiroContextUsageSnapshot?
+            do {
+                contextUsage = try await self.fetchContextUsage()
+            } catch {
+                Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
+            }
+            let accountInfo = await accountTask.value
+            return try self.parse(
+                output: output,
+                accountEmail: accountInfo?.email,
+                authMethod: accountInfo?.authMethod,
+                contextUsage: contextUsage)
         } catch {
-            Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
+            accountTask.cancel()
+            _ = await accountTask.value
+            throw error
         }
-        return try self.parse(
-            output: output,
-            accountEmail: account.email,
-            authMethod: account.authMethod,
-            contextUsage: contextUsage)
     }
 
     struct KiroCLIResult {
@@ -283,8 +293,17 @@ public struct KiroStatusProbe: Sendable {
         let email: String?
     }
 
+    private func fetchAccountIfAvailable() async -> KiroAccountInfo? {
+        do {
+            return try await self.ensureLoggedIn()
+        } catch {
+            Self.logger.debug("Kiro account probe failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     private func ensureLoggedIn() async throws -> KiroAccountInfo {
-        let result = try await self.runCommand(arguments: ["whoami"], timeout: 5.0)
+        let result = try await self.runCommand(arguments: ["whoami"], timeout: self.accountProbeTimeout)
         return try self.validateWhoAmIOutput(
             stdout: result.stdout,
             stderr: result.stderr,

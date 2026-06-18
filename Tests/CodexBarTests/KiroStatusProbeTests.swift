@@ -7,7 +7,75 @@ import Darwin
 import Glibc
 #endif
 
+@Suite(.serialized)
 struct KiroStatusProbeTests {
+    @Test
+    func `fetch returns usage when account probe times out`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              sleep 5
+              printf 'Logged in with Google\\nEmail: person@example.com\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 0.2)
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(snapshot.accountEmail == nil)
+        #expect(snapshot.authMethod == nil)
+    }
+
+    @Test
+    func `fetch preserves account info when account probe succeeds`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\\nEmail: person@example.com\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.accountEmail == "person@example.com")
+        #expect(snapshot.authMethod == "Google")
+    }
+
     @Test
     func `fetch returns when usage helper leaves inherited pipes open`() async throws {
         let root = FileManager.default.temporaryDirectory
