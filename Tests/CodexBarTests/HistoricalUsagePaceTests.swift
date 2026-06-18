@@ -783,6 +783,11 @@ struct HistoricalUsagePaceTests {
         #expect(pace.willLastToReset == false)
         #expect(pace.runOutProbability != nil)
         #expect(try #require(pace.runOutProbability) > 0)
+        #expect(pace.deltaPercent > 0)
+
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+        #expect(detail.leftLabel == "5% in deficit")
+        #expect(detail.rightLabel?.contains("Lasts until reset") == false)
     }
 
     @Test

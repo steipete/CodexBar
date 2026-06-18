@@ -811,10 +811,11 @@ enum CodexHistoricalPaceEvaluator {
             let weights = weightedWeeks.map(\.weight)
             let historicalMedian = Self.weightedMedian(values: values, weights: weights)
             let linearBaseline = 100 * u
+            // Historical demand can exceed a sustainable quota pace. Never call that excess a reserve.
             expectedCurve[index] = Self.clamp(
                 (lambda * historicalMedian) + ((1 - lambda) * linearBaseline),
                 lower: 0,
-                upper: 100)
+                upper: linearBaseline)
         }
 
         // Expected cumulative usage should be monotone.
