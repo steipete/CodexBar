@@ -862,7 +862,7 @@ struct UsageStoreSessionQuotaTransitionTests {
     }
 
     @Test
-    func `commandcode depleted does not refire after subscription timeout then success`() {
+    func `commandcode depleted does not refire after subscription timeout then success`() throws {
         let settings = self.makeSettings(suiteName: "CommandCodeDepletedNoRefire")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -875,7 +875,7 @@ struct UsageStoreSessionQuotaTransitionTests {
             settings: settings,
             sessionQuotaNotifier: notifier)
 
-        let plan = CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 }!
+        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
 
         let depletedWithPlan = CommandCodeUsageSnapshot(
             monthlyCreditsRemaining: 0,
@@ -905,6 +905,6 @@ struct UsageStoreSessionQuotaTransitionTests {
             provider: .commandcode,
             snapshot: depletedWithPlan.toUsageSnapshot())
 
-        #expect(notifier.posts.filter { $0.transition == .depleted }.count == 1)
+        #expect(notifier.posts.count(where: { $0.transition == .depleted }) == 1)
     }
 }
