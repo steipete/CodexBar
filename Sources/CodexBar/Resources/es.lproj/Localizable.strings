@@ -487,6 +487,8 @@
 "show_most_used_provider_subtitle" = "La barra de menús muestra automáticamente el proveedor más cercano a su límite.";
 "menu_bar_shows_percent_title" = "La barra de menús muestra el porcentaje";
 "menu_bar_shows_percent_subtitle" = "Sustituir las barras de bichitos por iconos de marca del proveedor y un porcentaje.";
+"hide_critters_title" = "Ocultar bichitos";
+"hide_critters_subtitle" = "Mostrar barras de medición simples sin la cara ni las decoraciones.";
 "display_mode_title" = "Modo de visualización";
 "display_mode_subtitle" = "Elige qué mostrar en la barra de menús (Ritmo muestra el uso frente al previsto).";
 "section_menu_content" = "Contenido del menú";

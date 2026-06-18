@@ -498,6 +498,8 @@
 "show_most_used_provider_subtitle" = "De menubalk toont automatisch de aanbieder die het dichtst bij de tarieflimiet zit.";
 "menu_bar_shows_percent_title" = "Menubalk toont percentage";
 "menu_bar_shows_percent_subtitle" = "Vervang critterbalken door brandingpictogrammen van de provider en een percentage.";
+"hide_critters_title" = "Critters verbergen";
+"hide_critters_subtitle" = "Toon eenvoudige meterbalken zonder gezicht en versieringen.";
 "display_mode_title" = "Weergavemodus";
 "display_mode_subtitle" = "Kies wat u wilt weergeven in de menubalk (Tempo toont gebruik vs. verwacht).";
 "section_menu_content" = "Menu-inhoud";

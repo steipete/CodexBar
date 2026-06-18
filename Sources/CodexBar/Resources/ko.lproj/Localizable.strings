@@ -489,6 +489,8 @@
 "show_most_used_provider_subtitle" = "메뉴 막대에 사용 한도에 가장 가까운 공급자를 자동으로 표시합니다.";
 "menu_bar_shows_percent_title" = "메뉴 막대에 백분율 표시";
 "menu_bar_shows_percent_subtitle" = "크리터 막대를 공급자 브랜드 아이콘과 백분율로 대체합니다.";
+"hide_critters_title" = "크리터 숨기기";
+"hide_critters_subtitle" = "얼굴과 장식 없이 단순한 미터 막대를 표시합니다.";
 "display_mode_title" = "표시 모드";
 "display_mode_subtitle" = "메뉴 막대에 표시할 내용을 선택하세요(사용 속도는 사용량 대 예상치를 표시).";
 "section_menu_content" = "메뉴 내용";

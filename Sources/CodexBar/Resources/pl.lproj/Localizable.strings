@@ -500,6 +500,8 @@
 "show_most_used_provider_subtitle" = "Pasek menu automatycznie pokazuje dostawcę najbliżej limitu.";
 "menu_bar_shows_percent_title" = "Pokaż procent na pasku menu";
 "menu_bar_shows_percent_subtitle" = "Pokazuje procent zużycia/pozostałego limitu obok ikony.";
+"hide_critters_title" = "Ukryj stworki";
+"hide_critters_subtitle" = "Pokaż zwykłe paski miernika bez twarzy i ozdób.";
 "display_mode_title" = "Tryb wyświetlania";
 "display_mode_subtitle" = "Wybierz, co pokazywać na pasku menu (Tempo pokazuje użycie względem oczekiwanego).";
 "section_menu_content" = "Zawartość menu";

@@ -487,6 +487,8 @@
 "show_most_used_provider_subtitle" = "菜单栏会自动显示最接近速率限制的提供商。";
 "menu_bar_shows_percent_title" = "菜单栏显示百分比";
 "menu_bar_shows_percent_subtitle" = "将小动物进度条替换为提供商品牌图标和百分比。";
+"hide_critters_title" = "隐藏小动物";
+"hide_critters_subtitle" = "显示不带表情和装饰的简洁进度条。";
 "display_mode_title" = "显示模式";
 "display_mode_subtitle" = "选择菜单栏中显示的内容（进度会显示实际用量与预期的对比）。";
 "section_menu_content" = "菜单内容";

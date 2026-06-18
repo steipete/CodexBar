@@ -498,6 +498,8 @@
 "show_most_used_provider_subtitle" = "Menü çubuğu, hız limitine en yakın sağlayıcıyı otomatik gösterir.";
 "menu_bar_shows_percent_title" = "Menü çubuğu yüzde gösterir";
 "menu_bar_shows_percent_subtitle" = "Canavar çubuklarını sağlayıcı marka simgeleri ve yüzde ile değiştir.";
+"hide_critters_title" = "Canavarları gizle";
+"hide_critters_subtitle" = "Yüz ve süslemeler olmadan düz ölçüm çubukları göster.";
 "display_mode_title" = "Görünüm modu";
 "display_mode_subtitle" = "Menü çubuğunda ne gösterileceğini seçin (Hız, kullanımı beklentiyle karşılaştırır).";
 "section_menu_content" = "Menü içeriği";

@@ -497,6 +497,8 @@
 "show_most_used_provider_subtitle" = "Menyraden visar automatiskt leverantören som ligger närmast sin gräns.";
 "menu_bar_shows_percent_title" = "Menyraden visar procent";
 "menu_bar_shows_percent_subtitle" = "Ersätt figurstaplar med leverantörsikoner och ett procenttal.";
+"hide_critters_title" = "Dölj figurer";
+"hide_critters_subtitle" = "Visa enkla mätarstaplar utan ansikte och dekorationer.";
 "display_mode_title" = "Visningsläge";
 "display_mode_subtitle" = "Välj vad som ska visas i menyraden (takt visar användning mot förväntat).";
 "section_menu_content" = "Menyinnehåll";

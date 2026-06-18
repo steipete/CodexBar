@@ -498,6 +498,8 @@
 "show_most_used_provider_subtitle" = "La barre de menu affiche automatiquement le fournisseur le plus proche de sa limite de débit.";
 "menu_bar_shows_percent_title" = "La barre de menu affiche le pourcentage";
 "menu_bar_shows_percent_subtitle" = "Remplacez les barres de créatures par des icônes de marque du fournisseur et un pourcentage.";
+"hide_critters_title" = "Masquer les créatures";
+"hide_critters_subtitle" = "Afficher des barres de mesure simples sans le visage ni les décorations.";
 "display_mode_title" = "Mode d'affichage";
 "display_mode_subtitle" = "Choisissez ce que vous voulez afficher dans la barre de menu (Pace affiche l'utilisation par rapport à celle attendue).";
 "section_menu_content" = "Contenu des menus";

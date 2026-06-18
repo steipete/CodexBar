@@ -496,6 +496,8 @@
 "show_most_used_provider_subtitle" = "選單列會自動顯示最接近速率限制的提供者。";
 "menu_bar_shows_percent_title" = "選單列顯示百分比";
 "menu_bar_shows_percent_subtitle" = "將小動物進度條替換為提供者品牌圖示和百分比。";
+"hide_critters_title" = "隱藏小動物";
+"hide_critters_subtitle" = "顯示不帶表情和裝飾的簡潔進度條。";
 "display_mode_title" = "顯示模式";
 "display_mode_subtitle" = "選擇選單列中顯示的內容（進度會比較實際與預期使用量）。";
 "section_menu_content" = "選單內容";

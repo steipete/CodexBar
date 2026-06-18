@@ -494,6 +494,8 @@
 "show_most_used_provider_subtitle" = "thanh menu được sử dụng nhiều nhất tự động hiển thị Nhà cung cấp gần nhất với giới hạn tốc độ của nó.";
 "menu_bar_shows_percent_title" = "thanh menu hiển thị phần trăm";
 "menu_bar_shows_percent_subtitle" = "Thay thế thanh sinh vật bằng Nhà cung cấp biểu tượng thương hiệu và tỷ lệ phần trăm.";
+"hide_critters_title" = "Ẩn sinh vật";
+"hide_critters_subtitle" = "Hiển thị thanh đo đơn giản không có khuôn mặt và trang trí.";
 "display_mode_title" = "Chế độ hiển thị";
 "display_mode_subtitle" = "Chọn nội dung sẽ hiển thị trong thanh menu (Tốc độ hiển thị Mức sử dụng so với dự kiến).";
 "section_menu_content" = "Nội dung menu";

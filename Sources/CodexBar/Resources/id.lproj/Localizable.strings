@@ -500,6 +500,8 @@
 "show_most_used_provider_subtitle" = "Menu bar otomatis menampilkan penyedia yang paling dekat batas penggunaannya.";
 "menu_bar_shows_percent_title" = "Menu bar tampilkan persen";
 "menu_bar_shows_percent_subtitle" = "Ganti bilah critter dengan ikon merek penyedia dan persentase.";
+"hide_critters_title" = "Sembunyikan critter";
+"hide_critters_subtitle" = "Tampilkan bilah meter polos tanpa wajah dan dekorasi.";
 "display_mode_title" = "Mode tampilan";
 "display_mode_subtitle" = "Pilih apa yang ditampilkan di menu bar (Pace menampilkan penggunaan vs. perkiraan).";
 "section_menu_content" = "Konten menu";

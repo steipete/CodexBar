@@ -500,6 +500,8 @@
 "show_most_used_provider_subtitle" = "La barra menu mostra automaticamente il provider più vicino al limite.";
 "menu_bar_shows_percent_title" = "Mostra percentuale nella barra menu";
 "menu_bar_shows_percent_subtitle" = "Sostituisce le barre con icone provider e percentuale.";
+"hide_critters_title" = "Nascondi creature";
+"hide_critters_subtitle" = "Mostra barre semplici senza volto e decorazioni.";
 "display_mode_title" = "Modalità visualizzazione";
 "display_mode_subtitle" = "Scegli cosa mostrare nella barra menu (Andamento confronta utilizzo e atteso).";
 "section_menu_content" = "Contenuto menu";

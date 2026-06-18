@@ -495,6 +495,8 @@
 "show_most_used_provider_subtitle" = "レート制限に最も近いプロバイダをメニューバーに自動表示します。";
 "menu_bar_shows_percent_title" = "メニューバーにパーセントを表示";
 "menu_bar_shows_percent_subtitle" = "クリッターバーをプロバイダのブランドアイコンとパーセント表示に置き換えます。";
+"hide_critters_title" = "クリッターを非表示";
+"hide_critters_subtitle" = "顔や装飾のないシンプルなメーターバーを表示します。";
 "display_mode_title" = "表示モード";
 "display_mode_subtitle" = "メニューバーに表示する内容を選択します（ペースは使用量と想定値の比較を表示します）。";
 "section_menu_content" = "メニューの内容";

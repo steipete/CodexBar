@@ -487,6 +487,8 @@
 "show_most_used_provider_subtitle" = "La barra de menús mostra automàticament el proveïdor més a prop del seu límit.";
 "menu_bar_shows_percent_title" = "La barra de menús mostra el percentatge";
 "menu_bar_shows_percent_subtitle" = "Substitueix les barres de bestioles per icones de marca del proveïdor i un percentatge.";
+"hide_critters_title" = "Amaga les bestioles";
+"hide_critters_subtitle" = "Mostra barres de mesura simples sense la cara ni les decoracions.";
 "display_mode_title" = "Mode de visualització";
 "display_mode_subtitle" = "Tria què es mostra a la barra de menús (Ritme mostra l'ús respecte al previst).";
 "section_menu_content" = "Contingut del menú";

@@ -498,6 +498,8 @@
 "show_most_used_provider_subtitle" = "In der Menüleiste wird automatisch der Anbieter angezeigt, der seinem Tariflimit am nächsten kommt.";
 "menu_bar_shows_percent_title" = "Die Menüleiste zeigt Prozent an";
 "menu_bar_shows_percent_subtitle" = "Ersetzen Sie die Leisten durch Anbieter-Branding-Symbole und einen Prozentsatz.";
+"hide_critters_title" = "Kreaturen ausblenden";
+"hide_critters_subtitle" = "Schlichte Messleisten ohne Gesicht und Verzierungen anzeigen.";
 "display_mode_title" = "Anzeigemodus";
 "display_mode_subtitle" = "Wählen Sie aus, was in der Menüleiste angezeigt werden soll (Pace zeigt die Nutzung im Vergleich zur erwarteten).";
 "section_menu_content" = "Menüinhalt";
