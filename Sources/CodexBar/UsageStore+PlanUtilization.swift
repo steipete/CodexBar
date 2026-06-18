@@ -417,9 +417,15 @@ extension UsageStore {
                 }
             }
         default:
-            for window in [snapshot.primary, snapshot.secondary, snapshot.tertiary] {
-                guard let window, window.windowMinutes == Self.weeklyWindowMinutes else { continue }
-                appendWindow(window, name: .weekly)
+            let standardWeeklyWindow = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+                .compactMap(\.self)
+                .first { $0.windowMinutes == Self.weeklyWindowMinutes }
+            let extraWeeklyWindow = snapshot.extraRateWindows?
+                .lazy
+                .map(\.window)
+                .first { $0.windowMinutes == Self.weeklyWindowMinutes }
+            if let weeklyWindow = standardWeeklyWindow ?? extraWeeklyWindow {
+                appendWindow(weeklyWindow, name: .weekly)
             }
         }
 

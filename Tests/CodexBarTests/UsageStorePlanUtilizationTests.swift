@@ -1115,6 +1115,64 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `generic provider persists weekly extra window`() async {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "weekly-budget",
+                    title: "Weekly budget",
+                    window: RateWindow(
+                        usedPercent: 42,
+                        windowMinutes: 10080,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ],
+            updatedAt: now)
+
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: snapshot, now: now)
+
+        #expect(findSeries(store.planUtilizationHistory(for: .zai), name: .weekly, windowMinutes: 10080)?
+            .entries.map(\.usedPercent) == [42])
+    }
+
+    @MainActor
+    @Test
+    func `generic provider prefers standard weekly window over extra window`() async {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(
+                usedPercent: 42,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: nil),
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "extra-weekly-budget",
+                    title: "Extra weekly budget",
+                    window: RateWindow(
+                        usedPercent: 84,
+                        windowMinutes: 10080,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ],
+            updatedAt: now)
+
+        await store.recordPlanUtilizationHistorySample(provider: .factory, snapshot: snapshot, now: now)
+
+        #expect(findSeries(store.planUtilizationHistory(for: .factory), name: .weekly, windowMinutes: 10080)?
+            .entries.map(\.usedPercent) == [42])
+    }
+
+    @MainActor
+    @Test
     func `concurrent plan history writes coalesce within single hour bucket per series`() async throws {
         let store = Self.makeStore()
         let snapshot = Self.makeSnapshot(provider: .codex, email: "alice@example.com")
