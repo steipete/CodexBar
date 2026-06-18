@@ -57,7 +57,7 @@ struct BedrockMenuCardTests {
         let metadata = try #require(ProviderDefaults.metadata[.bedrock])
         let tokenSnapshot = CostUsageTokenSnapshot(
             sessionTokens: nil,
-            sessionCostUSD: 12.34,
+            sessionCostUSD: 23.45,
             last30DaysTokens: nil,
             last30DaysCostUSD: 56.78,
             historyDays: 7,
@@ -116,6 +116,6 @@ struct BedrockMenuCardTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.tokenUsage?.sessionLine == "Latest billing day (May 13): $12.34")
+        #expect(model.tokenUsage?.sessionLine == "Latest billing day (May 13): $23.45")
     }
 }

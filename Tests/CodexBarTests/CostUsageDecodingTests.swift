@@ -365,6 +365,33 @@ struct CostUsageDecodingTests {
     }
 
     @Test
+    func `token snapshot rejects impossible later calendar day`() throws {
+        let json = """
+        {
+          "type": "daily",
+          "data": [
+            {
+              "date": "2026-05-13",
+              "totalTokens": 30,
+              "costUSD": 23.45
+            },
+            {
+              "date": "2026-06-31",
+              "totalTokens": 40,
+              "costUSD": 99.00
+            }
+          ]
+        }
+        """
+
+        let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
+        let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: Date())
+
+        #expect(snapshot.sessionTokens == 30)
+        #expect(snapshot.sessionCostUSD == 23.45)
+    }
+
+    @Test
     func `token snapshot uses summary total cost when available`() throws {
         let json = """
         {
