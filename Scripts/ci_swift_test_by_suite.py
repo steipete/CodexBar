@@ -25,6 +25,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--group-size", type=int, default=12)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--limit-groups", type=int)
+    parser.add_argument("--shard-index", type=int)
+    parser.add_argument("--shard-count", type=int)
     parser.add_argument("--list-only", action="store_true")
     parser.add_argument("--swift-command", default="swift")
     parser.add_argument("--swift-command-arg", action="append", default=[])
@@ -91,6 +93,18 @@ def chunks(items: list[TestSelection], size: int) -> Iterable[list[TestSelection
         yield items[index : index + size]
 
 
+def shard_groups(groups: list[list[TestSelection]], shard_index: int | None, shard_count: int | None) -> list[list[TestSelection]]:
+    if shard_index is None and shard_count is None:
+        return groups
+    if shard_index is None or shard_count is None:
+        raise ValueError("--shard-index and --shard-count must be passed together")
+    if shard_count < 1:
+        raise ValueError("--shard-count must be positive")
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError("--shard-index must be in the range [0, --shard-count)")
+    return [group for index, group in enumerate(groups) if index % shard_count == shard_index]
+
+
 def prioritized_suites(suites: list[TestSelection]) -> list[TestSelection]:
     priority = ["CodexBarTests.CLIEntryTests"]
     ordered = [suite for name in priority for suite in suites if suite.suite_name == name]
@@ -130,15 +144,28 @@ def main() -> int:
 
     swift_command = [args.swift_command, *args.swift_command_arg]
     suites = prioritized_suites(filtered_suites_for_environment(swift_test_list(swift_command)))
-    print(f"Discovered {len(suites)} test selections", flush=True)
-    if args.list_only:
-        for suite in suites:
-            print(suite.name)
-        return 0
-
     suite_groups = list(chunks(suites, args.group_size))
+    try:
+        suite_groups = shard_groups(suite_groups, args.shard_index, args.shard_count)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 2
     if args.limit_groups is not None:
         suite_groups = suite_groups[: args.limit_groups]
+
+    shard_suffix = ""
+    if args.shard_index is not None and args.shard_count is not None:
+        shard_suffix = f" in shard {args.shard_index + 1}/{args.shard_count}"
+    print(f"Discovered {len(suites)} test selections; running {len(suite_groups)} groups{shard_suffix}", flush=True)
+    if args.list_only:
+        for group in suite_groups:
+            for suite in group:
+                print(suite.name)
+        return 0
+
+    if not suite_groups:
+        print("No test groups selected.", flush=True)
+        return 0
 
     for group_index, group in enumerate(suite_groups, start=1):
         print(

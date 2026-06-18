@@ -10,9 +10,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint-build-test:
+  lint:
     runs-on: macos-15-intel
-    timeout-minutes: 70
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
 
@@ -40,10 +40,64 @@ jobs:
       - name: Lint
         run: ./Scripts/lint.sh lint
 
-      - name: Swift Test
-        timeout-minutes: 60
+  swift-test-macos:
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard-index: [0, 1, 2, 3]
+        shard-count: [4]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select Xcode 26.1.1 (if present) or fallback to default
         run: |
-          CODEXBAR_TEST_GROUP_SIZE=1 CODEXBAR_TEST_SUITE_TIMEOUT=120 ./Scripts/test.sh
+          set -euo pipefail
+          for candidate in /Applications/Xcode_26.1.1.app /Applications/Xcode_26.1.app /Applications/Xcode.app; do
+            if [[ -d "$candidate" ]]; then
+              sudo xcode-select -s "${candidate}/Contents/Developer"
+              echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          /usr/bin/xcodebuild -version
+
+      - name: Swift toolchain version
+        run: |
+          set -euo pipefail
+          swift --version
+          swift package --version
+
+      - name: Swift Test
+        timeout-minutes: 20
+        run: |
+          CODEXBAR_TEST_GROUP_SIZE=1 \
+            CODEXBAR_TEST_SUITE_TIMEOUT=120 \
+            CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }} \
+            CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
+            ./Scripts/test.sh
+
+  lint-build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - lint
+      - swift-test-macos
+    if: ${{ always() }}
+    steps:
+      - name: Verify macOS lint and test jobs
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "lint job finished with ${{ needs.lint.result }}" >&2
+            exit 1
+          fi
+          if [[ "${{ needs.swift-test-macos.result }}" != "success" ]]; then
+            echo "swift-test-macos job finished with ${{ needs.swift-test-macos.result }}" >&2
+            exit 1
+          fi
+          echo "macOS lint and Swift test shards passed."
 
   build-linux-cli:
     timeout-minutes: 20
