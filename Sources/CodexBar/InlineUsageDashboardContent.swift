@@ -27,6 +27,9 @@ struct InlineUsageDashboardModel: Equatable {
     let kpis: [KPI]
     let points: [Point]
     let detailLines: [String]
+    /// Provider branding color used to fill the mini usage bars. When nil the bars fall back to a
+    /// neutral palette derived from `valueStyle`.
+    var barColor: Color?
 }
 
 extension UsageMenuCardView.Model {
@@ -141,6 +144,19 @@ extension UsageMenuCardView.Model {
     }
 
     static func inlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
+        guard var model = self.resolveInlineUsageDashboard(input: input) else { return nil }
+        model.barColor = Self.inlineDashboardBarColor(for: input.provider)
+        return model
+    }
+
+    /// Provider branding color for the inline usage bars, matching the provider's switcher tab and
+    /// detailed cost-history chart.
+    static func inlineDashboardBarColor(for provider: UsageProvider) -> Color {
+        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+        return Color(red: color.red, green: color.green, blue: color.blue)
+    }
+
+    private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
         if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider),
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
@@ -757,13 +773,20 @@ struct InlineUsageDashboardContent: View {
             if self.isHighlighted {
                 return Color.white.opacity(0.55 + ratio * 0.35)
             }
+            return self.baseColor.opacity(0.42 + ratio * 0.58)
+        }
+
+        private var baseColor: Color {
+            if let barColor = self.model.barColor {
+                return barColor
+            }
             switch self.model.valueStyle {
             case .currencyUSD, .currency:
-                return Color(red: 0.81, green: 0.56, blue: 0.24).opacity(0.42 + ratio * 0.58)
+                return Color(red: 0.81, green: 0.56, blue: 0.24)
             case .tokens:
-                return Color(red: 0.48, green: 0.41, blue: 0.86).opacity(0.42 + ratio * 0.58)
+                return Color(red: 0.48, green: 0.41, blue: 0.86)
             case .points:
-                return Color(red: 0.16, green: 0.62, blue: 0.36).opacity(0.42 + ratio * 0.58)
+                return Color(red: 0.16, green: 0.62, blue: 0.36)
             }
         }
     }
