@@ -77,7 +77,15 @@ public struct CommandCodeUsageSnapshot: Sendable {
                     resetsAt: self.billingPeriodEnd,
                     resetDescription: nil)
             }
-            return nil
+            // Depleted with unknown plan — treat as fully used so the session-quota
+            // notifier can dedupe against the previous depleted state instead of
+            // clearing it and re-firing the "session depleted" notification every
+            // time the subscription endpoint times out or fails.
+            return RateWindow(
+                usedPercent: 100,
+                windowMinutes: nil,
+                resetsAt: self.billingPeriodEnd,
+                resetDescription: nil)
         }
         let used = self.monthlyCreditsUsed ?? 0
         let percent = min(100, max(0, (used / total) * 100))
