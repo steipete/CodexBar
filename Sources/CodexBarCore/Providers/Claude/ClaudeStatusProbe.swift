@@ -697,7 +697,10 @@ public struct ClaudeStatusProbe: Sendable {
         }
         // Capture any "Claude <...>" phrase (e.g., Max/Pro/Ultra/Team) to avoid future plan-name churn.
         // Strip any leading ANSI that may have survived (rare) before matching.
-        let planPattern = #"(?i)(claude\s+[a-z0-9][a-z0-9\s._-]{0,24})"#
+        // Use horizontal whitespace ([ \t]) rather than \s so the match stays on a single rendered line:
+        // \s spans newlines, which let "…use Claude" bridge into the /usage panel's "d → today" hint and
+        // produced a bogus "Dtoday" plan label after ANSI stripping glued the lines together.
+        let planPattern = #"(?i)(claude[ \t]+[a-z0-9][a-z0-9 \t._-]{0,24})"#
         var candidates: [String] = []
         if let regex = try? NSRegularExpression(pattern: planPattern, options: []) {
             let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)

@@ -686,7 +686,8 @@ public struct KiroStatusProbe: Sendable {
         var matchedNewFormat = false
 
         // Parse plan name from "| KIRO FREE" or similar (legacy format)
-        if let planMatch = text.range(of: #"\|\s*(KIRO\s+\w+)"#, options: .regularExpression) {
+        // Horizontal whitespace only ([ \t]) so the match cannot bridge a newline into the next line.
+        if let planMatch = text.range(of: #"\|[ \t]*(KIRO[ \t]+\w+)"#, options: .regularExpression) {
             let raw = String(text[planMatch]).replacingOccurrences(of: "|", with: "")
             planName = raw.trimmingCharacters(in: .whitespaces)
         }
