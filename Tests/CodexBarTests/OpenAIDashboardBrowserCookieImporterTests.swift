@@ -46,6 +46,26 @@ struct OpenAIDashboardBrowserCookieImporterTests {
     }
 
     @Test
+    func `blocking browser cookie load cannot exceed shared deadline`() async {
+        let start = Date()
+
+        do {
+            _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieLoad(
+                deadline: start.addingTimeInterval(0.05))
+            {
+                Thread.sleep(forTimeInterval: 0.5)
+                return true
+            }
+            Issue.record("Expected cookie load timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+            #expect(Date().timeIntervalSince(start) < 0.3)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `mismatch error mentions source label`() {
         let err = OpenAIDashboardBrowserCookieImporter.ImportError.noMatchingAccount(
             found: [

@@ -36,10 +36,15 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
             _ = NSApplication.shared
         }
 
-        let result = try await Self.fetchOpenAIWebCodex(
-            context: context,
-            options: options,
-            browserDetection: context.browserDetection)
+        let result: OpenAIWebCodexResult
+        do {
+            result = try await Self.fetchOpenAIWebCodex(
+                context: context,
+                options: options,
+                browserDetection: context.browserDetection)
+        } catch let error as URLError where error.code == .timedOut {
+            throw OpenAIWebCodexError.timedOut(seconds: context.webTimeout)
+        }
         return self.makeResult(
             usage: result.usage,
             credits: result.credits,
@@ -70,11 +75,14 @@ struct OpenAIWebCodexResult {
 enum OpenAIWebCodexError: LocalizedError, Equatable {
     case missingUsage
     case policyRejected(CodexDashboardAuthorityDecision)
+    case timedOut(seconds: TimeInterval)
 
     var errorDescription: String? {
         switch self {
         case .missingUsage:
             return "OpenAI web dashboard did not include usage limits."
+        case let .timedOut(seconds):
+            return "OpenAI web dashboard fetch timed out after \(seconds.formatted()) seconds."
         case let .policyRejected(decision):
             switch decision.reason {
             case let .wrongEmail(expected, actual):

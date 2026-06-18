@@ -90,9 +90,23 @@ public struct OpenAIDashboardBrowserCookieImporter {
     }
 
     private static let cookieDomains = ["chatgpt.com", "openai.com"]
-    private static let cookieClient = BrowserCookieClient()
+    private nonisolated static let cookieClient = BrowserCookieClient()
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.codex]?.browserCookieOrder ?? Browser.defaultImportOrder
+
+    private final class CookieLoadCompletion: @unchecked Sendable {
+        private let lock = NSLock()
+        private var didFinish = false
+
+        func finish(_ action: () -> Void) {
+            let shouldFinish = self.lock.withLock {
+                guard !self.didFinish else { return false }
+                self.didFinish = true
+                return true
+            }
+            if shouldFinish { action() }
+        }
+    }
 
     nonisolated static func remainingTimeout(
         until deadline: Date?,
@@ -106,6 +120,26 @@ public struct OpenAIDashboardBrowserCookieImporter {
         guard remaining > 0 else { throw URLError(.timedOut) }
         guard let localLimit else { return remaining }
         return min(OpenAIDashboardFetcher.sanitizedTimeout(localLimit), remaining)
+    }
+
+    nonisolated static func runBoundedCookieLoad<T: Sendable>(
+        deadline: Date?,
+        operation: @escaping @Sendable () throws -> T) async throws -> T
+    {
+        guard let deadline else {
+            return try await Task.detached(priority: .userInitiated, operation: operation).value
+        }
+        let timeout = try self.remainingTimeout(until: deadline)
+        let completion = CookieLoadCompletion()
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Result(catching: operation)
+                completion.finish { continuation.resume(with: result) }
+            }
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+                completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
+            }
+        }
     }
 
     private enum CandidateEvaluation {
@@ -281,10 +315,9 @@ public struct OpenAIDashboardBrowserCookieImporter {
         // Safari first: avoids touching Keychain ("Chrome Safe Storage") when Safari already matches.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try Self.cookieClient.codexBarRecords(
-                matching: query,
-                in: .safari,
-                logger: log)
+            let sources = try await Self.runBoundedCookieLoad(deadline: deadline) {
+                try Self.cookieClient.codexBarRecords(matching: query, in: .safari)
+            }
             _ = try Self.remainingTimeout(until: deadline)
             guard !sources.isEmpty else {
                 log("Safari contained 0 matching records.")
@@ -338,9 +371,9 @@ public struct OpenAIDashboardBrowserCookieImporter {
     {
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try Self.cookieClient.codexBarRecords(
-                matching: query,
-                in: browser)
+            let sources = try await Self.runBoundedCookieLoad(deadline: deadline) {
+                try Self.cookieClient.codexBarRecords(matching: query, in: browser)
+            }
             _ = try Self.remainingTimeout(until: deadline)
             guard !sources.isEmpty else {
                 log("\(browser.displayName) contained 0 matching records.")

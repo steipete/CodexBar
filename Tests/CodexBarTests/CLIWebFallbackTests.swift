@@ -70,6 +70,14 @@ struct CLIWebFallbackTests {
             after: OpenAIDashboardFetcher.FetchError.noDashboardData(body: "missing")))
         #expect(!CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
             after: OpenAIDashboardFetcher.FetchError.loginRequired))
+        #expect(!CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
+            after: OpenAIWebCodexError.timedOut(seconds: 30)))
+    }
+
+    @Test
+    func `codex shared deadline timeout has useful error`() {
+        let error = OpenAIWebCodexError.timedOut(seconds: 30)
+        #expect(error.localizedDescription == "OpenAI web dashboard fetch timed out after 30 seconds.")
     }
 
     @Test
