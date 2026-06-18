@@ -1140,7 +1140,7 @@ extension GeminiStatusProbe {
 
         let data = stdoutCapture.finishSynchronously(timeout: 1)
         stderrCapture.stop()
-        let output = String(decoding: data, as: UTF8.self)
+        let output = ProcessPipeCapture.decodeUTF8(data)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard process.terminationStatus == 0, !output.isEmpty else {
             return nil

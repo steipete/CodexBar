@@ -188,6 +188,6 @@ struct CodexLoginRunner {
     }
 
     private static func decode(_ data: Data) -> String {
-        String(decoding: data, as: UTF8.self)
+        ProcessPipeCapture.decodeUTF8(data)
     }
 }

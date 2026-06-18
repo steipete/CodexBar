@@ -244,8 +244,8 @@ public enum SubprocessRunner {
 
             async let stdoutData = stdoutCapture.finish(timeout: .seconds(1))
             async let stderrData = stderrCapture.finish(timeout: .seconds(1))
-            let stdout = await String(decoding: stdoutData, as: UTF8.self)
-            let stderr = await String(decoding: stderrData, as: UTF8.self)
+            let stdout = await ProcessPipeCapture.decodeUTF8(stdoutData)
+            let stderr = await ProcessPipeCapture.decodeUTF8(stderrData)
 
             if exitCode != 0 {
                 let duration = Date().timeIntervalSince(start)

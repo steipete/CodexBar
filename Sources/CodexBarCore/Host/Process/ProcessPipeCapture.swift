@@ -59,6 +59,12 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         return self.didReachEOF
     }
 
+    package static func decodeUTF8(_ data: Data) -> String {
+        // A byte cap can split the final scalar; lossy decoding preserves the valid captured prefix.
+        // swiftlint:disable:next optional_data_string_conversion
+        String(decoding: data, as: UTF8.self)
+    }
+
     private func handleReadableData(from handle: FileHandle) {
         self.condition.lock()
         guard !self.isStopping else {

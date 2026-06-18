@@ -89,7 +89,7 @@ public enum ProviderVersionDetector {
 
         let data = outputCapture.finishSynchronously(timeout: 0.25)
         guard proc.terminationStatus == 0,
-              let text = String(decoding: data, as: UTF8.self)
+              let text = ProcessPipeCapture.decodeUTF8(data)
                   .split(whereSeparator: \.isNewline).first
         else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
