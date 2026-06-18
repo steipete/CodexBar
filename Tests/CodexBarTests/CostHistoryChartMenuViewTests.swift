@@ -1,8 +1,45 @@
 import CodexBarCore
+import SwiftUI
 import Testing
 @testable import CodexBar
 
 struct CostHistoryChartMenuViewTests {
+    @Test
+    @MainActor
+    func `model breakdown keeps every item behind a bounded scrolling viewport`() {
+        let breakdown = (1...6).map { index in
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: "model-\(index)",
+                costUSD: Double(index),
+                totalTokens: index * 100)
+        }
+
+        let ordered = CostHistoryChartMenuView.orderedBreakdownItems(breakdown)
+
+        #expect(ordered.map(\.modelName) == [
+            "model-6",
+            "model-5",
+            "model-4",
+            "model-3",
+            "model-2",
+            "model-1",
+        ])
+        #expect(CostHistoryChartMenuView.detailViewportRowCount(itemCount: ordered.count) == 4)
+        #expect(CostHistoryChartMenuView.detailRowsNeedScrolling(itemCount: ordered.count))
+    }
+
+    @Test
+    @MainActor
+    func `menu hosting view publishes measured height through intrinsic size`() {
+        let hosting = MenuHostingView(rootView: EmptyView())
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 1)
+
+        hosting.applyMeasuredHeight(width: 320, height: 123.2)
+
+        #expect(hosting.frame.size == CGSize(width: 320, height: 124))
+        #expect(hosting.intrinsicContentSize.height == 124)
+    }
+
     @Test
     @MainActor
     func `cost history defaults selection to latest day`() {
