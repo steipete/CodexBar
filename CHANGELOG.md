@@ -4,6 +4,7 @@
 
 ### Changed
 - Antigravity: use current backend quota labels in menus and widgets while preferring a usable quota lane over an exhausted one. Thanks @Yuxin-Qiao!
+- Pi: cache session filename and timestamp parsers to reduce cost-history refresh overhead. Thanks @ProspectOre!
 - Menu bar: reuse the icon-observation signature during provider refreshes instead of computing it twice. Thanks @abe238!
 - LiteLLM: show personal and team spend amounts directly on budget rows while suppressing duplicate budget sections. Thanks @hololee!
 
