@@ -6,6 +6,16 @@ extension SettingsStore {
         if Self.isBalanceOnlyProvider(provider), provider != .mistral {
             return .automatic
         }
+        if provider == .mistral {
+            let raw = self.menuBarMetricPreferencesRaw[provider.rawValue] ?? ""
+            let preference = MenuBarMetricPreference(rawValue: raw) ?? .automatic
+            switch preference {
+            case .automatic, .monthlyPlan:
+                return preference
+            case .primary, .secondary, .tertiary, .extraUsage, .average:
+                return .automatic
+            }
+        }
         if provider == .openrouter {
             let raw = self.menuBarMetricPreferencesRaw[provider.rawValue] ?? ""
             let preference = MenuBarMetricPreference(rawValue: raw) ?? .automatic
@@ -33,6 +43,15 @@ extension SettingsStore {
     func setMenuBarMetricPreference(_ preference: MenuBarMetricPreference, for provider: UsageProvider) {
         if Self.isBalanceOnlyProvider(provider), provider != .mistral {
             self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
+            return
+        }
+        if provider == .mistral {
+            switch preference {
+            case .automatic, .monthlyPlan:
+                self.menuBarMetricPreferencesRaw[provider.rawValue] = preference.rawValue
+            case .primary, .secondary, .tertiary, .extraUsage, .average:
+                self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
+            }
             return
         }
         if provider == .openrouter {

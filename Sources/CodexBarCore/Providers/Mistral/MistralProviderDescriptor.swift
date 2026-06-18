@@ -61,7 +61,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
             let vibeResult = try? await MistralUsageFetcher.fetchVibeUsage(
                 cookieHeader: cookieHeader,
                 csrfToken: csrfToken,
-                timeout: context.webTimeout)
+                timeout: min(context.webTimeout, 10))
             return self.makeResult(
                 usage: Self.attachVibeWindow(to: snapshot.toUsageSnapshot(), vibeResult: vibeResult),
                 sourceLabel: "web")
@@ -76,7 +76,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
             let vibeResult = try? await MistralUsageFetcher.fetchVibeUsage(
                 cookieHeader: cookieHeader,
                 csrfToken: csrfToken,
-                timeout: context.webTimeout)
+                timeout: min(context.webTimeout, 10))
             return self.makeResult(
                 usage: Self.attachVibeWindow(to: snapshot.toUsageSnapshot(), vibeResult: vibeResult),
                 sourceLabel: "web")
