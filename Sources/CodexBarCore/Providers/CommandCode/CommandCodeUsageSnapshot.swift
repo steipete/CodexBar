@@ -16,6 +16,8 @@ public struct CommandCodeUsageSnapshot: Sendable {
     public let billingPeriodEnd: Date?
     /// Subscription status (e.g. `active`, `canceled`).
     public let subscriptionStatus: String?
+    /// The optional subscription request timed out or failed for this refresh.
+    public let subscriptionEnrichmentUnavailable: Bool
     public let updatedAt: Date
 
     public init(
@@ -26,6 +28,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
         plan: CommandCodePlanCatalog.Plan?,
         billingPeriodEnd: Date?,
         subscriptionStatus: String?,
+        subscriptionEnrichmentUnavailable: Bool = false,
         updatedAt: Date = Date())
     {
         self.monthlyCreditsRemaining = monthlyCreditsRemaining
@@ -35,6 +38,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
         self.plan = plan
         self.billingPeriodEnd = billingPeriodEnd
         self.subscriptionStatus = subscriptionStatus
+        self.subscriptionEnrichmentUnavailable = subscriptionEnrichmentUnavailable
         self.updatedAt = updatedAt
     }
 
@@ -77,10 +81,8 @@ public struct CommandCodeUsageSnapshot: Sendable {
                     resetsAt: self.billingPeriodEnd,
                     resetDescription: nil)
             }
-            // Depleted with unknown plan — treat as fully used so the session-quota
-            // notifier can dedupe against the previous depleted state instead of
-            // clearing it and re-firing the "session depleted" notification every
-            // time the subscription endpoint times out or fails.
+            guard self.subscriptionEnrichmentUnavailable else { return nil }
+            // Preserve a depleted paid-plan window while optional subscription data is unavailable.
             return RateWindow(
                 usedPercent: 100,
                 windowMinutes: nil,

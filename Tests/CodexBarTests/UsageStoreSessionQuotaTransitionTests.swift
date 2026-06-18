@@ -896,7 +896,8 @@ struct UsageStoreSessionQuotaTransitionTests {
             opensourceMonthlyCredits: 0,
             plan: nil,
             billingPeriodEnd: nil,
-            subscriptionStatus: nil)
+            subscriptionStatus: nil,
+            subscriptionEnrichmentUnavailable: true)
         store.handleSessionQuotaTransition(
             provider: .commandcode,
             snapshot: depletedWithoutPlan.toUsageSnapshot())

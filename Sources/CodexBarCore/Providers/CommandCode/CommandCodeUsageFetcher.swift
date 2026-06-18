@@ -48,7 +48,7 @@ public enum CommandCodeUsageFetcher {
         now: Date,
         subscriptionGrace: Duration) async throws -> CommandCodeUsageSnapshot
     {
-        let (credits, subscription) = try await self.fetchPayloads(
+        let (credits, subscription, subscriptionEnrichmentUnavailable) = try await self.fetchPayloads(
             cookieHeader: cookieHeader,
             transport: transport,
             subscriptionGrace: subscriptionGrace)
@@ -72,13 +72,14 @@ public enum CommandCodeUsageFetcher {
             plan: plan,
             billingPeriodEnd: subscription?.currentPeriodEnd,
             subscriptionStatus: subscription?.status,
+            subscriptionEnrichmentUnavailable: subscriptionEnrichmentUnavailable,
             updatedAt: now)
     }
 
     private static func fetchPayloads(
         cookieHeader: String,
         transport: any ProviderHTTPTransport,
-        subscriptionGrace: Duration) async throws -> (CreditsPayload, SubscriptionPayload?)
+        subscriptionGrace: Duration) async throws -> (CreditsPayload, SubscriptionPayload?, Bool)
     {
         let subscriptionTask = Task<SubscriptionPayload?, Error> {
             try await self.fetchSubscription(cookieHeader: cookieHeader, transport: transport)
@@ -105,16 +106,16 @@ public enum CommandCodeUsageFetcher {
         switch await race.value(joinGrace: subscriptionGrace) {
         case let .value(subscription):
             try Task.checkCancellation()
-            return (credits, subscription)
+            return (credits, subscription, false)
         case .timedOut:
             try Task.checkCancellation()
             Self.log.warning("Command Code subscription enrichment timed out")
-            return (credits, nil)
+            return (credits, nil, true)
         case let .failure(error):
             subscriptionTask.cancel()
             try Task.checkCancellation()
             Self.log.warning("Command Code subscription enrichment failed: \(error.localizedDescription)")
-            return (credits, nil)
+            return (credits, nil, true)
         }
     }
 

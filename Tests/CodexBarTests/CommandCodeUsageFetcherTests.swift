@@ -53,6 +53,29 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
+    func `successful free tier lookup is not marked unavailable`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            let body = if path.hasSuffix("/credits") {
+                """
+                {"credits":{"monthlyCredits":0,"purchasedCredits":0,
+                "premiumMonthlyCredits":0,"opensourceMonthlyCredits":0}}
+                """
+            } else {
+                #"{"success":true,"data":null}"#
+            }
+            return try Self.response(request: request, statusCode: 200, body: body)
+        }
+
+        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+            cookieHeader: "session=valid",
+            session: transport)
+
+        #expect(snapshot.subscriptionEnrichmentUnavailable == false)
+        #expect(snapshot.toUsageSnapshot().primary == nil)
+    }
+
+    @Test
     func `subscription failure preserves required credits`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             let path = try #require(request.url?.path)
@@ -70,6 +93,7 @@ struct CommandCodeUsageFetcherTests {
         #expect(snapshot.monthlyCreditsRemaining == 8.7784)
         #expect(snapshot.plan == nil)
         #expect(snapshot.billingPeriodEnd == nil)
+        #expect(snapshot.subscriptionEnrichmentUnavailable)
         #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 123))
     }
 
@@ -92,6 +116,7 @@ struct CommandCodeUsageFetcherTests {
 
         #expect(snapshot.monthlyCreditsRemaining == 8.7784)
         #expect(snapshot.plan == nil)
+        #expect(snapshot.subscriptionEnrichmentUnavailable)
         #expect(elapsed < .seconds(3), "Subscription enrichment delayed credits: \(elapsed)")
     }
 
@@ -119,6 +144,7 @@ struct CommandCodeUsageFetcherTests {
 
         #expect(snapshot.monthlyCreditsRemaining == 8.7784)
         #expect(snapshot.plan == nil)
+        #expect(snapshot.subscriptionEnrichmentUnavailable)
         #expect(elapsed < .milliseconds(300), "Subscription enrichment delayed credits: \(elapsed)")
 
         // Let the deliberately cancellation-ignoring test task drain before the test exits.
@@ -264,6 +290,20 @@ struct CommandCodeUsageFetcherTests {
         #expect(abs(primary.usedPercent - 12.216) < 0.001)
         #expect(primary.resetsAt == Date(timeIntervalSince1970: 1_780_000_000))
         #expect(usage.identity?.loginMethod == "Go · $1.22 of $10.00")
+    }
+
+    @Test
+    func `free tier with no allowance has no usage window`() {
+        let snapshot = CommandCodeUsageSnapshot(
+            monthlyCreditsRemaining: 0,
+            purchasedCredits: 0,
+            premiumMonthlyCredits: 0,
+            opensourceMonthlyCredits: 0,
+            plan: nil,
+            billingPeriodEnd: nil,
+            subscriptionStatus: nil)
+
+        #expect(snapshot.toUsageSnapshot().primary == nil)
     }
 
     @Test
