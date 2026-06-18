@@ -422,8 +422,8 @@ extension UsageStore {
                 .first { $0.windowMinutes == Self.weeklyWindowMinutes }
             let extraWeeklyWindow = snapshot.extraRateWindows?
                 .lazy
-                .map(\.window)
-                .first { $0.windowMinutes == Self.weeklyWindowMinutes }
+                .first { $0.usageKnown && $0.window.windowMinutes == Self.weeklyWindowMinutes }?
+                .window
             if let weeklyWindow = standardWeeklyWindow ?? extraWeeklyWindow {
                 appendWindow(weeklyWindow, name: .weekly)
             }

@@ -260,7 +260,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
             }
         default:
             let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
-                + (snapshot.extraRateWindows?.map(\.window) ?? [])
+                + (snapshot.extraRateWindows?.filter(\.usageKnown).map(\.window) ?? [])
             guard windows.contains(where: { $0.windowMinutes == 7 * 24 * 60 }) else { return nil }
             names.insert(.weekly)
         }

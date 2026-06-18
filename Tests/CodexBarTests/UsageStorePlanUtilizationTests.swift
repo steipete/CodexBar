@@ -1142,6 +1142,33 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `generic provider ignores unknown weekly extra window`() async {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "weekly-reset-only",
+                    title: "Weekly reset",
+                    window: RateWindow(
+                        usedPercent: 0,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(3600),
+                        resetDescription: nil),
+                    usageKnown: false),
+            ],
+            updatedAt: now)
+
+        await store.recordPlanUtilizationHistorySample(provider: .zed, snapshot: snapshot, now: now)
+
+        #expect(store.planUtilizationHistory(for: .zed).isEmpty)
+    }
+
+    @MainActor
+    @Test
     func `generic provider prefers standard weekly window over extra window`() async {
         let store = Self.makeStore()
         store.settings.historicalTrackingEnabled = true
