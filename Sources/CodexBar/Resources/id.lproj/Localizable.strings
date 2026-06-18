@@ -630,6 +630,8 @@
 "metric_pref_tertiary" = "Tersier";
 "metric_pref_extra_usage" = "Penggunaan ekstra";
 "metric_pref_average" = "Rata-rata";
+"metric_mistral_payg" = "Pay-as-you-go";
+"metric_mistral_monthly_plan" = "Monthly Plan";
 
 /* Display modes */
 "display_mode_percent" = "Persen";

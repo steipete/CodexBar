@@ -611,6 +611,8 @@
 "metric_pref_tertiary" = "3차";
 "metric_pref_extra_usage" = "추가 사용량";
 "metric_pref_average" = "평균";
+"metric_mistral_payg" = "Pay-as-you-go";
+"metric_mistral_monthly_plan" = "Monthly Plan";
 "display_mode_percent" = "백분율";
 "display_mode_pace" = "사용 속도";
 "display_mode_both" = "둘 다";

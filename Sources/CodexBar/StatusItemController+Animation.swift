@@ -700,11 +700,14 @@ extension StatusItemController {
         {
             return balance
         }
-        if provider == .mistral,
-           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) != .monthlyPlan,
-           let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
-        {
-            return spend
+        if provider == .mistral {
+            let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
+            let hasMonthlyWindow = snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } == true
+            if preference != .monthlyPlan || !hasMonthlyWindow,
+               let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
+            {
+                return spend
+            }
         }
         if provider == .kimik2,
            let credits = Self.kimiK2CreditsDisplayText(snapshot: snapshot)

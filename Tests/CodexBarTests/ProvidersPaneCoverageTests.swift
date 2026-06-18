@@ -149,7 +149,7 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
-    func `mistral menu bar metric picker shows spend only copy`() {
+    func `mistral menu bar metric picker shows payg and monthly plan options`() {
         Self.withEnglishLocalization {
             let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-mistral-picker")
             let store = Self.makeUsageStore(settings: settings)
@@ -158,7 +158,10 @@ struct ProvidersPaneCoverageTests {
             let picker = pane._test_menuBarMetricPicker(for: .mistral)
             #expect(picker?.options.map(\.id) == [
                 MenuBarMetricPreference.automatic.rawValue,
+                MenuBarMetricPreference.monthlyPlan.rawValue,
             ])
+            #expect(picker?.options.first?.title == "Pay-as-you-go")
+            #expect(picker?.options.last?.title == "Monthly Plan")
             #expect(picker?.subtitle == "Shows current-month Mistral API spend in the menu bar.")
         }
     }

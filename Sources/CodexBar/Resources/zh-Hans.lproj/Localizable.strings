@@ -606,6 +606,8 @@
 "metric_pref_tertiary" = "第三";
 "metric_pref_extra_usage" = "额外用量";
 "metric_pref_average" = "平均";
+"metric_mistral_payg" = "Pay-as-you-go";
+"metric_mistral_monthly_plan" = "Monthly Plan";
 "display_mode_percent" = "百分比";
 "display_mode_pace" = "进度";
 "display_mode_both" = "两者";

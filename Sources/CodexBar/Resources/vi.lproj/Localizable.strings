@@ -624,6 +624,8 @@
 "metric_pref_tertiary" = "Đại học";
 "metric_pref_extra_usage" = "Bổ sung Mức sử dụng";
 "metric_pref_average" = "Trung bình";
+"metric_mistral_payg" = "Pay-as-you-go";
+"metric_mistral_monthly_plan" = "Monthly Plan";
 
 /* Display modes */
 "display_mode_percent" = "Phần trăm";
