@@ -169,6 +169,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
     - Open the item → **Access Control** → add `CodexBar.app` under “Always allow access by these applications”.
     - This removes the prompt when CodexBar decrypts cookies for that browser.
   - **Last resort — stop all Keychain reads entirely**: if "Always Allow" doesn't stick (e.g., macOS resets the ACL after a Chromium update or a `partition_id` reset), open **CodexBar → Settings → Advanced → Keychain access** and enable **Disable Keychain access**. CodexBar will no longer touch the Keychain. Browser-cookie-based providers will be skipped, but Claude/Codex OAuth via the CLI still works (it reads `~/.codex` / `~/.claude` config files, not the Keychain).
+  - **Prompt after uninstall?** Deleting the app prevents a new launch from that bundle, but an already-running CodexBar process can keep requesting Keychain access until it quits. Check for that process, a Login Item, another installed copy, or a prompt that names a different requesting binary/path. See [Keychain prompt troubleshooting](docs/keychain-prompts.md) for safe checks and what to include in a support report without sharing secrets.
 - **Files & Folders prompts (folder/volume access)**: CodexBar launches provider CLIs and local probes for some providers. If those helpers read a project directory or external drive, macOS may ask CodexBar for that folder/volume (e.g., Desktop or an external volume). This is driven by the helper’s working directory, not background disk scanning.
 - **What we do not request in the background**: no Screen Recording or Accessibility permissions; user-triggered helper actions may ask macOS for Automation permission to open Terminal. No passwords are stored (browser cookies are reused when you opt in).
 
@@ -179,6 +180,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 - UI & icon notes: [docs/ui.md](docs/ui.md)
 - CLI reference: [docs/cli.md](docs/cli.md)
 - Configuration: [docs/configuration.md](docs/configuration.md)
+- Keychain prompts: [docs/keychain-prompts.md](docs/keychain-prompts.md)
 - CLI configuration: [docs/cli-configuration.md](docs/cli-configuration.md)
 - Widgets: [docs/widgets.md](docs/widgets.md)
 - Architecture: [docs/architecture.md](docs/architecture.md)

@@ -4,6 +4,7 @@
 
 ### Added
 - Linux CLI: publish static musl release tarballs for x86_64 and aarch64. Thanks @Yuxin-Qiao!
+- Documentation: add safe troubleshooting for browser Keychain prompts that persist after uninstall. Thanks @Yuxin-Qiao!
 - Codex agents: add a read-only `codexbar` skill for bounded, redacted provider usage JSON. Thanks @coygeek!
 - Display: add a Hide critters option for plain menu bar quota capsules. Thanks @elijahfriedman!
 
