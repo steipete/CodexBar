@@ -59,7 +59,7 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
         case .tertiary: L("metric_pref_tertiary")
         case .extraUsage: L("metric_pref_extra_usage")
         case .average: L("metric_pref_average")
-        case .monthlyPlan: "Monthly Plan"
+        case .monthlyPlan: L("metric_mistral_monthly_plan")
         }
     }
 }

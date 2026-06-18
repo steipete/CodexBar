@@ -6,7 +6,7 @@ import FoundationNetworking
 public enum MistralUsageFetcher {
     private static let baseURL = URL(string: "https://admin.mistral.ai")!
 
-    public struct MistralVibeUsageResult: Sendable {
+    public struct MistralVibeUsageResult: Equatable, Sendable {
         public let usagePercentage: Double
         public let resetAt: Date?
     }
@@ -58,9 +58,9 @@ public enum MistralUsageFetcher {
     }
 
     public static func fetchVibeUsage(
-        cookieHeader: String,
-        csrfToken: String?,
-        timeout: TimeInterval = 15) async throws -> MistralVibeUsageResult
+        csrfToken: String,
+        timeout: TimeInterval = 4,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralVibeUsageResult
     {
         let urlString = "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D"
         guard let url = URL(string: urlString) else {
@@ -68,13 +68,13 @@ public enum MistralUsageFetcher {
         }
 
         var request = URLRequest(url: url, timeoutInterval: timeout)
+        // The observed console request sends only csrftoken; keep admin Ory cookies origin-bound.
+        let cookieHeader = try Self.vibeCookieHeader(csrfToken: csrfToken)
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        if let csrfToken {
-            request.setValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
-        }
+        request.setValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
 
         switch response.statusCode {
@@ -87,32 +87,42 @@ public enum MistralUsageFetcher {
             throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
         }
 
+        return try Self.parseVibeUsage(data: data)
+    }
+
+    static func parseVibeUsage(data: Data) throws -> MistralVibeUsageResult {
+        let responses: [VibeUsageResponse]
         do {
-            let responses = try JSONDecoder().decode([VibeUsageResponse].self, from: data)
-            guard let first = responses.first else {
-                throw MistralUsageError.parseFailed("Empty response array")
-            }
-            let usagePercentage = first.result.data.json.usagePercentage
-            let resetAtString = first.result.data.json.resetAt
-            
-            let resetAt: Date?
-            if let resetAtString {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let date = formatter.date(from: resetAtString) {
-                    resetAt = date
-                } else {
-                    formatter.formatOptions = [.withInternetDateTime]
-                    resetAt = formatter.date(from: resetAtString)
-                }
-            } else {
-                resetAt = nil
-            }
-            
-            return MistralVibeUsageResult(usagePercentage: usagePercentage, resetAt: resetAt)
+            responses = try JSONDecoder().decode([VibeUsageResponse].self, from: data)
         } catch {
             throw MistralUsageError.parseFailed(error.localizedDescription)
         }
+        guard let json = responses.first?.result.data.json else {
+            throw MistralUsageError.parseFailed("Empty response array")
+        }
+        guard json.usagePercentage.isFinite, (0...100).contains(json.usagePercentage) else {
+            throw MistralUsageError.parseFailed("Invalid usage percentage")
+        }
+        return MistralVibeUsageResult(
+            usagePercentage: json.usagePercentage,
+            resetAt: json.resetAt.flatMap(Self.parseISO8601Date))
+    }
+
+    static func vibeCookieHeader(csrfToken: String) throws -> String {
+        let token = csrfToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let forbidden = CharacterSet(charactersIn: ";,\r\n")
+        guard !token.isEmpty, token.rangeOfCharacter(from: forbidden) == nil else {
+            throw MistralUsageError.invalidCredentials
+        }
+        return "csrftoken=\(token)"
+    }
+
+    private static func parseISO8601Date(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
     }
 
     static func parseResponse(data: Data, updatedAt: Date) throws -> MistralUsageSnapshot {

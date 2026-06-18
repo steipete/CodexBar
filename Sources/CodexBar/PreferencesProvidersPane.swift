@@ -545,8 +545,12 @@ struct ProvidersPane: View {
             ]
         } else if provider == .mistral {
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("metric_mistral_payg")),
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.monthlyPlan.rawValue, title: L("metric_mistral_monthly_plan")),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: L("metric_mistral_payg")),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.monthlyPlan.rawValue,
+                    title: L("metric_mistral_monthly_plan")),
             ]
         } else if SettingsStore.isBalanceOnlyProvider(provider) {
             options = [
