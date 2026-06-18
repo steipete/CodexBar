@@ -226,6 +226,20 @@ struct StatusItemIconObservationSignatureTests {
     }
 
     @Test
+    func `store icon observation signature changes when hide critters toggles`() {
+        let (settings, _, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-hide-critters")
+        defer { controller.releaseStatusItemsForTesting() }
+
+        settings.menuBarHidesCritters = false
+        let baseline = controller.storeIconObservationSignature()
+
+        settings.menuBarHidesCritters = true
+
+        #expect(controller.storeIconObservationSignature() != baseline)
+    }
+
+    @Test
     func `updateIcons reuses a precomputed store icon signature instead of recomputing it`() {
         let (_, _, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-precomputed-reuse")
