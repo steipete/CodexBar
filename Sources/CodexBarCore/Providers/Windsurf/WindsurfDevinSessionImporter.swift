@@ -148,6 +148,20 @@ enum WindsurfDevinSessionImporter {
         let url: URL
     }
 
+    struct LocalStorageSnapshot: Equatable {
+        let storage: [String: String]
+        let sourceSuffix: String?
+    }
+
+    typealias LocalStorageOriginEntries = (
+        origin: URL,
+        entries: [SweetCookieKit.ChromiumLocalStorageEntry])
+
+    static let localStorageOrigins = [
+        URL(string: "https://app.devin.ai")!,
+        URL(string: "https://windsurf.com")!,
+    ]
+
     private static func importSessions(
         browserDetection: BrowserDetection,
         browsers: [Browser],
@@ -162,10 +176,13 @@ enum WindsurfDevinSessionImporter {
         }
 
         for candidate in candidates {
-            let storage = self.readLocalStorage(from: candidate.url, logger: logger)
-            guard let session = self.session(from: storage, sourceLabel: candidate.label) else { continue }
-            logger("Found Windsurf devin session in \(candidate.label)")
-            sessions.append(session)
+            let snapshots = self.readLocalStorageSnapshots(from: candidate.url, logger: logger)
+            for snapshot in snapshots {
+                let sourceLabel = self.sourceLabel(candidate.label, suffix: snapshot.sourceSuffix)
+                guard let session = self.session(from: snapshot.storage, sourceLabel: sourceLabel) else { continue }
+                logger("Found Windsurf devin session in \(sourceLabel)")
+                sessions.append(session)
+            }
         }
 
         return self.deduplicateSessions(sessions)
@@ -213,35 +230,72 @@ enum WindsurfDevinSessionImporter {
         }
     }
 
-    private static func readLocalStorage(
+    private static func readLocalStorageSnapshots(
         from levelDBURL: URL,
-        logger: ((String) -> Void)? = nil) -> [String: String]
+        logger: ((String) -> Void)? = nil) -> [LocalStorageSnapshot]
     {
-        var storage: [String: String] = [:]
-
-        let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
-            for: "https://windsurf.com",
-            in: levelDBURL,
-            logger: logger)
-
-        for entry in entries where Self.targetKeys.contains(entry.key) {
-            storage[entry.key] = self.decodedStorageValue(entry.value)
-        }
-
-        if storage.count == Self.targetKeys.count {
-            return storage
+        let originEntries = Self.localStorageOrigins.map { origin in
+            let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
+                for: origin.absoluteString,
+                in: levelDBURL,
+                logger: logger)
+            return (origin: origin, entries: entries)
         }
 
         let textEntries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
             in: levelDBURL,
             logger: logger)
+        return self.localStorageSnapshots(from: originEntries, textEntries: textEntries)
+    }
 
-        for entry in textEntries {
+    static func localStorageSnapshots(
+        from originEntries: [LocalStorageOriginEntries],
+        textEntries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [LocalStorageSnapshot]
+    {
+        var snapshots = self.localStorageSnapshots(from: originEntries)
+        let textStorage = self.storage(from: textEntries)
+        if textStorage.count == Self.targetKeys.count {
+            snapshots.append(LocalStorageSnapshot(storage: textStorage, sourceSuffix: nil))
+        }
+
+        return snapshots
+    }
+
+    static func localStorageSnapshots(from originEntries: [LocalStorageOriginEntries]) -> [LocalStorageSnapshot] {
+        originEntries.compactMap { originEntry in
+            let storage = self.storage(from: originEntry.entries)
+            guard storage.count == Self.targetKeys.count else { return nil }
+            return LocalStorageSnapshot(
+                storage: storage,
+                sourceSuffix: originEntry.origin.host ?? originEntry.origin.absoluteString)
+        }
+    }
+
+    private static func storage(
+        from entries: [SweetCookieKit.ChromiumLocalStorageEntry]) -> [String: String]
+    {
+        var storage: [String: String] = [:]
+        for entry in entries where storage[entry.key] == nil && Self.targetKeys.contains(entry.key) {
+            storage[entry.key] = self.decodedStorageValue(entry.value)
+        }
+        return storage
+    }
+
+    private static func storage(
+        from entries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [String: String]
+    {
+        var storage: [String: String] = [:]
+        for entry in entries {
             guard storage[entry.key] == nil, Self.targetKeys.contains(entry.key) else { continue }
             storage[entry.key] = self.decodedStorageValue(entry.value)
         }
 
         return storage
+    }
+
+    private static func sourceLabel(_ label: String, suffix: String?) -> String {
+        guard let suffix else { return label }
+        return "\(label) (\(suffix))"
     }
 
     private static let targetKeys: Set<String> = [

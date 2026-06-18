@@ -1,9 +1,18 @@
 import Foundation
+import SweetCookieKit
 import Testing
 @testable import CodexBarCore
 
 @Suite(.serialized)
 struct WindsurfWebFetcherTests {
+    @Test
+    func `missing session guidance names current and legacy origins`() {
+        let message = WindsurfWebFetcherError.noSessionData.errorDescription
+
+        #expect(message?.contains("app.devin.ai") == true)
+        #expect(message?.contains("windsurf.com") == true)
+    }
+
     private struct ResponseFixture {
         let planName: String
         let dailyRemaining: Int
@@ -219,6 +228,80 @@ struct WindsurfWebFetcherTests {
         #expect(snapshot.identity?.loginMethod == "Teams")
         #expect(snapshot.primary?.usedPercent == 36)
         #expect(snapshot.secondary?.usedPercent == 20)
+    }
+
+    @Test
+    func `auto import uses complete legacy origin when app origin is partial`() async throws {
+        defer {
+            WindsurfDevinSessionImporter.importSessionsOverrideForTesting = nil
+            WindsurfDevinSessionImporter.importPreferredSessionsOverrideForTesting = nil
+            WindsurfDevinSessionImporter.importFallbackSessionsOverrideForTesting = nil
+            WindsurfWebFetcherStubURLProtocol.requests = []
+            WindsurfWebFetcherStubURLProtocol.handler = nil
+        }
+
+        let appOrigin = try #require(URL(string: "https://app.devin.ai"))
+        let legacyOrigin = try #require(URL(string: "https://windsurf.com"))
+        let snapshots = WindsurfDevinSessionImporter.localStorageSnapshots(from: [
+            (
+                origin: appOrigin,
+                entries: [
+                    Self.localStorageEntry(origin: appOrigin, key: "devin_session_token", value: "app-session"),
+                    Self.localStorageEntry(origin: appOrigin, key: "devin_auth1_token", value: "app-auth1"),
+                ]),
+            (
+                origin: legacyOrigin,
+                entries: [
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_session_token", value: "legacy-session"),
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_auth1_token", value: "legacy-auth1"),
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_account_id", value: "legacy-account"),
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_primary_org_id", value: "legacy-org"),
+                ]),
+        ])
+
+        let sessionInfos = snapshots.compactMap { snapshot in
+            WindsurfDevinSessionImporter.session(
+                from: snapshot.storage,
+                sourceLabel: "Chrome Default (\(snapshot.sourceSuffix ?? "unknown"))")
+        }
+        WindsurfDevinSessionImporter.importPreferredSessionsOverrideForTesting = { _, _ in sessionInfos }
+
+        WindsurfWebFetcherStubURLProtocol.requests = []
+        WindsurfWebFetcherStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            #expect(request.value(forHTTPHeaderField: "x-devin-session-token") == "legacy-session")
+            #expect(request.value(forHTTPHeaderField: "x-devin-auth1-token") == "legacy-auth1")
+            #expect(request.value(forHTTPHeaderField: "x-devin-account-id") == "legacy-account")
+            #expect(request.value(forHTTPHeaderField: "x-devin-primary-org-id") == "legacy-org")
+
+            let body = try WindsurfPlanStatusProtoCodec.decodeRequest(Self.requestBodyData(from: request))
+            #expect(body.authToken == "legacy-session")
+
+            return Self.makeResponse(
+                url: url,
+                body: Self.makePlanStatusResponse(ResponseFixture(
+                    planName: "Pro",
+                    dailyRemaining: 70,
+                    weeklyRemaining: 85,
+                    planEndUnix: 1_777_888_000,
+                    dailyResetUnix: 1_777_900_000,
+                    weeklyResetUnix: 1_778_000_000)),
+                contentType: "application/proto",
+                statusCode: 200)
+        }
+
+        let snapshot = try await WindsurfWebFetcher.fetchUsage(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            cookieSource: .auto,
+            timeout: 2,
+            session: self.makeSession())
+
+        #expect(snapshots.count == 1)
+        #expect(sessionInfos.map(\.sourceLabel) == ["Chrome Default (windsurf.com)"])
+        #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 1)
+        #expect(snapshot.identity?.loginMethod == "Pro")
+        #expect(snapshot.primary?.usedPercent == 30)
+        #expect(snapshot.secondary?.usedPercent == 15)
     }
 
     @Test
@@ -438,6 +521,14 @@ struct WindsurfWebFetcherTests {
         }
         data.append(UInt8(remaining))
         return data
+    }
+
+    private static func localStorageEntry(origin: URL, key: String, value: String) -> ChromiumLocalStorageEntry {
+        ChromiumLocalStorageEntry(
+            origin: origin.absoluteString,
+            key: key,
+            value: value,
+            rawValueLength: value.utf8.count)
     }
 }
 

@@ -21,7 +21,8 @@ Usage source picker:
 
 ### Web API fetch order
 1) **Manual session bundle** (when Cookie source = Manual).
-2) **Browser localStorage import** — extracts the active `devin_*` session values from Chromium browsers.
+2) **Browser localStorage import** — extracts complete `devin_*` session bundles from Chromium browsers, checking
+   `app.devin.ai` before the legacy `windsurf.com` origin.
 
 ### Local SQLite cache
 - File: `~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb`.
@@ -99,7 +100,9 @@ UsageSnapshot (daily/weekly quota %)
 
 - **Browsers scanned**: Chrome, Edge, Brave, Arc, Vivaldi, Chromium, and compatible Chromium forks.
 - **Local storage path**: `~/Library/Application Support/<Browser>/<Profile>/Local Storage/leveldb/`
-- **Origin**: `https://windsurf.com`
+- **Origins**: `https://app.devin.ai`, then legacy `https://windsurf.com`
+- Values from different structured origins are never combined. A partial app-origin bundle cannot contaminate a
+  complete legacy-origin fallback.
 - **Required keys**:
   - `devin_session_token`
   - `devin_auth1_token`
@@ -143,7 +146,8 @@ UsageSnapshot (daily/weekly quota %)
 ## Troubleshooting
 
 ### "No Windsurf web session found in Chromium localStorage"
-- Sign in to [windsurf.com](https://windsurf.com) in Chrome, Edge, or another Chromium browser.
+- Sign in to [app.devin.ai](https://app.devin.ai) or [windsurf.com](https://windsurf.com) in Chrome, Edge, or another
+  Chromium browser.
 - Grant Full Disk Access to CodexBar (System Settings → Privacy & Security → Full Disk Access).
 - Try Manual mode and paste the JSON session bundle directly.
 
