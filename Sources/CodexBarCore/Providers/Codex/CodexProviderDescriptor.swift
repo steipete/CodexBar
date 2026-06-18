@@ -246,8 +246,14 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             updatedAt: updatedAt)
 
         if let reconciled {
+            let dataConfidence: UsageDataConfidence = usageResponse.rateLimit?.hasWindowDecodeFailure == true
+                || usageResponse.additionalRateLimitsDecodeFailed
+                ? .unknown
+                : .exact
             return CodexOAuthFetchStrategy().makeResult(
-                usage: reconciled.toUsageSnapshot().withCodexResetCredits(resetCredits),
+                usage: reconciled.toUsageSnapshot()
+                    .withCodexResetCredits(resetCredits)
+                    .withDataConfidence(dataConfidence),
                 credits: credits,
                 sourceLabel: "oauth")
         }

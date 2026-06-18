@@ -117,6 +117,13 @@ public struct ProviderIdentitySnapshot: Codable, Sendable {
     }
 }
 
+public enum UsageDataConfidence: String, Codable, Equatable, Sendable {
+    case exact
+    case estimated
+    case percentOnly
+    case unknown
+}
+
 public struct UsageSnapshot: Codable, Sendable {
     public let primary: RateWindow?
     public let secondary: RateWindow?
@@ -141,6 +148,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let subscriptionRenewsAt: Date?
     public let updatedAt: Date
     public let identity: ProviderIdentitySnapshot?
+    public let dataConfidence: UsageDataConfidence
 
     private enum CodingKeys: String, CodingKey {
         case primary
@@ -162,6 +170,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case subscriptionRenewsAt
         case updatedAt
         case identity
+        case dataConfidence
         case accountEmail
         case accountOrganization
         case loginMethod
@@ -190,7 +199,8 @@ public struct UsageSnapshot: Codable, Sendable {
         subscriptionExpiresAt: Date? = nil,
         subscriptionRenewsAt: Date? = nil,
         updatedAt: Date,
-        identity: ProviderIdentitySnapshot? = nil)
+        identity: ProviderIdentitySnapshot? = nil,
+        dataConfidence: UsageDataConfidence = .unknown)
     {
         self.primary = primary
         self.secondary = secondary
@@ -215,6 +225,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.subscriptionRenewsAt = subscriptionRenewsAt
         self.updatedAt = updatedAt
         self.identity = identity
+        self.dataConfidence = dataConfidence
     }
 
     public func with(extraRateWindows: [NamedRateWindow]?) -> UsageSnapshot {
@@ -259,6 +270,11 @@ public struct UsageSnapshot: Codable, Sendable {
         self.subscriptionExpiresAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionExpiresAt)
         self.subscriptionRenewsAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionRenewsAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        if let dataConfidence = try container.decodeIfPresent(String.self, forKey: .dataConfidence) {
+            self.dataConfidence = UsageDataConfidence(rawValue: dataConfidence) ?? .unknown
+        } else {
+            self.dataConfidence = .unknown
+        }
         if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
             self.identity = identity
         } else {
@@ -299,6 +315,9 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.subscriptionRenewsAt, forKey: .subscriptionRenewsAt)
         try container.encode(self.updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(self.identity, forKey: .identity)
+        if self.dataConfidence != .unknown {
+            try container.encode(self.dataConfidence, forKey: .dataConfidence)
+        }
         try container.encodeIfPresent(self.identity?.accountEmail, forKey: .accountEmail)
         try container.encodeIfPresent(self.identity?.accountOrganization, forKey: .accountOrganization)
         try container.encodeIfPresent(self.identity?.loginMethod, forKey: .loginMethod)
@@ -386,6 +405,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.replacing(identity: .value(identity))
     }
 
+    public func withDataConfidence(_ dataConfidence: UsageDataConfidence) -> UsageSnapshot {
+        self.replacing(dataConfidence: .value(dataConfidence))
+    }
+
     public func scoped(to provider: UsageProvider) -> UsageSnapshot {
         guard let identity else { return self }
         let scopedIdentity = identity.scoped(to: provider)
@@ -444,7 +467,8 @@ public struct UsageSnapshot: Codable, Sendable {
         tertiary: Replacement<RateWindow?> = .unchanged,
         extraRateWindows: Replacement<[NamedRateWindow]?> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
-        identity: Replacement<ProviderIdentitySnapshot?> = .unchanged) -> UsageSnapshot
+        identity: Replacement<ProviderIdentitySnapshot?> = .unchanged,
+        dataConfidence: Replacement<UsageDataConfidence> = .unchanged) -> UsageSnapshot
     {
         UsageSnapshot(
             primary: primary.resolving(self.primary),
@@ -469,7 +493,8 @@ public struct UsageSnapshot: Codable, Sendable {
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt,
             updatedAt: self.updatedAt,
-            identity: identity.resolving(self.identity))
+            identity: identity.resolving(self.identity),
+            dataConfidence: dataConfidence.resolving(self.dataConfidence))
     }
 }
 

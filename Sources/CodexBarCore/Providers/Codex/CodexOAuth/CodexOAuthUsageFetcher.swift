@@ -9,6 +9,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
     public let credits: CreditDetails?
     /// Model-specific limits (e.g. GPT-5.3-Codex-Spark) that sit alongside the primary/weekly windows.
     public let additionalRateLimits: [AdditionalRateLimit]?
+    let additionalRateLimitsDecodeFailed: Bool
 
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"
@@ -25,10 +26,26 @@ public struct CodexUsageResponse: Decodable, Sendable {
         // Optional and additive: missing/malformed extra limits must never disturb primary/weekly mapping.
         // Decode per element so a single malformed entry cannot discard its valid siblings; a non-array
         // value (or absent field) leaves `additionalRateLimits` nil and primary/weekly mapping untouched.
-        let additionalRateLimits = try? container.decodeIfPresent(
-            [LossyAdditionalRateLimit].self,
-            forKey: .additionalRateLimits)
-        self.additionalRateLimits = additionalRateLimits?.compactMap(\.value)
+        let additionalRateLimitsHadValue = Self.hasNonNilValue(container: container, key: .additionalRateLimits)
+        do {
+            let decoded = try container.decodeIfPresent(
+                [LossyAdditionalRateLimit].self,
+                forKey: .additionalRateLimits)
+            self.additionalRateLimits = decoded?.compactMap(\.value)
+            self.additionalRateLimitsDecodeFailed = decoded?.contains(where: \.decodeFailed) == true
+                || self.additionalRateLimits?.contains(where: \.hasWindowDecodeFailure) == true
+        } catch {
+            self.additionalRateLimits = nil
+            self.additionalRateLimitsDecodeFailed = additionalRateLimitsHadValue
+        }
+    }
+
+    private static func hasNonNilValue(
+        container: KeyedDecodingContainer<CodingKeys>,
+        key: CodingKeys) -> Bool
+    {
+        guard container.contains(key) else { return false }
+        return (try? container.decodeNil(forKey: key)) == false
     }
 
     public enum PlanType: Sendable, Decodable, Equatable {
@@ -152,6 +169,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
         public let limitName: String?
         public let meteredFeature: String?
         public let rateLimit: RateLimitDetails?
+        let rateLimitDecodeFailed: Bool
 
         enum CodingKeys: String, CodingKey {
             case limitName = "limit_name"
@@ -163,7 +181,26 @@ public struct CodexUsageResponse: Decodable, Sendable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.limitName = try? container.decodeIfPresent(String.self, forKey: .limitName)
             self.meteredFeature = try? container.decodeIfPresent(String.self, forKey: .meteredFeature)
-            self.rateLimit = try? container.decodeIfPresent(RateLimitDetails.self, forKey: .rateLimit)
+            let rateLimitHadValue = Self.hasNonNilValue(container: container, key: .rateLimit)
+            do {
+                self.rateLimit = try container.decodeIfPresent(RateLimitDetails.self, forKey: .rateLimit)
+                self.rateLimitDecodeFailed = false
+            } catch {
+                self.rateLimit = nil
+                self.rateLimitDecodeFailed = rateLimitHadValue
+            }
+        }
+
+        private static func hasNonNilValue(
+            container: KeyedDecodingContainer<CodingKeys>,
+            key: CodingKeys) -> Bool
+        {
+            guard container.contains(key) else { return false }
+            return (try? container.decodeNil(forKey: key)) == false
+        }
+
+        var hasWindowDecodeFailure: Bool {
+            self.rateLimitDecodeFailed || self.rateLimit?.hasWindowDecodeFailure == true
         }
     }
 
@@ -171,10 +208,12 @@ public struct CodexUsageResponse: Decodable, Sendable {
     /// entry cannot discard its valid siblings during array decoding.
     private struct LossyAdditionalRateLimit: Decodable {
         let value: AdditionalRateLimit?
+        let decodeFailed: Bool
 
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             self.value = try? container.decode(AdditionalRateLimit.self)
+            self.decodeFailed = self.value == nil
         }
     }
 

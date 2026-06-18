@@ -85,6 +85,7 @@ public struct ProviderDiagnosticAuthSummary: Codable, Sendable {
 
 public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
     public let updatedAt: Date
+    public let dataConfidence: String
     public let windows: [ProviderDiagnosticRateWindow]
     public let extraWindowCount: Int
     public let providerCostPresent: Bool
@@ -122,6 +123,7 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         if snapshot.cursorRequests != nil { providerSpecificData.append("cursorRequests") }
 
         self.updatedAt = snapshot.updatedAt
+        self.dataConfidence = snapshot.dataConfidence.rawValue
         self.windows = windows
         self.extraWindowCount = snapshot.extraRateWindows?.count ?? 0
         self.providerCostPresent = snapshot.providerCost != nil

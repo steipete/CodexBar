@@ -165,6 +165,73 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `O auth response with precise windows maps to exact confidence`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 22,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": 43,
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(Data(json.utf8), credentials: creds)
+
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.usage.dataConfidence == .exact)
+        #expect(result.usage.primary?.usedPercent == 22)
+        #expect(result.usage.secondary?.usedPercent == 43)
+    }
+
+    @Test
+    func `O auth response with malformed additional window maps to unknown confidence`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 22,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          },
+          "additional_rate_limits": [
+            {
+              "limit_name": "GPT-5.3-Codex-Spark",
+              "metered_feature": "gpt_5_3_codex_spark",
+              "rate_limit": {
+                "primary_window": { "used_percent": "bad" }
+              }
+            }
+          ]
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(Data(json.utf8), credentials: creds)
+
+        #expect(result.usage.primary?.usedPercent == 22)
+        #expect(result.usage.extraRateWindows == nil)
+        #expect(result.usage.dataConfidence == .unknown)
+    }
+
+    @Test
     func `maps free weekly only window into secondary`() throws {
         let json = """
         {
@@ -352,6 +419,11 @@ struct CodexOAuthTests {
         let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
         #expect(snapshot?.primary?.usedPercent == 18)
         #expect(snapshot?.secondary == nil)
+
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(Data(json.utf8), credentials: creds)
+        #expect(result.usage.primary?.usedPercent == 18)
+        #expect(result.usage.secondary == nil)
+        #expect(result.usage.dataConfidence == .unknown)
     }
 
     @Test

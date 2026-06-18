@@ -36,6 +36,8 @@ struct ProviderDiagnosticExportTests {
         #expect(json.contains("\"provider\""))
         #expect(json.contains("\"openai\""))
         #expect(json.contains("\"auth\""))
+        #expect(json.contains("\"dataConfidence\""))
+        #expect(json.contains("\"unknown\""))
         #expect(json.contains("\"hasResetDescription\""))
         #expect(!json.contains("sk-cp-"))
         #expect(!json.contains("sk-api-"))
@@ -43,6 +45,109 @@ struct ProviderDiagnosticExportTests {
         #expect(!json.contains("raw local text"))
         #expect(!json.contains("errorMessage"))
         #expect(!json.contains("localizedDescription"))
+    }
+
+    @Test
+    func `usage snapshot defaults legacy payloads to unknown confidence without reencoding unknown`() throws {
+        let json = """
+        {
+          "primary": {
+            "usedPercent": 42,
+            "windowMinutes": 300,
+            "hasResetDescription": false
+          },
+          "secondary": null,
+          "tertiary": null,
+          "updatedAt": "2023-11-14T22:13:20Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let snapshot = try decoder.decode(UsageSnapshot.self, from: Data(json.utf8))
+        #expect(snapshot.dataConfidence == .unknown)
+
+        let encoded = try self.json(snapshot)
+        #expect(!encoded.contains("dataConfidence"))
+    }
+
+    @Test
+    func `usage snapshot preserves explicit confidence through Codable`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(18000),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now,
+            dataConfidence: .exact)
+
+        let encoded = try self.json(snapshot)
+        #expect(encoded.contains("\"dataConfidence\" : \"exact\""))
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(UsageSnapshot.self, from: Data(encoded.utf8))
+        #expect(decoded.dataConfidence == .exact)
+    }
+
+    @Test
+    func `usage snapshot treats future confidence values as unknown`() throws {
+        let json = """
+        {
+          "primary": null,
+          "secondary": null,
+          "tertiary": null,
+          "updatedAt": "2023-11-14T22:13:20Z",
+          "dataConfidence": "future"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let snapshot = try decoder.decode(UsageSnapshot.self, from: Data(json.utf8))
+
+        #expect(snapshot.dataConfidence == .unknown)
+        #expect(try !self.json(snapshot).contains("dataConfidence"))
+    }
+
+    @Test
+    func `diagnostic usage summary includes confidence`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let summary = ProviderDiagnosticUsageSummary(from: UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(18000),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now,
+            dataConfidence: .exact))
+
+        #expect(summary.dataConfidence == "exact")
+    }
+
+    @Test
+    func `unwired provider diagnostics remain unknown confidence`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = MiniMaxUsageSnapshot(
+            planName: "Max",
+            availablePrompts: 1000,
+            currentPrompts: 250,
+            remainingPrompts: 750,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: now.addingTimeInterval(18000),
+            updatedAt: now)
+
+        let usage = snapshot.toUsageSnapshot()
+        let summary = ProviderDiagnosticUsageSummary(from: usage)
+
+        #expect(usage.dataConfidence == .unknown)
+        #expect(summary.dataConfidence == "unknown")
+        #expect(summary.windows.first?.usedPercent == 25)
     }
 
     @Test
