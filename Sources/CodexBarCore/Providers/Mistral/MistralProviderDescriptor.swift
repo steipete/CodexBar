@@ -58,8 +58,12 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
                 cookieHeader: cookieHeader,
                 csrfToken: csrfToken,
                 timeout: context.webTimeout)
+            let vibeResult = try? await MistralUsageFetcher.fetchVibeUsage(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                timeout: context.webTimeout)
             return self.makeResult(
-                usage: snapshot.toUsageSnapshot(),
+                usage: Self.attachVibeWindow(to: snapshot.toUsageSnapshot(), vibeResult: vibeResult),
                 sourceLabel: "web")
         } catch MistralUsageError.invalidCredentials where cookieSource != .manual {
             #if os(macOS)
@@ -69,13 +73,31 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
                 cookieHeader: cookieHeader,
                 csrfToken: csrfToken,
                 timeout: context.webTimeout)
+            let vibeResult = try? await MistralUsageFetcher.fetchVibeUsage(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                timeout: context.webTimeout)
             return self.makeResult(
-                usage: snapshot.toUsageSnapshot(),
+                usage: Self.attachVibeWindow(to: snapshot.toUsageSnapshot(), vibeResult: vibeResult),
                 sourceLabel: "web")
             #else
             throw MistralUsageError.invalidCredentials
             #endif
         }
+    }
+
+    private static func attachVibeWindow(
+        to usageSnapshot: UsageSnapshot,
+        vibeResult: MistralUsageFetcher.MistralVibeUsageResult?) -> UsageSnapshot
+    {
+        guard let vibeResult else { return usageSnapshot }
+        let window = RateWindow(
+            usedPercent: vibeResult.usagePercentage,
+            windowMinutes: nil,
+            resetsAt: vibeResult.resetAt,
+            resetDescription: nil)
+        let named = NamedRateWindow(id: "mistral-monthly-plan", title: "Monthly Plan", window: window)
+        return usageSnapshot.with(extraRateWindows: [named])
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
