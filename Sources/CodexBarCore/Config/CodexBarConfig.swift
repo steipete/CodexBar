@@ -22,6 +22,27 @@ public struct CodexBarConfig: Codable, Sendable {
         return CodexBarConfig(version: Self.currentVersion, providers: providers)
     }
 
+    /// Alphabetical provider ordering with enabled providers on top: enabled first, then disabled,
+    /// each group sorted case-insensitively by display name. Used by the Providers settings pane's
+    /// alphabetical sort toggle; it never mutates the user's stored manual order.
+    public static func alphabeticalProviderOrder(
+        metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata,
+        enablement: (UsageProvider) -> Bool) -> [UsageProvider]
+    {
+        UsageProvider.allCases.sorted { lhs, rhs in
+            let lhsEnabled = enablement(lhs)
+            let rhsEnabled = enablement(rhs)
+            if lhsEnabled != rhsEnabled { return lhsEnabled }
+            let lhsName = metadata[lhs]?.displayName ?? lhs.rawValue
+            let rhsName = metadata[rhs]?.displayName ?? rhs.rawValue
+            switch lhsName.localizedCaseInsensitiveCompare(rhsName) {
+            case .orderedAscending: return true
+            case .orderedDescending: return false
+            case .orderedSame: return lhs.rawValue < rhs.rawValue
+            }
+        }
+    }
+
     public func normalized(
         metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) -> CodexBarConfig
     {

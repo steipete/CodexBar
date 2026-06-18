@@ -138,6 +138,55 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `providers sorted alphabetically defaults on and persists`() throws {
+        let suite = "SettingsStoreTests-providers-sorted-alpha"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.providersSortedAlphabetically == true)
+        storeA.providersSortedAlphabetically = false
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.providersSortedAlphabetically == false)
+    }
+
+    @Test
+    func `alphabetical provider order puts enabled first then sorts by name`() {
+        let metadata = ProviderDescriptorRegistry.metadata
+        let enabled: Set<UsageProvider> = [.cursor, .claude, .codex]
+        let ordered = CodexBarConfig.alphabeticalProviderOrder(
+            enablement: { enabled.contains($0) })
+
+        #expect(Set(ordered) == Set(UsageProvider.allCases))
+
+        let displayName: (UsageProvider) -> String = { metadata[$0]?.displayName ?? $0.rawValue }
+        let enabledPart = ordered.filter { enabled.contains($0) }
+        let disabledPart = ordered.filter { !enabled.contains($0) }
+        // Enabled providers occupy the top of the list, ahead of every disabled provider.
+        #expect(Array(ordered.prefix(enabled.count)) == enabledPart)
+        #expect(ordered == enabledPart + disabledPart)
+        let isSortedByName: ([UsageProvider]) -> Bool = { group in
+            group == group.sorted {
+                displayName($0).localizedCaseInsensitiveCompare(displayName($1)) == .orderedAscending
+            }
+        }
+        #expect(isSortedByName(enabledPart))
+        #expect(isSortedByName(disabledPart))
+    }
+
+    @Test
     func `provider changelog links setting defaults off and persists`() throws {
         let suite = "SettingsStoreTests-provider-changelog-links"
         let defaultsA = try #require(UserDefaults(suiteName: suite))

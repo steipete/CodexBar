@@ -412,6 +412,8 @@ extension SettingsStore {
             forKey: "mergedOverviewSelectedProviders") as? [String] ?? []
         let selectedMenuProviderRaw = userDefaults.string(forKey: "selectedMenuProvider")
         let providerDetectionCompleted = userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false
+        let providersSortedAlphabetically = userDefaults.object(
+            forKey: "providersSortedAlphabetically") as? Bool ?? true
         let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -465,6 +467,7 @@ extension SettingsStore {
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,
             selectedMenuProviderRaw: selectedMenuProviderRaw,
             providerDetectionCompleted: providerDetectionCompleted,
+            providersSortedAlphabetically: providersSortedAlphabetically,
             appLanguageRaw: appLanguageRaw,
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"))
     }

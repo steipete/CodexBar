@@ -664,6 +664,17 @@ extension SettingsStore {
         }
     }
 
+    /// Whether the Providers settings pane displays providers sorted alphabetically (enabled on
+    /// top). Defaults to `true`. Purely a display preference — it never rewrites the stored manual
+    /// order, so turning it off restores the user's hand-arranged sequence.
+    var providersSortedAlphabetically: Bool {
+        get { self.defaultsState.providersSortedAlphabetically }
+        set {
+            self.defaultsState.providersSortedAlphabetically = newValue
+            self.userDefaults.set(newValue, forKey: "providersSortedAlphabetically")
+        }
+    }
+
     var appLanguage: String {
         get { self.defaultsState.appLanguageRaw ?? "" }
         set {

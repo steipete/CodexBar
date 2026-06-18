@@ -52,6 +52,7 @@ struct SettingsDefaultsState {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var providersSortedAlphabetically: Bool
     var appLanguageRaw: String?
     var terminalAppRaw: String?
 }
