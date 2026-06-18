@@ -2,6 +2,60 @@
 import Foundation
 
 extension OpenAIDashboardBrowserCookieImporter {
+    /// GCD timer blocks can be delayed with the work they are supposed to bound when its pool is saturated.
+    private final class DeadlineScheduler: @unchecked Sendable {
+        private struct Entry {
+            let deadline: Date
+            let action: @Sendable () -> Void
+        }
+
+        private let condition = NSCondition()
+        private var entries: [Entry] = []
+
+        init() {
+            let thread = Thread { [weak self] in
+                self?.run()
+            }
+            thread.name = "com.steipete.codexbar.openai-cookie-deadline"
+            thread.qualityOfService = .userInitiated
+            thread.start()
+        }
+
+        func schedule(after timeout: TimeInterval, action: @escaping @Sendable () -> Void) {
+            let entry = Entry(deadline: Date().addingTimeInterval(timeout), action: action)
+            self.condition.lock()
+            let insertionIndex = self.entries.firstIndex { entry.deadline < $0.deadline } ?? self.entries.endIndex
+            self.entries.insert(entry, at: insertionIndex)
+            self.condition.signal()
+            self.condition.unlock()
+        }
+
+        private func run() {
+            while true {
+                self.condition.lock()
+                while self.entries.isEmpty {
+                    self.condition.wait()
+                }
+
+                guard let entry = self.entries.first else {
+                    self.condition.unlock()
+                    continue
+                }
+                if entry.deadline.timeIntervalSinceNow > 0 {
+                    self.condition.wait(until: entry.deadline)
+                    self.condition.unlock()
+                    continue
+                }
+
+                self.entries.removeFirst()
+                self.condition.unlock()
+                autoreleasepool {
+                    entry.action()
+                }
+            }
+        }
+    }
+
     private struct PendingCookieStoreMutation {
         let token: UUID
         let task: Task<Void, Never>
@@ -10,9 +64,7 @@ extension OpenAIDashboardBrowserCookieImporter {
     @MainActor private static var pendingCookieStoreMutations: [ObjectIdentifier: PendingCookieStoreMutation] = [:]
     private nonisolated static let cookieCacheQueue = DispatchQueue(
         label: "com.steipete.codexbar.openai-cookie-cache")
-    private nonisolated static let deadlineQueue = DispatchQueue(
-        label: "com.steipete.codexbar.openai-cookie-deadline",
-        qos: .userInitiated)
+    private nonisolated static let deadlineScheduler = DeadlineScheduler()
 
     private final class CookieLoadCompletion: @unchecked Sendable {
         private let lock = NSLock()
@@ -56,7 +108,7 @@ extension OpenAIDashboardBrowserCookieImporter {
                 let result = Result(catching: operation)
                 completion.finish { continuation.resume(with: result) }
             }
-            self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
+            self.deadlineScheduler.schedule(after: timeout) {
                 completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
             }
         }
@@ -90,7 +142,7 @@ extension OpenAIDashboardBrowserCookieImporter {
             start {
                 completion.finish { continuation.resume() }
             }
-            self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
+            self.deadlineScheduler.schedule(after: timeout) {
                 completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
             }
         }
@@ -114,7 +166,7 @@ extension OpenAIDashboardBrowserCookieImporter {
             start { value in
                 completion.finish { continuation.resume(returning: value) }
             }
-            self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
+            self.deadlineScheduler.schedule(after: timeout) {
                 completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
             }
         }
