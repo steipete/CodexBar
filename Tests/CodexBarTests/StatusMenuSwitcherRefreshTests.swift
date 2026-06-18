@@ -148,6 +148,7 @@ struct StatusMenuSwitcherRefreshTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
+        settings.openAIWebAccessEnabled = true
         Self.enableCodexAndClaude(settings)
         Self.disableOverview(settings)
 
@@ -271,10 +272,22 @@ struct StatusMenuSwitcherRefreshTests {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         store._setSnapshotForTesting(Self.quotaSnapshot(usedPercent: 21, updatedAt: now), provider: .codex)
         store._setSnapshotForTesting(Self.quotaSnapshot(usedPercent: 44, updatedAt: now), provider: .claude)
+        let event = CreditEvent(date: now, service: "CLI", creditsUsed: 1)
+        let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: [event], maxDays: 30)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "test@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [event],
+            dailyBreakdown: breakdown,
+            usageBreakdown: breakdown,
+            creditsPurchaseURL: nil,
+            updatedAt: now)
+        store.openAIDashboardAttachmentAuthorized = true
+        store.openAIDashboardRequiresLogin = false
         let controller = StatusItemController(
             store: store,
             settings: settings,
-            account: fetcher.loadAccountInfo(),
+            account: AccountInfo(email: "test@example.com", plan: "pro"),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
@@ -316,6 +329,10 @@ struct StatusMenuSwitcherRefreshTests {
         await Self.waitForRebuildCount(2, rebuildCount: { rebuildCount })
         #expect(settings.selectedMenuProvider == .codex)
 
+        let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
+        #expect(usageItem != nil)
+        #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardHeader" } == false)
+
         let emptyFallback = try #require(controller.menuCardModel(for: .codex))
         let inFlight = controller.menuCardRefreshMonitor.model(for: .codex, fallback: emptyFallback)
         let subtitle = controller.menuCardRefreshMonitor.subtitle(
@@ -329,6 +346,8 @@ struct StatusMenuSwitcherRefreshTests {
         gate.resume()
         await controller.manualRefreshTask?.value
         #expect(!controller.menuCardRefreshMonitor.isManualRefreshInFlight)
+        let completed = controller.menuCardRefreshMonitor.model(for: .codex, fallback: emptyFallback)
+        #expect(completed.metrics.isEmpty)
     }
 
     @Test

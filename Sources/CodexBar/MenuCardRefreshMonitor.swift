@@ -41,7 +41,11 @@ final class MenuCardRefreshMonitor {
             if fallback.hasCompatibleTrackedLayout(with: frozen) {
                 return frozen
             }
-            if fallback.metrics.isEmpty, !frozen.metrics.isEmpty {
+            // A rebuilding menu may temporarily lose metric rows, but every other section must retain its layout.
+            if fallback.metrics.isEmpty,
+               !frozen.metrics.isEmpty,
+               fallback.hasCompatibleTrackedLayoutIgnoringMetrics(with: frozen)
+            {
                 return frozen
             }
             return fallback

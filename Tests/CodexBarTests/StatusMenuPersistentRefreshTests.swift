@@ -421,6 +421,69 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `manual refresh uses fallback when empty quota gains credit content`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(
+            settings: settings,
+            account: AccountInfo(email: "test@example.com", plan: "pro"))
+        let now = Date()
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 21,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        let frozen = try #require(controller.menuCardModel(for: .codex))
+        controller.menuCardRefreshMonitor.beginManualRefresh(frozenModels: [.codex: frozen])
+
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: now.addingTimeInterval(1))
+        controller.store.credits = CreditsSnapshot(
+            remaining: 42,
+            events: [],
+            updatedAt: now.addingTimeInterval(1))
+        let fallback = try #require(controller.menuCardModel(for: .codex))
+        let inFlight = controller.menuCardRefreshMonitor.model(for: .codex, fallback: fallback)
+
+        #expect(frozen.metrics.count == 1)
+        #expect(fallback.metrics.isEmpty)
+        #expect(fallback.creditsText != nil)
+        #expect(inFlight.metrics.isEmpty)
+        #expect(inFlight.creditsText == fallback.creditsText)
+    }
+
+    @Test
+    func `manual refresh uses fallback when empty quota gains a placeholder`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        let now = Date()
+        controller.store.snapshots[.claude] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 21,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        let frozen = try #require(controller.menuCardModel(for: .claude))
+        controller.menuCardRefreshMonitor.beginManualRefresh(frozenModels: [.claude: frozen])
+
+        controller.store.snapshots.removeValue(forKey: .claude)
+        let fallback = try #require(controller.menuCardModel(for: .claude))
+        let inFlight = controller.menuCardRefreshMonitor.model(for: .claude, fallback: fallback)
+
+        #expect(frozen.metrics.count == 1)
+        #expect(fallback.metrics.isEmpty)
+        #expect(fallback.placeholder != nil)
+        #expect(inFlight.metrics.isEmpty)
+        #expect(inFlight.placeholder == fallback.placeholder)
+    }
+
+    @Test
     func `refresh monitor updates single line credit balances`() throws {
         let settings = self.makeSettings()
         let controller = self.makeController(

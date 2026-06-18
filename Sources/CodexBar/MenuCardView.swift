@@ -126,6 +126,7 @@ struct UsageMenuCardView: View {
     }
 
     let model: Model
+    var layoutModel: Model?
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
@@ -140,7 +141,7 @@ struct UsageMenuCardView: View {
     var body: some View {
         let liveModel = self.liveModel
         VStack(alignment: .leading, spacing: 6) {
-            UsageMenuCardHeaderView(model: self.model)
+            UsageMenuCardHeaderView(model: self.layoutModel ?? self.model)
 
             if self.hasDetails(model: liveModel) {
                 Divider()

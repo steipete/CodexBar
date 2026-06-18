@@ -77,8 +77,16 @@ extension UsageMenuCardView.Model {
     }
 
     func hasCompatibleTrackedLayout(with candidate: Self) -> Bool {
+        self.hasCompatibleTrackedLayout(with: candidate, includeMetrics: true)
+    }
+
+    func hasCompatibleTrackedLayoutIgnoringMetrics(with candidate: Self) -> Bool {
+        self.hasCompatibleTrackedLayout(with: candidate, includeMetrics: false)
+    }
+
+    private func hasCompatibleTrackedLayout(with candidate: Self, includeMetrics: Bool) -> Bool {
         guard self.provider == candidate.provider,
-              self.metrics.count == candidate.metrics.count,
+              !includeMetrics || self.metrics.count == candidate.metrics.count,
               self.usageNotes == candidate.usageNotes,
               (self.openAIAPIUsage == nil) == (candidate.openAIAPIUsage == nil),
               Self.hasCompatibleCreditsLayout(
@@ -95,6 +103,7 @@ extension UsageMenuCardView.Model {
             return false
         }
 
+        guard includeMetrics else { return true }
         return zip(self.metrics, candidate.metrics).allSatisfy { current, refreshed in
             current.id == refreshed.id &&
                 current.title == refreshed.title &&
