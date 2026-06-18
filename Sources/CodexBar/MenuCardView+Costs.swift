@@ -1,6 +1,22 @@
 import CodexBarCore
 import Foundation
 
+extension UsageMenuCardView.Model.ProviderCostSection {
+    init(
+        title: String,
+        percentUsed: Double?,
+        spendLine: String,
+        percentLine: String?)
+    {
+        self.init(
+            title: title,
+            percentUsed: percentUsed,
+            spendLine: spendLine,
+            percentLine: percentLine,
+            personalSpendLine: nil)
+    }
+}
+
 extension UsageMenuCardView.Model {
     static func isRequiredOpenCodeZenBalance(_ snapshot: UsageSnapshot?) -> Bool {
         snapshot?.primary == nil &&

@@ -103,20 +103,6 @@ struct UsageMenuCardView: View {
             let spendLine: String
             let percentLine: String?
             var personalSpendLine: String?
-
-            init(
-                title: String,
-                percentUsed: Double?,
-                spendLine: String,
-                percentLine: String?,
-                personalSpendLine: String? = nil)
-            {
-                self.title = title
-                self.percentUsed = percentUsed
-                self.spendLine = spendLine
-                self.percentLine = percentLine
-                self.personalSpendLine = personalSpendLine
-            }
         }
 
         let provider: UsageProvider
