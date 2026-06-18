@@ -77,6 +77,53 @@ struct KiroStatusProbeTests {
     }
 
     @Test
+    func `fetch cancellation during context probe is preserved`() async throws {
+        let contextStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-context-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              : > '\(contextStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: contextStarted)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let task = Task { try await probe.fetch() }
+        defer { task.cancel() }
+
+        for _ in 0..<100 where !FileManager.default.fileExists(atPath: contextStarted.path) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(FileManager.default.fileExists(atPath: contextStarted.path))
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
     func `fetch returns when usage helper leaves inherited pipes open`() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-kiro-pipe-\(UUID().uuidString)", isDirectory: true)

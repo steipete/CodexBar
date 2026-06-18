@@ -265,6 +265,8 @@ public struct KiroStatusProbe: Sendable {
             var contextUsage: KiroContextUsageSnapshot?
             do {
                 contextUsage = try await self.fetchContextUsage()
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 Self.logger.debug("Kiro context usage probe failed: \(error.localizedDescription)")
             }
