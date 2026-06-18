@@ -5,6 +5,56 @@ import Testing
 
 struct CursorMenuCardModelTests {
     @Test
+    func `team pool shows personal spend and changes height fingerprint`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        func makeModel(personalUsed: Double?) -> UsageMenuCardView.Model {
+            let snapshot = UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                tertiary: nil,
+                providerCost: ProviderCostSnapshot(
+                    used: 13111.25,
+                    limit: 20000,
+                    currencyCode: "USD",
+                    period: "Monthly",
+                    personalUsed: personalUsed,
+                    updatedAt: now),
+                updatedAt: now,
+                identity: nil)
+            return UsageMenuCardView.Model.make(.init(
+                provider: .cursor,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        let personal = makeModel(personalUsed: 44.71)
+        let absent = makeModel(personalUsed: nil)
+        let zero = makeModel(personalUsed: 0)
+
+        #expect(personal.providerCost?.personalSpendLine == "Your spend: $44.71")
+        #expect(absent.providerCost?.personalSpendLine == nil)
+        #expect(zero.providerCost?.personalSpendLine == nil)
+        #expect(personal.heightFingerprint(section: "card") != absent.heightFingerprint(section: "card"))
+    }
+
+    @Test
     func `cursor billing cycle metrics show deficit and run out details`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let reset = now.addingTimeInterval(6 * 24 * 3600)
