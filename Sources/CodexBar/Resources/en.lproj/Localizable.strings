@@ -977,6 +977,9 @@
 "Day" = "Day";
 "Deployment" = "Deployment";
 "Drag to reorder" = "Drag to reorder";
+"Sort providers alphabetically" = "Sort providers alphabetically";
+"Sort providers alphabetically (enabled first)" = "Sort providers alphabetically (enabled first)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Sorted alphabetically (enabled first) — click to use your custom order";
 "Endpoint" = "Endpoint";
 "Enterprise host" = "Enterprise host";
 "Extra usage balance: %@" = "Extra usage balance: %@";

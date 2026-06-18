@@ -53,6 +53,22 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `provider reordering is inert while alphabetical sorting is enabled`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-sorted-reorder")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+        let original = settings.orderedProviders()
+
+        settings.providersSortedAlphabetically = true
+        pane._test_moveProviders(fromOffsets: IndexSet(integer: 0), toOffset: original.count)
+        #expect(settings.orderedProviders() == original)
+
+        settings.providersSortedAlphabetically = false
+        pane._test_moveProviders(fromOffsets: IndexSet(integer: 0), toOffset: original.count)
+        #expect(settings.orderedProviders().last == original.first)
+    }
+
+    @Test
     func `selected provider sidebar palette uses contrasting selected text colors`() {
         let palette = ProviderSidebarRowPalette(isSelected: true)
 

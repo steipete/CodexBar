@@ -970,6 +970,9 @@
 "Day" = "Ngày";
 "Deployment" = "Triển khai";
 "Drag to reorder" = "Kéo để sắp xếp lại";
+"Sort providers alphabetically" = "Sắp xếp nhà cung cấp theo bảng chữ cái";
+"Sort providers alphabetically (enabled first)" = "Sắp xếp nhà cung cấp theo bảng chữ cái (đã bật trước)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Đã sắp xếp theo bảng chữ cái (đã bật trước) — nhấp để dùng thứ tự tùy chỉnh";
 "Endpoint" = "Điểm cuối";
 "Enterprise host" = "Máy chủ doanh nghiệp";
 "Extra usage balance: %@" = "Extra usage balance: %@";

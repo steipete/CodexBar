@@ -971,6 +971,9 @@
 "Day" = "Dia";
 "Deployment" = "Deployment";
 "Drag to reorder" = "Arraste para reordenar";
+"Sort providers alphabetically" = "Ordenar provedores alfabeticamente";
+"Sort providers alphabetically (enabled first)" = "Ordenar provedores alfabeticamente (ativados primeiro)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Ordenados alfabeticamente (ativados primeiro) — clique para usar sua ordem personalizada";
 "Endpoint" = "Endpoint";
 "Enterprise host" = "Host Enterprise";
 "Extra usage balance: %@" = "Saldo de uso extra: %@";

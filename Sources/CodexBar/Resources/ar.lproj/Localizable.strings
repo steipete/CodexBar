@@ -977,6 +977,9 @@
 "Day" = "اليوم";
 "Deployment" = "النشر";
 "Drag to reorder" = "سحب لإعادة ترتيب";
+"Sort providers alphabetically" = "فرز المزوّدين أبجديًا";
+"Sort providers alphabetically (enabled first)" = "فرز المزوّدين أبجديًا (المفعّلون أولاً)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "مرتّبة أبجديًا (المفعّلون أولاً) — انقر لاستخدام ترتيبك المخصّص";
 "Endpoint" = "نقطة النهاية";
 "Enterprise host" = "مضيف مؤسسي";
 "Extra usage balance: %@" = "توازن الاستخدام الإضافي: %@";

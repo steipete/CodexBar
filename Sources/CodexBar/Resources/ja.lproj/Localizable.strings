@@ -971,6 +971,9 @@
 "Day" = "日";
 "Deployment" = "デプロイメント";
 "Drag to reorder" = "ドラッグして並べ替え";
+"Sort providers alphabetically" = "プロバイダーをアルファベット順に並べ替え";
+"Sort providers alphabetically (enabled first)" = "プロバイダーをアルファベット順に並べ替え（有効なものを先頭）";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "アルファベット順（有効なものを先頭）— クリックしてカスタム順に戻す";
 "Endpoint" = "エンドポイント";
 "Enterprise host" = "Enterprise ホスト";
 "Extra usage balance: %@" = "追加使用量の残高: %@";

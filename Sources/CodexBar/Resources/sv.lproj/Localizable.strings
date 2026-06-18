@@ -936,6 +936,9 @@
 "Windsurf session JSON bundle" = "Windsurf-sessionspaket i JSON";
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Cursor-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Drag to reorder" = "Dra för att ändra ordning";
+"Sort providers alphabetically" = "Sortera leverantörer alfabetiskt";
+"Sort providers alphabetically (enabled first)" = "Sortera leverantörer alfabetiskt (aktiverade först)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Alfabetiskt sorterade (aktiverade först) — klicka för att använda din anpassade ordning";
 "cache-hit input" = "cacheträff-indata";
 "Automatically imports browser cookies." = "Importerar webbläsarcookies automatiskt.";
 "Open Volcengine Ark Console" = "Öppna Volcengine Ark-konsol";

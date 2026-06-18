@@ -945,6 +945,9 @@
 "Day" = "日期";
 "Deployment" = "部署";
 "Drag to reorder" = "拖动以重新排序";
+"Sort providers alphabetically" = "按字母顺序排列提供商";
+"Sort providers alphabetically (enabled first)" = "按字母顺序排列提供商（已启用的优先）";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "已按字母顺序排列（已启用的优先）— 点击使用自定义顺序";
 "Endpoint" = "端点";
 "Enterprise host" = "Enterprise 主机";
 "Extra usage balance: %@" = "额外使用量余额：%@";

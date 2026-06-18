@@ -138,7 +138,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `providers sorted alphabetically defaults on and persists`() throws {
+    func `providers sorted alphabetically defaults off and persists`() throws {
         let suite = "SettingsStoreTests-providers-sorted-alpha"
         let defaultsA = try #require(UserDefaults(suiteName: suite))
         defaultsA.removePersistentDomain(forName: suite)

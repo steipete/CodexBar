@@ -830,6 +830,9 @@
 "Day" = "Dia";
 "Deployment" = "Desplegament";
 "Drag to reorder" = "Arrossega per reordenar";
+"Sort providers alphabetically" = "Ordena els proveïdors alfabèticament";
+"Sort providers alphabetically (enabled first)" = "Ordena els proveïdors alfabèticament (els activats primer)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Ordenats alfabèticament (els activats primer) — fes clic per utilitzar l’ordre personalitzat";
 "Endpoint" = "Endpoint";
 "Enterprise host" = "Host Enterprise";
 "Extra usage balance: %@" = "Saldo d'ús extra: %@";

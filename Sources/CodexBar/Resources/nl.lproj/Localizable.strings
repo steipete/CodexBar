@@ -974,6 +974,9 @@
 "Day" = "Dag";
 "Deployment" = "Inzet";
 "Drag to reorder" = "Sleep om de volgorde te wijzigen";
+"Sort providers alphabetically" = "Providers alfabetisch sorteren";
+"Sort providers alphabetically (enabled first)" = "Providers alfabetisch sorteren (ingeschakelde eerst)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Alfabetisch gesorteerd (ingeschakelde eerst) — klik om je aangepaste volgorde te gebruiken";
 "Endpoint" = "Eindpunt";
 "Enterprise host" = "Enterprise-host";
 "Extra usage balance: %@" = "Extra gebruikssaldo: %@";

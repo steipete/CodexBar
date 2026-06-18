@@ -977,6 +977,9 @@
 "Day" = "วัน";
 "Deployment" = "การปรับใช้";
 "Drag to reorder" = "ลากเพื่อจัดลําดับใหม่";
+"Sort providers alphabetically" = "เรียงผู้ให้บริการตามตัวอักษร";
+"Sort providers alphabetically (enabled first)" = "เรียงผู้ให้บริการตามตัวอักษร (ที่เปิดใช้ก่อน)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "เรียงตามตัวอักษรแล้ว (ที่เปิดใช้ก่อน) — คลิกเพื่อใช้ลำดับที่กำหนดเอง";
 "Endpoint" = "ปลายทาง";
 "Enterprise host" = "โฮสต์องค์กร";
 "Extra usage balance: %@" = "ยอดการใช้งานเพิ่มเติม: %@";

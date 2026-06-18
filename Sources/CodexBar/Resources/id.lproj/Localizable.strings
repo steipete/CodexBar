@@ -979,6 +979,9 @@
 "Day" = "Hari";
 "Deployment" = "Deployment";
 "Drag to reorder" = "Seret untuk mengatur ulang";
+"Sort providers alphabetically" = "Urutkan penyedia menurut abjad";
+"Sort providers alphabetically (enabled first)" = "Urutkan penyedia menurut abjad (yang aktif lebih dulu)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Diurutkan menurut abjad (yang aktif lebih dulu) — klik untuk memakai urutan khusus";
 "Endpoint" = "Endpoint";
 "Enterprise host" = "Host enterprise";
 "Extra usage balance: %@" = "Saldo penggunaan ekstra: %@";

@@ -977,6 +977,9 @@
 "Day" = "روز";
 "Deployment" = "استقرار";
 "Drag to reorder" = "درگ برای بازآرایی";
+"Sort providers alphabetically" = "مرتب‌سازی ارائه‌دهندگان بر اساس حروف الفبا";
+"Sort providers alphabetically (enabled first)" = "مرتب‌سازی الفبایی ارائه‌دهندگان (فعال‌ها ابتدا)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "مرتب‌شده بر اساس حروف الفبا (فعال‌ها ابتدا) — برای استفاده از ترتیب سفارشی کلیک کنید";
 "Endpoint" = "نقطه پایان";
 "Enterprise host" = "میزبان سازمانی";
 "Extra usage balance: %@" = "تعادل استفاده اضافی: %@";

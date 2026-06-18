@@ -941,6 +941,9 @@
 "Day" = "일간";
 "Deployment" = "배포";
 "Drag to reorder" = "드래그하여 순서 변경";
+"Sort providers alphabetically" = "공급자를 알파벳순으로 정렬";
+"Sort providers alphabetically (enabled first)" = "공급자를 알파벳순으로 정렬(활성화 항목 우선)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "알파벳순으로 정렬됨(활성화 항목 우선) — 사용자 지정 순서를 사용하려면 클릭";
 "Endpoint" = "엔드포인트";
 "Enterprise host" = "엔터프라이즈 호스트";
 "Extra usage balance: %@" = "추가 사용량 잔액: %@";

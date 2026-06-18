@@ -974,6 +974,9 @@
 "Day" = "День";
 "Deployment" = "Розгортання";
 "Drag to reorder" = "Перетягніть, щоб змінити порядок";
+"Sort providers alphabetically" = "Сортувати постачальників за алфавітом";
+"Sort providers alphabetically (enabled first)" = "Сортувати постачальників за алфавітом (увімкнені спочатку)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Відсортовано за алфавітом (увімкнені спочатку) — натисніть, щоб використати власний порядок";
 "Endpoint" = "Кінцева точка";
 "Enterprise host" = "Корпоративний хост";
 "Extra usage balance: %@" = "Баланс додаткового використання: %@";

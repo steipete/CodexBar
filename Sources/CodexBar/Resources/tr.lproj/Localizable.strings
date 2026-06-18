@@ -974,6 +974,9 @@
 "Day" = "Gün";
 "Deployment" = "Dağıtım";
 "Drag to reorder" = "Yeniden sıralamak için sürükleyin";
+"Sort providers alphabetically" = "Sağlayıcıları alfabetik sırala";
+"Sort providers alphabetically (enabled first)" = "Sağlayıcıları alfabetik sırala (etkin olanlar önce)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Alfabetik sıralandı (etkin olanlar önce) — özel sıranızı kullanmak için tıklayın";
 "Endpoint" = "Uç nokta";
 "Enterprise host" = "Kurumsal sunucu";
 "Extra usage balance: %@" = "Ekstra kullanım bakiyesi: %@";

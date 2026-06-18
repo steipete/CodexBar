@@ -974,6 +974,9 @@
 "Day" = "Tag";
 "Deployment" = "Einsatz";
 "Drag to reorder" = "Zum Neuanordnen ziehen";
+"Sort providers alphabetically" = "Anbieter alphabetisch sortieren";
+"Sort providers alphabetically (enabled first)" = "Anbieter alphabetisch sortieren (aktivierte zuerst)";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "Alphabetisch sortiert (aktivierte zuerst) — klicken, um die eigene Reihenfolge zu verwenden";
 "Endpoint" = "Endpunkt";
 "Enterprise host" = "Unternehmenshost";
 "Extra usage balance: %@" = "Zusätzlicher Nutzungssaldo: %@";

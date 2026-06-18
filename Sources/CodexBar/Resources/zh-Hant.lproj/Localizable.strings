@@ -840,6 +840,9 @@
 "Day" = "日期";
 "Deployment" = "部署";
 "Drag to reorder" = "拖曳以重新排序";
+"Sort providers alphabetically" = "依字母順序排列供應商";
+"Sort providers alphabetically (enabled first)" = "依字母順序排列供應商（已啟用的優先）";
+"Sorted alphabetically (enabled first) — click to use your custom order" = "已依字母順序排列（已啟用的優先）— 按一下使用自訂順序";
 "Endpoint" = "端點";
 "Enterprise host" = "Enterprise 主機";
 "Extra usage balance: %@" = "額外使用量餘額：%@";
