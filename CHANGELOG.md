@@ -8,6 +8,7 @@
 - Display: add a Hide critters option for plain menu bar quota capsules. Thanks @elijahfriedman!
 
 ### Changed
+- Logging: skip message, metadata, and redaction work for filtered or disabled log destinations. Thanks @ProspectOre!
 - Linux CLI: accept an opt-in static SQLite library directory for musl builds. Thanks @Yuxin-Qiao!
 - Linux CLI: add musl source compatibility for static Linux SDK builds. Thanks @Yuxin-Qiao!
 - Cost history: resize the chart details to the hovered day's model breakdown instead of reserving the tallest day. Thanks @elijahfriedman!
