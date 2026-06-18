@@ -318,7 +318,7 @@ final class CLIEntryTests: XCTestCase {
         try Data("{}".utf8).write(to: invalidMiMoCache)
 
         XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .kilo))
-        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .codex))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .codex))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .kilo))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .grok))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .grok))
@@ -328,7 +328,7 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .ollama,
             environment: ["OLLAMA_API_KEY": "ollama-test"]))
-        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .codex,
             environment: ["OLLAMA_API_KEY": "ollama-test"]))

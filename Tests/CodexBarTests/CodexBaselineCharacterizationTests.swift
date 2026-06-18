@@ -143,9 +143,9 @@ struct CodexBaselineCharacterizationTests {
     }
 
     @Test
-    func `CLI auto pipeline order is web then OAuth then CLI`() async {
+    func `CLI auto pipeline order is OAuth then CLI without web`() async {
         let strategyIDs = await self.strategyIDs(runtime: .cli, sourceMode: .auto)
-        #expect(strategyIDs == ["codex.web.dashboard", "codex.oauth", "codex.cli"])
+        #expect(strategyIDs == ["codex.oauth", "codex.cli"])
     }
 
     @Test
@@ -292,7 +292,7 @@ struct CodexBaselineCharacterizationTests {
     }
 
     @Test
-    func `CLI auto records unavailable web and OAuth before successful CLI`() async throws {
+    func `CLI auto records unavailable OAuth before successful CLI`() async throws {
         let stubCLI = self.makeStubCodexCLI()
         let codexHome = try self.makeEmptyCodexHome()
         defer { try? FileManager.default.removeItem(at: codexHome) }
@@ -313,8 +313,8 @@ struct CodexBaselineCharacterizationTests {
             settings: settings,
             codexArguments: stubCLI.arguments)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["codex.web.dashboard", "codex.oauth", "codex.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth", "codex.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
 
         switch outcome.result {
         case let .success(result):
@@ -345,8 +345,8 @@ struct CodexBaselineCharacterizationTests {
             ],
             settings: settings)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["codex.web.dashboard", "codex.oauth"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
 
         switch outcome.result {
         case .success:
