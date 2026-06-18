@@ -299,6 +299,29 @@ public enum CookieHeaderCache {
         }
     }
 
+    static func loadSerialized(provider: UsageProvider, scope: Scope? = nil) -> Entry? {
+        do {
+            return try self.withLegacyMutationLock {
+                let key = self.key(for: provider, scope: scope)
+                switch KeychainCacheStore.load(key: key, as: Entry.self) {
+                case let .found(entry):
+                    return entry
+                case .temporarilyUnavailable:
+                    return nil
+                case .invalid:
+                    KeychainCacheStore.clear(key: key)
+                case .missing:
+                    break
+                }
+                guard scope == nil else { return nil }
+                return self.migrateLegacyEntryIfNeededLocked(provider: provider)
+            }
+        } catch {
+            self.log.error("Cookie cache serialized load failed: \(error)")
+            return nil
+        }
+    }
+
     private static func loadOutcome(
         provider: UsageProvider,
         scope: Scope?,
@@ -337,31 +360,35 @@ public enum CookieHeaderCache {
     private static func migrateLegacyEntryIfNeeded(provider: UsageProvider) -> Entry? {
         do {
             return try self.withLegacyMutationLock {
-                let key = self.key(for: provider, scope: nil)
-                switch KeychainCacheStore.load(key: key, as: Entry.self) {
-                case let .found(entry):
-                    _ = self.removeLegacyEntry(for: provider)
-                    return entry
-                case .temporarilyUnavailable:
-                    return nil
-                case .invalid:
-                    KeychainCacheStore.clear(key: key)
-                case .missing:
-                    break
-                }
-
-                guard let legacy = self.loadLegacyEntry(for: provider) else { return nil }
-                if KeychainCacheStore.storeResult(key: key, entry: legacy),
-                   self.removeLegacyEntry(for: provider) == .removed
-                {
-                    self.log.debug("Cookie cache migrated from legacy store", metadata: ["provider": provider.rawValue])
-                }
-                return legacy
+                self.migrateLegacyEntryIfNeededLocked(provider: provider)
             }
         } catch {
             self.log.error("Cookie cache migration lock failed: \(error)")
             return nil
         }
+    }
+
+    private static func migrateLegacyEntryIfNeededLocked(provider: UsageProvider) -> Entry? {
+        let key = self.key(for: provider, scope: nil)
+        switch KeychainCacheStore.load(key: key, as: Entry.self) {
+        case let .found(entry):
+            _ = self.removeLegacyEntry(for: provider)
+            return entry
+        case .temporarilyUnavailable:
+            return nil
+        case .invalid:
+            KeychainCacheStore.clear(key: key)
+        case .missing:
+            break
+        }
+
+        guard let legacy = self.loadLegacyEntry(for: provider) else { return nil }
+        if KeychainCacheStore.storeResult(key: key, entry: legacy),
+           self.removeLegacyEntry(for: provider) == .removed
+        {
+            self.log.debug("Cookie cache migrated from legacy store", metadata: ["provider": provider.rawValue])
+        }
+        return legacy
     }
 
     public static func store(
@@ -377,16 +404,12 @@ public enum CookieHeaderCache {
             return
         }
         let entry = Entry(cookieHeader: normalized, storedAt: now, sourceLabel: sourceLabel)
-        if scope == nil {
-            do {
-                try self.withLegacyMutationLock {
-                    self.store(entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel)
-                }
-            } catch {
-                self.log.error("Cookie cache store lock failed: \(error)")
+        do {
+            try self.withLegacyMutationLock {
+                self.store(entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel)
             }
-        } else {
-            self.store(entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel)
+        } catch {
+            self.log.error("Cookie cache store lock failed: \(error)")
         }
     }
 
@@ -411,17 +434,14 @@ public enum CookieHeaderCache {
     }
 
     public static func clearDetailed(provider: UsageProvider, scope: Scope? = nil) -> ClearSummary {
-        if scope == nil {
-            do {
-                return try self.withLegacyMutationLock {
-                    self.clearDetailedLocked(provider: provider, scope: scope)
-                }
-            } catch {
-                self.log.error("Cookie cache clear lock failed: \(error)")
-                return ClearSummary(clearedCount: 0, failedCount: 1)
+        do {
+            return try self.withLegacyMutationLock {
+                self.clearDetailedLocked(provider: provider, scope: scope)
             }
+        } catch {
+            self.log.error("Cookie cache clear lock failed: \(error)")
+            return ClearSummary(clearedCount: 0, failedCount: 1)
         }
-        return self.clearDetailedLocked(provider: provider, scope: scope)
     }
 
     private static func clearDetailedLocked(provider: UsageProvider, scope: Scope?) -> ClearSummary {

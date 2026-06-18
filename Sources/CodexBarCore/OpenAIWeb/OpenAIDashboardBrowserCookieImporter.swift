@@ -140,7 +140,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
         var diagnostics = ImportDiagnostics()
 
         if preferCachedCookieHeader {
-            if let cached = CookieHeaderCache.load(provider: .codex, scope: cacheScope),
+            let cached = try await Self.runBoundedCookieCacheOperation(deadline: deadline) {
+                CookieHeaderCache.loadSerialized(provider: .codex, scope: cacheScope)
+            }
+            if let cached,
                !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
                 log("Using cached cookie header from \(cached.sourceLabel)")
@@ -155,7 +158,13 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 } catch let error as ImportError {
                     switch error {
                     case .manualCookieHeaderInvalid, .noMatchingAccount, .dashboardStillRequiresLogin:
-                        CookieHeaderCache.clear(provider: .codex, scope: cacheScope)
+                        do {
+                            _ = try await Self.runBoundedCookieCacheOperation(deadline: deadline) {
+                                CookieHeaderCache.clear(provider: .codex, scope: cacheScope)
+                            }
+                        } catch {
+                            log("Stale cookie cache cleanup did not finish before the web deadline.")
+                        }
                     default:
                         throw error
                     }
@@ -424,7 +433,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 deadline: deadline,
                 logger: log)
             {
-                self.cacheCookies(candidate: candidate, scope: context.cacheScope)
+                await self.cacheCookies(
+                    candidate: candidate,
+                    scope: context.cacheScope,
+                    deadline: deadline,
+                    logger: log)
                 return result
             }
             _ = try Self.remainingTimeout(until: deadline)
@@ -447,7 +460,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 deadline: deadline,
                 logger: log)
             {
-                self.cacheCookies(candidate: candidate, scope: context.cacheScope)
+                await self.cacheCookies(
+                    candidate: candidate,
+                    scope: context.cacheScope,
+                    deadline: deadline,
+                    logger: log)
                 return result
             }
             _ = try Self.remainingTimeout(until: deadline)
@@ -460,7 +477,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
                     deadline: deadline,
                     logger: log)
                 {
-                    self.cacheCookies(candidate: candidate, scope: context.cacheScope)
+                    await self.cacheCookies(
+                        candidate: candidate,
+                        scope: context.cacheScope,
+                        deadline: deadline,
+                        logger: log)
                     return result
                 }
                 _ = try Self.remainingTimeout(until: deadline)
@@ -763,10 +784,26 @@ public struct OpenAIDashboardBrowserCookieImporter {
         return cookies
     }
 
-    private func cacheCookies(candidate: Candidate, scope: CookieHeaderCache.Scope?) {
+    private func cacheCookies(
+        candidate: Candidate,
+        scope: CookieHeaderCache.Scope?,
+        deadline: Date?,
+        logger: @escaping (String) -> Void) async
+    {
         let header = self.cookieHeader(from: candidate.cookies)
         guard !header.isEmpty else { return }
-        CookieHeaderCache.store(provider: .codex, scope: scope, cookieHeader: header, sourceLabel: candidate.label)
+        do {
+            _ = try await Self.runBoundedCookieCacheOperation(deadline: deadline) {
+                CookieHeaderCache.store(
+                    provider: .codex,
+                    scope: scope,
+                    cookieHeader: header,
+                    sourceLabel: candidate.label)
+                return true
+            }
+        } catch {
+            logger("Cookie cache write did not finish before the web deadline.")
+        }
     }
 
     private func cookieHeader(from cookies: [HTTPCookie]) -> String {

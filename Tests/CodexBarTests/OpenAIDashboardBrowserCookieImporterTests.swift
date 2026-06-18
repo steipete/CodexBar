@@ -33,6 +33,19 @@ private final class CookieCallbackFlag: @unchecked Sendable {
     }
 }
 
+private final class CookieOperationLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [String] = []
+
+    var snapshot: [String] {
+        self.lock.withLock { self.entries }
+    }
+
+    func append(_ entry: String) {
+        self.lock.withLock { self.entries.append(entry) }
+    }
+}
+
 struct OpenAIDashboardBrowserCookieImporterTests {
     @Test
     func `shared deadline clamps each local timeout to remaining budget`() throws {
@@ -94,6 +107,33 @@ struct OpenAIDashboardBrowserCookieImporterTests {
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
+    }
+
+    @Test
+    func `timed out cookie cache work stays ordered before retry`() async throws {
+        let log = CookieOperationLog()
+
+        do {
+            _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieCacheOperation(
+                deadline: Date().addingTimeInterval(0.05))
+            {
+                log.append("first-start")
+                Thread.sleep(forTimeInterval: 0.15)
+                log.append("first-end")
+                return true
+            }
+            Issue.record("Expected first cache operation timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+        }
+
+        _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieCacheOperation(
+            deadline: Date().addingTimeInterval(1))
+        {
+            log.append("second")
+            return true
+        }
+        #expect(log.snapshot == ["first-start", "first-end", "second"])
     }
 
     @Test @MainActor

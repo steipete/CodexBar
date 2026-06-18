@@ -8,6 +8,8 @@ extension OpenAIDashboardBrowserCookieImporter {
     }
 
     @MainActor private static var pendingCookieStoreMutations: [ObjectIdentifier: PendingCookieStoreMutation] = [:]
+    private nonisolated static let cookieCacheQueue = DispatchQueue(
+        label: "com.steipete.codexbar.openai-cookie-cache")
 
     private final class CookieLoadCompletion: @unchecked Sendable {
         private let lock = NSLock()
@@ -54,6 +56,15 @@ extension OpenAIDashboardBrowserCookieImporter {
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
                 completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
             }
+        }
+    }
+
+    nonisolated static func runBoundedCookieCacheOperation<T: Sendable>(
+        deadline: Date?,
+        operation: @escaping @Sendable () throws -> T) async throws -> T
+    {
+        try await self.runBoundedCookieLoad(deadline: deadline) {
+            try self.cookieCacheQueue.sync(execute: operation)
         }
     }
 

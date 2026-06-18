@@ -223,6 +223,33 @@ struct CookieHeaderCacheTests {
         #expect(loadedAgain?.cookieHeader == "auth=legacy")
     }
 
+    @Test
+    func `serialized load migrates legacy file to keychain`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let legacyBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBase)
+        defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
+
+        let provider: UsageProvider = .codex
+        let legacyURL = legacyBase.appendingPathComponent("\(provider.rawValue)-cookie.json")
+        CookieHeaderCache.store(
+            CookieHeaderCache.Entry(
+                cookieHeader: "auth=legacy",
+                storedAt: Date(timeIntervalSince1970: 0),
+                sourceLabel: "Legacy"),
+            to: legacyURL)
+
+        let loaded = CookieHeaderCache.loadSerialized(provider: provider)
+        defer { CookieHeaderCache.clear(provider: provider) }
+
+        #expect(loaded?.cookieHeader == "auth=legacy")
+        #expect(FileManager.default.fileExists(atPath: legacyURL.path) == false)
+        #expect(CookieHeaderCache.load(provider: provider)?.cookieHeader == "auth=legacy")
+    }
+
     #if os(macOS)
     @Test
     func `temporary keychain unavailability returns nil without migrating legacy file`() {
