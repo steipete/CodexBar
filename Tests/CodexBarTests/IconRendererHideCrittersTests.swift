@@ -10,23 +10,50 @@ struct IconRendererHideCrittersTests {
         try #require(image.tiffRepresentation)
     }
 
+    private func icon(style: IconStyle, weeklyRemaining: Double? = 40, hideCritters: Bool) -> NSImage {
+        IconRenderer.makeIcon(
+            primaryRemaining: 60,
+            weeklyRemaining: weeklyRemaining,
+            creditsRemaining: nil,
+            stale: false,
+            style: style,
+            hideCritters: hideCritters)
+    }
+
+    @Test(arguments: [
+        IconStyle.codex,
+        .claude,
+        .gemini,
+        .antigravity,
+        .factory,
+        .warp,
+    ])
+    func `hiding critters removes every decorated style twist`(style: IconStyle) throws {
+        let decorated = self.icon(style: style, hideCritters: false)
+        let plain = self.icon(style: style, hideCritters: true)
+
+        #expect(try self.pixels(decorated) != self.pixels(plain))
+    }
+
+    @Test(arguments: [
+        IconStyle.codex,
+        .claude,
+        .gemini,
+        .antigravity,
+        .factory,
+        .warp,
+    ])
+    func `hidden decorated styles match plain capsule bars`(style: IconStyle) throws {
+        let hidden = self.icon(style: style, hideCritters: true)
+        let reference = self.icon(style: .cursor, hideCritters: true)
+
+        #expect(try self.pixels(hidden) == self.pixels(reference))
+    }
+
     @Test
-    func `hiding critters changes the rendered bars for a decorated style`() throws {
-        // Codex draws a face on the top bar; hiding critters must suppress it.
-        let decorated = IconRenderer.makeIcon(
-            primaryRemaining: 60,
-            weeklyRemaining: 40,
-            creditsRemaining: nil,
-            stale: false,
-            style: .codex,
-            hideCritters: false)
-        let plain = IconRenderer.makeIcon(
-            primaryRemaining: 60,
-            weeklyRemaining: 40,
-            creditsRemaining: nil,
-            stale: false,
-            style: .codex,
-            hideCritters: true)
+    func `hiding critters removes warp eyes without weekly quota`() throws {
+        let decorated = self.icon(style: .warp, weeklyRemaining: nil, hideCritters: false)
+        let plain = self.icon(style: .warp, weeklyRemaining: nil, hideCritters: true)
 
         #expect(try self.pixels(decorated) != self.pixels(plain))
     }
@@ -34,20 +61,8 @@ struct IconRendererHideCrittersTests {
     @Test
     func `hiding critters is a no-op for an undecorated style`() throws {
         // Cursor has no critter twist, so the flag must not alter its bars.
-        let withFlag = IconRenderer.makeIcon(
-            primaryRemaining: 60,
-            weeklyRemaining: 40,
-            creditsRemaining: nil,
-            stale: false,
-            style: .cursor,
-            hideCritters: true)
-        let withoutFlag = IconRenderer.makeIcon(
-            primaryRemaining: 60,
-            weeklyRemaining: 40,
-            creditsRemaining: nil,
-            stale: false,
-            style: .cursor,
-            hideCritters: false)
+        let withFlag = self.icon(style: .cursor, hideCritters: true)
+        let withoutFlag = self.icon(style: .cursor, hideCritters: false)
 
         #expect(try self.pixels(withFlag) == self.pixels(withoutFlag))
     }
