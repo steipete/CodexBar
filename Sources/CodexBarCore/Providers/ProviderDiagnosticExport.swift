@@ -91,6 +91,15 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
     public let providerCostPresent: Bool
     public let providerSpecificData: [String]
 
+    private enum CodingKeys: String, CodingKey {
+        case updatedAt
+        case dataConfidence
+        case windows
+        case extraWindowCount
+        case providerCostPresent
+        case providerSpecificData
+    }
+
     public init(from snapshot: UsageSnapshot) {
         var windows: [ProviderDiagnosticRateWindow] = []
         if let primary = snapshot.primary {
@@ -128,6 +137,17 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         self.extraWindowCount = snapshot.extraRateWindows?.count ?? 0
         self.providerCostPresent = snapshot.providerCost != nil
         self.providerSpecificData = providerSpecificData.sorted()
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        self.dataConfidence = try container.decodeIfPresent(String.self, forKey: .dataConfidence)
+            ?? UsageDataConfidence.unknown.rawValue
+        self.windows = try container.decode([ProviderDiagnosticRateWindow].self, forKey: .windows)
+        self.extraWindowCount = try container.decode(Int.self, forKey: .extraWindowCount)
+        self.providerCostPresent = try container.decode(Bool.self, forKey: .providerCostPresent)
+        self.providerSpecificData = try container.decode([String].self, forKey: .providerSpecificData)
     }
 }
 

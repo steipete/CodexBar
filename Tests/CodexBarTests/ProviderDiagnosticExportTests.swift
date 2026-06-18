@@ -130,6 +130,28 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
+    func `diagnostic usage summary defaults legacy payloads to unknown confidence`() throws {
+        let json = """
+        {
+          "updatedAt": "2023-11-14T22:13:20Z",
+          "windows": [],
+          "extraWindowCount": 0,
+          "providerCostPresent": false,
+          "providerSpecificData": []
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let summary = try decoder.decode(
+            ProviderDiagnosticUsageSummary.self,
+            from: Data(json.utf8))
+
+        #expect(summary.dataConfidence == "unknown")
+        #expect(try self.json(summary).contains("\"dataConfidence\" : \"unknown\""))
+    }
+
+    @Test
     func `unwired provider diagnostics remain unknown confidence`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = MiniMaxUsageSnapshot(
