@@ -93,6 +93,30 @@ extension OpenAIDashboardBrowserCookieImporter {
         }
     }
 
+    static func runBoundedValueCallback<T: Sendable>(
+        deadline: Date?,
+        start: (@escaping @Sendable (T) -> Void) -> Void) async throws -> T
+    {
+        let completion = CookieLoadCompletion()
+        guard let deadline else {
+            return await withCheckedContinuation { continuation in
+                start { value in
+                    completion.finish { continuation.resume(returning: value) }
+                }
+            }
+        }
+
+        let timeout = try self.remainingTimeout(until: deadline)
+        return try await withCheckedThrowingContinuation { continuation in
+            start { value in
+                completion.finish { continuation.resume(returning: value) }
+            }
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+                completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
+            }
+        }
+    }
+
     static func runSerializedCallback(
         key: ObjectIdentifier,
         deadline: Date?,

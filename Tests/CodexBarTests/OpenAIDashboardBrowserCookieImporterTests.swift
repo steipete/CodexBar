@@ -154,6 +154,23 @@ struct OpenAIDashboardBrowserCookieImporterTests {
     }
 
     @Test @MainActor
+    func `stalled value callback cannot exceed shared deadline`() async {
+        let start = Date()
+
+        do {
+            let _: [String] = try await OpenAIDashboardBrowserCookieImporter.runBoundedValueCallback(
+                deadline: start.addingTimeInterval(0.05))
+            { _ in }
+            Issue.record("Expected value callback timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+            #expect(Date().timeIntervalSince(start) < 0.3)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test @MainActor
     func `retry waits for timed out cookie store mutation`() async throws {
         let keyOwner = NSObject()
         let key = ObjectIdentifier(keyOwner)

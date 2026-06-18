@@ -227,7 +227,7 @@ public struct OpenAIDashboardFetcher {
         timeout: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
         let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
-        let preflight = await Self.fetchDashboardAPIPreflight(
+        let preflight = try await Self.fetchDashboardAPIPreflight(
             websiteDataStore: websiteDataStore,
             deadline: deadline,
             logger: { logger?($0) })
@@ -713,9 +713,9 @@ public struct OpenAIDashboardFetcher {
         websiteDataStore: WKWebsiteDataStore,
         deadline: Date,
         logger: @escaping (String) -> Void)
-        async -> (apiData: DashboardAPIData?, verifiedSignedInEmail: String?)
+        async throws -> (apiData: DashboardAPIData?, verifiedSignedInEmail: String?)
     {
-        let cookieHeader = await self.chatGPTCookieHeader(in: websiteDataStore)
+        let cookieHeader = try await self.chatGPTCookieHeader(in: websiteDataStore, deadline: deadline)
         let apiData = await self.fetchDashboardUsageAPI(
             cookieHeader: cookieHeader,
             deadline: deadline,
@@ -739,7 +739,9 @@ public struct OpenAIDashboardFetcher {
         websiteDataStore: WKWebsiteDataStore,
         logger: @escaping (String) -> Void) async -> DashboardAPIData?
     {
-        let cookieHeader = await self.chatGPTCookieHeader(in: websiteDataStore)
+        guard let cookieHeader = try? await self.chatGPTCookieHeader(in: websiteDataStore, deadline: nil) else {
+            return nil
+        }
         return await self.fetchDashboardUsageAPI(cookieHeader: cookieHeader, deadline: nil, logger: logger)
     }
 
@@ -805,11 +807,11 @@ public struct OpenAIDashboardFetcher {
         return nil
     }
 
-    private static func chatGPTCookieHeader(in store: WKWebsiteDataStore) async -> String {
-        let cookies = await withCheckedContinuation { continuation in
-            store.httpCookieStore.getAllCookies { cookies in
-                continuation.resume(returning: cookies)
-            }
+    private static func chatGPTCookieHeader(in store: WKWebsiteDataStore, deadline: Date?) async throws -> String {
+        let cookies = try await OpenAIDashboardBrowserCookieImporter.runBoundedValueCallback(
+            deadline: deadline)
+        { completion in
+            store.httpCookieStore.getAllCookies(completion)
         }
 
         return cookies
