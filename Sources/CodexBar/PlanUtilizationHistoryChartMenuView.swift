@@ -246,18 +246,23 @@ struct PlanUtilizationHistoryChartMenuView: View {
         guard let snapshot else { return nil }
 
         var names: Set<PlanUtilizationSeriesName> = []
-        if snapshot.primary != nil {
-            names.insert(.session)
-        }
-        if snapshot.secondary != nil {
+        switch provider {
+        case .codex:
+            if snapshot.primary != nil { names.insert(.session) }
+            if snapshot.secondary != nil { names.insert(.weekly) }
+        case .claude:
+            if snapshot.primary != nil { names.insert(.session) }
+            if snapshot.secondary != nil { names.insert(.weekly) }
+            if snapshot.tertiary != nil,
+               ProviderDescriptorRegistry.metadata[provider]?.supportsOpus == true
+            {
+                names.insert(.opus)
+            }
+        default:
+            let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
+                + (snapshot.extraRateWindows?.map(\.window) ?? [])
+            guard windows.contains(where: { $0.windowMinutes == 7 * 24 * 60 }) else { return nil }
             names.insert(.weekly)
-        }
-
-        if provider == .claude,
-           snapshot.tertiary != nil,
-           ProviderDescriptorRegistry.metadata[provider]?.supportsOpus == true
-        {
-            names.insert(.opus)
         }
 
         return names

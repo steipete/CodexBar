@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
@@ -22,5 +23,30 @@ struct PlanUtilizationHistoryChartMenuViewTests {
         ])
 
         #expect(merged == [first, second])
+    }
+
+    @Test
+    func `generic primary weekly window keeps weekly history visible`() {
+        let history = PlanUtilizationSeriesHistory(
+            name: .weekly,
+            windowMinutes: 10080,
+            entries: [
+                PlanUtilizationHistoryEntry(
+                    capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    usedPercent: 42,
+                    resetsAt: nil),
+            ])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 42, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let model = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: [history],
+            provider: .zai,
+            snapshot: snapshot)
+
+        #expect(model.visibleSeries == ["weekly:10080"])
+        #expect(model.selectedSeries == "weekly:10080")
     }
 }

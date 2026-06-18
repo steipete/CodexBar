@@ -18,7 +18,7 @@ extension UsageStore {
         default:
             if self.planUtilizationHistory[provider]?.isEmpty == false {
                 true
-            } else if let snapshot = self.snapshots[provider] {
+            } else if self.settings.historicalTrackingEnabled, let snapshot = self.snapshots[provider] {
                 !self.planUtilizationSeriesSamples(
                     provider: provider,
                     snapshot: snapshot,
@@ -138,6 +138,7 @@ extension UsageStore {
                 samples: samples)
         }
 
+        guard self.shouldRecordPlanUtilizationHistory(for: provider) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
 
         var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?
@@ -168,6 +169,15 @@ extension UsageStore {
 
         guard let snapshotToPersist else { return }
         await self.planUtilizationPersistenceCoordinator.enqueue(snapshotToPersist)
+    }
+
+    private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
+        switch provider {
+        case .codex, .claude:
+            true
+        default:
+            self.settings.historicalTrackingEnabled
+        }
     }
 
     private nonisolated static func updatedPlanUtilizationHistories(

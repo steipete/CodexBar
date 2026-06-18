@@ -1074,6 +1074,47 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `generic history opt in controls recording while saved history stays visible`() async throws {
+        let store = Self.makeStore()
+        let firstDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let before = UsageSnapshot(
+            primary: RateWindow(usedPercent: 42, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: firstDate)
+        store._setSnapshotForTesting(before, provider: .zai)
+        let providerURL = try #require(store.planUtilizationHistoryStore.directoryURL?
+            .appendingPathComponent("zai.json", isDirectory: false))
+
+        #expect(store.settings.historicalTrackingEnabled == false)
+        #expect(store.supportsPlanUtilizationHistory(for: .zai) == false)
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: before, now: before.updatedAt)
+        #expect(store.planUtilizationHistory(for: .zai).isEmpty)
+        #expect(FileManager.default.fileExists(atPath: providerURL.path) == false)
+
+        store.settings.historicalTrackingEnabled = true
+        #expect(store.supportsPlanUtilizationHistory(for: .zai))
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: before, now: before.updatedAt)
+        #expect(findSeries(store.planUtilizationHistory(for: .zai), name: .weekly, windowMinutes: 10080)?
+            .entries.map(\.usedPercent) == [42])
+
+        store.settings.historicalTrackingEnabled = false
+        #expect(store.supportsPlanUtilizationHistory(for: .zai))
+        let after = UsageSnapshot(
+            primary: RateWindow(usedPercent: 58, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: firstDate.addingTimeInterval(3600))
+        await store.recordPlanUtilizationHistorySample(provider: .zai, snapshot: after, now: after.updatedAt)
+        #expect(findSeries(store.planUtilizationHistory(for: .zai), name: .weekly, windowMinutes: 10080)?
+            .entries.map(\.usedPercent) == [42])
+
+        for _ in 0..<20 where !FileManager.default.fileExists(atPath: providerURL.path) {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        #expect(FileManager.default.fileExists(atPath: providerURL.path))
+    }
+
+    @MainActor
+    @Test
     func `concurrent plan history writes coalesce within single hour bucket per series`() async throws {
         let store = Self.makeStore()
         let snapshot = Self.makeSnapshot(provider: .codex, email: "alice@example.com")
