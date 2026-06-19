@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct EnvironmentalImpactSectionView: View {
-    let lines: [String]
+    let lines: [UsageMenuCardView.Model.EnvironmentalImpactLine]
     let hintLine: String?
     let textFont: Font
 
@@ -20,8 +20,8 @@ struct EnvironmentalImpactSectionView: View {
                 }
                 .padding(.top, 4)
 
-                ForEach(self.lines, id: \.self) { line in
-                    Text(line)
+                ForEach(self.lines) { line in
+                    Text(line.text)
                         .font(self.textFont)
                 }
 

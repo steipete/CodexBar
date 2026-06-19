@@ -50,4 +50,17 @@ struct EnvironmentalImpactTests {
         #expect(UsageFormatter.formatCO2(1.52) == "1.5 kg")
         #expect(UsageFormatter.formatCO2(12.45) == "12 kg")
     }
+
+    @Test
+    func environmentalRowsKeepStableIdentityWhenTextMatches() {
+        let duplicateText = "Today: 1.5 Wh (0 phone charges / 0 kettle boils)"
+        let rows = [
+            UsageMenuCardView.Model.EnvironmentalImpactLine(id: .energyToday, text: duplicateText),
+            UsageMenuCardView.Model.EnvironmentalImpactLine(id: .energyWindow, text: duplicateText),
+        ]
+
+        #expect(rows.map(\.text) == [duplicateText, duplicateText])
+        #expect(rows.map(\.id) == [.energyToday, .energyWindow])
+        #expect(Set(rows.map(\.id)).count == rows.count)
+    }
 }

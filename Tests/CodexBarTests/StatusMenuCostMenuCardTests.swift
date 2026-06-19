@@ -29,16 +29,23 @@ struct StatusMenuCostMenuCardTests {
 
     @Test
     func `cost menu tooltip preserves hint and error details`() {
+        let environmentalLines = [
+            UsageMenuCardView.Model.EnvironmentalImpactLine(id: .energyToday, text: "Today: 1 Wh"),
+            UsageMenuCardView.Model.EnvironmentalImpactLine(id: .energyWindow, text: "Today: 1 Wh"),
+        ]
         let tokenUsage = UsageMenuCardView.Model.TokenUsageSection(
             sessionLine: "Today: $1.00",
             monthLine: "Last 30 days: $9.00",
             hintLine: "Costs are estimated from local usage.",
             errorLine: "Cost refresh failed.",
-            errorCopyText: nil)
+            errorCopyText: nil,
+            environmentalImpactLines: environmentalLines)
 
         #expect(StatusItemController.costMenuTooltipLines(tokenUsage: tokenUsage) == [
             "Today: $1.00",
             "Last 30 days: $9.00",
+            "Today: 1 Wh",
+            "Today: 1 Wh",
             "Costs are estimated from local usage.",
             "Cost refresh failed.",
         ])

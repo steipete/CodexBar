@@ -57,42 +57,41 @@ extension UsageMenuCardView.Model {
             return "\(windowLabel): \(monthCost)"
         }()
 
-        let energySessionLine: String?
-        let co2SessionLine: String?
+        var environmentalImpactLines: [EnvironmentalImpactLine] = []
         if let sTokens = snapshot.sessionTokens {
             let impact = EnvironmentalImpact(tokens: sTokens)
-            energySessionLine = L(
-                "environmental_impact_energy_today",
-                UsageFormatter.formatEnergy(impact.energyKWh),
-                impact.smartphoneCharges,
-                impact.kettleBoils)
-            co2SessionLine = L(
-                "environmental_impact_co2_today",
-                UsageFormatter.formatCO2(impact.co2Kg),
-                impact.carKm)
-        } else {
-            energySessionLine = nil
-            co2SessionLine = nil
+            environmentalImpactLines.append(EnvironmentalImpactLine(
+                id: .energyToday,
+                text: L(
+                    "environmental_impact_energy_today",
+                    UsageFormatter.formatEnergy(impact.energyKWh),
+                    impact.smartphoneCharges,
+                    impact.kettleBoils)))
+            environmentalImpactLines.append(EnvironmentalImpactLine(
+                id: .co2Today,
+                text: L(
+                    "environmental_impact_co2_today",
+                    UsageFormatter.formatCO2(impact.co2Kg),
+                    impact.carKm)))
         }
 
-        let energyMonthLine: String?
-        let co2MonthLine: String?
         if let mTokens = monthTokensValue {
             let impact = EnvironmentalImpact(tokens: mTokens)
-            energyMonthLine = L(
-                "environmental_impact_energy_month",
-                windowLabel,
-                UsageFormatter.formatEnergy(impact.energyKWh),
-                impact.smartphoneCharges,
-                impact.kettleBoils)
-            co2MonthLine = L(
-                "environmental_impact_co2_month",
-                windowLabel,
-                UsageFormatter.formatCO2(impact.co2Kg),
-                impact.carKm)
-        } else {
-            energyMonthLine = nil
-            co2MonthLine = nil
+            environmentalImpactLines.append(EnvironmentalImpactLine(
+                id: .energyWindow,
+                text: L(
+                    "environmental_impact_energy_month",
+                    windowLabel,
+                    UsageFormatter.formatEnergy(impact.energyKWh),
+                    impact.smartphoneCharges,
+                    impact.kettleBoils)))
+            environmentalImpactLines.append(EnvironmentalImpactLine(
+                id: .co2Window,
+                text: L(
+                    "environmental_impact_co2_month",
+                    windowLabel,
+                    UsageFormatter.formatCO2(impact.co2Kg),
+                    impact.carKm)))
         }
 
         let err = (error?.isEmpty ?? true) ? nil : error
@@ -102,10 +101,7 @@ extension UsageMenuCardView.Model {
             hintLine: Self.tokenUsageHint(provider: provider),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error,
-            energySessionLine: energySessionLine,
-            co2SessionLine: co2SessionLine,
-            energyMonthLine: energyMonthLine,
-            co2MonthLine: co2MonthLine,
+            environmentalImpactLines: environmentalImpactLines,
             environmentalImpactHintLine: L("environmental_impact_hint"))
     }
 

@@ -429,28 +429,10 @@ struct ProviderMetricsInlineView: View {
                         title: "",
                         value: tokenUsage.monthLine,
                         labelWidth: self.labelWidth)
-                    if let energySession = tokenUsage.energySessionLine {
+                    ForEach(Array(tokenUsage.environmentalImpactLines.enumerated()), id: \.element.id) { index, line in
                         ProviderMetricInlineTextRow(
-                            title: L("Eco"),
-                            value: energySession,
-                            labelWidth: self.labelWidth)
-                    }
-                    if let co2Session = tokenUsage.co2SessionLine {
-                        ProviderMetricInlineTextRow(
-                            title: "",
-                            value: co2Session,
-                            labelWidth: self.labelWidth)
-                    }
-                    if let energyMonth = tokenUsage.energyMonthLine {
-                        ProviderMetricInlineTextRow(
-                            title: "",
-                            value: energyMonth,
-                            labelWidth: self.labelWidth)
-                    }
-                    if let co2Month = tokenUsage.co2MonthLine {
-                        ProviderMetricInlineTextRow(
-                            title: "",
-                            value: co2Month,
+                            title: index == 0 ? L("Eco") : "",
+                            value: line.text,
                             labelWidth: self.labelWidth)
                     }
                 }

@@ -24,18 +24,7 @@ extension StatusItemController {
         if let tokenUsage {
             lines.append(tokenUsage.sessionLine)
             lines.append(tokenUsage.monthLine)
-            if let energySession = tokenUsage.energySessionLine {
-                lines.append(energySession)
-            }
-            if let co2Session = tokenUsage.co2SessionLine {
-                lines.append(co2Session)
-            }
-            if let energyMonth = tokenUsage.energyMonthLine {
-                lines.append(energyMonth)
-            }
-            if let co2Month = tokenUsage.co2MonthLine {
-                lines.append(co2Month)
-            }
+            lines.append(contentsOf: tokenUsage.environmentalImpactLines.map(\.text))
             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                 lines.append(hint)
             }

@@ -81,16 +81,25 @@ struct UsageMenuCardView: View {
             case error
         }
 
+        struct EnvironmentalImpactLine: Identifiable, Equatable {
+            enum ID: String, CaseIterable {
+                case energyToday
+                case co2Today
+                case energyWindow
+                case co2Window
+            }
+
+            let id: ID
+            let text: String
+        }
+
         struct TokenUsageSection {
             let sessionLine: String
             let monthLine: String
             let hintLine: String?
             let errorLine: String?
             let errorCopyText: String?
-            let energySessionLine: String?
-            let co2SessionLine: String?
-            let energyMonthLine: String?
-            let co2MonthLine: String?
+            let environmentalImpactLines: [EnvironmentalImpactLine]
             let environmentalImpactHintLine: String?
 
             init(
@@ -99,10 +108,7 @@ struct UsageMenuCardView: View {
                 hintLine: String? = nil,
                 errorLine: String? = nil,
                 errorCopyText: String? = nil,
-                energySessionLine: String? = nil,
-                co2SessionLine: String? = nil,
-                energyMonthLine: String? = nil,
-                co2MonthLine: String? = nil,
+                environmentalImpactLines: [EnvironmentalImpactLine] = [],
                 environmentalImpactHintLine: String? = nil)
             {
                 self.sessionLine = sessionLine
@@ -110,22 +116,8 @@ struct UsageMenuCardView: View {
                 self.hintLine = hintLine
                 self.errorLine = errorLine
                 self.errorCopyText = errorCopyText
-                self.energySessionLine = energySessionLine
-                self.co2SessionLine = co2SessionLine
-                self.energyMonthLine = energyMonthLine
-                self.co2MonthLine = co2MonthLine
+                self.environmentalImpactLines = environmentalImpactLines
                 self.environmentalImpactHintLine = environmentalImpactHintLine
-            }
-
-            var environmentalImpactLines: [String] {
-                [
-                    self.energySessionLine,
-                    self.co2SessionLine,
-                    self.energyMonthLine,
-                    self.co2MonthLine,
-                ]
-                    .compactMap(\.self)
-                    .filter { !$0.isEmpty }
             }
         }
 
