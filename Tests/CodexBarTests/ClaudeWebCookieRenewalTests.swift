@@ -98,6 +98,52 @@ struct ClaudeWebCookieRenewalTests {
         }
     }
 
+    @Test
+    func `renewal can return to initial session key`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-initial-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let usageCookies = RequestHeaderLog()
+            let overageCookies = RequestHeaderLog()
+            let accountCookies = RequestHeaderLog()
+
+            try await self.withClaudeWebStub { request in
+                let path = request.url?.path
+                switch path {
+                case "/api/organizations/org-123/usage":
+                    usageCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                case "/api/organizations/org-123/overage_spend_limit":
+                    overageCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                case "/api/account":
+                    accountCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                default:
+                    break
+                }
+                let setCookie: String? = switch path {
+                case "/api/organizations":
+                    "sessionKey=sk-ant-intermediate-token; Path=/; HttpOnly"
+                case "/api/organizations/org-123/usage":
+                    "sessionKey=sk-ant-initial-token; Path=/; HttpOnly"
+                default:
+                    nil
+                }
+                return try Self.response(for: request, setCookie: setCookie)
+            } operation: {
+                _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+
+                #expect(usageCookies.values == ["sessionKey=sk-ant-intermediate-token"])
+                #expect(overageCookies.values == ["sessionKey=sk-ant-initial-token"])
+                #expect(accountCookies.values == ["sessionKey=sk-ant-initial-token"])
+                let cached = try #require(CookieHeaderCache.load(provider: .claude))
+                #expect(cached.cookieHeader == "sessionKey=sk-ant-initial-token")
+                #expect(cached.sourceLabel == "Chrome")
+            }
+        }
+    }
+
     private static let renewedSessionCookie =
         "sessionKey=sk-ant-renewed-token; Path=/; HttpOnly; Secure; SameSite=Lax"
 

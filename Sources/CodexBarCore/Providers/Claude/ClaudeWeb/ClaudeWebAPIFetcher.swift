@@ -965,8 +965,7 @@ private final class ClaudeWebSessionKeyRenewalTracker: @unchecked Sendable {
 
     func observe(response: HTTPURLResponse) {
         guard response.statusCode == 200,
-              let sessionKey = Self.sessionKey(fromSetCookieHeaders: response.allHeaderFields),
-              sessionKey != self.initialSessionKey
+              let sessionKey = Self.sessionKey(fromSetCookieHeaders: response.allHeaderFields)
         else {
             return
         }
