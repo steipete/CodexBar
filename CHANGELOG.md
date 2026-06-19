@@ -16,6 +16,7 @@
 - Display: add a Hide critters option for plain menu bar quota capsules. Thanks @elijahfriedman!
 
 ### Changed
+- Packaging: strip local symbols from release executables to reduce the installed app and download size. Thanks @jieshu666!
 - Logging: skip message, metadata, and redaction work for filtered or disabled log destinations. Thanks @ProspectOre!
 - Cost history: cache date parsers per thread to reduce repeated report-decoding overhead. Thanks @ProspectOre!
 - Linux CLI: accept an opt-in static SQLite library directory for musl builds. Thanks @Yuxin-Qiao!
