@@ -156,11 +156,13 @@ extension CodexBarCLI {
         }
 
         var modes: [String] = []
-        if account != nil {
+        if account != nil, provider != .rovodev {
             modes.append("tokenAccount")
         }
         let hasConfigAPIAuth = if provider == .bedrock {
             config?.sanitizedAPIKey != nil && config?.sanitizedSecretKey != nil
+        } else if provider == .rovodev {
+            config?.sanitizedAPIKey != nil && config?.sanitizedWorkspaceID != nil
         } else {
             config?.sanitizedAPIKey != nil || config?.sanitizedSecretKey != nil
         }
@@ -244,6 +246,9 @@ extension CodexBarCLI {
             OpenAIAPISettingsReader.apiKey(environment: environment) != nil
         case .openrouter:
             OpenRouterSettingsReader.apiToken(environment: environment) != nil
+        case .rovodev:
+            RovoDevSettingsReader.apiToken(environment: environment) != nil &&
+                RovoDevSettingsReader.email(environment: environment) != nil
         case .stepfun:
             StepFunSettingsReader.token(environment: environment) != nil
         case .synthetic:

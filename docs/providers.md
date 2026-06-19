@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 53 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 54 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -73,6 +73,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
+| Rovo Dev | Experimental Atlassian email + API token → monthly credit usage service (`api`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -413,6 +414,16 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Reads subscription usage first, then fills missing rolling, monthly, or pay-as-you-go quota data from the quota APIs.
 - Uses Chutes' management API at `https://api.chutes.ai`; `CHUTES_API_URL` can override it with an HTTPS endpoint.
 - Details: `docs/chutes.md`.
+
+## Rovo Dev
+
+- Auth: Atlassian email + scoped Rovo Dev API token (only `read:rovodev:limits`) via HTTP Basic, configured in **Settings → Providers → Rovo Dev** or via `ROVODEV_EMAIL` + `ROVODEV_API_TOKEN`.
+- Reads monthly credit usage from the undocumented `GET https://api.atlassian.com/rovodev/v3/credits/check`
+  service endpoint; compatibility may change without notice.
+- Displays: credits used / total, account status (Active / Rate Limited / Blocked).
+- Plans: Rovo Dev Free (350 credits/user/month/site), Rovo Dev Standard (2,000 credits/user/month).
+- Status: `https://status.atlassian.com` (link only, no auto-polling).
+- Details: `docs/rovodev.md`.
 
 ## StepFun
 - Username/password login or manual Oasis-Token.

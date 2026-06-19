@@ -6,8 +6,8 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
-        if let env = self.applyDedicatedProviderOverrides(base: base, provider: provider, config: config) {
-            return env
+        if let overrides = self.applyProviderSpecificOverrides(base: base, provider: provider, config: config) {
+            return overrides
         }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
@@ -50,6 +50,31 @@ public enum ProviderConfigEnvironment {
         return env
     }
 
+    private static func applyProviderSpecificOverrides(
+        base: [String: String],
+        provider: UsageProvider,
+        config: ProviderConfig?) -> [String: String]?
+    {
+        switch provider {
+        case .openai:
+            self.applyOpenAIOverrides(base: base, config: config)
+        case .bedrock:
+            self.applyBedrockOverrides(base: base, config: config)
+        case .deepgram:
+            self.applyDeepgramOverrides(base: base, config: config)
+        case .rovodev:
+            self.applyRovoDevOverrides(base: base, config: config)
+        case .llmproxy, .litellm:
+            self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
+        case .azureopenai:
+            self.applyAzureOpenAIOverrides(base: base, config: config)
+        case .kimi:
+            self.applyKimiOverrides(base: base, config: config)
+        default:
+            nil
+        }
+    }
+
     public static func supportsAPIKeyOverride(for provider: UsageProvider) -> Bool {
         if self.directAPIKeyEnvironmentKey(for: provider) != nil { return true }
         switch provider {
@@ -75,29 +100,6 @@ public enum ProviderConfigEnvironment {
 
     private static func supportsAPIKeyAndBaseURLOverride(_ provider: UsageProvider) -> Bool {
         self.baseURLEnvironmentKey(for: provider) != nil
-    }
-
-    private static func applyDedicatedProviderOverrides(
-        base: [String: String],
-        provider: UsageProvider,
-        config: ProviderConfig?) -> [String: String]?
-    {
-        switch provider {
-        case .openai:
-            self.applyOpenAIOverrides(base: base, config: config)
-        case .bedrock:
-            self.applyBedrockOverrides(base: base, config: config)
-        case .deepgram:
-            self.applyDeepgramOverrides(base: base, config: config)
-        case .llmproxy, .litellm:
-            self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
-        case .azureopenai:
-            self.applyAzureOpenAIOverrides(base: base, config: config)
-        case .kimi:
-            self.applyKimiOverrides(base: base, config: config)
-        default:
-            nil
-        }
     }
 
     private static func directAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
@@ -138,7 +140,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm:
+        case .chutes, .poe, .litellm, .rovodev:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -153,9 +155,26 @@ public enum ProviderConfigEnvironment {
             PoeSettingsReader.apiKeyEnvironmentKey
         case .litellm:
             LiteLLMSettingsReader.apiKeyEnvironmentKey
+        case .rovodev:
+            RovoDevSettingsReader.apiTokenEnvironmentKey
         default:
             nil
         }
+    }
+
+    private static func applyRovoDevOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let apiKey = config.sanitizedAPIKey {
+            env[RovoDevSettingsReader.apiTokenEnvironmentKey] = apiKey
+        }
+        if let email = config.sanitizedWorkspaceID {
+            env[RovoDevSettingsReader.emailEnvironmentKey] = email
+        }
+        return env
     }
 
     private static func applyOpenAIOverrides(

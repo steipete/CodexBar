@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBarCLI
 
@@ -97,6 +98,67 @@ struct CLIDiagnoseCommandTests {
 
         #expect(summary.configured)
         #expect(summary.modes == ["api"])
+    }
+
+    @Test
+    func `generic diagnose auth summary requires complete Rovo Dev credentials`() {
+        let partialEnvironment = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .rovodev,
+            account: nil,
+            config: nil,
+            environment: [RovoDevSettingsReader.apiTokenEnvironmentKey: "rovo-test"],
+            settings: nil)
+        #expect(!partialEnvironment.configured)
+        #expect(partialEnvironment.modes.isEmpty)
+
+        let completeEnvironment = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .rovodev,
+            account: nil,
+            config: nil,
+            environment: [
+                RovoDevSettingsReader.apiTokenEnvironmentKey: "rovo-test",
+                RovoDevSettingsReader.emailEnvironmentKey: "user@example.com",
+            ],
+            settings: nil)
+        #expect(completeEnvironment.configured)
+        #expect(completeEnvironment.modes == ["api"])
+
+        let partialConfig = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .rovodev,
+            account: nil,
+            config: ProviderConfig(id: .rovodev, apiKey: "rovo-test"),
+            environment: [:],
+            settings: nil)
+        #expect(!partialConfig.configured)
+        #expect(partialConfig.modes.isEmpty)
+
+        let completeConfig = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .rovodev,
+            account: nil,
+            config: ProviderConfig(id: .rovodev, apiKey: "rovo-test", workspaceID: "user@example.com"),
+            environment: [:],
+            settings: nil)
+        #expect(completeConfig.configured)
+        #expect(completeConfig.modes == ["api"])
+    }
+
+    @Test
+    func `generic diagnose auth summary ignores unsupported Rovo Dev token accounts`() {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "user@example.com",
+            token: "rovo-test",
+            addedAt: 0,
+            lastUsed: nil)
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .rovodev,
+            account: account,
+            config: nil,
+            environment: [:],
+            settings: nil)
+
+        #expect(!summary.configured)
+        #expect(summary.modes.isEmpty)
     }
 
     @Test
