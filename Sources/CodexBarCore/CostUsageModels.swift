@@ -7,6 +7,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let last30DaysCostUSD: Double?
     public let historyDays: Int
     public let daily: [CostUsageDailyReport.Entry]
+    public let sessionDay: CostUsageDailyReport.Entry?
     public let updatedAt: Date
 
     public init(
@@ -16,6 +17,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         last30DaysCostUSD: Double?,
         historyDays: Int = 30,
         daily: [CostUsageDailyReport.Entry],
+        sessionDay: CostUsageDailyReport.Entry? = nil,
         updatedAt: Date)
     {
         self.sessionTokens = sessionTokens
@@ -24,7 +26,27 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.last30DaysCostUSD = last30DaysCostUSD
         self.historyDays = historyDays
         self.daily = daily
+        self.sessionDay = sessionDay
         self.updatedAt = updatedAt
+    }
+
+    public var monthBreakdowns: [CostUsageDailyReport.ModelBreakdown] {
+        var combined: [String: CostUsageDailyReport.ModelBreakdown] = [:]
+        for entry in self.daily {
+            for breakdown in entry.modelBreakdowns ?? [] {
+                if let existing = combined[breakdown.modelName] {
+                    let newTokens = (existing.totalTokens ?? 0) + (breakdown.totalTokens ?? 0)
+                    let newCost = (existing.costUSD ?? 0) + (breakdown.costUSD ?? 0)
+                    combined[breakdown.modelName] = CostUsageDailyReport.ModelBreakdown(
+                        modelName: breakdown.modelName,
+                        costUSD: existing.costUSD != nil || breakdown.costUSD != nil ? newCost : nil,
+                        totalTokens: existing.totalTokens != nil || breakdown.totalTokens != nil ? newTokens : nil)
+                } else {
+                    combined[breakdown.modelName] = breakdown
+                }
+            }
+        }
+        return Array(combined.values).sorted { $0.modelName < $1.modelName }
     }
 }
 

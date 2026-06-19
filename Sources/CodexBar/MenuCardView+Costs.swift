@@ -58,40 +58,45 @@ extension UsageMenuCardView.Model {
         }()
 
         var environmentalImpactLines: [EnvironmentalImpactLine] = []
-        if let sTokens = snapshot.sessionTokens {
-            let impact = EnvironmentalImpact(tokens: sTokens)
-            environmentalImpactLines.append(EnvironmentalImpactLine(
-                id: .energyToday,
-                text: L(
-                    "environmental_impact_energy_today",
-                    UsageFormatter.formatEnergy(impact.energyKWh),
-                    impact.smartphoneCharges,
-                    impact.kettleBoils)))
-            environmentalImpactLines.append(EnvironmentalImpactLine(
-                id: .co2Today,
-                text: L(
-                    "environmental_impact_co2_today",
-                    UsageFormatter.formatCO2(impact.co2Kg),
-                    impact.carKm)))
+        if let sessionBreakdowns = snapshot.sessionDay?.modelBreakdowns, !sessionBreakdowns.isEmpty {
+            if let impact = EnvironmentalImpact(provider: provider, breakdowns: sessionBreakdowns) {
+                environmentalImpactLines.append(EnvironmentalImpactLine(
+                    id: .energyToday,
+                    text: L(
+                        "environmental_impact_energy_today",
+                        UsageFormatter.formatEnergy(impact.energyKWh),
+                        impact.smartphoneCharges,
+                        impact.kettleBoils)))
+                environmentalImpactLines.append(EnvironmentalImpactLine(
+                    id: .co2Today,
+                    text: L(
+                        "environmental_impact_co2_today",
+                        UsageFormatter.formatCO2(impact.co2Kg),
+                        impact.carKm)))
+            }
+        } else if snapshot.sessionTokens != nil {
+            // Unidentifiable models; fallback impact omitted to avoid misleading totals
         }
 
-        if let mTokens = monthTokensValue {
-            let impact = EnvironmentalImpact(tokens: mTokens)
-            environmentalImpactLines.append(EnvironmentalImpactLine(
-                id: .energyWindow,
-                text: L(
-                    "environmental_impact_energy_month",
-                    windowLabel,
-                    UsageFormatter.formatEnergy(impact.energyKWh),
-                    impact.smartphoneCharges,
-                    impact.kettleBoils)))
-            environmentalImpactLines.append(EnvironmentalImpactLine(
-                id: .co2Window,
-                text: L(
-                    "environmental_impact_co2_month",
-                    windowLabel,
-                    UsageFormatter.formatCO2(impact.co2Kg),
-                    impact.carKm)))
+        let monthBreakdowns = snapshot.monthBreakdowns
+        if !monthBreakdowns.isEmpty {
+            if let impact = EnvironmentalImpact(provider: provider, breakdowns: monthBreakdowns) {
+                environmentalImpactLines.append(EnvironmentalImpactLine(
+                    id: .energyWindow,
+                    text: L(
+                        "environmental_impact_energy_month",
+                        windowLabel,
+                        UsageFormatter.formatEnergy(impact.energyKWh),
+                        impact.smartphoneCharges,
+                        impact.kettleBoils)))
+                environmentalImpactLines.append(EnvironmentalImpactLine(
+                    id: .co2Window,
+                    text: L(
+                        "environmental_impact_co2_month",
+                        windowLabel,
+                        UsageFormatter.formatCO2(impact.co2Kg),
+                        impact.carKm)))
+            }
         }
 
         let err = (error?.isEmpty ?? true) ? nil : error

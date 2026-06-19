@@ -5,24 +5,45 @@ import Testing
 
 struct EnvironmentalImpactTests {
     @Test
-    func environmentalImpactCalculations() {
-        // 100,000 tokens
-        // Joules = 100,000 * 12 = 1,200,000 J
-        // kWh = 1,200,000 / 3,600,000 = 0.3333... kWh
-        // CO2 kg = 0.3333... * 0.385 = 0.12833... kg (128.33... g)
-        let impact = EnvironmentalImpact(tokens: 100_000)
+    func environmentalImpactCalculations() throws {
+        // Test Mistral Large 2
+        // Joules = 10_000 * 26.6 = 266,000 J
+        // kWh = 266,000 / 3,600,000 = 0.073888... kWh
+        // CO2 kg = 0.073888... * 0.385 = 0.028447... kg
+        let mistralBreakdowns = [CostUsageDailyReport.ModelBreakdown(
+            modelName: "mistral-large-latest",
+            costUSD: nil,
+            totalTokens: 10000)]
+        let mistralImpact = try #require(EnvironmentalImpact(provider: .mistral, breakdowns: mistralBreakdowns))
 
-        #expect(abs(impact.energyKWh - 0.333333) < 0.0001)
-        #expect(abs(impact.co2Kg - 0.128333) < 0.0001)
+        #expect(abs(mistralImpact.energyKWh - 0.073888) < 0.0001)
+        #expect(abs(mistralImpact.co2Kg - 0.028447) < 0.0001)
 
-        // charges = 0.3333... * 75 = 25
-        #expect(impact.smartphoneCharges == 25)
+        // Test Claude Haiku
+        // Joules = 100_000 * 5.0 = 500,000 J
+        // kWh = 500,000 / 3,600,000 = 0.138888... kWh
+        let claudeBreakdowns = [CostUsageDailyReport.ModelBreakdown(
+            modelName: "claude-3-haiku-20240307",
+            costUSD: nil,
+            totalTokens: 100_000)]
+        let claudeImpact = try #require(EnvironmentalImpact(provider: .claude, breakdowns: claudeBreakdowns))
 
-        // kettles = 0.3333... * 10 = 3.33 -> round -> 3
-        #expect(impact.kettleBoils == 3)
+        #expect(abs(claudeImpact.energyKWh - 0.138888) < 0.0001)
 
-        // carKm = 0.128333... / 0.12 = 1.0694...
-        #expect(abs(impact.carKm - 1.0694) < 0.001)
+        // Test fallback (unknown model)
+        // Joules = 10_000 * 10.0 = 100,000 J
+        // kWh = 100,000 / 3,600,000 = 0.02777... kWh
+        let fallbackBreakdowns = [CostUsageDailyReport.ModelBreakdown(
+            modelName: "unknown-model",
+            costUSD: nil,
+            totalTokens: 10000)]
+        let fallbackImpact = try #require(EnvironmentalImpact(provider: .synthetic, breakdowns: fallbackBreakdowns))
+
+        #expect(abs(fallbackImpact.energyKWh - 0.02777) < 0.0001)
+
+        // Return nil when no tokens
+        let emptyBreakdowns: [CostUsageDailyReport.ModelBreakdown] = []
+        #expect(EnvironmentalImpact(provider: .openai, breakdowns: emptyBreakdowns) == nil)
     }
 
     @Test

@@ -265,6 +265,7 @@ struct ProviderInlineDashboardModelTests {
             last30DaysTokens: 425,
             last30DaysCostUSD: 0.37,
             daily: daily,
+            sessionDay: nil,
             updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -943,6 +944,7 @@ struct MenuCardModelTests {
             last30DaysTokens: 456,
             last30DaysCostUSD: 78.9,
             daily: [],
+            sessionDay: nil,
             updatedAt: now)
         let model = UsageMenuCardView.Model.make(.init(
             provider: .codex,

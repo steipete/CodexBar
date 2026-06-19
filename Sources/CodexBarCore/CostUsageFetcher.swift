@@ -194,6 +194,7 @@ public struct CostUsageFetcher: Sendable {
             last30DaysCostUSD: last30DaysCostUSD,
             historyDays: historyDays,
             daily: daily.data,
+            sessionDay: currentDay,
             updatedAt: now)
     }
 
