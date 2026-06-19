@@ -13,8 +13,6 @@ jobs:
   lint:
     runs-on: macos-15-intel
     timeout-minutes: 10
-    needs:
-      - swift-test-macos
     steps:
       - uses: actions/checkout@v6
 
@@ -86,7 +84,7 @@ jobs:
     needs:
       - lint
       - swift-test-macos
-    if: ${{ always() }}
+    if: ${{ always() && !cancelled() }}
     steps:
       - name: Verify macOS lint and test jobs
         run: |
