@@ -24,6 +24,7 @@ read_when:
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
 - Display → Menu bar: menu bar can show provider branding icons with a percent label instead of critter bars.
+- Providers → Codex → Menu bar metric can combine the 5-hour and weekly percentages in one compact label.
 
 ## Menu card
 - Provider-specific rows with resets (countdown by default; optional absolute clock display). Primary, secondary,

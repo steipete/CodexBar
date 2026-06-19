@@ -5,6 +5,7 @@
 ### Added
 - Widgets: add single-window and combined burn-down charts for Codex and Claude session/weekly limits. Thanks @jamesjlopez!
 - AWS Bedrock: show optional rolling 14-day Claude token and request totals from CloudWatch. Thanks @zyaiire!
+- Codex: optionally show both 5-hour and weekly percentages in the compact menu bar label. Thanks @thepraggyverse!
 - Cursor: show personal on-demand spend alongside the shared team pool. Thanks @yashiels!
 - Documentation: link the community KDE Plasma panel integration. Thanks @tylxr59!
 - Codex: expose explicitly configured profile homes as switchable accounts without copying their credentials. Thanks @kiranmagic7!
