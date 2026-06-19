@@ -130,6 +130,30 @@ final class RovoDevUsageFetcherTests: XCTestCase {
         }
     }
 
+    func test_fetchUsage_disablesCookiesAndBuildsBasicAuthRequest() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertFalse(request.httpShouldHandleCookies)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+            let credentials = Data("user@example.com:secret".utf8).base64EncodedString()
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Basic \(credentials)")
+            let response = try XCTUnwrap(try HTTPURLResponse(
+                url: XCTUnwrap(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            return (Data(#"{"status":"OK","balance":{"monthlyTotal":2000,"monthlyRemaining":1500}}"#.utf8), response)
+        }
+
+        let snapshot = try await RovoDevUsageFetcher.fetchUsage(
+            email: "user@example.com",
+            apiToken: "secret",
+            environment: [:],
+            transport: transport)
+
+        XCTAssertEqual(snapshot.creditsUsed, 500)
+    }
+
     func test_cleaned_stripsWhitespace() {
         XCTAssertEqual(RovoDevSettingsReader.cleaned("  hello  "), "hello")
     }
@@ -198,6 +222,51 @@ final class RovoDevUsageFetcherTests: XCTestCase {
         XCTAssertEqual(snapshot.creditsUsed, 847)
         XCTAssertEqual(snapshot.creditsTotal, 2000)
         XCTAssertEqual(snapshot.usedPercent, 42.35, accuracy: 0.001)
+    }
+
+    func test_parseSnapshot_prefersExhaustedRemainingOverStaleExplicitUsed() throws {
+        let json = Data("""
+        {
+            "status": "RATE_LIMITED",
+            "balance": {
+                "monthlyTotal": 2000,
+                "monthlyUsed": 0,
+                "monthlyRemaining": 0
+            }
+        }
+        """.utf8)
+
+        let snapshot = try RovoDevUsageFetcher._parseSnapshotForTesting(json, updatedAt: Date())
+        XCTAssertEqual(snapshot.creditsUsed, 2000)
+        XCTAssertEqual(snapshot.usedPercent, 100, accuracy: 0.001)
+    }
+
+    func test_parseSnapshot_rejectsInvalidUsageValues() {
+        let invalidBalances = [
+            #"{"monthlyTotal":-1}"#,
+            #"{"monthlyTotal":2000,"monthlyRemaining":2001}"#,
+            #"{"monthlyTotal":2000,"monthlyUsed":2001}"#,
+            #"{"dailyUsed":-1}"#,
+        ]
+
+        for balance in invalidBalances {
+            let json = Data(#"{"status":"OK","balance":\#(balance)}"#.utf8)
+            XCTAssertThrowsError(try RovoDevUsageFetcher._parseSnapshotForTesting(json, updatedAt: Date())) { error in
+                XCTAssertEqual(error as? RovoDevUsageError, .parseFailed("Invalid credit balance"))
+            }
+        }
+    }
+
+    func test_parseSnapshot_rejectsNegativeAuxiliaryValues() {
+        let invalidPayloads = [
+            #"{"status":"OK","retryAfterSeconds":-1}"#,
+            #"{"status":"OK","modelUsages":{"example-model":-1}}"#,
+        ]
+
+        for payload in invalidPayloads {
+            XCTAssertThrowsError(
+                try RovoDevUsageFetcher._parseSnapshotForTesting(Data(payload.utf8), updatedAt: Date()))
+        }
     }
 
     func test_parseSnapshot_derivesDailyUsedFromRemaining() throws {
