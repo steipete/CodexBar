@@ -104,9 +104,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     private func startManualRefresh(for provider: UsageProvider?) {
+        let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
+            ?? !self.store.refreshingProviders.isEmpty
         guard !self.hasPreparedForAppShutdown,
               self.manualRefreshTask == nil,
-              !self.store.isRefreshing
+              !self.store.isRefreshing,
+              !scopedRefreshInFlight
         else { return }
 
         let frozenModels = self.frozenManualRefreshMenuCardModels()

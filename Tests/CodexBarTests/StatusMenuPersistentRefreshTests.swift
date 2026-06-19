@@ -822,6 +822,33 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `provider menu does not replace matching scoped refresh`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnly([.claude, .codex], settings: settings)
+
+        let controller = self.makeController(settings: settings)
+        let menu = try #require(controller.makeMenu(for: .claude) as? StatusItemMenu)
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        controller.store.refreshingProviders.insert(.claude)
+        var requestCount = 0
+        controller._test_manualRefreshOperation = { requestCount += 1 }
+
+        controller.performPersistentMenuAction(.refresh, in: menu)
+        #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+
+        #expect(requestCount == 0)
+        #expect(controller.manualRefreshTask == nil)
+        #expect(controller.manualRefreshProvider == nil)
+    }
+
+    @Test
     func `merged overview refreshes globally while selected provider stays scoped`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
