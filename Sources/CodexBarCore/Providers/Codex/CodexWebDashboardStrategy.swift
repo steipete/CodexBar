@@ -11,7 +11,8 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
     public func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         context.sourceMode.usesWeb &&
             !Self.managedAccountStoreIsUnreadable(context) &&
-            !Self.managedAccountTargetIsUnavailable(context)
+            !Self.managedAccountTargetIsUnavailable(context) &&
+            (!Self.profileAccountTargetIsUnavailable(context) || context.sourceMode == .web)
     }
 
     public func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -23,6 +24,10 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
         guard !Self.managedAccountTargetIsUnavailable(context) else {
             // If the selected managed account no longer exists in a readable store, web import must not
             // fall back to "any signed-in browser account" for that stale selection.
+            throw OpenAIDashboardFetcher.FetchError.loginRequired
+        }
+        guard !Self.profileAccountTargetIsUnavailable(context) else {
+            // A profile without an auth-backed email cannot safely target browser cookie import.
             throw OpenAIDashboardFetcher.FetchError.loginRequired
         }
 
@@ -63,6 +68,10 @@ public struct CodexWebDashboardStrategy: ProviderFetchStrategy {
 
     private static func managedAccountTargetIsUnavailable(_ context: ProviderFetchContext) -> Bool {
         context.settings?.codex?.managedAccountTargetUnavailable == true
+    }
+
+    private static func profileAccountTargetIsUnavailable(_ context: ProviderFetchContext) -> Bool {
+        context.settings?.codex?.profileAccountTargetUnavailable == true
     }
 }
 

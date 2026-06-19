@@ -92,6 +92,30 @@ struct CodexProviderSettingsBuilderTests {
     }
 
     @Test
+    func `builder marks profile without observed account as unavailable`() {
+        let profilePath = "/tmp/codex-profile-missing-auth"
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [],
+            activeStoredAccount: nil,
+            liveSystemAccount: nil,
+            profileHomeAccounts: [],
+            profileHomePaths: [profilePath],
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .profileHome(path: profilePath),
+            hasUnreadableAddedAccountStore: false)
+
+        let settings = CodexProviderSettingsBuilder.make(input: CodexProviderSettingsBuilderInput(
+            usageDataSource: .auto,
+            cookieSource: .auto,
+            manualCookieHeader: nil,
+            reconciliationSnapshot: snapshot,
+            resolvedActiveSource: CodexActiveSourceResolver.resolve(from: snapshot)))
+
+        #expect(settings.profileAccountTargetUnavailable)
+        #expect(settings.openAIWebCacheScope == .profileHome(profilePath))
+    }
+
+    @Test
     func `known owner catalog includes runtime managed and live identities`() {
         let storedAccount = ManagedCodexAccount(
             id: UUID(),
@@ -155,6 +179,7 @@ struct CodexProviderSettingsBuilderTests {
             resolvedActiveSource: CodexActiveSourceResolver.resolve(from: snapshot)))
 
         #expect(settings.openAIWebCacheScope == .profileHome(profileA.codexHomePath))
+        #expect(!settings.profileAccountTargetUnavailable)
         #expect(settings.dashboardAuthorityKnownOwners.count == 2)
         #expect(Set(settings.dashboardAuthorityKnownOwners.map(\.sourceIsolationIdentifier)).count == 2)
 

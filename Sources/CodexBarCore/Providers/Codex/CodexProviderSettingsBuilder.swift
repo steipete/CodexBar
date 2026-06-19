@@ -71,6 +71,12 @@ public enum CodexProviderSettingsBuilder {
         case let .profileHome(path):
             .profileHome(path)
         }
+        let profileAccountTargetUnavailable = switch input.resolvedActiveSource.resolvedSource {
+        case .liveSystem, .managedAccount:
+            false
+        case let .profileHome(path):
+            snapshot.profileHomeAccount(path: path) == nil
+        }
 
         return ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: input.usageDataSource,
@@ -80,6 +86,7 @@ public enum CodexProviderSettingsBuilder {
             managedAccountTargetUnavailable: managedSourceSelected
                 && snapshot.hasUnreadableAddedAccountStore == false
                 && snapshot.activeStoredAccount == nil,
+            profileAccountTargetUnavailable: profileAccountTargetUnavailable,
             openAIWebCacheScope: openAIWebCacheScope,
             dashboardAuthorityKnownOwners: CodexKnownOwnerCatalog.candidates(from: snapshot))
     }

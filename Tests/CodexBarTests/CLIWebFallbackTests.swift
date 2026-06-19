@@ -129,6 +129,33 @@ struct CLIWebFallbackTests {
     }
 
     @Test
+    func `codex web strategy fails closed when profile target is unavailable`() async {
+        let settings = ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                profileAccountTargetUnavailable: true))
+        let strategy = CodexWebDashboardStrategy()
+
+        let autoContext = self.makeContext(sourceMode: .auto, settings: settings)
+        let autoAvailable = await strategy.isAvailable(autoContext)
+        #expect(!autoAvailable)
+
+        let explicitWebContext = self.makeContext(sourceMode: .web, settings: settings)
+        let explicitWebAvailable = await strategy.isAvailable(explicitWebContext)
+        #expect(explicitWebAvailable)
+        do {
+            _ = try await strategy.fetch(explicitWebContext)
+            Issue.record("Expected unavailable profile target to require login")
+        } catch OpenAIDashboardFetcher.FetchError.loginRequired {
+            // Expected before browser import can accept an arbitrary account.
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `claude falls back when no session key`() {
         let context = self.makeContext()
         let strategy = ClaudeWebFetchStrategy(browserDetection: BrowserDetection(cacheTTL: 0))

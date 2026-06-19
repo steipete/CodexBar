@@ -77,6 +77,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let manualCookieHeader: String?
         public let managedAccountStoreUnreadable: Bool
         public let managedAccountTargetUnavailable: Bool
+        public let profileAccountTargetUnavailable: Bool
         public let openAIWebCacheScope: CookieHeaderCache.Scope?
         public let dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate]
 
@@ -86,6 +87,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             manualCookieHeader: String?,
             managedAccountStoreUnreadable: Bool = false,
             managedAccountTargetUnavailable: Bool = false,
+            profileAccountTargetUnavailable: Bool = false,
             openAIWebCacheScope: CookieHeaderCache.Scope? = nil,
             dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate] = [])
         {
@@ -94,6 +96,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             self.manualCookieHeader = manualCookieHeader
             self.managedAccountStoreUnreadable = managedAccountStoreUnreadable
             self.managedAccountTargetUnavailable = managedAccountTargetUnavailable
+            self.profileAccountTargetUnavailable = profileAccountTargetUnavailable
             self.openAIWebCacheScope = openAIWebCacheScope
             self.dashboardAuthorityKnownOwners = dashboardAuthorityKnownOwners
         }
