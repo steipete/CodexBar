@@ -416,7 +416,7 @@ struct CostHistoryChartMenuView: View {
         guard let x = proxy.position(forX: date) else { return nil }
 
         // Use the calendar day slot width so the band stays the same size regardless of data gaps.
-        let nextDayX = proxy.position(forX: date.addingTimeInterval(86400)) ?? (x + 20)
+        let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: date)) ?? (x + 20)
         let slotWidth = abs(nextDayX - x)
         let barHalfWidth = slotWidth * 0.25 + 2
 
@@ -447,9 +447,14 @@ struct CostHistoryChartMenuView: View {
         if let nearestEntry = model.dateKeys.first(where: { $0.key == nearest }),
            let barX = proxy.position(forX: nearestEntry.date)
         {
-            let nextDayX = proxy.position(forX: nearestEntry.date.addingTimeInterval(86400)) ?? (barX + 20)
+            let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: nearestEntry.date)) ??
+                (barX + 20)
             let slotWidth = abs(nextDayX - barX)
-            guard abs(location.x - (plotFrame.origin.x + barX)) <= slotWidth * 0.25 + 2 else { return }
+            guard ChartBarHoverSelection.accepts(
+                distanceFromBarCenter: abs(location.x - (plotFrame.origin.x + barX)),
+                barHalfWidth: slotWidth * 0.25 + 2,
+                selectableCount: model.dateKeys.count)
+            else { return }
         }
 
         if self.selectedDateKey != nearest {

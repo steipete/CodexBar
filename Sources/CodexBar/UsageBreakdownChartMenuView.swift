@@ -301,7 +301,7 @@ struct UsageBreakdownChartMenuView: View {
 
         // Use the calendar day slot width (always 1 day on the time axis) so the band is the
         // same size for every bar regardless of gaps in the data.
-        let nextDayX = proxy.position(forX: date.addingTimeInterval(86400)) ?? (x + 20)
+        let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: date)) ?? (x + 20)
         let slotWidth = abs(nextDayX - x)
         let barHalfWidth = slotWidth * 0.25 + 2
 
@@ -337,9 +337,14 @@ struct UsageBreakdownChartMenuView: View {
            let nearestEntry = model.selectableDayDates.first(where: { $0.dayKey == nearest }),
            let barX = proxy.position(forX: nearestEntry.date)
         {
-            let nextDayX = proxy.position(forX: nearestEntry.date.addingTimeInterval(86400)) ?? (barX + 20)
+            let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: nearestEntry.date)) ??
+                (barX + 20)
             let slotWidth = abs(nextDayX - barX)
-            guard abs(location.x - (plotFrame.origin.x + barX)) <= slotWidth * 0.25 + 2 else { return }
+            guard ChartBarHoverSelection.accepts(
+                distanceFromBarCenter: abs(location.x - (plotFrame.origin.x + barX)),
+                barHalfWidth: slotWidth * 0.25 + 2,
+                selectableCount: model.selectableDayDates.count)
+            else { return }
         }
 
         if self.selectedDayKey != nearest {
