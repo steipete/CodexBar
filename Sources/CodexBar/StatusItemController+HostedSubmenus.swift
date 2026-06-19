@@ -439,11 +439,24 @@ extension StatusItemController {
         }
 
         let maxHeight = self.storageBreakdownMenuMaxHeight()
-        let view = StorageBreakdownMenuView(footprint: footprint, width: width, maxHeight: maxHeight)
+        final class HostingRelay {
+            weak var hosting: MenuHostingView<StorageBreakdownMenuView>?
+            var collapsedHeight: CGFloat = 1
+        }
+        let relay = HostingRelay()
+        let view = StorageBreakdownMenuView(
+            footprint: footprint,
+            width: width,
+            maxHeight: maxHeight,
+            onExpansionHeightChange: { additionalHeight in
+                relay.hosting?.applyMeasuredHeight(
+                    width: width,
+                    height: min(maxHeight, relay.collapsedHeight + additionalHeight))
+            })
         let hosting = MenuHostingView(rootView: view)
-        hosting.frame = NSRect(
-            origin: .zero,
-            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
+        relay.hosting = hosting
+        relay.collapsedHeight = self.hostedSubviewFittingHeight(for: hosting, width: width)
+        hosting.applyMeasuredHeight(width: width, height: relay.collapsedHeight)
 
         let item = NSMenuItem()
         item.view = hosting

@@ -28,13 +28,20 @@ struct StorageBreakdownMenuView: View {
     let footprint: ProviderStorageFootprint
     let width: CGFloat
     let maxHeight: CGFloat
+    let onExpansionHeightChange: ((CGFloat) -> Void)?
 
     @State private var otherExpanded = false
 
-    init(footprint: ProviderStorageFootprint, width: CGFloat, maxHeight: CGFloat = 560) {
+    init(
+        footprint: ProviderStorageFootprint,
+        width: CGFloat,
+        maxHeight: CGFloat = 560,
+        onExpansionHeightChange: ((CGFloat) -> Void)? = nil)
+    {
         self.footprint = footprint
         self.width = width
         self.maxHeight = maxHeight
+        self.onExpansionHeightChange = onExpansionHeightChange
     }
 
     /// One entry in the segmented bar and its matching legend row. Overflow components past the row
@@ -61,6 +68,9 @@ struct StorageBreakdownMenuView: View {
     ]
 
     private static let otherColor = Color(nsColor: .tertiaryLabelColor)
+    private static let overflowRowHeight: CGFloat = 18
+    private static let overflowRowSpacing: CGFloat = 4
+    private static let overflowTopSpacing: CGFloat = 6
 
     var cleanupRecommendations: [ProviderStorageRecommendation] {
         self.footprint.cleanupRecommendations
@@ -120,6 +130,14 @@ struct StorageBreakdownMenuView: View {
         let components = self.footprint.components
         guard components.count > Self.maxRows else { return [] }
         return Array(components.dropFirst(Self.maxRows - 1))
+    }
+
+    private var overflowExpansionHeight: CGFloat {
+        let count = CGFloat(self.overflowComponents.count)
+        guard count > 0 else { return 0 }
+        return Self.overflowTopSpacing
+            + count * Self.overflowRowHeight
+            + (count - 1) * Self.overflowRowSpacing
     }
 
     var body: some View {
@@ -248,6 +266,7 @@ struct StorageBreakdownMenuView: View {
     private var otherExpandButton: some View {
         Button {
             self.otherExpanded.toggle()
+            self.onExpansionHeightChange?(self.otherExpanded ? self.overflowExpansionHeight : 0)
         } label: {
             Image(systemName: self.otherExpanded ? "chevron.down" : "chevron.right")
                 .font(.caption2.weight(.semibold))
@@ -328,6 +347,10 @@ extension StorageBreakdownMenuView {
 
     var _overflowNamesForTesting: [String] {
         self.overflowComponents.map(\.name)
+    }
+
+    var _overflowExpansionHeightForTesting: CGFloat {
+        self.overflowExpansionHeight
     }
 
     func _segmentWidthsForTesting(barWidth: CGFloat) -> [CGFloat] {

@@ -18,6 +18,7 @@ struct StorageBreakdownSegmentTests {
         ])
         #expect(view._segmentBytesForTesting == [1, 2, 3, 4, 5, 6, 7, 27])
         #expect(view._overflowNamesForTesting == ["item-8", "item-9", "item-10"])
+        #expect(view._overflowExpansionHeightForTesting == 68)
         #expect(view.copyablePaths == components.map(\.path))
     }
 

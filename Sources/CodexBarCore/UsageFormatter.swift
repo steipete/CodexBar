@@ -285,7 +285,9 @@ public enum UsageFormatter {
             let scaled = absBytes / unit.divisor
             let format = scaled >= 10 || scaled.rounded(.towardZero) == scaled ? "%.0f" : "%.1f"
             let formatted = String(format: format, locale: self.currentLocale(), scaled)
-            let word = self.localized(scaled == 1 ? unit.singularKey : unit.pluralKey)
+            let displayScale = format == "%.0f" ? 1.0 : 10.0
+            let displayedValue = (scaled * displayScale).rounded() / displayScale
+            let word = self.localized(displayedValue == 1 ? unit.singularKey : unit.pluralKey)
             return "\(sign)\(formatted) \(word)"
         }
 
