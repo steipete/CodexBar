@@ -23,7 +23,10 @@ assert_gate() {
   fi
 }
 
-assert_gate false docs-only $'M\tdocs/configuration.md' $'M\tREADME.md'
+assert_gate false docs-only $'M\tdocs/providers.md' $'M\tREADME.md'
+assert_gate true configuration-doc $'M\tdocs/configuration.md'
+assert_gate true rename-to-configuration-doc $'R100\tdocs/old.md\tdocs/configuration.md'
+assert_gate true rename-from-configuration-doc $'R100\tdocs/configuration.md\tdocs/new.md'
 assert_gate true source $'M\tSources/CodexBar/App.swift'
 assert_gate true docs-code $'M\tdocs/site.js'
 assert_gate true empty
