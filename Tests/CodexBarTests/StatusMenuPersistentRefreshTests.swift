@@ -199,6 +199,13 @@ struct StatusMenuPersistentRefreshTests {
         controller.manualRefreshProvider = nil
         controller.updatePersistentRefreshItemsEnabled()
         #expect(refreshItem.isEnabled)
+
+        refreshItem.action = controller.selector(for: .settings).0
+        controller.manualRefreshTask = Task {}
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(refreshItem.isEnabled)
+        #expect(!controller.persistentRefreshItems.allObjects.contains { $0 === refreshItem })
+        controller.manualRefreshTask = nil
     }
 
     @Test
@@ -732,13 +739,15 @@ struct StatusMenuPersistentRefreshTests {
             await mouseGate.wait()
         }
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        controller.refreshMenuItem(refreshItem)
+        let refreshAction = try #require(refreshItem.action)
+        _ = controller.perform(refreshAction, with: refreshItem)
         let mouseTask = try #require(controller.manualRefreshTask)
         #expect(controller.manualRefreshProvider == .claude)
         #expect(controller.isRefreshActionInFlight(for: codexMenu))
         #expect(controller.isRefreshActionInFlight(for: NSMenu()))
         let codexRefreshItem = try #require(codexMenu.items.first { $0.title == "Refresh" })
-        controller.refreshMenuItem(codexRefreshItem)
+        let codexRefreshAction = try #require(codexRefreshItem.action)
+        _ = controller.perform(codexRefreshAction, with: codexRefreshItem)
         await Task.yield()
         #expect(requestCount == 1)
         mouseGate.resume()
@@ -773,7 +782,8 @@ struct StatusMenuPersistentRefreshTests {
         controller._test_manualRefreshOperation = { requestCount += 1 }
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        controller.refreshMenuItem(refreshItem)
+        let refreshAction = try #require(refreshItem.action)
+        _ = controller.perform(refreshAction, with: refreshItem)
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
         for _ in 0..<20 {
             await Task.yield()
@@ -801,7 +811,8 @@ struct StatusMenuPersistentRefreshTests {
         let overviewGate = ManualRefreshGate()
         controller._test_manualRefreshOperation = { await overviewGate.wait() }
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        controller.refreshMenuItem(refreshItem)
+        let refreshAction = try #require(refreshItem.action)
+        _ = controller.perform(refreshAction, with: refreshItem)
         let overviewTask = try #require(controller.manualRefreshTask)
         #expect(controller.manualRefreshProvider == nil)
         overviewGate.resume()

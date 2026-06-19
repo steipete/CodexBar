@@ -351,6 +351,72 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
+    func `completed refresh re-enables cached item when switching back`() async throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        Self.enableCodexAndClaude(settings)
+        Self.disableOverview(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer {
+            controller.manualRefreshTask?.cancel()
+            controller.releaseStatusItemsForTesting()
+        }
+
+        let gate = SwitcherRefreshManualGate()
+        controller._test_manualRefreshOperation = { await gate.wait() }
+        defer { controller._test_manualRefreshOperation = nil }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let selectedButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .on })
+        let alternateButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .off })
+        let initialRefreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+
+        controller.refreshNow()
+        let refreshTask = try #require(controller.manualRefreshTask)
+        #expect(!initialRefreshItem.isEnabled)
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in rebuildCount += 1 }
+        defer { controller._test_openMenuRebuildObserver = nil }
+
+        let initialSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        #expect(initialSwitcher._test_simulateRuntimeClick(buttonTag: alternateButton.tag))
+        await Self.waitForRebuildCount(1, rebuildCount: { rebuildCount })
+
+        gate.resume()
+        await refreshTask.value
+        #expect(controller.manualRefreshTask == nil)
+
+        let alternateSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        #expect(alternateSwitcher._test_simulateRuntimeClick(buttonTag: selectedButton.tag))
+        await Self.waitForRebuildCount(2, rebuildCount: { rebuildCount })
+
+        let restoredRefreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        #expect(restoredRefreshItem.isEnabled)
+    }
+
+    @Test
     func `native image menu rows are replaced during reconciliation`() {
         let settings = Self.makeSettings()
         let fetcher = UsageFetcher()

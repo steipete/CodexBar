@@ -35,7 +35,8 @@ struct StatusMenuMergedOverviewRefreshTests {
 
         var requestCount = 0
         controller._test_manualRefreshOperation = { requestCount += 1 }
-        controller.refreshMenuItem(refreshItem)
+        let refreshAction = try #require(refreshItem.action)
+        _ = controller.perform(refreshAction, with: refreshItem)
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
         for _ in 0..<20 {
             await Task.yield()
