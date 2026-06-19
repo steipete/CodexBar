@@ -40,6 +40,7 @@
 - MiniMax: retry the China API region when the global token endpoint reports a structured invalid-key response.
 - Menu refresh: scope manual refreshes to the visible provider, keep Command-R consistent with mouse refresh, and avoid animated refresh-row compositing. Thanks @jangisaac-dev!
 - Localization: improve Catalan app and website translations. Thanks @pmontp19!
+- Claude web: persist renewed session cookies after successful usage requests so imported sessions stay current. Thanks @ProspectOre!
 - Kiro: keep parsed usage available when the optional account probe times out or fails. Thanks @Yuxin-Qiao!
 - Cursor: ignore an exhausted Auto or API subquota only when another independent quota remains usable, while preserving the overall cap. Thanks @Yuxin-Qiao!
 - Memory: release idle OpenAI WebViews under system pressure without blocking the main thread. Thanks @ProspectOre!
