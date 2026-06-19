@@ -415,32 +415,13 @@ struct CostHistoryChartMenuView: View {
         let date = model.dateKeys[index].date
         guard let x = proxy.position(forX: date) else { return nil }
 
-        func xForIndex(_ idx: Int) -> CGFloat? {
-            guard idx >= 0, idx < model.dateKeys.count else { return nil }
-            return proxy.position(forX: model.dateKeys[idx].date)
-        }
+        // Use the calendar day slot width so the band stays the same size regardless of data gaps.
+        let nextDayX = proxy.position(forX: date.addingTimeInterval(86400)) ?? (x + 20)
+        let slotWidth = abs(nextDayX - x)
+        let barHalfWidth = slotWidth * 0.25 + 2
 
-        let xPrev = xForIndex(index - 1)
-        let xNext = xForIndex(index + 1)
-
-        let leftInPlot: CGFloat = if let xPrev {
-            (xPrev + x) / 2
-        } else if let xNext {
-            x - (xNext - x) / 2
-        } else {
-            x - 8
-        }
-
-        let rightInPlot: CGFloat = if let xNext {
-            (xNext + x) / 2
-        } else if let xPrev {
-            x + (x - xPrev) / 2
-        } else {
-            x + 8
-        }
-
-        let left = plotFrame.origin.x + min(leftInPlot, rightInPlot)
-        let right = plotFrame.origin.x + max(leftInPlot, rightInPlot)
+        let left = plotFrame.origin.x + x - barHalfWidth
+        let right = plotFrame.origin.x + x + barHalfWidth
         return CGRect(x: left, y: plotFrame.origin.y, width: right - left, height: plotFrame.height)
     }
 
@@ -461,6 +442,15 @@ struct CostHistoryChartMenuView: View {
         let xInPlot = location.x - plotFrame.origin.x
         guard let date: Date = proxy.value(atX: xInPlot) else { return }
         guard let nearest = self.nearestDateKey(to: date, model: model) else { return }
+
+        // Stay on the last selected bar when cursor is in the gap between bars.
+        if let nearestEntry = model.dateKeys.first(where: { $0.key == nearest }),
+           let barX = proxy.position(forX: nearestEntry.date)
+        {
+            let nextDayX = proxy.position(forX: nearestEntry.date.addingTimeInterval(86400)) ?? (barX + 20)
+            let slotWidth = abs(nextDayX - barX)
+            guard abs(location.x - (plotFrame.origin.x + barX)) <= slotWidth * 0.25 + 2 else { return }
+        }
 
         if self.selectedDateKey != nearest {
             self.selectedDateKey = nearest

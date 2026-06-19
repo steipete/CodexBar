@@ -800,6 +800,14 @@ struct PlanUtilizationHistoryChartMenuView: View {
             }
         }
 
+        // Stay on the last selected bar when cursor is in the gap between bars; only switch
+        // selection when the cursor is over the bar's own visual body.
+        if let best, let bestPoint = model.pointsByID[best.id],
+           let barX = proxy.position(forX: Double(bestPoint.index))
+        {
+            guard abs(location.x - (plotFrame.origin.x + barX)) <= Layout.barWidth / 2 else { return }
+        }
+
         if self.selectedPointID != best?.id {
             self.selectedPointID = best?.id
         }

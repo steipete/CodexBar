@@ -93,17 +93,7 @@ extension StatusItemController {
     }
 
     static func costMenuVisibleDetailLines(tokenUsage: UsageMenuCardView.Model.TokenUsageSection?) -> [String] {
-        let primaryLines = [
-            tokenUsage?.sessionLine,
-            tokenUsage?.monthLine,
-            tokenUsage?.errorLine,
-        ]
-            .compactMap(\.self)
-            .filter { !$0.isEmpty }
-        guard primaryLines.isEmpty else { return primaryLines }
-        return [tokenUsage?.hintLine]
-            .compactMap(\.self)
-            .filter { !$0.isEmpty }
+        []
     }
 
     static func costMenuFallbackAttributedTitle(visibleDetailLines: [String]) -> NSAttributedString {

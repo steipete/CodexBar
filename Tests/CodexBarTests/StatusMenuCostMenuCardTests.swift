@@ -8,7 +8,7 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuCostMenuCardTests {
     @Test
-    func `cost menu fallback keeps visible details in attributed title`() {
+    func `cost menu shows no detail lines`() {
         let tokenUsage = UsageMenuCardView.Model.TokenUsageSection(
             sessionLine: "Today: $74.83 - 87M tokens",
             monthLine: "Last 30 days: $4,279.64 - 5.7B tokens",
@@ -17,17 +17,10 @@ struct StatusMenuCostMenuCardTests {
             errorCopyText: nil)
 
         let visibleLines = StatusItemController.costMenuVisibleDetailLines(tokenUsage: tokenUsage)
-        #expect(visibleLines == [
-            "Today: $74.83 - 87M tokens",
-            "Last 30 days: $4,279.64 - 5.7B tokens",
-            "Cost refresh failed.",
-        ])
+        #expect(visibleLines == [])
 
         let fallbackTitle = StatusItemController.costMenuFallbackAttributedTitle(visibleDetailLines: visibleLines)
-        #expect(fallbackTitle.string.contains("Cost"))
-        #expect(fallbackTitle.string.contains("Today: $74.83 - 87M tokens"))
-        #expect(fallbackTitle.string.contains("Last 30 days: $4,279.64 - 5.7B tokens"))
-        #expect(fallbackTitle.string.contains("Cost refresh failed."))
+        #expect(fallbackTitle.string == "Cost")
     }
 
     @Test
