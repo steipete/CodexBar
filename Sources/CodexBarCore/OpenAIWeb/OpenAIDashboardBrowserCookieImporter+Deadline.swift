@@ -70,8 +70,24 @@ extension OpenAIDashboardBrowserCookieImporter {
         deadline: Date?,
         operation: @escaping @Sendable () throws -> T) async throws -> T
     {
-        try await self.runBoundedCookieLoad(deadline: deadline) {
-            try self.cookieCacheQueue.sync(execute: operation)
+        guard let deadline else {
+            return try await withCheckedThrowingContinuation { continuation in
+                self.cookieCacheQueue.async {
+                    continuation.resume(with: Result(catching: operation))
+                }
+            }
+        }
+
+        let timeout = try self.remainingTimeout(until: deadline)
+        let completion = CookieLoadCompletion()
+        return try await withCheckedThrowingContinuation { continuation in
+            self.cookieCacheQueue.async {
+                let result = Result(catching: operation)
+                completion.finish { continuation.resume(with: result) }
+            }
+            self.deadlineQueue.asyncAfter(deadline: .now() + timeout) {
+                completion.finish { continuation.resume(throwing: URLError(.timedOut)) }
+            }
         }
     }
 

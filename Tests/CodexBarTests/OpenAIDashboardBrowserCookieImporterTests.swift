@@ -148,6 +148,7 @@ struct OpenAIDashboardBrowserCookieImporterTests {
     @Test
     func `timed out cookie cache work stays ordered before retry`() async throws {
         let log = CookieOperationLog()
+        let firstOperationStarted = DispatchSemaphore(value: 0)
         let allowFirstOperationToFinish = DispatchSemaphore(value: 0)
 
         do {
@@ -155,6 +156,7 @@ struct OpenAIDashboardBrowserCookieImporterTests {
                 deadline: Date().addingTimeInterval(0.05))
             {
                 log.append("first-start")
+                firstOperationStarted.signal()
                 _ = allowFirstOperationToFinish.wait(timeout: .now() + 5)
                 log.append("first-end")
                 return true
@@ -165,14 +167,29 @@ struct OpenAIDashboardBrowserCookieImporterTests {
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
+        let firstOperationStartResult = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: firstOperationStarted.wait(timeout: .now() + 5))
+            }
+        }
+        #expect(firstOperationStartResult == .success)
+        do {
+            _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieCacheOperation(
+                deadline: Date().addingTimeInterval(0.05))
+            {
+                log.append("second")
+                return true
+            }
+            Issue.record("Expected retry to wait behind first cache operation")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
         allowFirstOperationToFinish.signal()
 
         _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieCacheOperation(
-            deadline: Date().addingTimeInterval(1))
-        {
-            log.append("second")
-            return true
-        }
+            deadline: Date().addingTimeInterval(1)) { true }
         #expect(log.snapshot == ["first-start", "first-end", "second"])
     }
 
