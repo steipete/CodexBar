@@ -98,7 +98,12 @@ public struct MiniMaxUsageFetcher: Sendable {
         }
 
         do {
-            return try await self.fetchUsageOnce(apiToken: cleaned, region: .global, now: now, transport: transport)
+            return try await self.fetchUsageOnce(
+                apiToken: cleaned,
+                region: .global,
+                now: now,
+                transport: transport,
+                preserveTokenPlanCredentialFailure: true)
         } catch let error as MiniMaxUsageError {
             guard case .invalidCredentials = error else { throw error }
             Self.log.debug("MiniMax API token rejected for global host, retrying China mainland host")
@@ -120,9 +125,11 @@ public struct MiniMaxUsageFetcher: Sendable {
         apiToken: String,
         region: MiniMaxAPIRegion,
         now: Date,
-        transport: any ProviderHTTPTransport) async throws -> MiniMaxUsageSnapshot
+        transport: any ProviderHTTPTransport,
+        preserveTokenPlanCredentialFailure: Bool = false) async throws -> MiniMaxUsageSnapshot
     {
         var lastError: Error?
+        var tokenPlanCredentialFailure = false
         for remainsURL in [region.tokenPlanRemainsURL, region.apiRemainsURL] {
             do {
                 return try await self.fetchAPIUsageOnce(
@@ -135,7 +142,15 @@ public struct MiniMaxUsageFetcher: Sendable {
                 guard remainsURL == region.tokenPlanRemainsURL,
                       self.shouldTryLegacyAPIEndpoint(after: error)
                 else {
+                    if tokenPlanCredentialFailure {
+                        throw MiniMaxUsageError.invalidCredentials
+                    }
                     throw error
+                }
+                if preserveTokenPlanCredentialFailure,
+                   case .invalidCredentials = error
+                {
+                    tokenPlanCredentialFailure = true
                 }
                 Self.log.debug("MiniMax token-plan API failed, trying legacy coding-plan endpoint")
             }

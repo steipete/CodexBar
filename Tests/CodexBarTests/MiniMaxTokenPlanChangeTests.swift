@@ -418,7 +418,7 @@ struct MiniMaxTokenPlanChangeTests {
     }
 
     @Test
-    func `global api token fetch retries China after structured credential failures`() async throws {
+    func `global api token fetch preserves structured credential failure across legacy error`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -433,7 +433,8 @@ struct MiniMaxTokenPlanChangeTests {
             case ("api.minimax.io", "/v1/api/openplatform/coding_plan/remains"):
                 return Self.httpResponse(
                     url: url,
-                    body: #"{"base_resp":{"status_code":1004,"status_msg":"cookie is missing, log in again"}}"#,
+                    body: #"{"error":"legacy endpoint unavailable"}"#,
+                    statusCode: 404,
                     contentType: "application/json")
             case ("api.minimaxi.com", "/v1/token_plan/remains"):
                 return Self.httpResponse(
