@@ -298,8 +298,8 @@
 "Stored in ~/.codexbar/config.json. " = "Desat a ~/.codexbar/config.json. ";
 "Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Desat a ~/.codexbar/config.json. Genera'n una a kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Desat a ~/.codexbar/config.json. Enganxa la clau del tauler de Synthetic.";
-"Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Desat a ~/.codexbar/config.json. Enganxa la clau d'API del vostre pla de programació des de Model Studio.";
-"Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Desat a ~/.codexbar/config.json. Enganxa la vostra clau d'API de MiniMax.";
+"Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Desat a ~/.codexbar/config.json. Enganxeu la clau d'API del vostre pla de programació des de Model Studio.";
+"Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Desat a ~/.codexbar/config.json. Enganxeu la vostra clau d'API de MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Desat a ~/.codexbar/config.json. També podeu proporcionar KILO_API_KEY o ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Desa l'historial d'ús local de Codex (8 setmanes) per personalitzar les prediccions de Ritme.";
 "Subscription Utilization" = "Ús de la subscripció";
@@ -412,7 +412,7 @@
 "language_italian" = "Italiano";
 "language_polish" = "Polski";
 "start_at_login_title" = "Obrir en iniciar la sessió";
-"start_at_login_subtitle" = "Obriu el CodexBar automàticament en iniciar el Mac.";
+"start_at_login_subtitle" = "Obre el CodexBar automàticament en iniciar el Mac.";
 "show_cost_summary" = "Mostreu el resum de cost";
 "show_cost_summary_subtitle" = "Llegeix els registres d'ús locals. Mostra el cost d'avui + la finestra d'historial seleccionada al menú.";
 "cost_history_days_title" = "Finestra d'historial: %d dies";
@@ -470,10 +470,10 @@
 "unsafe_managed_home" = "El CodexBar s'ha negat a modificar un camí de directori gestionat inesperat: %@";
 "menu_bar_metric_title" = "Mètrica de la barra de menús";
 "menu_bar_metric_subtitle" = "Trieu quina finestra determina el percentatge de la barra de menús.";
-"menu_bar_metric_subtitle_deepseek" = "Mostreu el saldo de DeepSeek a la barra de menús.";
-"menu_bar_metric_subtitle_moonshot" = "Mostreu el saldo de l'API de Moonshot / Kimi a la barra de menús.";
-"menu_bar_metric_subtitle_mistral" = "Mostreu la despesa de l'API de Mistral del mes actual a la barra de menús.";
-"menu_bar_metric_subtitle_kimik2" = "Mostreu els crèdits de la clau d'API de Kimi K2 a la barra de menús.";
+"menu_bar_metric_subtitle_deepseek" = "Mostra el saldo de DeepSeek a la barra de menús.";
+"menu_bar_metric_subtitle_moonshot" = "Mostra el saldo de l'API de Moonshot / Kimi a la barra de menús.";
+"menu_bar_metric_subtitle_mistral" = "Mostra la despesa de l'API de Mistral del mes actual a la barra de menús.";
+"menu_bar_metric_subtitle_kimik2" = "Mostra els crèdits de la clau d'API de Kimi K2 a la barra de menús.";
 "automatic" = "Automàtic";
 "primary_api_key_limit" = "Principal (límit de la clau d'API)";
 
@@ -482,7 +482,7 @@
 "merge_icons_title" = "Combina les icones";
 "merge_icons_subtitle" = "Feu servir una sola icona a la barra de menús amb un selector de proveïdor.";
 "switcher_shows_icons_title" = "El selector mostra icones";
-"switcher_shows_icons_subtitle" = "Mostreu les icones de proveïdor al selector (si no, mostra una línia de progrés setmanal).";
+"switcher_shows_icons_subtitle" = "Mostreu les icones de proveïdor al selector (si no, mostreu una línia de progrés setmanal).";
 "show_most_used_provider_title" = "Mostreu el proveïdor més utilitzat";
 "show_most_used_provider_subtitle" = "La barra de menús mostra automàticament el proveïdor més a prop del seu límit.";
 "menu_bar_shows_percent_title" = "La barra de menús mostra el percentatge";
@@ -560,9 +560,9 @@
 "verbosity_subtitle" = "Controla quant detall es registra.";
 "open_log_file" = "Obriu el fitxer de registre";
 "force_animation_next_refresh" = "Forceu l'animació a la pròxima actualització";
-"force_animation_next_refresh_subtitle" = "Mostreu temporalment l'animació de càrrega després de la pròxima actualització.";
+"force_animation_next_refresh_subtitle" = "Mostra temporalment l'animació de càrrega després de la pròxima actualització.";
 "section_loading_animations" = "Animacions de càrrega";
-"loading_animations_caption" = "Trieu un patró i reprodueix-lo a la barra de menús. «Aleatori» manté el comportament actual.";
+"loading_animations_caption" = "Trieu un patró i reproduïu-lo a la barra de menús. «Aleatori» manté el comportament actual.";
 "animation_random_default" = "Aleatori (per defecte)";
 "replay_selected_animation" = "Reprodueix l'animació seleccionada";
 "blink_now" = "Parpelleja ara";
@@ -608,7 +608,7 @@
 "login_shell_path" = "PATH del shell d'inici de sessió (captura a l'arrencada)";
 "cleared" = "Esborrat.";
 "no_fetch_attempts" = "Encara no hi ha intents d'obtenció.";
-"macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe pot bloquejar les apps de la barra de menús a Configuració del Sistema → Barra de menús → Permeteu a la barra de menús. El CodexBar s'està executant, però macOS podria estar amagant-ne la icona. Obriu la configuració de la barra de menús i activa el CodexBar.";
+"macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe pot bloquejar les apps de la barra de menús a Configuració del Sistema → Barra de menús → Permet a la barra de menús. El CodexBar s'està executant, però macOS podria estar amagant-ne la icona. Obriu la configuració de la barra de menús i activeu el CodexBar.";
 
 /* Metric preferences */
 "metric_pref_automatic" = "Automàtic";
@@ -844,7 +844,7 @@
 "No output captured." = "No s'ha capturat cap sortida.";
 "No system account" = "Sense compte del sistema";
 "Oasis-Token" = "Oasis-Token";
-"Open Augment (Log Out & Back In)" = "Obriu Augment (tanca sessió i torna a entrar)";
+"Open Augment (Log Out & Back In)" = "Obriu Augment (tanqueu la sessió i torneu a iniciar-la)";
 "Open Codebuff Dashboard" = "Obriu el tauler de Codebuff";
 "Open Command Code Settings" = "Obriu la configuració de Command Code";
 "Open Crof dashboard" = "Obriu el tauler de Crof";
@@ -924,8 +924,8 @@
 "Today requests" = "Sol·licituds d'avui";
 "Total (30d): %@ credits" = "Total (30 d): %@ crèdits";
 "Username" = "Nom d'usuari";
-"Uses username + password to login and obtain an Oasis-Token automatically." = "Useu nom d'usuari i contrasenya per iniciar sessió i obtenir un Oasis-Token automàticament.";
-"Uses username + password to login and obtain an %@ automatically." = "Useu nom d'usuari i contrasenya per iniciar sessió i obtenir un %@ automàticament.";
+"Uses username + password to login and obtain an Oasis-Token automatically." = "Fa servir el nom d'usuari i la contrasenya per iniciar sessió i obtenir automàticament un Oasis-Token.";
+"Uses username + password to login and obtain an %@ automatically." = "Fa servir el nom d'usuari i la contrasenya per iniciar sessió i obtenir automàticament un %@.";
 "Utilization End" = "Final d'utilització";
 "Utilization Start" = "Inici d'utilització";
 "Verbosity" = "Detall";
@@ -985,7 +985,7 @@
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "El mode automàtic fa servir primer l'API local de l'IDE i després Google OAuth quan l'IDE està tancat.";
 "Cleanup ideas" = "Idees de neteja";
 "Clearing removes archived Codex session history." = "En esborrar, s'elimina l'historial arxivat de sessions de Codex.";
-"Clearing removes cached large pastes or attached images." = "En esborrar, s'eliminen de la memòria cau les enganxades grans o les imatges adjuntes.";
+"Clearing removes cached large pastes or attached images." = "En esborrar, s'eliminen de la memòria cau els continguts voluminosos enganxats o les imatges adjuntes.";
 "Clearing removes checkpoint restore data for previous edits." = "En esborrar, s'eliminen les dades de restauració dels punts de control d'edicions anteriors.";
 "Clearing removes leftover runtime shell snapshot files." = "En esborrar, s'eliminen els fitxers residuals d'instantànies de shell en execució.";
 "Clearing removes legacy per-session task lists." = "En esborrar, s'eliminen les llistes de tasques antigues per sessió.";
@@ -1065,9 +1065,9 @@
 "Projected empty in %@" = "Es preveu que s'esgotarà en %@";
 "Projected empty now" = "Es preveu que s'esgotarà ara";
 "Quit" = "Surt";
-"quota_warning_notification_body" = "Queden %1$@. Heu assolit el llindar d'avís del %2$d%% %3$@.";
-"quota_warning_notification_body_with_account" = "Compte %1$@. Queden %2$@. Heu assolit el llindar d'avís del %3$d%% %4$@.";
-"quota_warning_notification_title" = "%1$@ %2$@ quota baixa";
+"quota_warning_notification_body" = "Queda un %1$@. Heu assolit el llindar d'avís del %2$d%% (%3$@).";
+"quota_warning_notification_body_with_account" = "Compte %1$@. Queda un %2$@. Heu assolit el llindar d'avís del %3$d%% (%4$@).";
+"quota_warning_notification_title" = "Quota baixa de %1$@ (%2$@)";
 "Refreshing" = "S'està actualitzant";
 "Request quota: %@ / %@" = "Quota de sol·licituds: %@ / %@";
 "Resets %@" = "Es reinicia %@";
@@ -1077,9 +1077,9 @@
 "Runs out now" = "S'esgota ara";
 "Session" = "Sessió";
 "session_depleted_notification_body" = "Queda un 0%. Es notificarà quan torni a estar disponible.";
-"session_depleted_notification_title" = "Sessió %@ esgotada";
+"session_depleted_notification_title" = "Quota de sessió de %@ esgotada";
 "session_restored_notification_body" = "La quota de sessió torna a estar disponible.";
-"session_restored_notification_title" = "Sessió %@ restaurada";
+"session_restored_notification_title" = "Quota de sessió de %@ restablerta";
 "Settings..." = "Configuració...";
 "Source" = "Origen";
 "State" = "Estat";
