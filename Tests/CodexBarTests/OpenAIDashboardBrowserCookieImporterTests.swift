@@ -148,20 +148,24 @@ struct OpenAIDashboardBrowserCookieImporterTests {
     @Test
     func `timed out cookie cache work stays ordered before retry`() async throws {
         let log = CookieOperationLog()
+        let allowFirstOperationToFinish = DispatchSemaphore(value: 0)
 
         do {
             _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieCacheOperation(
                 deadline: Date().addingTimeInterval(0.05))
             {
                 log.append("first-start")
-                Thread.sleep(forTimeInterval: 0.15)
+                _ = allowFirstOperationToFinish.wait(timeout: .now() + 5)
                 log.append("first-end")
                 return true
             }
             Issue.record("Expected first cache operation timeout")
         } catch let error as URLError {
             #expect(error.code == .timedOut)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
+        allowFirstOperationToFinish.signal()
 
         _ = try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieCacheOperation(
             deadline: Date().addingTimeInterval(1))
