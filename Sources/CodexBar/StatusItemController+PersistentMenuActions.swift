@@ -67,10 +67,8 @@ extension StatusItemController {
         }
 
         if self.isMergedOverviewSelected(in: menu) {
-            let providers = self.settings.resolvedMergedOverviewProviders(
-                activeProviders: self.store.enabledProvidersForDisplay(),
-                maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
-            return self.store.isRefreshing || providers.contains { self.store.refreshingProviders.contains($0) }
+            // Overview refresh is global, so its busy state must mirror the global manual-refresh gate.
+            return self.store.isRefreshing || !self.store.refreshingProviders.isEmpty
         }
         if let provider = self.menuProvider(for: menu) {
             return self.store.isRefreshing || self.store.refreshingProviders.contains(provider)
