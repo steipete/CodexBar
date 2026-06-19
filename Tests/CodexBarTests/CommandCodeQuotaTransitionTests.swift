@@ -25,6 +25,11 @@ struct CommandCodeQuotaTransitionTests {
             previous: availableWithPlan)
         #expect(stabilized.primary?.usedPercent == 100)
 
+        let stabilizedAgain = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: missingSubscription,
+            previous: stabilized)
+        #expect(stabilizedAgain.primary?.usedPercent == 100)
+
         let startupFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: nil)
@@ -64,6 +69,10 @@ struct CommandCodeQuotaTransitionTests {
             current: missingSubscription,
             previous: depletedWithPlan)
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: stabilizedFailure)
+        let repeatedFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: missingSubscription,
+            previous: stabilizedFailure)
+        store.handleSessionQuotaTransition(provider: .commandcode, snapshot: repeatedFailure)
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: depletedWithPlan)
 
         #expect(notifier.posts.count(where: { $0.transition == .depleted }) == 1)
@@ -94,6 +103,10 @@ struct CommandCodeQuotaTransitionTests {
             current: missingSubscription,
             previous: availableWithPlan)
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: stabilizedFailure)
+        let repeatedFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: missingSubscription,
+            previous: stabilizedFailure)
+        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: repeatedFailure)
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
 
         #expect(notifier.quotaWarningPosts.count == 1)

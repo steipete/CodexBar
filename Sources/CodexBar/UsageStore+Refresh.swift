@@ -13,9 +13,13 @@ extension UsageStore {
         current: UsageSnapshot,
         previous: UsageSnapshot?) -> UsageSnapshot
     {
+        let previousProvesPaidDepletion = previous?.commandCodeHasSubscriptionPlan == true ||
+            (previous?.commandCodeSubscriptionEnrichmentUnavailable == true &&
+                previous?.commandCodeMonthlyGrantDepleted == true &&
+                previous?.primary?.usedPercent == 100)
         guard current.commandCodeSubscriptionEnrichmentUnavailable,
               current.commandCodeMonthlyGrantDepleted,
-              previous?.commandCodeHasSubscriptionPlan == true,
+              previousProvesPaidDepletion,
               let previousPrimary = previous?.primary
         else {
             return current
