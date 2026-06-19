@@ -31,8 +31,11 @@ a public API, so compatibility can change without notice.
 
 ### 1. Create an Atlassian API token
 
-Go to [id.atlassian.com → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
-and create a token. The provider currently expects an Atlassian API token plus the matching account email.
+Go to [id.atlassian.com → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens),
+choose **Create API token with scopes**, select **Rovo Dev**, clear the default scope selection, and enable only
+`read:rovodev:limits`. The provider expects this scoped token plus the matching Atlassian account email.
+
+Do not retain the broad default Rovo Dev scope selection. CodexBar only reads current credit usage and limits.
 
 ### 2. Configure via Settings
 

@@ -417,7 +417,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Rovo Dev
 
-- Auth: Atlassian email + API token (HTTP Basic), configured in **Settings → Providers → Rovo Dev** or via `ROVODEV_EMAIL` + `ROVODEV_API_TOKEN`.
+- Auth: Atlassian email + scoped Rovo Dev API token (only `read:rovodev:limits`) via HTTP Basic, configured in **Settings → Providers → Rovo Dev** or via `ROVODEV_EMAIL` + `ROVODEV_API_TOKEN`.
 - Reads monthly credit usage from the undocumented `GET https://api.atlassian.com/rovodev/v3/credits/check`
   service endpoint; compatibility may change without notice.
 - Displays: credits used / total, account status (Active / Rate Limited / Blocked).

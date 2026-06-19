@@ -46,7 +46,7 @@ struct RovoDevProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "rovodev-api-token",
                 title: "API token",
-                subtitle: "Create a scoped Atlassian API token at id.atlassian.com. " +
+                subtitle: "Create a Rovo Dev token with only the read:rovodev:limits scope. " +
                     "Stored in ~/.codexbar/config.json or set ROVODEV_API_TOKEN in your environment.",
                 kind: .secure,
                 placeholder: "ATATT3x...",

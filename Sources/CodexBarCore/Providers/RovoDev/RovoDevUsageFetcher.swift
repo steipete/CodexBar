@@ -131,11 +131,10 @@ public struct RovoDevUsageSnapshot: Sendable, Equatable {
     }
 
     private static func usedCredits(explicit: Int?, total: Int?, remaining: Int?) -> Int? {
-        if let explicit {
-            return explicit
+        if let total, let remaining {
+            return total - remaining
         }
-        guard let total, let remaining else { return nil }
-        return max(0, min(total, total - remaining))
+        return explicit
     }
 
     private var displayStatus: String? {
@@ -195,6 +194,7 @@ public struct RovoDevUsageFetcher: Sendable {
         let url = Self.creditsCheckURL(baseURL: RovoDevSettingsReader.apiURL(environment: environment))
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = Self.timeoutSeconds
 
@@ -243,7 +243,19 @@ public struct RovoDevUsageFetcher: Sendable {
 
     private static func decodeResponse(data: Data) throws -> CreditsCheckResponse {
         do {
-            return try JSONDecoder().decode(CreditsCheckResponse.self, from: data)
+            let response = try JSONDecoder().decode(CreditsCheckResponse.self, from: data)
+            guard response.balance?.isValid ?? true else {
+                throw RovoDevUsageError.parseFailed("Invalid credit balance")
+            }
+            guard response.retryAfterSeconds.map({ $0 >= 0 }) ?? true else {
+                throw RovoDevUsageError.parseFailed("Invalid retry interval")
+            }
+            guard response.modelUsages?.values.allSatisfy({ $0 >= 0 }) ?? true else {
+                throw RovoDevUsageError.parseFailed("Invalid model usage")
+            }
+            return response
+        } catch let error as RovoDevUsageError {
+            throw error
         } catch {
             throw RovoDevUsageError.parseFailed(error.localizedDescription)
         }
@@ -272,6 +284,19 @@ public struct RovoDevUsageFetcher: Sendable {
 
     private static func creditsCheckURL(baseURL: URL) -> URL {
         baseURL.appendingPathComponent("rovodev/v3/credits/check")
+    }
+}
+
+extension RovoDevBalance {
+    fileprivate var isValid: Bool {
+        Self.isValidWindow(total: self.monthlyTotal, remaining: self.monthlyRemaining, used: self.monthlyUsed) &&
+            Self.isValidWindow(total: self.dailyTotal, remaining: self.dailyRemaining, used: self.dailyUsed)
+    }
+
+    fileprivate static func isValidWindow(total: Int?, remaining: Int?, used: Int?) -> Bool {
+        guard [total, remaining, used].compactMap(\.self).allSatisfy({ $0 >= 0 }) else { return false }
+        guard let total else { return true }
+        return remaining.map { $0 <= total } ?? true && used.map { $0 <= total } ?? true
     }
 }
 
