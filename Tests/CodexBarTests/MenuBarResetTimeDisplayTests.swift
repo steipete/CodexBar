@@ -219,14 +219,14 @@ struct MenuBarResetTimeDisplayTests {
     }
 
     @Test(arguments: [
-        (CodexAllMetricsResetFormat.weekdayTime, "↻ Thu 6:10a"),
-        (CodexAllMetricsResetFormat.monthDayTime, "↻ Jun 18 6:10a"),
-        (CodexAllMetricsResetFormat.weekdayMonthDay, "↻ Thu Jun 18"),
-        (CodexAllMetricsResetFormat.monthDay, "↻ Jun 18"),
-        (CodexAllMetricsResetFormat.weekdayTimeCompactCountdown, "↻ Thu 6:10a · 3d"),
-        (CodexAllMetricsResetFormat.monthDayTimeCompactCountdown, "↻ Jun 18 6:10a · 3d"),
-        (CodexAllMetricsResetFormat.weekdayMonthDayCompactCountdown, "↻ Thu Jun 18 · 3d"),
-        (CodexAllMetricsResetFormat.monthDayCompactCountdown, "↻ Jun 18 · 3d"),
+        (CodexAllMetricsResetFormat.weekdayTime, "↻ Thu 06:10"),
+        (CodexAllMetricsResetFormat.monthDayTime, "↻ 18 Jun at 06:10"),
+        (CodexAllMetricsResetFormat.weekdayMonthDay, "↻ Thu 18 Jun"),
+        (CodexAllMetricsResetFormat.monthDay, "↻ 18 Jun"),
+        (CodexAllMetricsResetFormat.weekdayTimeCompactCountdown, "↻ Thu 06:10 · 3d"),
+        (CodexAllMetricsResetFormat.monthDayTimeCompactCountdown, "↻ 18 Jun at 06:10 · 3d"),
+        (CodexAllMetricsResetFormat.weekdayMonthDayCompactCountdown, "↻ Thu 18 Jun · 3d"),
+        (CodexAllMetricsResetFormat.monthDayCompactCountdown, "↻ 18 Jun · 3d"),
         (CodexAllMetricsResetFormat.compactCountdown, "↻ 3d"),
         (CodexAllMetricsResetFormat.countdown, "↻ in 3d"),
     ])
@@ -255,6 +255,7 @@ struct MenuBarResetTimeDisplayTests {
             showsPace: false,
             resetFormat: format,
             resetTimeDisplayStyle: .absolute,
+            locale: Locale(identifier: "en_GB"),
             now: now)
 
         #expect(text == expected)
@@ -282,9 +283,30 @@ struct MenuBarResetTimeDisplayTests {
             showsPace: false,
             resetFormat: .weekdayTimeCompactCountdown,
             resetTimeDisplayStyle: .absolute,
+            locale: Locale(identifier: "en_GB"),
             now: now)
 
-        #expect(text == "↻ Thu 9:41a · 3h 31m")
+        #expect(text == "↻ Thu 09:41 · 3h 31m")
+    }
+
+    @Test
+    func `codex all metrics reset previews honor locale hour cycle`() {
+        let us = CodexAllMetricsResetFormat.weekdayTime.previewLabel(locale: Locale(identifier: "en_US"))
+        let gb = CodexAllMetricsResetFormat.weekdayTime.previewLabel(locale: Locale(identifier: "en_GB"))
+
+        #expect(us.contains("PM"))
+        #expect(gb.hasSuffix("18:10"))
+        #expect(!gb.contains("PM"))
+    }
+
+    @Test
+    func `codex all metrics reset previews honor app language override`() {
+        let preview = CodexBarLocalizationOverride.$appLanguage.withValue("fr") {
+            CodexAllMetricsResetFormat.weekdayMonthDay.previewLabel
+        }
+
+        #expect(preview.contains("jeu."))
+        #expect(preview.contains("juin"))
     }
 
     @Test

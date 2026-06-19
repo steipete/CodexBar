@@ -48,7 +48,7 @@ enum CodexAllMetricsPaceLabelStyle: String, CaseIterable, Identifiable {
     var previewLabel: String {
         switch self {
         case .abbreviated: "P -23%"
-        case .word: "Pace -23%"
+        case .word: "\(L("display_mode_pace")) -23%"
         case .valueOnly: "-23%"
         case .delta: "Δ -23%"
         }
@@ -74,19 +74,11 @@ enum CodexAllMetricsResetFormat: String, CaseIterable, Identifiable {
     }
 
     var previewLabel: String {
-        switch self {
-        case .default: L("Default")
-        case .weekdayTime: "Thu 6:10a"
-        case .monthDayTime: "Jun 18 6:10a"
-        case .weekdayMonthDay: "Thu Jun 18"
-        case .monthDay: "Jun 18"
-        case .weekdayTimeCompactCountdown: "Thu 6:10a · 3d"
-        case .monthDayTimeCompactCountdown: "Jun 18 6:10a · 3d"
-        case .weekdayMonthDayCompactCountdown: "Thu Jun 18 · 3d"
-        case .monthDayCompactCountdown: "Jun 18 · 3d"
-        case .compactCountdown: "3d"
-        case .countdown: "in 3d"
-        }
+        self.previewLabel(locale: codexBarLocalizedLocale())
+    }
+
+    func previewLabel(locale: Locale) -> String {
+        MenuBarDisplayText.codexAllMetricsResetPreview(format: self, locale: locale)
     }
 
     func usesCountdown(globalStyle: ResetTimeDisplayStyle) -> Bool {

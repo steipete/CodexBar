@@ -3,6 +3,7 @@
 ## 0.36.2 — Unreleased
 
 ### Added
+- Display: add customizable Codex all-metrics menu bar text with session, weekly, pace, and reset segments. Thanks @thepraggyverse!
 - Cursor: show personal on-demand spend alongside the shared team pool. Thanks @yashiels!
 - Documentation: link the community KDE Plasma panel integration. Thanks @tylxr59!
 - Codex: show available manual rate-limit reset credits and their next expiry for signed-in OAuth accounts. Thanks @rogdex24!

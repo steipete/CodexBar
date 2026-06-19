@@ -60,6 +60,7 @@ enum MenuBarDisplayText {
         paceLabelStyle: CodexAllMetricsPaceLabelStyle = .abbreviated,
         resetFormat: CodexAllMetricsResetFormat = .default,
         resetTimeDisplayStyle: ResetTimeDisplayStyle = .countdown,
+        locale: Locale = codexBarLocalizedLocale(),
         now: Date = .init())
         -> String?
     {
@@ -78,6 +79,7 @@ enum MenuBarDisplayText {
                window: weeklyWindow,
                format: resetFormat,
                defaultStyle: resetTimeDisplayStyle,
+               locale: locale,
                now: now)
         {
             parts.append(reset)
@@ -89,6 +91,7 @@ enum MenuBarDisplayText {
         window: RateWindow?,
         format: CodexAllMetricsResetFormat,
         defaultStyle: ResetTimeDisplayStyle,
+        locale: Locale = codexBarLocalizedLocale(),
         now: Date)
         -> String?
     {
@@ -106,21 +109,21 @@ enum MenuBarDisplayText {
                 UsageFormatter.resetDescription(from: resetsAt, now: now)
             }
         case .weekdayTime:
-            self.compactDateText(resetsAt, format: "EEE h:mma")
+            self.compactDateText(resetsAt, template: "EEEjm", locale: locale)
         case .monthDayTime:
-            self.compactDateText(resetsAt, format: "MMM d h:mma")
+            self.compactDateText(resetsAt, template: "MMMdjm", locale: locale)
         case .weekdayMonthDay:
-            self.compactDateText(resetsAt, format: "EEE MMM d")
+            self.compactDateText(resetsAt, template: "EEEMMMd", locale: locale)
         case .monthDay:
-            self.compactDateText(resetsAt, format: "MMM d")
+            self.compactDateText(resetsAt, template: "MMMd", locale: locale)
         case .weekdayTimeCompactCountdown:
-            self.compactResetText(resetsAt, dateFormat: "EEE h:mma", now: now)
+            self.compactResetText(resetsAt, dateTemplate: "EEEjm", locale: locale, now: now)
         case .monthDayTimeCompactCountdown:
-            self.compactResetText(resetsAt, dateFormat: "MMM d h:mma", now: now)
+            self.compactResetText(resetsAt, dateTemplate: "MMMdjm", locale: locale, now: now)
         case .weekdayMonthDayCompactCountdown:
-            self.compactResetText(resetsAt, dateFormat: "EEE MMM d", now: now)
+            self.compactResetText(resetsAt, dateTemplate: "EEEMMMd", locale: locale, now: now)
         case .monthDayCompactCountdown:
-            self.compactResetText(resetsAt, dateFormat: "MMM d", now: now)
+            self.compactResetText(resetsAt, dateTemplate: "MMMd", locale: locale, now: now)
         case .compactCountdown:
             self.compactCountdownText(resetsAt, now: now)
         case .countdown:
@@ -138,7 +141,7 @@ enum MenuBarDisplayText {
         case .abbreviated:
             "P \(pace)"
         case .word:
-            "Pace \(pace)"
+            "\(L("display_mode_pace")) \(pace)"
         case .valueOnly:
             pace
         case .delta:
@@ -152,17 +155,47 @@ enum MenuBarDisplayText {
         return String(countdown.dropFirst(3))
     }
 
-    private static func compactResetText(_ date: Date, dateFormat: String, now: Date) -> String {
-        "\(self.compactDateText(date, format: dateFormat)) · \(self.compactCountdownText(date, now: now))"
+    private static func compactResetText(
+        _ date: Date,
+        dateTemplate: String,
+        locale: Locale,
+        now: Date) -> String
+    {
+        "\(self.compactDateText(date, template: dateTemplate, locale: locale)) · " +
+            self.compactCountdownText(date, now: now)
     }
 
-    private static func compactDateText(_ date: Date, format: String) -> String {
+    private static func compactDateText(_ date: Date, template: String, locale: Locale) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = format
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate(template)
         return formatter.string(from: date)
-            .replacingOccurrences(of: "AM", with: "a")
-            .replacingOccurrences(of: "PM", with: "p")
+    }
+
+    static func codexAllMetricsResetPreview(
+        format: CodexAllMetricsResetFormat,
+        locale: Locale = codexBarLocalizedLocale()) -> String
+    {
+        guard format != .default else { return L("Default") }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        guard let now = calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 18, minute: 10)),
+              let reset = calendar.date(from: DateComponents(year: 2026, month: 6, day: 18, hour: 18, minute: 10))
+        else {
+            return L("Default")
+        }
+        let window = RateWindow(
+            usedPercent: 0,
+            windowMinutes: 10080,
+            resetsAt: reset,
+            resetDescription: nil)
+        return self.codexAllMetricsResetText(
+            window: window,
+            format: format,
+            defaultStyle: .countdown,
+            locale: locale,
+            now: now)?
+            .replacingOccurrences(of: "↻ ", with: "") ?? L("Default")
     }
 
     private static func resetText(window: RateWindow?, style: ResetTimeDisplayStyle, now: Date) -> String? {
