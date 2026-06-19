@@ -66,6 +66,43 @@ struct OpenAIDashboardWebViewCacheTests {
         OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
     }
 
+    @Test
+    func `same email profile homes use distinct website data stores`() {
+        OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
+        defer { OpenAIDashboardWebsiteDataStore.clearCacheForTesting() }
+
+        let profileA = CookieHeaderCache.Scope.profileHome("/tmp/codex-profile-a")
+        let profileB = CookieHeaderCache.Scope.profileHome("/tmp/codex-profile-b")
+        let storeA = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "shared@example.com",
+            scope: profileA)
+        let storeAAgain = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "SHARED@example.com",
+            scope: profileA)
+        let storeB = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "shared@example.com",
+            scope: profileB)
+        let liveStore = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: "shared@example.com")
+
+        #expect(storeA === storeAAgain)
+        #expect(storeA !== storeB)
+        #expect(storeA !== liveStore)
+        #expect(storeB !== liveStore)
+        #expect(storeA.identifier != storeB.identifier)
+        #expect(storeA.identifier != liveStore.identifier)
+        #expect(storeB.identifier != liveStore.identifier)
+    }
+
+    @Test
+    func `live website data store preserves legacy email identifier`() {
+        OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
+        defer { OpenAIDashboardWebsiteDataStore.clearCacheForTesting() }
+
+        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: " SHARED@EXAMPLE.COM ")
+
+        #expect(store.identifier?.uuidString == "CC61BD27-6855-439F-9D11-F470B7977B90")
+    }
+
     // MARK: - WebView Reuse Tests
 
     @Test

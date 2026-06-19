@@ -72,6 +72,7 @@ public enum OpenAIDashboardWebsiteDataStore {
     public static func clearCacheForTesting() {
         self.cachedStores.removeAll()
     }
+
     #endif
 
     // MARK: - Private
@@ -82,7 +83,8 @@ public enum OpenAIDashboardWebsiteDataStore {
     }
 
     private static func storageKey(normalizedEmail: String, scope: CookieHeaderCache.Scope?) -> String {
-        "\(normalizedEmail)|\(scope?.isolationIdentifier ?? "live")"
+        guard let scope else { return normalizedEmail }
+        return "\(normalizedEmail)|\(scope.isolationIdentifier)"
     }
 
     private static func identifier(forStorageKey storageKey: String) -> UUID {
