@@ -27,6 +27,7 @@
 - LiteLLM: show personal and team spend amounts directly on budget rows while suppressing duplicate budget sections. Thanks @hololee!
 
 ### Fixed
+- Cost history: keep the first and last date labels aligned and visible without clipping. Thanks @elijahfriedman!
 - Xiaomi MiMo: retry another imported browser session when a stale session redirects API requests to login. Thanks @Yuxin-Qiao!
 - Kiro: keep parsed usage available when the optional account probe times out or fails. Thanks @Yuxin-Qiao!
 - Cursor: ignore an exhausted Auto or API subquota only when another independent quota remains usable, while preserving the overall cap. Thanks @Yuxin-Qiao!
