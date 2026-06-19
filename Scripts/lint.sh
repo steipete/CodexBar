@@ -41,7 +41,7 @@ check_site_locales() {
   node --check "${ROOT_DIR}/docs/site.js"
 }
 
-run_portable_lint() {
+run_portable_checks() {
   check_codex_parser_hash
   check_package_product_paths
   check_release_dsym_paths
@@ -49,7 +49,13 @@ run_portable_lint() {
   check_swift_test_sharding
   check_site_locales
   ensure_tools
+}
+
+run_swiftformat_lint() {
   "${BIN_DIR}/swiftformat" Sources Tests --lint
+}
+
+run_swiftlint() {
   "${BIN_DIR}/swiftlint" --strict
 }
 
@@ -58,20 +64,25 @@ cmd="${1:-lint}"
 case "$cmd" in
   lint)
     check_app_locales
-    run_portable_lint
+    run_portable_checks
+    run_swiftformat_lint
+    run_swiftlint
     ;;
-  lint-portable)
-    run_portable_lint
+  lint-linux)
+    run_portable_checks
+    run_swiftlint
     ;;
-  app-locales)
+  lint-macos)
     check_app_locales
+    ensure_tools
+    run_swiftformat_lint
     ;;
   format)
     ensure_tools
     "${BIN_DIR}/swiftformat" Sources Tests
     ;;
   *)
-    printf 'Usage: %s [lint|lint-portable|app-locales|format]\n' "$(basename "$0")" >&2
+    printf 'Usage: %s [lint|lint-linux|lint-macos|format]\n' "$(basename "$0")" >&2
     exit 2
     ;;
 esac

@@ -20,7 +20,7 @@ jobs:
         run: ./Scripts/install_lint_tools.sh
 
       - name: Lint
-        run: ./Scripts/lint.sh lint-portable
+        run: ./Scripts/lint.sh lint-linux
 
   swift-test-macos:
     runs-on: macos-15-intel
@@ -51,9 +51,9 @@ jobs:
           swift --version
           swift package --version
 
-      - name: Check app locales
+      - name: Check app locales and Swift formatting
         if: ${{ matrix.shard-index == 0 }}
-        run: ./Scripts/lint.sh app-locales
+        run: ./Scripts/lint.sh lint-macos
 
       - name: Swift Test
         timeout-minutes: 35
