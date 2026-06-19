@@ -37,7 +37,9 @@ struct CommandCodeQuotaTransitionTests {
         let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
         let depletedWithPlan = self.snapshot(remaining: 0, plan: plan)
         let freeTier = self.snapshot(remaining: 0, plan: nil)
-        let missingSubscription = self.snapshot(remaining: 4, plan: nil, subscriptionUnavailable: true)
+        let missingSubscription = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: self.snapshot(remaining: 0, plan: nil, subscriptionUnavailable: true),
+            previous: depletedWithPlan)
 
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: freeTier)
         #expect(notifier.posts.isEmpty)
@@ -51,6 +53,24 @@ struct CommandCodeQuotaTransitionTests {
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: freeTier)
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: depletedWithPlan)
         #expect(notifier.posts.count(where: { $0.transition == .depleted }) == 2)
+    }
+
+    @Test
+    func `restored notification uses current credits during subscription enrichment failure`() throws {
+        let settings = self.makeSettings(suiteName: "CommandCodeRestoredDuringEnrichmentFailure")
+        settings.sessionQuotaNotificationsEnabled = true
+        let notifier = NotifierSpy()
+        let store = self.makeStore(settings: settings, notifier: notifier)
+        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
+
+        store.handleSessionQuotaTransition(
+            provider: .commandcode,
+            snapshot: self.snapshot(remaining: 0, plan: plan))
+        store.handleSessionQuotaTransition(
+            provider: .commandcode,
+            snapshot: self.snapshot(remaining: 4, plan: nil, subscriptionUnavailable: true))
+
+        #expect(notifier.posts.map(\.transition) == [.depleted, .restored])
     }
 
     @Test
