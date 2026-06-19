@@ -6,8 +6,8 @@
 "A managed Codex login is already running. Wait for it to finish before adding " = "Ja hi ha un inici de sessió gestionat de Codex en curs. Espera que acabi abans d'afegir ";
 "API key" = "Clau d'API";
 "API region" = "Regió de l'API";
-"API token" = "Testimoni d'API";
-"API tokens" = "Testimonis d'API";
+"API token" = "Token d'API";
+"API tokens" = "Tokens d'API";
 "About" = "Quant a";
 "Account" = "Compte";
 "Accounts" = "Comptes";
@@ -267,7 +267,7 @@
 "Select a provider" = "Seleccioneu un proveïdor";
 "Select the IDE to monitor" = "Seleccioneu l'IDE que cal monitorar";
 "Session quota notifications" = "Notificacions de quota de sessió";
-"Session tokens" = "Testimonis de sessió";
+"Session tokens" = "Tokens de sessió";
 "Settings" = "Configuració";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Mostreu les seccions de Crèdits de Codex i Ús addicional de Claude al menú.";
 "Show Debug Settings" = "Mostreu la configuració de depuració";
@@ -313,7 +313,7 @@
 "The default Codex account on this Mac." = "El compte de Codex per defecte en aquest Mac.";
 "Toggle" = "Commutador";
 "Toggle subtitle" = "Subtítol del commutador";
-"Token" = "Testimoni";
+"Token" = "Token";
 "Trigger the menu bar menu from anywhere." = "Obriu el menú de la barra de menús des de qualsevol lloc.";
 "True" = "Cert";
 "Twitter" = "Twitter";
@@ -869,7 +869,7 @@
 "%@ cookies are disabled." = "Les galetes de %@ estan desactivades.";
 "%@ web API access is disabled." = "L'accés a l'API web de %@ està desactivat.";
 "Disable %@ dashboard cookie usage." = "Desactiveu l'ús de galetes del tauler de %@.";
-"Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "L'accés al clauer està desactivat a Avançat, així que la importació de galetes del navegador no està disponible.";
+"Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "L'accés al Clauer està desactivat a Avançat, així que la importació de galetes del navegador no està disponible.";
 "Manually paste an %@ from a browser session." = "Enganxeu manualment un %@ d'una sessió del navegador.";
 "Paste a Cookie header captured from %@." = "Enganxeu una capçalera Cookie capturada de %@.";
 "Paste a Cookie header from %@." = "Enganxeu una capçalera Cookie de %@.";
@@ -1059,7 +1059,7 @@
 "On pace" = "Al ritme";
 "Open billing" = "Obriu la facturació";
 "Open Token Plan" = "Obriu el pla de tokens";
-"OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "Testimoni d'API d'OpenRouter no configurat. Definiu la variable d'entorn OPENROUTER_API_KEY o configureu-lo a Configuració.";
+"OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "Token d'API d'OpenRouter no configurat. Definiu la variable d'entorn OPENROUTER_API_KEY o configureu-lo a Configuració.";
 "Pace: %@" = "Ritme: %@";
 "Pace: %@ · %@" = "Ritme: %@ · %@";
 "Projected empty in %@" = "Es preveu que s'esgotarà en %@";
