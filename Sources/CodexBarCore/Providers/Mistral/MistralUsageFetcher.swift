@@ -69,10 +69,11 @@ public enum MistralUsageFetcher {
 
         var request = URLRequest(url: url, timeoutInterval: timeout)
         // The observed console request sends only csrftoken; keep admin Ory cookies origin-bound.
-        let cookieHeader = try Self.vibeCookieHeader(csrfToken: csrfToken)
+        request.httpShouldHandleCookies = false
+        let validatedCSRFToken = try Self.validatedVibeCSRFToken(csrfToken)
         request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        request.setValue(csrfToken, forHTTPHeaderField: "X-CSRFToken")
+        request.setValue("csrftoken=\(validatedCSRFToken)", forHTTPHeaderField: "Cookie")
+        request.setValue(validatedCSRFToken, forHTTPHeaderField: "X-CSRFToken")
 
         let response = try await transport.response(for: request)
         let data = response.data
@@ -109,12 +110,16 @@ public enum MistralUsageFetcher {
     }
 
     static func vibeCookieHeader(csrfToken: String) throws -> String {
+        try "csrftoken=\(self.validatedVibeCSRFToken(csrfToken))"
+    }
+
+    private static func validatedVibeCSRFToken(_ csrfToken: String) throws -> String {
         let token = csrfToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let forbidden = CharacterSet(charactersIn: ";,\r\n")
         guard !token.isEmpty, token.rangeOfCharacter(from: forbidden) == nil else {
             throw MistralUsageError.invalidCredentials
         }
-        return "csrftoken=\(token)"
+        return token
     }
 
     private static func parseISO8601Date(_ value: String) -> Date? {

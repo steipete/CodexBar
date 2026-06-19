@@ -57,7 +57,7 @@ struct MistralVibeUsageTests {
         }
 
         let result = try await MistralUsageFetcher.fetchVibeUsage(
-            csrfToken: "csrf-value",
+            csrfToken: " csrf-value ",
             timeout: 2,
             transport: transport)
         let request = try #require(capture.request)
@@ -65,6 +65,7 @@ struct MistralVibeUsageTests {
         #expect(result.usagePercentage == 12.5)
         #expect(request.url?.host == "console.mistral.ai")
         #expect(request.timeoutInterval == 2)
+        #expect(request.httpShouldHandleCookies == false)
         #expect(request.value(forHTTPHeaderField: "Cookie") == "csrftoken=csrf-value")
         #expect(request.value(forHTTPHeaderField: "X-CSRFToken") == "csrf-value")
         #expect(request.allHTTPHeaderFields?.values.contains { $0.contains("ory_session") } != true)
