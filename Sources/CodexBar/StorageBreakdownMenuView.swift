@@ -112,7 +112,7 @@ struct StorageBreakdownMenuView: View {
     }
 
     private var segmentTotalBytes: Double {
-        max(self.segments.reduce(0) { $0 + Double($1.bytes) }, 1)
+        self.segments.reduce(0) { $0 + Double($1.bytes) }
     }
 
     /// The components folded into the trailing "Other" segment, revealed when it is expanded.
@@ -206,6 +206,7 @@ struct StorageBreakdownMenuView: View {
     private func segmentWidth(_ segment: Segment, barWidth: CGFloat) -> CGFloat {
         let minWidth: CGFloat = 2
         let count = CGFloat(self.segments.count)
+        guard self.segmentTotalBytes > 0 else { return barWidth / max(count, 1) }
         let reserved = minWidth * count
         guard barWidth > reserved else { return barWidth / max(count, 1) }
         let remainder = barWidth - reserved

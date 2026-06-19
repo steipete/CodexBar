@@ -53,6 +53,18 @@ struct StorageBreakdownSegmentTests {
     }
 
     @Test @MainActor
+    func `zero byte components evenly fill bar`() {
+        let components = (1...4).map { index in
+            ProviderStorageFootprint.Component(path: "/tmp/item-\(index)", totalBytes: 0)
+        }
+        let view = StorageBreakdownMenuView(
+            footprint: Self.footprint(components: components),
+            width: 310)
+
+        #expect(view._segmentWidthsForTesting(barWidth: 100) == [25, 25, 25, 25])
+    }
+
+    @Test @MainActor
     func `negative component sizes clamp to zero`() {
         let components = [
             ProviderStorageFootprint.Component(path: "/tmp/negative", totalBytes: -10),
