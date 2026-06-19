@@ -1123,7 +1123,7 @@ extension MiMoProviderTests {
     }
 
     @Test
-    func `mimo importer checks backup after partial firefox recovery`() throws {
+    func `current partial firefox state does not resurrect backup credentials`() throws {
         let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-backup")
         defer { try? FileManager.default.removeItem(at: temp) }
 
@@ -1147,13 +1147,31 @@ extension MiMoProviderTests {
             BrowserCookieStoreRecords(store: store, records: records),
         ])
 
-        #expect(sessions.map(\.cookieHeader) == [
-            "api-platform_serviceToken=svc-token; userId=1863175063",
-        ])
+        #expect(records.map(\.name) == ["api-platform_ph"])
+        #expect(sessions.isEmpty)
     }
 
     @Test
-    func `mimo importer keeps persisted cookie over older firefox backup`() throws {
+    func `malformed current firefox state falls back to recovery backup`() throws {
+        let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-corrupt")
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        try Data("not-jsonlz4".utf8).write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+        let complete = """
+        {"cookies":[
+          {"host":".platform.xiaomimimo.com","path":"/","name":"api-platform_serviceToken","value":"svc-token"},
+          {"host":".xiaomimimo.com","path":"/","name":"userId","value":"1863175063"}
+        ]}
+        """
+        try self.mozillaLZ4LiteralFile(complete).write(to: backups.appendingPathComponent("recovery.baklz4"))
+
+        let records = MiMoFirefoxSessionCookieImporter.records(profileDirectory: profile)
+
+        #expect(Set(records.map(\.value)) == Set(["svc-token", "1863175063"]))
+    }
+
+    @Test
+    func `partial firefox state does not merge persisted and stale backup credentials`() throws {
         let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-persisted")
         defer { try? FileManager.default.removeItem(at: temp) }
 
@@ -1181,14 +1199,23 @@ extension MiMoProviderTests {
                 expires: Date(timeIntervalSince1970: 1_912_064_978),
                 isSecure: false,
                 isHTTPOnly: false),
+            BrowserCookieRecord(
+                domain: "xiaomimimo.com",
+                name: "userId",
+                path: "/",
+                value: "current-user",
+                expires: Date(timeIntervalSince1970: 1_912_064_978),
+                isSecure: false,
+                isHTTPOnly: false),
         ])
         let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(
             from: [persisted],
             browser: .firefox,
             stores: [store])
 
+        #expect(Set(resolved.first?.records.map(\.value) ?? []) == Set(["current-token", "current-user"]))
         #expect(MiMoCookieImporter.sessionInfos(from: resolved).map(\.cookieHeader) == [
-            "api-platform_serviceToken=current-token; userId=old-user",
+            "api-platform_serviceToken=current-token; userId=current-user",
         ])
     }
 
@@ -1212,15 +1239,16 @@ extension MiMoProviderTests {
         """
         try self.mozillaLZ4LiteralFile(json).write(to: backups.appendingPathComponent("recovery.jsonlz4"))
 
+        let store = self.makeFirefoxCookieStore(
+            profileDirectory: profile,
+            profileID: "opaque-firefox-profile")
         let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(
             from: [],
             browser: .firefox,
-            stores: [self.makeFirefoxCookieStore(profileDirectory: profile)])
+            stores: [store])
 
         #expect(resolved.count == 1)
-        #expect(
-            URL(fileURLWithPath: resolved.first?.store.profile.id ?? "").standardizedFileURL.path ==
-                profile.standardizedFileURL.path)
+        #expect(resolved.first?.store.profile.id == "opaque-firefox-profile")
         #expect(MiMoCookieImporter.sessionInfos(from: resolved).map(\.cookieHeader) == [
             "api-platform_serviceToken=svc-token; userId=1863175063",
         ])
@@ -1273,7 +1301,7 @@ extension MiMoProviderTests {
     }
 
     @Test
-    func `mimo importer merges firefox session restore cookies with persisted cookies`() throws {
+    func `complete firefox session state replaces persisted cookies`() throws {
         let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-merge")
         defer { try? FileManager.default.removeItem(at: temp) }
 
@@ -1326,6 +1354,7 @@ extension MiMoProviderTests {
             stores: [store])
         let sessions = MiMoCookieImporter.sessionInfos(from: resolved)
 
+        #expect(Set(resolved.first?.records.map(\.value) ?? []) == Set(["svc-token", "1863175063"]))
         #expect(sessions.map(\.cookieHeader) == ["api-platform_serviceToken=svc-token; userId=1863175063"])
     }
 
@@ -1376,21 +1405,6 @@ extension MiMoProviderTests {
         #expect(decoded == Data(json.utf8))
     }
 
-    @Test
-    func `firefox session restore json traversal is bounded`() throws {
-        let data = Data(#"{"nested":{"cookies":[]}}"#.utf8)
-
-        do {
-            _ = try MiMoFirefoxSessionCookieImporter.cookieRecords(fromJSONData: data, maxNodes: 1)
-            Issue.record("Expected complex Firefox session restore JSON to fail")
-        } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
-            guard case .invalidData = error else {
-                Issue.record("Unexpected Firefox session restore error: \(error)")
-                return
-            }
-        }
-    }
-
     private func makeFirefoxSessionRestoreProfile(prefix: String) throws -> (
         temp: URL,
         profile: URL,
@@ -1405,10 +1419,13 @@ extension MiMoProviderTests {
         return (temp: temp, profile: profile, backups: backups)
     }
 
-    private func makeFirefoxCookieStore(profileDirectory: URL) -> BrowserCookieStore {
+    private func makeFirefoxCookieStore(
+        profileDirectory: URL,
+        profileID: String? = nil) -> BrowserCookieStore
+    {
         BrowserCookieStore(
             browser: .firefox,
-            profile: BrowserProfile(id: profileDirectory.path, name: profileDirectory.lastPathComponent),
+            profile: BrowserProfile(id: profileID ?? profileDirectory.path, name: profileDirectory.lastPathComponent),
             kind: .primary,
             label: "Firefox \(profileDirectory.lastPathComponent)",
             databaseURL: profileDirectory.appendingPathComponent("cookies.sqlite"))
@@ -1417,6 +1434,8 @@ extension MiMoProviderTests {
 
     private func mozillaLZ4LiteralFile(_ json: String) -> Data {
         var data = Data([0x6D, 0x6F, 0x7A, 0x4C, 0x7A, 0x34, 0x30, 0x00])
+        var decodedSize = UInt32(json.utf8.count).littleEndian
+        withUnsafeBytes(of: &decodedSize) { data.append(contentsOf: $0) }
         data.append(self.lz4LiteralBlock(Data(json.utf8)))
         return data
     }

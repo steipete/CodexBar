@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -226,12 +227,12 @@ public enum MiMoCookieImporter {
         for store in stores where store.browser == browser {
             let profileID = store.profile.id
             let source = resolvedByProfileID[profileID] ?? BrowserCookieStoreRecords(store: store, records: [])
-            let profileDirectory = URL(fileURLWithPath: profileID, isDirectory: true)
+            guard let profileDirectory = store.databaseURL?.deletingLastPathComponent() else { continue }
             let sessionRecords = MiMoFirefoxSessionCookieImporter.records(
                 profileDirectory: profileDirectory,
-                persistedRecords: source.records,
                 logger: logger)
-            guard !sessionRecords.isEmpty else {
+            let sessionCookies = BrowserCookieClient.makeHTTPCookies(sessionRecords, origin: .domainBased)
+            guard MiMoCookieHeader.header(from: sessionCookies) != nil else {
                 if resolvedByProfileID[profileID] == nil {
                     continue
                 }
@@ -239,14 +240,12 @@ public enum MiMoCookieImporter {
                 continue
             }
 
-            let sessionKeys = Set(sessionRecords.map(self.recordKey))
-            let persistedRecords = source.records.filter { !sessionKeys.contains(self.recordKey($0)) }
             logger?(
                 "\(source.label): recovered \(sessionRecords.count) MiMo session cookie(s) " +
                     "from Firefox session restore")
             resolvedByProfileID[profileID] = BrowserCookieStoreRecords(
                 store: source.store,
-                records: persistedRecords + sessionRecords)
+                records: sessionRecords)
 
             if !orderedProfileIDs.contains(profileID) {
                 orderedProfileIDs.append(profileID)
@@ -349,6 +348,7 @@ enum MiMoFirefoxSessionCookieImporter {
     enum ImportError: LocalizedError {
         case inputTooLarge
         case outputTooLarge
+        case resourceLimit(String)
         case invalidData(String)
 
         var errorDescription: String? {
@@ -357,6 +357,8 @@ enum MiMoFirefoxSessionCookieImporter {
                 "Firefox session restore file exceeds the 64 MiB safety limit."
             case .outputTooLarge:
                 "Firefox session restore data exceeds the 128 MiB safety limit."
+            case let .resourceLimit(message):
+                message
             case let .invalidData(message):
                 message
             }
@@ -365,60 +367,42 @@ enum MiMoFirefoxSessionCookieImporter {
 
     private static let maxInputBytes = 64 * 1024 * 1024
     private static let maxOutputBytes = 128 * 1024 * 1024
-    private static let maxJSONNodes = 1_000_000
     private static let maxCookieRecords = 4096
     private static let sessionRestoreFileNames = [
         "recovery.jsonlz4",
         "recovery.baklz4",
         "previous.jsonlz4",
-        "sessionstore.jsonlz4",
     ]
     private static let mozillaLZ4Magic = Data([0x6D, 0x6F, 0x7A, 0x4C, 0x7A, 0x34, 0x30, 0x00])
 
     static func records(
         profileDirectory: URL,
-        persistedRecords: [BrowserCookieRecord] = [],
         now: Date = Date(),
         logger: ((String) -> Void)? = nil) -> [BrowserCookieRecord]
     {
         let files = self.sessionRestoreFiles(profileDirectory: profileDirectory)
-        var firstPartialRecords: [BrowserCookieRecord] = []
         for file in files {
             do {
                 let data = try self.readData(from: file)
                 let jsonData = try self.decodeSessionRestoreData(data)
                 let records = try self.cookieRecords(fromJSONData: jsonData, now: now)
-                guard !records.isEmpty else { continue }
-                let isCurrentRestore = file.lastPathComponent == "recovery.jsonlz4" ||
-                    (file.lastPathComponent == "sessionstore.jsonlz4" &&
-                        file.deletingLastPathComponent().standardizedFileURL == profileDirectory.standardizedFileURL)
-                let persistedKeys = Set(persistedRecords.map { "\($0.name)|\($0.domain)|\($0.path)" })
-                let candidateRecords = isCurrentRestore ? records : records.filter { record in
-                    !persistedKeys.contains("\(record.name)|\(record.domain)|\(record.path)")
-                }
-                guard !candidateRecords.isEmpty else { continue }
-                if firstPartialRecords.isEmpty {
-                    firstPartialRecords = candidateRecords
-                }
-                let candidateKeys = Set(candidateRecords.map { "\($0.name)|\($0.domain)|\($0.path)" })
-                let resolvedRecords = persistedRecords.filter { record in
-                    !candidateKeys.contains("\(record.name)|\(record.domain)|\(record.path)")
-                } + candidateRecords
-                let cookies = BrowserCookieClient.makeHTTPCookies(resolvedRecords, origin: .domainBased)
-                if MiMoCookieHeader.header(from: cookies) != nil {
-                    logger?(
-                        "\(profileDirectory.lastPathComponent): found MiMo session cookies through " +
-                            "\(file.lastPathComponent)")
-                    return candidateRecords
-                }
-                logger?("\(profileDirectory.lastPathComponent): partial MiMo cookies in \(file.lastPathComponent)")
+                logger?(
+                    "\(profileDirectory.lastPathComponent): read \(records.count) MiMo session cookie(s) " +
+                        "from \(file.lastPathComponent)")
+                // The first valid Firefox state is authoritative, even when it records logout or partial auth.
+                return records
+            } catch ImportError.inputTooLarge, ImportError.outputTooLarge, ImportError.resourceLimit {
+                logger?(
+                    "\(profileDirectory.lastPathComponent): rejected unsafe Firefox session restore " +
+                        "\(file.lastPathComponent)")
+                return []
             } catch {
                 logger?(
                     "\(profileDirectory.lastPathComponent): could not read Firefox session restore " +
                         "\(file.lastPathComponent): \(error.localizedDescription)")
             }
         }
-        return firstPartialRecords
+        return []
     }
 
     static func readData(
@@ -433,18 +417,15 @@ enum MiMoFirefoxSessionCookieImporter {
         return data
     }
 
-    private static func sessionRestoreFiles(profileDirectory: URL) -> [URL] {
+    static func sessionRestoreFiles(profileDirectory: URL) -> [URL] {
         let backupDirectory = profileDirectory.appendingPathComponent("sessionstore-backups", isDirectory: true)
-        var files = self.sessionRestoreFileNames.map { backupDirectory.appendingPathComponent($0) }
-        files.append(profileDirectory.appendingPathComponent("sessionstore.jsonlz4"))
-
-        if let upgradeFiles = try? FileManager.default.contentsOfDirectory(
+        let upgradeFiles = (try? FileManager.default.contentsOfDirectory(
             at: backupDirectory,
             includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles])
-        {
-            files.append(contentsOf: upgradeFiles.filter { $0.lastPathComponent.hasPrefix("upgrade.jsonlz4-") })
-        }
+            options: [.skipsHiddenFiles])) ?? []
+        let files = self.orderedSessionRestoreFileCandidates(
+            profileDirectory: profileDirectory,
+            upgradeFiles: upgradeFiles)
 
         var seen = Set<String>()
         return files.filter { file in
@@ -454,61 +435,66 @@ enum MiMoFirefoxSessionCookieImporter {
         }
     }
 
+    static func orderedSessionRestoreFileCandidates(
+        profileDirectory: URL,
+        upgradeFiles: [URL]) -> [URL]
+    {
+        let backupDirectory = profileDirectory.appendingPathComponent("sessionstore-backups", isDirectory: true)
+        let newestUpgrade = upgradeFiles
+            .filter { $0.lastPathComponent.hasPrefix("upgrade.jsonlz4-") }
+            .max { $0.lastPathComponent < $1.lastPathComponent }
+        return [profileDirectory.appendingPathComponent("sessionstore.jsonlz4")] +
+            self.sessionRestoreFileNames.map { backupDirectory.appendingPathComponent($0) } +
+            (newestUpgrade.map { [$0] } ?? [])
+    }
+
     static func decodeSessionRestoreData(
         _ data: Data,
         maxOutputBytes: Int = MiMoFirefoxSessionCookieImporter.maxOutputBytes) throws -> Data
     {
         guard maxOutputBytes >= 0 else { throw ImportError.outputTooLarge }
         guard data.starts(with: self.mozillaLZ4Magic) else {
-            guard data.count <= maxOutputBytes else { throw ImportError.outputTooLarge }
-            return data
+            throw ImportError.invalidData("Invalid Firefox session restore header.")
         }
         let payload = data.dropFirst(self.mozillaLZ4Magic.count)
-        let directError: Error
-        do {
-            return try self.decodeLZ4Block(Data(payload), maxOutputBytes: maxOutputBytes)
-        } catch {
-            directError = error
-            // Some jsonlz4 writers prefix the raw block with its decoded byte count.
+        guard payload.count >= 4 else {
+            throw ImportError.invalidData("Invalid Firefox session restore size header.")
         }
-        guard payload.count > 4 else {
-            throw directError
+        let sizeBytes = Array(payload.prefix(4))
+        let declaredSize = Int(sizeBytes[0]) |
+            (Int(sizeBytes[1]) << 8) |
+            (Int(sizeBytes[2]) << 16) |
+            (Int(sizeBytes[3]) << 24)
+        guard declaredSize <= maxOutputBytes else { throw ImportError.outputTooLarge }
+        let decoded = try self.decodeLZ4Block(Data(payload.dropFirst(4)), maxOutputBytes: declaredSize)
+        guard decoded.count == declaredSize else {
+            throw ImportError.invalidData("Firefox session restore decoded size does not match its header.")
         }
-        do {
-            return try self.decodeLZ4Block(Data(payload.dropFirst(4)), maxOutputBytes: maxOutputBytes)
-        } catch {
-            if case ImportError.outputTooLarge = directError {
-                throw ImportError.outputTooLarge
-            }
-            throw error
-        }
+        return decoded
     }
 
     static func cookieRecords(
         fromJSONData data: Data,
         now: Date = Date(),
-        maxNodes: Int = MiMoFirefoxSessionCookieImporter.maxJSONNodes,
         maxRecords: Int = MiMoFirefoxSessionCookieImporter.maxCookieRecords) throws -> [BrowserCookieRecord]
     {
-        let root = try JSONSerialization.jsonObject(with: data)
-        var stack: [Any] = [root]
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ImportError.invalidData("Firefox session restore root is not an object.")
+        }
+        guard let rawCookies = root["cookies"] else { return [] }
+        guard let cookies = rawCookies as? [Any] else {
+            throw ImportError.invalidData("Firefox session restore cookies are not an array.")
+        }
+        guard cookies.count <= maxRecords else {
+            throw ImportError.resourceLimit("Firefox session restore contains too many cookie records.")
+        }
         var records: [BrowserCookieRecord] = []
-        var visitedNodes = 0
-        while let value = stack.popLast() {
-            visitedNodes += 1
-            guard visitedNodes <= maxNodes else {
-                throw ImportError.invalidData("Firefox session restore JSON is too complex.")
+        for rawCookie in cookies {
+            guard let cookie = rawCookie as? [String: Any] else {
+                throw ImportError.invalidData("Firefox session restore contains a malformed cookie record.")
             }
-            if let dictionary = value as? [String: Any] {
-                if let record = self.cookieRecord(from: dictionary, now: now) {
-                    records.append(record)
-                    guard records.count <= maxRecords else {
-                        throw ImportError.invalidData("Firefox session restore contains too many cookie records.")
-                    }
-                }
-                stack.append(contentsOf: dictionary.values)
-            } else if let array = value as? [Any] {
-                stack.append(contentsOf: array)
+            if let record = self.cookieRecord(from: cookie, now: now) {
+                records.append(record)
             }
         }
         return records
@@ -523,6 +509,7 @@ enum MiMoFirefoxSessionCookieImporter {
         else {
             return nil
         }
+        guard self.hasDefaultOriginAttributes(dictionary) else { return nil }
 
         let domain = host.trimmingCharacters(in: CharacterSet(charactersIn: "."))
         guard self.domainMatchesMiMo(domain) else { return nil }
@@ -539,6 +526,43 @@ enum MiMoFirefoxSessionCookieImporter {
             expires: expiry,
             isSecure: dictionary["secure"] as? Bool ?? false,
             isHTTPOnly: (dictionary["httponly"] as? Bool) ?? (dictionary["httpOnly"] as? Bool) ?? false)
+    }
+
+    private static func hasDefaultOriginAttributes(_ dictionary: [String: Any]) -> Bool {
+        if let isPartitioned = dictionary["isPartitioned"] {
+            guard self.isBoolean(isPartitioned, equalTo: false) else { return false }
+        }
+        guard let rawAttributes = dictionary["originAttributes"] else { return true }
+        if let attributes = rawAttributes as? String {
+            return attributes.isEmpty
+        }
+        guard let attributes = rawAttributes as? [String: Any] else { return false }
+        for (key, value) in attributes {
+            switch key {
+            case "userContextId", "privateBrowsingId":
+                guard self.isZero(value) else { return false }
+            case "firstPartyDomain", "geckoViewSessionContextId", "partitionKey":
+                guard let text = value as? String, text.isEmpty else { return false }
+            default:
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func isZero(_ value: Any) -> Bool {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              !["f", "d"].contains(String(cString: number.objCType))
+        else { return false }
+        return number.int64Value == 0
+    }
+
+    private static func isBoolean(_ value: Any, equalTo expected: Bool) -> Bool {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) == CFBooleanGetTypeID()
+        else { return false }
+        return number.boolValue == expected
     }
 
     private static func cookiePath(from dictionary: [String: Any]) -> String {
