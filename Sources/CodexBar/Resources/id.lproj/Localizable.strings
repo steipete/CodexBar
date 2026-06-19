@@ -881,6 +881,9 @@
 "Clearing removes local temporary provider data." = "Menghapus data sementara penyedia lokal.";
 "Total: %@" = "Total: %@";
 "%d more items" = "%d item lagi";
+"Other (%d items)" = "Lainnya (%d item)";
+"Expand" = "Perluas";
+"Collapse" = "Ciutkan";
 "Cleanup ideas" = "Ide pembersihan";
 "%d unreadable item(s) skipped" = "%d item tidak terbaca dilewati";
 

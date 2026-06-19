@@ -877,6 +877,9 @@
 "Clearing removes local temporary provider data." = "Temizleme, yerel geçici sağlayıcı verilerini kaldırır.";
 "Total: %@" = "Toplam: %@";
 "%d more items" = "%d öğe daha";
+"Other (%d items)" = "Diğer (%d öğe)";
+"Expand" = "Genişlet";
+"Collapse" = "Daralt";
 "Cleanup ideas" = "Temizlik önerileri";
 "%d unreadable item(s) skipped" = "%d okunamaz öğe atlandı";
 "API key limit" = "API anahtarı limiti";

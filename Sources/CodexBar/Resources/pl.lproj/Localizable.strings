@@ -881,6 +881,9 @@
 "Clearing removes local temporary provider data." = "Czyszczenie usuwa lokalne tymczasowe dane dostawców.";
 "Total: %@" = "Łącznie: %@";
 "%d more items" = "Jeszcze %d pozycji";
+"Other (%d items)" = "Inne (%d elementów)";
+"Expand" = "Rozwiń";
+"Collapse" = "Zwiń";
 "Cleanup ideas" = "Pomysły na czyszczenie";
 "%d unreadable item(s) skipped" = "Pominięto %d nieczytelnych elementów";
 

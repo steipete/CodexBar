@@ -881,6 +881,9 @@
 "Clearing removes local temporary provider data." = "La cancellazione rimuove i dati temporanei locali dei provider.";
 "Total: %@" = "Totale: %@";
 "%d more items" = "%d elementi in più";
+"Other (%d items)" = "Altro (%d elementi)";
+"Expand" = "Espandi";
+"Collapse" = "Comprimi";
 "Cleanup ideas" = "Idee di pulizia";
 "%d unreadable item(s) skipped" = "Saltati %d elemento/i illeggibili";
 
