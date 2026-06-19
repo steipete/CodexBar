@@ -126,7 +126,9 @@ struct CostHistoryChartMenuView: View {
                             .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
                         if model.axisDates.count > 1 {
                             Spacer()
-                            Text(model.axisDates[model.axisDates.count - 1], format: .dateTime.month(.abbreviated).day())
+                            Text(
+                                model.axisDates[model.axisDates.count - 1],
+                                format: .dateTime.month(.abbreviated).day())
                                 .font(.caption2)
                                 .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
                         }
