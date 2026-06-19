@@ -59,6 +59,45 @@ struct ClaudeWebCookieRenewalTests {
         }
     }
 
+    @Test
+    func `usage response renewal propagates to later requests and cache`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-old-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let usageCookies = RequestHeaderLog()
+            let overageCookies = RequestHeaderLog()
+            let accountCookies = RequestHeaderLog()
+
+            try await self.withClaudeWebStub { request in
+                let path = request.url?.path
+                switch path {
+                case "/api/organizations/org-123/usage":
+                    usageCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                case "/api/organizations/org-123/overage_spend_limit":
+                    overageCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                case "/api/account":
+                    accountCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                default:
+                    break
+                }
+                return try Self.response(
+                    for: request,
+                    setCookie: path == "/api/organizations/org-123/usage" ? Self.renewedSessionCookie : nil)
+            } operation: {
+                _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+
+                #expect(usageCookies.values == ["sessionKey=sk-ant-old-token"])
+                #expect(overageCookies.values == ["sessionKey=sk-ant-renewed-token"])
+                #expect(accountCookies.values == ["sessionKey=sk-ant-renewed-token"])
+                let cached = try #require(CookieHeaderCache.load(provider: .claude))
+                #expect(cached.cookieHeader == "sessionKey=sk-ant-renewed-token")
+            }
+        }
+    }
+
     private static let renewedSessionCookie =
         "sessionKey=sk-ant-renewed-token; Path=/; HttpOnly; Secure; SameSite=Lax"
 
@@ -87,7 +126,7 @@ struct ClaudeWebCookieRenewalTests {
 
     private static func response(
         for request: URLRequest,
-        setCookie: String) throws -> (HTTPURLResponse, Data)
+        setCookie: String?) throws -> (HTTPURLResponse, Data)
     {
         let url = try #require(request.url)
         switch url.path {
@@ -117,16 +156,17 @@ struct ClaudeWebCookieRenewalTests {
         url: URL,
         body: String,
         statusCode: Int = 200,
-        setCookie: String) -> (HTTPURLResponse, Data)
+        setCookie: String?) -> (HTTPURLResponse, Data)
     {
+        var headerFields = ["Content-Type": "application/json"]
+        if let setCookie {
+            headerFields["Set-Cookie"] = setCookie
+        }
         let response = HTTPURLResponse(
             url: url,
             statusCode: statusCode,
             httpVersion: "HTTP/1.1",
-            headerFields: [
-                "Content-Type": "application/json",
-                "Set-Cookie": setCookie,
-            ])!
+            headerFields: headerFields)!
         return (response, Data(body.utf8))
     }
 }
