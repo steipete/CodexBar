@@ -457,15 +457,20 @@ final class RecordingCodexLiveAuthSwapper: CodexLiveAuthSwapping, @unchecked Sen
 
 final class RecordingCodexAppServerDaemonReloader: CodexAppServerDaemonReloading, @unchecked Sendable {
     private(set) var reloadCallCount = 0
-    let outcome: CodexAppServerDaemonReloadOutcome
+    private let outcomes: [CodexAppServerDaemonReloadOutcome]
 
     init(outcome: CodexAppServerDaemonReloadOutcome) {
-        self.outcome = outcome
+        self.outcomes = [outcome]
+    }
+
+    init(outcomes: [CodexAppServerDaemonReloadOutcome]) {
+        precondition(!outcomes.isEmpty)
+        self.outcomes = outcomes
     }
 
     func reloadAfterAuthPromotion() async -> CodexAppServerDaemonReloadOutcome {
         self.reloadCallCount += 1
-        return self.outcome
+        return self.outcomes[min(self.reloadCallCount - 1, self.outcomes.count - 1)]
     }
 }
 

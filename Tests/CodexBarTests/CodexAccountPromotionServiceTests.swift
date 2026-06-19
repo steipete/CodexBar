@@ -63,6 +63,37 @@ struct CodexAccountPromotionServiceTests {
     }
 
     @Test
+    func `retry after daemon restart failure reloads converged promoted account`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionServiceTests-daemon-restart-retry")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        try container.removeLiveAuthFile()
+
+        let daemonReloader = RecordingCodexAppServerDaemonReloader(outcomes: [
+            .failed("restart failed"),
+            .restarted,
+        ])
+        let service = container.makeService(appServerDaemonReloader: daemonReloader)
+
+        await #expect(throws: CodexAccountPromotionError.appServerDaemonRestartFailed("restart failed")) {
+            try await service.promoteManagedAccount(id: target.id)
+        }
+        let retryResult = try await service.promoteManagedAccount(id: target.id)
+
+        #expect(retryResult.outcome == .convergedNoOp)
+        #expect(retryResult.didMutateLiveAuth == false)
+        #expect(retryResult.appServerDaemonReloadOutcome == .restarted)
+        #expect(daemonReloader.reloadCallCount == 2)
+        #expect(container.settings.codexActiveSource == .liveSystem)
+        #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
+    }
+
+    @Test
     func `displaced live oauth is imported before target auth is promoted`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionServiceTests-displaced-import",

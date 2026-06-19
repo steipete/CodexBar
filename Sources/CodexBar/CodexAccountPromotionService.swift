@@ -224,13 +224,15 @@ final class CodexAccountPromotionService {
 
         if let resultingActiveSource = self.convergedActiveSource(for: context) {
             self.activeSourceWriter.writeCodexActiveSource(resultingActiveSource)
+            let daemonReloadOutcome = await self.appServerDaemonReloader.reloadAfterAuthPromotion()
             await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
+            try Self.throwOnDaemonReloadFailure(daemonReloadOutcome)
             return CodexAccountPromotionResult(
                 targetManagedAccountID: id,
                 outcome: .convergedNoOp,
                 displacedLiveDisposition: .none,
                 didMutateLiveAuth: false,
-                appServerDaemonReloadOutcome: .notNeeded,
+                appServerDaemonReloadOutcome: daemonReloadOutcome,
                 resultingActiveSource: resultingActiveSource)
         }
 
@@ -251,9 +253,7 @@ final class CodexAccountPromotionService {
         self.activeSourceWriter.writeCodexActiveSource(.liveSystem)
         let daemonReloadOutcome = await self.appServerDaemonReloader.reloadAfterAuthPromotion()
         await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
-        if case let .failed(output) = daemonReloadOutcome {
-            throw CodexAccountPromotionError.appServerDaemonRestartFailed(output)
-        }
+        try Self.throwOnDaemonReloadFailure(daemonReloadOutcome)
 
         return CodexAccountPromotionResult(
             targetManagedAccountID: id,
@@ -266,6 +266,12 @@ final class CodexAccountPromotionService {
 
     nonisolated static func authFileURL(for homeURL: URL) -> URL {
         homeURL.appendingPathComponent("auth.json", isDirectory: false)
+    }
+
+    private static func throwOnDaemonReloadFailure(_ outcome: CodexAppServerDaemonReloadOutcome) throws {
+        if case let .failed(output) = outcome {
+            throw CodexAccountPromotionError.appServerDaemonRestartFailed(output)
+        }
     }
 
     private func convergedActiveSource(for context: PreparedPromotionContext) -> CodexActiveSource? {

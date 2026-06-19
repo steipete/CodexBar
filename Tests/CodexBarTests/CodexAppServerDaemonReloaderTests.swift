@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
@@ -13,11 +14,26 @@ struct CodexAppServerDaemonReloaderTests {
     }
 
     @Test
-    func `failed version probe does not attempt a restart`() async {
-        let recorder = DaemonCommandRecorder(failingArguments: ["app-server", "daemon", "version"])
+    func `missing daemon socket leaves daemon untouched`() async {
+        let recorder = DaemonCommandRecorder(
+            failingArguments: ["app-server", "daemon", "version"],
+            failure: SubprocessRunnerError.nonZeroExit(
+                code: 1,
+                stderr: "failed to connect: No such file or directory (os error 2)"))
         let reloader = Self.makeReloader(recorder: recorder)
 
         #expect(await reloader.reloadAfterAuthPromotion() == .notRunning)
+        #expect(await recorder.arguments == [["app-server", "daemon", "version"]])
+    }
+
+    @Test
+    func `probe timeout fails instead of accepting stale daemon state`() async {
+        let recorder = DaemonCommandRecorder(
+            failingArguments: ["app-server", "daemon", "version"],
+            failure: SubprocessRunnerError.timedOut("daemon probe"))
+        let reloader = Self.makeReloader(recorder: recorder)
+
+        #expect(await reloader.reloadAfterAuthPromotion() == .failed("Command timed out: daemon probe"))
         #expect(await recorder.arguments == [["app-server", "daemon", "version"]])
     }
 
@@ -31,37 +47,16 @@ struct CodexAppServerDaemonReloaderTests {
             ["app-server", "daemon", "version"],
             ["app-server", "daemon", "restart"],
         ])
-    }
-
-    @Test
-    func `remote control setting preserves remote control mode`() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-daemon-reloader-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let settingsDirectory = root.appendingPathComponent("app-server-daemon", isDirectory: true)
-        try FileManager.default.createDirectory(at: settingsDirectory, withIntermediateDirectories: true)
-        try #"{"remoteControlEnabled":true}"#.write(
-            to: settingsDirectory.appendingPathComponent("settings.json"),
-            atomically: true,
-            encoding: .utf8)
-
-        let recorder = DaemonCommandRecorder()
-        let reloader = Self.makeReloader(
-            baseEnvironment: ["CODEX_HOME": root.path],
-            recorder: recorder)
-
-        #expect(await reloader.reloadAfterAuthPromotion() == .remoteControlRestarted)
-        #expect(await recorder.arguments == [
-            ["app-server", "daemon", "version"],
-            ["remote-control", "start"],
-        ])
+        #expect(await recorder.timeouts == [90, 90])
     }
 
     @Test
     func `restart failure returns bounded diagnostic output`() async {
         let output = String(repeating: "x", count: 1200)
         let restart = ["app-server", "daemon", "restart"]
-        let recorder = DaemonCommandRecorder(failingArguments: restart, failureOutput: output)
+        let recorder = DaemonCommandRecorder(
+            failingArguments: restart,
+            failure: DaemonCommandTestError.failed(output))
         let reloader = Self.makeReloader(recorder: recorder)
 
         let outcome = await reloader.reloadAfterAuthPromotion()
@@ -81,26 +76,31 @@ struct CodexAppServerDaemonReloaderTests {
         DefaultCodexAppServerDaemonReloader(
             baseEnvironment: baseEnvironment,
             binaryResolver: { _ in "/usr/bin/true" },
-            commandRunner: { _, arguments, _, _ in
-                try await recorder.run(arguments: arguments)
+            commandRunner: { _, arguments, _, timeout in
+                try await recorder.run(arguments: arguments, timeout: timeout)
             })
     }
 }
 
 private actor DaemonCommandRecorder {
     private(set) var arguments: [[String]] = []
+    private(set) var timeouts: [TimeInterval] = []
     private let failingArguments: [String]?
-    private let failureOutput: String
+    private let failure: Error
 
-    init(failingArguments: [String]? = nil, failureOutput: String = "command failed") {
+    init(
+        failingArguments: [String]? = nil,
+        failure: Error = DaemonCommandTestError.failed("command failed"))
+    {
         self.failingArguments = failingArguments
-        self.failureOutput = failureOutput
+        self.failure = failure
     }
 
-    func run(arguments: [String]) throws -> String {
+    func run(arguments: [String], timeout: TimeInterval) throws -> String {
         self.arguments.append(arguments)
+        self.timeouts.append(timeout)
         if arguments == self.failingArguments {
-            throw DaemonCommandTestError.failed(self.failureOutput)
+            throw self.failure
         }
         return ""
     }

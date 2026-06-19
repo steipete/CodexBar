@@ -5,7 +5,6 @@ enum CodexAppServerDaemonReloadOutcome: Equatable, Sendable {
     case notNeeded
     case notRunning
     case restarted
-    case remoteControlRestarted
     case unavailable
     case failed(String)
 }
@@ -29,7 +28,7 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
 
     init(
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-        commandTimeout: TimeInterval = 10,
+        commandTimeout: TimeInterval = 90,
         binaryResolver: @escaping BinaryResolver = { environment in
             BinaryLocator.resolveCodexBinary(
                 env: environment,
@@ -61,21 +60,19 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
                 environment,
                 self.commandTimeout)
         } catch {
-            return .notRunning
+            if Self.probeShowsDaemonAbsent(error) {
+                return .notRunning
+            }
+            return .failed(Self.limitedOutput(for: error))
         }
-
-        let remoteControlEnabled = Self.remoteControlEnabled(environment: environment)
-        let restartArguments = remoteControlEnabled
-            ? ["remote-control", "start"]
-            : ["app-server", "daemon", "restart"]
 
         do {
             _ = try await self.commandRunner(
                 executable,
-                restartArguments,
+                ["app-server", "daemon", "restart"],
                 environment,
                 self.commandTimeout)
-            return remoteControlEnabled ? .remoteControlRestarted : .restarted
+            return .restarted
         } catch {
             return .failed(Self.limitedOutput(for: error))
         }
@@ -98,24 +95,10 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
             .joined(separator: "\n")
     }
 
-    private static func remoteControlEnabled(environment: [String: String]) -> Bool {
-        let settingsURL = self.codexHomeURL(environment: environment)
-            .appendingPathComponent("app-server-daemon", isDirectory: true)
-            .appendingPathComponent("settings.json", isDirectory: false)
-        guard let data = try? Data(contentsOf: settingsURL),
-              let settings = try? JSONDecoder().decode(DaemonSettings.self, from: data)
-        else {
-            return false
-        }
-        return settings.remoteControlEnabled == true
-    }
-
-    private static func codexHomeURL(environment: [String: String]) -> URL {
-        if let raw = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
-            return URL(fileURLWithPath: (raw as NSString).expandingTildeInPath, isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
+    private static func probeShowsDaemonAbsent(_ error: Error) -> Bool {
+        guard case let SubprocessRunnerError.nonZeroExit(_, stderr) = error else { return false }
+        let normalized = stderr.lowercased()
+        return normalized.contains("no such file or directory") || normalized.contains("connection refused")
     }
 
     private static func limitedOutput(for error: Error) -> String {
@@ -126,8 +109,4 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "No output captured." : String(trimmed.prefix(1000))
     }
-}
-
-private struct DaemonSettings: Decodable {
-    let remoteControlEnabled: Bool?
 }
