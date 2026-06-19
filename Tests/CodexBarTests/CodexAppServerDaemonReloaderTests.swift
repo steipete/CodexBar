@@ -47,7 +47,7 @@ struct CodexAppServerDaemonReloaderTests {
             ["app-server", "daemon", "version"],
             ["app-server", "daemon", "restart"],
         ])
-        #expect(await recorder.timeouts == [90, 90])
+        #expect(await recorder.timeouts == [10, 120])
     }
 
     @Test

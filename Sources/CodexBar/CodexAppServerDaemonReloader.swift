@@ -22,13 +22,15 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
         _ timeout: TimeInterval) async throws -> String
 
     private let baseEnvironment: [String: String]
-    private let commandTimeout: TimeInterval
+    private let probeTimeout: TimeInterval
+    private let restartTimeout: TimeInterval
     private let binaryResolver: BinaryResolver
     private let commandRunner: CommandRunner
 
     init(
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-        commandTimeout: TimeInterval = 90,
+        probeTimeout: TimeInterval = 10,
+        restartTimeout: TimeInterval = 120,
         binaryResolver: @escaping BinaryResolver = { environment in
             BinaryLocator.resolveCodexBinary(
                 env: environment,
@@ -37,7 +39,8 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
         commandRunner: @escaping CommandRunner = Self.runCommand)
     {
         self.baseEnvironment = baseEnvironment
-        self.commandTimeout = commandTimeout
+        self.probeTimeout = probeTimeout
+        self.restartTimeout = restartTimeout
         self.binaryResolver = binaryResolver
         self.commandRunner = commandRunner
     }
@@ -58,7 +61,7 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
                 executable,
                 ["app-server", "daemon", "version"],
                 environment,
-                self.commandTimeout)
+                self.probeTimeout)
         } catch {
             if Self.probeShowsDaemonAbsent(error) {
                 return .notRunning
@@ -71,7 +74,7 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
                 executable,
                 ["app-server", "daemon", "restart"],
                 environment,
-                self.commandTimeout)
+                self.restartTimeout)
             return .restarted
         } catch {
             return .failed(Self.limitedOutput(for: error))
