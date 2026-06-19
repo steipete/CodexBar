@@ -536,7 +536,7 @@
 "show_provider_storage_usage_title" = "Mostreu l'ús d'emmagatzematge del proveïdor";
 "show_provider_storage_usage_subtitle" = "Mostreu l'ús de disc local als menús. Analitza en segon pla els camins coneguts del proveïdor.";
 "section_keychain_access" = "Accés al Clauer";
-"keychain_access_caption" = "Desactiveu totes les lectures i escriptures del Clauer. La importació de galetes del navegador no estarà disponible; enganxa les capçaleres Cookie manualment a Proveïdors.";
+"keychain_access_caption" = "Desactiveu totes les lectures i escriptures del Clauer. La importació de galetes del navegador no estarà disponible; enganxeu les capçaleres Cookie manualment a Proveïdors.";
 "disable_keychain_access_title" = "Desactiveu l'accés al Clauer";
 "disable_keychain_access_subtitle" = "Impedeix qualsevol accés al Clauer mentre estigui activat.";
 
