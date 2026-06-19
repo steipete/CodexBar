@@ -152,7 +152,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    func dashboardURL(for provider: UsageProvider) -> URL? {
+    func dashboardURL(
+        for provider: UsageProvider,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
+    {
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
@@ -165,7 +168,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
 
         if provider == .zai {
-            return self.settings.zaiAPIRegion.dashboardURL
+            return ZaiUsageFetcher.resolveDashboardURL(
+                region: self.settings.zaiAPIRegion,
+                environment: environment)
         }
 
         let meta = self.store.metadata(for: provider)
