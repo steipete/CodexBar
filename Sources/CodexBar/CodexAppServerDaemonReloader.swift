@@ -16,6 +16,7 @@ protocol CodexAppServerDaemonReloading: Sendable {
 
 struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
     private struct DaemonVersionResponse: Decodable {
+        let status: String
         let backend: String?
     }
 
@@ -58,7 +59,7 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
             loginPATH: LoginShellPathCache.shared.current)
 
         guard let executable = self.binaryResolver(environment) else {
-            return .notNeeded
+            return .unavailable
         }
 
         let versionOutput: String
@@ -82,6 +83,9 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
               let response = try? JSONDecoder().decode(DaemonVersionResponse.self, from: data)
         else {
             return .failed("Codex daemon returned an invalid version response.")
+        }
+        guard response.status == "running" else {
+            return .notRunning
         }
         guard response.backend != nil else {
             return .unmanaged

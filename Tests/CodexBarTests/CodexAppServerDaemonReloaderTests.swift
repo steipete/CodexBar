@@ -5,12 +5,12 @@ import Testing
 
 struct CodexAppServerDaemonReloaderTests {
     @Test
-    func `missing Codex binary leaves daemon untouched`() async {
+    func `missing Codex binary requests manual restart`() async {
         let reloader = DefaultCodexAppServerDaemonReloader(
             baseEnvironment: [:],
             binaryResolver: { _ in nil })
 
-        #expect(await reloader.reloadAfterAuthPromotion() == .notNeeded)
+        #expect(await reloader.reloadAfterAuthPromotion() == .unavailable)
     }
 
     @Test
@@ -66,10 +66,19 @@ struct CodexAppServerDaemonReloaderTests {
 
     @Test
     func `unmanaged daemon requests manual restart without invoking restart`() async {
-        let recorder = DaemonCommandRecorder(successOutput: #"{"status":"running","backend":null}"#)
+        let recorder = DaemonCommandRecorder(successOutput: #"{"status":"running"}"#)
         let reloader = Self.makeReloader(recorder: recorder)
 
         #expect(await reloader.reloadAfterAuthPromotion() == .unmanaged)
+        #expect(await recorder.arguments == [["app-server", "daemon", "version"]])
+    }
+
+    @Test
+    func `nonrunning daemon response does not invoke restart`() async {
+        let recorder = DaemonCommandRecorder(successOutput: #"{"status":"notRunning","backend":"pid"}"#)
+        let reloader = Self.makeReloader(recorder: recorder)
+
+        #expect(await reloader.reloadAfterAuthPromotion() == .notRunning)
         #expect(await recorder.arguments == [["app-server", "daemon", "version"]])
     }
 
@@ -100,6 +109,21 @@ struct CodexAppServerDaemonReloaderTests {
         }
         #expect(message.count == 1000)
         #expect(message == String(output.prefix(1000)))
+    }
+
+    @Test
+    func `restart exit code two remains a restart failure`() async {
+        let restart = ["app-server", "daemon", "restart"]
+        let recorder = DaemonCommandRecorder(
+            failingArguments: restart,
+            failure: SubprocessRunnerError.nonZeroExit(code: 2, stderr: "restart unsupported"))
+        let reloader = Self.makeReloader(recorder: recorder)
+
+        #expect(await reloader.reloadAfterAuthPromotion() == .failed("restart unsupported"))
+        #expect(await recorder.arguments == [
+            ["app-server", "daemon", "version"],
+            restart,
+        ])
     }
 
     private static func makeReloader(

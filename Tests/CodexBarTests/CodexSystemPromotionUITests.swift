@@ -27,6 +27,16 @@ struct CodexSystemPromotionUITests {
     }
 
     @Test
+    func `manual daemon restart warning omits empty error block`() {
+        let error = CodexAccountPromotionCoordinator.mapUserFacingError(
+            CodexAccountPromotionError.appServerDaemonRestartFailed(""))
+
+        #expect(error.title == "System account switched")
+        #expect(error.message.contains("could not restart"))
+        #expect(!error.message.contains("Error:"))
+    }
+
+    @Test
     func `promotion coordinator promotes immediately`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexSystemPromotionUITests-coordinator-immediate")
