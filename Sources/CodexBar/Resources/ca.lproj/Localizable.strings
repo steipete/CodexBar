@@ -244,7 +244,7 @@
 "Progress bars fill as you consume quota (instead of showing remaining)." = "Les barres de progrés s'omplen a mesura que consumeixes la quota (en comptes de mostrar el que queda).";
 "Provider" = "Proveïdor";
 "Providers" = "Proveïdors";
-"Quit CodexBar" = "Surt del CodexBar";
+"Quit CodexBar" = "Sortiu del CodexBar";
 "Random (default)" = "Aleatori (per defecte)";
 "Reads local usage logs. Shows today + last 30 days cost in the menu." = "Llegeix els registres d'ús locals. Mostra el cost d'avui + la finestra d'historial seleccionada al menú.";
 "Refresh" = "Actualitza";
@@ -444,7 +444,7 @@
 "quota_warning_upper" = "Superior";
 "quota_warning_lower" = "Inferior";
 "apply" = "Apliqueu";
-"quit_app" = "Surt del CodexBar";
+"quit_app" = "Sortiu del CodexBar";
 
 /* Tab titles */
 "tab_general" = "General";
@@ -1064,7 +1064,7 @@
 "Pace: %@ · %@" = "Ritme: %@ · %@";
 "Projected empty in %@" = "Es preveu que s'esgotarà en %@";
 "Projected empty now" = "Es preveu que s'esgotarà ara";
-"Quit" = "Surt";
+"Quit" = "Sortiu";
 "quota_warning_notification_body" = "Queda un %1$@. Heu assolit el llindar d'avís del %2$d%% (%3$@).";
 "quota_warning_notification_body_with_account" = "Compte %1$@. Queda un %2$@. Heu assolit el llindar d'avís del %3$d%% (%4$@).";
 "quota_warning_notification_title" = "Quota baixa de %1$@ (%2$@)";
