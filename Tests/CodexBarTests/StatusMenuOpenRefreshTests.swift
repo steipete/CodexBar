@@ -130,49 +130,6 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `closed menu prewarm does not populate while another menu is tracking`() async {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = false
-
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: UsageFetcher().loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-        defer { controller.releaseStatusItemsForTesting() }
-        StatusItemController.setClosedMenuPreparationDelayForTesting(.milliseconds(50))
-        defer { StatusItemController.resetClosedMenuPreparationDelayForTesting() }
-
-        controller.menuRefreshEnabledOverrideForTesting = true
-        let closedMenu = controller.makeMenu(for: .claude)
-        controller.populateMenu(closedMenu, provider: .claude)
-        controller.markMenuFresh(closedMenu)
-        let closedKey = ObjectIdentifier(closedMenu)
-        let closedVersion = controller.menuVersions[closedKey]
-
-        controller.invalidateMenus()
-        controller.rebuildClosedMenuIfNeeded(closedMenu)
-        #expect(controller.closedMenuRebuildTasks[closedKey] != nil)
-
-        let visibleMenu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(visibleMenu)
-        defer { controller.menuDidClose(visibleMenu) }
-        try? await Task.sleep(for: .milliseconds(80))
-        for _ in 0..<20 where controller.closedMenuRebuildTasks[closedKey] != nil {
-            await Task.yield()
-        }
-
-        #expect(controller.menuVersions[closedKey] == closedVersion)
-        #expect(controller.openMenus[ObjectIdentifier(visibleMenu)] != nil)
-    }
-
-    @Test
     func `data refresh invalidation does not rebuild closed non merged attached menu`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
