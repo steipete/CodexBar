@@ -278,10 +278,17 @@ public enum CodexDashboardAuthority {
         -> Set<CodexDashboardKnownOwnerCandidate>
     {
         Set(candidates.map { candidate in
-            CodexDashboardKnownOwnerCandidate(
-                identity: self.normalizeIdentity(candidate.identity),
+            let identity = self.normalizeIdentity(candidate.identity)
+            let sourceIsolationIdentifier: String? = switch identity {
+            case .providerAccount:
+                nil
+            case .emailOnly, .unresolved:
+                candidate.sourceIsolationIdentifier
+            }
+            return CodexDashboardKnownOwnerCandidate(
+                identity: identity,
                 normalizedEmail: CodexIdentityResolver.normalizeEmail(candidate.normalizedEmail),
-                sourceIsolationIdentifier: candidate.sourceIsolationIdentifier)
+                sourceIsolationIdentifier: sourceIsolationIdentifier)
         })
     }
 

@@ -381,6 +381,13 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
         cacheScope: CookieHeaderCache.Scope?,
         autoStartPurchase: Bool)
     {
+        guard Self.canOpenPurchaseWindow(accountEmail: accountEmail, cacheScope: cacheScope) else {
+            self.close()
+            self.accountEmail = nil
+            self.cacheScope = nil
+            self.logger.error("Buy credits blocked: scoped account email unavailable")
+            return
+        }
         let normalizedEmail = Self.normalizeEmail(accountEmail)
         if self.window == nil || normalizedEmail != self.accountEmail || cacheScope != self.cacheScope {
             self.accountEmail = normalizedEmail
@@ -475,6 +482,10 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     private static func normalizeEmail(_ email: String?) -> String? {
         guard let raw = email?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         return raw.lowercased()
+    }
+
+    static func canOpenPurchaseWindow(accountEmail: String?, cacheScope: CookieHeaderCache.Scope?) -> Bool {
+        cacheScope == nil || self.normalizeEmail(accountEmail) != nil
     }
 
     private static func defaultFrame() -> NSRect {

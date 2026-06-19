@@ -198,11 +198,20 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
         let autoStart = true
         let accountEmail = self.store.codexAccountEmailForOpenAIDashboard()
+        let cacheScope = self.store.codexCookieCacheScopeForOpenAIWeb()
+        guard OpenAICreditsPurchaseWindowController.canOpenPurchaseWindow(
+            accountEmail: accountEmail,
+            cacheScope: cacheScope)
+        else {
+            self.creditsPurchaseWindow?.close()
+            self.creditsPurchaseWindow = nil
+            return
+        }
         let controller = self.creditsPurchaseWindow ?? OpenAICreditsPurchaseWindowController()
         controller.show(
             purchaseURL: url,
             accountEmail: accountEmail,
-            cacheScope: self.store.codexCookieCacheScopeForOpenAIWeb(),
+            cacheScope: cacheScope,
             autoStartPurchase: autoStart)
         self.creditsPurchaseWindow = controller
     }
