@@ -1074,3 +1074,6 @@
 "byte_unit_megabytes" = "메가바이트";
 "byte_unit_gigabyte" = "기가바이트";
 "byte_unit_gigabytes" = "기가바이트";
+"System account switched" = "시스템 계정 전환됨";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "Codex CLI 시스템 계정이 즉시 변경되었습니다. Codex 데스크톱 앱이 열려 있으면 종료한 후 다시 열어 새 계정을 적용하세요.";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "시스템 계정은 전환되었지만 CodexBar가 구성된 Codex 백그라운드 서비스를 다시 시작하지 못했습니다. Codex 데스크톱 앱을 종료한 후 다시 열고, app-server 기반 세션을 사용하기 전에 백그라운드 서비스를 다시 시작하세요.";

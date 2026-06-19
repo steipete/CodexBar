@@ -130,6 +130,7 @@ struct CodexAccountPromotionResult: Equatable {
     let outcome: Outcome
     let displacedLiveDisposition: DisplacedLiveDisposition
     let didMutateLiveAuth: Bool
+    let appServerDaemonReloadOutcome: CodexAppServerDaemonReloadOutcome
     let resultingActiveSource: CodexActiveSource
 }
 
@@ -144,6 +145,7 @@ enum CodexAccountPromotionError: Error, Equatable {
     case displacedLiveImportFailed
     case managedStoreCommitFailed
     case liveAuthSwapFailed
+    case appServerDaemonRestartFailed(String)
 }
 
 @MainActor
@@ -155,6 +157,7 @@ final class CodexAccountPromotionService {
     private let snapshotLoader: any CodexAccountReconciliationSnapshotLoading
     private let authMaterialReader: any CodexAuthMaterialReading
     private let liveAuthSwapper: any CodexLiveAuthSwapping
+    private let appServerDaemonReloader: any CodexAppServerDaemonReloading
     private let activeSourceWriter: any CodexActiveSourceWriting
     private let accountScopedRefresher: any CodexAccountScopedRefreshing
     private let baseEnvironment: [String: String]
@@ -168,6 +171,7 @@ final class CodexAccountPromotionService {
         snapshotLoader: any CodexAccountReconciliationSnapshotLoading,
         authMaterialReader: any CodexAuthMaterialReading,
         liveAuthSwapper: any CodexLiveAuthSwapping,
+        appServerDaemonReloader: any CodexAppServerDaemonReloading,
         activeSourceWriter: any CodexActiveSourceWriting,
         accountScopedRefresher: any CodexAccountScopedRefreshing,
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
@@ -180,6 +184,7 @@ final class CodexAccountPromotionService {
         self.snapshotLoader = snapshotLoader
         self.authMaterialReader = authMaterialReader
         self.liveAuthSwapper = liveAuthSwapper
+        self.appServerDaemonReloader = appServerDaemonReloader
         self.activeSourceWriter = activeSourceWriter
         self.accountScopedRefresher = accountScopedRefresher
         self.baseEnvironment = baseEnvironment
@@ -200,6 +205,7 @@ final class CodexAccountPromotionService {
             snapshotLoader: SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: settingsStore),
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             liveAuthSwapper: DefaultCodexLiveAuthSwapper(),
+            appServerDaemonReloader: DefaultCodexAppServerDaemonReloader(baseEnvironment: baseEnvironment),
             activeSourceWriter: SettingsStoreCodexActiveSourceWriter(settingsStore: settingsStore),
             accountScopedRefresher: UsageStoreCodexAccountScopedRefresher(usageStore: usageStore),
             baseEnvironment: baseEnvironment,
@@ -224,6 +230,7 @@ final class CodexAccountPromotionService {
                 outcome: .convergedNoOp,
                 displacedLiveDisposition: .none,
                 didMutateLiveAuth: false,
+                appServerDaemonReloadOutcome: .notNeeded,
                 resultingActiveSource: resultingActiveSource)
         }
 
@@ -242,13 +249,18 @@ final class CodexAccountPromotionService {
         }
 
         self.activeSourceWriter.writeCodexActiveSource(.liveSystem)
+        let daemonReloadOutcome = await self.appServerDaemonReloader.reloadAfterAuthPromotion()
         await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
+        if case let .failed(output) = daemonReloadOutcome {
+            throw CodexAccountPromotionError.appServerDaemonRestartFailed(output)
+        }
 
         return CodexAccountPromotionResult(
             targetManagedAccountID: id,
             outcome: .promoted,
             displacedLiveDisposition: executionResult.displacedLiveDisposition,
             didMutateLiveAuth: true,
+            appServerDaemonReloadOutcome: daemonReloadOutcome,
             resultingActiveSource: .liveSystem)
     }
 

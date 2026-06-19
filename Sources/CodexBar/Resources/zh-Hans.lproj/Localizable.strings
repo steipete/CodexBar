@@ -1080,3 +1080,6 @@
 "byte_unit_megabytes" = "兆字节";
 "byte_unit_gigabyte" = "吉字节";
 "byte_unit_gigabytes" = "吉字节";
+"System account switched" = "系统账户已切换";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "Codex CLI 系统账户已立即更改。如果 Codex 桌面应用已打开，请退出并重新打开，使其使用新账户。";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "系统账户已切换，但 CodexBar 无法重新启动已配置的 Codex 后台服务。请退出并重新打开 Codex 桌面应用，然后在使用基于 app-server 的会话前重新启动后台服务。";

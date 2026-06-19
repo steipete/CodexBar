@@ -1104,3 +1104,6 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"System account switched" = "Đã chuyển tài khoản hệ thống";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "Tài khoản hệ thống Codex CLI đã thay đổi ngay lập tức. Nếu ứng dụng Codex trên máy tính đang mở, hãy thoát và mở lại để ứng dụng dùng tài khoản mới.";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "Tài khoản hệ thống đã được chuyển, nhưng CodexBar không thể khởi động lại dịch vụ Codex nền đã cấu hình. Hãy thoát và mở lại ứng dụng Codex, rồi khởi động lại dịch vụ trước khi dùng các phiên dựa trên app-server.";

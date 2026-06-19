@@ -1103,3 +1103,6 @@
 "byte_unit_megabytes" = "мегабайти";
 "byte_unit_gigabyte" = "гігабайт";
 "byte_unit_gigabytes" = "гігабайти";
+"System account switched" = "Системний обліковий запис змінено";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "Системний обліковий запис Codex CLI змінено негайно. Якщо програму Codex відкрито, закрийте й відкрийте її знову, щоб вона використала новий обліковий запис.";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "Системний обліковий запис змінено, але CodexBar не вдалося перезапустити налаштовану фонову службу Codex. Закрийте й відкрийте програму Codex знову, а потім перезапустіть службу перед використанням сеансів на основі app-server.";

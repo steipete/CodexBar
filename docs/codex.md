@@ -92,6 +92,12 @@ Example:
 - Errors surfaced:
   - Login required or Cloudflare interstitial.
 
+### Managed and system accounts
+- The normal Codex account selector changes only which managed account CodexBar displays.
+- Use the **System Account** submenu to promote a managed account into the live Codex home used by Codex CLI.
+- After promotion, Codex CLI sees the new account immediately. Reopen the Codex desktop app if it is running.
+- If a local app-server daemon is running, CodexBar restarts it after promotion. Remote-control mode is preserved.
+
 ### Codex CLI RPC (automatic CLI source)
 - Launches local RPC server: `codex -s read-only -a untrusted app-server`.
 - JSON-RPC over stdin/stdout:

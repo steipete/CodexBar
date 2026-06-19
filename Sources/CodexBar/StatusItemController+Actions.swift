@@ -301,13 +301,28 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return
         }
 
+        self.closeMenuHierarchyForAction(sender.menu)
         Task { @MainActor [weak self] in
             guard let self else { return }
             let result = await self.codexAccountPromotionCoordinator.promote(managedAccountID: managedAccountID)
-            if case let .failure(error) = result {
+            self.applyIcon(phase: nil)
+            switch result {
+            case .success:
+                let info = Self.codexSystemPromotionSuccessAlertInfo()
+                self.presentLoginAlert(title: info.title, message: info.message)
+            case let .failure(error):
+                await Task.yield()
                 self.presentLoginAlert(title: error.title, message: error.message)
             }
         }
+    }
+
+    static func codexSystemPromotionSuccessAlertInfo() -> LoginAlertInfo {
+        LoginAlertInfo(
+            title: L("System account switched"),
+            message: L(
+                "The Codex CLI system account changed immediately. If the Codex desktop app is open, " +
+                    "quit and reopen it so it picks up the new account."))
     }
 
     @objc func runSwitchAccount(_ sender: NSMenuItem) {

@@ -7,6 +7,26 @@ import Testing
 @MainActor
 struct CodexSystemPromotionUITests {
     @Test
+    func `system promotion success copy explains desktop app restart`() {
+        let info = StatusItemController.codexSystemPromotionSuccessAlertInfo()
+
+        #expect(info.title == "System account switched")
+        #expect(info.message.contains("changed immediately"))
+        #expect(info.message.contains("quit and reopen"))
+    }
+
+    @Test
+    func `daemon restart failure reports switched account and bounded command output`() {
+        let error = CodexAccountPromotionCoordinator.mapUserFacingError(
+            CodexAccountPromotionError.appServerDaemonRestartFailed("restart exploded"))
+
+        #expect(error.title == "System account switched")
+        #expect(error.message.contains("could not restart"))
+        #expect(error.message.contains("quit and reopen"))
+        #expect(error.message.contains("restart exploded"))
+    }
+
+    @Test
     func `promotion coordinator promotes immediately`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexSystemPromotionUITests-coordinator-immediate")

@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import Observation
 
@@ -48,7 +49,9 @@ final class CodexAccountPromotionCoordinator {
         defer { self.isPromotingSystemAccount = false }
 
         do {
-            let result = try await self.service.promoteManagedAccount(id: managedAccountID)
+            let result = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                try await self.service.promoteManagedAccount(id: managedAccountID)
+            }
             return .success(result)
         } catch {
             let mapped = Self.mapUserFacingError(error)
@@ -78,6 +81,14 @@ final class CodexAccountPromotionCoordinator {
     }
 
     static func mapUserFacingError(_ error: Error) -> CodexSystemAccountPromotionUserFacingError {
+        if let error = error as? CodexAccountPromotionError,
+           case let .appServerDaemonRestartFailed(output) = error
+        {
+            return CodexSystemAccountPromotionUserFacingError(
+                title: L("System account switched"),
+                message: self.appServerDaemonRestartFailedMessage(output: output))
+        }
+
         let title = L("Could not switch system account")
 
         if let error = error as? CodexAccountPromotionError {
@@ -104,11 +115,24 @@ final class CodexAccountPromotionCoordinator {
                 L("CodexBar could not update managed account storage.")
             case .liveAuthSwapFailed:
                 L("CodexBar could not replace the live Codex auth on this Mac.")
+            case .appServerDaemonRestartFailed:
+                self.appServerDaemonRestartFailedMessage(output: "")
             }
 
             return CodexSystemAccountPromotionUserFacingError(title: title, message: message)
         }
 
         return CodexSystemAccountPromotionUserFacingError(title: title, message: error.localizedDescription)
+    }
+
+    private static func appServerDaemonRestartFailedMessage(output: String) -> String {
+        let base = L(
+            "The system account was switched, but CodexBar could not restart the configured Codex " +
+                "background service. " +
+                "If the Codex desktop app is open, quit and reopen it, then restart your configured Codex " +
+                "background service before using app-server-backed sessions.")
+        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOutput.isEmpty, trimmedOutput != "No output captured." else { return base }
+        return "\(base)\n\n\(L("Error")):\n\(trimmedOutput)"
     }
 }
