@@ -41,7 +41,9 @@ public enum CodexKnownOwnerCatalog {
         for profileAccount in snapshot.profileHomeAccounts {
             candidates.append(CodexDashboardKnownOwnerCandidate(
                 identity: snapshot.runtimeIdentity(for: profileAccount),
-                normalizedEmail: CodexIdentityResolver.normalizeEmail(profileAccount.email)))
+                normalizedEmail: CodexIdentityResolver.normalizeEmail(profileAccount.email),
+                sourceIsolationIdentifier: CookieHeaderCache.Scope.profileHome(profileAccount.codexHomePath)
+                    .isolationIdentifier))
         }
 
         return candidates
@@ -61,6 +63,14 @@ public enum CodexProviderSettingsBuilder {
         case .profileHome:
             false
         }
+        let openAIWebCacheScope: CookieHeaderCache.Scope? = switch input.resolvedActiveSource.resolvedSource {
+        case .liveSystem:
+            nil
+        case let .managedAccount(id):
+            .managedAccount(id)
+        case let .profileHome(path):
+            .profileHome(path)
+        }
 
         return ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: input.usageDataSource,
@@ -70,6 +80,7 @@ public enum CodexProviderSettingsBuilder {
             managedAccountTargetUnavailable: managedSourceSelected
                 && snapshot.hasUnreadableAddedAccountStore == false
                 && snapshot.activeStoredAccount == nil,
+            openAIWebCacheScope: openAIWebCacheScope,
             dashboardAuthorityKnownOwners: CodexKnownOwnerCatalog.candidates(from: snapshot))
     }
 }

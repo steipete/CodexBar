@@ -30,10 +30,16 @@ public enum CodexDashboardCleanup: String, Codable, CaseIterable, Hashable, Send
 public struct CodexDashboardKnownOwnerCandidate: Equatable, Hashable, Sendable {
     public let identity: CodexIdentity
     public let normalizedEmail: String?
+    public let sourceIsolationIdentifier: String?
 
-    public init(identity: CodexIdentity, normalizedEmail: String?) {
+    public init(
+        identity: CodexIdentity,
+        normalizedEmail: String?,
+        sourceIsolationIdentifier: String? = nil)
+    {
         self.identity = identity
         self.normalizedEmail = normalizedEmail
+        self.sourceIsolationIdentifier = sourceIsolationIdentifier
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -48,6 +54,7 @@ public struct CodexDashboardKnownOwnerCandidate: Equatable, Hashable, Sendable {
             hasher.combine("unresolved")
         }
         hasher.combine(self.normalizedEmail)
+        hasher.combine(self.sourceIsolationIdentifier)
     }
 }
 
@@ -273,7 +280,8 @@ public enum CodexDashboardAuthority {
         Set(candidates.map { candidate in
             CodexDashboardKnownOwnerCandidate(
                 identity: self.normalizeIdentity(candidate.identity),
-                normalizedEmail: CodexIdentityResolver.normalizeEmail(candidate.normalizedEmail))
+                normalizedEmail: CodexIdentityResolver.normalizeEmail(candidate.normalizedEmail),
+                sourceIsolationIdentifier: candidate.sourceIsolationIdentifier)
         })
     }
 

@@ -513,6 +513,11 @@ struct TokenAccountEnvironmentPrecedenceTests {
             account: nil,
             codexActiveSourceOverride: .profileHome(path: profileHome.path))
         #expect(profileEnv["CODEX_HOME"] == profileHome.path)
+        #expect(context.settingsSnapshot(
+            for: .codex,
+            account: nil,
+            codexActiveSourceOverride: .profileHome(path: profileHome.path))?.codex?.openAIWebCacheScope
+            == .profileHome(profileHome.path))
 
         let liveEnv = context.environment(
             base: ["CODEX_HOME": ambientHome.path],

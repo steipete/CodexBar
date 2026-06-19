@@ -295,6 +295,7 @@ extension CodexWebDashboardStrategy {
                 intoAccountEmail: routingTargetEmail,
                 allowAnyAccount: allowAnyAccount,
                 preferCachedCookieHeader: preferCachedCookieHeader,
+                cacheScope: context.settings?.codex?.openAIWebCacheScope,
                 deadline: options.deadline,
                 logger: logger)
         let effectiveEmail = routingTargetEmail ?? importResult.signedInEmail?
@@ -302,6 +303,7 @@ extension CodexWebDashboardStrategy {
 
         let dashboard = try await OpenAIDashboardFetcher().loadLatestDashboard(
             accountEmail: effectiveEmail,
+            cacheScope: context.settings?.codex?.openAIWebCacheScope,
             logger: logger,
             debugDumpHTML: options.debugDumpHTML,
             timeout: OpenAIDashboardBrowserCookieImporter.remainingTimeout(until: options.deadline))
