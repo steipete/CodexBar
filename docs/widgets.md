@@ -24,12 +24,16 @@ read_when:
 - **CodexBar Usage** (`CodexBarUsageWidget`): configurable provider usage widget, small/medium/large.
 - **CodexBar History** (`CodexBarHistoryWidget`): configurable usage-history chart, medium/large.
 - **CodexBar Metric** (`CodexBarCompactWidget`): compact credits/today-cost/30-day-cost widget, small only.
+- **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable session or weekly burn-down chart, medium only.
+- **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): session and weekly burn-down charts, medium only.
 
 ## Provider picker support
 The configurable provider widgets currently expose:
 Codex, Claude, Gemini, Alibaba, Antigravity, z.ai, Copilot, MiniMax, Kilo, OpenCode, and OpenCode Go.
 
 Providers without a `ProviderChoice` case can still be present in the app snapshot, but they are not selectable from the widget configuration UI yet.
+
+Burn-down widgets currently support Codex and Claude. Their dedicated configuration intents keep existing Usage and History widget configurations unchanged.
 
 ## Visibility troubleshooting (macOS 14+)
 When widgets do not appear in the gallery at all, the issue is almost always

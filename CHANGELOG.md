@@ -3,6 +3,7 @@
 ## 0.36.2 — Unreleased
 
 ### Added
+- Widgets: add single-window and combined burn-down charts for Codex and Claude session/weekly limits. Thanks @StevanusPangau!
 - Cursor: show personal on-demand spend alongside the shared team pool. Thanks @yashiels!
 - Documentation: link the community KDE Plasma panel integration. Thanks @tylxr59!
 - Codex: show available manual rate-limit reset credits and their next expiry for signed-in OAuth accounts. Thanks @rogdex24!

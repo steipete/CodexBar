@@ -13,6 +13,9 @@
 		7A3A654DC5A5B85C9C41EA02 /* CodexBarCore in Frameworks */ = {isa = PBXBuildFile; productRef = 140C60DAC1DE9A8AE19E58FE /* CodexBarCore */; };
 		7F0E34471853E41206F690FB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 02F15F392AF9D502F0503F8F /* SwiftUI.framework */; };
 		882A41814588292DD631F525 /* CodexBarWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */; };
+		B2C3D4E5F6071829A3B4C5D6 /* BurnDownWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6071829A3B4C5D7 /* BurnDownWidgetViews.swift */; };
+		C3D4E5F607182930B4C5D6E7 /* CombinedBurnDownWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F607182930B4C5D6E8 /* CombinedBurnDownWidgetViews.swift */; };
+		D4E5F60718293041C5D6E7F8 /* BurnDownWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F60718293041C5D6E7F9 /* BurnDownWidgetProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +23,9 @@
 		50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetBundle.swift; sourceTree = "<group>"; };
 		549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetProvider.swift; sourceTree = "<group>"; };
 		84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetViews.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6071829A3B4C5D7 /* BurnDownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurnDownWidgetViews.swift; sourceTree = "<group>"; };
+		C3D4E5F607182930B4C5D6E8 /* CombinedBurnDownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedBurnDownWidgetViews.swift; sourceTree = "<group>"; };
+		D4E5F60718293041C5D6E7F9 /* BurnDownWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurnDownWidgetProvider.swift; sourceTree = "<group>"; };
 		E430B27E4F28973A5E77EA3F /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		E7789C4095C40CF60759F2B7 /* CodexBarWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CodexBarWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EFBE36CB6481E7133E2A5CF3 /* CodexBar */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CodexBar; path = ..; sourceTree = SOURCE_ROOT; };
@@ -63,6 +69,9 @@
 				50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */,
 				549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */,
 				84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */,
+				B2C3D4E5F6071829A3B4C5D7 /* BurnDownWidgetViews.swift */,
+				C3D4E5F607182930B4C5D6E8 /* CombinedBurnDownWidgetViews.swift */,
+				D4E5F60718293041C5D6E7F9 /* BurnDownWidgetProvider.swift */,
 			);
 			name = CodexBarWidget;
 			path = ../Sources/CodexBarWidget;
@@ -148,6 +157,9 @@
 				0972D036B563954337344F35 /* CodexBarWidgetBundle.swift in Sources */,
 				49DB3749D8E8748409CDC4FE /* CodexBarWidgetProvider.swift in Sources */,
 				882A41814588292DD631F525 /* CodexBarWidgetViews.swift in Sources */,
+				B2C3D4E5F6071829A3B4C5D6 /* BurnDownWidgetViews.swift in Sources */,
+				C3D4E5F607182930B4C5D6E7 /* CombinedBurnDownWidgetViews.swift in Sources */,
+				D4E5F60718293041C5D6E7F8 /* BurnDownWidgetProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

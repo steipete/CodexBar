@@ -352,9 +352,128 @@ struct CodexBarWidgetProviderTests {
     func `widget configuration intents default to codex and credits`() {
         let providerIntent = ProviderSelectionIntent()
         let compactIntent = CompactMetricSelectionIntent()
+        let burnIntent = BurnDownSelectionIntent()
+        let combinedBurnIntent = BurnProviderSelectionIntent()
 
         #expect(providerIntent.provider == .codex)
         #expect(compactIntent.provider == .codex)
         #expect(compactIntent.metric == .credits)
+        #expect(burnIntent.provider == .codex)
+        #expect(burnIntent.window == .session)
+        #expect(combinedBurnIntent.provider == .codex)
+    }
+
+    @Test
+    func `burn down uses an exact provider entry`() {
+        let snapshot = Self.burnSnapshot(provider: .claude, primaryUsed: 20, secondaryUsed: 30)
+
+        #expect(BurnDownState(snapshot: snapshot, provider: .codex, selection: .session) == nil)
+        #expect(BurnDownState(snapshot: snapshot, provider: .claude, selection: .session) != nil)
+    }
+
+    @Test
+    func `codex exhausted weekly cap blocks the session chart until weekly reset`() throws {
+        let weeklyReset = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = Self.burnSnapshot(
+            provider: .codex,
+            primaryUsed: 80,
+            secondaryUsed: 100,
+            primaryReset: weeklyReset.addingTimeInterval(-3600),
+            secondaryReset: weeklyReset)
+        let state = try #require(BurnDownState(snapshot: snapshot, provider: .codex, selection: .session))
+
+        #expect(state.secondaryGloballyCapsPrimary)
+        #expect(state.primaryWindow?.remainingPercent == 0)
+        #expect(state.blankPrimaryChart)
+        #expect(state.selectedResetOverride == weeklyReset)
+    }
+
+    @Test
+    func `gemini exhausted secondary window does not block the independent primary`() throws {
+        let primaryReset = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = Self.burnSnapshot(
+            provider: .gemini,
+            primaryUsed: 20,
+            secondaryUsed: 100,
+            primaryReset: primaryReset,
+            secondaryReset: primaryReset.addingTimeInterval(-3600))
+        let state = try #require(BurnDownState(snapshot: snapshot, provider: .gemini, selection: .session))
+
+        #expect(!state.secondaryGloballyCapsPrimary)
+        #expect(state.primaryWindow?.remainingPercent == 80)
+        #expect(!state.blankPrimaryChart)
+        #expect(state.selectedResetOverride == nil)
+    }
+
+    @Test
+    func `independent secondary reset never overrides primary reset`() throws {
+        let primaryReset = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = Self.burnSnapshot(
+            provider: .gemini,
+            primaryUsed: 20,
+            secondaryUsed: 30,
+            primaryReset: primaryReset,
+            secondaryReset: primaryReset.addingTimeInterval(-3600))
+        let state = try #require(BurnDownState(snapshot: snapshot, provider: .gemini, selection: .session))
+
+        #expect(state.selectedWindow?.resetsAt == primaryReset)
+        #expect(state.selectedResetOverride == nil)
+    }
+
+    @Test
+    func `burn down refreshes immediately after the earliest future reset`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = Self.burnSnapshot(
+            provider: .codex,
+            primaryUsed: 20,
+            secondaryUsed: 30,
+            primaryReset: now.addingTimeInterval(60),
+            secondaryReset: now.addingTimeInterval(120))
+
+        #expect(BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: .codex, now: now)
+            == now.addingTimeInterval(61))
+    }
+
+    @Test
+    func `burn down refresh ignores past resets and unrelated provider entries`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = Self.burnSnapshot(
+            provider: .claude,
+            primaryUsed: 20,
+            secondaryUsed: 30,
+            primaryReset: now.addingTimeInterval(-60),
+            secondaryReset: now.addingTimeInterval(-30))
+        let fallback = now.addingTimeInterval(30 * 60)
+
+        #expect(BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: .claude, now: now) == fallback)
+        #expect(BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: .codex, now: now) == fallback)
+    }
+
+    private static func burnSnapshot(
+        provider: UsageProvider,
+        primaryUsed: Double,
+        secondaryUsed: Double,
+        primaryReset: Date? = nil,
+        secondaryReset: Date? = nil) -> WidgetSnapshot
+    {
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: provider,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            primary: RateWindow(
+                usedPercent: primaryUsed,
+                windowMinutes: 5 * 60,
+                resetsAt: primaryReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: secondaryUsed,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: secondaryReset,
+                resetDescription: nil),
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        return WidgetSnapshot(entries: [entry], generatedAt: entry.updatedAt)
     }
 }
