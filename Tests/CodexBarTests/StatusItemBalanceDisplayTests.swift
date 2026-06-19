@@ -166,6 +166,29 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `menu bar display text skips exhausted cursor api subquota when total remains usable`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-cursor-exhausted-api",
+            provider: .cursor)
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.automatic, for: .cursor)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 67, windowMinutes: 30 * 24 * 60, resetsAt: nil, resetDescription: "Total"),
+            secondary: RateWindow(usedPercent: 34, windowMinutes: 30 * 24 * 60, resetsAt: nil, resetDescription: "Auto"),
+            tertiary: RateWindow(usedPercent: 100, windowMinutes: 30 * 24 * 60, resetsAt: nil, resetDescription: "API"),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
+        store._setErrorForTesting(nil, provider: .cursor)
+
+        let displayText = controller.menuBarDisplayText(for: .cursor, snapshot: snapshot)
+
+        #expect(displayText == "33%")
+    }
+
+    @Test
     func `menu bar display text uses deepseek balance`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-deepseek-balance",
