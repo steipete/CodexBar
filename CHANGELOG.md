@@ -25,6 +25,7 @@
 
 ### Fixed
 - Kiro: keep parsed usage available when the optional account probe times out or fails. Thanks @Yuxin-Qiao!
+- Cursor: ignore an exhausted Auto or API subquota only when another independent quota remains usable, while preserving the overall cap. Thanks @Yuxin-Qiao!
 - Memory: release idle OpenAI WebViews under system pressure without blocking the main thread. Thanks @ProspectOre!
 - Memory: trim rebuildable menu and OpenAI debug caches under system pressure. Thanks @ProspectOre!
 - Provider plans: keep Claude and Kiro plan matching on one rendered line to avoid bogus labels from adjacent usage hints. Thanks @elijahfriedman!

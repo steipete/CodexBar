@@ -125,7 +125,13 @@ enum MenuBarMetricWindowResolver {
         {
             return primary.usedPercent >= secondary.usedPercent ? primary : secondary
         }
-        if provider == .cursor || provider == .minimax {
+        if provider == .cursor {
+            return Self.mostConstrainedCursorWindow(
+                total: snapshot.primary,
+                auto: snapshot.secondary,
+                api: snapshot.tertiary)
+        }
+        if provider == .minimax {
             return Self.mostConstrainedUsableWindow(
                 primary: snapshot.primary,
                 secondary: snapshot.secondary,
@@ -223,6 +229,26 @@ enum MenuBarMetricWindowResolver {
         guard !windows.isEmpty else { return nil }
         let usableWindows = windows.filter { $0.usedPercent < 100 }
         return (usableWindows.isEmpty ? windows : usableWindows)
+            .max(by: { $0.usedPercent < $1.usedPercent })
+    }
+
+    private static func mostConstrainedCursorWindow(
+        total: RateWindow?,
+        auto: RateWindow?,
+        api: RateWindow?)
+        -> RateWindow?
+    {
+        if let total, total.usedPercent >= 100 {
+            return total
+        }
+
+        let subquotaWindows = [auto, api].compactMap(\.self)
+        let usableSubquotaWindows = subquotaWindows.filter { $0.usedPercent < 100 }
+        if !subquotaWindows.isEmpty, usableSubquotaWindows.isEmpty {
+            return subquotaWindows.max(by: { $0.usedPercent < $1.usedPercent })
+        }
+
+        return ([total].compactMap(\.self) + usableSubquotaWindows)
             .max(by: { $0.usedPercent < $1.usedPercent })
     }
 

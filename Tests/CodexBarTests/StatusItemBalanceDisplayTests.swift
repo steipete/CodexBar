@@ -176,7 +176,11 @@ struct StatusItemBalanceDisplayTests {
         defer { controller.releaseStatusItemsForTesting() }
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 67, windowMinutes: 30 * 24 * 60, resetsAt: nil, resetDescription: "Total"),
-            secondary: RateWindow(usedPercent: 34, windowMinutes: 30 * 24 * 60, resetsAt: nil, resetDescription: "Auto"),
+            secondary: RateWindow(
+                usedPercent: 34,
+                windowMinutes: 30 * 24 * 60,
+                resetsAt: nil,
+                resetDescription: "Auto"),
             tertiary: RateWindow(usedPercent: 100, windowMinutes: 30 * 24 * 60, resetsAt: nil, resetDescription: "API"),
             updatedAt: Date())
 
