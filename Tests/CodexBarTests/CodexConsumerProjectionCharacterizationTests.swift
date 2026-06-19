@@ -292,6 +292,60 @@ struct CodexConsumerProjectionCharacterizationTests {
     }
 
     @Test
+    func `menu bar all metrics mode ignores hidden exhausted weekly lane before credits fallback`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .allMetrics
+        settings.usageBarsShowUsed = false
+        settings.codexAllMetricsShowsSession = true
+        settings.codexAllMetricsShowsWeekly = false
+        settings.codexAllMetricsShowsPace = false
+        settings.codexAllMetricsShowsReset = false
+        settings.setMenuBarMetricPreference(.primary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let now = Date()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 22,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(4 * 24 * 3600),
+                resetDescription: nil),
+            updatedAt: now)
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 42.5, events: [], updatedAt: Date())
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "5h 78%")
+    }
+
+    @Test
     func `menu bar all metrics mode respects disabled codex metric parts`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false

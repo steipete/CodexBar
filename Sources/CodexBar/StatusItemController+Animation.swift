@@ -762,7 +762,7 @@ extension StatusItemController {
                 now: now)
         }
 
-        if mode == .percent || mode == .allMetrics,
+        if mode == .percent,
            !self.settings.usageBarsShowUsed,
            codexProjection?.menuBarFallback == .creditsBalance,
            let creditsRemaining = codexProjection?.credits?.remaining,
@@ -777,9 +777,16 @@ extension StatusItemController {
         if mode == .allMetrics,
            let codexProjection
         {
-            return MenuBarDisplayText.codexAllMetricsText(
-                sessionWindow: codexProjection.rateWindow(for: .session),
-                weeklyWindow: codexProjection.rateWindow(for: .weekly),
+            let sessionWindow = codexProjection.rateWindow(for: .session)
+            let weeklyWindow = codexProjection.rateWindow(for: .weekly)
+            let sessionRemainingPercent = sessionWindow?.remainingPercent ?? 1
+            let weeklyRemainingPercent = weeklyWindow?.remainingPercent ?? 1
+            let hasVisibleExhaustedLane =
+                (self.settings.codexAllMetricsShowsSession && sessionRemainingPercent <= 0) ||
+                (self.settings.codexAllMetricsShowsWeekly && weeklyRemainingPercent <= 0)
+            let allMetricsText = MenuBarDisplayText.codexAllMetricsText(
+                sessionWindow: sessionWindow,
+                weeklyWindow: weeklyWindow,
                 weeklyPace: pace,
                 showUsed: self.settings.usageBarsShowUsed,
                 showsSession: self.settings.codexAllMetricsShowsSession,
@@ -790,6 +797,20 @@ extension StatusItemController {
                 resetFormat: self.settings.codexAllMetricsResetFormat,
                 resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
                 now: now)
+            if let allMetricsText, !hasVisibleExhaustedLane {
+                return allMetricsText
+            }
+            if !self.settings.usageBarsShowUsed,
+               codexProjection.menuBarFallback == .creditsBalance,
+               let creditsRemaining = codexProjection.credits?.remaining,
+               creditsRemaining > 0
+            {
+                return
+                    UsageFormatter
+                        .creditsString(from: creditsRemaining)
+                        .replacingOccurrences(of: " left", with: "")
+            }
+            return allMetricsText
         }
 
         return MenuBarDisplayText.displayText(
