@@ -6,7 +6,7 @@ enum StatusItemMenuProviderNavigationDirection {
 }
 
 protocol StatusItemMenuPersistentActionDelegate: AnyObject {
-    func performPersistentRefreshAction()
+    func performPersistentRefreshAction(in menuID: ObjectIdentifier)
     func performPersistentSettingsAction()
     func performPersistentQuitAction()
     func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection)
@@ -19,7 +19,7 @@ final class StatusItemMenu: NSMenu {
         if let action = Self.persistentAction(for: event) {
             switch action {
             case .refresh:
-                self.persistentActionDelegate?.performPersistentRefreshAction()
+                self.persistentActionDelegate?.performPersistentRefreshAction(in: ObjectIdentifier(self))
             case .settings:
                 self.persistentActionDelegate?.performPersistentSettingsAction()
             case .quit:

@@ -240,6 +240,7 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
     private let titleField: NSTextField
     private let shortcutField: NSTextField
     private let onClick: () -> Void
+    private var highlighted = false
     private var isInProgress = false
 
     override var intrinsicContentSize: NSSize {
@@ -280,39 +281,45 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
 
     override func mouseUp(with event: NSEvent) {
         guard event.type == .leftMouseUp else { return }
+        guard !self.isInProgress else { return }
         self.onClick()
     }
 
     func setHighlighted(_ highlighted: Bool) {
-        let primaryColor = highlighted ? NSColor.selectedMenuItemTextColor : NSColor.controlTextColor
-        let secondaryColor = highlighted ? NSColor.selectedMenuItemTextColor : NSColor.secondaryLabelColor
-        self.backgroundView.isHidden = !highlighted
-        self.titleField.textColor = primaryColor
-        self.shortcutField.textColor = secondaryColor
-        self.imageView.contentTintColor = primaryColor
-        self.progressIndicator.appearance = highlighted ? NSAppearance(named: .darkAqua) : nil
+        self.highlighted = highlighted
+        self.updateVisualState()
     }
 
-    /// Gives the persistent Refresh row immediate, in-place feedback while a manual refresh
-    /// is in flight: the leading `arrow.clockwise` icon is swapped for a spinner occupying the
-    /// same fixed 18×18 slot, so the row height and layout never change (no menu rebuild).
+    /// Gives the persistent Refresh row static, in-place feedback without an animated view inside
+    /// the vibrant menu, which would continuously trigger WindowServer recompositing.
     func setInProgress(_ inProgress: Bool) {
         guard self.isInProgress != inProgress else { return }
         self.isInProgress = inProgress
-        // Fade the icon rather than `isHidden`: a hidden NSStackView arranged subview collapses
-        // its slot and shifts the title, whereas `alphaValue` keeps the fixed 18pt slot in place.
-        self.imageView.alphaValue = inProgress ? 0 : 1
-        self.progressIndicator.isHidden = !inProgress
-        if inProgress {
-            self.progressIndicator.startAnimation(nil)
-        } else {
-            self.progressIndicator.stopAnimation(nil)
-        }
+        self.progressIndicator.stopAnimation(nil)
+        self.progressIndicator.isHidden = true
+        self.updateVisualState()
+    }
+
+    private func updateVisualState() {
+        let primaryColor = self.highlighted ? NSColor.selectedMenuItemTextColor : NSColor.controlTextColor
+        let secondaryColor = self.highlighted ? NSColor.selectedMenuItemTextColor : NSColor.secondaryLabelColor
+        let alpha: CGFloat = self.isInProgress ? 0.62 : 1
+        self.backgroundView.isHidden = !self.highlighted
+        self.titleField.textColor = primaryColor
+        self.shortcutField.textColor = secondaryColor
+        self.imageView.contentTintColor = primaryColor
+        self.titleField.alphaValue = alpha
+        self.shortcutField.alphaValue = alpha
+        self.imageView.alphaValue = alpha
     }
 
     #if DEBUG
     var isInProgressForTesting: Bool {
         self.isInProgress
+    }
+
+    var isProgressIndicatorHiddenForTesting: Bool {
+        self.progressIndicator.isHidden
     }
     #endif
 

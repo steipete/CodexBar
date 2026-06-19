@@ -14,27 +14,37 @@ final class MenuCardRefreshMonitor {
 
     private let resolveModel: ModelResolver
     var isManualRefreshInFlight = false
+    private var manualRefreshProvider: UsageProvider?
     private var frozenManualRefreshModels: [UsageProvider: UsageMenuCardView.Model] = [:]
 
     init(resolveModel: @escaping ModelResolver) {
         self.resolveModel = resolveModel
     }
 
-    func beginManualRefresh(frozenModels: [UsageProvider: UsageMenuCardView.Model]) {
+    func beginManualRefresh(
+        frozenModels: [UsageProvider: UsageMenuCardView.Model],
+        provider: UsageProvider? = nil)
+    {
         self.frozenManualRefreshModels = frozenModels
+        self.manualRefreshProvider = provider
         self.isManualRefreshInFlight = true
     }
 
     func endManualRefresh() {
         self.isManualRefreshInFlight = false
+        self.manualRefreshProvider = nil
         self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
+    }
+
+    func isManualRefreshInFlight(for provider: UsageProvider) -> Bool {
+        self.isManualRefreshInFlight && (self.manualRefreshProvider == nil || self.manualRefreshProvider == provider)
     }
 
     func model(
         for provider: UsageProvider,
         fallback: UsageMenuCardView.Model) -> UsageMenuCardView.Model
     {
-        guard !self.isManualRefreshInFlight else {
+        guard !self.isManualRefreshInFlight(for: provider) else {
             guard let frozen = self.frozenManualRefreshModels[provider] else {
                 return fallback
             }
@@ -61,7 +71,7 @@ final class MenuCardRefreshMonitor {
         for provider: UsageProvider,
         fallback: MenuCardLiveSubtitle) -> MenuCardLiveSubtitle
     {
-        if self.isManualRefreshInFlight {
+        if self.isManualRefreshInFlight(for: provider) {
             return MenuCardLiveSubtitle(text: "\(L("Refreshing"))…", style: .loading)
         }
         guard let model = self.resolveModel(provider) else { return fallback }

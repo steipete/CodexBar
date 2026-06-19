@@ -140,6 +140,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var manualRefreshTask: Task<Void, Never>?
+    var manualRefreshProvider: UsageProvider?
     var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var closedMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
     var openMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]

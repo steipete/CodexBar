@@ -732,6 +732,11 @@ final class UsageStore {
         await self.refreshTokenUsageSequence(force: force)
     }
 
+    func refreshTokenUsageNow(for provider: UsageProvider, force: Bool) async {
+        await self.refreshTokenUsage(provider, force: force)
+        self.scheduleMemoryPressureRelief()
+    }
+
     private func refreshTokenUsageSequence(force: Bool) async {
         for provider in self.enabledProvidersForBackgroundWork() {
             if Task.isCancelled { break }

@@ -30,7 +30,7 @@ extension StatusItemController {
     func performPersistentMenuAction(_ action: MenuDescriptor.MenuAction, in menu: NSMenu?) {
         switch action {
         case .refresh:
-            self.refreshNow()
+            self.refreshMenuProviderNow(in: menu)
         case .installUpdate:
             self.closeMenuForPersistentAction(menu)
             self.installUpdate()
@@ -48,14 +48,45 @@ extension StatusItemController {
         }
     }
 
-    /// Syncs every live persistent Refresh row's spinner to the refresh lifecycle. This is
+    /// Syncs every live persistent Refresh row's static progress state to the refresh lifecycle. This is
     /// an in-place AppKit mutation on the existing row views — it never rebuilds the menu, so it
     /// is safe to call during NSMenu tracking.
     func updatePersistentRefreshRowsInProgress() {
-        let inProgress = self.manualRefreshTask != nil || self.store.isRefreshing
         for row in self.persistentRefreshRows.allObjects {
-            row.setInProgress(inProgress)
+            guard let menu = row.enclosingMenuItem?.menu else {
+                row.setInProgress(self.manualRefreshTask != nil || self.store.isRefreshing)
+                continue
+            }
+            row.setInProgress(self.isRefreshActionInFlight(for: menu))
         }
+    }
+
+    func isRefreshActionInFlight(for menu: NSMenu) -> Bool {
+        if self.manualRefreshTask != nil {
+            guard let manualRefreshProvider else { return true }
+            if self.isMergedOverviewSelected(in: menu) { return false }
+            return self.menuProvider(for: menu) == manualRefreshProvider
+        }
+
+        if self.isMergedOverviewSelected(in: menu) {
+            let providers = self.settings.resolvedMergedOverviewProviders(
+                activeProviders: self.store.enabledProvidersForDisplay(),
+                maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+            return self.store.isRefreshing || providers.contains { self.store.refreshingProviders.contains($0) }
+        }
+        if let provider = self.menuProvider(for: menu) {
+            return self.store.isRefreshing || self.store.refreshingProviders.contains(provider)
+        }
+        return self.store.isRefreshing || !self.store.refreshingProviders.isEmpty
+    }
+
+    func isMergedOverviewSelected(in menu: NSMenu) -> Bool {
+        guard self.shouldMergeIcons else { return false }
+        if let mergedMenu = self.mergedMenu, menu !== mergedMenu { return false }
+        let providers = self.settings.resolvedMergedOverviewProviders(
+            activeProviders: self.store.enabledProvidersForDisplay(),
+            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+        return !providers.isEmpty && self.settings.mergedMenuLastSelectedWasOverview
     }
 
     private func closeMenuForPersistentAction(_ menu: NSMenu?) {

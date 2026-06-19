@@ -111,6 +111,8 @@ extension StatusItemController {
 
     var isMenuDataRefreshInFlight: Bool {
         self.store.isRefreshing ||
+            self.manualRefreshTask != nil ||
+            !self.store.refreshingProviders.isEmpty ||
             UsageProvider.allCases.contains { self.store.isTokenRefreshInFlight(for: $0) }
     }
 
@@ -260,7 +262,8 @@ extension StatusItemController {
             guard self.closedMenuRebuildRequests.isCurrent(rebuildToken, for: key) else { return }
             guard !self.hasPreparedForAppShutdown else { return }
             guard !self.isMenuDataRefreshInFlight else { return }
-            guard self.openMenus[ObjectIdentifier(menu)] == nil else { return }
+            // A delayed prewarm for one menu must never populate while another menu is tracking.
+            guard self.openMenus.isEmpty else { return }
             guard self.menuNeedsRefresh(menu) else { return }
             self.populateMenu(menu, provider: provider)
             self.markMenuFresh(menu)

@@ -6,12 +6,14 @@ import Testing
 
 private final class RefreshShortcutRecorder: StatusItemMenuPersistentActionDelegate {
     var refreshCount = 0
+    var refreshMenuIDs: [ObjectIdentifier] = []
     var settingsCount = 0
     var quitCount = 0
     var navigationDirections: [StatusItemMenuProviderNavigationDirection] = []
 
-    func performPersistentRefreshAction() {
+    func performPersistentRefreshAction(in menuID: ObjectIdentifier) {
         self.refreshCount += 1
+        self.refreshMenuIDs.append(menuID)
     }
 
     func performPersistentSettingsAction() {
@@ -99,6 +101,13 @@ struct StatusMenuPersistentRefreshTests {
             updater: updater,
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
+    }
+
+    private func enableOnly(_ providers: Set<UsageProvider>, settings: SettingsStore) {
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: providers.contains(provider))
+        }
     }
 
     private static func makeTokenSnapshot() -> CostUsageTokenSnapshot {
@@ -209,7 +218,7 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `refresh row in-progress spinner keeps fixed metrics`() {
+    func `refresh row static in-progress state keeps fixed metrics`() {
         let view = PersistentMenuActionItemView(
             title: "Refresh",
             systemImageName: "arrow.clockwise",
@@ -218,6 +227,7 @@ struct StatusMenuPersistentRefreshTests {
             onClick: {})
 
         view.setInProgress(true)
+        #expect(view.isProgressIndicatorHiddenForTesting)
         #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
         #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
         #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
@@ -226,6 +236,7 @@ struct StatusMenuPersistentRefreshTests {
         #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
 
         view.setInProgress(false)
+        #expect(view.isProgressIndicatorHiddenForTesting)
         #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
         #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
         #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
@@ -255,8 +266,12 @@ struct StatusMenuPersistentRefreshTests {
         controller.updatePersistentRefreshRowsInProgress()
         #expect(row?.isInProgressForTesting == false)
 
-        // And a live refresh flag is mirrored onto the row.
-        controller.store.isRefreshing = true
+        // An unrelated scoped refresh does not affect this provider's row.
+        controller.store.refreshingProviders.insert(.claude)
+        controller.updatePersistentRefreshRowsInProgress()
+        #expect(row?.isInProgressForTesting == false)
+
+        controller.store.refreshingProviders.insert(.codex)
         controller.updatePersistentRefreshRowsInProgress()
         #expect(row?.isInProgressForTesting == true)
     }
@@ -299,6 +314,26 @@ struct StatusMenuPersistentRefreshTests {
 
         monitor.isManualRefreshInFlight = true
         #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .loading)
+    }
+
+    @Test
+    func `scoped refresh monitor leaves unrelated providers unchanged`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        let monitor = controller.menuCardRefreshMonitor
+        let codexModel = try #require(controller.menuCardModel(for: .codex))
+        let fallback = MenuCardLiveSubtitle(text: "Claude idle", style: .info)
+        let expectedClaude = monitor.subtitle(for: .claude, fallback: fallback)
+
+        monitor.beginManualRefresh(frozenModels: [.codex: codexModel], provider: .codex)
+        defer { monitor.endManualRefresh() }
+
+        #expect(monitor.isManualRefreshInFlight(for: .codex))
+        #expect(!monitor.isManualRefreshInFlight(for: .claude))
+        #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .loading)
+        let actualClaude = monitor.subtitle(for: .claude, fallback: fallback)
+        #expect(actualClaude.text == expectedClaude.text)
+        #expect(actualClaude.style == expectedClaude.style)
     }
 
     @Test
@@ -755,6 +790,74 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `provider menu mouse and command R refresh only that provider`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnly([.claude, .codex], settings: settings)
+
+        let controller = self.makeController(settings: settings)
+        let menu = try #require(controller.makeMenu(for: .claude) as? StatusItemMenu)
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        let mouseGate = ManualRefreshGate()
+        controller._test_manualRefreshOperation = { await mouseGate.wait() }
+        controller.performPersistentMenuAction(.refresh, in: menu)
+        let mouseTask = try #require(controller.manualRefreshTask)
+        #expect(controller.manualRefreshProvider == .claude)
+        mouseGate.resume()
+        await mouseTask.value
+
+        let keyboardGate = ManualRefreshGate()
+        controller._test_manualRefreshOperation = { await keyboardGate.wait() }
+        #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
+        for _ in 0..<20 where controller.manualRefreshTask == nil {
+            await Task.yield()
+        }
+        let keyboardTask = try #require(controller.manualRefreshTask)
+        #expect(controller.manualRefreshProvider == .claude)
+        keyboardGate.resume()
+        await keyboardTask.value
+    }
+
+    @Test
+    func `merged overview refreshes globally while selected provider stays scoped`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnly([.claude, .codex], settings: settings)
+        settings.mergedMenuLastSelectedWasOverview = true
+
+        let controller = self.makeController(settings: settings)
+        let menu = try #require(controller.makeMenu() as? StatusItemMenu)
+        controller.mergedMenu = menu
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        let overviewGate = ManualRefreshGate()
+        controller._test_manualRefreshOperation = { await overviewGate.wait() }
+        controller.performPersistentMenuAction(.refresh, in: menu)
+        let overviewTask = try #require(controller.manualRefreshTask)
+        #expect(controller.manualRefreshProvider == nil)
+        overviewGate.resume()
+        await overviewTask.value
+
+        settings.mergedMenuLastSelectedWasOverview = false
+        controller.selectedMenuProvider = .claude
+        let providerGate = ManualRefreshGate()
+        controller._test_manualRefreshOperation = { await providerGate.wait() }
+        #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
+        for _ in 0..<20 where controller.manualRefreshTask == nil {
+            await Task.yield()
+        }
+        let providerTask = try #require(controller.manualRefreshTask)
+        #expect(controller.manualRefreshProvider == .claude)
+        providerGate.resume()
+        await providerTask.value
+    }
+
+    @Test
     func `failed manual refresh returns row to idle and surfaces error`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
@@ -796,6 +899,7 @@ struct StatusMenuPersistentRefreshTests {
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("q", keyCode: 12)) == true)
 
         #expect(recorder.refreshCount == 1)
+        #expect(recorder.refreshMenuIDs == [ObjectIdentifier(menu)])
         #expect(recorder.settingsCount == 1)
         #expect(recorder.quitCount == 1)
     }
