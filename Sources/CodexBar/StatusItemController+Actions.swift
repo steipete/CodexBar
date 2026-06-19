@@ -89,6 +89,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.startManualRefresh(for: nil)
     }
 
+    @objc func refreshMenuItem(_ sender: NSMenuItem) {
+        self.refreshMenuProviderNow(in: sender.menu)
+    }
+
     func refreshMenuProviderNow(in menu: NSMenu?) {
         guard let provider = self.manualRefreshProvider(for: menu) else {
             self.startManualRefresh(for: nil)
@@ -125,7 +129,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 self.manualRefreshTask = nil
                 self.manualRefreshProvider = nil
                 self.menuCardRefreshMonitor.endManualRefresh()
-                self.updatePersistentRefreshRowsInProgress()
+                self.updatePersistentRefreshItemsEnabled()
                 self.prepareAttachedClosedMenusIfNeeded()
             }
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
@@ -151,7 +155,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.manualRefreshProvider = provider
         self.manualRefreshTask = task
         self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: provider)
-        self.updatePersistentRefreshRowsInProgress()
+        self.updatePersistentRefreshItemsEnabled()
     }
 
     private func manualRefreshProvider(for menu: NSMenu?) -> UsageProvider? {

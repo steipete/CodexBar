@@ -20,7 +20,7 @@ private struct CostMenuCardRowView: View {
                     .truncationMode(.tail)
             }
         }
-        .padding(.leading, 14)
+        .padding(.leading, 20)
         .padding(.trailing, 28)
         .padding(.vertical, 6)
         .frame(width: self.width, alignment: .leading)

@@ -121,7 +121,7 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `refresh menu item is view backed so mouse activation keeps the menu open`() throws {
+    func `refresh menu item is native so clicking it closes the menu`() throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -132,15 +132,15 @@ struct StatusMenuPersistentRefreshTests {
         controller.menuWillOpen(menu)
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        #expect(refreshItem.action == nil)
-        #expect(refreshItem.target == nil)
-        #expect(refreshItem.view != nil)
+        #expect(refreshItem.action != nil)
+        #expect(refreshItem.target === controller)
+        #expect(refreshItem.view == nil)
         #expect(refreshItem.keyEquivalent == "r")
         #expect(refreshItem.keyEquivalentModifierMask == [.command])
     }
 
     @Test
-    func `meta menu actions use the same stable row implementation`() throws {
+    func `persistent action items are native and install update has an icon`() throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -149,101 +149,20 @@ struct StatusMenuPersistentRefreshTests {
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
 
+        let updateItem = try #require(menu.items.first { $0.title == "Update ready, restart now?" })
+        #expect(MenuDescriptor.MenuAction.installUpdate.systemImageName == "arrow.down.circle")
+        #expect(updateItem.image != nil)
+
         for title in ["Update ready, restart now?", "Refresh", "Settings...", "About CodexBar", "Quit"] {
             let item = try #require(menu.items.first { $0.title == title })
-            #expect(item.view is PersistentMenuActionItemView)
-            #expect(item.view?.frame.height == PersistentMenuActionItemView.rowHeight)
-            if title == "Refresh" {
-                #expect(item.action == nil)
-                #expect(item.target == nil)
-            } else {
-                #expect(item.action != nil)
-                #expect(item.target === controller)
-            }
+            #expect(item.view == nil, "'\(title)' should be a native NSMenuItem with no custom view")
+            #expect(item.action != nil)
+            #expect(item.target === controller)
         }
     }
 
     @Test
-    func `refresh menu item view keeps fixed metrics while highlighted`() {
-        let views = [
-            PersistentMenuActionItemView(
-                title: "Refresh",
-                systemImageName: "arrow.clockwise",
-                shortcutText: "⌘R",
-                width: 320,
-                onClick: {}),
-            PersistentMenuActionItemView(
-                title: "Settings...",
-                systemImageName: "gearshape",
-                shortcutText: "⌘,",
-                width: 320,
-                onClick: {}),
-            PersistentMenuActionItemView(
-                title: "About CodexBar",
-                systemImageName: "info.circle",
-                shortcutText: nil,
-                width: 320,
-                onClick: {}),
-            PersistentMenuActionItemView(
-                title: "Quit",
-                systemImageName: nil,
-                shortcutText: nil,
-                width: 320,
-                onClick: {}),
-        ]
-
-        for view in views {
-            self.assertStableMetrics(view)
-        }
-    }
-
-    private func assertStableMetrics(_ view: PersistentMenuActionItemView) {
-        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
-
-        view.setFrameSize(NSSize(width: 360, height: 44))
-        #expect(view.frame.width == 360)
-        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
-
-        view.setHighlighted(true)
-        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
-
-        view.setHighlighted(false)
-        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
-    }
-
-    @Test
-    func `refresh row static in-progress state keeps fixed metrics`() {
-        let view = PersistentMenuActionItemView(
-            title: "Refresh",
-            systemImageName: "arrow.clockwise",
-            shortcutText: "⌘R",
-            width: 320,
-            onClick: {})
-
-        view.setInProgress(true)
-        #expect(view.isProgressIndicatorHiddenForTesting)
-        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
-
-        view.setHighlighted(true)
-        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
-
-        view.setInProgress(false)
-        #expect(view.isProgressIndicatorHiddenForTesting)
-        #expect(view.frame.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.intrinsicContentSize.height == PersistentMenuActionItemView.rowHeight)
-        #expect(view.fittingSize.height == PersistentMenuActionItemView.rowHeight)
-    }
-
-    @Test
-    func `persistent refresh rows reflect store refresh state in place`() {
+    func `native refresh item reflects scoped global and manual refresh state`() throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -252,31 +171,34 @@ struct StatusMenuPersistentRefreshTests {
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
 
-        let refreshItem = menu.items.first { $0.title == "Refresh" }
-        let row = refreshItem?.view as? PersistentMenuActionItemView
-        #expect(row != nil)
-        #expect(controller.persistentRefreshRows.allObjects.contains { $0 === row })
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        #expect(refreshItem.view == nil)
+        #expect(controller.persistentRefreshItems.allObjects.contains { $0 === refreshItem })
+        #expect(refreshItem.isEnabled)
 
+        controller.store.refreshingProviders.insert(.claude)
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(refreshItem.isEnabled)
+
+        controller.store.refreshingProviders.insert(.codex)
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(!refreshItem.isEnabled)
+
+        controller.store.refreshingProviders.removeAll()
+        controller.store.isRefreshing = true
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(!refreshItem.isEnabled)
+
+        controller.store.isRefreshing = false
         controller.manualRefreshProvider = .claude
         controller.manualRefreshTask = Task {}
-        controller.updatePersistentRefreshRowsInProgress()
-        #expect(row?.isInProgressForTesting == true)
-        #expect(controller.isRefreshActionInFlight(for: menu))
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(!refreshItem.isEnabled)
 
         controller.manualRefreshTask = nil
         controller.manualRefreshProvider = nil
-        controller.store.isRefreshing = false
-        controller.updatePersistentRefreshRowsInProgress()
-        #expect(row?.isInProgressForTesting == false)
-
-        // An unrelated scoped refresh does not affect this provider's row.
-        controller.store.refreshingProviders.insert(.claude)
-        controller.updatePersistentRefreshRowsInProgress()
-        #expect(row?.isInProgressForTesting == false)
-
-        controller.store.refreshingProviders.insert(.codex)
-        controller.updatePersistentRefreshRowsInProgress()
-        #expect(row?.isInProgressForTesting == true)
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(refreshItem.isEnabled)
     }
 
     @Test
@@ -762,10 +684,6 @@ struct StatusMenuPersistentRefreshTests {
         settings.mergeIcons = false
 
         let controller = self.makeController(settings: settings)
-        let menu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(menu)
-        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        let row = try #require(refreshItem.view as? PersistentMenuActionItemView)
 
         let gate = ManualRefreshGate()
         var requestCount = 0
@@ -781,14 +699,12 @@ struct StatusMenuPersistentRefreshTests {
         await Task.yield()
 
         #expect(requestCount == 1)
-        #expect(row.isInProgressForTesting)
         #expect(controller.menuCardRefreshMonitor.isManualRefreshInFlight)
 
         gate.resume()
         await task.value
 
         #expect(controller.manualRefreshTask == nil)
-        #expect(!row.isInProgressForTesting)
         #expect(!controller.menuCardRefreshMonitor.isManualRefreshInFlight)
     }
 
@@ -811,12 +727,14 @@ struct StatusMenuPersistentRefreshTests {
             requestCount += 1
             await mouseGate.wait()
         }
-        controller.performPersistentMenuAction(.refresh, in: menu)
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        controller.refreshMenuItem(refreshItem)
         let mouseTask = try #require(controller.manualRefreshTask)
         #expect(controller.manualRefreshProvider == .claude)
         #expect(controller.isRefreshActionInFlight(for: codexMenu))
         #expect(controller.isRefreshActionInFlight(for: NSMenu()))
-        controller.performPersistentMenuAction(.refresh, in: codexMenu)
+        let codexRefreshItem = try #require(codexMenu.items.first { $0.title == "Refresh" })
+        controller.refreshMenuItem(codexRefreshItem)
         await Task.yield()
         #expect(requestCount == 1)
         mouseGate.resume()
@@ -850,7 +768,8 @@ struct StatusMenuPersistentRefreshTests {
         var requestCount = 0
         controller._test_manualRefreshOperation = { requestCount += 1 }
 
-        controller.performPersistentMenuAction(.refresh, in: menu)
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        controller.refreshMenuItem(refreshItem)
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
         for _ in 0..<20 {
             await Task.yield()
@@ -877,7 +796,8 @@ struct StatusMenuPersistentRefreshTests {
 
         let overviewGate = ManualRefreshGate()
         controller._test_manualRefreshOperation = { await overviewGate.wait() }
-        controller.performPersistentMenuAction(.refresh, in: menu)
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        controller.refreshMenuItem(refreshItem)
         let overviewTask = try #require(controller.manualRefreshTask)
         #expect(controller.manualRefreshProvider == nil)
         overviewGate.resume()
@@ -926,7 +846,7 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `failed manual refresh returns row to idle and surfaces error`() async throws {
+    func `failed manual refresh returns native item to enabled and surfaces error`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -935,7 +855,6 @@ struct StatusMenuPersistentRefreshTests {
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        let row = try #require(refreshItem.view as? PersistentMenuActionItemView)
         let gate = ManualRefreshGate()
 
         controller._test_manualRefreshOperation = {
@@ -945,13 +864,13 @@ struct StatusMenuPersistentRefreshTests {
 
         controller.refreshNow()
         let task = try #require(controller.manualRefreshTask)
-        #expect(row.isInProgressForTesting)
+        #expect(!refreshItem.isEnabled)
 
         gate.resume()
         await task.value
 
         #expect(controller.manualRefreshTask == nil)
-        #expect(!row.isInProgressForTesting)
+        #expect(refreshItem.isEnabled)
         let fallback = MenuCardLiveSubtitle(text: "Fallback", style: .info)
         #expect(controller.menuCardRefreshMonitor.subtitle(for: .codex, fallback: fallback).style == .error)
     }

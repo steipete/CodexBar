@@ -27,15 +27,15 @@ struct StatusMenuMergedOverviewRefreshTests {
         #expect(!visibleProviders.contains(.opencode))
 
         controller.store.refreshingProviders.insert(.opencode)
-        controller.updatePersistentRefreshRowsInProgress()
+        controller.updatePersistentRefreshItemsEnabled()
         #expect(controller.isRefreshActionInFlight(for: menu))
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        let row = try #require(refreshItem.view as? PersistentMenuActionItemView)
-        #expect(row.isInProgressForTesting)
+        #expect(refreshItem.view == nil)
+        #expect(!refreshItem.isEnabled)
 
         var requestCount = 0
         controller._test_manualRefreshOperation = { requestCount += 1 }
-        controller.performPersistentMenuAction(.refresh, in: menu)
+        controller.refreshMenuItem(refreshItem)
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
         for _ in 0..<20 {
             await Task.yield()

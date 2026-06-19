@@ -796,15 +796,6 @@ extension StatusItemController {
                     menu.addItem(item)
                 case let .action(title, action):
                     let localizedTitle = L(title)
-                    if self.usesPersistentMenuActionItem(for: action) {
-                        menu.addItem(self.makePersistentMenuActionItem(
-                            title: localizedTitle,
-                            action: action,
-                            menu: captureMenu ?? menu,
-                            width: width))
-                        continue
-                    }
-
                     let (selector, represented) = self.selector(for: action)
                     let item = NSMenuItem(title: localizedTitle, action: selector, keyEquivalent: "")
                     item.target = self
@@ -830,6 +821,11 @@ extension StatusItemController {
                     {
                         item.isEnabled = false
                         self.applySubtitle(subtitle, to: item, title: localizedTitle)
+                    }
+                    if action == .refresh {
+                        let targetMenu = captureMenu ?? menu
+                        item.isEnabled = !self.isRefreshActionInFlight(for: targetMenu)
+                        self.persistentRefreshItems.add(item)
                     }
                     menu.addItem(item)
                 case let .submenu(title, systemImageName, submenuItems):
@@ -865,59 +861,6 @@ extension StatusItemController {
                 menu.addItem(.separator())
             }
         }
-    }
-
-    private func makePersistentMenuActionItem(
-        title: String,
-        action: MenuDescriptor.MenuAction,
-        menu: NSMenu,
-        width: CGFloat) -> NSMenuItem
-    {
-        let shortcut = self.shortcut(for: action)
-        let row = PersistentMenuActionItemView(
-            title: title,
-            systemImageName: self.persistentMenuActionSystemImageName(for: action),
-            shortcutText: shortcut.map { self.shortcutLabel(for: $0) },
-            width: width,
-            onClick: { [weak self, weak menu] in
-                self?.performPersistentMenuAction(action, in: menu)
-            })
-
-        if action == .refresh {
-            row.setInProgress(self.isRefreshActionInFlight(for: menu))
-            self.persistentRefreshRows.add(row)
-        }
-
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: shortcut?.key ?? "")
-        item.keyEquivalentModifierMask = shortcut?.modifiers ?? NSEvent.ModifierFlags()
-        item.isEnabled = true
-        item.view = row
-        item.toolTip = title
-        if action != .refresh {
-            let (selector, represented) = self.selector(for: action)
-            item.action = selector
-            item.target = self
-            item.representedObject = represented
-        }
-        return item
-    }
-
-    private func shortcutLabel(for shortcut: (key: String, modifiers: NSEvent.ModifierFlags)) -> String {
-        var label = ""
-        if shortcut.modifiers.contains(.control) {
-            label += "^"
-        }
-        if shortcut.modifiers.contains(.option) {
-            label += "⌥"
-        }
-        if shortcut.modifiers.contains(.shift) {
-            label += "⇧"
-        }
-        if shortcut.modifiers.contains(.command) {
-            label += "⌘"
-        }
-        label += shortcut.key.uppercased()
-        return label
     }
 
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {

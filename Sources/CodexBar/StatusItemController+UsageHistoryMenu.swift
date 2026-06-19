@@ -18,9 +18,9 @@ extension StatusItemController {
                     .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 14)
+                    .padding(.leading, 20)
                     .padding(.trailing, 28)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 6)
             },
             id: "usageHistorySubmenu",
             width: width,
