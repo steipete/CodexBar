@@ -975,17 +975,16 @@ private final class ClaudeWebSessionKeyRenewalTracker: @unchecked Sendable {
     }
 
     private static func sessionKey(fromSetCookieHeaders fields: [AnyHashable: Any]) -> String? {
-        for (key, value) in fields {
-            guard String(describing: key).caseInsensitiveCompare("Set-Cookie") == .orderedSame else {
-                continue
-            }
-            for header in self.setCookieHeaderValues(from: value) {
-                if let sessionKey = self.sessionKey(fromSetCookieHeader: header) {
-                    return sessionKey
-                }
-            }
+        guard let value = fields.first(where: {
+            String(describing: $0.key).caseInsensitiveCompare("Set-Cookie") == .orderedSame
+        })?.value else {
+            return nil
         }
-        return nil
+        var latestSessionKey: String?
+        for header in self.setCookieHeaderValues(from: value) {
+            latestSessionKey = self.sessionKey(fromSetCookieHeader: header) ?? latestSessionKey
+        }
+        return latestSessionKey
     }
 
     private static func setCookieHeaderValues(from value: Any) -> [String] {
@@ -1002,14 +1001,19 @@ private final class ClaudeWebSessionKeyRenewalTracker: @unchecked Sendable {
         let pattern = #"(?i)(?:^|[,\r\n])\s*sessionKey=([^;,\r\n]+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(header.startIndex..<header.endIndex, in: header)
-        guard let match = regex.firstMatch(in: header, range: range),
-              match.numberOfRanges >= 2,
-              let valueRange = Range(match.range(at: 1), in: header)
-        else {
-            return nil
+        var latestSessionKey: String?
+        for match in regex.matches(in: header, range: range) {
+            guard match.numberOfRanges >= 2,
+                  let valueRange = Range(match.range(at: 1), in: header)
+            else {
+                continue
+            }
+            let value = String(header[valueRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.hasPrefix("sk-ant-") {
+                latestSessionKey = value
+            }
         }
-        let value = String(header[valueRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.hasPrefix("sk-ant-") ? value : nil
+        return latestSessionKey
     }
 }
 
