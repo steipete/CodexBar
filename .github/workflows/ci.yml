@@ -34,12 +34,12 @@ jobs:
 
           changed_paths="${RUNNER_TEMP}/changed-paths.txt"
           if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
-            git ls-files > "$changed_paths"
+            git ls-files | awk '{ print "A\t" $0 }' > "$changed_paths"
           elif ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
             echo "Base commit ${base_sha} is unavailable; running macOS tests conservatively."
-            git ls-files > "$changed_paths"
+            git ls-files | awk '{ print "A\t" $0 }' > "$changed_paths"
           else
-            git diff --name-only "$base_sha" "$GITHUB_SHA" > "$changed_paths"
+            git diff --name-status "$base_sha" "$GITHUB_SHA" > "$changed_paths"
           fi
 
           printf 'Changed paths:\n'

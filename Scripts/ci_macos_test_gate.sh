@@ -12,8 +12,10 @@ fi
 macos_tests=false
 path_count=0
 
-while IFS= read -r path; do
-  [[ -z "$path" ]] && continue
+classify_path() {
+  local path="$1"
+  [[ -z "$path" ]] && return
+
   path_count=$((path_count + 1))
 
   case "$path" in
@@ -21,6 +23,25 @@ while IFS= read -r path; do
       ;;
     *)
       macos_tests=true
+      ;;
+  esac
+}
+
+while IFS=$'\t' read -r status first_path second_path _; do
+  [[ -z "${status}${first_path:-}${second_path:-}" ]] && continue
+
+  if [[ -z "${first_path:-}" ]]; then
+    classify_path "$status"
+    continue
+  fi
+
+  case "$status" in
+    R*|C*)
+      classify_path "$first_path"
+      classify_path "${second_path:-}"
+      ;;
+    *)
+      classify_path "$first_path"
       ;;
   esac
 done < "$changed_paths_file"
