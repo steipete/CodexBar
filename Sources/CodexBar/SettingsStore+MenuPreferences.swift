@@ -37,6 +37,9 @@ extension SettingsStore {
         if preference == .extraUsage, !self.menuBarMetricSupportsExtraUsage(for: provider) {
             return .automatic
         }
+        if preference == .monthlyPlan {
+            return .automatic
+        }
         return preference
     }
 
@@ -68,6 +71,10 @@ extension SettingsStore {
             return
         }
         if preference == .extraUsage, !self.menuBarMetricSupportsExtraUsage(for: provider) {
+            self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
+            return
+        }
+        if preference == .monthlyPlan {
             self.menuBarMetricPreferencesRaw[provider.rawValue] = MenuBarMetricPreference.automatic.rawValue
             return
         }

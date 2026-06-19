@@ -74,6 +74,13 @@ struct SettingsStoreAdditionalTests {
         settings.setMenuBarMetricPreference(.average, for: .codex)
         #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
 
+        settings.setMenuBarMetricPreference(.monthlyPlan, for: .codex)
+        #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
+
+        settings.menuBarMetricPreferencesRaw[UsageProvider.codex.rawValue] = MenuBarMetricPreference.monthlyPlan
+            .rawValue
+        #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
+
         settings.setMenuBarMetricPreference(.average, for: .gemini)
         #expect(settings.menuBarMetricPreference(for: .gemini) == .average)
 
