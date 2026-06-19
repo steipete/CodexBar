@@ -149,6 +149,52 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
+    func `scoped manual refresh drains scheduled token-cost refresh before forced pass`() async {
+        let store = Self.makeStore()
+        let scheduledGate = TokenRefreshGate()
+        let forcedGate = TokenRefreshGate()
+        let recorder = TokenRefreshRecorder()
+        let completion = CompletionFlag()
+        store._test_providerRefreshOverride = { _ in }
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+            if force {
+                await forcedGate.start(provider: provider, force: force)
+                await forcedGate.waitForRelease()
+                await forcedGate.finish()
+            } else {
+                await scheduledGate.start(provider: provider, force: force)
+                await scheduledGate.waitForRelease()
+                await scheduledGate.finish()
+            }
+        }
+
+        await store.refresh(forceTokenUsage: false)
+        await scheduledGate.waitForStart()
+
+        let task = Task { @MainActor in
+            await store.refreshTokenUsageNow(for: .codex, force: true)
+            await completion.markCompleted()
+        }
+
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await completion.isCompleted() == false)
+
+        await scheduledGate.release()
+        await forcedGate.waitForStart()
+        #expect(await completion.isCompleted() == false)
+
+        await forcedGate.release()
+        await task.value
+
+        #expect(await completion.isCompleted())
+        #expect(await scheduledGate.hasFinished())
+        #expect(await forcedGate.hasFinished())
+        #expect(await recorder.calls.map(\.provider) == [.codex, .codex])
+        #expect(await recorder.calls.map(\.force) == [false, true])
+    }
+
+    @Test
     func `regular refresh schedules token-cost refresh without waiting`() async {
         let store = Self.makeStore()
         let gate = TokenRefreshGate()

@@ -723,18 +723,21 @@ final class UsageStore {
     }
 
     private func refreshTokenUsageSequenceNow(force: Bool) async {
-        if force, let existing = self.tokenRefreshSequenceTask {
-            existing.cancel()
-            await existing.value
-            self.tokenRefreshSequenceTask = nil
-        }
-
+        await self.drainScheduledTokenRefreshIfNeeded(force: force)
         await self.refreshTokenUsageSequence(force: force)
     }
 
     func refreshTokenUsageNow(for provider: UsageProvider, force: Bool) async {
+        await self.drainScheduledTokenRefreshIfNeeded(force: force)
         await self.refreshTokenUsage(provider, force: force)
         self.scheduleMemoryPressureRelief()
+    }
+
+    private func drainScheduledTokenRefreshIfNeeded(force: Bool) async {
+        guard force, let existing = self.tokenRefreshSequenceTask else { return }
+        existing.cancel()
+        await existing.value
+        self.tokenRefreshSequenceTask = nil
     }
 
     private func refreshTokenUsageSequence(force: Bool) async {

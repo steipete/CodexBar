@@ -120,6 +120,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 self.manualRefreshProvider = nil
                 self.menuCardRefreshMonitor.endManualRefresh()
                 self.updatePersistentRefreshRowsInProgress()
+                self.prepareAttachedClosedMenusIfNeeded()
             }
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
             #if DEBUG
