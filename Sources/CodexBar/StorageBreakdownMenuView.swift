@@ -320,21 +320,16 @@ struct StoragePathCopyButton: View {
         Button {
             self.resetTask?.cancel()
             MenuPasteboardCopy.perform(self.path, completion: {
-                withAnimation(.smooth(duration: 0.25)) {
-                    self.didCopy = true
-                }
+                self.didCopy = true
                 self.resetTask = Task { @MainActor in
                     try? await Task.sleep(for: .seconds(0.9))
-                    withAnimation(.smooth(duration: 0.25)) {
-                        self.didCopy = false
-                    }
+                    self.didCopy = false
                 }
             })
         } label: {
             Image(systemName: self.didCopy ? "checkmark" : "doc.on.doc")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(self.didCopy ? Color.green : Color.secondary)
-                .contentTransition(.symbolEffect(.replace))
+                .foregroundStyle(.secondary)
                 .frame(width: 18, height: 18)
                 .contentShape(Rectangle())
         }
