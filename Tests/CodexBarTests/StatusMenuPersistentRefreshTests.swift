@@ -719,7 +719,11 @@ struct StatusMenuPersistentRefreshTests {
         let menu = try #require(controller.makeMenu(for: .claude) as? StatusItemMenu)
         let codexMenu = try #require(controller.makeMenu(for: .codex) as? StatusItemMenu)
         controller.menuWillOpen(menu)
-        defer { controller.menuDidClose(menu) }
+        controller.menuWillOpen(codexMenu)
+        defer {
+            controller.menuDidClose(codexMenu)
+            controller.menuDidClose(menu)
+        }
 
         let mouseGate = ManualRefreshGate()
         var requestCount = 0
