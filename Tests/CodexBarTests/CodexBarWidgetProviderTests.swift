@@ -424,6 +424,11 @@ struct CodexBarWidgetProviderTests {
     func `burn down selection does not fall back to another window`() throws {
         let weeklyOnly = Self.burnSnapshot(provider: .codex, primaryUsed: nil, secondaryUsed: 30)
         let sessionOnly = Self.burnSnapshot(provider: .codex, primaryUsed: 20, secondaryUsed: nil)
+        let weeklyStoredInPrimary = Self.burnSnapshot(
+            provider: .claude,
+            primaryUsed: 30,
+            secondaryUsed: nil,
+            primaryWindowMinutes: 7 * 24 * 60)
 
         let weeklyOnlySession = try #require(BurnDownState(
             snapshot: weeklyOnly,
@@ -441,11 +446,42 @@ struct CodexBarWidgetProviderTests {
             snapshot: sessionOnly,
             provider: .codex,
             selection: .weekly))
+        let weeklyPrimarySession = try #require(BurnDownState(
+            snapshot: weeklyStoredInPrimary,
+            provider: .claude,
+            selection: .session))
+        let weeklyPrimaryWeekly = try #require(BurnDownState(
+            snapshot: weeklyStoredInPrimary,
+            provider: .claude,
+            selection: .weekly))
 
         #expect(weeklyOnlySession.selectedWindow == nil)
         #expect(weeklyOnlyWeekly.selectedWindow == weeklyOnlyWeekly.secondaryWindow)
         #expect(sessionOnlySession.selectedWindow == sessionOnlySession.primaryWindow)
         #expect(sessionOnlyWeekly.selectedWindow == nil)
+        #expect(weeklyPrimarySession.selectedWindow == nil)
+        #expect(weeklyPrimaryWeekly.selectedWindow?.usedPercent == 30)
+    }
+
+    @Test
+    func `expired weekly reset no longer blocks the session chart`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = Self.burnSnapshot(
+            provider: .codex,
+            primaryUsed: 20,
+            secondaryUsed: 100,
+            primaryReset: now.addingTimeInterval(300),
+            secondaryReset: now.addingTimeInterval(-1))
+        let state = try #require(BurnDownState(
+            snapshot: snapshot,
+            provider: .codex,
+            selection: .session,
+            now: now))
+
+        #expect(!state.secondaryExhausted)
+        #expect(state.primaryWindow?.remainingPercent == 80)
+        #expect(!state.blankPrimaryChart)
+        #expect(state.selectedResetOverride == nil)
     }
 
     @Test
@@ -505,7 +541,9 @@ struct CodexBarWidgetProviderTests {
         primaryUsed: Double?,
         secondaryUsed: Double?,
         primaryReset: Date? = nil,
-        secondaryReset: Date? = nil) -> WidgetSnapshot
+        secondaryReset: Date? = nil,
+        primaryWindowMinutes: Int = 5 * 60,
+        secondaryWindowMinutes: Int = 7 * 24 * 60) -> WidgetSnapshot
     {
         let entry = WidgetSnapshot.ProviderEntry(
             provider: provider,
@@ -513,14 +551,14 @@ struct CodexBarWidgetProviderTests {
             primary: primaryUsed.map {
                 RateWindow(
                     usedPercent: $0,
-                    windowMinutes: 5 * 60,
+                    windowMinutes: primaryWindowMinutes,
                     resetsAt: primaryReset,
                     resetDescription: nil)
             },
             secondary: secondaryUsed.map {
                 RateWindow(
                     usedPercent: $0,
-                    windowMinutes: 7 * 24 * 60,
+                    windowMinutes: secondaryWindowMinutes,
                     resetsAt: secondaryReset,
                     resetDescription: nil)
             },

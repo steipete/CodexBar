@@ -75,13 +75,23 @@ struct CombinedBurnDownEntry: TimelineEntry {
 }
 
 struct BurnDownState {
+    private static let sessionWindowMinutes = 5 * 60
+    private static let weeklyWindowMinutes = 7 * 24 * 60
+
     let entry: WidgetSnapshot.ProviderEntry
     let selection: BurnWindowChoice
+    let now: Date
 
-    init?(snapshot: WidgetSnapshot, provider: UsageProvider, selection: BurnWindowChoice) {
+    init?(
+        snapshot: WidgetSnapshot,
+        provider: UsageProvider,
+        selection: BurnWindowChoice,
+        now: Date = Date())
+    {
         guard let entry = snapshot.entries.first(where: { $0.provider == provider }) else { return nil }
         self.entry = entry
         self.selection = selection
+        self.now = now
     }
 
     var secondaryGloballyCapsPrimary: Bool {
@@ -92,12 +102,13 @@ struct BurnDownState {
     }
 
     var secondaryExhausted: Bool {
-        guard self.secondaryGloballyCapsPrimary, let secondary = self.entry.secondary else { return false }
-        return secondary.remainingPercent <= 0
+        guard self.secondaryGloballyCapsPrimary, let secondary = self.secondaryWindow else { return false }
+        guard secondary.remainingPercent <= 0 else { return false }
+        return secondary.resetsAt.map { $0 > self.now } ?? true
     }
 
     var primaryWindow: RateWindow? {
-        guard let primary = self.entry.primary else { return nil }
+        guard let primary = self.window(minutes: Self.sessionWindowMinutes) else { return nil }
         guard self.secondaryExhausted, primary.remainingPercent > 0 else { return primary }
         return RateWindow(
             usedPercent: 100,
@@ -108,7 +119,7 @@ struct BurnDownState {
     }
 
     var secondaryWindow: RateWindow? {
-        self.entry.secondary
+        self.window(minutes: Self.weeklyWindowMinutes)
     }
 
     var selectedWindow: RateWindow? {
@@ -119,11 +130,19 @@ struct BurnDownState {
     }
 
     var blankPrimaryChart: Bool {
-        self.selection == .session && self.secondaryExhausted && self.entry.primary != nil
+        self.selection == .session
+            && self.secondaryExhausted
+            && self.window(minutes: Self.sessionWindowMinutes) != nil
     }
 
     var selectedResetOverride: Date? {
         self.blankPrimaryChart ? self.secondaryWindow?.resetsAt : nil
+    }
+
+    private func window(minutes: Int) -> RateWindow? {
+        [self.entry.primary, self.entry.secondary]
+            .compactMap(\.self)
+            .first { $0.windowMinutes == minutes }
     }
 }
 
