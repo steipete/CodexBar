@@ -10,6 +10,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      macos-tests: ${{ steps.macos-tests.outputs.macos-tests }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect macOS test impact
+        id: macos-tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+          fi
+
+          changed_paths="${RUNNER_TEMP}/changed-paths.txt"
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
+            git ls-files > "$changed_paths"
+          elif ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            echo "Base commit ${base_sha} is unavailable; running macOS tests conservatively."
+            git ls-files > "$changed_paths"
+          else
+            git diff --name-only "$base_sha" "$GITHUB_SHA" > "$changed_paths"
+          fi
+
+          printf 'Changed paths:\n'
+          sed 's/^/- /' "$changed_paths"
+          ./Scripts/ci_macos_test_gate.sh "$changed_paths"
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -23,6 +59,8 @@ jobs:
         run: ./Scripts/lint.sh lint-linux
 
   swift-test-macos:
+    needs: changes
+    if: ${{ needs.changes.outputs.macos-tests == 'true' }}
     runs-on: macos-15-intel
     timeout-minutes: 40
     strategy:
@@ -68,6 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
+      - changes
       - lint
       - swift-test-macos
     if: ${{ always() && !cancelled() }}
@@ -79,11 +118,20 @@ jobs:
             echo "lint job finished with ${{ needs.lint.result }}" >&2
             exit 1
           fi
-          if [[ "${{ needs.swift-test-macos.result }}" != "success" ]]; then
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            echo "changes job finished with ${{ needs.changes.result }}" >&2
+            exit 1
+          fi
+          if [[ "${{ needs.swift-test-macos.result }}" != "success" ]] \
+            && [[ "${{ needs.swift-test-macos.result }}" != "skipped" ]]; then
             echo "swift-test-macos job finished with ${{ needs.swift-test-macos.result }}" >&2
             exit 1
           fi
-          echo "Lint and macOS Swift test shards passed."
+          if [[ "${{ needs.swift-test-macos.result }}" == "skipped" ]]; then
+            echo "Lint passed; macOS Swift tests skipped for docs/Markdown-only changes."
+          else
+            echo "Lint and macOS Swift test shards passed."
+          fi
 
   build-linux-cli:
     timeout-minutes: 20
