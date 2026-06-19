@@ -395,7 +395,6 @@ enum MiMoFirefoxSessionCookieImporter {
                 logger?(
                     "\(profileDirectory.lastPathComponent): rejected unsafe Firefox session restore " +
                         "\(file.lastPathComponent)")
-                return []
             } catch {
                 logger?(
                     "\(profileDirectory.lastPathComponent): could not read Firefox session restore " +

@@ -1171,6 +1171,28 @@ extension MiMoProviderTests {
     }
 
     @Test
+    func `oversized current firefox state falls back to recovery backup`() throws {
+        let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-oversized")
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        var oversized = Data([0x6D, 0x6F, 0x7A, 0x4C, 0x7A, 0x34, 0x30, 0x00])
+        var declaredSize = UInt32(129 * 1024 * 1024).littleEndian
+        withUnsafeBytes(of: &declaredSize) { oversized.append(contentsOf: $0) }
+        try oversized.write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+        let complete = """
+        {"cookies":[
+          {"host":".platform.xiaomimimo.com","path":"/","name":"api-platform_serviceToken","value":"svc-token"},
+          {"host":".xiaomimimo.com","path":"/","name":"userId","value":"1863175063"}
+        ]}
+        """
+        try self.mozillaLZ4LiteralFile(complete).write(to: backups.appendingPathComponent("recovery.baklz4"))
+
+        let records = MiMoFirefoxSessionCookieImporter.records(profileDirectory: profile)
+
+        #expect(Set(records.map(\.value)) == Set(["svc-token", "1863175063"]))
+    }
+
+    @Test
     func `partial firefox state does not merge persisted and stale backup credentials`() throws {
         let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-persisted")
         defer { try? FileManager.default.removeItem(at: temp) }
