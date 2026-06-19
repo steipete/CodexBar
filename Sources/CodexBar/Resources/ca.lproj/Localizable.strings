@@ -908,7 +908,7 @@
 "Stored in ~/.codexbar/config.json. Get your key from console.deepgram.com." = "Desat a ~/.codexbar/config.json. Obteniu la clau a console.deepgram.com.";
 "Stored in ~/.codexbar/config.json. Get your key from elevenlabs.io/app/settings/api-keys." = "Desat a ~/.codexbar/config.json. Obteniu la clau a elevenlabs.io/app/settings/api-keys.";
 "Stored in ~/.codexbar/config.json. Get your key from openrouter.ai/settings/keys and set a key spending limit there to enable API key quota tracking." = "Desat a ~/.codexbar/config.json. Obteniu la clau a openrouter.ai/settings/keys i definiu-hi un límit de despesa per activar el seguiment de quota.";
-"Stored in ~/.codexbar/config.json. In Warp, open Settings > Platform > API Keys, then create one." = "Desat a ~/.codexbar/config.json. A Warp, obriu Settings > Platform > API Keys i creeu-n'una.";
+"Stored in ~/.codexbar/config.json. In Warp, open Settings > Platform > API Keys, then create one." = "Desat a ~/.codexbar/config.json. A Warp, obriu Settings > Platform > API Keys i creeu-ne una.";
 "Stored in ~/.codexbar/config.json. Metrics require Groq Enterprise Prometheus access." = "Desat a ~/.codexbar/config.json. Les mètriques requereixen accés a Groq Enterprise Prometheus.";
 "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is preferred; OPENAI_API_KEY still works." = "Desat a ~/.codexbar/config.json. Es prefereix OPENAI_ADMIN_KEY; OPENAI_API_KEY encara funciona.";
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Desat a ~/.codexbar/config.json. Requereix una clau Anthropic Admin API.";
