@@ -24,6 +24,7 @@
 - LiteLLM: show personal and team spend amounts directly on budget rows while suppressing duplicate budget sections. Thanks @hololee!
 
 ### Fixed
+- Xiaomi MiMo: retry another imported browser session when a stale session redirects API requests to login. Thanks @Yuxin-Qiao!
 - Kiro: keep parsed usage available when the optional account probe times out or fails. Thanks @Yuxin-Qiao!
 - Memory: release idle OpenAI WebViews under system pressure without blocking the main thread. Thanks @ProspectOre!
 - Memory: trim rebuildable menu and OpenAI debug caches under system pressure. Thanks @ProspectOre!
