@@ -879,6 +879,9 @@
 "Clearing removes local temporary provider data." = "المسح يزيل بيانات مقدم الخدمة المؤقت المحلي.";
 "Total: %@" = "المجموع: %@";
 "%d more items" = "%d المزيد من العناصر";
+"Other (%d items)" = "أخرى (%d عناصر)";
+"Expand" = "توسيع";
+"Collapse" = "طيّ";
 "Cleanup ideas" = "أفكار التنظيف";
 "%d unreadable item(s) skipped" = "%d العناصر غير القابلة للقراءة تم تخطيها";
 

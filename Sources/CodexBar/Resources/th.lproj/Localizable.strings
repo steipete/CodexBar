@@ -879,6 +879,9 @@
 "Clearing removes local temporary provider data." = "การหักล้างจะลบข้อมูลผู้ให้บริการชั่วคราวในเครื่อง";
 "Total: %@" = "ทั้งหมด: %@";
 "%d more items" = "%d รายการเพิ่มเติม";
+"Other (%d items)" = "อื่น ๆ (%d รายการ)";
+"Expand" = "ขยาย";
+"Collapse" = "ยุบ";
 "Cleanup ideas" = "ไอเดียการล้างข้อมูล";
 "%d unreadable item(s) skipped" = "ข้ามรายการที่อ่านไม่ได้ %d รายการ";
 

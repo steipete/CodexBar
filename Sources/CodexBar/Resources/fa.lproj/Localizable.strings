@@ -879,6 +879,9 @@
 "Clearing removes local temporary provider data." = "پاک سازی داده های ارائه دهنده موقت محلی را حذف می کند.";
 "Total: %@" = "کل: %@";
 "%d more items" = "%d آیتم های بیشتر";
+"Other (%d items)" = "موارد دیگر (%d مورد)";
+"Expand" = "گسترش";
+"Collapse" = "جمع کردن";
 "Cleanup ideas" = "ایده های پاکسازی";
 "%d unreadable item(s) skipped" = "%d آیتم(های) غیرقابل خواندن رد شده اند";
 

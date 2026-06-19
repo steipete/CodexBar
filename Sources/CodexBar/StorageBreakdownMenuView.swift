@@ -180,7 +180,6 @@ struct StorageBreakdownMenuView: View {
 
     private var segmentedBar: some View {
         GeometryReader { proxy in
-            let total = CGFloat(self.segmentTotalBytes)
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color(nsColor: .quaternaryLabelColor))
@@ -188,13 +187,26 @@ struct StorageBreakdownMenuView: View {
                     ForEach(self.segments) { segment in
                         Rectangle()
                             .fill(segment.color)
-                            .frame(width: max(2, proxy.size.width * CGFloat(segment.bytes) / total))
+                            .frame(width: self.segmentWidth(segment, barWidth: proxy.size.width))
                     }
                 }
             }
             .clipShape(Capsule())
         }
         .frame(height: 5)
+    }
+
+    /// Each segment gets at least `minWidth` so tiny components stay visible, with the remaining width
+    /// shared by byte proportion. Reserving the minimums (rather than flooring each width with `max`)
+    /// keeps the segments summing to exactly `barWidth`, so none get clipped off the capsule's end.
+    private func segmentWidth(_ segment: Segment, barWidth: CGFloat) -> CGFloat {
+        let minWidth: CGFloat = 2
+        let count = CGFloat(self.segments.count)
+        let reserved = minWidth * count
+        guard barWidth > reserved else { return barWidth / max(count, 1) }
+        let remainder = barWidth - reserved
+        let proportion = CGFloat(segment.bytes) / CGFloat(self.segmentTotalBytes)
+        return minWidth + remainder * proportion
     }
 
     private func legendRow(_ segment: Segment) -> some View {
