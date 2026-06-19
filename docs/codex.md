@@ -1,7 +1,8 @@
 ---
-summary: "Codex provider data sources: OpenAI web dashboard, Codex CLI RPC, credits, and local cost usage."
+summary: "Codex provider data sources: OpenAI web dashboard, Codex CLI RPC, credits, banked resets, and local cost usage."
 read_when:
   - Debugging Codex usage/credits parsing
+  - Updating Codex banked reset display
   - Updating OpenAI dashboard scraping or cookie import
   - Changing Codex CLI RPC or diagnostic PTY behavior
   - Reviewing local cost usage scanning
@@ -35,6 +36,7 @@ Usage source picker:
 - `additional_rate_limits[]` (model-specific limits such as GPT-5.3-Codex-Spark) map to named
   `UsageSnapshot.extraRateWindows` entries (Spark uses a stable `codex-spark` id / `Codex Spark` title).
   When the field is absent, the snapshot is unchanged.
+- Banked resets are a separate read-only OAuth adjunct, fetched outside the usage hot path.
 
 ### OpenAI web dashboard (optional, off by default)
 - Enable it in Preferences -> Providers -> Codex -> OpenAI web extras.
@@ -111,6 +113,23 @@ Usage source picker:
 - CLI RPC: `account/rateLimits/read` → credits balance.
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 
+## Banked resets
+- Read-only first: CodexBar does not redeem or consume reset credits.
+- Source: refreshed Codex OAuth credentials from `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`).
+- Endpoint: `GET https://chatgpt.com/backend-api/wham/rate-limit-reset-credits`.
+- Headers match CodexBar's OAuth usage requests: `Authorization`, `User-Agent: CodexBar`, `Accept: application/json`,
+  and `ChatGPT-Account-Id` when an account id is available. Do not add `OpenAI-Beta` or `originator`.
+- Response fields used:
+  - `available_count`
+  - `credits[].id`
+  - `credits[].status`
+  - `credits[].granted_at`
+  - `credits[].expires_at`
+- Refresh is an independent best-effort utility task. It uses the same Codex account-scoped guard as credits so cached
+  values do not leak across selected Codex accounts.
+- UI: the Codex menu card shows `Banked resets: N available` and an `Expires:` line in the usage notes area when
+  at least one reset is available.
+
 ## Cost usage (local log scan)
 - Source files:
   - Native Codex logs:
@@ -134,6 +153,9 @@ Usage source picker:
 - Web: `Sources/CodexBarCore/OpenAIWeb/*`
 - CLI RPC + diagnostic PTY parser: `Sources/CodexBarCore/UsageFetcher.swift`,
   `Sources/CodexBarCore/Providers/Codex/CodexStatusProbe.swift`
+- Banked resets: `Sources/CodexBarCore/Providers/Codex/CodexOAuth/CodexBankedResets*.swift`,
+  `Sources/CodexBar/Providers/Codex/UsageStore+CodexRefresh.swift`,
+  `Sources/CodexBar/Providers/Codex/CodexConsumerProjection.swift`
 - Cost usage: `Sources/CodexBarCore/CostUsageFetcher.swift`,
   `Sources/CodexBarCore/PiSessionCostScanner.swift`,
   `Sources/CodexBarCore/PiSessionCostCache.swift`,

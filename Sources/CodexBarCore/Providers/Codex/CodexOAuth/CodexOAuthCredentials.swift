@@ -67,6 +67,17 @@ public enum CodexOAuthCredentialsStore {
         return try self.parse(data: data)
     }
 
+    public static func loadRefreshed(
+        env: [String: String] = ProcessInfo.processInfo.environment) async throws -> CodexOAuthCredentials
+    {
+        var credentials = try self.load(env: env)
+        if credentials.needsRefresh, !credentials.refreshToken.isEmpty {
+            credentials = try await CodexTokenRefresher.refresh(credentials)
+            try self.save(credentials, env: env)
+        }
+        return credentials
+    }
+
     public static func parse(data: Data) throws -> CodexOAuthCredentials {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CodexOAuthCredentialsError.decodeFailed("Invalid JSON")

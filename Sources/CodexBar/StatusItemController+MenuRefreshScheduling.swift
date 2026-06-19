@@ -119,6 +119,12 @@ extension StatusItemController {
             "credits=\(self.store.credits == nil ? "0" : "1")",
             "planHistoryRevision=\(self.store.planUtilizationHistoryRevision)",
         ]
+        if self.openMenus.values.contains(where: { self.menuProvider(for: $0) == .codex }),
+           let bankedResets = self.store.bankedResets,
+           bankedResets.availableCount > 0
+        {
+            parts.append("bankedResets=\(bankedResets.availableCount)")
+        }
 
         for provider in self.store.enabledProvidersForDisplay() {
             let tokenSignature = self.tokenSnapshotReadinessSignature(for: provider)
@@ -134,6 +140,23 @@ extension StatusItemController {
         }
 
         return parts.joined(separator: "|")
+    }
+
+    func scheduleBankedResetsRefreshForOpenCodexMenuIfNeeded(provider: UsageProvider?) {
+        guard self.isMenuRefreshEnabled else { return }
+        guard provider == .codex else { return }
+        guard self.store.bankedResets == nil else { return }
+
+        let expectedGuard = self.store.freshCodexAccountScopedRefreshGuard()
+        guard expectedGuard.identity != .unresolved,
+              expectedGuard.accountKey != nil,
+              expectedGuard.authFingerprint != nil
+        else {
+            return
+        }
+
+        self.store.scheduleBankedResetsRefreshIfNeeded(
+            minimumSnapshotUpdatedAt: self.store.snapshot(for: .codex)?.updatedAt)
     }
 
     static func dashboardBreakdownReadinessSignature(

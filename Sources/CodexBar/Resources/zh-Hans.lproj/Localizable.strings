@@ -768,6 +768,9 @@
 "Using CLI fallback" = "使用 CLI 回退";
 "Balance updates in near-real time (up to 5 min lag)" = "余额接近实时更新（最多延迟 5 分钟）";
 "Daily billing data finalizes at 07:00 UTC" = "每日账单数据会在 UTC 07:00 完成结算";
+"Banked reset: %d available" = "已存重置：%d 个可用";
+"Banked resets: %d available" = "已存重置：%d 个可用";
+"Expires: %@" = "过期：%@";
 "%@ of %@ credits left" = "剩余 %@ / %@ 点额度";
 "%@ of %@ bonus credits left" = "剩余 %@ / %@ 点奖励额度";
 "%@ / %@ (%@ remaining)" = "%@ / %@（剩余 %@）";

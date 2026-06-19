@@ -255,6 +255,7 @@ extension UsageStore {
             }
             if provider == .codex {
                 self.recordCodexHistoricalSampleIfNeeded(snapshot: backfilled)
+                self.scheduleBankedResetsRefreshIfNeeded(minimumSnapshotUpdatedAt: backfilled.updatedAt)
             }
         case let .failure(error):
             if provider == .codex,

@@ -16,6 +16,7 @@ struct CodexAccountScopedRefreshTests {
         let store = self.makeUsageStore(settings: settings)
         let staleSnapshot = self.codexSnapshot(email: "alpha@example.com", usedPercent: 10)
         let staleCredits = self.credits(remaining: 42)
+        let staleBankedResets = self.bankedResets(count: 2)
         let staleDashboard = self.dashboard(email: "alpha@example.com", creditsRemaining: 42, usedPercent: 20)
         let tokenSnapshot = CostUsageTokenSnapshot(
             sessionTokens: 120,
@@ -31,6 +32,9 @@ struct CodexAccountScopedRefreshTests {
         store.lastCreditsSnapshot = staleCredits
         store.lastCreditsSnapshotAccountKey = "alpha@example.com"
         store.lastCreditsSource = .api
+        store.bankedResets = staleBankedResets
+        store.lastBankedResetsSnapshot = staleBankedResets
+        store.lastBankedResetsSnapshotAccountKey = "alpha@example.com"
         store.openAIDashboard = staleDashboard
         store.lastOpenAIDashboardSnapshot = staleDashboard
         store.lastOpenAIDashboardTargetEmail = "alpha@example.com"
@@ -51,6 +55,9 @@ struct CodexAccountScopedRefreshTests {
         #expect(store.lastCreditsSnapshot == nil)
         #expect(store.lastCreditsSnapshotAccountKey == nil)
         #expect(store.lastCreditsSource == .none)
+        #expect(store.bankedResets == nil)
+        #expect(store.lastBankedResetsSnapshot == nil)
+        #expect(store.lastBankedResetsSnapshotAccountKey == nil)
         #expect(store.openAIDashboard == nil)
         #expect(store.lastOpenAIDashboardSnapshot == nil)
         #expect(store.tokenSnapshots[.codex] == tokenSnapshot)

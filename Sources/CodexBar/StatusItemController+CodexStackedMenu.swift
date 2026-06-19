@@ -56,6 +56,10 @@ extension StatusItemController {
                 heightCacheFingerprint: model.heightFingerprint(section: "card"),
                 containsInteractiveControls: true))
         }
+        if let bankedResetsItem = self.makeBankedResetsMenuItem(for: context.currentProvider) {
+            menu.addItem(.separator())
+            menu.addItem(bankedResetsItem)
+        }
         menu.addItem(.separator())
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())

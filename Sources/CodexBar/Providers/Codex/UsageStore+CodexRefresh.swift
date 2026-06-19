@@ -45,6 +45,41 @@ extension UsageStore {
         self.creditsRefreshTaskKey = nil
     }
 
+    func scheduleBankedResetsRefreshIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) {
+        let refreshKey = self.codexBankedResetsRefreshKey(
+            expectedGuard: self.freshCodexAccountScopedRefreshGuard())
+        if let existing = self.bankedResetsRefreshTask,
+           !existing.isCancelled,
+           self.bankedResetsRefreshTaskKey == refreshKey
+        {
+            return
+        }
+
+        self.bankedResetsRefreshTask?.cancel()
+        self.bankedResetsRefreshTaskKey = refreshKey
+        self.bankedResetsRefreshTask = Task(priority: .utility) { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.bankedResetsRefreshTaskKey == refreshKey {
+                    self.bankedResetsRefreshTask = nil
+                    self.bankedResetsRefreshTaskKey = nil
+                }
+            }
+            await self.refreshBankedResetsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
+        }
+    }
+
+    func cancelScheduledBankedResetsRefresh() {
+        self.bankedResetsRefreshTask?.cancel()
+        self.bankedResetsRefreshTask = nil
+        self.bankedResetsRefreshTaskKey = nil
+    }
+
+    func refreshBankedResetsNow(minimumSnapshotUpdatedAt: Date? = nil) async {
+        self.cancelScheduledBankedResetsRefresh()
+        await self.refreshBankedResetsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
+    }
+
     func refreshCreditsNow(minimumSnapshotUpdatedAt: Date? = nil) async {
         self.cancelScheduledCreditsRefresh()
         await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
@@ -73,6 +108,10 @@ extension UsageStore {
             expectedGuard.accountKey ?? "account:nil",
             "auth:\(expectedGuard.authFingerprint ?? "nil")",
         ].joined(separator: "|")
+    }
+
+    func codexBankedResetsRefreshKey(expectedGuard: CodexAccountScopedRefreshGuard) -> String {
+        self.codexCreditsRefreshKey(expectedGuard: expectedGuard)
     }
 
     func refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) async {
@@ -160,6 +199,88 @@ extension UsageStore {
                 }
             }
         }
+    }
+
+    func refreshBankedResetsIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) async {
+        guard self.isEnabled(.codex) else { return }
+        var expectedGuard = self.freshCodexAccountScopedRefreshGuard()
+        if expectedGuard.identity == .unresolved,
+           let minimumSnapshotUpdatedAt,
+           case .liveSystem = expectedGuard.source
+        {
+            _ = await self.waitForCodexSnapshotOrRefreshCompletion(minimumUpdatedAt: minimumSnapshotUpdatedAt)
+            expectedGuard = self.freshCodexAccountScopedRefreshGuard()
+        }
+        guard expectedGuard.identity != .unresolved,
+              expectedGuard.accountKey != nil
+        else {
+            return
+        }
+        do {
+            let snapshot = try await self.loadLatestCodexBankedResets()
+            guard !Task.isCancelled else { return }
+            guard let applyGuard = self.codexScopedNonUsageSuccessApplyGuard(
+                expectedGuard: expectedGuard)
+            else {
+                return
+            }
+            await MainActor.run {
+                self.bankedResets = snapshot
+                self.lastBankedResetsError = nil
+                self.lastBankedResetsSnapshot = snapshot
+                self.lastBankedResetsSnapshotAccountKey = applyGuard.accountKey
+                self.bankedResetsFailureStreak = 0
+                self.lastCodexAccountScopedRefreshGuard = applyGuard
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            let message = error.localizedDescription
+            if message.localizedCaseInsensitiveContains("data not available yet") {
+                guard self.shouldApplyCodexScopedNonUsageFailure(expectedGuard: expectedGuard) else { return }
+                await MainActor.run {
+                    if let cached = self.lastBankedResetsSnapshot,
+                       self.lastBankedResetsSnapshotAccountKey == expectedGuard.accountKey
+                    {
+                        self.bankedResets = cached
+                        self.lastBankedResetsError = nil
+                        self.lastCodexAccountScopedRefreshGuard = expectedGuard
+                    } else {
+                        self.bankedResets = nil
+                        self.lastBankedResetsError = "Codex banked resets are still loading; will retry shortly."
+                    }
+                }
+                return
+            }
+
+            guard self.shouldApplyCodexScopedNonUsageFailure(expectedGuard: expectedGuard) else { return }
+            await MainActor.run {
+                self.bankedResetsFailureStreak += 1
+                if let cached = self.lastBankedResetsSnapshot,
+                   self.lastBankedResetsSnapshotAccountKey == expectedGuard.accountKey
+                {
+                    self.bankedResets = cached
+                    let stamp = cached.updatedAt.formatted(date: .abbreviated, time: .shortened)
+                    self.lastBankedResetsError =
+                        "Last Codex banked resets refresh failed: \(message). Cached values from \(stamp)."
+                    self.lastCodexAccountScopedRefreshGuard = expectedGuard
+                } else {
+                    self.lastBankedResetsError = message
+                    self.bankedResets = nil
+                }
+            }
+        }
+    }
+
+    private func loadLatestCodexBankedResets() async throws -> CodexBankedResetsSnapshot {
+        if let override = self._test_codexBankedResetsLoaderOverride {
+            return try await override()
+        }
+        let context = self.makeFetchContext(provider: .codex, override: nil)
+        let credentials = try await CodexOAuthCredentialsStore.loadRefreshed(env: context.env)
+        return try await CodexBankedResetsFetcher.fetchBankedResets(
+            accessToken: credentials.accessToken,
+            accountId: credentials.accountId,
+            env: context.env)
     }
 
     private func loadLatestCodexCredits() async throws -> CreditsSnapshot {

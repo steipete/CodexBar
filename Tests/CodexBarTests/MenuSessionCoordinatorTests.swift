@@ -42,6 +42,21 @@ struct MenuSessionCoordinatorTests {
     }
 
     @Test
+    func `data invalidation suppresses required preparation for menus first attached afterward`() {
+        var coordinator = MenuSessionCoordinator<String>()
+        let renderedMenu = "rendered"
+        let freshMenu = "fresh"
+
+        coordinator.invalidate(allowsStaleContent: false, requiresRebuild: true)
+        coordinator.markFresh(renderedMenu)
+        coordinator.invalidate(allowsStaleContent: false, requiresRebuild: true)
+        coordinator.invalidate(allowsStaleContent: true, requiresRebuild: false)
+
+        #expect(coordinator.closedPreparationPlan(for: [freshMenu]) == .none)
+        #expect(coordinator.closedPreparationPlan(for: [renderedMenu]) == .required(version: 2))
+    }
+
+    @Test
     func `stale content survives only a data generation after latest structural render`() {
         var coordinator = MenuSessionCoordinator<String>()
         let menu = "menu"

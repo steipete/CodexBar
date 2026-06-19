@@ -51,7 +51,12 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
 
     func hasRequiredClosedPreparation(for menuIDs: some Sequence<MenuID>) -> Bool {
         guard self.latestRequiredRebuildVersion > 0 else { return false }
-        return menuIDs.contains { self.isRenderedVersion($0, olderThan: self.latestRequiredRebuildVersion) }
+        return menuIDs.contains { menuID in
+            guard let renderedVersion = self.renderedVersions[menuID] else {
+                return self.latestRequiredRebuildVersion == self.contentVersion
+            }
+            return renderedVersion < self.latestRequiredRebuildVersion
+        }
     }
 
     func closedPreparationPlan(for menuIDs: some Sequence<MenuID>) -> ClosedPreparationPlan {

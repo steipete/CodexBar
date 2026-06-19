@@ -106,6 +106,18 @@ struct CodexConsumerProjectionTests {
             provider: .codex)
         store.credits = CreditsSnapshot(remaining: 42, events: [], updatedAt: now)
         store.lastCreditsError = "Frame load interrupted"
+        store.bankedResets = CodexBankedResetsSnapshot(
+            resets: [
+                CodexBankedReset(
+                    id: "RateLimitResetCredit_live",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: now.addingTimeInterval(86400)),
+            ],
+            availableCount: 1,
+            updatedAt: now)
+        store.lastBankedResetsError = "Live banked resets error"
         store.openAIDashboard = OpenAIDashboardSnapshot(
             signedInEmail: "codex@example.com",
             codeReviewRemainingPercent: 88,
@@ -136,6 +148,7 @@ struct CodexConsumerProjectionTests {
         #expect(projection.visibleRateLanes == [.session])
         #expect(projection.dashboardVisibility == .hidden)
         #expect(projection.credits == nil)
+        #expect(projection.bankedResets == nil)
         #expect(projection.supplementalMetrics.isEmpty)
         #expect(!projection.canShowBuyCredits)
         #expect(!projection.hasUsageBreakdown)
@@ -143,6 +156,53 @@ struct CodexConsumerProjectionTests {
         #expect(projection.userFacingErrors.usage == "Override error")
         #expect(projection.userFacingErrors.credits == nil)
         #expect(projection.userFacingErrors.dashboard == nil)
+    }
+
+    @Test
+    func `live card projection exposes banked resets adjunct`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-banked-resets")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let firstExpiry = now.addingTimeInterval(86400)
+        let secondExpiry = now.addingTimeInterval(2 * 86400)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(1800),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+        store.bankedResets = CodexBankedResetsSnapshot(
+            resets: [
+                CodexBankedReset(
+                    id: "RateLimitResetCredit_1",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: secondExpiry),
+                CodexBankedReset(
+                    id: "RateLimitResetCredit_2",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: firstExpiry),
+                CodexBankedReset(
+                    id: "RateLimitResetCredit_3",
+                    resetType: "codex_rate_limits",
+                    status: .redeemed,
+                    grantedAt: now,
+                    expiresAt: now.addingTimeInterval(3 * 86400)),
+            ],
+            availableCount: nil,
+            updatedAt: now)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+
+        #expect(projection.bankedResets?.availableCount == 2)
+        #expect(projection.bankedResets?.expiryDates == [firstExpiry, secondExpiry])
     }
 
     @Test

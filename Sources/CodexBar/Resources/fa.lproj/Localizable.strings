@@ -790,6 +790,9 @@
 "Using CLI fallback" = "استفاده از CLI پشتیبان";
 "Balance updates in near-real time (up to 5 min lag)" = "به روزرسانی تعادل تقریبا در زمان واقعی (تا ۵ دقیقه تأخیر)";
 "Daily billing data finalizes at 07:00 UTC" = "داده های صورتحساب روزانه در ساعت ۰۷:۰۰ نهایی می شود UTC";
+"Banked reset: %d available" = "بازنشانی ذخیره‌شده: %d موجود";
+"Banked resets: %d available" = "بازنشانی‌های ذخیره‌شده: %d موجود";
+"Expires: %@" = "انقضا: %@";
 "%@ of %@ credits left" = "%@ از %@ اعتبار باقی مانده";
 "%@ of %@ bonus credits left" = "%@ از %@ اعتبار اضافی باقی مانده";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ باقی مانده)";

@@ -66,6 +66,51 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `open codex menu tracks banked resets readiness signature`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnlyCodexForReadinessBaseline(settings)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+
+        store.bankedResets = CodexBankedResetsSnapshot(
+            resets: [],
+            availableCount: 0,
+            updatedAt: Date(timeIntervalSince1970: 100))
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuProviders[ObjectIdentifier(menu)] = .codex
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+        let before = controller.menuAdjunctReadinessSignature()
+        store.bankedResets = CodexBankedResetsSnapshot(
+            resets: [
+                CodexBankedReset(
+                    id: "reset-1",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: nil,
+                    expiresAt: Date(timeIntervalSince1970: 200)),
+            ],
+            availableCount: 1,
+            updatedAt: Date(timeIntervalSince1970: 100))
+
+        #expect(controller.menuAdjunctReadinessSignature() != before)
+        #expect(controller.didMenuAdjunctReadinessChange())
+    }
+
+    @Test
     func `root open during in flight refresh preserves stale content and does not resync baseline`() {
         // When `refreshMenuForOpenIfNeeded` keeps existing menu content during an in-flight provider
         // refresh, the readiness baseline must not be re-anchored to live store data. Otherwise the

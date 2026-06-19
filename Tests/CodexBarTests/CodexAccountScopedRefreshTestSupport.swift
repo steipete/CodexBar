@@ -100,6 +100,25 @@ extension CodexAccountScopedRefreshTests {
         CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date())
     }
 
+    func bankedResets(
+        count: Int,
+        accountOffset: TimeInterval = 0,
+        updatedAt: Date = Date()) -> CodexBankedResetsSnapshot
+    {
+        let resets = (0..<count).map { index in
+            CodexBankedReset(
+                id: "RateLimitResetCredit_\(Int(accountOffset))_\(index)",
+                resetType: "codex_rate_limits",
+                status: .available,
+                grantedAt: updatedAt,
+                expiresAt: updatedAt.addingTimeInterval(86400 * Double(index + 1)))
+        }
+        return CodexBankedResetsSnapshot(
+            resets: resets,
+            availableCount: count,
+            updatedAt: updatedAt)
+    }
+
     func dashboard(email: String, creditsRemaining: Double, usedPercent: Double) -> OpenAIDashboardSnapshot {
         OpenAIDashboardSnapshot(
             signedInEmail: email,

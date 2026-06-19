@@ -115,9 +115,11 @@ extension StatusItemController {
             }
         }
 
-        if self.isMenuRefreshEnabled, (provider ?? self.lastMenuProvider) == .codex {
+        let resolvedOpenMenuProvider = provider ?? self.lastMenuProvider
+        if self.isMenuRefreshEnabled, resolvedOpenMenuProvider == .codex {
             self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "parent menu open")
         }
+        self.scheduleBankedResetsRefreshForOpenCodexMenuIfNeeded(provider: resolvedOpenMenuProvider)
         if self.settings.providerStorageFootprintsEnabled {
             self.store.refreshStorageFootprintsForOverview()
         }
@@ -645,6 +647,10 @@ extension StatusItemController {
             heightCacheScope: context.currentProvider.rawValue,
             heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
             containsInteractiveControls: true))
+        if let bankedResetsItem = self.makeBankedResetsMenuItem(for: context.currentProvider) {
+            menu.addItem(.separator())
+            menu.addItem(bankedResetsItem)
+        }
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
         }
@@ -1289,6 +1295,11 @@ extension StatusItemController {
                 heightCacheScope: provider.rawValue,
                 heightCacheFingerprint: layoutModel.heightFingerprint(section: "header"),
                 containsInteractiveControls: true))
+        }
+
+        if let bankedResetsItem = self.makeBankedResetsMenuItem(for: provider) {
+            menu.addItem(.separator())
+            menu.addItem(bankedResetsItem)
         }
 
         if hasStorage || hasCredits || hasExtraUsage || hasCost {

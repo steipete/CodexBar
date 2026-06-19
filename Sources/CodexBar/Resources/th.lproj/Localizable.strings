@@ -790,6 +790,9 @@
 "Using CLI fallback" = "การใช้ CLI สํารอง";
 "Balance updates in near-real time (up to 5 min lag)" = "อัปเดตเครื่องชั่งแบบเกือบเรียลไทม์ (หน่วงสูงสุด 5 นาที)";
 "Daily billing data finalizes at 07:00 UTC" = "ข้อมูลการเรียกเก็บเงินรายวันจะสรุปเวลา 07:00 น. UTC";
+"Banked reset: %d available" = "รีเซ็ตที่เก็บไว้: พร้อมใช้ %d รายการ";
+"Banked resets: %d available" = "รีเซ็ตที่เก็บไว้: พร้อมใช้ %d รายการ";
+"Expires: %@" = "หมดอายุ: %@";
 "%@ of %@ credits left" = "เหลือ %@ จาก %@ หน่วยกิต";
 "%@ of %@ bonus credits left" = "%@ จาก %@ เครดิตโบนัสที่เหลืออยู่";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (เหลือ %@)";

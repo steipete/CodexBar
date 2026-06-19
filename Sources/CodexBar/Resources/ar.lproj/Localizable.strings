@@ -790,6 +790,9 @@
 "Using CLI fallback" = "استخدام CLI الخطة الاحتياطية";
 "Balance updates in near-real time (up to 5 min lag)" = "تحديثات التوازن في الوقت شبه الحقيقي (حتى تأخير 5 دقائق)";
 "Daily billing data finalizes at 07:00 UTC" = "يتم الانتهاء من بيانات الفوترة اليومية في الساعة 07:00 UTC";
+"Banked reset: %d available" = "إعادة تعيين محفوظة: %d متاحة";
+"Banked resets: %d available" = "إعادات تعيين محفوظة: %d متاحة";
+"Expires: %@" = "تنتهي: %@";
 "%@ of %@ credits left" = "%@ من %@ اعتمادات متبقية";
 "%@ of %@ bonus credits left" = "%@ من %@ رصيد إضافي متبقي";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ متبقية)";

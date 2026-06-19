@@ -408,6 +408,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastKnownScreenCount = NSScreen.screens.count
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
+        self.lastMenuLocalizationSignature = self.menuLocalizationSignature()
         if !repairedStatusItemVisibilityKeys.isEmpty {
             self.menuLogger.info(
                 "Repaired hidden macOS status-item visibility defaults",

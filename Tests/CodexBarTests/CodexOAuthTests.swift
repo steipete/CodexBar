@@ -78,6 +78,37 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `load refreshed returns fresh credentials without rewriting auth file`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-codex-oauth-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+        }
+        let authURL = root.appendingPathComponent("auth.json")
+        let json = """
+        {
+          "tokens": {
+            "access_token": "access-token",
+            "refresh_token": "refresh-token",
+            "account_id": "account-123"
+          },
+          "last_refresh": "\(ISO8601DateFormatter().string(from: Date()))"
+        }
+        """
+        try Data(json.utf8).write(to: authURL)
+        let before = try Data(contentsOf: authURL)
+
+        let creds = try await CodexOAuthCredentialsStore.loadRefreshed(env: ["CODEX_HOME": root.path])
+        let after = try Data(contentsOf: authURL)
+
+        #expect(creds.accessToken == "access-token")
+        #expect(creds.refreshToken == "refresh-token")
+        #expect(creds.accountId == "account-123")
+        #expect(after == before)
+    }
+
+    @Test
     func `decodes credits balance string`() throws {
         let json = """
         {

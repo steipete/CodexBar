@@ -45,6 +45,7 @@ extension UsageStore {
         phaseDidChange?(.usage)
         await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
         phaseDidChange?(.credits)
+        await self.refreshBankedResetsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
 
         if self.settings.codexCookieSource.isEnabled {
             let expectedGuard = self.freshCodexOpenAIWebRefreshGuard()
@@ -60,6 +61,7 @@ extension UsageStore {
             phaseDidChange?(.usage)
             await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             phaseDidChange?(.credits)
+            await self.refreshBankedResetsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
         }
 
         self.persistWidgetSnapshot(reason: "codex-account-refresh")
@@ -95,6 +97,11 @@ extension UsageStore {
         self.lastCreditsSnapshotAccountKey = nil
         self.lastCreditsSource = .none
         self.creditsFailureStreak = 0
+        self.bankedResets = nil
+        self.lastBankedResetsError = nil
+        self.lastBankedResetsSnapshot = nil
+        self.lastBankedResetsSnapshotAccountKey = nil
+        self.bankedResetsFailureStreak = 0
 
         self.clearCodexOpenAIWebStateForAccountTransition(targetEmail: self.codexAccountEmailForOpenAIDashboard())
 
@@ -240,7 +247,9 @@ extension UsageStore {
         guard currentGuard.source == expectedGuard.source else { return nil }
         guard Self.codexGuardAuthFingerprintAllowsUsageApply(currentGuard, expectedGuard) else { return nil }
         guard expectedGuard.identity != .unresolved else { return nil }
-        guard currentGuard.identity == expectedGuard.identity else { return nil }
+        guard currentGuard.identity == expectedGuard.identity ||
+            Self.codexScopedRefreshGuardsShareEmailBackedIdentityBridge(expectedGuard, currentGuard)
+        else { return nil }
         return currentGuard
     }
 
@@ -253,7 +262,8 @@ extension UsageStore {
         guard currentGuard.source == expectedGuard.source else { return false }
         guard Self.codexGuardAuthFingerprintMatches(currentGuard, expectedGuard) else { return false }
         guard expectedGuard.identity != .unresolved else { return false }
-        return currentGuard.identity == expectedGuard.identity
+        return currentGuard.identity == expectedGuard.identity ||
+            Self.codexScopedRefreshGuardsShareEmailBackedIdentityBridge(expectedGuard, currentGuard)
     }
 
     func shouldApplyOpenAIDashboardRefreshGuard(
@@ -431,13 +441,34 @@ extension UsageStore {
     {
         guard lhs.source == rhs.source else { return false }
         if lhs == rhs { return true }
-        guard lhs.identity != .unresolved,
-              lhs.identity == rhs.identity,
-              lhs.accountKey == rhs.accountKey
-        else {
+        guard lhs.identity != .unresolved, rhs.identity != .unresolved else {
             return false
         }
+        if lhs.identity != rhs.identity,
+           !self.codexScopedRefreshGuardsShareEmailBackedIdentityBridge(lhs, rhs)
+        {
+            return false
+        }
+        guard lhs.accountKey == rhs.accountKey else { return false }
         return self.codexGuardAuthFingerprintAllowsUsageApply(lhs, rhs)
+    }
+
+    private nonisolated static func codexScopedRefreshGuardsShareEmailBackedIdentityBridge(
+        _ lhs: CodexAccountScopedRefreshGuard,
+        _ rhs: CodexAccountScopedRefreshGuard) -> Bool
+    {
+        guard lhs.source == rhs.source,
+              let lhsAccountKey = lhs.accountKey,
+              !lhsAccountKey.isEmpty,
+              lhsAccountKey == rhs.accountKey
+        else { return false }
+
+        return switch (lhs.identity, rhs.identity) {
+        case (.emailOnly, .providerAccount), (.providerAccount, .emailOnly):
+            true
+        default:
+            false
+        }
     }
 
     private nonisolated static func codexUsageResultAccountKeyMatchesCurrentGuard(

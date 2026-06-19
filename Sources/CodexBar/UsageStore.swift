@@ -143,6 +143,8 @@ final class UsageStore {
     var tokenRefreshInFlight: Set<UsageProvider> = []
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
+    var bankedResets: CodexBankedResetsSnapshot?
+    var lastBankedResetsError: String?
     var openAIDashboard: OpenAIDashboardSnapshot?
     var lastOpenAIDashboardError: String?
     var openAIDashboardRequiresLogin: Bool = false
@@ -162,6 +164,9 @@ final class UsageStore {
     @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
     @ObservationIgnored var lastCreditsSource: CodexCreditsSource = .none
     @ObservationIgnored var creditsFailureStreak: Int = 0
+    @ObservationIgnored var lastBankedResetsSnapshot: CodexBankedResetsSnapshot?
+    @ObservationIgnored var lastBankedResetsSnapshotAccountKey: String?
+    @ObservationIgnored var bankedResetsFailureStreak: Int = 0
     @ObservationIgnored var openAIDashboardAttachmentAuthorized: Bool = false {
         didSet {
             guard self.openAIDashboardAttachmentAuthorized != oldValue else { return }
@@ -181,6 +186,8 @@ final class UsageStore {
     @ObservationIgnored var openAIWebAccountDidChange: Bool = false
     @ObservationIgnored var creditsRefreshTask: Task<Void, Never>?
     @ObservationIgnored var creditsRefreshTaskKey: String?
+    @ObservationIgnored var bankedResetsRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var bankedResetsRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardBackgroundRefreshTask: Task<Void, Never>?
     @ObservationIgnored var openAIDashboardBackgroundRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTask: Task<Void, Never>?
@@ -198,6 +205,8 @@ final class UsageStore {
         Bool,
         TimeInterval) async throws -> OpenAIDashboardSnapshot)?
     @ObservationIgnored var _test_codexCreditsLoaderOverride: (@MainActor () async throws -> CreditsSnapshot)?
+    @ObservationIgnored var _test_codexBankedResetsLoaderOverride: (@MainActor () async throws
+        -> CodexBankedResetsSnapshot)?
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
@@ -596,11 +605,13 @@ final class UsageStore {
                 }
                 if forceTokenUsage {
                     group.addTask { await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt) }
+                    group.addTask { await self.refreshBankedResetsNow(minimumSnapshotUpdatedAt: refreshStartedAt) }
                 }
             }
 
             if !forceTokenUsage {
                 self.scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
+                self.scheduleBankedResetsRefreshIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
             if forceTokenUsage {
@@ -645,6 +656,7 @@ final class UsageStore {
             if forceTokenUsage, self.openAIDashboardRequiresLogin {
                 await self.refreshProvider(.codex)
                 await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
+                await self.refreshBankedResetsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
 
             self.persistWidgetSnapshot(reason: "refresh")

@@ -1214,6 +1214,17 @@ extension StatusMenuTests {
             ],
             updatedAt: now)
         store._setSnapshotForTesting(usage.toUsageSnapshot(), provider: .openai)
+        store.bankedResets = CodexBankedResetsSnapshot(
+            resets: [
+                CodexBankedReset(
+                    id: "reset-1",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: now.addingTimeInterval(86400)),
+            ],
+            availableCount: 1,
+            updatedAt: now)
 
         let controller = StatusItemController(
             store: store,
@@ -1232,6 +1243,7 @@ extension StatusMenuTests {
             .contains { ($0.representedObject as? String) == StatusItemController.costHistoryChartID } == true)
         #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardHeader" } == false)
         #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardExtraUsage" } == false)
+        #expect(menu.items.contains { $0.title.hasPrefix("Banked reset") } == false)
     }
 
     @Test
@@ -1257,7 +1269,25 @@ extension StatusMenuTests {
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let now = Date()
         store.credits = CreditsSnapshot(remaining: 100, events: [], updatedAt: Date())
+        store.bankedResets = CodexBankedResetsSnapshot(
+            resets: [
+                CodexBankedReset(
+                    id: "reset-1",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: now.addingTimeInterval(86400)),
+                CodexBankedReset(
+                    id: "reset-2",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: now.addingTimeInterval(172_800)),
+            ],
+            availableCount: 2,
+            updatedAt: now)
         store.openAIDashboard = OpenAIDashboardSnapshot(
             signedInEmail: "user@example.com",
             codeReviewRemainingPercent: 100,
@@ -1299,9 +1329,11 @@ extension StatusMenuTests {
         let ids = menu.items.compactMap { $0.representedObject as? String }
         let creditsIndex = ids.firstIndex(of: "menuCardCredits")
         let costIndex = ids.firstIndex(of: "menuCardCost")
+        let bankedResetsItem = menu.items.first { $0.title == "Banked resets: 2 available" }
         #expect(creditsIndex != nil)
         #expect(costIndex != nil)
         #expect(try #require(creditsIndex) < costIndex!)
+        #expect(bankedResetsItem?.isEnabled == true)
     }
 
     @Test

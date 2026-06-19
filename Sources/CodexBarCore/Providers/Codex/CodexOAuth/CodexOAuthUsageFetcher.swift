@@ -230,7 +230,6 @@ public enum CodexOAuthFetchError: LocalizedError, Sendable {
 }
 
 public enum CodexOAuthUsageFetcher {
-    private static let defaultChatGPTBaseURL = "https://chatgpt.com/backend-api/"
     private static let chatGPTUsagePath = "/wham/usage"
     private static let codexUsagePath = "/api/codex/usage"
 
@@ -279,66 +278,14 @@ public enum CodexOAuthUsageFetcher {
     }
 
     private static func resolveUsageURL(env: [String: String], configContents: String?) -> URL {
-        let baseURL = self.resolveChatGPTBaseURL(env: env, configContents: configContents)
-        let normalized = self.normalizeChatGPTBaseURL(baseURL)
+        let normalized = CodexChatGPTBaseURLResolver.resolveNormalizedBaseURL(
+            env: env,
+            configContents: configContents,
+            backendAPIResolution: .chatGPTHostsOnly)
         let path = normalized.contains("/backend-api") ? Self.chatGPTUsagePath : Self.codexUsagePath
         let full = normalized + path
-        return URL(string: full) ?? URL(string: Self.defaultChatGPTBaseURL + Self.chatGPTUsagePath)!
-    }
-
-    private static func resolveChatGPTBaseURL(env: [String: String], configContents: String?) -> String {
-        if let configContents, let parsed = self.parseChatGPTBaseURL(from: configContents) {
-            return parsed
-        }
-        if let contents = self.loadConfigContents(env: env),
-           let parsed = self.parseChatGPTBaseURL(from: contents)
-        {
-            return parsed
-        }
-        return Self.defaultChatGPTBaseURL
-    }
-
-    private static func normalizeChatGPTBaseURL(_ value: String) -> String {
-        var trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { trimmed = Self.defaultChatGPTBaseURL }
-        while trimmed.hasSuffix("/") {
-            trimmed.removeLast()
-        }
-        if trimmed.hasPrefix("https://chatgpt.com") || trimmed.hasPrefix("https://chat.openai.com"),
-           !trimmed.contains("/backend-api")
-        {
-            trimmed += "/backend-api"
-        }
-        return trimmed
-    }
-
-    private static func parseChatGPTBaseURL(from contents: String) -> String? {
-        for rawLine in contents.split(whereSeparator: \.isNewline) {
-            let line = rawLine.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: true).first
-            let trimmed = line?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !trimmed.isEmpty else { continue }
-            let parts = trimmed.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)
-            guard parts.count == 2 else { continue }
-            let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard key == "chatgpt_base_url" else { continue }
-            var value = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            if value.hasPrefix("\""), value.hasSuffix("\"") {
-                value = String(value.dropFirst().dropLast())
-            } else if value.hasPrefix("'"), value.hasSuffix("'") {
-                value = String(value.dropFirst().dropLast())
-            }
-            return value.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return nil
-    }
-
-    private static func loadConfigContents(env: [String: String]) -> String? {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let codexHome = env["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let root = (codexHome?.isEmpty == false) ? URL(fileURLWithPath: codexHome!) : home
-            .appendingPathComponent(".codex")
-        let url = root.appendingPathComponent("config.toml")
-        return try? String(contentsOf: url, encoding: .utf8)
+        return URL(string: full) ?? URL(
+            string: CodexChatGPTBaseURLResolver.defaultBackendAPIBaseURL + Self.chatGPTUsagePath)!
     }
 }
 

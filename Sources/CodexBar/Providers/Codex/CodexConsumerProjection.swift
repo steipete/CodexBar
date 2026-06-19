@@ -172,6 +172,22 @@ struct CodexConsumerProjection {
         }
     }
 
+    struct BankedResetsProjection {
+        let snapshot: CodexBankedResetsSnapshot?
+        let userFacingError: String?
+
+        var availableCount: Int {
+            self.snapshot?.availableCount ?? 0
+        }
+
+        var expiryDates: [Date] {
+            guard let snapshot = self.snapshot else { return [] }
+            return snapshot.availableResets
+                .prefix(snapshot.availableCount)
+                .compactMap(\.expiresAt)
+        }
+    }
+
     struct UserFacingErrors {
         let usage: String?
         let credits: String?
@@ -183,11 +199,39 @@ struct CodexConsumerProjection {
         let rawUsageError: String?
         let liveCredits: CreditsSnapshot?
         let rawCreditsError: String?
+        let liveBankedResets: CodexBankedResetsSnapshot?
+        let rawBankedResetsError: String?
         let liveDashboard: OpenAIDashboardSnapshot?
         let rawDashboardError: String?
         let dashboardAttachmentAuthorized: Bool
         let dashboardRequiresLogin: Bool
         let now: Date
+
+        init(
+            snapshot: UsageSnapshot?,
+            rawUsageError: String?,
+            liveCredits: CreditsSnapshot?,
+            rawCreditsError: String?,
+            liveBankedResets: CodexBankedResetsSnapshot? = nil,
+            rawBankedResetsError: String? = nil,
+            liveDashboard: OpenAIDashboardSnapshot?,
+            rawDashboardError: String?,
+            dashboardAttachmentAuthorized: Bool,
+            dashboardRequiresLogin: Bool,
+            now: Date)
+        {
+            self.snapshot = snapshot
+            self.rawUsageError = rawUsageError
+            self.liveCredits = liveCredits
+            self.rawCreditsError = rawCreditsError
+            self.liveBankedResets = liveBankedResets
+            self.rawBankedResetsError = rawBankedResetsError
+            self.liveDashboard = liveDashboard
+            self.rawDashboardError = rawDashboardError
+            self.dashboardAttachmentAuthorized = dashboardAttachmentAuthorized
+            self.dashboardRequiresLogin = dashboardRequiresLogin
+            self.now = now
+        }
     }
 
     enum MenuBarFallback {
@@ -200,6 +244,7 @@ struct CodexConsumerProjection {
     let planUtilizationLanes: [PlanUtilizationLane]
     let dashboardVisibility: DashboardVisibility
     let credits: CreditsProjection?
+    let bankedResets: BankedResetsProjection?
     let menuBarFallback: MenuBarFallback
     let userFacingErrors: UserFacingErrors
     let canShowBuyCredits: Bool
@@ -225,6 +270,17 @@ struct CodexConsumerProjection {
             CreditsProjection(
                 snapshot: context.liveCredits,
                 userFacingError: CodexUIErrorMapper.userFacingMessage(context.rawCreditsError))
+        } else {
+            nil
+        }
+
+        let bankedResetsProjection: BankedResetsProjection? = if allowsLiveAdjuncts,
+                                                                 context.liveBankedResets != nil
+                                                                 || context.rawBankedResetsError != nil
+        {
+            BankedResetsProjection(
+                snapshot: context.liveBankedResets,
+                userFacingError: CodexUIErrorMapper.userFacingMessage(context.rawBankedResetsError))
         } else {
             nil
         }
@@ -259,6 +315,7 @@ struct CodexConsumerProjection {
             planUtilizationLanes: planUtilizationLanes,
             dashboardVisibility: dashboardVisibility,
             credits: creditsProjection,
+            bankedResets: bankedResetsProjection,
             menuBarFallback: self.menuBarFallback(
                 creditsRemaining: creditsProjection?.remaining,
                 rateWindowsByLane: rateWindowsByLane),
@@ -414,6 +471,8 @@ extension UsageStore {
             rawUsageError: rawUsageError,
             liveCredits: self.credits,
             rawCreditsError: self.lastCreditsError,
+            liveBankedResets: self.bankedResets,
+            rawBankedResetsError: self.lastBankedResetsError,
             liveDashboard: self.openAIDashboard,
             rawDashboardError: self.lastOpenAIDashboardError,
             dashboardAttachmentAuthorized: self.openAIDashboardAttachmentAuthorized,
