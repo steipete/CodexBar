@@ -980,7 +980,7 @@
 "Add accounts via GitHub OAuth Device Flow on the selected host." = "Afegiu comptes mitjançant el flux de dispositiu de GitHub OAuth a l'amfitrió seleccionat.";
 "Add Google Account" = "Afegeix un compte de Google";
 "Admin API key" = "Clau d'Admin API";
-"All Systems Operational" = "Tots els sistemes operatius";
+"All Systems Operational" = "Tots els sistemes estan operatius";
 "Auto" = "Automàtic";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "El mode automàtic fa servir primer l'API local de l'IDE i després Google OAuth quan l'IDE està tancat.";
 "Cleanup ideas" = "Idees de neteja";
