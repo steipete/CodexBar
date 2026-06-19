@@ -1081,6 +1081,7 @@ public struct OpenAIDashboardFetcher {
 
     public func loadLatestDashboard(
         accountEmail _: String?,
+        cacheScope _: CookieHeaderCache.Scope? = nil,
         logger _: ((String) -> Void)? = nil,
         debugDumpHTML _: Bool = false,
         allowNavigationTimeoutRetry _: Bool = true,
