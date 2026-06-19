@@ -489,7 +489,9 @@ struct KiroStatusProbeTests {
         }
         #expect(kill(processID, 0) == -1)
     }
+}
 
+extension KiroStatusProbeTests {
     // MARK: - Happy Path Parsing
 
     @Test
