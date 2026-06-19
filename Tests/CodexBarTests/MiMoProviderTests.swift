@@ -1130,7 +1130,12 @@ extension MiMoProviderTests {
         let json = """
         {
           "cookies": [
-            {"host": ".platform.xiaomimimo.com", "path": "/", "name": "api-platform_serviceToken", "value": "svc-token"},
+            {
+              "host": ".platform.xiaomimimo.com",
+              "path": "/",
+              "name": "api-platform_serviceToken",
+              "value": "svc-token"
+            },
             {"host": ".xiaomimimo.com", "path": "/", "name": "userId", "value": "1863175063"}
           ]
         }
@@ -1160,7 +1165,12 @@ extension MiMoProviderTests {
         let json = """
         {
           "cookies": [
-            {"host": ".platform.xiaomimimo.com", "path": "/", "name": "api-platform_serviceToken", "value": "svc-token"},
+            {
+              "host": ".platform.xiaomimimo.com",
+              "path": "/",
+              "name": "api-platform_serviceToken",
+              "value": "svc-token"
+            },
             {"host": ".xiaomimimo.com", "path": "/", "name": "userId", "value": "1863175063"}
           ]
         }
@@ -1200,7 +1210,12 @@ extension MiMoProviderTests {
         let json = """
         {
           "cookies": [
-            {"host": ".platform.xiaomimimo.com", "path": "/", "name": "api-platform_serviceToken", "value": "svc-token"},
+            {
+              "host": ".platform.xiaomimimo.com",
+              "path": "/",
+              "name": "api-platform_serviceToken",
+              "value": "svc-token"
+            },
             {"host": ".xiaomimimo.com", "path": "/", "name": "userId", "value": "1863175063"}
           ]
         }
