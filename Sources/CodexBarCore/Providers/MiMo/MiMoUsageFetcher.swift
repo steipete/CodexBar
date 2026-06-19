@@ -168,6 +168,9 @@ public enum MiMoUsageFetcher {
         switch response.statusCode {
         case 200:
             break
+        // Expired browser sessions can redirect API requests to the login flow.
+        case 300..<400:
+            throw MiMoUsageError.loginRequired
         case 401:
             throw MiMoUsageError.loginRequired
         case 403:
