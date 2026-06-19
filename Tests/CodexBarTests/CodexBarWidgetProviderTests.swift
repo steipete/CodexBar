@@ -421,6 +421,57 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `burn down selection does not fall back to another window`() throws {
+        let weeklyOnly = Self.burnSnapshot(provider: .codex, primaryUsed: nil, secondaryUsed: 30)
+        let sessionOnly = Self.burnSnapshot(provider: .codex, primaryUsed: 20, secondaryUsed: nil)
+
+        let weeklyOnlySession = try #require(BurnDownState(
+            snapshot: weeklyOnly,
+            provider: .codex,
+            selection: .session))
+        let weeklyOnlyWeekly = try #require(BurnDownState(
+            snapshot: weeklyOnly,
+            provider: .codex,
+            selection: .weekly))
+        let sessionOnlySession = try #require(BurnDownState(
+            snapshot: sessionOnly,
+            provider: .codex,
+            selection: .session))
+        let sessionOnlyWeekly = try #require(BurnDownState(
+            snapshot: sessionOnly,
+            provider: .codex,
+            selection: .weekly))
+
+        #expect(weeklyOnlySession.selectedWindow == nil)
+        #expect(weeklyOnlyWeekly.selectedWindow == weeklyOnlyWeekly.secondaryWindow)
+        #expect(sessionOnlySession.selectedWindow == sessionOnlySession.primaryWindow)
+        #expect(sessionOnlyWeekly.selectedWindow == nil)
+    }
+
+    @Test
+    func `explicit reset takes precedence over estimated reset`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let future = now.addingTimeInterval(600)
+
+        #expect(burnEffectiveResetDate(
+            explicitResetAt: now.addingTimeInterval(-1),
+            estimatedResetMinutes: 5,
+            now: now) == nil)
+        #expect(burnEffectiveResetDate(
+            explicitResetAt: future,
+            estimatedResetMinutes: 5,
+            now: now) == future)
+        #expect(burnEffectiveResetDate(
+            explicitResetAt: nil,
+            estimatedResetMinutes: 5,
+            now: now) == now.addingTimeInterval(300))
+        #expect(burnEffectiveResetDate(
+            explicitResetAt: nil,
+            estimatedResetMinutes: nil,
+            now: now) == nil)
+    }
+
+    @Test
     func `burn down refreshes immediately after the earliest future reset`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = Self.burnSnapshot(
@@ -451,24 +502,28 @@ struct CodexBarWidgetProviderTests {
 
     private static func burnSnapshot(
         provider: UsageProvider,
-        primaryUsed: Double,
-        secondaryUsed: Double,
+        primaryUsed: Double?,
+        secondaryUsed: Double?,
         primaryReset: Date? = nil,
         secondaryReset: Date? = nil) -> WidgetSnapshot
     {
         let entry = WidgetSnapshot.ProviderEntry(
             provider: provider,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            primary: RateWindow(
-                usedPercent: primaryUsed,
-                windowMinutes: 5 * 60,
-                resetsAt: primaryReset,
-                resetDescription: nil),
-            secondary: RateWindow(
-                usedPercent: secondaryUsed,
-                windowMinutes: 7 * 24 * 60,
-                resetsAt: secondaryReset,
-                resetDescription: nil),
+            primary: primaryUsed.map {
+                RateWindow(
+                    usedPercent: $0,
+                    windowMinutes: 5 * 60,
+                    resetsAt: primaryReset,
+                    resetDescription: nil)
+            },
+            secondary: secondaryUsed.map {
+                RateWindow(
+                    usedPercent: $0,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: secondaryReset,
+                    resetDescription: nil)
+            },
             tertiary: nil,
             creditsRemaining: nil,
             codeReviewRemainingPercent: nil,

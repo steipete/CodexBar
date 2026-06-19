@@ -113,8 +113,8 @@ struct BurnDownState {
 
     var selectedWindow: RateWindow? {
         switch self.selection {
-        case .session: self.primaryWindow ?? self.secondaryWindow
-        case .weekly: self.secondaryWindow ?? self.primaryWindow
+        case .session: self.primaryWindow
+        case .weekly: self.secondaryWindow
         }
     }
 

@@ -66,24 +66,18 @@ private struct BurnDownLayout: View {
         let theme = BurnTheme(provider: self.provider, geom: geom, dark: dark, isMonochrome: isMonochrome)
         let windowMins = self.window.windowMinutes ?? 300
         let isDailyWindow = windowMins >= 1440
-        let resetsIn: Double = if self.blankChart {
-            self.resetsAtOverride.map { max(0, $0.timeIntervalSinceNow / 60) } ?? 0
-        } else if let override = self.resetsAtOverride {
-            max(0, override.timeIntervalSinceNow / 60)
-        } else {
-            geom.tNow < 1 ? (1 - geom.tNow) * Double(windowMins) : 0
-        }
-        let effectiveResetAt: Date? = if self.blankChart {
-            self.resetsAtOverride
-        } else if let override = self.resetsAtOverride {
-            override
-        } else if let reset = self.window.resetsAt, reset > Date() {
-            reset
-        } else if resetsIn > 0 {
-            Date().addingTimeInterval(resetsIn * 60)
-        } else {
-            nil
-        }
+        let now = Date()
+        let estimatedResetMinutes = self.blankChart || geom.tNow >= 1
+            ? nil
+            : (1 - geom.tNow) * Double(windowMins)
+        let explicitReset = self.blankChart
+            ? self.resetsAtOverride
+            : self.resetsAtOverride ?? self.window.resetsAt
+        let effectiveResetAt = burnEffectiveResetDate(
+            explicitResetAt: explicitReset,
+            estimatedResetMinutes: estimatedResetMinutes,
+            now: now)
+        let resetsIn = effectiveResetAt.map { max(0, $0.timeIntervalSince(now) / 60) } ?? 0
         let outInMins = geom.slope < -0.01 ? (geom.vNow / -geom.slope) * Double(windowMins) : Double.infinity
         // Very early in the window a single sample can't forecast a credible run-out: a
         // tiny burst right after reset extrapolates to "runs dry in minutes" even at ~99%
@@ -622,6 +616,18 @@ func burnWindowLabel(_ windowMinutes: Int?) -> String {
     let hours = mins / 60
     if hours < 24 { return "\(hours)-hour limit" }
     return "\(hours / 24)-day limit"
+}
+
+func burnEffectiveResetDate(
+    explicitResetAt: Date?,
+    estimatedResetMinutes: Double?,
+    now: Date) -> Date?
+{
+    if let explicitResetAt {
+        return explicitResetAt > now ? explicitResetAt : nil
+    }
+    guard let estimatedResetMinutes, estimatedResetMinutes > 0 else { return nil }
+    return now.addingTimeInterval(estimatedResetMinutes * 60)
 }
 
 func burnCompactWindowLabel(_ windowMinutes: Int?, fallback: String) -> String {

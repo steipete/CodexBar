@@ -185,19 +185,14 @@ private struct CombinedBurnRow: View {
         let explicitReset = self.blankChart
             ? self.resetsAtOverride
             : self.resetsAtOverride ?? self.window.resetsAt
-        let resetSeconds = explicitReset?.timeIntervalSinceNow
-        let resetsInMins = self.blankChart && explicitReset == nil
-            ? 0
-            : resetSeconds.map { $0 > 0 } == true
-            ? resetSeconds! / 60
-            : (self.geom.tNow < 1 ? (1 - self.geom.tNow) * Double(windowMins) : 0)
-        let effectiveResetDate: Date? = if self.blankChart, explicitReset == nil {
-            nil
-        } else if resetSeconds.map({ $0 > 0 }) == true {
-            explicitReset
-        } else {
-            Date().addingTimeInterval(resetsInMins * 60)
-        }
+        let now = Date()
+        let estimatedResetMinutes = self.blankChart || self.geom.tNow >= 1
+            ? nil
+            : (1 - self.geom.tNow) * Double(windowMins)
+        let effectiveResetDate = burnEffectiveResetDate(
+            explicitResetAt: explicitReset,
+            estimatedResetMinutes: estimatedResetMinutes,
+            now: now)
         let heroColor = self.geom.depleted ? self.theme.danger : self.theme.statusColor
 
         HStack(alignment: .center, spacing: 12) {
