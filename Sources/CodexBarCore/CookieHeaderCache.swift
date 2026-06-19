@@ -93,6 +93,7 @@ public enum CookieHeaderCache {
     private static let displayStalenessInterval: TimeInterval = 30
     private static let displayUnavailableRetryInterval: TimeInterval = 1
     #if DEBUG
+    @TaskLocal private static var taskLegacyBaseURLOverride: URL?
     @TaskLocal private static var legacyRemovalFailureOverride = false
     #endif
 
@@ -743,6 +744,17 @@ public enum CookieHeaderCache {
         }
     }
 
+    #if DEBUG
+    static func withLegacyBaseURLOverrideForTesting<T>(
+        _ url: URL?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskLegacyBaseURLOverride.withValue(url) {
+            try await operation()
+        }
+    }
+    #endif
+
     static func hasLegacyEntryForTesting(provider: UsageProvider) -> Bool {
         self.loadLegacyEntry(for: provider) != nil
     }
@@ -829,7 +841,12 @@ public enum CookieHeaderCache {
     }
 
     private static var currentLegacyBaseURLOverride: URL? {
-        self.legacyBaseURLOverrideLock.withLock {
+        #if DEBUG
+        if let taskOverride = self.taskLegacyBaseURLOverride {
+            return taskOverride
+        }
+        #endif
+        return self.legacyBaseURLOverrideLock.withLock {
             self.legacyBaseURLOverride
         }
     }

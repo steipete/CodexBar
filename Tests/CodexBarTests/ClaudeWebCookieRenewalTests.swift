@@ -193,13 +193,13 @@ struct ClaudeWebCookieRenewalTests {
         let legacyBase = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-web-renewal-\(UUID().uuidString)", isDirectory: true)
         return try await KeychainCacheStore.withServiceOverrideForTesting("claude-web-renewal-\(UUID().uuidString)") {
-            KeychainCacheStore.setTestStoreForTesting(true)
-            defer { KeychainCacheStore.setTestStoreForTesting(false) }
-            CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBase)
-            defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
-            CookieHeaderCache.resetDisplayCacheForTesting()
-            defer { CookieHeaderCache.resetDisplayCacheForTesting() }
-            return try await operation()
+            try await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(legacyBase) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+                CookieHeaderCache.resetDisplayCacheForTesting()
+                defer { CookieHeaderCache.resetDisplayCacheForTesting() }
+                return try await operation()
+            }
         }
     }
 
