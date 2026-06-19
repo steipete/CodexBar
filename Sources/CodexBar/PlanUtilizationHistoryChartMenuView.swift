@@ -805,7 +805,11 @@ struct PlanUtilizationHistoryChartMenuView: View {
         if let best, let bestPoint = model.pointsByID[best.id],
            let barX = proxy.position(forX: Double(bestPoint.index))
         {
-            guard abs(location.x - (plotFrame.origin.x + barX)) <= Layout.barWidth / 2 else { return }
+            guard ChartBarHoverSelection.accepts(
+                distanceFromBarCenter: abs(location.x - (plotFrame.origin.x + barX)),
+                barHalfWidth: Layout.barWidth / 2,
+                selectableCount: model.points.count)
+            else { return }
         }
 
         if self.selectedPointID != best?.id {
