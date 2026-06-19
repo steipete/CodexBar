@@ -15,7 +15,10 @@ public enum CodexHomeScope {
             path = fileManager.homeDirectoryForCurrentUser
                 .appendingPathComponent(String(path.dropFirst(2)), isDirectory: true)
                 .path
+        } else if path.hasPrefix("~") {
+            return nil
         }
+        guard (path as NSString).isAbsolutePath else { return nil }
         return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
     }
 

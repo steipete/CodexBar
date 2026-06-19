@@ -540,6 +540,30 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `codex CLI ignores relative profile homes`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .codex,
+                codexActiveSource: .profileHome(path: "relative-codex-home"),
+                codexProfileHomePaths: ["relative-codex-home"]),
+        ])
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false,
+            baseEnvironment: ["CODEX_HOME": "/tmp/ambient-codex"])
+
+        let environment = context.environment(
+            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            provider: .codex,
+            account: nil,
+            codexActiveSourceOverride: .profileHome(path: "relative-codex-home"))
+
+        #expect(context.visibleCodexAccounts().visibleAccounts.isEmpty)
+        #expect(environment["CODEX_HOME"] == "/tmp/ambient-codex")
+    }
+
+    @Test
     func `claude ambient explicit CLI source remains CLI in CLI`() throws {
         let config = CodexBarConfig(providers: [ProviderConfig(id: .claude)])
         let tokenContext = try TokenAccountCLIContext(

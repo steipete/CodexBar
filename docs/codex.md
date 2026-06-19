@@ -40,7 +40,7 @@ Usage source picker:
 - Managed Codex accounts remain the default multi-account path.
 - Advanced users can add existing Codex homes to `~/.codexbar/config.json` with
   `providers[].codexProfileHomePaths`.
-- Each configured path must point at a Codex home that contains `auth.json`.
+- Each configured path must be absolute or start with `~/`, and point at a Codex home that contains `auth.json`.
 - CodexBar reads identity from the configured home, exposes it in the Codex account switcher, and scopes
   remote Codex fetches with `CODEX_HOME`.
 - Profile homes are not copied, reauthenticated, or removed by CodexBar.

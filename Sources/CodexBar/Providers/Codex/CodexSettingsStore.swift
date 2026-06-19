@@ -101,7 +101,12 @@ extension SettingsStore {
         guard case let .profileHome(path) = source else {
             return nil
         }
-        return CodexHomeScope.normalizedHomePath(path)
+        guard let normalizedPath = CodexHomeScope.normalizedHomePath(path),
+              self.codexProfileHomePaths.contains(normalizedPath)
+        else {
+            return nil
+        }
+        return normalizedPath
     }
 
     func managedCodexRemoteHomePath(forActiveSource source: CodexActiveSource) -> String? {

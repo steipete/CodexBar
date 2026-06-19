@@ -124,8 +124,89 @@ struct CodexProfileHomeAccountTests {
 
         #expect(settings.codexResolvedActiveSource == .liveSystem)
         #expect(environment["CODEX_HOME"] == "/tmp/ambient-codex")
+        let staleOverrideEnvironment = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil,
+            codexActiveSourceOverride: .profileHome(path: removedProfileHome.path))
+        #expect(staleOverrideEnvironment["CODEX_HOME"] == "/tmp/ambient-codex")
         #expect(settings.persistResolvedCodexActiveSourceCorrectionIfNeeded())
         #expect(settings.codexActiveSource == .liveSystem)
+    }
+
+    @Test
+    @MainActor
+    func `external config removal immediately invalidates profile routing caches`() throws {
+        let suite = "CodexProfileHomeAccountTests-external-removal"
+        let settings = try Self.makeSettings(suite: suite)
+        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let profileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        try Self.writeCodexAuthFile(
+            homeURL: profileHome,
+            email: "profile-cache@example.com",
+            plan: "pro")
+        let previousInterval = SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting
+        SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = 60
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
+        defer {
+            SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = previousInterval
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: missingLiveHome)
+            try? FileManager.default.removeItem(at: profileHome)
+        }
+
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = [profileHome.path]
+            entry.codexActiveSource = .profileHome(path: profileHome.path)
+        }
+        _ = settings.codexAccountReconciliationSnapshot
+        #expect(settings.cachedCodexAccountReconciliationSnapshot != nil)
+        #expect(settings.cachedCodexAccountMenuProjection != nil)
+
+        settings.applyExternalConfig(
+            CodexBarConfig(providers: [
+                ProviderConfig(
+                    id: .codex,
+                    codexActiveSource: .profileHome(path: profileHome.path),
+                    codexProfileHomePaths: []),
+            ]),
+            reason: "profile-removed")
+
+        #expect(settings.cachedCodexAccountReconciliationSnapshot == nil)
+        #expect(settings.cachedCodexAccountMenuProjection == nil)
+        let environment = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil)
+        #expect(settings.codexResolvedActiveSource == .liveSystem)
+        #expect(environment["CODEX_HOME"] == "/tmp/ambient-codex")
+    }
+
+    @Test
+    @MainActor
+    func `relative profile homes are ignored by app routing`() throws {
+        let settings = try Self.makeSettings(suite: "CodexProfileHomeAccountTests-relative")
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = ["relative-codex-home", "~someone/.codex"]
+            entry.codexActiveSource = .profileHome(path: "relative-codex-home")
+        }
+
+        #expect(CodexHomeScope.normalizedHomePath("relative-codex-home") == nil)
+        #expect(CodexHomeScope.normalizedHomePath("~someone/.codex") == nil)
+        #expect(settings.codexProfileHomePaths.isEmpty)
+        let environment = ProviderRegistry.makeEnvironment(
+            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            provider: .codex,
+            settings: settings,
+            tokenOverride: nil,
+            codexActiveSourceOverride: .profileHome(path: "relative-codex-home"))
+        #expect(environment["CODEX_HOME"] == "/tmp/ambient-codex")
     }
 
     @Test
