@@ -28,6 +28,7 @@
 
 ### Fixed
 - Xiaomi MiMo: retry another imported browser session when a stale session redirects API requests to login. Thanks @Yuxin-Qiao!
+- MiMo: recover active Firefox session cookies when its persisted cookie database lacks authentication rows. Thanks @aaronflorey!
 - Kiro: keep parsed usage available when the optional account probe times out or fails. Thanks @Yuxin-Qiao!
 - Cursor: ignore an exhausted Auto or API subquota only when another independent quota remains usable, while preserving the overall cap. Thanks @Yuxin-Qiao!
 - Memory: release idle OpenAI WebViews under system pressure without blocking the main thread. Thanks @ProspectOre!

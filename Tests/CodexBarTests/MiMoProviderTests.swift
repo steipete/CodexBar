@@ -1123,7 +1123,7 @@ extension MiMoProviderTests {
     }
 
     @Test
-    func `mimo importer enumerates firefox profiles with session restore cookies only`() throws {
+    func `mimo importer recovers session cookies when firefox query returns no rows`() throws {
         let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-empty-store")
         defer { try? FileManager.default.removeItem(at: temp) }
 
@@ -1140,13 +1140,54 @@ extension MiMoProviderTests {
         let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(
             from: [],
             browser: .firefox,
-            homeDirectories: [temp])
+            stores: [self.makeFirefoxCookieStore(profileDirectory: profile)])
 
         #expect(resolved.count == 1)
         #expect(
             URL(fileURLWithPath: resolved.first?.store.profile.id ?? "").standardizedFileURL.path ==
                 profile.standardizedFileURL.path)
         #expect(MiMoCookieImporter.sessionInfos(from: resolved).map(\.cookieHeader) == [
+            "api-platform_serviceToken=svc-token; userId=1863175063",
+        ])
+    }
+
+    @Test
+    func `mimo import path checks firefox stores after an empty domain query`() throws {
+        let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-import")
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let store = self.makeFirefoxCookieStore(profileDirectory: profile)
+        let profilesRoot = profile.deletingLastPathComponent()
+        let json = """
+        {
+          "cookies": [
+            {"host": ".platform.xiaomimimo.com", "path": "/", "name": "api-platform_serviceToken", "value": "svc-token"},
+            {"host": ".xiaomimimo.com", "path": "/", "name": "userId", "value": "1863175063"}
+          ]
+        }
+        """
+        try self.mozillaLZ4LiteralFile(json).write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+
+        let detection = BrowserDetection(
+            homeDirectory: temp.path,
+            cacheTTL: 0,
+            fileExists: { path in
+                path == profilesRoot.path || path == store.databaseURL?.path
+            },
+            directoryContents: { path in
+                path == profilesRoot.path ? [profile.lastPathComponent] : nil
+            })
+        var queriedFirefoxStores = false
+        let sessions = try MiMoCookieImporter.importSessions(
+            browserDetection: detection,
+            loadRecords: { _, _, _ in [] },
+            loadStores: { browser in
+                guard browser == .firefox else { return [] }
+                queriedFirefoxStores = true
+                return [store]
+            })
+
+        #expect(queriedFirefoxStores)
+        #expect(sessions.map(\.cookieHeader) == [
             "api-platform_serviceToken=svc-token; userId=1863175063",
         ])
     }
@@ -1176,15 +1217,93 @@ extension MiMoProviderTests {
                 expires: Date(timeIntervalSince1970: 1_812_064_978),
                 isSecure: false,
                 isHTTPOnly: false),
+            BrowserCookieRecord(
+                domain: "platform.xiaomimimo.com",
+                name: "api-platform_serviceToken",
+                path: "/",
+                value: "stale-token",
+                expires: Date(timeIntervalSince1970: 1_912_064_978),
+                isSecure: false,
+                isHTTPOnly: false),
+            BrowserCookieRecord(
+                domain: "xiaomimimo.com",
+                name: "userId",
+                path: "/",
+                value: "stale-user",
+                expires: Date(timeIntervalSince1970: 1_912_064_978),
+                isSecure: false,
+                isHTTPOnly: false),
         ])
 
         let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(
             from: [persisted],
             browser: .firefox,
-            homeDirectories: [temp])
+            stores: [store])
         let sessions = MiMoCookieImporter.sessionInfos(from: resolved)
 
         #expect(sessions.map(\.cookieHeader) == ["api-platform_serviceToken=svc-token; userId=1863175063"])
+    }
+
+    @Test
+    func `firefox session restore input is size bounded`() throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-firefox-oversized-\(UUID().uuidString).jsonlz4")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try Data(repeating: 0x41, count: 5).write(to: file)
+
+        do {
+            _ = try MiMoFirefoxSessionCookieImporter.readData(from: file, maxBytes: 4)
+            Issue.record("Expected oversized Firefox session restore input to fail")
+        } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
+            guard case .inputTooLarge = error else {
+                Issue.record("Unexpected Firefox session restore error: \(error)")
+                return
+            }
+        }
+    }
+
+    @Test
+    func `firefox session restore decompression is size bounded`() throws {
+        var data = Data([0x6D, 0x6F, 0x7A, 0x4C, 0x7A, 0x34, 0x30, 0x00])
+        data.append(contentsOf: [0x1F, 0x41, 0x01, 0x00, 0x14])
+
+        do {
+            _ = try MiMoFirefoxSessionCookieImporter.decodeSessionRestoreData(data, maxOutputBytes: 32)
+            Issue.record("Expected oversized Firefox session restore output to fail")
+        } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
+            guard case .outputTooLarge = error else {
+                Issue.record("Unexpected Firefox session restore error: \(error)")
+                return
+            }
+        }
+    }
+
+    @Test
+    func `firefox session restore accepts decoded size prefix`() throws {
+        let json = #"{"cookies":[]}"#
+        var data = Data([0x6D, 0x6F, 0x7A, 0x4C, 0x7A, 0x34, 0x30, 0x00])
+        var decodedSize = UInt32(json.utf8.count).littleEndian
+        withUnsafeBytes(of: &decodedSize) { data.append(contentsOf: $0) }
+        data.append(self.lz4LiteralBlock(Data(json.utf8)))
+
+        let decoded = try MiMoFirefoxSessionCookieImporter.decodeSessionRestoreData(data)
+
+        #expect(decoded == Data(json.utf8))
+    }
+
+    @Test
+    func `firefox session restore json traversal is bounded`() throws {
+        let data = Data(#"{"nested":{"cookies":[]}}"#.utf8)
+
+        do {
+            _ = try MiMoFirefoxSessionCookieImporter.cookieRecords(fromJSONData: data, maxNodes: 1)
+            Issue.record("Expected complex Firefox session restore JSON to fail")
+        } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
+            guard case .invalidData = error else {
+                Issue.record("Unexpected Firefox session restore error: \(error)")
+                return
+            }
+        }
     }
 
     private func makeFirefoxSessionRestoreProfile(prefix: String) throws -> (
