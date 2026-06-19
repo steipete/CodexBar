@@ -61,6 +61,46 @@ struct ClaudeWebCookieRenewalTests {
     }
 
     @Test
+    func `browser fallback replaces stale cache when conditional clear fails`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let imported = ClaudeWebAPIFetcher.SessionKeyInfo(
+                key: "sk-ant-imported-token",
+                sourceLabel: "Safari",
+                cookieCount: 1)
+
+            try await KeychainCacheStore.withClearFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                try await ClaudeWebSessionKeyImport.$overrideForTesting.withValue(imported) {
+                    try await self.withClaudeWebStub { request in
+                        let isStale = request.value(forHTTPHeaderField: "Cookie") ==
+                            "sessionKey=sk-ant-stale-token"
+                        if request.url?.path == "/api/organizations", isStale {
+                            let url = try #require(request.url)
+                            return Self.jsonResponse(
+                                url: url,
+                                body: "{}",
+                                statusCode: 401,
+                                setCookie: nil)
+                        }
+                        return try Self.response(for: request, setCookie: nil)
+                    } operation: {
+                        _ = try await ClaudeWebAPIFetcher.fetchUsage(
+                            browserDetection: BrowserDetection(cacheTTL: 0))
+                    }
+                }
+            }
+
+            let cached = try #require(CookieHeaderCache.load(provider: .claude))
+            #expect(cached.cookieHeader == "sessionKey=sk-ant-imported-token")
+            #expect(cached.sourceLabel == "Safari")
+        }
+    }
+
+    @Test
     func `manual web session fetch does not rewrite cached cookie`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(

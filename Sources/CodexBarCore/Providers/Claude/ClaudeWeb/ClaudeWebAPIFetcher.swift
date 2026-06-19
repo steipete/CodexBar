@@ -19,6 +19,20 @@ enum ClaudeWebHTTPTransport {
     }
 }
 
+enum ClaudeWebSessionKeyImport {
+    #if DEBUG
+    @TaskLocal static var overrideForTesting: ClaudeWebAPIFetcher.SessionKeyInfo?
+    #endif
+
+    static var currentOverride: ClaudeWebAPIFetcher.SessionKeyInfo? {
+        #if DEBUG
+        self.overrideForTesting
+        #else
+        nil
+        #endif
+    }
+}
+
 /// Fetches Claude usage data directly from the claude.ai API using browser session cookies.
 ///
 /// This approach mirrors what Claude Usage Tracker does, but automatically extracts the session key
@@ -188,7 +202,8 @@ public enum ClaudeWebAPIFetcher {
             targetOrganizationID: targetOrganizationID,
             logger: log,
             cacheSourceLabel: sessionInfo.sourceLabel,
-            expectedCachedEntry: expectedCachedEntry)
+            expectedCachedEntry: expectedCachedEntry,
+            persistInitialSessionKey: true)
     }
 
     public static func fetchUsage(
@@ -237,7 +252,8 @@ public enum ClaudeWebAPIFetcher {
         targetOrganizationID: String?,
         logger: ((String) -> Void)?,
         cacheSourceLabel: String?,
-        expectedCachedEntry: CookieHeaderCache.Entry?) async throws -> WebUsageData
+        expectedCachedEntry: CookieHeaderCache.Entry?,
+        persistInitialSessionKey: Bool = false) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?(msg) }
         let sessionKey = sessionKeyInfo.key
@@ -309,10 +325,10 @@ public enum ClaudeWebAPIFetcher {
         }
         if let cacheSourceLabel {
             self.persistSessionKeyIfNeeded(
-                initialSessionKey: sessionKey,
+                source: (sessionKey, cacheSourceLabel),
                 renewedCookieHeader: renewalTracker.renewedCookieHeader,
-                sourceLabel: cacheSourceLabel,
                 expectedCachedEntry: expectedCachedEntry,
+                persistInitialSessionKey: persistInitialSessionKey,
                 logger: log)
         }
         return usage
@@ -433,6 +449,7 @@ public enum ClaudeWebAPIFetcher {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
     {
+        if let override = ClaudeWebSessionKeyImport.currentOverride { return override }
         let log: (String) -> Void = { msg in logger?(msg) }
 
         let cookieDomains = ["claude.ai"]
@@ -944,19 +961,19 @@ public enum ClaudeWebAPIFetcher {
 
 extension ClaudeWebAPIFetcher {
     private static func persistSessionKeyIfNeeded(
-        initialSessionKey: String,
+        source: (initialSessionKey: String, label: String),
         renewedCookieHeader: String?,
-        sourceLabel: String,
         expectedCachedEntry: CookieHeaderCache.Entry?,
+        persistInitialSessionKey: Bool,
         logger: (String) -> Void)
     {
-        let importedCookieHeader = expectedCachedEntry == nil ? "sessionKey=\(initialSessionKey)" : nil
+        let importedCookieHeader = persistInitialSessionKey ? "sessionKey=\(source.initialSessionKey)" : nil
         guard let cookieHeader = renewedCookieHeader ?? importedCookieHeader else { return }
         let stored = CookieHeaderCache.storeIfCurrent(
             provider: .claude,
             expected: expectedCachedEntry,
             cookieHeader: cookieHeader,
-            sourceLabel: sourceLabel)
+            sourceLabel: source.label)
         if renewedCookieHeader != nil {
             logger(stored ? "Stored renewed Claude session key" : "Skipped renewal because the cache changed")
         }
