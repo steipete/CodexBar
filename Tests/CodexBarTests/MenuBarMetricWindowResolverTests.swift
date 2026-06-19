@@ -133,7 +133,7 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
-    func `automatic metric skips exhausted minimax lane when another lane remains usable`() {
+    func `automatic metric preserves exhausted minimax session lane`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 100, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: RateWindow(usedPercent: 97, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
@@ -145,8 +145,8 @@ struct MenuBarMetricWindowResolverTests {
             snapshot: snapshot,
             supportsAverage: false)
 
-        #expect(window?.usedPercent == 97)
-        #expect(window?.windowMinutes == 7 * 24 * 60)
+        #expect(window?.usedPercent == 100)
+        #expect(window?.windowMinutes == 300)
     }
 
     @Test

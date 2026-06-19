@@ -132,7 +132,7 @@ enum MenuBarMetricWindowResolver {
                 api: snapshot.tertiary)
         }
         if provider == .minimax {
-            return Self.mostConstrainedUsableWindow(
+            return Self.mostConstrainedWindow(
                 primary: snapshot.primary,
                 secondary: snapshot.secondary,
                 tertiary: snapshot.tertiary)
@@ -217,19 +217,6 @@ enum MenuBarMetricWindowResolver {
         let windows = [primary, secondary, tertiary].compactMap(\.self)
         guard !windows.isEmpty else { return nil }
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
-    }
-
-    private static func mostConstrainedUsableWindow(
-        primary: RateWindow?,
-        secondary: RateWindow?,
-        tertiary: RateWindow?)
-        -> RateWindow?
-    {
-        let windows = [primary, secondary, tertiary].compactMap(\.self)
-        guard !windows.isEmpty else { return nil }
-        let usableWindows = windows.filter { $0.usedPercent < 100 }
-        return (usableWindows.isEmpty ? windows : usableWindows)
-            .max(by: { $0.usedPercent < $1.usedPercent })
     }
 
     private static func mostConstrainedCursorWindow(
