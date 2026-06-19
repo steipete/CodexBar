@@ -5,10 +5,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="${ROOT_DIR}/.build/lint-tools/bin"
 
-ensure_tools() {
-  # Always delegate to the installer so pinned versions are enforced.
-  # The installer is idempotent and exits early when the expected versions are already present.
-  "${ROOT_DIR}/Scripts/install_lint_tools.sh"
+ensure_swiftformat() {
+  "${ROOT_DIR}/Scripts/install_lint_tools.sh" swiftformat
+}
+
+ensure_swiftlint() {
+  "${ROOT_DIR}/Scripts/install_lint_tools.sh" swiftlint
 }
 
 check_codex_parser_hash() {
@@ -48,14 +50,15 @@ run_portable_checks() {
   check_sparkle_signing_paths
   check_swift_test_sharding
   check_site_locales
-  ensure_tools
 }
 
 run_swiftformat_lint() {
+  ensure_swiftformat
   "${BIN_DIR}/swiftformat" Sources Tests --lint
 }
 
 run_swiftlint() {
+  ensure_swiftlint
   "${BIN_DIR}/swiftlint" --strict
 }
 
@@ -74,11 +77,10 @@ case "$cmd" in
     ;;
   lint-macos)
     check_app_locales
-    ensure_tools
     run_swiftformat_lint
     ;;
   format)
-    ensure_tools
+    ensure_swiftformat
     "${BIN_DIR}/swiftformat" Sources Tests
     ;;
   *)

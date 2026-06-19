@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install lint tools
-        run: ./Scripts/install_lint_tools.sh
+        run: ./Scripts/install_lint_tools.sh swiftlint
 
       - name: Lint
         run: ./Scripts/lint.sh lint-linux
