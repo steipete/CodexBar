@@ -19,7 +19,7 @@ classify_path() {
   path_count=$((path_count + 1))
 
   case "$path" in
-    docs/configuration.md)
+    AGENTS.md|docs/configuration.md)
       macos_tests=true
       ;;
     *.md)
