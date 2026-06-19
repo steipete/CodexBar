@@ -56,8 +56,10 @@ struct MiMoFirefoxSessionCookieImporterTests {
           {"host":".xiaomimimo.com","name":"userId","value":"private-user","originAttributes":{"privateBrowsingId":1}},
           {"host":".platform.xiaomimimo.com","name":"api-platform_ph","value":"partitioned","isPartitioned":true},
           {"host":".platform.xiaomimimo.com","name":"api-platform_ph","value":"numeric-partition","isPartitioned":0},
-          {"host":".platform.xiaomimimo.com","name":"api-platform_ph","value":"boolean-context","originAttributes":{"userContextId":false}},
-          {"host":".platform.xiaomimimo.com","name":"api-platform_ph","value":"floating-context","originAttributes":{"privateBrowsingId":0.0}},
+          {"host":".platform.xiaomimimo.com","name":"api-platform_ph",
+           "value":"boolean-context","originAttributes":{"userContextId":false}},
+          {"host":".platform.xiaomimimo.com","name":"api-platform_ph",
+           "value":"floating-context","originAttributes":{"privateBrowsingId":0.0}},
           {"host":".platform.xiaomimimo.com","name":"api-platform_ph",
            "value":"unknown-context","originAttributes":{"futureIsolationKey":"value"}}
         ]}
