@@ -53,6 +53,20 @@ assert_gate_fails missing-rename-score $'R\tREADME.md\tdocs/README.md'
 assert_gate_fails invalid-rename-score $'Rfoo\tREADME.md\tdocs/README.md'
 assert_gate_fails out-of-range-rename-score $'R101\tREADME.md\tdocs/README.md'
 
+unterminated_paths="${tmp_dir}/unterminated.paths"
+unterminated_output="${tmp_dir}/unterminated.output"
+printf '%s' $'M\tREADME.md\tdocs/configuration.md' > "$unterminated_paths"
+if GITHUB_OUTPUT="$unterminated_output" \
+  "${ROOT_DIR}/Scripts/ci_macos_test_gate.sh" "$unterminated_paths" >/dev/null 2>&1
+then
+  printf 'unterminated malformed gate input unexpectedly succeeded\n' >&2
+  exit 1
+fi
+if [[ -s "$unterminated_output" ]]; then
+  printf 'unterminated malformed gate input emitted an output\n' >&2
+  exit 1
+fi
+
 verify="${ROOT_DIR}/Scripts/ci_verify_test_jobs.sh"
 "$verify" success success true success >/dev/null
 "$verify" success success false skipped >/dev/null

@@ -28,8 +28,10 @@ classify_path() {
 }
 
 invalid_row=false
-while IFS=$'\t' read -r status first_path second_path extra_path; do
-  [[ -z "${status}${first_path:-}${second_path:-}" ]] && continue
+while IFS=$'\t' read -r status first_path second_path extra_path \
+  || [[ -n "${status:-}${first_path:-}${second_path:-}${extra_path:-}" ]]
+do
+  [[ -z "${status}${first_path:-}${second_path:-}${extra_path:-}" ]] && continue
 
   case "$status" in
     R*|C*)
