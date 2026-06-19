@@ -20,7 +20,7 @@ jobs:
         run: ./Scripts/install_lint_tools.sh
 
       - name: Lint
-        run: ./Scripts/lint.sh lint
+        run: ./Scripts/lint.sh lint-portable
 
   swift-test-macos:
     runs-on: macos-15-intel
@@ -51,6 +51,10 @@ jobs:
           swift --version
           swift package --version
 
+      - name: Check app locales
+        if: ${{ matrix.shard-index == 0 }}
+        run: ./Scripts/lint.sh app-locales
+
       - name: Swift Test
         timeout-minutes: 35
         run: |
@@ -68,7 +72,7 @@ jobs:
       - swift-test-macos
     if: ${{ always() && !cancelled() }}
     steps:
-      - name: Verify macOS lint and test jobs
+      - name: Verify lint and macOS test jobs
         run: |
           set -euo pipefail
           if [[ "${{ needs.lint.result }}" != "success" ]]; then
@@ -79,7 +83,7 @@ jobs:
             echo "swift-test-macos job finished with ${{ needs.swift-test-macos.result }}" >&2
             exit 1
           fi
-          echo "macOS lint and Swift test shards passed."
+          echo "Lint and macOS Swift test shards passed."
 
   build-linux-cli:
     timeout-minutes: 20

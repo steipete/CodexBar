@@ -31,33 +31,47 @@ check_swift_test_sharding() {
   "${ROOT_DIR}/Scripts/test_swift_test_sharding.sh"
 }
 
-check_site_locales() {
+check_app_locales() {
   node "${ROOT_DIR}/Scripts/check-app-locales.mjs" --test
   node "${ROOT_DIR}/Scripts/check-app-locales.mjs"
+}
+
+check_site_locales() {
   node "${ROOT_DIR}/Scripts/check-site-locales.mjs"
   node --check "${ROOT_DIR}/docs/site.js"
+}
+
+run_portable_lint() {
+  check_codex_parser_hash
+  check_package_product_paths
+  check_release_dsym_paths
+  check_sparkle_signing_paths
+  check_swift_test_sharding
+  check_site_locales
+  ensure_tools
+  "${BIN_DIR}/swiftformat" Sources Tests --lint
+  "${BIN_DIR}/swiftlint" --strict
 }
 
 cmd="${1:-lint}"
 
 case "$cmd" in
   lint)
-    check_codex_parser_hash
-    check_package_product_paths
-    check_release_dsym_paths
-    check_sparkle_signing_paths
-    check_swift_test_sharding
-    check_site_locales
-    ensure_tools
-    "${BIN_DIR}/swiftformat" Sources Tests --lint
-    "${BIN_DIR}/swiftlint" --strict
+    check_app_locales
+    run_portable_lint
+    ;;
+  lint-portable)
+    run_portable_lint
+    ;;
+  app-locales)
+    check_app_locales
     ;;
   format)
     ensure_tools
     "${BIN_DIR}/swiftformat" Sources Tests
     ;;
   *)
-    printf 'Usage: %s [lint|format]\n' "$(basename "$0")" >&2
+    printf 'Usage: %s [lint|lint-portable|app-locales|format]\n' "$(basename "$0")" >&2
     exit 2
     ;;
 esac
