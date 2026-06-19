@@ -858,6 +858,34 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `provider scoped refresh updates status and widget snapshot`() async {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = true
+        self.enableOnly([.synthetic], settings: settings)
+
+        let controller = self.makeController(settings: settings)
+        controller.store._test_providerRefreshOverride = { _ in }
+        controller.store._test_providerStatusFetchOverride = { provider in
+            #expect(provider == .synthetic)
+            return ProviderStatus(indicator: .none, description: "Operational", updatedAt: Date())
+        }
+        var savedSnapshots = 0
+        controller.store._test_widgetSnapshotSaveOverride = { _ in
+            savedSnapshots += 1
+        }
+
+        await controller.performStoreRefresh(
+            for: .synthetic,
+            refreshOpenMenusWhenComplete: false,
+            interaction: .userInitiated)
+        _ = await controller.store.widgetSnapshotPersistTask?.result
+
+        #expect(controller.store.statuses[.synthetic]?.description == "Operational")
+        #expect(savedSnapshots == 1)
+    }
+
+    @Test
     func `failed manual refresh returns row to idle and surfaces error`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual

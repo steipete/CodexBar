@@ -51,6 +51,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             let refreshStartedAt = Date()
             await self.store.refreshProvider(provider)
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            await self.store.refreshProviderStatus(provider)
+            guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
             await self.store.refreshTokenUsageNow(for: provider, force: true)
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
             if provider == .codex {
@@ -62,6 +64,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
             }
             self.store.scheduleStorageFootprintRefresh(for: [provider], force: true)
+            self.store.persistWidgetSnapshot(reason: "provider-refresh")
             if refreshOpenMenusWhenComplete {
                 self.refreshOpenMenusAfterExplicitStoreAction()
             } else {

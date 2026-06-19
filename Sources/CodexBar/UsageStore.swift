@@ -592,7 +592,7 @@ final class UsageStore {
                                 (ProviderInteractionContext.current == .background))
                     }
                     if availableRefreshProviders.contains(provider) {
-                        group.addTask { await self.refreshStatus(provider) }
+                        group.addTask { await self.refreshProviderStatus(provider) }
                     }
                 }
                 if forceTokenUsage {
@@ -866,7 +866,7 @@ final class UsageStore {
         self.sessionQuotaNotifier.post(transition: transition, provider: provider, badge: nil)
     }
 
-    private func refreshStatus(_ provider: UsageProvider) async {
+    func refreshProviderStatus(_ provider: UsageProvider) async {
         guard self.settings.statusChecksEnabled else { return }
         guard let meta = self.providerMetadata[provider] else { return }
 
