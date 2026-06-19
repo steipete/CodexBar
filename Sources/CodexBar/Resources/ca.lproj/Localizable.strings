@@ -976,9 +976,9 @@
 "%d%% in reserve" = "%d%% en reserva";
 "%dd" = "%dd";
 "About CodexBar" = "Quant al CodexBar";
-"Add Account..." = "Afegeix un compte...";
+"Add Account..." = "Afegiu un compte...";
 "Add accounts via GitHub OAuth Device Flow on the selected host." = "Afegiu comptes mitjançant el flux de dispositiu de GitHub OAuth a l'amfitrió seleccionat.";
-"Add Google Account" = "Afegeix un compte de Google";
+"Add Google Account" = "Afegiu un compte de Google";
 "Admin API key" = "Clau d'Admin API";
 "All Systems Operational" = "Tots els sistemes estan operatius";
 "Auto" = "Automàtic";
@@ -1047,7 +1047,7 @@
 "No %@ utilization data yet." = "Encara no hi ha dades d'utilització de %@.";
 "No available fetch strategy for %@." = "No hi ha cap estratègia d'obtenció disponible per a %@.";
 "No available fetch strategy for minimax." = "No hi ha cap estratègia d'obtenció disponible per a MiniMax.";
-"No Cursor session found. Please log in to cursor.com in Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX, or Edge Canary. If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security. You can also sign in to Cursor from the CodexBar menu (Add / switch account)." = "No s'ha trobat cap sessió de Cursor. Inicieu la sessió a cursor.com amb Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX o Edge Canary. Si feu servir Safari, atorgueu al CodexBar Accés complet al disc a Configuració del Sistema ▸ Privadesa i Seguretat. També podeu iniciar la sessió a Cursor des del menú del CodexBar (Afegeix / canvia compte).";
+"No Cursor session found. Please log in to cursor.com in Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX, or Edge Canary. If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security. You can also sign in to Cursor from the CodexBar menu (Add / switch account)." = "No s'ha trobat cap sessió de Cursor. Inicieu la sessió a cursor.com amb Safari, Chrome, Microsoft Edge, Brave, Arc, Dia, ChatGPT Atlas, Chromium, Helium, Vivaldi, Yandex Browser, Firefox, Zen, Colibri, Sidekick, Opera, Opera GX o Edge Canary. Si feu servir Safari, atorgueu al CodexBar Accés complet al disc a Configuració del Sistema ▸ Privadesa i Seguretat. També podeu iniciar la sessió a Cursor des del menú del CodexBar (Afegiu / canvieu de compte).";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "No s'ha detectat cap IDE de JetBrains amb AI Assistant. Instal·leu un IDE de JetBrains i activeu l'AI Assistant.";
 "No local data found" = "No s'han trobat dades locals";
 "No OpenCode session cookies found in browsers." = "No s'han trobat galetes de sessió d'OpenCode als navegadors.";
@@ -1084,11 +1084,11 @@
 "Source" = "Origen";
 "State" = "Estat";
 "Status Page" = "Pàgina d'estat";
-"Store multiple Antigravity Google OAuth accounts for quick switching." = "Desa diversos comptes OAuth de Google d'Antigravity per canviar ràpidament.";
-"Store multiple DeepSeek API keys." = "Desa diverses claus d'API de DeepSeek.";
-"Store multiple OpenAI API keys." = "Desa diverses claus d'API d'OpenAI.";
+"Store multiple Antigravity Google OAuth accounts for quick switching." = "Deseu diversos comptes OAuth de Google d'Antigravity per canviar ràpidament.";
+"Store multiple DeepSeek API keys." = "Deseu diverses claus d'API de DeepSeek.";
+"Store multiple OpenAI API keys." = "Deseu diverses claus d'API d'OpenAI.";
 "Stores each signed-in Google account for quick Antigravity switching. Uses Antigravity.app OAuth when available, or ANTIGRAVITY_OAUTH_CLIENT_ID and ANTIGRAVITY_OAUTH_CLIENT_SECRET as an override." = "Desa cada compte de Google amb la sessió iniciada per canviar ràpidament a Antigravity. Fa servir OAuth d'Antigravity.app quan està disponible, o ANTIGRAVITY_OAUTH_CLIENT_ID i ANTIGRAVITY_OAUTH_CLIENT_SECRET com a substitució.";
-"Switch Account..." = "Canvia de compte...";
+"Switch Account..." = "Canvieu de compte...";
 "terminal_app_subtitle" = "Terminal que fa servir l'acció Obre el Terminal";
 "terminal_app_title" = "Terminal per defecte";
 "Text Generation" = "Generació de text";
