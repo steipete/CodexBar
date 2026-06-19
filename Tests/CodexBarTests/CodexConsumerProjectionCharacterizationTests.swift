@@ -48,6 +48,25 @@ struct CodexConsumerProjectionCharacterizationTests {
         return store
     }
 
+    private func enableCodexProvider(settings: SettingsStore) {
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+    }
+
+    private func makeMenuBarController(settings: SettingsStore) -> (UsageStore, StatusItemController) {
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        return (store, controller)
+    }
+
     @Test
     func `snapshot override menu card stays isolated from live codex extras`() throws {
         let settings = self.makeSettings()
@@ -112,20 +131,9 @@ struct CodexConsumerProjectionCharacterizationTests {
         settings.usageBarsShowUsed = true
         settings.setMenuBarMetricPreference(.primary, for: .codex)
 
-        let registry = ProviderRegistry.shared
-        if let codexMeta = registry.metadata[.codex] {
-            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
-        }
+        self.enableCodexProvider(settings: settings)
 
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: testStatusBar())
+        let (store, controller) = self.makeMenuBarController(settings: settings)
         defer { controller.releaseStatusItemsForTesting() }
 
         let snapshot = UsageSnapshot(
@@ -140,5 +148,155 @@ struct CodexConsumerProjectionCharacterizationTests {
         let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
 
         #expect(displayText == "100%")
+    }
+
+    @Test
+    func `menu bar percent mode can show codex session and weekly together`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        self.enableCodexProvider(settings: settings)
+
+        let (store, controller) = self.makeMenuBarController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 7, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 18, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 42.5, events: [], updatedAt: Date())
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "5h 93% · W 82%")
+    }
+
+    @Test
+    func `menu bar combined codex percent keeps available weekly lane when session is unavailable`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        self.enableCodexProvider(settings: settings)
+
+        let (store, controller) = self.makeMenuBarController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 18, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 42.5, events: [], updatedAt: Date())
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "W 82%")
+    }
+
+    @Test
+    func `menu bar combined codex percent falls back to credits when no percent lanes are available`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        self.enableCodexProvider(settings: settings)
+
+        let (store, controller) = self.makeMenuBarController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 42.5, events: [], updatedAt: Date())
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "42.5")
+    }
+
+    @Test
+    func `menu bar combined codex percent keeps credits fallback when a lane is exhausted`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        self.enableCodexProvider(settings: settings)
+
+        let (store, controller) = self.makeMenuBarController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 18, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 42.5, events: [], updatedAt: Date())
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "42.5")
+    }
+
+    @Test
+    func `menu bar combined codex option preserves single metric choices`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+
+        self.enableCodexProvider(settings: settings)
+
+        let (store, controller) = self.makeMenuBarController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 7, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 18, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        settings.setMenuBarMetricPreference(.primary, for: .codex)
+        let primaryText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        settings.setMenuBarMetricPreference(.secondary, for: .codex)
+        let secondaryText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(primaryText == "93%")
+        #expect(secondaryText == "82%")
     }
 }

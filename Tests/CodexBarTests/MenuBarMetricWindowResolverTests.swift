@@ -39,6 +39,23 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
+    func `combined primary and secondary metric uses the most constrained lane`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 91, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .primaryAndSecondary,
+            provider: .codex,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.usedPercent == 91)
+        #expect(window?.windowMinutes == 7 * 24 * 60)
+    }
+
+    @Test
     func `automatic metric skips exhausted cursor subquota when total remains usable`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 67, windowMinutes: 30 * 24 * 60, resetsAt: nil, resetDescription: "Total"),

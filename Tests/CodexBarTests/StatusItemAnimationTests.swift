@@ -421,6 +421,47 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `combined codex menu bar metric window uses most constrained visible lane`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-combined-window"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 91, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let window = controller.menuBarMetricWindow(for: .codex, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 91)
+        #expect(window?.windowMinutes == 7 * 24 * 60)
+    }
+
+    @Test
     func `menu bar percent automatic prefers rate limit for kimi`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-kimi-automatic"),
@@ -892,6 +933,29 @@ struct StatusItemAnimationTests {
         #expect(percent == "40%")
         #expect(pace == "+16%")
         #expect(both == "40% · +16%")
+    }
+
+    @Test
+    func `menu bar display text formats codex combined percent lanes`() {
+        let sessionWindow = RateWindow(usedPercent: 7, windowMinutes: 300, resetsAt: nil, resetDescription: nil)
+        let weeklyWindow = RateWindow(usedPercent: 18, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+
+        let remaining = MenuBarDisplayText.codexCombinedPercentText(
+            sessionWindow: sessionWindow,
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
+        let used = MenuBarDisplayText.codexCombinedPercentText(
+            sessionWindow: sessionWindow,
+            weeklyWindow: weeklyWindow,
+            showUsed: true)
+        let weeklyOnly = MenuBarDisplayText.codexCombinedPercentText(
+            sessionWindow: nil,
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
+
+        #expect(remaining == "5h 93% · W 82%")
+        #expect(used == "5h 7% · W 18%")
+        #expect(weeklyOnly == "W 82%")
     }
 
     @Test

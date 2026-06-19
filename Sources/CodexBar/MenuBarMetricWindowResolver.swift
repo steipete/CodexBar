@@ -36,6 +36,11 @@ enum MenuBarMetricWindowResolver {
                 provider: provider,
                 snapshot: snapshot,
                 lanes: Self.secondaryOrder(for: provider))
+        case .primaryAndSecondary:
+            return Self.mostConstrainedWindow(
+                primary: snapshot.primary,
+                secondary: snapshot.secondary,
+                tertiary: nil)
         case .average:
             return Self.averageWindow(provider: provider, snapshot: snapshot, supportsAverage: supportsAverage)
         case .automatic:

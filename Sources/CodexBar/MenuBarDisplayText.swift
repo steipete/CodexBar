@@ -16,6 +16,22 @@ enum MenuBarDisplayText {
         return "\(sign)\(deltaValue)%"
     }
 
+    static func codexCombinedPercentText(
+        sessionWindow: RateWindow?,
+        weeklyWindow: RateWindow?,
+        showUsed: Bool)
+        -> String?
+    {
+        var parts: [String] = []
+        if let session = self.percentText(window: sessionWindow, showUsed: showUsed) {
+            parts.append("5h \(session)")
+        }
+        if let weekly = self.percentText(window: weeklyWindow, showUsed: showUsed) {
+            parts.append("W \(weekly)")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     static func displayText(
         mode: MenuBarDisplayMode,
         percentWindow: RateWindow?,

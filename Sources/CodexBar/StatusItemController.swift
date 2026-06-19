@@ -368,6 +368,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
             return RateWindow(
                 usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        case .primaryAndSecondary:
+            return [first, second].compactMap(\.self).max(by: { $0.usedPercent < $1.usedPercent })
         case .automatic, .primary, .monthlyPlan:
             return first
         }

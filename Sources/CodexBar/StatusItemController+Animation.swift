@@ -761,12 +761,6 @@ extension StatusItemController {
                 resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
                 now: now)
         }
-        let displayText = MenuBarDisplayText.displayText(
-            mode: mode,
-            percentWindow: percentWindow,
-            pace: pace,
-            showUsed: self.settings.usageBarsShowUsed)
-
         if mode == .percent,
            !self.settings.usageBarsShowUsed,
            codexProjection?.menuBarFallback == .creditsBalance,
@@ -778,8 +772,21 @@ extension StatusItemController {
                     .creditsString(from: creditsRemaining)
                     .replacingOccurrences(of: " left", with: "")
         }
-
-        return displayText
+        if provider == .codex,
+           mode == .percent,
+           self.settings.menuBarMetricPreference(for: .codex, snapshot: snapshot) == .primaryAndSecondary,
+           let combinedText = MenuBarDisplayText.codexCombinedPercentText(
+               sessionWindow: codexProjection?.rateWindow(for: .session),
+               weeklyWindow: codexProjection?.rateWindow(for: .weekly),
+               showUsed: self.settings.usageBarsShowUsed)
+        {
+            return combinedText
+        }
+        return MenuBarDisplayText.displayText(
+            mode: mode,
+            percentWindow: percentWindow,
+            pace: pace,
+            showUsed: self.settings.usageBarsShowUsed)
     }
 
     nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {

@@ -595,6 +595,7 @@ struct ProvidersPane: View {
             let metadata = self.store.metadata(for: provider)
             let snapshot = self.store.snapshot(for: provider)
             let supportsAverage = self.settings.menuBarMetricSupportsAverage(for: provider)
+            let supportsPrimaryAndSecondary = self.settings.menuBarMetricSupportsPrimaryAndSecondary(for: provider)
             let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider, snapshot: snapshot)
             let supportsExtraUsage = self.settings.menuBarMetricSupportsExtraUsage(for: provider, snapshot: snapshot)
             var metricOptions: [ProviderSettingsPickerOption] = [
@@ -606,6 +607,11 @@ struct ProvidersPane: View {
                     id: MenuBarMetricPreference.secondary.rawValue,
                     title: String(format: L("metric_secondary"), metadata.weeklyLabel)),
             ]
+            if supportsPrimaryAndSecondary {
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primaryAndSecondary.rawValue,
+                    title: "\(L(metadata.sessionLabel)) + \(L(metadata.weeklyLabel))"))
+            }
             if supportsTertiary {
                 let tertiaryTitle = metadata.opusLabel ?? MenuBarMetricPreference.tertiary.label
                 metricOptions.append(ProviderSettingsPickerOption(
