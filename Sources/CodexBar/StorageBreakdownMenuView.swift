@@ -9,12 +9,13 @@ struct StorageMenuCardSectionView: View {
     let width: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 6) {
             Text(L("Storage"))
                 .font(.body)
-                .fontWeight(.medium)
             Text(self.storageText)
-                .font(.caption)
+                .font(.body)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.top, self.topPadding)
@@ -28,11 +29,38 @@ struct StorageBreakdownMenuView: View {
     let width: CGFloat
     let maxHeight: CGFloat
 
+    @State private var otherExpanded = false
+
     init(footprint: ProviderStorageFootprint, width: CGFloat, maxHeight: CGFloat = 560) {
         self.footprint = footprint
         self.width = width
         self.maxHeight = maxHeight
     }
+
+    /// One entry in the segmented bar and its matching legend row. Overflow components past the row
+    /// budget collapse into a single trailing "Other" segment with no copyable path of its own.
+    private struct Segment: Identifiable {
+        let id: String
+        let name: String
+        let bytes: Int64
+        let color: Color
+        let path: String?
+    }
+
+    /// How many legend rows we let the breakdown show before collapsing the tail into "Other".
+    private static let maxRows = 8
+
+    private static let segmentPalette: [Color] = [
+        Color(red: 0.20, green: 0.51, blue: 0.96),
+        Color(red: 0.96, green: 0.55, blue: 0.20),
+        Color(red: 0.30, green: 0.78, blue: 0.47),
+        Color(red: 0.66, green: 0.42, blue: 0.93),
+        Color(red: 0.95, green: 0.74, blue: 0.22),
+        Color(red: 0.92, green: 0.36, blue: 0.55),
+        Color(red: 0.27, green: 0.76, blue: 0.82),
+    ]
+
+    private static let otherColor = Color(nsColor: .tertiaryLabelColor)
 
     var cleanupRecommendations: [ProviderStorageRecommendation] {
         self.footprint.cleanupRecommendations
@@ -40,15 +68,54 @@ struct StorageBreakdownMenuView: View {
 
     var copyablePaths: [String] {
         let recommendationPaths = self.cleanupRecommendations.map(\.path)
-        return self.visibleComponents.map(\.path) + recommendationPaths
+        return self.segments.compactMap(\.path) + recommendationPaths
     }
 
-    private var visibleComponents: [ProviderStorageFootprint.Component] {
-        Array(self.footprint.components.prefix(8))
+    /// Visible components mapped to colored segments, with any tail beyond `maxRows` folded into a
+    /// single "Other" entry so the bar and legend never exceed the row budget.
+    private var segments: [Segment] {
+        let components = self.footprint.components
+        guard !components.isEmpty else { return [] }
+
+        func color(_ index: Int) -> Color {
+            Self.segmentPalette[index % Self.segmentPalette.count]
+        }
+
+        func segment(_ component: ProviderStorageFootprint.Component, _ index: Int) -> Segment {
+            Segment(
+                id: component.id,
+                name: component.name,
+                bytes: component.totalBytes,
+                color: color(index),
+                path: component.path)
+        }
+
+        if components.count <= Self.maxRows {
+            return components.enumerated().map { segment($1, $0) }
+        }
+
+        let visible = components.prefix(Self.maxRows - 1)
+        let overflow = components.dropFirst(Self.maxRows - 1)
+        let otherBytes = overflow.reduce(Int64(0)) { $0 + $1.totalBytes }
+        return visible.enumerated().map { segment($1, $0) } + [
+            Segment(
+                id: "__other__",
+                name: String(format: L("Other (%d items)"), overflow.count),
+                bytes: otherBytes,
+                color: Self.otherColor,
+                path: nil),
+        ]
     }
 
-    private var maxBytes: Int64 {
-        max(self.visibleComponents.map(\.totalBytes).max() ?? 0, 1)
+    private var segmentTotalBytes: Int64 {
+        max(self.segments.reduce(Int64(0)) { $0 + $1.bytes }, 1)
+    }
+
+    /// The components folded into the trailing "Other" segment, revealed when it is expanded.
+    private var overflowComponents: [ProviderStorageFootprint.Component] {
+        let components = self.footprint.components
+        guard components.count > Self.maxRows else { return [] }
+        return Array(components.dropFirst(Self.maxRows - 1))
     }
 
     var body: some View {
@@ -70,28 +137,24 @@ struct StorageBreakdownMenuView: View {
                 Text(L("Storage"))
                     .font(.body)
                     .fontWeight(.medium)
-                Text(String(format: L("Total: %@"), UsageFormatter.byteCountString(self.footprint.totalBytes)))
+                Text(String(format: L("Total: %@"), UsageFormatter.byteCountStringLong(self.footprint.totalBytes)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if self.visibleComponents.isEmpty {
+            if self.segments.isEmpty {
                 Text(L("No local data found"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(self.visibleComponents) { component in
-                        self.componentRow(component)
+                self.segmentedBar
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(self.segments) { segment in
+                        self.legendRow(segment)
                     }
                 }
             }
 
-            if self.footprint.components.count > self.visibleComponents.count {
-                Text(String(format: L("%d more items"), self.footprint.components.count - self.visibleComponents.count))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
             if !self.cleanupRecommendations.isEmpty {
                 Divider()
                     .padding(.vertical, 2)
@@ -115,34 +178,91 @@ struct StorageBreakdownMenuView: View {
         .frame(width: self.width, alignment: .leading)
     }
 
-    private func componentRow(_ component: ProviderStorageFootprint.Component) -> some View {
-        let fraction = CGFloat(max(0, min(1, Double(component.totalBytes) / Double(self.maxBytes))))
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(component.path)
+    private var segmentedBar: some View {
+        GeometryReader { proxy in
+            let total = CGFloat(self.segmentTotalBytes)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(nsColor: .quaternaryLabelColor))
+                HStack(spacing: 0) {
+                    ForEach(self.segments) { segment in
+                        Rectangle()
+                            .fill(segment.color)
+                            .frame(width: max(2, proxy.size.width * CGFloat(segment.bytes) / total))
+                    }
+                }
+            }
+            .clipShape(Capsule())
+        }
+        .frame(height: 5)
+    }
+
+    private func legendRow(_ segment: Segment) -> some View {
+        let isOther = segment.path == nil
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(segment.color)
+                    .frame(width: 9, height: 9)
+                Text(segment.name)
                     .font(.caption)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(component.path)
+                    .help(segment.path ?? segment.name)
                     .layoutPriority(1)
                 Spacer()
-                StoragePathCopyButton(path: component.path)
-                Text(UsageFormatter.byteCountString(component.totalBytes))
+                if let path = segment.path {
+                    StoragePathCopyButton(path: path)
+                } else {
+                    self.otherExpandButton
+                }
+                Text(UsageFormatter.byteCountString(segment.bytes))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color(nsColor: .quaternaryLabelColor))
-                    Capsule()
-                        .fill(self.providerColor)
-                        .frame(width: max(2, proxy.size.width * fraction))
+            if isOther, self.otherExpanded {
+                self.overflowList
+            }
+        }
+    }
+
+    private var otherExpandButton: some View {
+        Button {
+            self.otherExpanded.toggle()
+        } label: {
+            Image(systemName: self.otherExpanded ? "chevron.down" : "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(self.otherExpanded ? L("Collapse") : L("Expand"))
+        .accessibilityLabel(self.otherExpanded ? L("Collapse") : L("Expand"))
+    }
+
+    /// Plain name + size rows for the items folded into "Other" — no colors, indented under its name.
+    private var overflowList: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(self.overflowComponents) { component in
+                HStack(spacing: 8) {
+                    Text(component.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(component.path)
+                    Spacer()
+                    Text(UsageFormatter.byteCountString(component.totalBytes))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
-            .frame(height: 5)
         }
+        .padding(.leading, 17)
     }
 
     private func recommendationRow(_ recommendation: ProviderStorageRecommendation) -> some View {
@@ -175,11 +295,6 @@ struct StorageBreakdownMenuView: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private var providerColor: Color {
-        let color = ProviderDescriptorRegistry.descriptor(for: self.footprint.provider).branding.color
-        return Color(red: color.red, green: color.green, blue: color.blue)
     }
 }
 

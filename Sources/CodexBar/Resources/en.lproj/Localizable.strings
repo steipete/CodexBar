@@ -877,6 +877,9 @@
 "Clearing removes local temporary provider data." = "Clearing removes local temporary provider data.";
 "Total: %@" = "Total: %@";
 "%d more items" = "%d more items";
+"Other (%d items)" = "Other (%d items)";
+"Expand" = "Expand";
+"Collapse" = "Collapse";
 "Cleanup ideas" = "Cleanup ideas";
 "%d unreadable item(s) skipped" = "%d unreadable item(s) skipped";
 
