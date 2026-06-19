@@ -1089,3 +1089,14 @@
 "1 manual reset available" = "Có 1 lần đặt lại thủ công";
 "%d manual resets available" = "Có %d lần đặt lại thủ công";
 "Next expires %@" = "Lượt tiếp theo hết hạn %@";
+"Other (%d items)" = "Khác (%d mục)";
+"Expand" = "Mở rộng";
+"Collapse" = "Thu gọn";
+"byte_unit_byte" = "byte";
+"byte_unit_bytes" = "byte";
+"byte_unit_kilobyte" = "kilobyte";
+"byte_unit_kilobytes" = "kilobyte";
+"byte_unit_megabyte" = "megabyte";
+"byte_unit_megabytes" = "megabyte";
+"byte_unit_gigabyte" = "gigabyte";
+"byte_unit_gigabytes" = "gigabyte";

@@ -1090,3 +1090,14 @@
 "1 manual reset available" = "1 manuelle Zurücksetzung verfügbar";
 "%d manual resets available" = "%d manuelle Zurücksetzungen verfügbar";
 "Next expires %@" = "Nächster Ablauf %@";
+"Other (%d items)" = "Andere (%d Elemente)";
+"Expand" = "Aufklappen";
+"Collapse" = "Zuklappen";
+"byte_unit_byte" = "Byte";
+"byte_unit_bytes" = "Byte";
+"byte_unit_kilobyte" = "Kilobyte";
+"byte_unit_kilobytes" = "Kilobyte";
+"byte_unit_megabyte" = "Megabyte";
+"byte_unit_megabytes" = "Megabyte";
+"byte_unit_gigabyte" = "Gigabyte";
+"byte_unit_gigabytes" = "Gigabyte";

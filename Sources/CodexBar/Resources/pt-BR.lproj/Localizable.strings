@@ -1089,3 +1089,14 @@
 "1 manual reset available" = "1 redefinição manual disponível";
 "%d manual resets available" = "%d redefinições manuais disponíveis";
 "Next expires %@" = "Próximo expira %@";
+"Other (%d items)" = "Outros (%d itens)";
+"Expand" = "Expandir";
+"Collapse" = "Recolher";
+"byte_unit_byte" = "byte";
+"byte_unit_bytes" = "bytes";
+"byte_unit_kilobyte" = "quilobyte";
+"byte_unit_kilobytes" = "quilobytes";
+"byte_unit_megabyte" = "megabyte";
+"byte_unit_megabytes" = "megabytes";
+"byte_unit_gigabyte" = "gigabyte";
+"byte_unit_gigabytes" = "gigabytes";

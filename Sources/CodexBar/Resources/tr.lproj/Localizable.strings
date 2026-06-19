@@ -1093,3 +1093,11 @@
 "1 manual reset available" = "1 manuel sıfırlama kullanılabilir";
 "%d manual resets available" = "%d manuel sıfırlama kullanılabilir";
 "Next expires %@" = "Sonraki sona erme %@";
+"byte_unit_byte" = "bayt";
+"byte_unit_bytes" = "bayt";
+"byte_unit_kilobyte" = "kilobayt";
+"byte_unit_kilobytes" = "kilobayt";
+"byte_unit_megabyte" = "megabayt";
+"byte_unit_megabytes" = "megabayt";
+"byte_unit_gigabyte" = "gigabayt";
+"byte_unit_gigabytes" = "gigabayt";

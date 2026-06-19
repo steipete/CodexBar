@@ -948,3 +948,14 @@
 "1 manual reset available" = "Hi ha 1 restabliment manual disponible";
 "%d manual resets available" = "Hi ha %d restabliments manuals disponibles";
 "Next expires %@" = "El següent caduca %@";
+"Other (%d items)" = "Altres (%d elements)";
+"Expand" = "Amplia";
+"Collapse" = "Redueix";
+"byte_unit_byte" = "byte";
+"byte_unit_bytes" = "bytes";
+"byte_unit_kilobyte" = "quilobyte";
+"byte_unit_kilobytes" = "quilobytes";
+"byte_unit_megabyte" = "megabyte";
+"byte_unit_megabytes" = "megabytes";
+"byte_unit_gigabyte" = "gigabyte";
+"byte_unit_gigabytes" = "gigabytes";

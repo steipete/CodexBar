@@ -17,6 +17,14 @@ struct UsageFormatterTests {
         "Updated just now",
         "usage_percent_suffix_left",
         "usage_percent_suffix_used",
+        "byte_unit_byte",
+        "byte_unit_bytes",
+        "byte_unit_kilobyte",
+        "byte_unit_kilobytes",
+        "byte_unit_megabyte",
+        "byte_unit_megabytes",
+        "byte_unit_gigabyte",
+        "byte_unit_gigabytes",
     ]
 
     @Test
@@ -351,6 +359,22 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.byteCountString(10 * 1024) == "10 KB")
         #expect(UsageFormatter.byteCountString(5 * 1024 * 1024) == "5 MB")
         #expect(UsageFormatter.byteCountString(Int64(1536 * 1024 * 1024)) == "1.5 GB")
+        #expect(UsageFormatter.byteCountString(.min) == "-8589934592 GB")
+    }
+
+    @Test
+    func `long byte count string localizes units and handles boundaries`() {
+        UsageFormatter.clearLocalizationProvider()
+        #expect(UsageFormatter.byteCountStringLong(1024 * 1024) == "1 megabyte")
+
+        UsageFormatter.setLocalizationProvider { "[\($0)]" }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        #expect(UsageFormatter.byteCountStringLong(1) == "1 [byte_unit_byte]")
+        #expect(UsageFormatter.byteCountStringLong(2) == "2 [byte_unit_bytes]")
+        #expect(UsageFormatter.byteCountStringLong(1536) == "1.5 [byte_unit_kilobytes]")
+        #expect(UsageFormatter.byteCountStringLong(1024 * 1024) == "1 [byte_unit_megabyte]")
+        #expect(UsageFormatter.byteCountStringLong(.min) == "-8589934592 [byte_unit_gigabytes]")
     }
 
     @Test

@@ -1096,3 +1096,11 @@
 "1 manual reset available" = "มีการรีเซ็ตด้วยตนเอง 1 ครั้ง";
 "%d manual resets available" = "มีการรีเซ็ตด้วยตนเอง %d ครั้ง";
 "Next expires %@" = "รายการถัดไปหมดอายุ %@";
+"byte_unit_byte" = "ไบต์";
+"byte_unit_bytes" = "ไบต์";
+"byte_unit_kilobyte" = "กิโลไบต์";
+"byte_unit_kilobytes" = "กิโลไบต์";
+"byte_unit_megabyte" = "เมกะไบต์";
+"byte_unit_megabytes" = "เมกะไบต์";
+"byte_unit_gigabyte" = "กิกะไบต์";
+"byte_unit_gigabytes" = "กิกะไบต์";

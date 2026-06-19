@@ -1065,3 +1065,14 @@
 "1 manual reset available" = "1 次手动重置可用";
 "%d manual resets available" = "%d 次手动重置可用";
 "Next expires %@" = "下一个将于 %@ 到期";
+"Other (%d items)" = "其他（%d 项）";
+"Expand" = "展开";
+"Collapse" = "收起";
+"byte_unit_byte" = "字节";
+"byte_unit_bytes" = "字节";
+"byte_unit_kilobyte" = "千字节";
+"byte_unit_kilobytes" = "千字节";
+"byte_unit_megabyte" = "兆字节";
+"byte_unit_megabytes" = "兆字节";
+"byte_unit_gigabyte" = "吉字节";
+"byte_unit_gigabytes" = "吉字节";

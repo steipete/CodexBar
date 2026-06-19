@@ -1096,3 +1096,11 @@
 "1 manual reset available" = "تتوفر إعادة تعيين يدوية واحدة";
 "%d manual resets available" = "تتوفر %d عمليات إعادة تعيين يدوية";
 "Next expires %@" = "تنتهي صلاحية التالية %@";
+"byte_unit_byte" = "بايت";
+"byte_unit_bytes" = "بايتات";
+"byte_unit_kilobyte" = "كيلوبايت";
+"byte_unit_kilobytes" = "كيلوبايتات";
+"byte_unit_megabyte" = "ميغابايت";
+"byte_unit_megabytes" = "ميغابايتات";
+"byte_unit_gigabyte" = "غيغابايت";
+"byte_unit_gigabytes" = "غيغابايتات";

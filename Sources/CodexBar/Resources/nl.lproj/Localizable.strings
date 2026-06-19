@@ -1088,3 +1088,14 @@
 "1 manual reset available" = "1 handmatige reset beschikbaar";
 "%d manual resets available" = "%d handmatige resets beschikbaar";
 "Next expires %@" = "Volgende verloopt %@";
+"Other (%d items)" = "Overig (%d onderdelen)";
+"Expand" = "Uitvouwen";
+"Collapse" = "Invouwen";
+"byte_unit_byte" = "byte";
+"byte_unit_bytes" = "bytes";
+"byte_unit_kilobyte" = "kilobyte";
+"byte_unit_kilobytes" = "kilobytes";
+"byte_unit_megabyte" = "megabyte";
+"byte_unit_megabytes" = "megabytes";
+"byte_unit_gigabyte" = "gigabyte";
+"byte_unit_gigabytes" = "gigabytes";

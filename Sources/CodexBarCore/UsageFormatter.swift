@@ -61,6 +61,14 @@ public enum UsageFormatter {
         case "usage_percent_suffix_left": return "left"
         case "usage_percent_suffix_used": return "used"
         case "reset_tomorrow_format": return "tomorrow, %@"
+        case "byte_unit_byte": return "byte"
+        case "byte_unit_bytes": return "bytes"
+        case "byte_unit_kilobyte": return "kilobyte"
+        case "byte_unit_kilobytes": return "kilobytes"
+        case "byte_unit_megabyte": return "megabyte"
+        case "byte_unit_megabytes": return "megabytes"
+        case "byte_unit_gigabyte": return "gigabyte"
+        case "byte_unit_gigabytes": return "gigabytes"
         default: return key
         }
     }
@@ -246,7 +254,7 @@ public enum UsageFormatter {
 
     public static func byteCountString(_ bytes: Int64) -> String {
         let sign = bytes < 0 ? "-" : ""
-        let absBytes = Double(Swift.abs(bytes))
+        let absBytes = Double(bytes.magnitude)
         let units: [(threshold: Double, divisor: Double, suffix: String)] = [
             (1024 * 1024 * 1024, 1024 * 1024 * 1024, "GB"),
             (1024 * 1024, 1024 * 1024, "MB"),
@@ -266,22 +274,23 @@ public enum UsageFormatter {
     /// Same magnitudes as `byteCountString`, but spelled out ("megabytes" instead of "MB").
     public static func byteCountStringLong(_ bytes: Int64) -> String {
         let sign = bytes < 0 ? "-" : ""
-        let absBytes = Double(Swift.abs(bytes))
-        let units: [(threshold: Double, divisor: Double, singular: String, plural: String)] = [
-            (1024 * 1024 * 1024, 1024 * 1024 * 1024, "gigabyte", "gigabytes"),
-            (1024 * 1024, 1024 * 1024, "megabyte", "megabytes"),
-            (1024, 1024, "kilobyte", "kilobytes"),
+        let absBytes = Double(bytes.magnitude)
+        let units: [(threshold: Double, divisor: Double, singularKey: String, pluralKey: String)] = [
+            (1024 * 1024 * 1024, 1024 * 1024 * 1024, "byte_unit_gigabyte", "byte_unit_gigabytes"),
+            (1024 * 1024, 1024 * 1024, "byte_unit_megabyte", "byte_unit_megabytes"),
+            (1024, 1024, "byte_unit_kilobyte", "byte_unit_kilobytes"),
         ]
 
         for unit in units where absBytes >= unit.threshold {
             let scaled = absBytes / unit.divisor
             let format = scaled >= 10 || scaled.rounded(.towardZero) == scaled ? "%.0f" : "%.1f"
-            let formatted = String(format: format, scaled)
-            let word = formatted == "1" ? unit.singular : unit.plural
+            let formatted = String(format: format, locale: self.currentLocale(), scaled)
+            let word = self.localized(scaled == 1 ? unit.singularKey : unit.pluralKey)
             return "\(sign)\(formatted) \(word)"
         }
 
-        return "\(bytes) \(Swift.abs(bytes) == 1 ? "byte" : "bytes")"
+        let word = self.localized(bytes.magnitude == 1 ? "byte_unit_byte" : "byte_unit_bytes")
+        return "\(bytes) \(word)"
     }
 
     public static func creditEventSummary(_ event: CreditEvent) -> String {

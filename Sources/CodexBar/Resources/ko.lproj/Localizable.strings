@@ -1059,3 +1059,14 @@
 "1 manual reset available" = "수동 재설정 1회 사용 가능";
 "%d manual resets available" = "수동 재설정 %d회 사용 가능";
 "Next expires %@" = "다음 만료: %@";
+"Other (%d items)" = "기타(%d개 항목)";
+"Expand" = "펼치기";
+"Collapse" = "접기";
+"byte_unit_byte" = "바이트";
+"byte_unit_bytes" = "바이트";
+"byte_unit_kilobyte" = "킬로바이트";
+"byte_unit_kilobytes" = "킬로바이트";
+"byte_unit_megabyte" = "메가바이트";
+"byte_unit_megabytes" = "메가바이트";
+"byte_unit_gigabyte" = "기가바이트";
+"byte_unit_gigabytes" = "기가바이트";

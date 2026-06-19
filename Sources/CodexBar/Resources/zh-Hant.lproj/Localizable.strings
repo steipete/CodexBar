@@ -961,3 +961,14 @@
 "1 manual reset available" = "可使用 1 次手動重設";
 "%d manual resets available" = "可使用 %d 次手動重設";
 "Next expires %@" = "下一個將於 %@ 到期";
+"Other (%d items)" = "其他（%d 個項目）";
+"Expand" = "展開";
+"Collapse" = "收合";
+"byte_unit_byte" = "位元組";
+"byte_unit_bytes" = "位元組";
+"byte_unit_kilobyte" = "千位元組";
+"byte_unit_kilobytes" = "千位元組";
+"byte_unit_megabyte" = "百萬位元組";
+"byte_unit_megabytes" = "百萬位元組";
+"byte_unit_gigabyte" = "十億位元組";
+"byte_unit_gigabytes" = "十億位元組";

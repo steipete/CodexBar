@@ -1096,3 +1096,11 @@
 "1 manual reset available" = "1 manual reset available";
 "%d manual resets available" = "%d manual resets available";
 "Next expires %@" = "Next expires %@";
+"byte_unit_byte" = "byte";
+"byte_unit_bytes" = "bytes";
+"byte_unit_kilobyte" = "kilobyte";
+"byte_unit_kilobytes" = "kilobytes";
+"byte_unit_megabyte" = "megabyte";
+"byte_unit_megabytes" = "megabytes";
+"byte_unit_gigabyte" = "gigabyte";
+"byte_unit_gigabytes" = "gigabytes";

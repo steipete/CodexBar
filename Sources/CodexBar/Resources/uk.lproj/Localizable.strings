@@ -1088,3 +1088,14 @@
 "1 manual reset available" = "Доступне 1 ручне скидання";
 "%d manual resets available" = "Доступно ручних скидань: %d";
 "Next expires %@" = "Наступне спливає %@";
+"Other (%d items)" = "Інше (%d елементів)";
+"Expand" = "Розгорнути";
+"Collapse" = "Згорнути";
+"byte_unit_byte" = "байт";
+"byte_unit_bytes" = "байти";
+"byte_unit_kilobyte" = "кілобайт";
+"byte_unit_kilobytes" = "кілобайти";
+"byte_unit_megabyte" = "мегабайт";
+"byte_unit_megabytes" = "мегабайти";
+"byte_unit_gigabyte" = "гігабайт";
+"byte_unit_gigabytes" = "гігабайти";

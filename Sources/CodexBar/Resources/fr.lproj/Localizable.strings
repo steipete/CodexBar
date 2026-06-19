@@ -1088,3 +1088,14 @@
 "1 manual reset available" = "1 réinitialisation manuelle disponible";
 "%d manual resets available" = "%d réinitialisations manuelles disponibles";
 "Next expires %@" = "Prochaine expiration %@";
+"Other (%d items)" = "Autres (%d éléments)";
+"Expand" = "Développer";
+"Collapse" = "Réduire";
+"byte_unit_byte" = "octet";
+"byte_unit_bytes" = "octets";
+"byte_unit_kilobyte" = "kilooctet";
+"byte_unit_kilobytes" = "kilooctets";
+"byte_unit_megabyte" = "mégaoctet";
+"byte_unit_megabytes" = "mégaoctets";
+"byte_unit_gigabyte" = "gigaoctet";
+"byte_unit_gigabytes" = "gigaoctets";

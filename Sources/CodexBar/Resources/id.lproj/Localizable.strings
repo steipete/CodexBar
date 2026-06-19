@@ -1095,3 +1095,11 @@
 "1 manual reset available" = "1 pengaturan ulang manual tersedia";
 "%d manual resets available" = "%d pengaturan ulang manual tersedia";
 "Next expires %@" = "Berikutnya kedaluwarsa %@";
+"byte_unit_byte" = "byte";
+"byte_unit_bytes" = "byte";
+"byte_unit_kilobyte" = "kilobyte";
+"byte_unit_kilobytes" = "kilobyte";
+"byte_unit_megabyte" = "megabyte";
+"byte_unit_megabytes" = "megabyte";
+"byte_unit_gigabyte" = "gigabyte";
+"byte_unit_gigabytes" = "gigabyte";

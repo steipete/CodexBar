@@ -68,7 +68,7 @@ struct StorageBreakdownMenuView: View {
 
     var copyablePaths: [String] {
         let recommendationPaths = self.cleanupRecommendations.map(\.path)
-        return self.segments.compactMap(\.path) + recommendationPaths
+        return self.footprint.components.map(\.path) + recommendationPaths
     }
 
     /// Visible components mapped to colored segments, with any tail beyond `maxRows` folded into a
@@ -85,7 +85,7 @@ struct StorageBreakdownMenuView: View {
             Segment(
                 id: component.id,
                 name: component.name,
-                bytes: component.totalBytes,
+                bytes: max(component.totalBytes, 0),
                 color: color(index),
                 path: component.path)
         }
@@ -96,7 +96,11 @@ struct StorageBreakdownMenuView: View {
 
         let visible = components.prefix(Self.maxRows - 1)
         let overflow = components.dropFirst(Self.maxRows - 1)
-        let otherBytes = overflow.reduce(Int64(0)) { $0 + $1.totalBytes }
+        let otherBytes = overflow.reduce(Int64(0)) { partial, component in
+            let bytes = max(component.totalBytes, 0)
+            let (sum, overflowed) = partial.addingReportingOverflow(bytes)
+            return overflowed ? .max : sum
+        }
         return visible.enumerated().map { segment($1, $0) } + [
             Segment(
                 id: "__other__",
@@ -107,8 +111,8 @@ struct StorageBreakdownMenuView: View {
         ]
     }
 
-    private var segmentTotalBytes: Int64 {
-        max(self.segments.reduce(Int64(0)) { $0 + $1.bytes }, 1)
+    private var segmentTotalBytes: Double {
+        max(self.segments.reduce(0) { $0 + Double($1.bytes) }, 1)
     }
 
     /// The components folded into the trailing "Other" segment, revealed when it is expanded.
@@ -205,7 +209,7 @@ struct StorageBreakdownMenuView: View {
         let reserved = minWidth * count
         guard barWidth > reserved else { return barWidth / max(count, 1) }
         let remainder = barWidth - reserved
-        let proportion = CGFloat(segment.bytes) / CGFloat(self.segmentTotalBytes)
+        let proportion = CGFloat(Double(segment.bytes) / self.segmentTotalBytes)
         return minWidth + remainder * proportion
     }
 
@@ -267,6 +271,7 @@ struct StorageBreakdownMenuView: View {
                         .truncationMode(.middle)
                         .help(component.path)
                     Spacer()
+                    StoragePathCopyButton(path: component.path)
                     Text(UsageFormatter.byteCountString(component.totalBytes))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -309,6 +314,26 @@ struct StorageBreakdownMenuView: View {
         }
     }
 }
+
+#if DEBUG
+extension StorageBreakdownMenuView {
+    var _segmentNamesForTesting: [String] {
+        self.segments.map(\.name)
+    }
+
+    var _segmentBytesForTesting: [Int64] {
+        self.segments.map(\.bytes)
+    }
+
+    var _overflowNamesForTesting: [String] {
+        self.overflowComponents.map(\.name)
+    }
+
+    func _segmentWidthsForTesting(barWidth: CGFloat) -> [CGFloat] {
+        self.segments.map { self.segmentWidth($0, barWidth: barWidth) }
+    }
+}
+#endif
 
 struct StoragePathCopyButton: View {
     let path: String
