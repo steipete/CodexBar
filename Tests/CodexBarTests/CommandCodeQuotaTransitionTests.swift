@@ -9,8 +9,16 @@ struct CommandCodeQuotaTransitionTests {
     func `display keeps prior primary only during subscription enrichment failure`() throws {
         let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
         let availableWithPlan = self.snapshot(remaining: 6, plan: plan)
-        let missingSubscription = self.snapshot(remaining: 0, plan: nil, subscriptionUnavailable: true)
+        let missingSubscription = self.snapshot(
+            remaining: 0,
+            purchasedCredits: 5,
+            plan: nil,
+            subscriptionUnavailable: true)
         let freeTier = self.snapshot(remaining: 0, plan: nil)
+        let freeTierWithPurchasedCredits = self.snapshot(remaining: 0, purchasedCredits: 5, plan: nil)
+
+        #expect(missingSubscription.primary?.usedPercent == 0)
+        #expect(freeTierWithPurchasedCredits.primary?.usedPercent == 0)
 
         let stabilized = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
@@ -20,7 +28,12 @@ struct CommandCodeQuotaTransitionTests {
         let startupFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: nil)
-        #expect(startupFailure.primary == nil)
+        #expect(startupFailure.primary?.usedPercent == 0)
+
+        let freeTierFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: missingSubscription,
+            previous: freeTierWithPurchasedCredits)
+        #expect(freeTierFailure.primary?.usedPercent == 0)
 
         let validFreeTier = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: freeTier,
@@ -37,15 +50,20 @@ struct CommandCodeQuotaTransitionTests {
         let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
         let depletedWithPlan = self.snapshot(remaining: 0, plan: plan)
         let freeTier = self.snapshot(remaining: 0, plan: nil)
-        let missingSubscription = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
-            current: self.snapshot(remaining: 0, plan: nil, subscriptionUnavailable: true),
-            previous: depletedWithPlan)
+        let missingSubscription = self.snapshot(
+            remaining: 0,
+            purchasedCredits: 5,
+            plan: nil,
+            subscriptionUnavailable: true)
 
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: freeTier)
         #expect(notifier.posts.isEmpty)
 
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: depletedWithPlan)
-        store.handleSessionQuotaTransition(provider: .commandcode, snapshot: missingSubscription)
+        let stabilizedFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: missingSubscription,
+            previous: depletedWithPlan)
+        store.handleSessionQuotaTransition(provider: .commandcode, snapshot: stabilizedFailure)
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: depletedWithPlan)
 
         #expect(notifier.posts.count(where: { $0.transition == .depleted }) == 1)
@@ -53,24 +71,6 @@ struct CommandCodeQuotaTransitionTests {
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: freeTier)
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: depletedWithPlan)
         #expect(notifier.posts.count(where: { $0.transition == .depleted }) == 2)
-    }
-
-    @Test
-    func `restored notification uses current credits during subscription enrichment failure`() throws {
-        let settings = self.makeSettings(suiteName: "CommandCodeRestoredDuringEnrichmentFailure")
-        settings.sessionQuotaNotificationsEnabled = true
-        let notifier = NotifierSpy()
-        let store = self.makeStore(settings: settings, notifier: notifier)
-        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
-
-        store.handleSessionQuotaTransition(
-            provider: .commandcode,
-            snapshot: self.snapshot(remaining: 0, plan: plan))
-        store.handleSessionQuotaTransition(
-            provider: .commandcode,
-            snapshot: self.snapshot(remaining: 4, plan: nil, subscriptionUnavailable: true))
-
-        #expect(notifier.posts.map(\.transition) == [.depleted, .restored])
     }
 
     @Test
@@ -84,9 +84,16 @@ struct CommandCodeQuotaTransitionTests {
 
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 6, plan: plan))
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
-        store.handleQuotaWarningTransitions(
-            provider: .commandcode,
-            snapshot: self.snapshot(remaining: 4, plan: nil, subscriptionUnavailable: true))
+        let availableWithPlan = self.snapshot(remaining: 4, plan: plan)
+        let missingSubscription = self.snapshot(
+            remaining: 0,
+            purchasedCredits: 5,
+            plan: nil,
+            subscriptionUnavailable: true)
+        let stabilizedFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: missingSubscription,
+            previous: availableWithPlan)
+        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: stabilizedFailure)
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
 
         #expect(notifier.quotaWarningPosts.count == 1)
@@ -119,12 +126,13 @@ struct CommandCodeQuotaTransitionTests {
 
     private func snapshot(
         remaining: Double,
+        purchasedCredits: Double = 0,
         plan: CommandCodePlanCatalog.Plan?,
         subscriptionUnavailable: Bool = false) -> UsageSnapshot
     {
         CommandCodeUsageSnapshot(
             monthlyCreditsRemaining: remaining,
-            purchasedCredits: 0,
+            purchasedCredits: purchasedCredits,
             premiumMonthlyCredits: 0,
             opensourceMonthlyCredits: 0,
             plan: plan,

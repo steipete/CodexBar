@@ -146,6 +146,10 @@ public struct UsageSnapshot: Codable, Sendable {
     public let cursorRequests: CursorRequestUsage?
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
+    /// Live-only marker that Command Code returned a recognized subscription plan.
+    public let commandCodeHasSubscriptionPlan: Bool
+    /// Live-only marker that Command Code's monthly grant has no remaining credits.
+    public let commandCodeMonthlyGrantDepleted: Bool
     public let subscriptionExpiresAt: Date?
     public let subscriptionRenewsAt: Date?
     public let updatedAt: Date
@@ -199,6 +203,8 @@ public struct UsageSnapshot: Codable, Sendable {
         poeUsage: PoeUsageHistorySnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
+        commandCodeHasSubscriptionPlan: Bool = false,
+        commandCodeMonthlyGrantDepleted: Bool = false,
         subscriptionExpiresAt: Date? = nil,
         subscriptionRenewsAt: Date? = nil,
         updatedAt: Date,
@@ -225,6 +231,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.poeUsage = poeUsage
         self.cursorRequests = cursorRequests
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
+        self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
+        self.commandCodeMonthlyGrantDepleted = commandCodeMonthlyGrantDepleted
         self.subscriptionExpiresAt = subscriptionExpiresAt
         self.subscriptionRenewsAt = subscriptionRenewsAt
         self.updatedAt = updatedAt
@@ -272,6 +280,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.poeUsage = try container.decodeIfPresent(PoeUsageHistorySnapshot.self, forKey: .poeUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
+        self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
+        self.commandCodeMonthlyGrantDepleted = false // Live-only fetch state
         self.subscriptionExpiresAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionExpiresAt)
         self.subscriptionRenewsAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionRenewsAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
@@ -496,6 +506,8 @@ public struct UsageSnapshot: Codable, Sendable {
             poeUsage: self.poeUsage,
             cursorRequests: self.cursorRequests,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
+            commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,
+            commandCodeMonthlyGrantDepleted: self.commandCodeMonthlyGrantDepleted,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt,
             updatedAt: self.updatedAt,

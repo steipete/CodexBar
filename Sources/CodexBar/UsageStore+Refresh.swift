@@ -14,7 +14,8 @@ extension UsageStore {
         previous: UsageSnapshot?) -> UsageSnapshot
     {
         guard current.commandCodeSubscriptionEnrichmentUnavailable,
-              current.primary == nil,
+              current.commandCodeMonthlyGrantDepleted,
+              previous?.commandCodeHasSubscriptionPlan == true,
               let previousPrimary = previous?.primary
         else {
             return current

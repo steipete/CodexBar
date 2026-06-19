@@ -68,6 +68,8 @@ public struct CommandCodeUsageSnapshot: Sendable {
             tertiary: nil,
             providerCost: nil,
             commandCodeSubscriptionEnrichmentUnavailable: self.subscriptionEnrichmentUnavailable,
+            commandCodeHasSubscriptionPlan: self.plan != nil,
+            commandCodeMonthlyGrantDepleted: self.monthlyCreditsRemaining <= 0,
             updatedAt: self.updatedAt,
             identity: identity)
     }
