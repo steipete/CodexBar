@@ -331,7 +331,10 @@ struct UsageBreakdownChartMenuView: View {
 
         // Stay on the last selected bar when cursor is in the gap between bars; only switch
         // selection when the cursor is over the bar's own visual body.
-        if let nearestEntry = model.selectableDayDates.first(where: { $0.dayKey == nearest }),
+        // Skip this gate for single-day charts: no gap exists, and selectionBandRect
+        // already covers the full plot width in that case.
+        if model.selectableDayDates.count > 1,
+           let nearestEntry = model.selectableDayDates.first(where: { $0.dayKey == nearest }),
            let barX = proxy.position(forX: nearestEntry.date)
         {
             let nextDayX = proxy.position(forX: nearestEntry.date.addingTimeInterval(86400)) ?? (barX + 20)
