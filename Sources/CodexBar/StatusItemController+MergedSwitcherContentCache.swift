@@ -134,6 +134,9 @@ extension StatusItemController {
         for item in items {
             menu.addItem(item)
         }
+        // Detached Refresh items cannot observe a completed manual refresh. Recompute only
+        // after AppKit has restored their menu so provider-scoped busy state is available.
+        self.updatePersistentRefreshItemsEnabled()
         return true
     }
 }

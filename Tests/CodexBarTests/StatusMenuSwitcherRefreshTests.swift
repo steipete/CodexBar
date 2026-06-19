@@ -417,6 +417,60 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
+    func `full cached reattachment resynchronizes detached refresh item`() throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = false
+        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        Self.enableCodexAndClaude(settings)
+        Self.disableOverview(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer {
+            controller.manualRefreshTask?.cancel()
+            controller.releaseStatusItemsForTesting()
+        }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let cache = try #require(
+            controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)]?[.provider(.codex)])
+        let refreshItem = try #require(cache.items.first { $0.title == "Refresh" })
+
+        controller.manualRefreshTask = Task {}
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(!refreshItem.isEnabled)
+
+        menu.removeAllItems()
+        #expect(refreshItem.menu == nil)
+        controller.manualRefreshTask = nil
+        controller.updatePersistentRefreshItemsEnabled()
+        #expect(!refreshItem.isEnabled)
+
+        #expect(controller.addCachedMergedSwitcherContent(
+            for: .provider(.codex),
+            to: menu,
+            menuWidth: cache.menuWidth,
+            codexAccountDisplay: cache.codexAccountDisplay,
+            tokenAccountDisplay: cache.tokenAccountDisplay))
+        #expect(refreshItem.menu === menu)
+        #expect(refreshItem.isEnabled)
+    }
+
+    @Test
     func `native image menu rows are replaced during reconciliation`() {
         let settings = Self.makeSettings()
         let fetcher = UsageFetcher()
