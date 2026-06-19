@@ -6,6 +6,12 @@ import SwiftUI
 struct CostHistoryChartMenuView: View {
     typealias DailyEntry = CostUsageDailyReport.Entry
 
+    enum AxisLabelPlacement: Equatable {
+        case hidden
+        case centered
+        case edges
+    }
+
     private struct Point: Identifiable {
         let id: String
         let date: Date
@@ -119,13 +125,17 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
 
-                if !model.axisDates.isEmpty {
+                let axisLabelPlacement = Self.axisLabelPlacement(for: model.axisDates)
+                if axisLabelPlacement != .hidden {
                     HStack {
+                        if axisLabelPlacement == .centered {
+                            Spacer()
+                        }
                         Text(model.axisDates[0], format: .dateTime.month(.abbreviated).day())
                             .font(.caption2)
                             .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                        if model.axisDates.count > 1 {
-                            Spacer()
+                        Spacer()
+                        if axisLabelPlacement == .edges {
                             Text(
                                 model.axisDates[model.axisDates.count - 1],
                                 format: .dateTime.month(.abbreviated).day())
@@ -336,6 +346,14 @@ struct CostHistoryChartMenuView: View {
             barColor: barColor,
             peakKey: maxCostUSD > 0 ? peak?.key : nil,
             maxCostUSD: maxCostUSD)
+    }
+
+    private static func axisLabelPlacement(for dates: [Date]) -> AxisLabelPlacement {
+        switch dates.count {
+        case 0: .hidden
+        case 1: .centered
+        default: .edges
+        }
     }
 
     private static func barColor(for provider: UsageProvider) -> Color {
@@ -579,6 +597,13 @@ extension CostHistoryChartMenuView {
 
     static func _axisDatesForTesting(provider: UsageProvider, daily: [DailyEntry]) -> [Date] {
         self.makeModel(provider: provider, daily: daily).axisDates
+    }
+
+    static func _axisLabelPlacementForTesting(
+        provider: UsageProvider,
+        daily: [DailyEntry]) -> AxisLabelPlacement
+    {
+        self.axisLabelPlacement(for: self.makeModel(provider: provider, daily: daily).axisDates)
     }
 
     static func _detailViewportHeightForTesting(modeSubtitlePresence: [Bool]) -> CGFloat {
