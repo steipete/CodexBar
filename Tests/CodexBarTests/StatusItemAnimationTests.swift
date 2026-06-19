@@ -952,10 +952,28 @@ struct StatusItemAnimationTests {
             sessionWindow: nil,
             weeklyWindow: weeklyWindow,
             showUsed: false)
+        let nineHour = MenuBarDisplayText.codexCombinedPercentText(
+            sessionWindow: RateWindow(
+                usedPercent: 7,
+                windowMinutes: 540,
+                resetsAt: nil,
+                resetDescription: nil),
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
+        let unknownSessionDuration = MenuBarDisplayText.codexCombinedPercentText(
+            sessionWindow: RateWindow(
+                usedPercent: 7,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: nil),
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
 
         #expect(remaining == "5h 93% · W 82%")
         #expect(used == "5h 7% · W 18%")
         #expect(weeklyOnly == "W 82%")
+        #expect(nineHour == "9h 93% · W 82%")
+        #expect(unknownSessionDuration == "S 93% · W 82%")
     }
 
     @Test
