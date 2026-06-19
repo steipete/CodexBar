@@ -93,12 +93,20 @@ struct CostHistoryChartMenuViewTests {
         let daily = [
             CostUsageDailyReport.Entry(
                 date: "2026-05-21",
-                inputTokens: nil, outputTokens: nil, totalTokens: nil,
-                costUSD: 1.0, modelsUsed: nil, modelBreakdowns: nil),
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: nil,
+                costUSD: 1.0,
+                modelsUsed: nil,
+                modelBreakdowns: nil),
             CostUsageDailyReport.Entry(
                 date: "2026-06-17",
-                inputTokens: nil, outputTokens: nil, totalTokens: nil,
-                costUSD: 2.0, modelsUsed: nil, modelBreakdowns: nil),
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: nil,
+                costUSD: 2.0,
+                modelsUsed: nil,
+                modelBreakdowns: nil),
         ]
         let dates = CostHistoryChartMenuView._axisDatesForTesting(provider: .codex, daily: daily)
         let cal = Calendar.current
@@ -115,8 +123,12 @@ struct CostHistoryChartMenuViewTests {
         let daily = [
             CostUsageDailyReport.Entry(
                 date: "2026-06-17",
-                inputTokens: nil, outputTokens: nil, totalTokens: nil,
-                costUSD: 1.0, modelsUsed: nil, modelBreakdowns: nil),
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: nil,
+                costUSD: 1.0,
+                modelsUsed: nil,
+                modelBreakdowns: nil),
         ]
         let dates = CostHistoryChartMenuView._axisDatesForTesting(provider: .codex, daily: daily)
         #expect(dates.count == 1)
@@ -128,8 +140,12 @@ struct CostHistoryChartMenuViewTests {
         let daily = [
             CostUsageDailyReport.Entry(
                 date: "2026-06-17",
-                inputTokens: nil, outputTokens: nil, totalTokens: nil,
-                costUSD: nil, modelsUsed: nil, modelBreakdowns: nil),
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: nil,
+                costUSD: nil,
+                modelsUsed: nil,
+                modelBreakdowns: nil),
         ]
         let dates = CostHistoryChartMenuView._axisDatesForTesting(provider: .codex, daily: daily)
         #expect(dates.isEmpty)
