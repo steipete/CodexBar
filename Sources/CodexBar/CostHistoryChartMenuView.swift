@@ -575,6 +575,10 @@ extension CostHistoryChartMenuView {
         self.defaultSelectedDateKey(model: self.makeModel(provider: provider, daily: daily))
     }
 
+    static func _axisDatesForTesting(provider: UsageProvider, daily: [DailyEntry]) -> [Date] {
+        self.makeModel(provider: provider, daily: daily).axisDates
+    }
+
     static func _detailViewportHeightForTesting(modeSubtitlePresence: [Bool]) -> CGFloat {
         let rows = modeSubtitlePresence.enumerated().map { index, hasModeSubtitle in
             DetailRow(
