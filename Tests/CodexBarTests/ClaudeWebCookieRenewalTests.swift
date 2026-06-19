@@ -76,15 +76,13 @@ struct ClaudeWebCookieRenewalTests {
         handler: @escaping @Sendable (URLRequest) throws -> (HTTPURLResponse, Data),
         operation: () async throws -> T) async rethrows -> T
     {
-        let registered = URLProtocol.registerClass(ClaudeWebCookieRenewalStubURLProtocol.self)
-        ClaudeWebCookieRenewalStubURLProtocol.handler = handler
-        defer {
-            if registered {
-                URLProtocol.unregisterClass(ClaudeWebCookieRenewalStubURLProtocol.self)
-            }
-            ClaudeWebCookieRenewalStubURLProtocol.handler = nil
+        let transport = ProviderHTTPTransportHandler { request in
+            let (response, data) = try handler(request)
+            return (data, response)
         }
-        return try await operation()
+        return try await ClaudeWebHTTPTransport.$overrideForTesting.withValue(transport) {
+            try await operation()
+        }
     }
 
     private static func response(
@@ -131,35 +129,6 @@ struct ClaudeWebCookieRenewalTests {
             ])!
         return (response, Data(body.utf8))
     }
-}
-
-private final class ClaudeWebCookieRenewalStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
-
-    override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "claude.ai"
-    }
-
-    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
-    }
-
-    override func startLoading() {
-        guard let handler = Self.handler else {
-            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-        do {
-            let (response, data) = try handler(self.request)
-            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            self.client?.urlProtocol(self, didLoad: data)
-            self.client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            self.client?.urlProtocol(self, didFailWithError: error)
-        }
-    }
-
-    override func stopLoading() {}
 }
 
 private final class RequestHeaderLog: @unchecked Sendable {

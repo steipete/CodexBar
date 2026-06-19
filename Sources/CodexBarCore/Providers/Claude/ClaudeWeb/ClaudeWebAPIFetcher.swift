@@ -4,6 +4,21 @@ import SweetCookieKit
 import FoundationNetworking
 #endif
 
+enum ClaudeWebHTTPTransport {
+    #if DEBUG
+    @TaskLocal static var overrideForTesting: (any ProviderHTTPTransport)?
+    #endif
+
+    static var current: any ProviderHTTPTransport {
+        #if DEBUG
+        if let override = self.overrideForTesting {
+            return override
+        }
+        #endif
+        return ProviderHTTPClient.shared
+    }
+}
+
 /// Fetches Claude usage data directly from the claude.ai API using browser session cookies.
 ///
 /// This approach mirrors what Claude Usage Tracker does, but automatically extracts the session key
@@ -338,7 +353,7 @@ public enum ClaudeWebAPIFetcher {
             request.timeoutInterval = 20
 
             do {
-                let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+                let (data, response) = try await ClaudeWebHTTPTransport.current.data(for: request)
                 let http = response as? HTTPURLResponse
                 let contentType = http?.allHeaderFields["Content-Type"] as? String
                 let truncated = data.prefix(Self.maxProbeBytes)
@@ -475,7 +490,7 @@ public enum ClaudeWebAPIFetcher {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+        let (data, response) = try await ClaudeWebHTTPTransport.current.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FetchError.invalidResponse
@@ -507,7 +522,7 @@ public enum ClaudeWebAPIFetcher {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+        let (data, response) = try await ClaudeWebHTTPTransport.current.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FetchError.invalidResponse
@@ -710,7 +725,7 @@ public enum ClaudeWebAPIFetcher {
         request.timeoutInterval = 15
 
         do {
-            let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+            let (data, response) = try await ClaudeWebHTTPTransport.current.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else { return nil }
             renewalTracker?.observe(response: httpResponse)
             logger?("Account API status: \(httpResponse.statusCode)")
@@ -1045,7 +1060,7 @@ private enum ClaudeWebExtraUsageCost {
         request.timeoutInterval = 15
 
         do {
-            let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+            let (data, response) = try await ClaudeWebHTTPTransport.current.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else { return nil }
             renewalTracker?.observe(response: httpResponse)
             logger?("Overage API status: \(httpResponse.statusCode)")
