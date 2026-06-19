@@ -234,6 +234,7 @@ final class UsageStore {
     @ObservationIgnored private var timerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
+    @ObservationIgnored private var tokenRefreshSequenceProvider: UsageProvider?
     @ObservationIgnored var memoryPressureReliefTask: Task<Void, Never>?
     @ObservationIgnored var startupConnectivityRetryTask: Task<Void, Never>?
     @ObservationIgnored var startupConnectivityRetryNeeded = false
@@ -723,27 +724,31 @@ final class UsageStore {
     }
 
     private func refreshTokenUsageSequenceNow(force: Bool) async {
-        await self.drainScheduledTokenRefreshIfNeeded(force: force)
+        await self.drainScheduledTokenRefreshIfNeeded(force: force, scopedTo: nil)
         await self.refreshTokenUsageSequence(force: force)
     }
 
     func refreshTokenUsageNow(for provider: UsageProvider, force: Bool) async {
-        await self.drainScheduledTokenRefreshIfNeeded(force: force)
+        await self.drainScheduledTokenRefreshIfNeeded(force: force, scopedTo: provider)
         await self.refreshTokenUsage(provider, force: force)
         self.scheduleMemoryPressureRelief()
     }
 
-    private func drainScheduledTokenRefreshIfNeeded(force: Bool) async {
+    private func drainScheduledTokenRefreshIfNeeded(force: Bool, scopedTo provider: UsageProvider?) async {
         guard force, let existing = self.tokenRefreshSequenceTask else { return }
+        if let provider, self.tokenRefreshSequenceProvider != provider { return }
         existing.cancel()
         await existing.value
         self.tokenRefreshSequenceTask = nil
     }
 
     private func refreshTokenUsageSequence(force: Bool) async {
+        defer { self.tokenRefreshSequenceProvider = nil }
         for provider in self.enabledProvidersForBackgroundWork() {
             if Task.isCancelled { break }
+            self.tokenRefreshSequenceProvider = provider
             await self.refreshTokenUsage(provider, force: force)
+            self.tokenRefreshSequenceProvider = nil
         }
         self.scheduleMemoryPressureRelief()
     }
@@ -1452,11 +1457,6 @@ extension UsageStore {
             return
         }
 
-        if let override = self._test_tokenUsageRefreshOverride {
-            await override(provider, force)
-            return
-        }
-
         if Self.tokenCostRequiresProviderSnapshot(provider) {
             if let snapshot = self.tokenSnapshot(fromProviderSnapshot: self.snapshots[provider], provider: provider) {
                 self.tokenSnapshots[provider] = snapshot
@@ -1507,6 +1507,15 @@ extension UsageStore {
         self.tokenRefreshInFlight.insert(provider)
         defer { self.tokenRefreshInFlight.remove(provider) }
 
+        if let override = self._test_tokenUsageRefreshOverride {
+            await override(provider, force)
+            if Task.isCancelled {
+                self.lastTokenFetchAt.removeValue(forKey: provider)
+                self.lastTokenFetchScope.removeValue(forKey: provider)
+            }
+            return
+        }
+
         let startedAt = Date()
         let providerText = provider.rawValue
         self.tokenCostLogger
@@ -1546,6 +1555,7 @@ extension UsageStore {
                 guard let snapshot = try await group.next() else { throw CancellationError() }
                 return snapshot
             }
+            try Task.checkCancellation()
 
             guard !snapshot.daily.isEmpty else {
                 self.tokenSnapshots.removeValue(forKey: provider)
@@ -1570,7 +1580,11 @@ extension UsageStore {
             self.tokenFailureGates[provider]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
         } catch {
-            if error is CancellationError { return }
+            if error is CancellationError {
+                self.lastTokenFetchAt.removeValue(forKey: provider)
+                self.lastTokenFetchScope.removeValue(forKey: provider)
+                return
+            }
             let duration = Date().timeIntervalSince(startedAt)
             let msg = error.localizedDescription
             let durationText = String(format: "%.2f", duration)

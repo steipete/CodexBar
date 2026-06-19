@@ -63,9 +63,7 @@ extension StatusItemController {
 
     func isRefreshActionInFlight(for menu: NSMenu) -> Bool {
         if self.manualRefreshTask != nil {
-            guard let manualRefreshProvider else { return true }
-            if self.isMergedOverviewSelected(in: menu) { return false }
-            return self.menuProvider(for: menu) == manualRefreshProvider
+            return true
         }
 
         if self.isMergedOverviewSelected(in: menu) {

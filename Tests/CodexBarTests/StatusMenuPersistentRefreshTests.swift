@@ -257,11 +257,14 @@ struct StatusMenuPersistentRefreshTests {
         #expect(row != nil)
         #expect(controller.persistentRefreshRows.allObjects.contains { $0 === row })
 
+        controller.manualRefreshProvider = .claude
         controller.manualRefreshTask = Task {}
         controller.updatePersistentRefreshRowsInProgress()
         #expect(row?.isInProgressForTesting == true)
+        #expect(controller.isRefreshActionInFlight(for: menu))
 
         controller.manualRefreshTask = nil
+        controller.manualRefreshProvider = nil
         controller.store.isRefreshing = false
         controller.updatePersistentRefreshRowsInProgress()
         #expect(row?.isInProgressForTesting == false)
@@ -798,14 +801,24 @@ struct StatusMenuPersistentRefreshTests {
 
         let controller = self.makeController(settings: settings)
         let menu = try #require(controller.makeMenu(for: .claude) as? StatusItemMenu)
+        let codexMenu = try #require(controller.makeMenu(for: .codex) as? StatusItemMenu)
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
 
         let mouseGate = ManualRefreshGate()
-        controller._test_manualRefreshOperation = { await mouseGate.wait() }
+        var requestCount = 0
+        controller._test_manualRefreshOperation = {
+            requestCount += 1
+            await mouseGate.wait()
+        }
         controller.performPersistentMenuAction(.refresh, in: menu)
         let mouseTask = try #require(controller.manualRefreshTask)
         #expect(controller.manualRefreshProvider == .claude)
+        #expect(controller.isRefreshActionInFlight(for: codexMenu))
+        #expect(controller.isRefreshActionInFlight(for: NSMenu()))
+        controller.performPersistentMenuAction(.refresh, in: codexMenu)
+        await Task.yield()
+        #expect(requestCount == 1)
         mouseGate.resume()
         await mouseTask.value
 
