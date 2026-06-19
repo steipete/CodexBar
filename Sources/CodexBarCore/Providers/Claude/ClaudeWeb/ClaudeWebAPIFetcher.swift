@@ -156,6 +156,7 @@ public enum ClaudeWebAPIFetcher {
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
+        var expectedCachedEntry: CookieHeaderCache.Entry?
 
         if let cached = CookieHeaderCache.load(provider: .claude),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -163,14 +164,14 @@ public enum ClaudeWebAPIFetcher {
             log("Using cached cookie header from \(cached.sourceLabel)")
             do {
                 return try await self.fetchUsageAndRenewCache(
-                    cookieHeader: cached.cookieHeader,
-                    sourceLabel: cached.sourceLabel,
+                    cachedEntry: cached,
                     targetOrganizationID: targetOrganizationID,
                     logger: log)
             } catch let error as FetchError {
                 switch error {
                 case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
-                    CookieHeaderCache.clear(provider: .claude)
+                    let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: cached)
+                    expectedCachedEntry = cleared ? nil : cached
                 default:
                     throw error
                 }
@@ -186,7 +187,8 @@ public enum ClaudeWebAPIFetcher {
             using: sessionInfo,
             targetOrganizationID: targetOrganizationID,
             logger: log,
-            cacheSourceLabel: sessionInfo.sourceLabel)
+            cacheSourceLabel: sessionInfo.sourceLabel,
+            expectedCachedEntry: expectedCachedEntry)
     }
 
     public static func fetchUsage(
@@ -212,28 +214,30 @@ public enum ClaudeWebAPIFetcher {
             using: sessionKeyInfo,
             targetOrganizationID: targetOrganizationID,
             logger: logger,
-            cacheSourceLabel: nil)
+            cacheSourceLabel: nil,
+            expectedCachedEntry: nil)
     }
 
     private static func fetchUsageAndRenewCache(
-        cookieHeader: String,
-        sourceLabel: String,
+        cachedEntry: CookieHeaderCache.Entry,
         targetOrganizationID: String?,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
-        let sessionInfo = try self.sessionKeyInfo(cookieHeader: cookieHeader)
+        let sessionInfo = try self.sessionKeyInfo(cookieHeader: cachedEntry.cookieHeader)
         return try await self.fetchUsage(
             using: sessionInfo,
             targetOrganizationID: targetOrganizationID,
             logger: logger,
-            cacheSourceLabel: sourceLabel)
+            cacheSourceLabel: cachedEntry.sourceLabel,
+            expectedCachedEntry: cachedEntry)
     }
 
     private static func fetchUsage(
         using sessionKeyInfo: SessionKeyInfo,
         targetOrganizationID: String?,
         logger: ((String) -> Void)?,
-        cacheSourceLabel: String?) async throws -> WebUsageData
+        cacheSourceLabel: String?,
+        expectedCachedEntry: CookieHeaderCache.Entry?) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?(msg) }
         let sessionKey = sessionKeyInfo.key
@@ -305,12 +309,13 @@ public enum ClaudeWebAPIFetcher {
         }
         if let cacheSourceLabel {
             let renewedCookieHeader = renewalTracker.renewedCookieHeader
-            CookieHeaderCache.store(
+            let stored = CookieHeaderCache.storeIfCurrent(
                 provider: .claude,
+                expected: expectedCachedEntry,
                 cookieHeader: renewedCookieHeader ?? "sessionKey=\(sessionKey)",
                 sourceLabel: cacheSourceLabel)
             if renewedCookieHeader != nil {
-                log("Stored renewed Claude session key from Set-Cookie")
+                log(stored ? "Stored renewed Claude session key" : "Skipped renewal because the cache changed")
             }
         }
         return usage

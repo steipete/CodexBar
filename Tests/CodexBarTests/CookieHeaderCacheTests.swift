@@ -30,6 +30,90 @@ struct CookieHeaderCacheTests {
     }
 
     @Test
+    func `conditional mutation does not overwrite or clear a newer entry`() {
+        self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-initial",
+                sourceLabel: "Chrome")
+            let loaded = CookieHeaderCache.load(provider: .claude)
+            #expect(loaded != nil)
+            guard let initial = loaded else { return }
+
+            let renewed = CookieHeaderCache.storeIfCurrent(
+                provider: .claude,
+                expected: initial,
+                cookieHeader: "sessionKey=sk-ant-newer",
+                sourceLabel: "Chrome")
+            let staleStore = CookieHeaderCache.storeIfCurrent(
+                provider: .claude,
+                expected: initial,
+                cookieHeader: "sessionKey=sk-ant-older",
+                sourceLabel: "Chrome")
+            let staleClear = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: initial)
+
+            #expect(renewed)
+            #expect(!staleStore)
+            #expect(!staleClear)
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-newer")
+        }
+    }
+
+    @Test
+    func `conditional clear failure still permits replacing the same entry`() {
+        self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale",
+                sourceLabel: "Chrome")
+            let loaded = CookieHeaderCache.load(provider: .claude)
+            #expect(loaded != nil)
+            guard let stale = loaded else { return }
+
+            let cleared = KeychainCacheStore.withClearFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                CookieHeaderCache.clearIfCurrent(provider: .claude, expected: stale)
+            }
+            let replaced = CookieHeaderCache.storeIfCurrent(
+                provider: .claude,
+                expected: stale,
+                cookieHeader: "sessionKey=sk-ant-fresh",
+                sourceLabel: "Safari")
+
+            #expect(!cleared)
+            #expect(replaced)
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-fresh")
+        }
+    }
+
+    @Test
+    func `conditional mutation recognizes a legacy entry after migration failure`() {
+        self.withIsolatedCookieCache {
+            let legacy = CookieHeaderCache.Entry(
+                cookieHeader: "sessionKey=sk-ant-legacy",
+                storedAt: Date(timeIntervalSince1970: 1),
+                sourceLabel: "Chrome")
+            CookieHeaderCache.store(legacy, to: CookieHeaderCache.legacyURLForTesting(provider: .claude))
+
+            let loaded = KeychainCacheStore.withStoreFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                CookieHeaderCache.load(provider: .claude)
+            }
+            #expect(loaded?.cookieHeader == legacy.cookieHeader)
+            guard let loaded else { return }
+
+            let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: loaded)
+            let replaced = CookieHeaderCache.storeIfCurrent(
+                provider: .claude,
+                expected: nil,
+                cookieHeader: "sessionKey=sk-ant-fresh",
+                sourceLabel: "Safari")
+
+            #expect(cleared)
+            #expect(replaced)
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-fresh")
+        }
+    }
+
+    @Test
     func `stores separate codex entries per managed account scope`() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
