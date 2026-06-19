@@ -229,6 +229,7 @@ public enum MiMoCookieImporter {
             let profileDirectory = URL(fileURLWithPath: profileID, isDirectory: true)
             let sessionRecords = MiMoFirefoxSessionCookieImporter.records(
                 profileDirectory: profileDirectory,
+                persistedRecords: source.records,
                 logger: logger)
             guard !sessionRecords.isEmpty else {
                 if resolvedByProfileID[profileID] == nil {
@@ -376,28 +377,48 @@ enum MiMoFirefoxSessionCookieImporter {
 
     static func records(
         profileDirectory: URL,
+        persistedRecords: [BrowserCookieRecord] = [],
         now: Date = Date(),
         logger: ((String) -> Void)? = nil) -> [BrowserCookieRecord]
     {
         let files = self.sessionRestoreFiles(profileDirectory: profileDirectory)
+        var firstPartialRecords: [BrowserCookieRecord] = []
         for file in files {
             do {
                 let data = try self.readData(from: file)
                 let jsonData = try self.decodeSessionRestoreData(data)
                 let records = try self.cookieRecords(fromJSONData: jsonData, now: now)
-                if !records.isEmpty {
-                    logger?(
-                        "\(profileDirectory.lastPathComponent): found MiMo session cookies in " +
-                            "\(file.lastPathComponent)")
-                    return records
+                guard !records.isEmpty else { continue }
+                let isCurrentRestore = file.lastPathComponent == "recovery.jsonlz4" ||
+                    (file.lastPathComponent == "sessionstore.jsonlz4" &&
+                        file.deletingLastPathComponent().standardizedFileURL == profileDirectory.standardizedFileURL)
+                let persistedKeys = Set(persistedRecords.map { "\($0.name)|\($0.domain)|\($0.path)" })
+                let candidateRecords = isCurrentRestore ? records : records.filter { record in
+                    !persistedKeys.contains("\(record.name)|\(record.domain)|\(record.path)")
                 }
+                guard !candidateRecords.isEmpty else { continue }
+                if firstPartialRecords.isEmpty {
+                    firstPartialRecords = candidateRecords
+                }
+                let candidateKeys = Set(candidateRecords.map { "\($0.name)|\($0.domain)|\($0.path)" })
+                let resolvedRecords = persistedRecords.filter { record in
+                    !candidateKeys.contains("\(record.name)|\(record.domain)|\(record.path)")
+                } + candidateRecords
+                let cookies = BrowserCookieClient.makeHTTPCookies(resolvedRecords, origin: .domainBased)
+                if MiMoCookieHeader.header(from: cookies) != nil {
+                    logger?(
+                        "\(profileDirectory.lastPathComponent): found MiMo session cookies through " +
+                            "\(file.lastPathComponent)")
+                    return candidateRecords
+                }
+                logger?("\(profileDirectory.lastPathComponent): partial MiMo cookies in \(file.lastPathComponent)")
             } catch {
                 logger?(
                     "\(profileDirectory.lastPathComponent): could not read Firefox session restore " +
                         "\(file.lastPathComponent): \(error.localizedDescription)")
             }
         }
-        return []
+        return firstPartialRecords
     }
 
     static func readData(

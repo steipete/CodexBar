@@ -1123,6 +1123,76 @@ extension MiMoProviderTests {
     }
 
     @Test
+    func `mimo importer checks backup after partial firefox recovery`() throws {
+        let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-backup")
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let partial = """
+        {"cookies":[
+          {"host":".platform.xiaomimimo.com","path":"/","name":"api-platform_ph","value":"ph-token"}
+        ]}
+        """
+        let complete = """
+        {"cookies":[
+          {"host":".platform.xiaomimimo.com","path":"/","name":"api-platform_serviceToken","value":"svc-token"},
+          {"host":".xiaomimimo.com","path":"/","name":"userId","value":"1863175063"}
+        ]}
+        """
+        try self.mozillaLZ4LiteralFile(partial).write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+        try self.mozillaLZ4LiteralFile(complete).write(to: backups.appendingPathComponent("recovery.baklz4"))
+
+        let records = MiMoFirefoxSessionCookieImporter.records(profileDirectory: profile)
+        let store = self.makeFirefoxCookieStore(profileDirectory: profile)
+        let sessions = MiMoCookieImporter.sessionInfos(from: [
+            BrowserCookieStoreRecords(store: store, records: records),
+        ])
+
+        #expect(sessions.map(\.cookieHeader) == [
+            "api-platform_serviceToken=svc-token; userId=1863175063",
+        ])
+    }
+
+    @Test
+    func `mimo importer keeps persisted cookie over older firefox backup`() throws {
+        let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-persisted")
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let recovery = """
+        {"cookies":[
+          {"host":".platform.xiaomimimo.com","path":"/","name":"api-platform_ph","value":"ph-token"}
+        ]}
+        """
+        let backup = """
+        {"cookies":[
+          {"host":".platform.xiaomimimo.com","path":"/","name":"api-platform_serviceToken","value":"old-token"},
+          {"host":".xiaomimimo.com","path":"/","name":"userId","value":"old-user"}
+        ]}
+        """
+        try self.mozillaLZ4LiteralFile(recovery).write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+        try self.mozillaLZ4LiteralFile(backup).write(to: backups.appendingPathComponent("recovery.baklz4"))
+
+        let store = self.makeFirefoxCookieStore(profileDirectory: profile)
+        let persisted = BrowserCookieStoreRecords(store: store, records: [
+            BrowserCookieRecord(
+                domain: "platform.xiaomimimo.com",
+                name: "api-platform_serviceToken",
+                path: "/",
+                value: "current-token",
+                expires: Date(timeIntervalSince1970: 1_912_064_978),
+                isSecure: false,
+                isHTTPOnly: false),
+        ])
+        let resolved = MiMoCookieImporter.recordsIncludingFirefoxSessionCookies(
+            from: [persisted],
+            browser: .firefox,
+            stores: [store])
+
+        #expect(MiMoCookieImporter.sessionInfos(from: resolved).map(\.cookieHeader) == [
+            "api-platform_serviceToken=current-token; userId=old-user",
+        ])
+    }
+
+    @Test
     func `mimo importer recovers session cookies when firefox query returns no rows`() throws {
         let (temp, profile, backups) = try self.makeFirefoxSessionRestoreProfile(prefix: "mimo-firefox-empty-store")
         defer { try? FileManager.default.removeItem(at: temp) }
