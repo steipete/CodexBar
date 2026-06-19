@@ -551,6 +551,23 @@ struct CodexBarTests {
     }
 
     @Test
+    func `merged icon keeps exhausted warp bonus fully used`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let percents = IconRemainingResolver.resolvedPercents(
+            snapshot: snapshot,
+            style: .warp,
+            showUsed: true,
+            renderingStyle: .combined)
+
+        #expect(percents.primary == 10)
+        #expect(percents.secondary == 100)
+    }
+
+    @Test
     @MainActor
     func `status icon accessibility uses percentage scale`() {
         #expect(

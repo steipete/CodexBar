@@ -136,6 +136,7 @@ enum IconRemainingResolver {
         snapshot: UsageSnapshot,
         style: IconStyle,
         showUsed: Bool,
+        renderingStyle: IconStyle? = nil,
         secondaryOverrideWindowID: String? = nil)
         -> (primary: Double?, secondary: Double?)
     {
@@ -146,7 +147,9 @@ enum IconRemainingResolver {
         var percents = (
             primary: showUsed ? windows.primary?.usedPercent : windows.primary?.remainingPercent,
             secondary: showUsed ? windows.secondary?.usedPercent : windows.secondary?.remainingPercent)
-        if showUsed, style == .warp, let secondary = windows.secondary {
+        // Provider style chooses the usage lanes; rendering style controls renderer-specific layout sentinels.
+        // Merged icons still resolve Warp's lanes, but render as `.combined` and must keep the real percentage.
+        if showUsed, style == .warp, (renderingStyle ?? style) == .warp, let secondary = windows.secondary {
             if secondary.remainingPercent <= 0 {
                 // Preserve Warp's exhausted/no-bonus layout even though used percent is 100.
                 percents.secondary = 0

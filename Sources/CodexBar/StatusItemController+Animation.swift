@@ -255,6 +255,7 @@ extension StatusItemController {
                 snapshot: $0,
                 style: resolverStyle,
                 showUsed: showUsed,
+                renderingStyle: style,
                 secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0))
         }
         var primary = resolved?.primary
