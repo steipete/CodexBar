@@ -288,11 +288,15 @@ public struct KiroStatusProbe: Sendable {
 
         let accountStatus = try await self.awaitAccountStatus(accountTask)
         let accountInfo = accountStatus.account
-        return try self.parse(
-            output: output,
-            accountEmail: accountInfo?.email,
-            authMethod: accountInfo?.authMethod,
-            contextUsage: contextUsage)
+        do {
+            return try self.parse(
+                output: output,
+                accountEmail: accountInfo?.email,
+                authMethod: accountInfo?.authMethod,
+                contextUsage: contextUsage)
+        } catch KiroStatusProbeError.parseError where accountStatus == .notLoggedIn {
+            throw KiroStatusProbeError.notLoggedIn
+        }
     }
 
     struct KiroCLIResult {
