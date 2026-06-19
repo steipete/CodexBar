@@ -1108,3 +1108,6 @@
 "byte_unit_megabytes" = "مگابایت";
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
+"System account switched" = "حساب سیستم تغییر کرد";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "حساب سیستم Codex CLI بلافاصله تغییر کرد. اگر برنامه دسکتاپ Codex باز است، آن را ببندید و دوباره باز کنید تا حساب جدید را دریافت کند.";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "حساب سیستم تغییر کرد، اما CodexBar نتوانست سرویس پس‌زمینه پیکربندی‌شده Codex را دوباره راه‌اندازی کند. اگر برنامه دسکتاپ Codex باز است، آن را ببندید و دوباره باز کنید، سپس پیش از استفاده از نشست‌های مبتنی بر app-server سرویس پس‌زمینه را دوباره راه‌اندازی کنید.";

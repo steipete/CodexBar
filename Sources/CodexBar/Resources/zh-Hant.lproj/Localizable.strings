@@ -976,3 +976,6 @@
 "byte_unit_megabytes" = "百萬位元組";
 "byte_unit_gigabyte" = "十億位元組";
 "byte_unit_gigabytes" = "十億位元組";
+"System account switched" = "系統帳號已切換";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "Codex CLI 系統帳號已立即變更。如果 Codex 桌面 App 已開啟，請結束並重新開啟，讓它使用新帳號。";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "系統帳號已切換，但 CodexBar 無法重新啟動已設定的 Codex 背景服務。請結束並重新開啟 Codex 桌面 App，然後在使用以 app-server 為基礎的工作階段前重新啟動背景服務。";

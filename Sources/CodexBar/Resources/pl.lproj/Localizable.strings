@@ -1107,3 +1107,6 @@
 "byte_unit_megabytes" = "megabajty";
 "byte_unit_gigabyte" = "gigabajt";
 "byte_unit_gigabytes" = "gigabajty";
+"System account switched" = "Przełączono konto systemowe";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "Konto systemowe Codex CLI zostało zmienione natychmiast. Jeśli aplikacja Codex jest otwarta, zamknij ją i uruchom ponownie, aby użyła nowego konta.";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "Konto systemowe zostało przełączone, ale CodexBar nie mógł ponownie uruchomić skonfigurowanej usługi Codex w tle. Zamknij i ponownie otwórz aplikację Codex, a następnie uruchom ponownie usługę przed użyciem sesji opartych na app-server.";

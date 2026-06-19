@@ -82,6 +82,7 @@ final class CodexAccountPromotionTestContainer {
     func makeService(
         store: (any ManagedCodexAccountStoring)? = nil,
         liveAuthSwapper: (any CodexLiveAuthSwapping)? = nil,
+        appServerDaemonReloader: (any CodexAppServerDaemonReloading)? = nil,
         activeSourceWriter: (any CodexActiveSourceWriting)? = nil,
         snapshotLoader: (any CodexAccountReconciliationSnapshotLoading)? = nil,
         accountScopedRefresher: (any CodexAccountScopedRefreshing)? = nil)
@@ -96,6 +97,8 @@ final class CodexAccountPromotionTestContainer {
                 ?? SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: self.settings),
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             liveAuthSwapper: liveAuthSwapper ?? DefaultCodexLiveAuthSwapper(),
+            appServerDaemonReloader: appServerDaemonReloader
+                ?? RecordingCodexAppServerDaemonReloader(outcome: .notNeeded),
             activeSourceWriter: activeSourceWriter
                 ?? SettingsStoreCodexActiveSourceWriter(settingsStore: self.settings),
             accountScopedRefresher: accountScopedRefresher
@@ -449,6 +452,25 @@ final class RecordingCodexLiveAuthSwapper: CodexLiveAuthSwapping, @unchecked Sen
         self.swappedData.append(data)
         try self.onSwap?(data, liveHomeURL)
         try self.base.swapLiveAuthData(data, liveHomeURL: liveHomeURL)
+    }
+}
+
+final class RecordingCodexAppServerDaemonReloader: CodexAppServerDaemonReloading, @unchecked Sendable {
+    private(set) var reloadCallCount = 0
+    private let outcomes: [CodexAppServerDaemonReloadOutcome]
+
+    init(outcome: CodexAppServerDaemonReloadOutcome) {
+        self.outcomes = [outcome]
+    }
+
+    init(outcomes: [CodexAppServerDaemonReloadOutcome]) {
+        precondition(!outcomes.isEmpty)
+        self.outcomes = outcomes
+    }
+
+    func reloadAfterAuthPromotion() async -> CodexAppServerDaemonReloadOutcome {
+        self.reloadCallCount += 1
+        return self.outcomes[min(self.reloadCallCount - 1, self.outcomes.count - 1)]
     }
 }
 

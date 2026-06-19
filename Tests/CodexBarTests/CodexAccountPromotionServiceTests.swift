@@ -20,17 +20,113 @@ struct CodexAccountPromotionServiceTests {
         try container.removeLiveAuthFile()
 
         let targetAuthData = try container.managedAuthData(for: target)
-        let result = try await container.makeService().promoteManagedAccount(id: target.id)
+        let daemonReloader = RecordingCodexAppServerDaemonReloader(outcome: .restarted)
+        let result = try await container.makeService(appServerDaemonReloader: daemonReloader)
+            .promoteManagedAccount(id: target.id)
         let accounts = try container.loadAccounts().accounts
 
         #expect(result.targetManagedAccountID == target.id)
         #expect(result.outcome == .promoted)
         #expect(result.displacedLiveDisposition == .none)
         #expect(result.didMutateLiveAuth)
+        #expect(result.appServerDaemonReloadOutcome == .restarted)
         #expect(result.resultingActiveSource == .liveSystem)
+        #expect(daemonReloader.reloadCallCount == 1)
         #expect(try container.liveAuthData() == targetAuthData)
         #expect(accounts.count == 1)
         #expect(accounts.first?.id == target.id)
+        #expect(container.settings.codexActiveSource == .liveSystem)
+        #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
+    }
+
+    @Test
+    func `daemon restart failure reports partial success after refreshing promoted account`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionServiceTests-daemon-restart-failure")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        try container.removeLiveAuthFile()
+
+        let daemonReloader = RecordingCodexAppServerDaemonReloader(outcome: .failed("restart failed"))
+        let service = container.makeService(appServerDaemonReloader: daemonReloader)
+
+        await #expect(throws: CodexAccountPromotionError.appServerDaemonRestartFailed("restart failed")) {
+            try await service.promoteManagedAccount(id: target.id)
+        }
+        #expect(daemonReloader.reloadCallCount == 1)
+        #expect(container.settings.codexActiveSource == .liveSystem)
+        #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
+    }
+
+    @Test
+    func `unsupported daemon capability reports partial success after promotion`() async throws {
+        try await self.assertManualDaemonRestartOutcome(
+            .unavailable,
+            suiteName: "CodexAccountPromotionServiceTests-daemon-unavailable")
+    }
+
+    @Test
+    func `unmanaged daemon reports partial success after promotion`() async throws {
+        try await self.assertManualDaemonRestartOutcome(
+            .unmanaged,
+            suiteName: "CodexAccountPromotionServiceTests-daemon-unmanaged")
+    }
+
+    @Test
+    func `retry after daemon restart failure reloads converged promoted account`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionServiceTests-daemon-restart-retry")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        try container.removeLiveAuthFile()
+
+        let daemonReloader = RecordingCodexAppServerDaemonReloader(outcomes: [
+            .failed("restart failed"),
+            .restarted,
+        ])
+        let service = container.makeService(appServerDaemonReloader: daemonReloader)
+
+        await #expect(throws: CodexAccountPromotionError.appServerDaemonRestartFailed("restart failed")) {
+            try await service.promoteManagedAccount(id: target.id)
+        }
+        let retryResult = try await service.promoteManagedAccount(id: target.id)
+
+        #expect(retryResult.outcome == .convergedNoOp)
+        #expect(retryResult.didMutateLiveAuth == false)
+        #expect(retryResult.appServerDaemonReloadOutcome == .restarted)
+        #expect(daemonReloader.reloadCallCount == 2)
+        #expect(container.settings.codexActiveSource == .liveSystem)
+        #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
+    }
+
+    private func assertManualDaemonRestartOutcome(
+        _ outcome: CodexAppServerDaemonReloadOutcome,
+        suiteName: String) async throws
+    {
+        let container = try CodexAccountPromotionTestContainer(suiteName: suiteName)
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        try container.removeLiveAuthFile()
+
+        let daemonReloader = RecordingCodexAppServerDaemonReloader(outcome: outcome)
+        let service = container.makeService(appServerDaemonReloader: daemonReloader)
+
+        await #expect(throws: CodexAccountPromotionError.appServerDaemonRestartFailed("")) {
+            try await service.promoteManagedAccount(id: target.id)
+        }
+        #expect(daemonReloader.reloadCallCount == 1)
         #expect(container.settings.codexActiveSource == .liveSystem)
         #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
     }
@@ -419,6 +515,7 @@ struct CodexAccountPromotionServiceTests {
             snapshotLoader: SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: container.settings),
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             liveAuthSwapper: DefaultCodexLiveAuthSwapper(),
+            appServerDaemonReloader: RecordingCodexAppServerDaemonReloader(outcome: .notNeeded),
             activeSourceWriter: SettingsStoreCodexActiveSourceWriter(settingsStore: container.settings),
             accountScopedRefresher: UsageStoreCodexAccountScopedRefresher(usageStore: container.usageStore),
             baseEnvironment: container.baseEnvironment,

@@ -1108,3 +1108,6 @@
 "byte_unit_megabytes" = "เมกะไบต์";
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
+"System account switched" = "สลับบัญชีระบบแล้ว";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "บัญชีระบบของ Codex CLI เปลี่ยนทันที หากแอป Codex บนเดสก์ท็อปเปิดอยู่ ให้ปิดแล้วเปิดใหม่เพื่อให้ใช้บัญชีใหม่";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "สลับบัญชีระบบแล้ว แต่ CodexBar ไม่สามารถเริ่มบริการ Codex เบื้องหลังที่กำหนดค่าไว้ใหม่ได้ ให้ปิดและเปิดแอป Codex บนเดสก์ท็อปใหม่ แล้วเริ่มบริการเบื้องหลังใหม่ก่อนใช้เซสชันที่อาศัย app-server";

@@ -1107,3 +1107,6 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"System account switched" = "Akun sistem dialihkan";
+"The Codex CLI system account changed immediately. If the Codex desktop app is open, quit and reopen it so it picks up the new account." = "Akun sistem Codex CLI langsung berubah. Jika aplikasi desktop Codex terbuka, tutup lalu buka kembali agar menggunakan akun baru.";
+"The system account was switched, but CodexBar could not restart the configured Codex background service. If the Codex desktop app is open, quit and reopen it, then restart your configured Codex background service before using app-server-backed sessions." = "Akun sistem telah dialihkan, tetapi CodexBar tidak dapat memulai ulang layanan latar belakang Codex yang dikonfigurasi. Jika aplikasi desktop Codex terbuka, tutup lalu buka kembali, kemudian mulai ulang layanan sebelum menggunakan sesi berbasis app-server.";

@@ -32,16 +32,16 @@ extension StatusItemController {
         case .refresh:
             self.refreshNow()
         case .installUpdate:
-            self.closeMenuForPersistentAction(menu)
+            self.closeMenuHierarchyForAction(menu)
             self.installUpdate()
         case .settings:
-            self.closeMenuForPersistentAction(menu)
+            self.closeMenuHierarchyForAction(menu)
             self.showSettingsGeneral()
         case .about:
-            self.closeMenuForPersistentAction(menu)
+            self.closeMenuHierarchyForAction(menu)
             self.showSettingsAbout()
         case .quit:
-            self.closeMenuForPersistentAction(menu)
+            self.closeMenuHierarchyForAction(menu)
             self.quit()
         default:
             break
@@ -58,9 +58,19 @@ extension StatusItemController {
         }
     }
 
-    private func closeMenuForPersistentAction(_ menu: NSMenu?) {
-        guard let menu else { return }
-        menu.cancelTrackingWithoutAnimation()
-        self.forgetClosedMenu(menu)
+    func closeMenuHierarchyForAction(_ menu: NSMenu?) {
+        var menus: [NSMenu] = []
+        var current = menu
+        while let menu = current {
+            menus.append(menu)
+            current = menu.supermenu
+        }
+
+        for menu in menus {
+            menu.cancelTrackingWithoutAnimation()
+        }
+        for menu in menus {
+            self.forgetClosedMenu(menu)
+        }
     }
 }
