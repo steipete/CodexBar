@@ -4,6 +4,7 @@
 
 ### Added
 - Cursor: show personal on-demand spend alongside the shared team pool. Thanks @yashiels!
+- Documentation: link the community KDE Plasma panel integration. Thanks @tylxr59!
 - Codex: show available manual rate-limit reset credits and their next expiry for signed-in OAuth accounts. Thanks @rogdex24!
 - Mistral: add Vibe monthly-plan usage and menu bar metric selection. Thanks @lfmundim!
 - Storage: show a compact segmented provider breakdown with an expandable Other group. Thanks @elijahfriedman!
