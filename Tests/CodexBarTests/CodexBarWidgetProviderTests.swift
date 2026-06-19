@@ -421,6 +421,17 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `burn down preview includes session and weekly windows`() throws {
+        let snapshot = WidgetPreviewData.snapshot()
+
+        let session = try #require(BurnDownState(snapshot: snapshot, provider: .codex, selection: .session))
+        let weekly = try #require(BurnDownState(snapshot: snapshot, provider: .codex, selection: .weekly))
+
+        #expect(session.selectedWindow?.windowMinutes == 300)
+        #expect(weekly.selectedWindow?.windowMinutes == 10080)
+    }
+
+    @Test
     func `burn down selection does not fall back to another window`() throws {
         let weeklyOnly = Self.burnSnapshot(provider: .codex, primaryUsed: nil, secondaryUsed: 30)
         let sessionOnly = Self.burnSnapshot(provider: .codex, primaryUsed: 20, secondaryUsed: nil)
