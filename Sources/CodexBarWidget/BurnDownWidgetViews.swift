@@ -98,9 +98,12 @@ private struct BurnDownLayout: View {
         let arrow: String = geom.depleted ? "■" : geom.fresh ? "◆"
             : geom.status == .ahead ? "▲" : geom.status == .behind ? "▼" : "●"
 
-        let startDate = (self.window.resetsAt ?? Date()).addingTimeInterval(-Double(windowMins) * 60)
-        let startLabel = burnAxisLabel(startDate, isDailyWindow: isDailyWindow)
-        let resetLabel = burnAxisLabel(self.window.resetsAt ?? Date(), isDailyWindow: isDailyWindow)
+        let axisDates = burnAxisDateRange(
+            effectiveResetAt: effectiveResetAt,
+            windowMinutes: windowMins,
+            now: now)
+        let startLabel = burnAxisLabel(axisDates.start, isDailyWindow: isDailyWindow)
+        let resetLabel = burnAxisLabel(axisDates.reset, isDailyWindow: isDailyWindow)
 
         VStack(spacing: 0) {
             // Header: brand + pace badge
@@ -628,6 +631,15 @@ func burnEffectiveResetDate(
     }
     guard let estimatedResetMinutes, estimatedResetMinutes > 0 else { return nil }
     return now.addingTimeInterval(estimatedResetMinutes * 60)
+}
+
+func burnAxisDateRange(
+    effectiveResetAt: Date?,
+    windowMinutes: Int,
+    now: Date) -> (start: Date, reset: Date)
+{
+    let reset = effectiveResetAt ?? now
+    return (reset.addingTimeInterval(-Double(windowMinutes) * 60), reset)
 }
 
 func burnCompactWindowLabel(_ windowMinutes: Int?, fallback: String) -> String {

@@ -519,6 +519,23 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `burn down axis shares the effective estimated reset`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let effectiveReset = try #require(burnEffectiveResetDate(
+            explicitResetAt: nil,
+            estimatedResetMinutes: 90,
+            now: now))
+
+        let axis = burnAxisDateRange(
+            effectiveResetAt: effectiveReset,
+            windowMinutes: 300,
+            now: now)
+
+        #expect(axis.reset == effectiveReset)
+        #expect(axis.start == effectiveReset.addingTimeInterval(-5 * 60 * 60))
+    }
+
+    @Test
     func `burn down refreshes immediately after the earliest future reset`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = Self.burnSnapshot(
