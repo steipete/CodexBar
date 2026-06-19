@@ -33,6 +33,34 @@ struct ClaudeWebCookieRenewalTests {
     }
 
     @Test
+    func `cached fetch without renewal does not block concurrent renewal`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-old-token",
+                sourceLabel: "Chrome",
+                now: Date(timeIntervalSince1970: 1))
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let initial = try #require(CookieHeaderCache.load(provider: .claude))
+
+            try await self.withClaudeWebStub { request in
+                try Self.response(for: request, setCookie: nil)
+            } operation: {
+                _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+            }
+
+            let renewed = CookieHeaderCache.storeIfCurrent(
+                provider: .claude,
+                expected: initial,
+                cookieHeader: "sessionKey=sk-ant-concurrent-renewal",
+                sourceLabel: "Chrome")
+            #expect(renewed)
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader ==
+                "sessionKey=sk-ant-concurrent-renewal")
+        }
+    }
+
+    @Test
     func `manual web session fetch does not rewrite cached cookie`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(

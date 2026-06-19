@@ -308,15 +308,12 @@ public enum ClaudeWebAPIFetcher {
                 loginMethod: usage.loginMethod)
         }
         if let cacheSourceLabel {
-            let renewedCookieHeader = renewalTracker.renewedCookieHeader
-            let stored = CookieHeaderCache.storeIfCurrent(
-                provider: .claude,
-                expected: expectedCachedEntry,
-                cookieHeader: renewedCookieHeader ?? "sessionKey=\(sessionKey)",
-                sourceLabel: cacheSourceLabel)
-            if renewedCookieHeader != nil {
-                log(stored ? "Stored renewed Claude session key" : "Skipped renewal because the cache changed")
-            }
+            self.persistSessionKeyIfNeeded(
+                initialSessionKey: sessionKey,
+                renewedCookieHeader: renewalTracker.renewedCookieHeader,
+                sourceLabel: cacheSourceLabel,
+                expectedCachedEntry: expectedCachedEntry,
+                logger: log)
         }
         return usage
     }
@@ -943,6 +940,27 @@ public enum ClaudeWebAPIFetcher {
     }
 
     #endif
+}
+
+extension ClaudeWebAPIFetcher {
+    private static func persistSessionKeyIfNeeded(
+        initialSessionKey: String,
+        renewedCookieHeader: String?,
+        sourceLabel: String,
+        expectedCachedEntry: CookieHeaderCache.Entry?,
+        logger: (String) -> Void)
+    {
+        let importedCookieHeader = expectedCachedEntry == nil ? "sessionKey=\(initialSessionKey)" : nil
+        guard let cookieHeader = renewedCookieHeader ?? importedCookieHeader else { return }
+        let stored = CookieHeaderCache.storeIfCurrent(
+            provider: .claude,
+            expected: expectedCachedEntry,
+            cookieHeader: cookieHeader,
+            sourceLabel: sourceLabel)
+        if renewedCookieHeader != nil {
+            logger(stored ? "Stored renewed Claude session key" : "Skipped renewal because the cache changed")
+        }
+    }
 }
 
 private final class ClaudeWebSessionKeyRenewalTracker: @unchecked Sendable {
