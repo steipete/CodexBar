@@ -76,6 +76,39 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
+    func `subscription failure envelope preserves required credits`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/credits") {
+                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+            }
+            return try Self.response(
+                request: request,
+                statusCode: 200,
+                body: #"{"success":false,"error":"temporarily unavailable"}"#)
+        }
+
+        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+            cookieHeader: "session=valid",
+            session: transport,
+            now: Date(timeIntervalSince1970: 123))
+
+        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+        #expect(snapshot.plan == nil)
+        #expect(snapshot.subscriptionEnrichmentUnavailable)
+        #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 123))
+    }
+
+    @Test
+    func `successful subscription envelope requires explicit data`() throws {
+        let data = Data(#"{"success":true}"#.utf8)
+
+        #expect(throws: CommandCodeUsageError.self) {
+            try CommandCodeUsageFetcher.parseSubscription(data: data)
+        }
+    }
+
+    @Test
     func `subscription failure preserves required credits`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             let path = try #require(request.url?.path)

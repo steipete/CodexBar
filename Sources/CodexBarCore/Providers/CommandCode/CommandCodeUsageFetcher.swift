@@ -210,12 +210,21 @@ public enum CommandCodeUsageFetcher {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CommandCodeUsageError.parseFailed("Subscriptions: invalid JSON")
         }
-        // {"success":true,"data":{...}} when subscribed; data may be missing or null on free tier.
-        guard root["success"] as? Bool ?? false else {
+        // Only an explicit successful null response identifies the free tier. Failure envelopes are transient.
+        guard let success = root["success"] as? Bool else {
+            throw CommandCodeUsageError.parseFailed("Subscriptions: missing success flag")
+        }
+        guard success else {
+            throw CommandCodeUsageError.parseFailed("Subscriptions: unsuccessful response")
+        }
+        guard let dataValue = root["data"] else {
+            throw CommandCodeUsageError.parseFailed("Subscriptions: missing data")
+        }
+        if dataValue is NSNull {
             return nil
         }
-        guard let data = root["data"] as? [String: Any] else {
-            return nil
+        guard let data = dataValue as? [String: Any] else {
+            throw CommandCodeUsageError.parseFailed("Subscriptions: invalid data")
         }
         guard let planID = data["planId"] as? String, !planID.isEmpty else {
             throw CommandCodeUsageError.parseFailed("Subscriptions: missing planId")
