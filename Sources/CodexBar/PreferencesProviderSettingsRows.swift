@@ -38,14 +38,16 @@ struct ProviderSettingsToggleRowView: View {
     let toggle: ProviderSettingsToggleDescriptor
 
     var body: some View {
+        let isEnabled = self.toggle.isEnabled?() ?? true
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L(self.toggle.title))
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isEnabled ? .primary : .tertiary)
                     Text(L(self.toggle.subtitle))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isEnabled ? .secondary : .tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
@@ -79,6 +81,7 @@ struct ProviderSettingsToggleRowView: View {
                 }
             }
         }
+        .disabled(!isEnabled)
         .onChange(of: self.toggle.binding.wrappedValue) { _, enabled in
             guard let onChange = self.toggle.onChange else { return }
             Task { @MainActor in

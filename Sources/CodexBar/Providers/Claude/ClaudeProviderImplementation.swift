@@ -86,6 +86,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
+                isEnabled: { !context.settings.debugDisableKeychainAccess },
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),

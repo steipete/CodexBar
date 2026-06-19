@@ -127,6 +127,26 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `claude avoid keychain prompts toggle is disabled when global keychain disabled`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-prompt-free-disabled")
+        fixture.settings.debugDisableKeychainAccess = true
+        fixture.settings.claudeOAuthPromptFreeCredentialsEnabled = true
+        let context = fixture.settingsContext(provider: .claude)
+
+        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
+        let promptFreeToggle = try #require(toggles.first(where: { $0.id == "claude-oauth-prompt-free-credentials" }))
+        #expect(promptFreeToggle.isEnabled?() == false)
+        #expect(promptFreeToggle.binding.wrappedValue == true)
+
+        promptFreeToggle.binding.wrappedValue = false
+        #expect(fixture.settings.claudeOAuthPromptFreeCredentialsEnabled == true)
+
+        fixture.settings.debugDisableKeychainAccess = false
+        #expect(promptFreeToggle.isEnabled?() == true)
+        #expect(promptFreeToggle.binding.wrappedValue == true)
+    }
+
+    @Test
     func `claude keychain prompt policy picker disabled when global keychain disabled`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-keychain-disabled")
         fixture.settings.debugDisableKeychainAccess = true
