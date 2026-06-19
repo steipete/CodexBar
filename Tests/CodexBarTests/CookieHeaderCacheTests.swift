@@ -61,6 +61,36 @@ struct CookieHeaderCacheTests {
     }
 
     @Test
+    func `profile home scopes isolate same email sessions without exposing paths`() {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let provider: UsageProvider = .codex
+        let profileA = CookieHeaderCache.Scope.profileHome("/tmp/codex-profile-a")
+        let profileB = CookieHeaderCache.Scope.profileHome("/tmp/codex-profile-b")
+        CookieHeaderCache.store(
+            provider: provider,
+            scope: profileA,
+            cookieHeader: "auth=profile-a",
+            sourceLabel: "Chrome")
+        CookieHeaderCache.store(
+            provider: provider,
+            scope: profileB,
+            cookieHeader: "auth=profile-b",
+            sourceLabel: "Chrome")
+        defer {
+            CookieHeaderCache.clear(provider: provider, scope: profileA)
+            CookieHeaderCache.clear(provider: provider, scope: profileB)
+        }
+
+        #expect(CookieHeaderCache.load(provider: provider, scope: profileA)?.cookieHeader == "auth=profile-a")
+        #expect(CookieHeaderCache.load(provider: provider, scope: profileB)?.cookieHeader == "auth=profile-b")
+        #expect(CookieHeaderCache.load(provider: provider) == nil)
+        #expect(profileA.isolationIdentifier != profileB.isolationIdentifier)
+        #expect(!profileA.isolationIdentifier.contains("codex-profile-a"))
+    }
+
+    @Test
     func `provider global scope remains available without managed account`() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }

@@ -105,6 +105,33 @@ struct CodexDashboardAuthorityTests {
     }
 
     @Test
+    func `provider account exact owner stays display only when email has another owner`() {
+        let input = CodexDashboardAuthorityInput(
+            sourceKind: .liveWeb,
+            proof: CodexDashboardOwnershipProofContext(
+                currentIdentity: .providerAccount(id: "acct-current"),
+                expectedScopedEmail: "shared@example.com",
+                trustedCurrentUsageEmail: nil,
+                dashboardSignedInEmail: "shared@example.com",
+                knownOwners: [
+                    CodexDashboardKnownOwnerCandidate(
+                        identity: .providerAccount(id: "acct-current"),
+                        normalizedEmail: "shared@example.com"),
+                    CodexDashboardKnownOwnerCandidate(
+                        identity: .providerAccount(id: "acct-other"),
+                        normalizedEmail: "shared@example.com"),
+                ]),
+            routing: CodexDashboardRoutingHints(
+                targetEmail: "shared@example.com",
+                lastKnownDashboardRoutingEmail: nil))
+
+        let decision = CodexDashboardAuthority.evaluate(input)
+
+        #expect(decision.disposition == .displayOnly)
+        #expect(decision.reason == .sameEmailAmbiguity(email: "shared@example.com"))
+    }
+
+    @Test
     func `provider account same email ambiguity without exact match returns display only`() {
         let input = CodexDashboardAuthorityInput(
             sourceKind: .liveWeb,

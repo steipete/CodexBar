@@ -4,6 +4,7 @@ import SweetCookieKit
 import WebKit
 
 @MainActor
+// swiftlint:disable:next type_body_length
 public struct OpenAIDashboardBrowserCookieImporter {
     public struct FoundAccount: Sendable, Hashable {
         public let sourceLabel: String
@@ -94,6 +95,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         let targetEmail: String?
         let allowAnyAccount: Bool
         let cacheScope: CookieHeaderCache.Scope?
+        let deadline: Date?
     }
 
     private static let cookieDomains = ["chatgpt.com", "openai.com"]
@@ -126,7 +128,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
         let context = ImportContext(
             targetEmail: normalizedTarget,
             allowAnyAccount: allowAnyAccount,
-            cacheScope: cacheScope)
+            cacheScope: cacheScope,
+            deadline: deadline)
 
         if normalizedTarget != nil {
             log("Codex email known; matching required.")
@@ -219,7 +222,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         cookieHeader: String,
         intoAccountEmail targetEmail: String?,
         allowAnyAccount: Bool = false,
-        cacheScope _: CookieHeaderCache.Scope? = nil,
+        cacheScope: CookieHeaderCache.Scope? = nil,
         deadline: Date? = nil,
         logger: ((String) -> Void)? = nil) async throws -> ImportResult
     {
@@ -249,14 +252,14 @@ public struct OpenAIDashboardBrowserCookieImporter {
             return try await self.persistVerifiedCandidate(
                 candidate: candidate,
                 targetEmail: signedInEmail,
-                verifiedSignedInEmail: signedInEmail,
+                cacheScope: cacheScope,
                 deadline: deadline,
                 logger: log)
         case let .loggedIn(_, signedInEmail):
             return try await self.persistVerifiedCandidate(
                 candidate: candidate,
                 targetEmail: signedInEmail,
-                verifiedSignedInEmail: signedInEmail,
+                cacheScope: cacheScope,
                 deadline: deadline,
                 logger: log)
         case let .mismatch(_, signedInEmail):
@@ -429,7 +432,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             if let result = try? await self.persistVerifiedCandidate(
                 candidate: candidate,
                 targetEmail: targetEmail,
-                verifiedSignedInEmail: signedInEmail,
+                cacheScope: context.cacheScope,
                 deadline: deadline,
                 logger: log)
             {
@@ -446,7 +449,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             try await self.handleMismatch(
                 candidate: candidate,
                 signedInEmail: signedInEmail,
-                deadline: deadline,
+                context: context,
                 log: log,
                 diagnostics: &diagnostics)
             _ = try Self.remainingTimeout(until: deadline)
@@ -456,7 +459,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             if let result = try? await self.persistVerifiedCandidate(
                 candidate: candidate,
                 targetEmail: signedInEmail,
-                verifiedSignedInEmail: signedInEmail,
+                cacheScope: context.cacheScope,
                 deadline: deadline,
                 logger: log)
             {
@@ -574,24 +577,24 @@ public struct OpenAIDashboardBrowserCookieImporter {
     private func handleMismatch(
         candidate: Candidate,
         signedInEmail: String,
-        deadline: Date?,
+        context: ImportContext,
         log: @escaping (String) -> Void,
         diagnostics: inout ImportDiagnostics) async throws
     {
         log("Candidate \(candidate.label) mismatch (\(signedInEmail)); continuing browser search")
         diagnostics.mismatches.append(FoundAccount(sourceLabel: candidate.label, email: signedInEmail))
-        // Mismatch still means we found a valid signed-in session. Persist it keyed by its email so if
-        // the user switches Codex accounts later, we can reuse this session immediately without another
-        // Keychain prompt.
+        // Mismatch still means we found a valid signed-in session. Keep it inside the active source scope;
+        // a profile import must never populate the live account or another profile's WebKit store.
         do {
             try await self.persistCookies(
                 candidate: candidate,
                 accountEmail: signedInEmail,
-                deadline: deadline,
+                cacheScope: context.cacheScope,
+                deadline: context.deadline,
                 logger: log)
         } catch {
             log("Could not cache mismatched session: \(error.localizedDescription)")
-            _ = try Self.remainingTimeout(until: deadline)
+            _ = try Self.remainingTimeout(until: context.deadline)
         }
     }
 
@@ -663,7 +666,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     private func persistVerifiedCandidate(
         candidate: Candidate,
         targetEmail: String,
-        verifiedSignedInEmail: String,
+        cacheScope: CookieHeaderCache.Scope?,
         deadline: Date?,
         logger: @escaping (String) -> Void) async throws -> ImportResult
     {
@@ -671,6 +674,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
             return try await self.persist(
                 candidate: candidate,
                 targetEmail: targetEmail,
+                cacheScope: cacheScope,
                 deadline: deadline,
                 logger: logger)
         } catch {
@@ -678,7 +682,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 throw error
             }
 
-            let signedInEmail = verifiedSignedInEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+            let signedInEmail = targetEmail.trimmingCharacters(in: .whitespacesAndNewlines)
             logger(
                 "Persistent validation timed out after session verification; " +
                     "keeping \(candidate.label) cookies for \(signedInEmail).")
@@ -693,10 +697,13 @@ public struct OpenAIDashboardBrowserCookieImporter {
     private func persist(
         candidate: Candidate,
         targetEmail: String,
+        cacheScope: CookieHeaderCache.Scope?,
         deadline: Date?,
         logger: @escaping (String) -> Void) async throws -> ImportResult
     {
-        let persistent = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: targetEmail)
+        let persistent = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: targetEmail,
+            scope: cacheScope)
         try await self.clearChatGPTCookies(in: persistent, deadline: deadline)
         try await self.setCookies(candidate.cookies, into: persistent, deadline: deadline)
 
@@ -820,10 +827,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
     private func persistCookies(
         candidate: Candidate,
         accountEmail: String,
+        cacheScope: CookieHeaderCache.Scope?,
         deadline: Date?,
         logger: (String) -> Void) async throws
     {
-        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
+        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail, scope: cacheScope)
         try await self.clearChatGPTCookies(in: store, deadline: deadline)
         try await self.setCookies(candidate.cookies, into: store, deadline: deadline)
         logger("Persisted cookies for \(accountEmail) (source=\(candidate.label))")

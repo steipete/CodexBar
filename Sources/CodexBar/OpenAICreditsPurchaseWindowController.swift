@@ -361,6 +361,7 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     private let logger = CodexBarLog.logger(LogCategories.creditsPurchase)
     private var webView: WKWebView?
     private var accountEmail: String?
+    private var cacheScope: CookieHeaderCache.Scope?
     private var pendingAutoStart = false
     private let logHandler = WeakScriptMessageHandler()
 
@@ -374,10 +375,16 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
         fatalError("init(coder:) has not been implemented")
     }
 
-    func show(purchaseURL: URL, accountEmail: String?, autoStartPurchase: Bool) {
+    func show(
+        purchaseURL: URL,
+        accountEmail: String?,
+        cacheScope: CookieHeaderCache.Scope?,
+        autoStartPurchase: Bool)
+    {
         let normalizedEmail = Self.normalizeEmail(accountEmail)
-        if self.window == nil || normalizedEmail != self.accountEmail {
+        if self.window == nil || normalizedEmail != self.accountEmail || cacheScope != self.cacheScope {
             self.accountEmail = normalizedEmail
+            self.cacheScope = cacheScope
             self.buildWindow()
         }
         Self.resetDebugLog()
@@ -399,7 +406,9 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     private func buildWindow() {
         let config = WKWebViewConfiguration()
         config.userContentController.add(self.logHandler, name: Self.logHandlerName)
-        config.websiteDataStore = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: self.accountEmail)
+        config.websiteDataStore = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: self.accountEmail,
+            scope: self.cacheScope)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self

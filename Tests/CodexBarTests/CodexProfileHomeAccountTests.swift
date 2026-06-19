@@ -247,6 +247,51 @@ struct CodexProfileHomeAccountTests {
 
     @Test
     @MainActor
+    func `profile without verified email refuses open A I cookie import`() async throws {
+        let suite = "CodexProfileHomeAccountTests-missing-web-email"
+        let settings = try Self.makeSettings(suite: suite)
+        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        let unreadableProfileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = [unreadableProfileHome.path]
+            entry.codexActiveSource = .profileHome(path: unreadableProfileHome.path)
+        }
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: missingLiveHome)
+            try? FileManager.default.removeItem(at: unreadableProfileHome)
+        }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: ["CODEX_HOME": missingLiveHome.path]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        var importAttempts = 0
+        store._test_openAIDashboardCookieImportOverride = { _, _, _, _, _ in
+            importAttempts += 1
+            return OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "test",
+                cookieCount: 1,
+                signedInEmail: "other@example.com",
+                matchesCodexEmail: false)
+        }
+
+        let imported = await store.importOpenAIDashboardCookiesIfNeeded(targetEmail: nil, force: true)
+
+        #expect(imported == nil)
+        #expect(importAttempts == 0)
+        #expect(store.openAIDashboardRequiresLogin)
+        #expect(store.openAIDashboardCookieImportStatus?.contains("no verified account email") == true)
+    }
+
+    @Test
+    @MainActor
     func `profile home matching live home resolves to visible live account`() throws {
         let suite = "CodexProfileHomeAccountTests-live-duplicate"
         let settings = try Self.makeSettings(suite: suite)

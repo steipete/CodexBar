@@ -173,6 +173,7 @@ final class UsageStore {
     @ObservationIgnored var lastOpenAIDashboardSnapshot: OpenAIDashboardSnapshot?
     @ObservationIgnored var lastOpenAIDashboardAttachmentAuthorized: Bool = false
     @ObservationIgnored var lastOpenAIDashboardTargetEmail: String?
+    @ObservationIgnored var lastOpenAIDashboardTargetIsolationKey: String?
     @ObservationIgnored var lastOpenAIDashboardAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportAttemptAt: Date?
     @ObservationIgnored var lastOpenAIDashboardCookieImportEmail: String?

@@ -615,9 +615,12 @@ extension UsageStore {
         if self.settings.codexCookieSource.isEnabled,
            let normalizedTarget = Self.normalizeCodexAccountScopedEmail(targetEmail)
         {
-            let previous = self.lastOpenAIDashboardTargetEmail
+            let scope = self.codexCookieCacheScopeForOpenAIWeb()
+            let isolationKey = Self.openAIWebTargetIsolationKey(email: normalizedTarget, scope: scope)
+            let previousIsolationKey = self.lastOpenAIDashboardTargetIsolationKey
             self.lastOpenAIDashboardTargetEmail = normalizedTarget
-            if let previous, !previous.isEmpty, previous != normalizedTarget {
+            self.lastOpenAIDashboardTargetIsolationKey = isolationKey
+            if let previousIsolationKey, previousIsolationKey != isolationKey {
                 self.openAIWebAccountDidChange = true
                 self.openAIDashboardCookieImportStatus = "Codex account changed; importing browser cookies…"
             } else {
@@ -626,6 +629,7 @@ extension UsageStore {
             self.openAIDashboardRequiresLogin = true
         } else {
             self.lastOpenAIDashboardTargetEmail = Self.normalizeCodexAccountScopedEmail(targetEmail)
+            self.lastOpenAIDashboardTargetIsolationKey = nil
             self.openAIWebAccountDidChange = false
             self.openAIDashboardRequiresLogin = false
             self.openAIDashboardCookieImportStatus = nil

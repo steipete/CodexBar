@@ -179,15 +179,6 @@ public enum CodexDashboardAuthority {
 
         switch currentIdentity {
         case let .providerAccount(id):
-            let exactMatch = knownOwners.contains { candidate in
-                candidate.identity == .providerAccount(id: id) && candidate.normalizedEmail == dashboardSignedInEmail
-            }
-            if exactMatch {
-                return Self.makeDecision(
-                    disposition: .attach,
-                    reason: .exactProviderAccountMatch,
-                    sourceKind: input.sourceKind)
-            }
             guard expectedScopedEmail != nil else {
                 return Self.makeDecision(
                     disposition: .failClosed,
@@ -198,6 +189,15 @@ public enum CodexDashboardAuthority {
                 return Self.makeDecision(
                     disposition: .displayOnly,
                     reason: .sameEmailAmbiguity(email: dashboardSignedInEmail),
+                    sourceKind: input.sourceKind)
+            }
+            let exactMatch = knownOwners.contains { candidate in
+                candidate.identity == .providerAccount(id: id) && candidate.normalizedEmail == dashboardSignedInEmail
+            }
+            if exactMatch {
+                return Self.makeDecision(
+                    disposition: .attach,
+                    reason: .exactProviderAccountMatch,
                     sourceKind: input.sourceKind)
             }
             return Self.makeDecision(

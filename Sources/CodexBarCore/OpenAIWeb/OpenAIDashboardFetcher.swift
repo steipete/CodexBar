@@ -205,12 +205,13 @@ public struct OpenAIDashboardFetcher {
 
     public func loadLatestDashboard(
         accountEmail: String?,
+        cacheScope: CookieHeaderCache.Scope? = nil,
         logger: ((String) -> Void)? = nil,
         debugDumpHTML: Bool = false,
         allowNavigationTimeoutRetry: Bool = true,
         timeout: TimeInterval = 60) async throws -> OpenAIDashboardSnapshot
     {
-        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
+        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail, scope: cacheScope)
         return try await self.loadLatestDashboard(
             websiteDataStore: store,
             logger: logger,
@@ -413,10 +414,13 @@ public struct OpenAIDashboardFetcher {
         hasReturnableData || creditsHeaderPresent
     }
 
-    public func clearSessionData(accountEmail: String?) async {
-        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail)
+    public func clearSessionData(
+        accountEmail: String?,
+        cacheScope: CookieHeaderCache.Scope? = nil) async
+    {
+        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail, scope: cacheScope)
         OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: store)
-        await OpenAIDashboardWebsiteDataStore.clearStore(forAccountEmail: accountEmail)
+        await OpenAIDashboardWebsiteDataStore.clearStore(forAccountEmail: accountEmail, scope: cacheScope)
     }
 
     public static func evictAllCachedWebViews() {

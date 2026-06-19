@@ -275,6 +275,30 @@ struct CodexManagedOpenAIWebTests {
     }
 
     @Test
+    func `same email profile homes use distinct website data stores`() {
+        OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
+        defer { OpenAIDashboardWebsiteDataStore.clearCacheForTesting() }
+
+        let profileA = CookieHeaderCache.Scope.profileHome("/tmp/codex-profile-a")
+        let profileB = CookieHeaderCache.Scope.profileHome("/tmp/codex-profile-b")
+        let storeA = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "shared@example.com",
+            scope: profileA)
+        let storeAAgain = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "SHARED@example.com",
+            scope: profileA)
+        let storeB = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: "shared@example.com",
+            scope: profileB)
+        let liveStore = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: "shared@example.com")
+
+        #expect(storeA === storeAAgain)
+        #expect(storeA !== storeB)
+        #expect(storeA !== liveStore)
+        #expect(storeB !== liveStore)
+    }
+
+    @Test
     func `dashboard refresh does not target stale last known live email`() async {
         let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-live-system-refresh-strict-target")
         let isolatedHome = FileManager.default.temporaryDirectory
