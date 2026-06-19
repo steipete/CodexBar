@@ -5,6 +5,7 @@ import Foundation
 extension UsageStore {
     func handleQuotaWarningTransitions(provider: UsageProvider, snapshot: UsageSnapshot) {
         guard self.settings.quotaWarningNotificationsEnabled else { return }
+        if provider == .commandcode, snapshot.commandCodeSubscriptionEnrichmentUnavailable { return }
 
         let accountDisplayName = self.quotaWarningAccountDisplayName(provider: provider, snapshot: snapshot)
         let source: SessionQuotaWindowSource? = if provider == .antigravity {
@@ -28,9 +29,7 @@ extension UsageStore {
             window: .session,
             rateWindow: primaryWindow,
             source: source,
-            accountDisplayName: accountDisplayName,
-            preserveMissingWindowState: provider == .commandcode &&
-                snapshot.commandCodeSubscriptionEnrichmentUnavailable)
+            accountDisplayName: accountDisplayName)
         self.handleQuotaWarningTransition(
             provider: provider,
             window: .weekly,
@@ -44,8 +43,7 @@ extension UsageStore {
         window: QuotaWarningWindow,
         rateWindow: RateWindow?,
         source: SessionQuotaWindowSource?,
-        accountDisplayName: String?,
-        preserveMissingWindowState: Bool = false)
+        accountDisplayName: String?)
     {
         let key = QuotaWarningStateKey(provider: provider, window: window)
         guard self.settings.quotaWarningEnabled(provider: provider, window: window) else {
@@ -53,7 +51,6 @@ extension UsageStore {
             return
         }
         guard let rateWindow else {
-            if preserveMissingWindowState { return }
             self.quotaWarningState.removeValue(forKey: key)
             return
         }

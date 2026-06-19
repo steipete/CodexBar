@@ -37,7 +37,7 @@ struct CommandCodeQuotaTransitionTests {
         let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
         let depletedWithPlan = self.snapshot(remaining: 0, plan: plan)
         let freeTier = self.snapshot(remaining: 0, plan: nil)
-        let missingSubscription = self.snapshot(remaining: 0, plan: nil, subscriptionUnavailable: true)
+        let missingSubscription = self.snapshot(remaining: 4, plan: nil, subscriptionUnavailable: true)
 
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: freeTier)
         #expect(notifier.posts.isEmpty)
@@ -66,7 +66,7 @@ struct CommandCodeQuotaTransitionTests {
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
         store.handleQuotaWarningTransitions(
             provider: .commandcode,
-            snapshot: self.snapshot(remaining: 0, plan: nil, subscriptionUnavailable: true))
+            snapshot: self.snapshot(remaining: 4, plan: nil, subscriptionUnavailable: true))
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
 
         #expect(notifier.quotaWarningPosts.count == 1)
