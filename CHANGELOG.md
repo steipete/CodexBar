@@ -3,6 +3,7 @@
 ## 0.36.2 — Unreleased
 
 ### Added
+- Codex: optionally merge remote SSH session logs into local cost summaries. Thanks @raykr!
 - Cursor: show personal on-demand spend alongside the shared team pool. Thanks @yashiels!
 - Codex: show available manual rate-limit reset credits and their next expiry for signed-in OAuth accounts. Thanks @rogdex24!
 - Mistral: add Vibe monthly-plan usage and menu bar metric selection. Thanks @lfmundim!

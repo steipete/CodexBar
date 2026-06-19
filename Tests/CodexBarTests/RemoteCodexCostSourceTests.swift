@@ -31,6 +31,31 @@ struct RemoteCodexCostSourceTests {
     }
 
     @Test
+    func `remote codex ssh target rejects option injection`() {
+        #expect(RemoteCodexCostSyncer.isValidSSHTarget("gpu-host"))
+        #expect(RemoteCodexCostSyncer.isValidSSHTarget("user@example.com"))
+        #expect(!RemoteCodexCostSyncer.isValidSSHTarget("-F/tmp/ssh-config"))
+        #expect(!RemoteCodexCostSyncer.isValidSSHTarget("--rsync-path=sh"))
+    }
+
+    @Test
+    func `remote codex sync resets stale mirror files`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("RemoteCodexCostSourceTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let stale = root.appendingPathComponent("stale.jsonl")
+        try Data("stale".utf8).write(to: stale)
+
+        try RemoteCodexCostSyncer.resetDirectory(root)
+
+        #expect(FileManager.default.fileExists(atPath: root.path))
+        #expect(!FileManager.default.fileExists(atPath: stale.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+    }
+
+    @Test
     func `remote codex file list filters by date paths`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let since = try #require(calendar.date(from: DateComponents(year: 2026, month: 5, day: 17)))

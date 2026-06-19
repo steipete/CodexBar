@@ -230,12 +230,12 @@ public struct RemoteCodexCostSyncer: Sendable {
     }
 
     private func syncDirectory(_ request: DirectorySyncRequest) async throws {
-        try FileManager.default.createDirectory(at: request.destination, withIntermediateDirectories: true)
         let remoteRoot = Self.trimTrailingSlashes(request.source.sanitizedRemoteCodexHome)
         let remotePath = Self.escapeRemoteShellPath("\(remoteRoot)/\(request.component)")
         let remote = "\(request.target):\(remotePath)/"
         let sshCommand = Self.sshCommand(for: request.source)
         let list = try await self.remoteJSONLList(request, remotePath: remotePath)
+        try Self.resetDirectory(request.destination)
         guard !list.isEmpty else { return }
 
         let listFile = request.destination
@@ -335,11 +335,20 @@ public struct RemoteCodexCostSyncer: Sendable {
         "'\(text.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 
-    private static func isValidSSHTarget(_ target: String) -> Bool {
+    static func isValidSSHTarget(_ target: String) -> Bool {
         guard !target.isEmpty else { return false }
+        guard !target.hasPrefix("-") else { return false }
         guard target.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return false }
         guard !target.contains(":") else { return false }
         return true
+    }
+
+    static func resetDirectory(_ directory: URL) throws {
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: directory.path) {
+            try fileManager.removeItem(at: directory)
+        }
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
     private static func trimTrailingSlashes(_ path: String) -> String {
