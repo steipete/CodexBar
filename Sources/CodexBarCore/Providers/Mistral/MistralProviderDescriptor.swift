@@ -90,13 +90,32 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
             timeout: timeout)
         let remaining = deadline.timeIntervalSinceNow
         let vibeResult: MistralUsageFetcher.MistralVibeUsageResult? = if let csrfToken, remaining > 0 {
-            try? await MistralUsageFetcher.fetchVibeUsage(
+            try await Self.fetchOptionalVibeUsage(
                 csrfToken: csrfToken,
                 timeout: min(remaining, 4))
         } else {
             nil
         }
         return Self.attachVibeWindow(to: snapshot.toUsageSnapshot(), vibeResult: vibeResult)
+    }
+
+    static func fetchOptionalVibeUsage(
+        csrfToken: String,
+        timeout: TimeInterval,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
+        -> MistralUsageFetcher.MistralVibeUsageResult?
+    {
+        do {
+            return try await MistralUsageFetcher.fetchVibeUsage(
+                csrfToken: csrfToken,
+                timeout: timeout,
+                transport: transport)
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            return nil
+        }
     }
 
     static func attachVibeWindow(

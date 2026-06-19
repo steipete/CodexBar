@@ -82,6 +82,45 @@ struct MistralVibeUsageTests {
     }
 
     @Test
+    func `optional subscription request propagates in flight cancellation`() async throws {
+        let started = AsyncStream<Void>.makeStream(of: Void.self)
+        let transport = ProviderHTTPTransportHandler { _ in
+            started.continuation.yield(())
+            try await Task.sleep(for: .seconds(30))
+            throw URLError(.timedOut)
+        }
+        let task = Task {
+            try await MistralWebFetchStrategy.fetchOptionalVibeUsage(
+                csrfToken: "csrf-value",
+                timeout: 30,
+                transport: transport)
+        }
+
+        var iterator = started.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        started.continuation.finish()
+    }
+
+    @Test
+    func `optional subscription request ignores ordinary endpoint failures`() async throws {
+        let transport = ProviderHTTPTransportHandler { _ in
+            throw URLError(.cannotConnectToHost)
+        }
+
+        let result = try await MistralWebFetchStrategy.fetchOptionalVibeUsage(
+            csrfToken: "csrf-value",
+            timeout: 2,
+            transport: transport)
+
+        #expect(result == nil)
+    }
+
+    @Test
     func `monthly plan window preserves existing extras`() {
         let existing = NamedRateWindow(
             id: "existing",
