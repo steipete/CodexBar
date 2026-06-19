@@ -437,6 +437,30 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
+    func `legacy MiniMax service diagnostic decodes without quota values`() throws {
+        let data = Data(#"""
+        {
+          "displayName": "General",
+          "percent": 4,
+          "windowType": "Weekly",
+          "resetsAt": null,
+          "hasResetDescription": true
+        }
+        """#.utf8)
+
+        let diagnostic = try JSONDecoder().decode(MiniMaxDiagnosticServiceUsage.self, from: data)
+
+        #expect(diagnostic.displayName == "General")
+        #expect(diagnostic.percent == 4)
+        #expect(diagnostic.usage == 0)
+        #expect(diagnostic.limit == 0)
+        #expect(diagnostic.remaining == nil)
+        #expect(!diagnostic.isUnlimited)
+        #expect(diagnostic.windowType == "Weekly")
+        #expect(diagnostic.hasResetDescription)
+    }
+
+    @Test
     func `builder creates generic safe diagnostic with error on failure`() {
         let outcome = ProviderFetchOutcome(
             result: .failure(MiniMaxUsageError.networkError("timeout")),

@@ -399,6 +399,18 @@ public struct MiniMaxDiagnosticServiceUsage: Codable, Sendable {
     public let resetsAt: Date?
     public let hasResetDescription: Bool
 
+    private enum CodingKeys: String, CodingKey {
+        case displayName
+        case percent
+        case usage
+        case limit
+        case remaining
+        case isUnlimited
+        case windowType
+        case resetsAt
+        case hasResetDescription
+    }
+
     public init(from service: MiniMaxServiceUsage) {
         self.displayName = service.displayName
         self.percent = service.percent
@@ -409,6 +421,19 @@ public struct MiniMaxDiagnosticServiceUsage: Codable, Sendable {
         self.windowType = service.windowType
         self.resetsAt = service.resetsAt
         self.hasResetDescription = !service.resetDescription.isEmpty
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.displayName = try container.decode(String.self, forKey: .displayName)
+        self.percent = try container.decode(Double.self, forKey: .percent)
+        self.usage = try container.decodeIfPresent(Int.self, forKey: .usage) ?? 0
+        self.limit = try container.decodeIfPresent(Int.self, forKey: .limit) ?? 0
+        self.remaining = try container.decodeIfPresent(Int.self, forKey: .remaining)
+        self.isUnlimited = try container.decodeIfPresent(Bool.self, forKey: .isUnlimited) ?? false
+        self.windowType = try container.decode(String.self, forKey: .windowType)
+        self.resetsAt = try container.decodeIfPresent(Date.self, forKey: .resetsAt)
+        self.hasResetDescription = try container.decode(Bool.self, forKey: .hasResetDescription)
     }
 }
 
