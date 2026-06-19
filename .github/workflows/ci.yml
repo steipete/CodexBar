@@ -111,27 +111,15 @@ jobs:
       - swift-test-macos
     if: ${{ always() && !cancelled() }}
     steps:
+      - uses: actions/checkout@v6
+
       - name: Verify lint and macOS test jobs
         run: |
-          set -euo pipefail
-          if [[ "${{ needs.lint.result }}" != "success" ]]; then
-            echo "lint job finished with ${{ needs.lint.result }}" >&2
-            exit 1
-          fi
-          if [[ "${{ needs.changes.result }}" != "success" ]]; then
-            echo "changes job finished with ${{ needs.changes.result }}" >&2
-            exit 1
-          fi
-          if [[ "${{ needs.swift-test-macos.result }}" != "success" ]] \
-            && [[ "${{ needs.swift-test-macos.result }}" != "skipped" ]]; then
-            echo "swift-test-macos job finished with ${{ needs.swift-test-macos.result }}" >&2
-            exit 1
-          fi
-          if [[ "${{ needs.swift-test-macos.result }}" == "skipped" ]]; then
-            echo "Lint passed; macOS Swift tests skipped for docs/Markdown-only changes."
-          else
-            echo "Lint and macOS Swift test shards passed."
-          fi
+          ./Scripts/ci_verify_test_jobs.sh \
+            "${{ needs.lint.result }}" \
+            "${{ needs.changes.result }}" \
+            "${{ needs.changes.outputs.macos-tests }}" \
+            "${{ needs.swift-test-macos.result }}"
 
   build-linux-cli:
     timeout-minutes: 20

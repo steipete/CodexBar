@@ -19,7 +19,7 @@ classify_path() {
   path_count=$((path_count + 1))
 
   case "$path" in
-    *.md|docs/*)
+    *.md)
       ;;
     *)
       macos_tests=true
@@ -27,24 +27,40 @@ classify_path() {
   esac
 }
 
-while IFS=$'\t' read -r status first_path second_path _; do
+invalid_row=false
+while IFS=$'\t' read -r status first_path second_path extra_path; do
   [[ -z "${status}${first_path:-}${second_path:-}" ]] && continue
-
-  if [[ -z "${first_path:-}" ]]; then
-    classify_path "$status"
-    continue
-  fi
 
   case "$status" in
     R*|C*)
+      if ! [[ "$status" =~ ^[RC][0-9]{1,3}$ ]] \
+        || ((10#${status:1} > 100)) \
+        || [[ -z "${first_path:-}" || -z "${second_path:-}" || -n "${extra_path:-}" ]]
+      then
+        invalid_row=true
+        break
+      fi
       classify_path "$first_path"
-      classify_path "${second_path:-}"
+      classify_path "$second_path"
+      ;;
+    A|D|M|T|U|X|B)
+      if [[ -z "${first_path:-}" || -n "${second_path:-}" || -n "${extra_path:-}" ]]; then
+        invalid_row=true
+        break
+      fi
+      classify_path "$first_path"
       ;;
     *)
-      classify_path "$first_path"
+      invalid_row=true
+      break
       ;;
   esac
 done < "$changed_paths_file"
+
+if [[ "$invalid_row" == true ]]; then
+  printf 'Invalid git name-status row; refusing to skip macOS tests.\n' >&2
+  exit 2
+fi
 
 if [[ "$path_count" -eq 0 ]]; then
   macos_tests=true

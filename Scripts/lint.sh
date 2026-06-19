@@ -37,6 +37,10 @@ check_swift_test_sharding() {
   "${ROOT_DIR}/Scripts/test_swift_test_sharding.sh"
 }
 
+check_ci_path_gate() {
+  "${ROOT_DIR}/Scripts/test_ci_path_gate.sh"
+}
+
 check_app_locales() {
   node "${ROOT_DIR}/Scripts/check-app-locales.mjs" --test
   node "${ROOT_DIR}/Scripts/check-app-locales.mjs"
@@ -58,6 +62,7 @@ run_portable_checks() {
   check_release_dsym_paths
   check_sparkle_signing_paths
   check_swift_test_sharding
+  check_ci_path_gate
   check_documentation_links
   check_site_locales
 }
