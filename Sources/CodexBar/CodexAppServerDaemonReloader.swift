@@ -26,7 +26,6 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
         _ arguments: [String],
         _ environment: [String: String],
         _ timeout: TimeInterval) async throws -> String
-
     private let baseEnvironment: [String: String]
     private let probeTimeout: TimeInterval
     private let restartTimeout: TimeInterval
@@ -71,7 +70,7 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
                 self.probeTimeout)
         } catch {
             if Self.probeShowsDaemonAbsent(error) {
-                return .notRunning
+                return .failed("Codex daemon state could not be confirmed while its socket was unavailable.")
             }
             if Self.probeShowsCapabilityUnavailable(error) {
                 return .unavailable

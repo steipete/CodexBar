@@ -14,7 +14,7 @@ struct CodexAppServerDaemonReloaderTests {
     }
 
     @Test
-    func `missing daemon socket leaves daemon untouched`() async {
+    func `missing daemon socket requests manual restart`() async {
         let recorder = DaemonCommandRecorder(
             failingArguments: ["app-server", "daemon", "version"],
             failure: SubprocessRunnerError.nonZeroExit(
@@ -22,8 +22,10 @@ struct CodexAppServerDaemonReloaderTests {
                 stderr: "failed to connect: No such file or directory (os error 2)"))
         let reloader = Self.makeReloader(recorder: recorder)
 
-        #expect(await reloader.reloadAfterAuthPromotion() == .notRunning)
+        #expect(await reloader.reloadAfterAuthPromotion() ==
+            .failed("Codex daemon state could not be confirmed while its socket was unavailable."))
         #expect(await recorder.arguments == [["app-server", "daemon", "version"]])
+        #expect(await recorder.timeouts == [10])
     }
 
     @Test
@@ -159,9 +161,7 @@ private actor DaemonCommandRecorder {
     func run(arguments: [String], timeout: TimeInterval) throws -> String {
         self.arguments.append(arguments)
         self.timeouts.append(timeout)
-        if arguments == self.failingArguments {
-            throw self.failure
-        }
+        if arguments == self.failingArguments { throw self.failure }
         return self.successOutput
     }
 }
