@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct AugmentProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .augment
 
@@ -68,7 +66,7 @@ struct AugmentProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .augment) else { return nil }
+                    guard let entry = CookieHeaderCache.loadForDisplay(provider: .augment) else { return nil }
                     let when = entry.storedAt.relativeDescription()
                     return "Cached: \(entry.sourceLabel) • \(when)"
                 }),
@@ -83,14 +81,14 @@ struct AugmentProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
-        entries.append(.action("Refresh Session", .refreshAugmentSession))
+        entries.append(.action(L("Refresh Session"), .refreshAugmentSession))
 
         if let error = context.store.error(for: .augment) {
             if error.contains("session has expired") ||
                 error.contains("No Augment session cookie found")
             {
                 entries.append(.action(
-                    "Open Augment (Log Out & Back In)",
+                    L("Open Augment (Log Out & Back In)"),
                     .loginToProvider(url: "https://app.augmentcode.com")))
             }
         }

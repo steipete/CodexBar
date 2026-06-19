@@ -6,6 +6,11 @@ import FoundationNetworking
 public enum MistralUsageFetcher {
     private static let baseURL = URL(string: "https://admin.mistral.ai")!
 
+    public struct MistralVibeUsageResult: Equatable, Sendable {
+        public let usagePercentage: Double
+        public let resetAt: Date?
+    }
+
     public static func fetchUsage(
         cookieHeader: String,
         csrfToken: String?,
@@ -50,6 +55,79 @@ public enum MistralUsageFetcher {
         }
 
         return try Self.parseResponse(data: data, updatedAt: now)
+    }
+
+    public static func fetchVibeUsage(
+        csrfToken: String,
+        timeout: TimeInterval = 4,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralVibeUsageResult
+    {
+        let urlString = "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D"
+        guard let url = URL(string: urlString) else {
+            throw MistralUsageError.apiError("Failed to construct URL")
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        // The observed console request sends only csrftoken; keep admin Ory cookies origin-bound.
+        request.httpShouldHandleCookies = false
+        let validatedCSRFToken = try Self.validatedVibeCSRFToken(csrfToken)
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue("csrftoken=\(validatedCSRFToken)", forHTTPHeaderField: "Cookie")
+        request.setValue(validatedCSRFToken, forHTTPHeaderField: "X-CSRFToken")
+
+        let response = try await transport.response(for: request)
+        let data = response.data
+
+        switch response.statusCode {
+        case 200:
+            break
+        case 401, 403:
+            throw MistralUsageError.invalidCredentials
+        default:
+            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
+            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
+        }
+
+        return try Self.parseVibeUsage(data: data)
+    }
+
+    static func parseVibeUsage(data: Data) throws -> MistralVibeUsageResult {
+        let responses: [VibeUsageResponse]
+        do {
+            responses = try JSONDecoder().decode([VibeUsageResponse].self, from: data)
+        } catch {
+            throw MistralUsageError.parseFailed(error.localizedDescription)
+        }
+        guard let json = responses.first?.result.data.json else {
+            throw MistralUsageError.parseFailed("Empty response array")
+        }
+        guard json.usagePercentage.isFinite, (0...100).contains(json.usagePercentage) else {
+            throw MistralUsageError.parseFailed("Invalid usage percentage")
+        }
+        return MistralVibeUsageResult(
+            usagePercentage: json.usagePercentage,
+            resetAt: json.resetAt.flatMap(Self.parseISO8601Date))
+    }
+
+    static func vibeCookieHeader(csrfToken: String) throws -> String {
+        try "csrftoken=\(self.validatedVibeCSRFToken(csrfToken))"
+    }
+
+    private static func validatedVibeCSRFToken(_ csrfToken: String) throws -> String {
+        let token = csrfToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let forbidden = CharacterSet(charactersIn: ";,\r\n")
+        guard !token.isEmpty, token.rangeOfCharacter(from: forbidden) == nil else {
+            throw MistralUsageError.invalidCredentials
+        }
+        return token
+    }
+
+    private static func parseISO8601Date(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
     }
 
     static func parseResponse(data: Data, updatedAt: Date) throws -> MistralUsageSnapshot {
@@ -385,5 +463,23 @@ private struct ModelAccumulator {
             inputTokens: self.inputTokens,
             cachedTokens: self.cachedTokens,
             outputTokens: self.outputTokens)
+    }
+}
+
+private struct VibeUsageResponse: Decodable {
+    let result: VibeResult
+    struct VibeResult: Decodable {
+        let data: VibeData
+        struct VibeData: Decodable {
+            let json: VibeJson
+            struct VibeJson: Decodable {
+                let usagePercentage: Double
+                let resetAt: String?
+                enum CodingKeys: String, CodingKey {
+                    case usagePercentage = "usage_percentage"
+                    case resetAt = "reset_at"
+                }
+            }
+        }
     }
 }

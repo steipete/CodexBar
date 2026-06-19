@@ -1,8 +1,14 @@
 import CodexBarCore
 import Testing
+@testable import CodexBarCLI
 
 @Suite
 struct PlatformGatingTests {
+    @Test
+    func ampAutoSource_doesNotRequireWebSupport() {
+        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .amp))
+    }
+
     @Test
     func claudeWebFetcher_isNotSupportedOnLinux() async {
         #if os(Linux)

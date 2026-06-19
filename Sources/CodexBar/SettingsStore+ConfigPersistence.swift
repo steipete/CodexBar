@@ -123,6 +123,10 @@ extension SettingsStore {
     }
 
     private func bumpConfigRevision(_ context: ConfigChangeContext) {
+        // Account routing derives from config paths and source selection. Never let an old
+        // reconciliation snapshot survive a config reload, even when another provider changed.
+        self.invalidateCodexAccountReconciliationSnapshotCache()
+        self.cachedCodexAccountMenuProjection = nil
         self.configRevision &+= 1
         CodexBarLog.logger(LogCategories.settings)
             .debug("Config revision bumped (\(context.reason)) -> \(self.configRevision)")

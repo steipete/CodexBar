@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum CodexProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .codex,
@@ -58,7 +57,7 @@ public enum CodexProviderDescriptor {
             case .api:
                 return []
             case .auto:
-                return [web, oauth, cli]
+                return [oauth, cli]
             }
         case .app:
             switch context.sourceMode {
@@ -179,9 +178,19 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             accessToken: credentials.accessToken,
             accountId: credentials.accountId,
             env: context.env)
+        let shouldFetchResetCredits = context.includeOptionalUsage || context.includeCredits
+        let resetCredits: CodexRateLimitResetCreditsSnapshot? = if shouldFetchResetCredits {
+            try? await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                accessToken: credentials.accessToken,
+                accountId: credentials.accountId,
+                env: context.env)
+        } else {
+            nil
+        }
         let updatedAt = Date()
         return try Self.makeResult(
             usageResponse: usage,
+            resetCredits: resetCredits,
             credentials: credentials,
             updatedAt: updatedAt,
             sourceMode: context.sourceMode)
@@ -225,6 +234,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
 
     private static func makeResult(
         usageResponse: CodexUsageResponse,
+        resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         credentials: CodexOAuthCredentials,
         updatedAt: Date,
         sourceMode: ProviderSourceMode) throws -> ProviderFetchResult
@@ -236,24 +246,30 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             updatedAt: updatedAt)
 
         if let reconciled {
+            let dataConfidence: UsageDataConfidence = usageResponse.rateLimit?.hasWindowDecodeFailure == true
+                || usageResponse.additionalRateLimitsDecodeFailed
+                ? .unknown
+                : .exact
             return CodexOAuthFetchStrategy().makeResult(
-                usage: reconciled.toUsageSnapshot(),
+                usage: reconciled.toUsageSnapshot()
+                    .withCodexResetCredits(resetCredits)
+                    .withDataConfidence(dataConfidence),
                 credits: credits,
                 sourceLabel: "oauth")
         }
 
-        guard let credits else {
+        guard credits != nil || (resetCredits?.availableCount ?? 0) > 0 else {
             throw UsageError.noRateLimitsFound
         }
 
-        // Credits can still be useful when the OAuth API omits or partially
-        // fails to decode rate-limit windows. Returning the partial OAuth result
-        // prevents auto mode from escalating a usable response into CLI fallback.
+        // Credit balances and manual resets remain useful when OAuth omits
+        // rate-limit windows. Keep the partial result instead of discarding it.
         return CodexOAuthFetchStrategy().makeResult(
             usage: UsageSnapshot(
                 primary: nil,
                 secondary: nil,
                 tertiary: nil,
+                codexResetCredits: resetCredits,
                 updatedAt: updatedAt,
                 identity: CodexReconciledState.oauthIdentity(
                     response: usageResponse,
@@ -273,11 +289,13 @@ extension CodexOAuthFetchStrategy {
     static func _mapResultForTesting(
         _ data: Data,
         credentials: CodexOAuthCredentials,
+        resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         sourceMode: ProviderSourceMode = .oauth) throws -> ProviderFetchResult
     {
         let usageResponse = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
         return try Self.makeResult(
             usageResponse: usageResponse,
+            resetCredits: resetCredits,
             credentials: credentials,
             updatedAt: Date(),
             sourceMode: sourceMode)

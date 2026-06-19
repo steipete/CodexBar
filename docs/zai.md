@@ -25,6 +25,11 @@ z.ai is API-token based. No browser cookies.
   - `authorization: Bearer <token>`
   - `accept: application/json`
 
+## Usage dashboard
+- Global: `https://z.ai/manage-apikey/coding-plan/personal/my-plan`
+- BigModel China: `https://bigmodel.cn/coding-plan/personal/usage`
+- CodexBar's Usage Dashboard action follows the configured API region.
+
 ## Parsing + mapping
 - Response fields:
   - `data.limits[]` → each limit entry.

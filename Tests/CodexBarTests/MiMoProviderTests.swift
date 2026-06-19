@@ -160,7 +160,7 @@ struct MiMoProviderTests {
     }
 
     @Test
-    func `usage snapshot exposes balance through identity plan text`() {
+    func `usage snapshot exposes balance without duplicating identity`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 25.51,
             currency: "USD",
@@ -170,7 +170,24 @@ struct MiMoProviderTests {
 
         #expect(usage.primary == nil)
         #expect(usage.secondary == nil)
-        #expect(usage.loginMethod(for: .mimo) == "Balance: $25.51")
+        #expect(usage.mimoUsage?.balanceDetail == "$25.51")
+        #expect(usage.loginMethod(for: .mimo) == nil)
+    }
+
+    @Test
+    func `usage snapshot exposes paid and granted balance components`() {
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary == nil)
+        #expect(usage.mimoUsage?.balanceDetail == "$25.51 (Paid: $20.00 / Granted: $5.51)")
+        #expect(usage.loginMethod(for: .mimo) == nil)
     }
 
     @Test
@@ -193,7 +210,42 @@ struct MiMoProviderTests {
         #expect(abs((usage.primary?.usedPercent ?? .nan) - 5.05) < 0.0001)
         #expect(usage.primary?.resetDescription == "10,100,158 / 200,000,000 Credits")
         #expect(usage.primary?.resetsAt == resetDate)
+        #expect(usage.secondary == nil)
+        #expect(usage.mimoUsage?.balanceDetail == "$25.51")
         #expect(usage.loginMethod(for: .mimo) == "Standard")
+    }
+
+    @Test
+    func `menu card shows balance as status text with and without token plan`() throws {
+        let now = Date(timeIntervalSince1970: 1_742_771_200)
+        let metadata = try #require(ProviderDefaults.metadata[.mimo])
+        let balanceOnly = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            updatedAt: now)
+            .toUsageSnapshot()
+        let withPlan = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            planCode: "standard",
+            tokenUsed: 10,
+            tokenLimit: 100,
+            tokenPercent: 0.1,
+            updatedAt: now)
+            .toUsageSnapshot()
+
+        let balanceModel = Self.makeMenuCardModel(snapshot: balanceOnly, metadata: metadata, now: now)
+        let planModel = Self.makeMenuCardModel(snapshot: withPlan, metadata: metadata, now: now)
+
+        #expect(balanceModel.metrics.first?.title == "Balance")
+        #expect(balanceModel.metrics.first?.statusText == "$25.51 (Paid: $20.00 / Granted: $5.51)")
+        #expect(planModel.metrics.first?.title == "Credits")
+        #expect(planModel.metrics.last?.title == "Balance")
+        #expect(planModel.metrics.last?.statusText == "$25.51 (Paid: $20.00 / Granted: $5.51)")
     }
 
     @Test
@@ -212,7 +264,58 @@ struct MiMoProviderTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary == nil)
-        #expect(usage.loginMethod(for: .mimo) == "Balance: $0.00")
+        #expect(usage.mimoUsage?.balanceDetail == "$0.00")
+        #expect(usage.loginMethod(for: .mimo) == nil)
+    }
+
+    @Test
+    func `usage snapshot persists mimo balance details`() throws {
+        let usage = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+            .toUsageSnapshot()
+
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: JSONEncoder().encode(usage))
+
+        #expect(decoded.primary == nil)
+        #expect(decoded.mimoUsage?.balanceDetail == "$25.51 (Paid: $20.00 / Granted: $5.51)")
+    }
+
+    @Test
+    func `balance does not participate in icon or switcher quota percentages`() {
+        let balanceOnly = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            updatedAt: Date())
+            .toUsageSnapshot()
+        let withPlan = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            tokenUsed: 10,
+            tokenLimit: 100,
+            tokenPercent: 0.1,
+            updatedAt: Date())
+            .toUsageSnapshot()
+
+        let balanceIcon = IconRemainingResolver.resolvedRemaining(snapshot: balanceOnly, style: .mimo)
+        let planIcon = IconRemainingResolver.resolvedRemaining(snapshot: withPlan, style: .mimo)
+
+        #expect(balanceIcon.primary == nil)
+        #expect(balanceIcon.secondary == nil)
+        #expect(StatusItemController.switcherWeeklyMetricPercent(
+            for: .mimo,
+            snapshot: balanceOnly,
+            showUsed: false) == nil)
+        #expect(planIcon.primary == 90)
+        #expect(planIcon.secondary == nil)
+        #expect(StatusItemController.switcherWeeklyMetricPercent(
+            for: .mimo,
+            snapshot: withPlan,
+            showUsed: false) == 90)
     }
 
     @Test
@@ -235,7 +338,58 @@ struct MiMoProviderTests {
 
         #expect(snapshot.balance == 25.51)
         #expect(snapshot.currency == "USD")
+        #expect(snapshot.cashBalance == nil)
+        #expect(snapshot.giftBalance == nil)
         #expect(snapshot.updatedAt == now)
+    }
+
+    @Test
+    func `parses paid and granted balance fields when available`() throws {
+        let now = Date(timeIntervalSince1970: 1_742_771_200)
+        let json = """
+        {
+          "code": 0,
+          "message": "",
+          "data": {
+            "balance": "50.00",
+            "frozenBalance": null,
+            "currency": "USD",
+            "overdraftLimit": null,
+            "remainingOverdraftLimit": null,
+            "giftBalance": "20.00",
+            "cashBalance": "30.00"
+          }
+        }
+        """
+
+        let snapshot = try MiMoUsageFetcher.parseUsageSnapshot(from: Data(json.utf8), now: now)
+
+        #expect(snapshot.balance == 50)
+        #expect(snapshot.cashBalance == 30)
+        #expect(snapshot.giftBalance == 20)
+        #expect(snapshot.currency == "USD")
+    }
+
+    @Test
+    func `ignores malformed optional balance components`() throws {
+        let json = """
+        {
+          "code": 0,
+          "message": "",
+          "data": {
+            "balance": "25.51",
+            "currency": "USD",
+            "giftBalance": "",
+            "cashBalance": "unknown"
+          }
+        }
+        """
+
+        let snapshot = try MiMoUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+
+        #expect(snapshot.balance == 25.51)
+        #expect(snapshot.cashBalance == nil)
+        #expect(snapshot.giftBalance == nil)
     }
 
     @Test
@@ -292,7 +446,7 @@ struct MiMoProviderTests {
     func `combined snapshot merges balance and token plan`() throws {
         let now = Date(timeIntervalSince1970: 1_742_771_200)
         let balanceJSON = """
-        {"code":0,"message":"","data":{"balance":"25.51","currency":"USD"}}
+        {"code":0,"message":"","data":{"balance":"25.51","currency":"USD","cashBalance":"20","giftBalance":"5.51"}}
         """
         let detailJSON = """
         {"code":0,"message":"","data":{"planCode":"standard","currentPeriodEnd":"2026-05-04 23:59:59","expired":false}}
@@ -325,6 +479,8 @@ struct MiMoProviderTests {
 
         #expect(snapshot.balance == 25.51)
         #expect(snapshot.currency == "USD")
+        #expect(snapshot.cashBalance == 20)
+        #expect(snapshot.giftBalance == 5.51)
         #expect(snapshot.planCode == "standard")
         #expect(snapshot.tokenUsed == 10_100_158)
         #expect(snapshot.tokenLimit == 200_000_000)
@@ -376,12 +532,90 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `required balance failure cancels optional mimo requests promptly`() async throws {
+        let optionalStarted = MiMoOptionalRequestGate()
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            if path.hasSuffix("/balance") {
+                await optionalStarted.wait()
+                throw URLError(.userAuthenticationRequired)
+            }
+
+            await optionalStarted.open()
+            try await Task.sleep(for: .seconds(5))
+            let (response, data) = try Self.makeResponse(url: #require(request.url), body: "{}")
+            return (data, response)
+        }
+
+        let startedAt = ContinuousClock.now
+        do {
+            _ = try await MiMoUsageFetcher.fetchUsage(
+                cookieHeader: "userId=123; api-platform_serviceToken=svc-token",
+                environment: ["MIMO_API_URL": "https://mimo.test/api/v1"],
+                session: transport)
+            Issue.record("Expected required balance request to fail")
+        } catch let error as URLError {
+            #expect(error.code == .userAuthenticationRequired)
+        }
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(elapsed < .seconds(1), "Required failure was delayed by optional requests: \(elapsed)")
+    }
+
+    @Test
+    func `fetch usage treats auth redirect as login required`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let (response, data) = Self.makeResponse(url: url, body: "", statusCode: 302)
+            return (data, response)
+        }
+
+        do {
+            _ = try await MiMoUsageFetcher.fetchUsage(
+                cookieHeader: "userId=123; api-platform_serviceToken=expired-token",
+                environment: ["MIMO_API_URL": "https://mimo.test/api/v1"],
+                session: transport)
+            Issue.record("Expected MiMo auth redirect to require login")
+        } catch MiMoUsageError.loginRequired {
+            // Expected.
+        }
+    }
+}
+
+private actor MiMoOptionalRequestGate {
+    private var isOpen = false
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !self.isOpen else { return }
+        await withCheckedContinuation { continuation in
+            self.continuations.append(continuation)
+        }
+    }
+
+    func open() {
+        self.isOpen = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+}
+
+extension MiMoProviderTests {
+    @Test
     @MainActor
     func `provider detail plan row formats mimo as balance`() {
-        let row = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Balance: $25.51")
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let legacyBalance = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Balance: $25.51")
+            let tokenPlan = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Standard")
 
-        #expect(row?.label == "Balance")
-        #expect(row?.value == "$25.51")
+            #expect(legacyBalance?.label == "Balance")
+            #expect(legacyBalance?.value == "$25.51")
+            #expect(tokenPlan?.label == "Plan")
+            #expect(tokenPlan?.value == "Standard")
+        }
     }
 
     @Test(arguments: [UsageProvider.openrouter, .mimo])
@@ -421,6 +655,56 @@ struct MiMoProviderTests {
 
         #expect(lines.contains("Balance: $25.51"))
         #expect(!lines.contains("Balance: Balance: $25.51"))
+        if provider == .mimo {
+            #expect(!lines.contains(where: { $0.hasPrefix("Balance: 100%") }))
+        }
+    }
+
+    @Test
+    @MainActor
+    func `menu descriptor renders mimo token detail without reset date`() throws {
+        let suite = "MiMoProviderTests-menu-token-detail"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            tokenUsed: 10,
+            tokenLimit: 100,
+            tokenPercent: 0.1,
+            updatedAt: Date(timeIntervalSince1970: 1_742_771_200))
+            .toUsageSnapshot()
+        store._setSnapshotForTesting(snapshot, provider: .mimo)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .mimo,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+        let lines = descriptor.sections
+            .flatMap(\.entries)
+            .compactMap { entry -> String? in
+                guard case let .text(text, _) = entry else { return nil }
+                return text
+            }
+
+        #expect(lines.contains("10 / 100 Credits"))
+        #expect(!lines.contains("Resets 10 / 100 Credits"))
     }
 
     @Test
@@ -442,6 +726,104 @@ struct MiMoProviderTests {
         let available = await strategy.isAvailable(context)
 
         #expect(available == false)
+    }
+
+    @Test
+    func `mimo local strategy works when web cookies are disabled or invalid`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-local-strategy-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("usage.json")
+        let payload: [String: Any] = [
+            "updated_at": "2026-06-03T05:04:03+00:00",
+            "sessions_scanned": 2,
+            "windows": [
+                "today": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "week": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "all_time": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: payload).write(to: file)
+
+        let settings = [
+            ProviderSettingsSnapshot.make(mimo: .init(cookieSource: .off, manualCookieHeader: nil)),
+            ProviderSettingsSnapshot.make(
+                mimo: .init(cookieSource: .manual, manualCookieHeader: "Cookie: userId=123")),
+        ]
+
+        for setting in settings {
+            let context = self.makeContext(
+                settings: setting,
+                environment: ["MIMO_LOCAL_USAGE_PATH": file.path])
+            let outcome = await MiMoProviderDescriptor.descriptor.fetchPlan.fetchOutcome(
+                context: context,
+                provider: .mimo)
+
+            switch outcome.result {
+            case let .success(result):
+                #expect(result.sourceLabel == "local")
+                #expect(result.strategyID == "mimo.local")
+                #expect(result.usage.primary == nil)
+                #expect(result.usage.mimoUsage == nil)
+                #expect(result.usage.loginMethod(for: .mimo)?.contains("Local") == true)
+            case let .failure(error):
+                Issue.record("Expected local MiMo fallback, got \(error)")
+            }
+        }
+    }
+
+    @Test
+    func `mimo malformed local cache stays available and reports its cache error`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-invalid-local-strategy-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("usage.json")
+        try Data("{}".utf8).write(to: file)
+
+        let context = self.makeContext(environment: ["MIMO_LOCAL_USAGE_PATH": file.path])
+        let strategy = MiMoLocalFetchStrategy()
+
+        #expect(await strategy.isAvailable(context))
+        await #expect(throws: MiMoLocalUsageError.self) {
+            try await strategy.fetch(context)
+        }
+    }
+
+    @Test
+    func `mimo explicit web mode does not use local fallback`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimo-web-mode-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("usage.json")
+        let payload: [String: Any] = [
+            "updated_at": "2026-06-03T05:04:03+00:00",
+            "sessions_scanned": 1,
+            "windows": [
+                "today": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "week": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+                "all_time": ["input": 100, "output": 50, "cache_read": 0, "cache_create": 0],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: payload).write(to: file)
+
+        let context = self.makeContext(
+            sourceMode: .web,
+            settings: ProviderSettingsSnapshot.make(
+                mimo: .init(cookieSource: .off, manualCookieHeader: nil)),
+            environment: ["MIMO_LOCAL_USAGE_PATH": file.path])
+        let outcome = await MiMoProviderDescriptor.descriptor.fetchPlan.fetchOutcome(
+            context: context,
+            provider: .mimo)
+
+        switch outcome.result {
+        case let .success(result):
+            Issue.record("Expected explicit web mode to reject local fallback, got \(result.strategyID)")
+        case .failure:
+            break
+        }
     }
 
     @Test
@@ -483,6 +865,29 @@ struct MiMoProviderTests {
 
         await #expect(throws: MiMoSettingsError.invalidCookie) {
             _ = try await strategy.fetch(context)
+        }
+    }
+
+    @Test
+    func `mimo cookie importer surfaces safari access denial`() throws {
+        let detection = BrowserDetection(
+            homeDirectory: "/tmp/codexbar-mimo-browser-test",
+            cacheTTL: 0,
+            fileExists: { _ in false },
+            directoryContents: { _ in nil })
+
+        do {
+            _ = try MiMoCookieImporter.importSessions(
+                browserDetection: detection,
+                loadRecords: { browser, _, _ in
+                    throw BrowserCookieError.accessDenied(
+                        browser: browser,
+                        details: "Grant CodexBar Full Disk Access to read Safari cookies.")
+                })
+            Issue.record("Expected Safari access denial")
+        } catch let error as MiMoSettingsError {
+            #expect(error.localizedDescription.contains("Full Disk Access"))
+            #expect(error.localizedDescription.contains("Safari"))
         }
     }
 
@@ -552,8 +957,75 @@ struct MiMoProviderTests {
         #expect(requestedCookies.count == 6)
         #expect(requestedCookies.contains(where: { $0.contains("expired-token") }))
         #expect(requestedCookies.contains(where: { $0.contains("valid-token") }))
-        #expect(result.usage.loginMethod(for: .mimo) == "Balance: $25.51")
+        #expect(result.usage.mimoUsage?.balanceDetail == "$25.51")
         #expect(CookieHeaderCache.load(provider: .mimo)?.sourceLabel == "Active Chrome")
+    }
+
+    @Test
+    func `mimo web strategy retries safari after stale chrome auth redirect`() async throws {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+        let registered = URLProtocol.registerClass(MiMoStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(MiMoStubURLProtocol.self)
+            }
+            MiMoStubURLProtocol.handler = nil
+            MiMoCookieImporter.importSessionsOverrideForTesting = nil
+            CookieHeaderCache.clear(provider: .mimo)
+        }
+
+        CookieHeaderCache.clear(provider: .mimo)
+        CookieHeaderCache.store(
+            provider: .mimo,
+            cookieHeader: "api-platform_serviceToken=stale-chrome-token; userId=111",
+            sourceLabel: "Chrome")
+
+        MiMoCookieImporter.importSessionsOverrideForTesting = { _, _ in
+            [
+                .init(
+                    cookieHeader: "api-platform_serviceToken=stale-chrome-token; userId=111",
+                    sourceLabel: "Chrome"),
+                .init(
+                    cookieHeader: "api-platform_serviceToken=valid-safari-token; userId=222",
+                    sourceLabel: "Safari"),
+            ]
+        }
+
+        let lock = NSLock()
+        var requestedCookies: [String] = []
+        MiMoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
+            lock.withLock {
+                requestedCookies.append(cookie)
+            }
+
+            if cookie.contains("stale-chrome-token") {
+                return Self.makeResponse(url: url, body: "", statusCode: 302)
+            }
+
+            let body = """
+            {
+              "code": 0,
+              "message": "",
+              "data": {
+                "balance": "25.51",
+                "currency": "USD"
+              }
+            }
+            """
+            return Self.makeResponse(url: url, body: body)
+        }
+
+        let strategy = MiMoWebFetchStrategy()
+        let result = try await strategy
+            .fetch(self.makeContext(environment: ["MIMO_API_URL": "https://mimo.test/api/v1"]))
+
+        #expect(requestedCookies.contains(where: { $0.contains("stale-chrome-token") }))
+        #expect(requestedCookies.contains(where: { $0.contains("valid-safari-token") }))
+        #expect(result.usage.mimoUsage?.balanceDetail == "$25.51")
+        #expect(CookieHeaderCache.load(provider: .mimo)?.sourceLabel == "Safari")
     }
 
     #if os(macOS)
@@ -616,6 +1088,32 @@ struct MiMoProviderTests {
         return (response, Data(body.utf8))
     }
 
+    private static func makeMenuCardModel(
+        snapshot: UsageSnapshot,
+        metadata: ProviderMetadata,
+        now: Date) -> UsageMenuCardView.Model
+    {
+        UsageMenuCardView.Model.make(.init(
+            provider: .mimo,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+    }
+
     private func makeBalanceSnapshot(provider: UsageProvider) -> UsageSnapshot {
         let updatedAt = Date(timeIntervalSince1970: 1_742_771_200)
         switch provider {
@@ -646,13 +1144,14 @@ struct MiMoProviderTests {
     }
 
     private func makeContext(
+        sourceMode: ProviderSourceMode = .auto,
         settings: ProviderSettingsSnapshot? = nil,
         environment: [String: String] = [:]) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: .app,
-            sourceMode: .auto,
+            sourceMode: sourceMode,
             includeCredits: false,
             webTimeout: 1,
             webDebugDumpHTML: false,

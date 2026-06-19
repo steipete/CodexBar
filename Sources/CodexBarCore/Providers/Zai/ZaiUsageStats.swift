@@ -309,6 +309,21 @@ public struct ZaiUsageFetcher: Sendable {
         return region.quotaLimitURL
     }
 
+    /// Resolves the canonical dashboard for the effective quota endpoint without opening custom override hosts.
+    public static func resolveDashboardURL(
+        region: ZaiAPIRegion,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+    {
+        let quotaHost = self.resolveQuotaURL(region: region, environment: environment).host?.lowercased()
+        if quotaHost == ZaiAPIRegion.global.quotaLimitURL.host?.lowercased() {
+            return ZaiAPIRegion.global.dashboardURL
+        }
+        if quotaHost == ZaiAPIRegion.bigmodelCN.quotaLimitURL.host?.lowercased() {
+            return ZaiAPIRegion.bigmodelCN.dashboardURL
+        }
+        return region.dashboardURL
+    }
+
     /// Fetches usage stats from z.ai using the provided API key
     public static func fetchUsage(
         apiKey: String,

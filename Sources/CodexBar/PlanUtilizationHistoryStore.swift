@@ -28,7 +28,7 @@ struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Expressib
     }
 }
 
-struct PlanUtilizationHistoryEntry: Codable, Equatable {
+struct PlanUtilizationHistoryEntry: Codable, Equatable, Hashable {
     let capturedAt: Date
     let usedPercent: Double
     let resetsAt: Date?

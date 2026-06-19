@@ -9,331 +9,354 @@ import Testing
 struct CodexDashboardWorkedExampleParityTests {
     @Test
     func `worked example A wrong email app and CLI both reject and retire owned state`() async throws {
-        OpenAIDashboardCacheStore.clear()
-        defer { OpenAIDashboardCacheStore.clear() }
+        try await self.withIsolatedDashboardCache {
+            OpenAIDashboardCacheStore.clear()
+            defer { OpenAIDashboardCacheStore.clear() }
 
-        let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-a")
-        store.settings._test_liveSystemCodexAccount = self.liveAccount(
-            email: "work@company.com",
-            identity: .emailOnly(normalizedEmail: "work@company.com"))
-        store.settings.codexActiveSource = .liveSystem
+            let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-a")
+            store.settings._test_liveSystemCodexAccount = self.liveAccount(
+                email: "work@company.com",
+                identity: .emailOnly(normalizedEmail: "work@company.com"))
+            store.settings.codexActiveSource = .liveSystem
 
-        let attachedDashboard = self.makeDashboard(
-            email: "work@company.com",
-            creditsRemaining: 42,
-            usedPercent: 20)
-        let attachedCredits = self.credits(remaining: 42)
-        store._setSnapshotForTesting(self.codexSnapshot(email: "work@company.com", usedPercent: 20), provider: .codex)
-        store.lastSourceLabels[.codex] = "openai-web"
-        store.credits = attachedCredits
-        store.lastCreditsSnapshot = attachedCredits
-        store.lastCreditsSnapshotAccountKey = "work@company.com"
-        store.lastCreditsSource = .dashboardWeb
-        store.openAIDashboard = attachedDashboard
-        store.lastOpenAIDashboardSnapshot = attachedDashboard
-        store.lastOpenAIDashboardTargetEmail = "work@company.com"
-        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
-            accountEmail: "work@company.com",
-            snapshot: attachedDashboard))
+            let attachedDashboard = self.makeDashboard(
+                email: "work@company.com",
+                creditsRemaining: 42,
+                usedPercent: 20)
+            let attachedCredits = self.credits(remaining: 42)
+            store._setSnapshotForTesting(
+                self.codexSnapshot(email: "work@company.com", usedPercent: 20),
+                provider: .codex)
+            store.lastSourceLabels[.codex] = "openai-web"
+            store.credits = attachedCredits
+            store.lastCreditsSnapshot = attachedCredits
+            store.lastCreditsSnapshotAccountKey = "work@company.com"
+            store.lastCreditsSource = .dashboardWeb
+            store.openAIDashboard = attachedDashboard
+            store.lastOpenAIDashboardSnapshot = attachedDashboard
+            store.lastOpenAIDashboardTargetEmail = "work@company.com"
+            OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
+                accountEmail: "work@company.com",
+                snapshot: attachedDashboard))
 
-        await store.applyOpenAIDashboard(
-            self.makeDashboard(
+            await store.applyOpenAIDashboard(
+                self.makeDashboard(
+                    email: "personal@gmail.com",
+                    creditsRemaining: 9,
+                    usedPercent: 35),
+                targetEmail: "work@company.com")
+
+            #expect(store.openAIDashboard == nil)
+            #expect(store.lastOpenAIDashboardSnapshot == nil)
+            #expect(store.snapshots[.codex] == nil)
+            #expect(store.credits == nil)
+            #expect(store.lastCreditsSource == .none)
+            #expect(OpenAIDashboardCacheStore.load() == nil)
+            #expect(store.openAIDashboardRequiresLogin == true)
+
+            let authHome = try self.makeAuthHome(
+                email: "work@company.com",
+                accountId: "acct-work")
+            defer { try? FileManager.default.removeItem(at: authHome) }
+            let cliContext = self.makeCLIContext(
+                authHome: authHome,
+                knownOwners: [
+                    CodexDashboardKnownOwnerCandidate(
+                        identity: .providerAccount(id: "acct-work"),
+                        normalizedEmail: "work@company.com"),
+                ])
+            let wrongEmailDashboard = self.makeDashboard(
                 email: "personal@gmail.com",
                 creditsRemaining: 9,
-                usedPercent: 35),
-            targetEmail: "work@company.com")
+                usedPercent: 35)
 
-        #expect(store.openAIDashboard == nil)
-        #expect(store.lastOpenAIDashboardSnapshot == nil)
-        #expect(store.snapshots[.codex] == nil)
-        #expect(store.credits == nil)
-        #expect(store.lastCreditsSource == .none)
-        #expect(OpenAIDashboardCacheStore.load() == nil)
-        #expect(store.openAIDashboardRequiresLogin == true)
-
-        let authHome = try self.makeAuthHome(
-            email: "work@company.com",
-            accountId: "acct-work")
-        defer { try? FileManager.default.removeItem(at: authHome) }
-        let cliContext = self.makeCLIContext(
-            authHome: authHome,
-            knownOwners: [
-                CodexDashboardKnownOwnerCandidate(
-                    identity: .providerAccount(id: "acct-work"),
-                    normalizedEmail: "work@company.com"),
-            ])
-        let wrongEmailDashboard = self.makeDashboard(
-            email: "personal@gmail.com",
-            creditsRemaining: 9,
-            usedPercent: 35)
-
-        do {
-            _ = try CodexWebDashboardStrategy.makeAuthorizedDashboardResultForTesting(
-                dashboard: wrongEmailDashboard,
-                context: cliContext,
-                routingTargetEmail: "work@company.com")
-            Issue.record("Expected OpenAIWebCodexError.policyRejected")
-        } catch let error as OpenAIWebCodexError {
-            if case let .policyRejected(decision) = error {
-                #expect(decision.reason == .wrongEmail(expected: "work@company.com", actual: "personal@gmail.com"))
-            } else {
-                Issue.record("Expected policyRejected, got \(error)")
+            do {
+                _ = try CodexWebDashboardStrategy.makeAuthorizedDashboardResultForTesting(
+                    dashboard: wrongEmailDashboard,
+                    context: cliContext,
+                    routingTargetEmail: "work@company.com")
+                Issue.record("Expected OpenAIWebCodexError.policyRejected")
+            } catch let error as OpenAIWebCodexError {
+                if case let .policyRejected(decision) = error {
+                    #expect(decision.reason == .wrongEmail(expected: "work@company.com", actual: "personal@gmail.com"))
+                } else {
+                    Issue.record("Expected policyRejected, got \(error)")
+                }
+            } catch {
+                Issue.record("Expected OpenAIWebCodexError.policyRejected, got \(error)")
             }
-        } catch {
-            Issue.record("Expected OpenAIWebCodexError.policyRejected, got \(error)")
+
+            OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
+                accountEmail: "personal@gmail.com",
+                snapshot: wrongEmailDashboard))
+
+            let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
+                usage: self.makeUsage(email: "work@company.com"),
+                sourceLabel: "codex-cli",
+                context: cliContext)
+
+            #expect(restored == nil)
+            #expect(OpenAIDashboardCacheStore.load() == nil)
         }
-
-        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
-            accountEmail: "personal@gmail.com",
-            snapshot: wrongEmailDashboard))
-
-        let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
-            usage: self.makeUsage(email: "work@company.com"),
-            sourceLabel: "codex-cli",
-            context: cliContext)
-
-        #expect(restored == nil)
-        #expect(OpenAIDashboardCacheStore.load() == nil)
     }
 
     @Test
     func `worked example B same email ambiguity is display only in app and non attach in CLI`() async throws {
-        OpenAIDashboardCacheStore.clear()
-        defer { OpenAIDashboardCacheStore.clear() }
+        try await self.withIsolatedDashboardCache {
+            OpenAIDashboardCacheStore.clear()
+            defer { OpenAIDashboardCacheStore.clear() }
 
-        let managedHome = try self.makeAuthHome(
-            email: "work@company.com",
-            accountId: "acct-managed")
-        defer { try? FileManager.default.removeItem(at: managedHome) }
-        let managedAccount = ManagedCodexAccount(
-            id: UUID(),
-            email: "work@company.com",
-            managedHomePath: managedHome.path,
-            createdAt: 1,
-            updatedAt: 1,
-            lastAuthenticatedAt: 1)
-        let managedStoreURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
-        defer { try? FileManager.default.removeItem(at: managedStoreURL) }
+            let managedHome = try self.makeAuthHome(
+                email: "work@company.com",
+                accountId: "acct-managed")
+            defer { try? FileManager.default.removeItem(at: managedHome) }
+            let managedAccount = ManagedCodexAccount(
+                id: UUID(),
+                email: "work@company.com",
+                managedHomePath: managedHome.path,
+                createdAt: 1,
+                updatedAt: 1,
+                lastAuthenticatedAt: 1)
+            let managedStoreURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+            defer { try? FileManager.default.removeItem(at: managedStoreURL) }
 
-        let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-b")
-        store.settings._test_managedCodexAccountStoreURL = managedStoreURL
-        store.settings._test_liveSystemCodexAccount = self.liveAccount(
-            email: "work@company.com",
-            identity: .emailOnly(normalizedEmail: "work@company.com"))
-        store.settings.codexActiveSource = .liveSystem
+            let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-b")
+            store.settings._test_managedCodexAccountStoreURL = managedStoreURL
+            store.settings._test_liveSystemCodexAccount = self.liveAccount(
+                email: "work@company.com",
+                identity: .emailOnly(normalizedEmail: "work@company.com"))
+            store.settings.codexActiveSource = .liveSystem
 
-        await store.applyOpenAIDashboard(
-            self.makeDashboard(
+            await store.applyOpenAIDashboard(
+                self.makeDashboard(
+                    email: "work@company.com",
+                    creditsRemaining: 14,
+                    usedPercent: 30,
+                    includeUsageBreakdown: true),
+                targetEmail: "work@company.com")
+            try await Task.sleep(for: .milliseconds(250))
+
+            #expect(store.openAIDashboard?.signedInEmail == "work@company.com")
+            #expect(store.snapshots[.codex] == nil)
+            #expect(store.credits == nil)
+            #expect(OpenAIDashboardCacheStore.load() == nil)
+            #expect(store.codexHistoricalDataset == nil)
+
+            let cliAuthHome = try self.makeAuthHome(email: "work@company.com")
+            defer { try? FileManager.default.removeItem(at: cliAuthHome) }
+            let ambiguousOwners = [
+                CodexDashboardKnownOwnerCandidate(
+                    identity: .providerAccount(id: "acct-alpha"),
+                    normalizedEmail: "work@company.com"),
+                CodexDashboardKnownOwnerCandidate(
+                    identity: .providerAccount(id: "acct-beta"),
+                    normalizedEmail: "work@company.com"),
+            ]
+            let cliContext = self.makeCLIContext(
+                authHome: cliAuthHome,
+                knownOwners: ambiguousOwners)
+            let dashboard = self.makeDashboard(
                 email: "work@company.com",
                 creditsRemaining: 14,
                 usedPercent: 30,
-                includeUsageBreakdown: true),
-            targetEmail: "work@company.com")
-        try await Task.sleep(for: .milliseconds(250))
+                includeUsageBreakdown: true)
+            let expectedDecision = CodexDashboardAuthority.evaluate(
+                CodexCLIDashboardAuthorityContext.makeLiveWebInput(
+                    dashboard: dashboard,
+                    context: cliContext,
+                    routingTargetEmail: "work@company.com"))
 
-        #expect(store.openAIDashboard?.signedInEmail == "work@company.com")
-        #expect(store.snapshots[.codex] == nil)
-        #expect(store.credits == nil)
-        #expect(OpenAIDashboardCacheStore.load() == nil)
-        #expect(store.codexHistoricalDataset == nil)
+            do {
+                _ = try CodexWebDashboardStrategy.makeAuthorizedDashboardResultForTesting(
+                    dashboard: dashboard,
+                    context: cliContext,
+                    routingTargetEmail: "work@company.com")
+                Issue.record("Expected CodexDashboardPolicyError.displayOnly")
+            } catch let error as CodexDashboardPolicyError {
+                #expect(error == .displayOnly(expectedDecision))
+            } catch {
+                Issue.record("Expected CodexDashboardPolicyError.displayOnly, got \(error)")
+            }
 
-        let cliAuthHome = try self.makeAuthHome(email: "work@company.com")
-        defer { try? FileManager.default.removeItem(at: cliAuthHome) }
-        let ambiguousOwners = [
-            CodexDashboardKnownOwnerCandidate(
-                identity: .providerAccount(id: "acct-alpha"),
-                normalizedEmail: "work@company.com"),
-            CodexDashboardKnownOwnerCandidate(
-                identity: .providerAccount(id: "acct-beta"),
-                normalizedEmail: "work@company.com"),
-        ]
-        let cliContext = self.makeCLIContext(
-            authHome: cliAuthHome,
-            knownOwners: ambiguousOwners)
-        let dashboard = self.makeDashboard(
-            email: "work@company.com",
-            creditsRemaining: 14,
-            usedPercent: 30,
-            includeUsageBreakdown: true)
-        let expectedDecision = CodexDashboardAuthority.evaluate(
-            CodexCLIDashboardAuthorityContext.makeLiveWebInput(
-                dashboard: dashboard,
-                context: cliContext,
-                routingTargetEmail: "work@company.com"))
+            OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
+                accountEmail: "work@company.com",
+                snapshot: dashboard))
 
-        do {
-            _ = try CodexWebDashboardStrategy.makeAuthorizedDashboardResultForTesting(
-                dashboard: dashboard,
-                context: cliContext,
-                routingTargetEmail: "work@company.com")
-            Issue.record("Expected CodexDashboardPolicyError.displayOnly")
-        } catch let error as CodexDashboardPolicyError {
-            #expect(error == .displayOnly(expectedDecision))
-        } catch {
-            Issue.record("Expected CodexDashboardPolicyError.displayOnly, got \(error)")
+            let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
+                usage: self.makeUsage(email: "work@company.com"),
+                sourceLabel: "codex-cli",
+                context: cliContext)
+
+            #expect(restored == nil)
+            #expect(OpenAIDashboardCacheStore.load() == nil)
         }
-
-        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
-            accountEmail: "work@company.com",
-            snapshot: dashboard))
-
-        let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
-            usage: self.makeUsage(email: "work@company.com"),
-            sourceLabel: "codex-cli",
-            context: cliContext)
-
-        #expect(restored == nil)
-        #expect(OpenAIDashboardCacheStore.load() == nil)
     }
 
     @Test
     func `worked example C unresolved but proven continuity attaches in app and CLI`() async {
-        OpenAIDashboardCacheStore.clear()
-        defer { OpenAIDashboardCacheStore.clear() }
+        await self.withIsolatedDashboardCache {
+            OpenAIDashboardCacheStore.clear()
+            defer { OpenAIDashboardCacheStore.clear() }
 
-        let emptyHome = self.makeEmptyHome()
-        defer { try? FileManager.default.removeItem(at: emptyHome) }
+            let emptyHome = self.makeEmptyHome()
+            defer { try? FileManager.default.removeItem(at: emptyHome) }
 
-        let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-c")
-        store.settings._test_codexReconciliationEnvironment = ["CODEX_HOME": emptyHome.path]
-        store.settings._test_liveSystemCodexAccount = nil
-        store.settings.codexActiveSource = .liveSystem
-        store._setSnapshotForTesting(self.codexSnapshot(email: "work@company.com", usedPercent: 12), provider: .codex)
-        store.lastSourceLabels[.codex] = "codex-cli"
+            let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-c")
+            store.settings._test_codexReconciliationEnvironment = ["CODEX_HOME": emptyHome.path]
+            store.settings._test_liveSystemCodexAccount = nil
+            store.settings.codexActiveSource = .liveSystem
+            store._setSnapshotForTesting(
+                self.codexSnapshot(email: "work@company.com", usedPercent: 12),
+                provider: .codex)
+            store.lastSourceLabels[.codex] = "codex-cli"
 
-        let dashboard = self.makeDashboard(
-            email: "work@company.com",
-            creditsRemaining: 33,
-            usedPercent: 12)
-        let appAuthority = store.evaluateCodexDashboardAuthority(
-            dashboard: dashboard,
-            sourceKind: .liveWeb,
-            routingTargetEmail: "work@company.com")
+            let dashboard = self.makeDashboard(
+                email: "work@company.com",
+                creditsRemaining: 33,
+                usedPercent: 12)
+            let appAuthority = store.evaluateCodexDashboardAuthority(
+                dashboard: dashboard,
+                sourceKind: .liveWeb,
+                routingTargetEmail: "work@company.com")
 
-        await store.applyOpenAIDashboard(dashboard, targetEmail: "work@company.com")
+            await store.applyOpenAIDashboard(dashboard, targetEmail: "work@company.com")
 
-        #expect(store.openAIDashboard?.signedInEmail == "work@company.com")
-        #expect(store.credits?.remaining == 33)
-        #expect(store.lastCreditsSource == .dashboardWeb)
-        #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "work@company.com")
-        #expect(store.openAIDashboardRequiresLogin == false)
-        #expect(store.lastOpenAIDashboardError == nil)
+            #expect(store.openAIDashboard?.signedInEmail == "work@company.com")
+            #expect(store.credits?.remaining == 33)
+            #expect(store.lastCreditsSource == .dashboardWeb)
+            #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "work@company.com")
+            #expect(store.openAIDashboardRequiresLogin == false)
+            #expect(store.lastOpenAIDashboardError == nil)
 
-        let cliContext = self.makeCLIContext(authHome: emptyHome, knownOwners: [])
-        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
-            accountEmail: "stale-route@example.com",
-            snapshot: dashboard))
+            let cliContext = self.makeCLIContext(authHome: emptyHome, knownOwners: [])
+            OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
+                accountEmail: "stale-route@example.com",
+                snapshot: dashboard))
 
-        let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
-            usage: self.makeUsage(email: "work@company.com"),
-            sourceLabel: "codex-cli",
-            context: cliContext)
-        let cliInput = CodexCLIDashboardAuthorityContext.makeCachedDashboardInput(
-            dashboard: dashboard,
-            cachedAccountEmail: "stale-route@example.com",
-            usage: self.makeUsage(email: "work@company.com"),
-            sourceLabel: "codex-cli",
-            context: cliContext)
-        let cliDecision = CodexDashboardAuthority.evaluate(cliInput)
+            let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
+                usage: self.makeUsage(email: "work@company.com"),
+                sourceLabel: "codex-cli",
+                context: cliContext)
+            let cliInput = CodexCLIDashboardAuthorityContext.makeCachedDashboardInput(
+                dashboard: dashboard,
+                cachedAccountEmail: "stale-route@example.com",
+                usage: self.makeUsage(email: "work@company.com"),
+                sourceLabel: "codex-cli",
+                context: cliContext)
+            let cliDecision = CodexDashboardAuthority.evaluate(cliInput)
 
-        #expect(restored == dashboard)
-        #expect(appAuthority.decision.disposition == .attach)
-        #expect(cliDecision.disposition == .attach)
-        #expect(appAuthority.decision.reason == .trustedContinuityNoCompetingOwner)
-        #expect(cliDecision.reason == .trustedContinuityNoCompetingOwner)
+            #expect(restored == dashboard)
+            #expect(appAuthority.decision.disposition == .attach)
+            #expect(cliDecision.disposition == .attach)
+            #expect(appAuthority.decision.reason == .trustedContinuityNoCompetingOwner)
+            #expect(cliDecision.reason == .trustedContinuityNoCompetingOwner)
+        }
     }
 
     @Test
     func `worked example D prior attach downgrades to ambiguity and retires old owned state`() async throws {
-        OpenAIDashboardCacheStore.clear()
-        defer { OpenAIDashboardCacheStore.clear() }
+        try await self.withIsolatedDashboardCache {
+            OpenAIDashboardCacheStore.clear()
+            defer { OpenAIDashboardCacheStore.clear() }
 
-        let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-d")
-        store.settings._test_liveSystemCodexAccount = self.liveAccount(
-            email: "shared@example.com",
-            identity: .emailOnly(normalizedEmail: "shared@example.com"))
-        store.settings.codexActiveSource = .liveSystem
-
-        let initialDashboard = self.makeDashboard(
-            email: "shared@example.com",
-            creditsRemaining: 21,
-            usedPercent: 18)
-        await store.applyOpenAIDashboard(initialDashboard, targetEmail: "shared@example.com")
-
-        #expect(store.openAIDashboard?.signedInEmail == "shared@example.com")
-        #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "shared@example.com")
-        #expect(store.credits?.remaining == 21)
-        #expect(store.lastSourceLabels[.codex] == "openai-web")
-        #expect(OpenAIDashboardCacheStore.load()?.accountEmail == "shared@example.com")
-
-        let managedHome = try self.makeAuthHome(
-            email: "shared@example.com",
-            accountId: "acct-managed")
-        defer { try? FileManager.default.removeItem(at: managedHome) }
-        let managedAccount = ManagedCodexAccount(
-            id: UUID(),
-            email: "shared@example.com",
-            managedHomePath: managedHome.path,
-            createdAt: 1,
-            updatedAt: 1,
-            lastAuthenticatedAt: 1)
-        let managedStoreURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
-        defer { try? FileManager.default.removeItem(at: managedStoreURL) }
-        store.settings._test_managedCodexAccountStoreURL = managedStoreURL
-
-        await store.applyOpenAIDashboard(
-            self.makeDashboard(
+            let store = self.makeAppStore(suite: "CodexDashboardWorkedExampleParityTests-example-d")
+            store.settings._test_liveSystemCodexAccount = self.liveAccount(
                 email: "shared@example.com",
-                creditsRemaining: 9,
-                usedPercent: 35,
-                includeUsageBreakdown: true),
-            targetEmail: "shared@example.com")
+                identity: .emailOnly(normalizedEmail: "shared@example.com"))
+            store.settings.codexActiveSource = .liveSystem
 
-        #expect(store.openAIDashboard?.signedInEmail == "shared@example.com")
-        #expect(store.lastOpenAIDashboardSnapshot?.signedInEmail == "shared@example.com")
-        #expect(store.snapshots[.codex] == nil)
-        #expect(store.credits == nil)
-        #expect(store.lastCreditsSource == .none)
-        #expect(OpenAIDashboardCacheStore.load() == nil)
+            let initialDashboard = self.makeDashboard(
+                email: "shared@example.com",
+                creditsRemaining: 21,
+                usedPercent: 18)
+            await store.applyOpenAIDashboard(initialDashboard, targetEmail: "shared@example.com")
 
-        OpenAIDashboardCacheStore.clear()
-        let cliAuthHome = try self.makeAuthHome(email: "shared@example.com")
-        defer { try? FileManager.default.removeItem(at: cliAuthHome) }
-        let attachableContext = self.makeCLIContext(
-            authHome: cliAuthHome,
-            knownOwners: [
-                CodexDashboardKnownOwnerCandidate(
-                    identity: .providerAccount(id: "acct-alpha"),
-                    normalizedEmail: "shared@example.com"),
-            ])
-        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
-            accountEmail: "shared@example.com",
-            snapshot: initialDashboard))
+            #expect(store.openAIDashboard?.signedInEmail == "shared@example.com")
+            #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "shared@example.com")
+            #expect(store.credits?.remaining == 21)
+            #expect(store.lastSourceLabels[.codex] == "openai-web")
+            #expect(OpenAIDashboardCacheStore.load()?.accountEmail == "shared@example.com")
 
-        let initiallyRestored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
-            usage: self.makeUsage(email: "shared@example.com"),
-            sourceLabel: "codex-cli",
-            context: attachableContext)
-        #expect(initiallyRestored == initialDashboard)
+            let managedHome = try self.makeAuthHome(
+                email: "shared@example.com",
+                accountId: "acct-managed")
+            defer { try? FileManager.default.removeItem(at: managedHome) }
+            let managedAccount = ManagedCodexAccount(
+                id: UUID(),
+                email: "shared@example.com",
+                managedHomePath: managedHome.path,
+                createdAt: 1,
+                updatedAt: 1,
+                lastAuthenticatedAt: 1)
+            let managedStoreURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+            defer { try? FileManager.default.removeItem(at: managedStoreURL) }
+            store.settings._test_managedCodexAccountStoreURL = managedStoreURL
 
-        let ambiguousContext = self.makeCLIContext(
-            authHome: cliAuthHome,
-            knownOwners: [
-                CodexDashboardKnownOwnerCandidate(
-                    identity: .providerAccount(id: "acct-alpha"),
-                    normalizedEmail: "shared@example.com"),
-                CodexDashboardKnownOwnerCandidate(
-                    identity: .providerAccount(id: "acct-beta"),
-                    normalizedEmail: "shared@example.com"),
-            ])
+            await store.applyOpenAIDashboard(
+                self.makeDashboard(
+                    email: "shared@example.com",
+                    creditsRemaining: 9,
+                    usedPercent: 35,
+                    includeUsageBreakdown: true),
+                targetEmail: "shared@example.com")
 
-        let downgradedRestored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
-            usage: self.makeUsage(email: "shared@example.com"),
-            sourceLabel: "codex-cli",
-            context: ambiguousContext)
+            #expect(store.openAIDashboard?.signedInEmail == "shared@example.com")
+            #expect(store.lastOpenAIDashboardSnapshot?.signedInEmail == "shared@example.com")
+            #expect(store.snapshots[.codex] == nil)
+            #expect(store.credits == nil)
+            #expect(store.lastCreditsSource == .none)
+            #expect(OpenAIDashboardCacheStore.load() == nil)
 
-        #expect(downgradedRestored == nil)
-        #expect(OpenAIDashboardCacheStore.load() == nil)
+            OpenAIDashboardCacheStore.clear()
+            let cliAuthHome = try self.makeAuthHome(email: "shared@example.com")
+            defer { try? FileManager.default.removeItem(at: cliAuthHome) }
+            let attachableContext = self.makeCLIContext(
+                authHome: cliAuthHome,
+                knownOwners: [
+                    CodexDashboardKnownOwnerCandidate(
+                        identity: .providerAccount(id: "acct-alpha"),
+                        normalizedEmail: "shared@example.com"),
+                ])
+            OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
+                accountEmail: "shared@example.com",
+                snapshot: initialDashboard))
+
+            let initiallyRestored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
+                usage: self.makeUsage(email: "shared@example.com"),
+                sourceLabel: "codex-cli",
+                context: attachableContext)
+            #expect(initiallyRestored == initialDashboard)
+
+            let ambiguousContext = self.makeCLIContext(
+                authHome: cliAuthHome,
+                knownOwners: [
+                    CodexDashboardKnownOwnerCandidate(
+                        identity: .providerAccount(id: "acct-alpha"),
+                        normalizedEmail: "shared@example.com"),
+                    CodexDashboardKnownOwnerCandidate(
+                        identity: .providerAccount(id: "acct-beta"),
+                        normalizedEmail: "shared@example.com"),
+                ])
+
+            let downgradedRestored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
+                usage: self.makeUsage(email: "shared@example.com"),
+                sourceLabel: "codex-cli",
+                context: ambiguousContext)
+
+            #expect(downgradedRestored == nil)
+            #expect(OpenAIDashboardCacheStore.load() == nil)
+        }
+    }
+
+    private func withIsolatedDashboardCache<T>(
+        _ operation: () async throws -> T) async rethrows -> T
+    {
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-dashboard-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: cacheURL) }
+        return try await OpenAIDashboardCacheStore.$cacheURLOverride.withValue(cacheURL) {
+            try await operation()
+        }
     }
 
     private func makeDashboard(

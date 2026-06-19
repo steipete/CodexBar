@@ -33,16 +33,20 @@ browser session when the CLI surface does not expose billing.
 3) **grok.com billing gRPC-web fallback** (best-effort)
    - POSTs an empty gRPC-web protobuf request to
      `https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig`.
-   - Uses grok.com browser session cookies. CodexBar imports Chrome only by
-     default to avoid unrelated browser Keychain prompts.
+   - Uses grok.com browser session cookies. When a non-expired
+     `~/.grok/auth.json` token is available, CodexBar first sends it with each
+     browser session, then retries that session with cookies only.
+   - CodexBar imports Chrome only by default to avoid unrelated browser
+     Keychain prompts.
    - CLI/test runtime does not import browser cookies unless
      `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set.
    - `~/.grok/auth.json` is still used for identity and as a last best-effort
-     bearer probe, but the production grok.com billing endpoint currently
-     authenticates browser sessions.
-   - Parses the returned protobuf enough to recover monthly used percent and
-     reset timestamp. This keeps billing visible when `grok agent stdio` returns
-     `Method not found`.
+     bearer-only probe after browser sessions fail. Expired tokens are not sent.
+   - Parses the returned protobuf enough to recover used percent and
+     reset timestamp, accepting both gRPC-web frames and the raw protobuf form
+     returned by some successful requests. A current billing period with an
+     omitted proto3 `credit_usage_percent` is treated as zero usage. This keeps
+     billing visible when `grok agent stdio` returns `Method not found`.
 4) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
@@ -97,11 +101,15 @@ browser session when the CLI surface does not expose billing.
 
 ## Mapping to `UsageSnapshot`
 
-- **Primary window** = monthly credit usage:
+- **Primary window** = credit usage (against the subscription/included limit):
   - CLI RPC: `usedPercent` = `usage.totalUsed.val / monthlyLimit.val * 100`;
     `resetsAt` = `billingCycle.billingPeriodEnd`.
   - grok.com fallback: `usedPercent` and `resetsAt` parsed from the gRPC-web
     billing protobuf.
+  - The UI label for the live usage bar is dynamic: "Weekly" or "Monthly"
+    when `resetsAt` matches a common cycle, falling back to the registered
+    "Credits" label otherwise. Settings and history views continue to use
+    "Credits" as the stable metric name.
 - **Identity**:
   - `accountEmail` from credential `email`.
   - `accountOrganization` from credential `team_id`.

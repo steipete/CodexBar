@@ -5,6 +5,26 @@ import Testing
 @Suite(.serialized)
 struct CursorEnterpriseUsageTests {
     @Test
+    func `legacy provider cost snapshot decodes without personal spend`() throws {
+        let json = """
+        {
+            "used": 12.5,
+            "limit": 100,
+            "currencyCode": "USD",
+            "period": "Monthly",
+            "resetsAt": null,
+            "nextRegenAmount": null,
+            "updatedAt": 0
+        }
+        """
+
+        let snapshot = try JSONDecoder().decode(ProviderCostSnapshot.self, from: Data(json.utf8))
+
+        #expect(snapshot.used == 12.5)
+        #expect(snapshot.personalUsed == nil)
+    }
+
+    @Test
     func `parses enterprise overall and pooled usage summary`() throws {
         // Live Cursor Enterprise payload (sanitized). The Pro/Hobby `plan` block is absent;
         // instead Cursor reports `individualUsage.overall` (personal cap) and `teamUsage.pooled`
@@ -124,6 +144,75 @@ struct CursorEnterpriseUsageTests {
         #expect(snapshot.planPercentUsed < 45.5)
         #expect(snapshot.planUsedUSD == 127_251.35)
         #expect(snapshot.planLimitUSD == 281_220.0)
+    }
+
+    @Test
+    func `team on-demand pool is the budget and personal spend rides along`() {
+        // Live team-plan payload (sanitized): the user's own on-demand spend has no personal limit,
+        // so the team pool is the headline budget. The personal spend must still be surfaced.
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: "2026-06-01T00:00:00.000Z",
+                    billingCycleEnd: "2026-07-01T00:00:00.000Z",
+                    membershipType: "enterprise",
+                    limitType: "team",
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: CursorPlanUsage(
+                            enabled: true,
+                            used: 2000,
+                            limit: 2000,
+                            remaining: 0,
+                            breakdown: nil,
+                            autoPercentUsed: 0,
+                            apiPercentUsed: 100,
+                            totalPercentUsed: 100),
+                        onDemand: CursorOnDemandUsage(enabled: true, used: 4471, limit: nil, remaining: nil),
+                        overall: nil),
+                    teamUsage: CursorTeamUsage(
+                        onDemand: CursorOnDemandUsage(
+                            enabled: true,
+                            used: 1_311_125,
+                            limit: 2_000_000,
+                            remaining: 688_875),
+                        pooled: nil)),
+                userInfo: nil,
+                rawJSON: nil)
+
+        let cost = snapshot.toUsageSnapshot().providerCost
+        #expect(cost?.used == 13111.25) // team pool used
+        #expect(cost?.limit == 20000.0) // team pool limit
+        #expect(cost?.personalUsed == 44.71) // this account's own on-demand spend
+    }
+
+    @Test
+    func `personal on-demand limit keeps personal budget with no rider`() {
+        // When the user has their own on-demand limit, that is the budget and there is no separate rider.
+        let snapshot = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+            .parseUsageSummary(
+                CursorUsageSummary(
+                    billingCycleStart: nil,
+                    billingCycleEnd: nil,
+                    membershipType: "pro",
+                    limitType: "user",
+                    isUnlimited: false,
+                    autoModelSelectedDisplayMessage: nil,
+                    namedModelSelectedDisplayMessage: nil,
+                    individualUsage: CursorIndividualUsage(
+                        plan: nil,
+                        onDemand: CursorOnDemandUsage(enabled: true, used: 4471, limit: 10000, remaining: 5529),
+                        overall: nil),
+                    teamUsage: nil),
+                userInfo: nil,
+                rawJSON: nil)
+
+        let cost = snapshot.toUsageSnapshot().providerCost
+        #expect(cost?.used == 44.71)
+        #expect(cost?.limit == 100.0)
+        #expect(cost?.personalUsed == nil)
     }
 
     @Test

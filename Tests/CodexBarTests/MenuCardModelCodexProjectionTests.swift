@@ -68,6 +68,198 @@ struct MenuCardModelCodexProjectionTests {
     }
 
     @Test
+    func `codex weekly lane includes workday markers when workDaysPerWeek is set`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 4,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let projection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            quotaWarningThresholds: [.session: [], .weekly: []],
+            workDaysPerWeek: 5,
+            now: now))
+
+        let weekly = try #require(model.metrics.first { $0.id == "secondary" })
+        #expect(weekly.warningMarkerPercents == [20.0, 40.0, 60.0, 80.0])
+
+        let session = try #require(model.metrics.first { $0.id == "primary" })
+        #expect(session.warningMarkerPercents.isEmpty)
+    }
+
+    @Test
+    func `codex weekly lane workday markers merge with quota warning markers`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 4,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let projection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            quotaWarningThresholds: [.session: [], .weekly: [50]],
+            workDaysPerWeek: 5,
+            now: now))
+
+        let weekly = try #require(model.metrics.first { $0.id == "secondary" })
+        #expect(weekly.warningMarkerPercents == [20.0, 40.0, 50.0, 60.0, 80.0])
+    }
+
+    @Test
+    func `codex weekly lane workday markers not inverted by usageBarsShowUsed`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 4,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now,
+            identity: identity)
+        let projection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            quotaWarningThresholds: [.session: [], .weekly: []],
+            workDaysPerWeek: 5,
+            now: now))
+
+        let weekly = try #require(model.metrics.first { $0.id == "secondary" })
+        #expect(weekly.warningMarkerPercents == [20.0, 40.0, 60.0, 80.0])
+    }
+
+    @Test
     func `codex plan only snapshot shows limits unavailable placeholder`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.codex])
@@ -415,6 +607,103 @@ struct MenuCardModelCodexProjectionTests {
     }
 
     @Test
+    func `renders codex spark as a named extra metric after the core lanes`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 4,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "codex-spark",
+                    title: "Codex Spark 5-hour",
+                    window: RateWindow(
+                        usedPercent: 80,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "codex-spark-weekly",
+                    title: "Codex Spark Weekly",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now,
+            identity: identity)
+        let projection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let spark = try #require(model.metrics.first { $0.id == "codex-spark" })
+        #expect(spark.title == "Codex Spark 5-hour")
+        #expect(spark.percent == 20)
+        #expect(spark.percentLabel == "20% left")
+        #expect(spark.resetText != nil)
+        #expect(spark.detailLeftText == "20% in deficit")
+        #expect(spark.detailRightText == "Projected empty in 45m")
+        let sparkWeekly = try #require(model.metrics.first { $0.id == "codex-spark-weekly" })
+        #expect(sparkWeekly.title == "Codex Spark Weekly")
+        #expect(sparkWeekly.percent == 0)
+        #expect(sparkWeekly.percentLabel == "0% left")
+        #expect(sparkWeekly.resetText != nil)
+        #expect(sparkWeekly.detailLeftText == "86% in deficit")
+        #expect(sparkWeekly.detailRightText == "Runs out now")
+        // Spark trails the core session/weekly lanes rather than replacing them.
+        let sparkIndex = try #require(model.metrics.firstIndex { $0.id == "codex-spark" })
+        let sparkWeeklyIndex = try #require(model.metrics.firstIndex { $0.id == "codex-spark-weekly" })
+        let sessionIndex = try #require(model.metrics.firstIndex { $0.id == "primary" })
+        #expect(sparkIndex > sessionIndex)
+        #expect(sparkWeeklyIndex > sparkIndex)
+    }
+
+    @Test
     func `hides codex credits when disabled`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
@@ -464,5 +753,86 @@ struct MenuCardModelCodexProjectionTests {
             now: now))
 
         #expect(model.creditsText == nil)
+    }
+
+    @Test
+    func `hides codex spark extra metric when showOptionalCreditsAndExtraUsage is false`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let identity = ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: "Pro")
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 2,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 4,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "codex-spark",
+                    title: "Codex Spark 5-hour",
+                    window: RateWindow(
+                        usedPercent: 30,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(60 * 60),
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "codex-spark-weekly",
+                    title: "Codex Spark Weekly",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now,
+            identity: identity)
+        let projection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "user@example.com", plan: "Pro"),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(!model.metrics.contains { $0.id == "codex-spark" })
+        #expect(!model.metrics.contains { $0.id == "codex-spark-weekly" })
+        #expect(model.metrics.contains { $0.id == "primary" })
+        #expect(model.metrics.contains { $0.id == "secondary" })
     }
 }

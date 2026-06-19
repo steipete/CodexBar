@@ -338,7 +338,7 @@ struct CodexAccountScopedRefreshTests {
 
         let store = self.makeUsageStore(settings: settings)
         store.lastKnownLiveSystemCodexEmail = nil
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             self.dashboard(email: "seeded@example.com", creditsRemaining: 33, usedPercent: 12)
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -379,7 +379,7 @@ struct CodexAccountScopedRefreshTests {
             self.codexSnapshot(email: "trusted@example.com", usedPercent: 12),
             provider: .codex)
         store.lastSourceLabels[.codex] = "codex-cli"
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             self.dashboard(email: "trusted@example.com", creditsRemaining: 33, usedPercent: 12)
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -606,14 +606,17 @@ struct CodexAccountScopedRefreshTests {
         settings.refreshFrequency = .manual
         settings.openAIWebAccessEnabled = true
         settings.codexCookieSource = .auto
+        settings.statusChecksEnabled = false
         settings._test_liveSystemCodexAccount = self.liveAccount(email: "alpha@example.com")
 
         let store = self.makeUsageStore(settings: settings)
         self.installImmediateCodexProvider(
             on: store,
             snapshot: self.codexSnapshot(email: "alpha@example.com", usedPercent: 18))
+        await store.refresh()
+
         let dashboardBlocker = BlockingOpenAIDashboardLoader()
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await dashboardBlocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -871,10 +874,12 @@ struct CodexAccountScopedRefreshTests {
         await blocker.waitUntilStarted()
         await blocker.resume(with: .success(self.codexSnapshot(email: "alpha@example.com", usedPercent: 12)))
         await refreshTask.value
+        #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "alpha@example.com")
+
+        await store.creditsRefreshTask?.value
 
         #expect(store.credits?.remaining == 55)
         #expect(store.lastCreditsSource == .api)
-        #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "alpha@example.com")
     }
 
     @Test

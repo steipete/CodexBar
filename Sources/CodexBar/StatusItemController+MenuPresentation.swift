@@ -60,7 +60,14 @@ extension StatusItemController {
 
 @MainActor
 protocol MenuCardHighlighting: AnyObject {
+    var allowsMenuHighlight: Bool { get }
     func setHighlighted(_ highlighted: Bool)
+}
+
+extension MenuCardHighlighting {
+    var allowsMenuHighlight: Bool {
+        true
+    }
 }
 
 @MainActor
@@ -75,15 +82,42 @@ final class MenuCardHighlightState {
 }
 
 final class MenuHostingView<Content: View>: NSHostingView<Content> {
+    /// The height AppKit should give this item's menu row. NSMenu reads `intrinsicContentSize`
+    /// (not the explicit `frame`) when it lays out custom-view rows, so a measured height that
+    /// only lives in `frame` is silently reverted to the open-time row height — leaving the
+    /// SwiftUI content centered in a stale, oversized row. Routing the height through the
+    /// intrinsic size is the channel the menu actually honors.
+    private var measuredHeight: CGFloat?
+
     override var allowsVibrancy: Bool {
         true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard let measuredHeight else { return super.intrinsicContentSize }
+        return NSSize(width: NSView.noIntrinsicMetric, height: measuredHeight)
+    }
+
+    func applyMeasuredHeight(width: CGFloat, height: CGFloat) {
+        let resolvedHeight = max(1, ceil(height))
+        guard self.measuredHeight != resolvedHeight || self.frame.height != resolvedHeight else { return }
+
+        self.measuredHeight = resolvedHeight
+        self.frame = NSRect(
+            origin: self.frame.origin,
+            size: NSSize(width: width, height: resolvedHeight))
+        self.invalidateIntrinsicContentSize()
+        self.layoutSubtreeIfNeeded()
+        self.superview?.layoutSubtreeIfNeeded()
     }
 }
 
 @MainActor
 final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting, MenuCardMeasuring {
-    private let highlightState: MenuCardHighlightState
-    private let onClick: (() -> Void)?
+    let highlightState: MenuCardHighlightState
+    private(set) var allowsMenuHighlight: Bool
+    private var onClick: (() -> Void)?
+    private var hasClickRecognizer = false
 
     override var allowsVibrancy: Bool {
         true
@@ -95,19 +129,44 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         return NSSize(width: self.frame.width, height: size.height)
     }
 
-    init(rootView: Content, highlightState: MenuCardHighlightState, onClick: (() -> Void)? = nil) {
+    init(
+        rootView: Content,
+        highlightState: MenuCardHighlightState,
+        allowsMenuHighlight: Bool,
+        onClick: (() -> Void)? = nil)
+    {
         self.highlightState = highlightState
+        self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
         super.init(rootView: rootView)
         if onClick != nil {
-            let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
-            recognizer.buttonMask = 0x1
-            self.addGestureRecognizer(recognizer)
+            self.installClickRecognizer()
         }
+    }
+
+    /// Reuses this hosting view for a rebuilt card with the same identity: the replaced
+    /// `rootView` is diffed in place by SwiftUI instead of tearing down and recreating the
+    /// hosting view and its graph. Callers must construct `rootView` around this view's own
+    /// `highlightState` so menu hover highlighting keeps driving the rendered content.
+    func prepareForReuse(rootView: Content, allowsMenuHighlight: Bool, onClick: (() -> Void)?) {
+        self.rootView = rootView
+        self.allowsMenuHighlight = allowsMenuHighlight
+        self.onClick = onClick
+        if onClick != nil, !self.hasClickRecognizer {
+            self.installClickRecognizer()
+        }
+    }
+
+    private func installClickRecognizer() {
+        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
+        recognizer.buttonMask = 0x1
+        self.addGestureRecognizer(recognizer)
+        self.hasClickRecognizer = true
     }
 
     required init(rootView: Content) {
         self.highlightState = MenuCardHighlightState()
+        self.allowsMenuHighlight = false
         self.onClick = nil
         super.init(rootView: rootView)
     }
@@ -127,9 +186,9 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
-        let controller = NSHostingController(rootView: self.rootView)
-        let measured = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        return measured.height
+        self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
+        self.layoutSubtreeIfNeeded()
+        return self.fittingSize.height
     }
 
     func setHighlighted(_ highlighted: Bool) {
@@ -143,11 +202,13 @@ struct MenuCardSectionContainerView<Content: View>: View {
     let showsSubmenuIndicator: Bool
     let submenuIndicatorAlignment: Alignment
     let submenuIndicatorTopPadding: CGFloat
+    var refreshMonitor: MenuCardRefreshMonitor?
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         self.content()
             .environment(\.menuItemHighlighted, self.highlightState.isHighlighted)
+            .environment(\.menuCardRefreshMonitor, self.refreshMonitor)
             .foregroundStyle(MenuHighlightStyle.primary(self.highlightState.isHighlighted))
             .background(alignment: .topLeading) {
                 if self.highlightState.isHighlighted {
@@ -175,9 +236,12 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
 
     private let backgroundView = NSView()
     private let imageView = NSImageView()
+    private let progressIndicator = NSProgressIndicator()
     private let titleField: NSTextField
     private let shortcutField: NSTextField
     private let onClick: () -> Void
+    private var highlighted = false
+    private var isInProgress = false
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: self.frame.width > 0 ? self.frame.width : NSView.noIntrinsicMetric, height: Self.rowHeight)
@@ -217,17 +281,47 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
 
     override func mouseUp(with event: NSEvent) {
         guard event.type == .leftMouseUp else { return }
+        guard !self.isInProgress else { return }
         self.onClick()
     }
 
     func setHighlighted(_ highlighted: Bool) {
-        let primaryColor = highlighted ? NSColor.selectedMenuItemTextColor : NSColor.controlTextColor
-        let secondaryColor = highlighted ? NSColor.selectedMenuItemTextColor : NSColor.secondaryLabelColor
-        self.backgroundView.isHidden = !highlighted
+        self.highlighted = highlighted
+        self.updateVisualState()
+    }
+
+    /// Gives the persistent Refresh row static, in-place feedback without an animated view inside
+    /// the vibrant menu, which would continuously trigger WindowServer recompositing.
+    func setInProgress(_ inProgress: Bool) {
+        guard self.isInProgress != inProgress else { return }
+        self.isInProgress = inProgress
+        self.progressIndicator.stopAnimation(nil)
+        self.progressIndicator.isHidden = true
+        self.updateVisualState()
+    }
+
+    private func updateVisualState() {
+        let primaryColor = self.highlighted ? NSColor.selectedMenuItemTextColor : NSColor.controlTextColor
+        let secondaryColor = self.highlighted ? NSColor.selectedMenuItemTextColor : NSColor.secondaryLabelColor
+        let alpha: CGFloat = self.isInProgress ? 0.62 : 1
+        self.backgroundView.isHidden = !self.highlighted
         self.titleField.textColor = primaryColor
         self.shortcutField.textColor = secondaryColor
         self.imageView.contentTintColor = primaryColor
+        self.titleField.alphaValue = alpha
+        self.shortcutField.alphaValue = alpha
+        self.imageView.alphaValue = alpha
     }
+
+    #if DEBUG
+    var isInProgressForTesting: Bool {
+        self.isInProgress
+    }
+
+    var isProgressIndicatorHiddenForTesting: Bool {
+        self.progressIndicator.isHidden
+    }
+    #endif
 
     private func setupView(systemImageName: String?) {
         self.backgroundView.wantsLayer = true
@@ -244,6 +338,13 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
             self.imageView.image = image
         }
         self.imageView.translatesAutoresizingMaskIntoConstraints = false
+
+        self.progressIndicator.style = .spinning
+        self.progressIndicator.controlSize = .small
+        self.progressIndicator.isIndeterminate = true
+        self.progressIndicator.isDisplayedWhenStopped = false
+        self.progressIndicator.isHidden = true
+        self.progressIndicator.translatesAutoresizingMaskIntoConstraints = false
 
         self.titleField.font = NSFont.menuFont(ofSize: NSFont.systemFontSize)
         self.titleField.lineBreakMode = .byTruncatingTail
@@ -271,6 +372,8 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
         stack.addArrangedSubview(spacer)
         stack.addArrangedSubview(self.shortcutField)
         self.addSubview(stack)
+        // The spinner overlaps the icon's fixed slot so toggling it never changes row metrics.
+        self.addSubview(self.progressIndicator)
 
         NSLayoutConstraint.activate([
             self.backgroundView.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 6),
@@ -281,6 +384,11 @@ final class PersistentMenuActionItemView: NSView, MenuCardHighlighting {
             self.imageView.widthAnchor.constraint(equalToConstant: 18),
             self.imageView.heightAnchor.constraint(equalToConstant: 18),
             self.shortcutField.widthAnchor.constraint(equalToConstant: 38),
+
+            self.progressIndicator.centerXAnchor.constraint(equalTo: self.imageView.centerXAnchor),
+            self.progressIndicator.centerYAnchor.constraint(equalTo: self.imageView.centerYAnchor),
+            self.progressIndicator.widthAnchor.constraint(equalToConstant: 16),
+            self.progressIndicator.heightAnchor.constraint(equalToConstant: 16),
 
             stack.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 12),
             stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -12),

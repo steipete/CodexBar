@@ -1,11 +1,73 @@
 import AppKit
+import SwiftUI
+
+private struct CostMenuCardRowView: View {
+    let title: String
+    let detailLines: [String]
+    let width: CGFloat
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(self.title)
+                .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
+                .lineLimit(1)
+            ForEach(self.detailLines.indices, id: \.self) { index in
+                Text(self.detailLines[index])
+                    .font(.system(size: NSFont.smallSystemFontSize))
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 28)
+        .padding(.vertical, 6)
+        .frame(width: self.width, alignment: .leading)
+    }
+}
 
 extension StatusItemController {
-    static let costMenuTitle = "Cost"
+    static var costMenuTitle: String {
+        L("Cost")
+    }
 
-    func makeCostMenuCardItem(model: UsageMenuCardView.Model, submenu: NSMenu?) -> NSMenuItem {
+    func makeCostMenuCardItem(
+        model: UsageMenuCardView.Model,
+        submenu: NSMenu?,
+        width: CGFloat) -> NSMenuItem
+    {
         let tooltipLines = Self.costMenuTooltipLines(tokenUsage: model.tokenUsage)
         let visibleDetailLines = Self.costMenuVisibleDetailLines(tokenUsage: model.tokenUsage)
+        guard self.menuCardRenderingEnabledForController else {
+            return Self.makeNativeCostMenuCardItem(
+                visibleDetailLines: visibleDetailLines,
+                tooltipLines: tooltipLines,
+                submenu: submenu)
+        }
+
+        let item = self.makeMenuCardItem(
+            CostMenuCardRowView(
+                title: Self.costMenuTitle,
+                detailLines: visibleDetailLines,
+                width: width),
+            id: "menuCardCost",
+            width: width,
+            heightCacheScope: model.provider.rawValue,
+            heightCacheFingerprint: "costMenuRow:\(visibleDetailLines.count)",
+            submenu: submenu,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0)
+        item.title = Self.costMenuTitle
+        item.toolTip = tooltipLines.joined(separator: "\n")
+        return item
+    }
+
+    private static func makeNativeCostMenuCardItem(
+        visibleDetailLines: [String],
+        tooltipLines: [String],
+        submenu: NSMenu?) -> NSMenuItem
+    {
         let item = NSMenuItem(title: Self.costMenuTitle, action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.representedObject = "menuCardCost"

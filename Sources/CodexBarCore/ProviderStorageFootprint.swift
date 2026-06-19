@@ -50,6 +50,18 @@ public struct ProviderStorageFootprint: Sendable, Equatable {
         self.totalBytes > 0
     }
 
+    /// Value equality that ignores `updatedAt`. Two scans of identical on-disk data differ only by
+    /// their scan timestamp, so callers use this to avoid re-publishing observable state (and the
+    /// menu-invalidation churn that follows) when nothing the user sees has actually changed.
+    public func hasSameContents(as other: ProviderStorageFootprint) -> Bool {
+        self.provider == other.provider &&
+            self.totalBytes == other.totalBytes &&
+            self.paths == other.paths &&
+            self.missingPaths == other.missingPaths &&
+            self.unreadablePaths == other.unreadablePaths &&
+            self.components == other.components
+    }
+
     public var cleanupRecommendations: [ProviderStorageRecommendation] {
         ProviderStorageRecommendation.recommendations(for: self)
     }
@@ -316,6 +328,17 @@ public enum ProviderStoragePathCatalog {
         case .copilot:
             [
                 homePath(".config/github-copilot"),
+            ]
+        case .cursor:
+            [
+                homePath("Library/Application Support/Cursor"),
+                homePath("Library/Application Support/Caches/cursor-updater"),
+                homePath(".cursor"),
+                homePath("Library/Caches/Cursor"),
+                homePath("Library/Caches/com.todesktop.230313mzl4w4u92"),
+                homePath("Library/Caches/com.todesktop.230313mzl4w4u92.ShipIt"),
+                homePath("Library/Caches/cursor-compile-cache"),
+                homePath("Library/HTTPStorages/com.todesktop.230313mzl4w4u92"),
             ]
         default:
             []

@@ -19,8 +19,7 @@ public enum CrofSettingsReader {
         if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
             (value.hasPrefix("'") && value.hasSuffix("'"))
         {
-            value.removeFirst()
-            value.removeLast()
+            value = String(value.dropFirst().dropLast())
         }
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value

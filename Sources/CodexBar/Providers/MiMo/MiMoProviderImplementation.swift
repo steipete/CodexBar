@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct MiMoProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .mimo
     let supportsLoginFlow: Bool = true
@@ -39,7 +37,7 @@ struct MiMoProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.miMoCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports Chrome browser cookies from Xiaomi MiMo.",
+                auto: "Automatic imports browser cookies from Xiaomi MiMo.",
                 manual: "Paste a Cookie header from platform.xiaomimimo.com.",
                 off: "Xiaomi MiMo cookies are disabled.")
         }
@@ -48,14 +46,14 @@ struct MiMoProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "mimo-cookie-source",
                 title: "Cookie source",
-                subtitle: "Automatic imports Chrome browser cookies from Xiaomi MiMo.",
+                subtitle: "Automatic imports browser cookies from Xiaomi MiMo.",
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .mimo) else { return nil }
+                    guard let entry = CookieHeaderCache.loadForDisplay(provider: .mimo) else { return nil }
                     let when = entry.storedAt.relativeDescription()
                     return "Cached: \(entry.sourceLabel) • \(when)"
                 }),

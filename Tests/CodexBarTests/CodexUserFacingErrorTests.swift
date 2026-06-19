@@ -15,6 +15,30 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `logged out codex CLI guidance is not collapsed to temporary outage`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cli-login-required")
+        store.errors[.codex] =
+            "Codex connection failed: codex account authentication required to read rate limits"
+
+        #expect(
+            store.userFacingError(for: .codex) ==
+                "Codex CLI is not signed in. Run `codex login --device-auth`, then refresh.")
+    }
+
+    @Test
+    func `cached logged out codex CLI failure preserves cached suffix`() {
+        let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cached-cli-login-required")
+        store.lastCreditsError =
+            "Last Codex credits refresh failed: Codex connection failed: "
+                + "codex account authentication required to read rate limits. Cached values from 2m ago."
+
+        #expect(
+            store.userFacingLastCreditsError ==
+                "Codex CLI is not signed in. Run `codex login --device-auth`, then refresh. "
+                + "Cached values from 2m ago.")
+    }
+
+    @Test
     func `expired codex auth is sanitized`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-expired-auth")
         store.errors[.codex] = """

@@ -28,6 +28,22 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertEqual(result.nextRegenPercent, 4)
     }
 
+    func test_backfillsZeroWindowDurationFromCachedWindow() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(3600)
+        let cached = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 300,
+            resetsAt: reset,
+            resetDescription: nil)
+        let fresh = RateWindow(usedPercent: 62, windowMinutes: 0, resetsAt: nil, resetDescription: nil)
+
+        let result = fresh.backfillingResetTime(from: cached, now: now)
+
+        XCTAssertEqual(result.windowMinutes, 300)
+        XCTAssertEqual(result.resetsAt, reset)
+    }
+
     func test_skipsExpiredCachedReset() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let cached = RateWindow(
@@ -76,6 +92,8 @@ final class ResetTimeBackfillTests: XCTestCase {
             secondary: nil,
             extraRateWindows: [extra],
             cursorRequests: CursorRequestUsage(used: 10, limit: 50),
+            subscriptionExpiresAt: reset.addingTimeInterval(86400),
+            subscriptionRenewsAt: reset.addingTimeInterval(43200),
             updatedAt: now,
             identity: identity)
 
@@ -87,6 +105,8 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertEqual(result.extraRateWindows?.first?.id, "overflow")
         XCTAssertEqual(result.extraRateWindows?.first?.window.nextRegenPercent, 2)
         XCTAssertEqual(result.cursorRequests?.used, 10)
+        XCTAssertEqual(result.subscriptionExpiresAt, reset.addingTimeInterval(86400))
+        XCTAssertEqual(result.subscriptionRenewsAt, reset.addingTimeInterval(43200))
         XCTAssertEqual(result.identity?.accountEmail, "peter@example.com")
     }
 

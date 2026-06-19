@@ -3,6 +3,8 @@ import Foundation
 public enum KimiAPIError: LocalizedError, Sendable, Equatable {
     case missingToken
     case invalidToken
+    case missingAPIKey
+    case invalidAPIKey
     case invalidRequest(String)
     case networkError(String)
     case apiError(String)
@@ -14,6 +16,10 @@ public enum KimiAPIError: LocalizedError, Sendable, Equatable {
             "Kimi auth token is missing. Please add your JWT token from the Kimi console."
         case .invalidToken:
             "Kimi auth token is invalid or expired. Please refresh your token."
+        case .missingAPIKey:
+            "Kimi Code API key is missing. Add it in Settings > Providers > Kimi or set KIMI_CODE_API_KEY."
+        case .invalidAPIKey:
+            "Kimi Code API key is invalid or expired. Please refresh your API key."
         case let .invalidRequest(message):
             "Invalid request: \(message)"
         case let .networkError(message):

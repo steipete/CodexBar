@@ -83,12 +83,13 @@ struct FactoryStatusProbeFetchTests {
         }
 
         let probe = FactoryStatusProbe(
-            timeout: 0.1,
+            timeout: 1.0,
             browserDetection: BrowserDetection(
                 homeDirectory: "/tmp/codexbar-empty-browser-home",
                 cacheTTL: 0,
                 fileExists: { _ in false },
-                directoryContents: { _ in nil }))
+                directoryContents: { _ in nil }),
+            transport: FactoryStubTransport())
 
         let snapshot = try await probe.fetch()
 
@@ -200,12 +201,13 @@ struct FactoryStatusProbeFetchTests {
         }
 
         let probe = FactoryStatusProbe(
-            timeout: 0.1,
+            timeout: 1.0,
             browserDetection: BrowserDetection(
                 homeDirectory: "/tmp/codexbar-empty-browser-home",
                 cacheTTL: 0,
                 fileExists: { _ in false },
-                directoryContents: { _ in nil }))
+                directoryContents: { _ in nil }),
+            transport: FactoryStubTransport())
 
         let snapshot = try await probe.fetch()
 
@@ -787,4 +789,15 @@ final class FactoryStubURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+private struct FactoryStubTransport: ProviderHTTPTransport {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        guard let handler = FactoryStubURLProtocol.handler else {
+            throw URLError(.badServerResponse)
+        }
+        FactoryStubURLProtocol.requests.append(request)
+        let (response, data) = try handler(request)
+        return (data, response)
+    }
 }

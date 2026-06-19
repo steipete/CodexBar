@@ -2,6 +2,13 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 public struct GeminiModelQuota: Sendable {
     public let modelId: String
@@ -118,7 +125,7 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
 
 public enum GeminiAuthType: String, Sendable {
     case oauthPersonal = "oauth-personal"
-    case apiKey = "api-key"
+    case apiKey = "gemini-api-key"
     case vertexAI = "vertex-ai"
     case unknown
 }
@@ -166,6 +173,9 @@ public struct GeminiStatusProbe: Sendable {
             return .unknown
         }
 
+        if selectedType == "api-key" {
+            return .apiKey
+        }
         return GeminiAuthType(rawValue: selectedType) ?? .unknown
     }
 
@@ -567,61 +577,6 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         return nil
-    }
-
-    private static func runProcess(
-        executable: String,
-        arguments: [String],
-        environment: [String: String],
-        timeout: TimeInterval) -> String?
-    {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-
-        var mergedEnvironment = environment
-        mergedEnvironment["PATH"] = PathBuilder.effectivePATH(
-            purposes: [.tty, .nodeTooling],
-            env: environment,
-            loginPATH: LoginShellPathCache.shared.current)
-        process.environment = mergedEnvironment
-
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        process.standardError = Pipe()
-        process.standardInput = nil
-
-        let exitSemaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            exitSemaphore.signal()
-        }
-
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-
-        let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
-        if !didExit {
-            if process.isRunning {
-                process.terminate()
-                _ = exitSemaphore.wait(timeout: .now() + 0.5)
-            }
-            return nil
-        }
-
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        guard process.terminationStatus == 0,
-              let output = String(data: data, encoding: .utf8)?
-                  .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !output.isEmpty
-        else {
-            return nil
-        }
-
-        return output.components(separatedBy: .newlines).first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func findGeminiPackageRoot(startingAt path: String) -> String? {
@@ -1129,5 +1084,71 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         return quotas
+    }
+}
+
+extension GeminiStatusProbe {
+    package static func runProcess(
+        executable: String,
+        arguments: [String],
+        environment: [String: String],
+        timeout: TimeInterval) -> String?
+    {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+
+        var mergedEnvironment = environment
+        mergedEnvironment["PATH"] = PathBuilder.effectivePATH(
+            purposes: [.tty, .nodeTooling],
+            env: environment,
+            loginPATH: LoginShellPathCache.shared.current)
+        process.environment = mergedEnvironment
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        process.standardInput = nil
+
+        let stdoutCapture = ProcessPipeCapture(pipe: stdout)
+        let stderrCapture = ProcessPipeCapture(pipe: stderr)
+
+        let exitSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            exitSemaphore.signal()
+        }
+
+        do {
+            try process.run()
+        } catch {
+            process.terminationHandler = nil
+            stdoutCapture.stop()
+            stderrCapture.stop()
+            return nil
+        }
+        stdoutCapture.start()
+        stderrCapture.start()
+        let pid = process.processIdentifier
+        let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
+
+        let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
+        if !didExit {
+            SubprocessRunner.terminateProcess(process, processGroup: processGroup)
+            stdoutCapture.stop()
+            stderrCapture.stop()
+            return nil
+        }
+
+        let data = stdoutCapture.finishSynchronously(timeout: 1)
+        stderrCapture.stop()
+        let output = ProcessPipeCapture.decodeUTF8(data)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard process.terminationStatus == 0, !output.isEmpty else {
+            return nil
+        }
+
+        return output.components(separatedBy: .newlines).first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

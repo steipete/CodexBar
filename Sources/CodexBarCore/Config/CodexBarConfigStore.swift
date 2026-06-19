@@ -19,6 +19,7 @@ public enum CodexBarConfigStoreError: LocalizedError {
 
 public struct CodexBarConfigStore: @unchecked Sendable {
     public static let pathEnvironmentKey = "CODEXBAR_CONFIG"
+    public static let xdgConfigHomeEnvironmentKey = "XDG_CONFIG_HOME"
 
     public let fileURL: URL
     private let fileManager: FileManager
@@ -74,7 +75,8 @@ public struct CodexBarConfigStore: @unchecked Sendable {
 
     public static func defaultURL(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default) -> URL
     {
         if let override = environment[pathEnvironmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
            !override.isEmpty
@@ -82,9 +84,35 @@ public struct CodexBarConfigStore: @unchecked Sendable {
             let expanded = (override as NSString).expandingTildeInPath
             return URL(fileURLWithPath: expanded)
         }
-        return home
+
+        if let xdgConfigHome = environment[xdgConfigHomeEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !xdgConfigHome.isEmpty
+        {
+            let expanded = (xdgConfigHome as NSString).expandingTildeInPath
+            if (expanded as NSString).isAbsolutePath {
+                return URL(fileURLWithPath: expanded, isDirectory: true)
+                    .appendingPathComponent("codexbar", isDirectory: true)
+                    .appendingPathComponent("config.json")
+            }
+        }
+
+        let xdgDefault = home
+            .appendingPathComponent(".config", isDirectory: true)
+            .appendingPathComponent("codexbar", isDirectory: true)
+            .appendingPathComponent("config.json")
+        if fileManager.fileExists(atPath: xdgDefault.path) {
+            return xdgDefault
+        }
+
+        let legacy = home
             .appendingPathComponent(".codexbar", isDirectory: true)
             .appendingPathComponent("config.json")
+        if fileManager.fileExists(atPath: legacy.path) {
+            return legacy
+        }
+
+        return xdgDefault
     }
 
     private func applySecurePermissionsIfNeeded() throws {

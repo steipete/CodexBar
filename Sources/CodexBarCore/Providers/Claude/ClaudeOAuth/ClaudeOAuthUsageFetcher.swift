@@ -5,6 +5,7 @@ import FoundationNetworking
 
 public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
     case unauthorized
+    case rateLimited(retryAfter: Date?)
     case invalidResponse
     case serverError(Int, String?)
     case networkError(Error)
@@ -13,6 +14,9 @@ public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
         switch self {
         case .unauthorized:
             return "Claude OAuth request unauthorized. Run `claude` to re-authenticate."
+        case .rateLimited:
+            return "Claude OAuth usage endpoint is rate limited by Anthropic right now. Wait a few minutes, "
+                + "then click Refresh. If it keeps happening, run `claude logout && claude login`, then try again."
         case .invalidResponse:
             return "Claude OAuth response was invalid."
         case let .serverError(code, body):
@@ -37,6 +41,10 @@ enum ClaudeOAuthUsageFetcher {
     private static let fallbackClaudeCodeVersion = "2.1.0"
 
     static func fetchUsage(accessToken: String) async throws -> OAuthUsageResponse {
+        if let blockedUntil = ClaudeOAuthUsageRateLimitGate.blockedUntil() {
+            throw ClaudeOAuthFetchError.rateLimited(retryAfter: blockedUntil)
+        }
+
         guard let url = URL(string: baseURL + usagePath) else {
             throw ClaudeOAuthFetchError.invalidResponse
         }
@@ -56,9 +64,16 @@ enum ClaudeOAuthUsageFetcher {
             let data = response.data
             switch response.statusCode {
             case 200:
-                return try Self.decodeUsageResponse(data)
+                let usage = try Self.decodeUsageResponse(data)
+                ClaudeOAuthUsageRateLimitGate.recordSuccess()
+                return usage
             case 401:
                 throw ClaudeOAuthFetchError.unauthorized
+            case 429:
+                let retryAfter = Self.retryAfterDate(from: response.response)
+                ClaudeOAuthUsageRateLimitGate.recordRateLimit(retryAfter: retryAfter)
+                throw ClaudeOAuthFetchError.rateLimited(
+                    retryAfter: ClaudeOAuthUsageRateLimitGate.currentBlockedUntil() ?? retryAfter)
             case 403:
                 let body = String(data: data, encoding: .utf8)
                 throw ClaudeOAuthFetchError.serverError(response.statusCode, body)
@@ -87,6 +102,23 @@ enum ClaudeOAuthUsageFetcher {
         return formatter.date(from: string)
     }
 
+    private static func retryAfterDate(from response: HTTPURLResponse, now: Date = Date()) -> Date? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        else { return nil }
+
+        if let seconds = TimeInterval(raw), seconds >= 0 {
+            return now.addingTimeInterval(seconds)
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss zzz"
+        return formatter.date(from: raw)
+    }
+
     private static func claudeCodeUserAgent() -> String {
         self.claudeCodeUserAgent(versionString: ProviderVersionDetector.claudeVersion())
     }
@@ -112,9 +144,7 @@ struct OAuthUsageResponse: Decodable {
     let sevenDayOAuthApps: OAuthUsageWindow?
     let sevenDayOpus: OAuthUsageWindow?
     let sevenDaySonnet: OAuthUsageWindow?
-    let sevenDayDesign: OAuthUsageWindow?
     let sevenDayRoutines: OAuthUsageWindow?
-    let sevenDayDesignSourceKey: String?
     let sevenDayRoutinesSourceKey: String?
     let iguanaNecktie: OAuthUsageWindow?
     let extraUsage: OAuthExtraUsage?
@@ -126,17 +156,6 @@ struct OAuthUsageResponse: Decodable {
         self.sevenDayOAuthApps = Self.decodeWindow(in: container, keys: ["seven_day_oauth_apps"])
         self.sevenDayOpus = Self.decodeWindow(in: container, keys: ["seven_day_opus"])
         self.sevenDaySonnet = Self.decodeWindow(in: container, keys: ["seven_day_sonnet"])
-        let design = Self.decodeWindowWithSource(in: container, keys: [
-            "seven_day_design",
-            "seven_day_claude_design",
-            "claude_design",
-            "design",
-            "seven_day_omelette",
-            "omelette",
-            "omelette_promotional",
-        ])
-        self.sevenDayDesign = design.window
-        self.sevenDayDesignSourceKey = design.sourceKey
         let routines = Self.decodeWindowWithSource(in: container, keys: [
             "seven_day_routines",
             "seven_day_claude_routines",
@@ -239,6 +258,10 @@ extension ClaudeOAuthUsageFetcher {
 
     static func _userAgentForTesting(versionString: String?) -> String {
         self.claudeCodeUserAgent(versionString: versionString)
+    }
+
+    static func _retryAfterDateForTesting(from response: HTTPURLResponse, now: Date) -> Date? {
+        self.retryAfterDate(from: response, now: now)
     }
 }
 #endif

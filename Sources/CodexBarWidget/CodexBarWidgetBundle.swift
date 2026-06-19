@@ -8,6 +8,8 @@ struct CodexBarWidgetBundle: WidgetBundle {
         CodexBarUsageWidget()
         CodexBarHistoryWidget()
         CodexBarCompactWidget()
+        CodexBarBurnDownWidget()
+        CodexBarCombinedBurnDownWidget()
     }
 }
 
@@ -75,5 +77,39 @@ struct CodexBarCompactWidget: Widget {
         .configurationDisplayName("CodexBar Metric")
         .description("Compact widget for credits or cost.")
         .supportedFamilies([.systemSmall])
+    }
+}
+
+struct CodexBarBurnDownWidget: Widget {
+    private let kind = "CodexBarBurnDownWidget"
+
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(
+            kind: self.kind,
+            intent: BurnDownSelectionIntent.self,
+            provider: BurnDownTimelineProvider())
+        { entry in
+            BurnDownWidgetView(entry: entry)
+        }
+        .configurationDisplayName("CodexBar Burn Down")
+        .description("Remaining budget compared with an ideal steady burn rate.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+struct CodexBarCombinedBurnDownWidget: Widget {
+    private let kind = "CodexBarCombinedBurnDownWidget"
+
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(
+            kind: self.kind,
+            intent: BurnProviderSelectionIntent.self,
+            provider: CombinedBurnDownTimelineProvider())
+        { entry in
+            CombinedBurnDownWidgetView(entry: entry)
+        }
+        .configurationDisplayName("CodexBar Burn Down (Combined)")
+        .description("Session and weekly burn-down charts in one tile.")
+        .supportedFamilies([.systemMedium])
     }
 }

@@ -276,6 +276,17 @@ struct CodexAccountsSettingsSectionTests {
         #expect(state.activeVisibleAccountID == "managed@example.com")
     }
 
+    @Test
+    func `managed codex login failure message includes codex login output`() {
+        let error = ManagedCodexAccountServiceError.loginFailed(CodexLoginRunner.Result(
+            outcome: .failed(status: 2),
+            output: "Browser selected the existing ChatGPT account"))
+
+        #expect(error.userFacingMessage.contains("codex --version"))
+        #expect(error.userFacingMessage.contains("codex login output:"))
+        #expect(error.userFacingMessage.contains("Browser selected the existing ChatGPT account"))
+    }
+
     private static func makeManagedCoordinator(
         settings: SettingsStore,
         email: String)

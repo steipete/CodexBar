@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum KimiK2ProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .kimik2,
@@ -31,39 +30,16 @@ public enum KimiK2ProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Unofficial Kimi K2 cost summary is not available." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [KimiK2APIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "kimik2.api",
+                resolveToken: { ProviderTokenResolver.kimiK2Token(environment: $0) },
+                missingCredentialsError: { KimiK2UsageError.missingCredentials },
+                loadUsage: { apiKey, _ in
+                    try await KimiK2UsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "kimik2",
                 aliases: ["kimi-k2", "kimiK2"],
                 versionDetector: nil))
-    }
-}
-
-struct KimiK2APIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "kimik2.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw KimiK2UsageError.missingCredentials
-        }
-        let usage = try await KimiK2UsageFetcher.fetchUsage(apiKey: apiKey)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.kimiK2Token(environment: environment)
     }
 }

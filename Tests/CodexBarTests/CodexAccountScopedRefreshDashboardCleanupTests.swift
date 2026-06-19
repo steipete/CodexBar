@@ -33,7 +33,7 @@ extension CodexAccountScopedRefreshTests {
         defer { store._test_codexCreditsLoaderOverride = nil }
 
         var observedTargetEmail: String?
-        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _ in
+        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _, _ in
             observedTargetEmail = accountEmail
             #expect(store.currentCodexOpenAIWebRefreshGuard().source == .liveSystem)
             #expect(store.currentCodexOpenAIWebRefreshGuard().identity == .unresolved)
@@ -118,5 +118,156 @@ extension CodexAccountScopedRefreshTests {
         #expect(OpenAIDashboardCacheStore.load() == nil)
         #expect(store.openAIDashboardRequiresLogin == true)
         #expect(store.lastOpenAIDashboardError?.contains("OpenAI dashboard signed in as other@example.com") == true)
+    }
+
+    @Test
+    func `dashboard fail closed cleanup applies after same account managed token rotation`() async throws {
+        OpenAIDashboardCacheStore.clear()
+        defer { OpenAIDashboardCacheStore.clear() }
+
+        let settings = self.makeSettingsStore(
+            suite: "CodexAccountScopedRefreshTests-dashboard-fail-closed-token-rotation-cleanup")
+        let managedHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+        try Self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "managed@example.com",
+            plan: "pro",
+            accountId: "acct-managed")
+        let oldFingerprint = try #require(CodexAuthFingerprint.fingerprint(homePath: managedHome.path))
+
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            providerAccountID: "acct-managed",
+            workspaceLabel: "Managed",
+            workspaceAccountID: "acct-managed",
+            authFingerprint: oldFingerprint,
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let managedStoreURL = try self.makeManagedAccountStoreURL(accounts: [managedAccount])
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_activeManagedCodexAccount = nil
+            try? FileManager.default.removeItem(at: managedStoreURL)
+        }
+
+        settings.refreshFrequency = .manual
+        settings.codexCookieSource = .auto
+        settings._test_managedCodexAccountStoreURL = managedStoreURL
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+
+        let store = self.makeUsageStore(settings: settings)
+        let expectedGuard = store.freshCodexOpenAIWebRefreshGuard()
+        #expect(expectedGuard.authFingerprint == oldFingerprint)
+        store._setSnapshotForTesting(
+            self.codexSnapshot(email: "managed@example.com", usedPercent: 20),
+            provider: .codex)
+        store.lastSourceLabels[.codex] = "openai-web"
+        let staleCredits = self.credits(remaining: 20)
+        store.credits = staleCredits
+        store.lastCreditsSnapshot = staleCredits
+        store.lastCreditsSnapshotAccountKey = "managed@example.com"
+        store.lastCreditsSource = .dashboardWeb
+        store.openAIDashboard = self.dashboard(email: "managed@example.com", creditsRemaining: 20, usedPercent: 20)
+        store.lastOpenAIDashboardSnapshot = store.openAIDashboard
+        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
+            accountEmail: "managed@example.com",
+            snapshot: self.dashboard(email: "managed@example.com", creditsRemaining: 20, usedPercent: 20)))
+
+        try Self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "managed@example.com",
+            plan: "team",
+            accountId: "acct-managed")
+        let newFingerprint = try #require(CodexAuthFingerprint.fingerprint(homePath: managedHome.path))
+        #expect(newFingerprint != oldFingerprint)
+        let currentGuard = store.freshCodexOpenAIWebRefreshGuard()
+        #expect(currentGuard.identity == expectedGuard.identity)
+        #expect(currentGuard.accountKey == expectedGuard.accountKey)
+        #expect(currentGuard.authFingerprint == newFingerprint)
+
+        await store.applyOpenAIDashboard(
+            self.dashboard(email: "other@example.com", creditsRemaining: 9, usedPercent: 35),
+            targetEmail: "managed@example.com",
+            expectedGuard: expectedGuard)
+
+        #expect(store.openAIDashboard == nil)
+        #expect(store.lastOpenAIDashboardSnapshot == nil)
+        #expect(store.snapshots[.codex] == nil)
+        #expect(store.credits == nil)
+        #expect(store.lastCreditsSource == .none)
+        #expect(OpenAIDashboardCacheStore.load() == nil)
+        #expect(store.openAIDashboardRequiresLogin == true)
+        #expect(store.lastOpenAIDashboardError?.contains("OpenAI dashboard signed in as other@example.com") == true)
+    }
+
+    @Test
+    func `dashboard fail closed cleanup applies after same live account email changes during token rotation`() async {
+        OpenAIDashboardCacheStore.clear()
+        defer { OpenAIDashboardCacheStore.clear() }
+
+        let settings = self.makeSettingsStore(
+            suite: "CodexAccountScopedRefreshTests-dashboard-fail-closed-live-email-rotation-cleanup")
+        settings.refreshFrequency = .manual
+        settings.codexCookieSource = .auto
+        settings.codexActiveSource = .liveSystem
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "alpha@example.com",
+            authFingerprint: "old-token-material",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-alpha"))
+        defer {
+            settings._test_liveSystemCodexAccount = nil
+        }
+
+        let store = self.makeUsageStore(settings: settings)
+        let expectedGuard = store.freshCodexOpenAIWebRefreshGuard()
+        #expect(expectedGuard.accountKey == "alpha@example.com")
+        #expect(expectedGuard.authFingerprint == "old-token-material")
+        store._setSnapshotForTesting(
+            self.codexSnapshot(email: "alpha@example.com", usedPercent: 20),
+            provider: .codex)
+        store.lastSourceLabels[.codex] = "openai-web"
+        let staleCredits = self.credits(remaining: 20)
+        store.credits = staleCredits
+        store.lastCreditsSnapshot = staleCredits
+        store.lastCreditsSnapshotAccountKey = "alpha@example.com"
+        store.lastCreditsSource = .dashboardWeb
+        store.openAIDashboard = self.dashboard(email: "alpha@example.com", creditsRemaining: 20, usedPercent: 20)
+        store.lastOpenAIDashboardSnapshot = store.openAIDashboard
+        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(
+            accountEmail: "alpha@example.com",
+            snapshot: self.dashboard(email: "alpha@example.com", creditsRemaining: 20, usedPercent: 20)))
+
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "beta@example.com",
+            authFingerprint: "new-token-material",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "acct-alpha"))
+        let currentGuard = store.freshCodexOpenAIWebRefreshGuard()
+        #expect(currentGuard.identity == expectedGuard.identity)
+        #expect(currentGuard.accountKey == "beta@example.com")
+        #expect(currentGuard.authFingerprint == "new-token-material")
+
+        await store.applyOpenAIDashboard(
+            self.dashboard(email: "alpha@example.com", creditsRemaining: 9, usedPercent: 35),
+            targetEmail: "alpha@example.com",
+            expectedGuard: expectedGuard)
+
+        #expect(store.openAIDashboard == nil)
+        #expect(store.lastOpenAIDashboardSnapshot == nil)
+        #expect(store.snapshots[.codex] == nil)
+        #expect(store.credits == nil)
+        #expect(store.lastCreditsSource == .none)
+        #expect(OpenAIDashboardCacheStore.load() == nil)
+        #expect(store.openAIDashboardRequiresLogin == true)
+        #expect(store.lastOpenAIDashboardError?.contains("OpenAI dashboard signed in as alpha@example.com") == true)
     }
 }

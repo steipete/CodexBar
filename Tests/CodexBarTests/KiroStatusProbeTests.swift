@@ -1,8 +1,507 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
+private func waitForFile(_ url: URL) async throws {
+    for _ in 0..<100 where !FileManager.default.fileExists(atPath: url.path) {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(FileManager.default.fileExists(atPath: url.path))
+}
+
+@Suite(.serialized)
 struct KiroStatusProbeTests {
+    @Test
+    func `fetch returns usage when account probe times out`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              sleep 5
+              printf 'Logged in with Google\\nEmail: person@example.com\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 0.2)
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(snapshot.accountEmail == nil)
+        #expect(snapshot.authMethod == nil)
+    }
+
+    @Test
+    func `fetch preserves account info when account probe succeeds`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\\nEmail: person@example.com\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.accountEmail == "person@example.com")
+        #expect(snapshot.authMethod == "Google")
+    }
+
+    @Test
+    func `fetch preserves not logged in when usage fails without auth detail`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Not logged in\\n'
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        await #expect {
+            _ = try await probe.fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `fetch preserves not logged in when usage output cannot be parsed`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Not logged in\\n'
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        await #expect {
+            _ = try await probe.fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `fetch cancellation during context probe is preserved`() async throws {
+        let contextStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-context-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              : > '\(contextStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: contextStarted)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let task = Task { try await probe.fetch() }
+        defer { task.cancel() }
+
+        try await waitForFile(contextStarted)
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
+    func `fetch cancellation while waiting for account probe is preserved`() async throws {
+        let accountStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-account-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              : > '\(accountStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: accountStarted)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let task = Task { try await probe.fetch() }
+        defer { task.cancel() }
+
+        try await waitForFile(accountStarted)
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
+    func `fetch returns when usage helper leaves inherited pipes open`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-pipe-\(UUID().uuidString)", isDirectory: true)
+        let childPIDFile = root.appendingPathComponent("child.pid")
+        let cliURL = root.appendingPathComponent("kiro-cli")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        defer {
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                _ = kill(childPID, SIGKILL)
+            }
+        }
+
+        let script = """
+        #!/bin/bash
+        set -e
+        if [ "$1" = "whoami" ]; then
+          printf 'Logged in with Google\\nEmail: person@example.com\\n'
+          exit 0
+        fi
+
+        if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+          /usr/bin/python3 -c '
+        import os
+        import subprocess
+        import sys
+
+        ready_read, ready_write = os.pipe()
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import os,signal,sys,time; "
+                "signal.signal(signal.SIGHUP, signal.SIG_IGN); "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "handle=open(sys.argv[1], \\\"w\\\"); handle.write(str(os.getpid())); handle.close(); "
+                "os.write(int(sys.argv[2]), b\\\"1\\\"); os.close(int(sys.argv[2])); time.sleep(30)",
+                os.environ["CODEXBAR_TEST_CHILD_PID_FILE"],
+                str(ready_write),
+            ],
+            start_new_session=True,
+            pass_fds=(ready_write,),
+        )
+        os.close(ready_write)
+        if os.read(ready_read, 1) != b"1":
+            raise RuntimeError("detached helper exited before signaling readiness")
+        os.close(ready_read)
+        '
+          test -s "$CODEXBAR_TEST_CHILD_PID_FILE"
+          printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+          printf 'Credits (12.50 of 50 covered in plan)\\n'
+          printf '████████████████████ 25%%\\n'
+          exit 0
+        fi
+
+        if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+          exit 0
+        fi
+
+        exit 1
+        """
+        try script.write(to: cliURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
+
+        let previousPIDFile = ProcessInfo.processInfo.environment["CODEXBAR_TEST_CHILD_PID_FILE"]
+        setenv("CODEXBAR_TEST_CHILD_PID_FILE", childPIDFile.path, 1)
+        defer {
+            if let previousPIDFile {
+                setenv("CODEXBAR_TEST_CHILD_PID_FILE", previousPIDFile, 1)
+            } else {
+                unsetenv("CODEXBAR_TEST_CHILD_PID_FILE")
+            }
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let start = Date()
+        let snapshot = try await probe.fetch()
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(elapsed < 8, "Kiro usage capture should return before the 10s idle timeout, took \(elapsed)s")
+
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let cleanupDeadline = Date().addingTimeInterval(1)
+        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(kill(childPID, 0) == -1, "Kiro usage capture should terminate pipe-holding helpers")
+    }
+
+    @Test
+    func `run command hard stops a process that ignores SIGTERM`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            trap '' TERM
+            printf 'partial output\\n'
+            while true; do sleep 1; done
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let start = Date()
+        let result = try await probe.runCommand(arguments: [], timeout: 2, idleTimeout: 0.1)
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(result.terminatedForIdle)
+        #expect(result.stdout.contains("partial output"))
+        #expect(result.terminationStatus != 0)
+        #expect(elapsed < 2, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
+    }
+
+    @Test
+    func `run command kills a pipe holder that escapes the process group`() async throws {
+        let childPIDFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-escaped-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/usr/bin/python3
+            import subprocess
+            import sys
+            import time
+
+            child = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)",
+                ],
+                start_new_session=True,
+            )
+            with open(sys.argv[1], "w") as handle:
+                handle.write(str(child.pid))
+            print("partial output", flush=True)
+            time.sleep(30)
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: childPIDFile)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let result = try await probe.runCommand(
+            arguments: [childPIDFile.path],
+            timeout: 2,
+            idleTimeout: 0.1)
+
+        #expect(result.terminatedForIdle)
+        #expect(result.stdout.contains("partial output"))
+
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(childPID, SIGKILL) }
+
+        let cleanupDeadline = Date().addingTimeInterval(1)
+        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(kill(childPID, 0) == -1)
+    }
+
+    @Test
+    func `run command cleans a same group helper after normal exit`() async throws {
+        let childPIDFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-normal-exit-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/usr/bin/python3
+            import os
+            import signal
+            import sys
+            import time
+
+            child = os.fork()
+            if child == 0:
+                os.close(1)
+                os.close(2)
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                with open(sys.argv[1], "w") as handle:
+                    handle.write(str(os.getpid()))
+                time.sleep(30)
+                os._exit(0)
+
+            while not os.path.exists(sys.argv[1]):
+                time.sleep(0.01)
+            print("parent complete", flush=True)
+            os._exit(0)
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: childPIDFile)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let result = try await probe.runCommand(arguments: [childPIDFile.path], timeout: 2)
+
+        #expect(result.terminationStatus == 0)
+        #expect(result.stdout.contains("parent complete"))
+
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(childPID, SIGKILL) }
+        #expect(kill(childPID, 0) == -1)
+    }
+
+    @Test
+    func `run command preserves completed no-output failure status`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            exit 23
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let result = try await probe.runCommand(arguments: [], timeout: 2)
+
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.isEmpty)
+        #expect(result.terminationStatus == 23)
+        #expect(!result.terminatedForIdle)
+    }
+
+    @Test
+    func `run command cancellation terminates the process`() async throws {
+        let pidFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-cancel-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            printf '%s\\n' "$$" > "$1"
+            trap '' TERM
+            while true; do sleep 1; done
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: pidFile)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let task = Task {
+            try await probe.runCommand(arguments: [pidFile.path], timeout: 20)
+        }
+        defer { task.cancel() }
+
+        var capturedProcessID: pid_t?
+        for _ in 0..<100 {
+            if let text = try? String(contentsOf: pidFile, encoding: .utf8) {
+                capturedProcessID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                break
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let processID = try #require(capturedProcessID)
+        defer { _ = kill(processID, SIGKILL) }
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        #expect(kill(processID, 0) == -1)
+    }
+}
+
+extension KiroStatusProbeTests {
     // MARK: - Happy Path Parsing
 
     @Test
@@ -25,6 +524,16 @@ struct KiroStatusProbeTests {
         #expect(snapshot.bonusCreditsTotal == nil)
         #expect(snapshot.bonusExpiryDays == nil)
         #expect(snapshot.resetsAt != nil)
+    }
+
+    private func makeCLI(_ script: String) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-cli-\(UUID().uuidString)", isDirectory: true)
+        let cliURL = root.appendingPathComponent("kiro-cli")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try script.write(to: cliURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
+        return cliURL
     }
 
     @Test
@@ -475,5 +984,44 @@ struct KiroStatusProbeTests {
 
         #expect(account.authMethod == nil)
         #expect(account.email == "user@example.com")
+    }
+}
+
+extension KiroStatusProbeTests {
+    @Test
+    func `fetch cancellation while joining account after usage failure is preserved`() async throws {
+        let accountStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-failed-usage-account-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              : > '\(accountStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 1
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: accountStarted)
+        }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 2.0)
+        let task = Task { try await probe.fetch() }
+        defer { task.cancel() }
+
+        try await waitForFile(accountStarted)
+        try await Task.sleep(for: .milliseconds(300))
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
     }
 }

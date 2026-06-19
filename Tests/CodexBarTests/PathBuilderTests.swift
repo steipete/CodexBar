@@ -45,6 +45,29 @@ struct PathBuilderTests {
     }
 
     @Test
+    func `login shell cache retries after timed out nil capture`() async {
+        let capture = LoginShellPathCaptureStub([
+            nil,
+            ["/login/bin", "/usr/bin"],
+        ])
+
+        let cache = LoginShellPathCache { _, _ in capture.next() }
+        let firstResult: [String]? = await withCheckedContinuation { continuation in
+            cache.captureOnce(shell: "/unused", timeout: 0.01) { result in
+                continuation.resume(returning: result)
+            }
+        }
+
+        #expect(firstResult == nil)
+        #expect(cache.current == nil)
+
+        let recovered = cache.currentOrCapture(shell: "/unused", timeout: 2.0)
+        #expect(recovered == ["/login/bin", "/usr/bin"])
+        #expect(cache.current == ["/login/bin", "/usr/bin"])
+        #expect(capture.callCount == 2)
+    }
+
+    @Test
     func `shell runner drains noisy stdout and stderr`() throws {
         let script = """
         i=0
@@ -266,6 +289,77 @@ struct PathBuilderTests {
             isMachOExecutable: { _ in true })
 
         #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight allows valid signed command line binary assessment`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/opt/homebrew/bin/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in "\(path): rejected (the code is valid but does not seem to be an app)" },
+            isMachOExecutable: { _ in true })
+
+        #expect(allowed)
+    }
+
+    @Test
+    func `Codex launch preflight blocks revoked assessment even with non app rejection text`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/opt/homebrew/bin/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { _ in
+                """
+                rejected (the code is valid but does not seem to be an app)
+                CSSMERR_TP_CERT_REVOKED
+                """
+            },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight ignores benign text in path when verdict is generic rejection`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/tmp/code is valid but does not seem to be an app/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in "\(path): rejected\nsource=no usable signature" },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight ignores benign text before verdict separator`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/tmp/x: code is valid but does not seem to be an app/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in "\(path): rejected\nsource=no usable signature" },
+            isMachOExecutable: { _ in true })
+
+        #expect(!allowed)
+    }
+
+    @Test
+    func `Codex launch preflight ignores blocked words in accepted path and source fields`() {
+        let allowed = CodexLaunchPreflight.isLaunchCandidateAllowed(
+            path: "/tmp/rejected/quarantine/codex",
+            fileManager: MockFileManager(executables: []),
+            hasExtendedAttribute: { _, name in name == "com.apple.quarantine" },
+            spctlAssessment: { path in
+                """
+                \(path): accepted
+                source=revoked quarantine marker
+                origin=malware test fixture
+                """
+            },
+            isMachOExecutable: { _ in true })
+
+        #expect(allowed)
     }
     #endif
 
@@ -554,6 +648,29 @@ struct PathBuilderTests {
 
     private static func shellSingleQuoted(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+}
+
+private final class LoginShellPathCaptureStub: @unchecked Sendable {
+    private let lock = NSLock()
+    private var results: [[String]?]
+    private var callCountStorage = 0
+
+    var callCount: Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.callCountStorage
+    }
+
+    init(_ results: [[String]?]) {
+        self.results = results
+    }
+
+    func next() -> [String]? {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.callCountStorage += 1
+        return self.results.isEmpty ? nil : self.results.removeFirst()
     }
 }
 

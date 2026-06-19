@@ -25,36 +25,10 @@ extension SettingsStore {
 
 extension SettingsStore {
     func manusSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.ManusProviderSettings {
-        ProviderSettingsSnapshot.ManusProviderSettings(
-            cookieSource: self.manusSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.manusSnapshotCookieHeader(tokenOverride: tokenOverride))
-    }
-
-    private func manusSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.manusManualCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .manus),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        self.resolvedCookieSettings(
             provider: .manus,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func manusSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.manusCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .manus),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .manus).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.manusCookieSource,
+            configuredHeader: self.manusManualCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

@@ -8,60 +8,13 @@ import Testing
 struct ProviderSettingsDescriptorTests {
     @Test
     func `toggle I ds are unique across providers`() throws {
-        let suite = "ProviderSettingsDescriptorTests-unique"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
-
-        var statusByID: [String: String] = [:]
-        var lastRunAtByID: [String: Date] = [:]
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-unique")
         var seenToggleIDs: Set<String> = []
         var seenActionIDs: Set<String> = []
         var seenPickerIDs: Set<String> = []
 
         for provider in UsageProvider.allCases {
-            let context = ProviderSettingsContext(
-                provider: provider,
-                settings: settings,
-                store: store,
-                boolBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
-                stringBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
-                statusText: { id in statusByID[id] },
-                setStatusText: { id, text in
-                    if let text {
-                        statusByID[id] = text
-                    } else {
-                        statusByID.removeValue(forKey: id)
-                    }
-                },
-                lastAppActiveRunAt: { id in lastRunAtByID[id] },
-                setLastAppActiveRunAt: { id, date in
-                    if let date {
-                        lastRunAtByID[id] = date
-                    } else {
-                        lastRunAtByID.removeValue(forKey: id)
-                    }
-                },
-                requestConfirmation: { _ in },
-                runLoginFlow: {})
-
+            let context = fixture.settingsContext(provider: provider)
             let impl = try #require(ProviderCatalog.implementation(for: provider))
             let toggles = impl.settingsToggles(context: context)
             for toggle in toggles {
@@ -83,41 +36,24 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `codex exposes usage and cookie pickers`() throws {
-        let suite = "ProviderSettingsDescriptorTests-codex"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+    func `openai exposes project id setting`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-openai-project")
+        let context = fixture.settingsContext(provider: .openai)
 
-        let context = ProviderSettingsContext(
-            provider: .codex,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in },
-            runLoginFlow: {})
+        let fields = OpenAIAPIProviderImplementation().settingsFields(context: context)
+        let project = try #require(fields.first(where: { $0.id == "openai-project-id" }))
+        project.binding.wrappedValue = "proj_abc"
+
+        #expect(project.title == "Project ID")
+        #expect(project.subtitle.contains(OpenAIAPISettingsReader.projectIDEnvironmentKey))
+        #expect(fixture.settings.openAIAPIProjectID == "proj_abc")
+        #expect(fixture.settings.providerConfig(for: .openai)?.sanitizedWorkspaceID == "proj_abc")
+    }
+
+    @Test
+    func `codex exposes usage and cookie pickers`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex")
+        let context = fixture.settingsContext(provider: .codex)
 
         let pickers = CodexProviderImplementation().settingsPickers(context: context)
         let toggles = CodexProviderImplementation().settingsToggles(context: context)
@@ -127,40 +63,22 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `codex exposes open AI web extras toggle as default off opt in`() throws {
-        let suite = "ProviderSettingsDescriptorTests-codex-openai-toggle"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+    func `antigravity usage source picker clarifies local ide and agy`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-antigravity-source")
+        let context = fixture.settingsContext(provider: .antigravity)
 
-        let context = ProviderSettingsContext(
-            provider: .codex,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+        let pickers = AntigravityProviderImplementation().settingsPickers(context: context)
+        let usagePicker = try #require(pickers.first(where: { $0.id == "antigravity-usage-source" }))
+
+        #expect(usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
+        #expect(usagePicker.subtitle ==
+            "Auto tries Antigravity app, agy CLI, then IDE; OAuth follows for selected or signed-in accounts.")
+    }
+
+    @Test
+    func `codex exposes open AI web extras toggle as default off opt in`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex-openai-toggle")
+        let context = fixture.settingsContext(provider: .codex)
 
         let toggles = CodexProviderImplementation().settingsToggles(context: context)
         let extrasToggle = try #require(toggles.first(where: { $0.id == "codex-openai-web-extras" }))
@@ -172,47 +90,16 @@ struct ProviderSettingsDescriptorTests {
         #expect(batterySaverToggle.binding.wrappedValue == false)
         #expect(batterySaverToggle.isVisible?() == false)
 
-        settings.openAIWebAccessEnabled = true
+        fixture.settings.openAIWebAccessEnabled = true
         #expect(batterySaverToggle.isVisible?() == true)
     }
 
     @Test
     func `claude exposes usage and cookie pickers`() throws {
-        let suite = "ProviderSettingsDescriptorTests-claude"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        settings.debugDisableKeychainAccess = false
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude")
+        fixture.settings.debugDisableKeychainAccess = false
+        let context = fixture.settingsContext(provider: .claude)
 
-        let context = ProviderSettingsContext(
-            provider: .claude,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in },
-            runLoginFlow: {})
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
@@ -228,43 +115,11 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `claude prompt policy picker hidden when experimental reader selected`() throws {
-        let suite = "ProviderSettingsDescriptorTests-claude-prompt-hidden-experimental"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        settings.debugDisableKeychainAccess = false
-        settings.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
-
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
-
-        let context = ProviderSettingsContext(
-            provider: .claude,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in },
-            runLoginFlow: {})
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-claude-prompt-hidden-experimental")
+        fixture.settings.debugDisableKeychainAccess = false
+        fixture.settings.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+        let context = fixture.settingsContext(provider: .claude)
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
@@ -272,42 +127,30 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude keychain prompt policy picker disabled when global keychain disabled`() throws {
-        let suite = "ProviderSettingsDescriptorTests-claude-keychain-disabled"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        settings.debugDisableKeychainAccess = true
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+    func `claude avoid keychain prompts toggle is disabled when global keychain disabled`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-prompt-free-disabled")
+        fixture.settings.debugDisableKeychainAccess = true
+        fixture.settings.claudeOAuthPromptFreeCredentialsEnabled = true
+        let context = fixture.settingsContext(provider: .claude)
 
-        let context = ProviderSettingsContext(
-            provider: .claude,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in },
-            runLoginFlow: {})
+        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
+        let promptFreeToggle = try #require(toggles.first(where: { $0.id == "claude-oauth-prompt-free-credentials" }))
+        #expect(promptFreeToggle.isEnabled?() == false)
+        #expect(promptFreeToggle.binding.wrappedValue == true)
+
+        promptFreeToggle.binding.wrappedValue = false
+        #expect(fixture.settings.claudeOAuthPromptFreeCredentialsEnabled == true)
+
+        fixture.settings.debugDisableKeychainAccess = false
+        #expect(promptFreeToggle.isEnabled?() == true)
+        #expect(promptFreeToggle.binding.wrappedValue == true)
+    }
+
+    @Test
+    func `claude keychain prompt policy picker disabled when global keychain disabled`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-keychain-disabled")
+        fixture.settings.debugDisableKeychainAccess = true
+        let context = fixture.settingsContext(provider: .claude)
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
@@ -318,15 +161,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `claude web extras auto disables when leaving CLI`() throws {
-        let suite = "ProviderSettingsDescriptorTests-claude-invariant"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-invariant")
+        let settings = fixture.settings
         settings.debugMenuEnabled = true
         settings.claudeUsageDataSource = .cli
         settings.claudeWebExtrasEnabled = true
@@ -337,40 +173,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `kilo exposes usage source picker and api field only`() throws {
-        let suite = "ProviderSettingsDescriptorTests-kilo"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
-
-        let context = ProviderSettingsContext(
-            provider: .kilo,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in },
-            runLoginFlow: {})
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kilo")
+        let context = fixture.settingsContext(provider: .kilo)
 
         let implementation = KiloProviderImplementation()
         let toggles = implementation.settingsToggles(context: context)
@@ -383,41 +187,65 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `deepgram exposes api key and project id fields`() throws {
-        let suite = "ProviderSettingsDescriptorTests-deepgram"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+    func `copilot budget secondary picker appears before cookie picker`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-budget-pickers")
+        fixture.settings.copilotBudgetExtrasEnabled = true
+        let context = fixture.settingsContext(provider: .copilot)
 
-        let context = ProviderSettingsContext(
-            provider: .deepgram,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in },
-            runLoginFlow: {})
+        let pickers = CopilotProviderImplementation().settingsPickers(context: context)
+
+        #expect(pickers.map(\.id) == ["copilot-icon-secondary-window", "copilot-budget-cookie-source"])
+        #expect(pickers.first?.title == "Menu bar secondary metric")
+    }
+
+    @Test
+    func `copilot manual cookie field is labelled and refreshable`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-budget-field")
+        fixture.settings.copilotBudgetExtrasEnabled = true
+        fixture.settings.copilotBudgetCookieSource = .manual
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-budget-cookie-header" })
+
+        #expect(field.title == "Manual GitHub Cookie header")
+        #expect(field.subtitle.contains("Treat this value like a password"))
+        #expect(field.actions.map(\.id) == ["refresh-copilot-budget-cookie"])
+    }
+
+    @Test
+    func `kimi exposes usage source picker plus api and cookie fields`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi")
+        let context = fixture.settingsContext(provider: .kimi)
+
+        let implementation = KimiProviderImplementation()
+        let pickers = implementation.settingsPickers(context: context)
+        let fields = implementation.settingsFields(context: context)
+
+        #expect(pickers.contains(where: { $0.id == "kimi-usage-source" }))
+        #expect(pickers.contains(where: { $0.id == "kimi-cookie-source" }))
+        #expect(fields.contains(where: { $0.id == "kimi-api-key" }))
+        #expect(fields.contains(where: { $0.id == "kimi-cookie" }))
+    }
+
+    @Test
+    func `kimi presentation follows selected source label`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi-presentation")
+        fixture.settings.kimiUsageDataSource = .api
+        let metadata = try #require(ProviderDescriptorRegistry.metadata[.kimi])
+        let context = fixture.presentationContext(provider: .kimi, metadata: metadata)
+
+        let detailLine = KimiProviderImplementation()
+            .presentation(context: context)
+            .detailLine(context)
+
+        #expect(detailLine == "api")
+    }
+
+    @Test
+    func `deepgram exposes api key and project id fields`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepgram")
+        let context = fixture.settingsContext(provider: .deepgram)
 
         let implementation = DeepgramProviderImplementation()
         let fields = implementation.settingsFields(context: context)
@@ -432,69 +260,36 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `alibaba presentation follows store source label`() throws {
-        let suite = "ProviderSettingsDescriptorTests-alibaba-presentation"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-presentation")
         let metadata = try #require(ProviderDescriptorRegistry.metadata[.alibaba])
-        let context = ProviderPresentationContext(
-            provider: .alibaba,
-            settings: settings,
-            store: store,
-            metadata: metadata)
+        let context = fixture.presentationContext(provider: .alibaba, metadata: metadata)
 
         let detailLine = AlibabaCodingPlanProviderImplementation()
             .presentation(context: context)
             .detailLine(context)
 
-        #expect(detailLine == store.sourceLabel(for: .alibaba))
+        #expect(detailLine == fixture.store.sourceLabel(for: .alibaba))
+    }
+
+    @Test
+    func `devin presentation follows store source label`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-devin-presentation")
+        fixture.store.lastSourceLabels[.devin] = "web"
+        let metadata = try #require(ProviderDescriptorRegistry.metadata[.devin])
+        let context = fixture.presentationContext(provider: .devin, metadata: metadata)
+
+        let detailLine = DevinProviderImplementation()
+            .presentation(context: context)
+            .detailLine(context)
+
+        #expect(detailLine == "web")
     }
 
     @Test
     func `alibaba token plan settings expose cookie controls`() throws {
-        let suite = "ProviderSettingsDescriptorTests-alibaba-token-plan-settings"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
-        let context = ProviderSettingsContext(
-            provider: .alibabatokenplan,
-            settings: settings,
-            store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            statusText: { _ in nil },
-            setStatusText: { _, _ in },
-            lastAppActiveRunAt: { _ in nil },
-            setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
-
-        settings.alibabaTokenPlanCookieSource = .manual
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-settings")
+        fixture.settings.alibabaTokenPlanCookieSource = .manual
+        let context = fixture.settingsContext(provider: .alibabatokenplan)
         let implementation = AlibabaTokenPlanProviderImplementation()
         let pickers = implementation.settingsPickers(context: context)
         let fields = implementation.settingsFields(context: context)
@@ -502,5 +297,79 @@ struct ProviderSettingsDescriptorTests {
         #expect(pickers.contains(where: { $0.id == "alibaba-token-plan-cookie-source" }))
         #expect(fields.contains(where: { $0.id == "alibaba-token-plan-cookie" }))
         #expect(fields.first?.actions.contains(where: { $0.id == "alibaba-token-plan-open-dashboard" }) == true)
+    }
+
+    private func makeSettingsFixture(suite: String) throws -> ProviderSettingsFixture {
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        return ProviderSettingsFixture(settings: settings, store: store)
+    }
+
+    private struct ProviderSettingsFixture {
+        let settings: SettingsStore
+        let store: UsageStore
+        private let state = ProviderSettingsContextState()
+
+        @MainActor
+        func settingsContext(provider: UsageProvider) -> ProviderSettingsContext {
+            let settings = self.settings
+            let store = self.store
+            let state = self.state
+            return ProviderSettingsContext(
+                provider: provider,
+                settings: settings,
+                store: store,
+                boolBinding: { keyPath in
+                    Binding(
+                        get: { settings[keyPath: keyPath] },
+                        set: { settings[keyPath: keyPath] = $0 })
+                },
+                stringBinding: { keyPath in
+                    Binding(
+                        get: { settings[keyPath: keyPath] },
+                        set: { settings[keyPath: keyPath] = $0 })
+                },
+                statusText: { id in state.statusByID[id] },
+                setStatusText: { id, text in
+                    if let text {
+                        state.statusByID[id] = text
+                    } else {
+                        state.statusByID.removeValue(forKey: id)
+                    }
+                },
+                lastAppActiveRunAt: { id in state.lastRunAtByID[id] },
+                setLastAppActiveRunAt: { id, date in
+                    if let date {
+                        state.lastRunAtByID[id] = date
+                    } else {
+                        state.lastRunAtByID.removeValue(forKey: id)
+                    }
+                },
+                requestConfirmation: { _ in },
+                runLoginFlow: {})
+        }
+
+        @MainActor
+        func presentationContext(provider: UsageProvider, metadata: ProviderMetadata) -> ProviderPresentationContext {
+            ProviderPresentationContext(
+                provider: provider,
+                settings: self.settings,
+                store: self.store,
+                metadata: metadata)
+        }
+    }
+
+    private final class ProviderSettingsContextState {
+        var statusByID: [String: String] = [:]
+        var lastRunAtByID: [String: Date] = [:]
     }
 }

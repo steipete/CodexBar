@@ -1,16 +1,15 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum GrokProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .grok,
             metadata: ProviderMetadata(
                 id: .grok,
                 displayName: "Grok",
-                sessionLabel: "Monthly",
+                sessionLabel: "Credits",
                 weeklyLabel: "On-demand",
                 opusLabel: nil,
                 supportsOpus: false,
@@ -52,6 +51,29 @@ public enum GrokProviderDescriptor {
         case .api, .oauth:
             []
         }
+    }
+
+    /// Returns a contextual label for Grok's primary usage bar ("Weekly" or "Monthly").
+    /// Prefer the billing period duration when available; fall back to reset distance for
+    /// web billing payloads that expose only a reset timestamp.
+    public static func primaryLabel(window: RateWindow?, now: Date = .now) -> String? {
+        if let minutes = window?.windowMinutes {
+            return self.primaryLabel(duration: TimeInterval(minutes) * 60)
+        }
+        return self.primaryLabel(resetsAt: window?.resetsAt, now: now)
+    }
+
+    public static func primaryLabel(resetsAt: Date?, now: Date = .now) -> String? {
+        guard let resetsAt else { return nil }
+        return self.primaryLabel(duration: resetsAt.timeIntervalSince(now))
+    }
+
+    private static func primaryLabel(duration seconds: TimeInterval) -> String? {
+        guard seconds > 3600 else { return nil }
+        let days = Int((seconds / 86400).rounded(.toNearestOrAwayFromZero))
+        if (4...12).contains(days) { return "Weekly" }
+        if (20...45).contains(days) { return "Monthly" }
+        return nil
     }
 }
 
@@ -120,24 +142,39 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
         sourceLabel: String,
         authenticatedByAuthFile: Bool)
     {
+        let credentialsResult: Result<GrokCredentials, Error> = Result {
+            try GrokCredentialsStore.load(env: context.env)
+        }
+        let browserCredentials = try? credentialsResult.get()
+
         #if os(macOS)
         if Self.canImportBrowserCookies(runtime: context.runtime, env: context.env) {
             var lastCookieError: Error?
             do {
                 let sessions = try GrokCookieImporter.importSessions(browserDetection: context.browserDetection)
-                let (snapshot, sourceLabel) = try await Self.fetchFirstValidCookieSession(sessions)
+                let (snapshot, sourceLabel) = try await Self.fetchFirstValidCookieSession(
+                    sessions,
+                    credentials: browserCredentials)
                 return (snapshot, sourceLabel, false)
             } catch {
                 lastCookieError = error
             }
-            if !FileManager.default.fileExists(atPath: GrokCredentialsStore.authFileURL(env: context.env).path) {
+            if browserCredentials == nil {
+                if FileManager.default.fileExists(
+                    atPath: GrokCredentialsStore.authFileURL(env: context.env).path)
+                {
+                    _ = try credentialsResult.get()
+                }
                 throw lastCookieError ?? GrokWebBillingError.missingCredentials
             }
         }
         #endif
 
-        let credentials = try GrokCredentialsStore.load(env: context.env)
-        let snapshot = try await GrokWebBillingFetcher.fetch(credentials: credentials)
+        let authCredentials = try credentialsResult.get()
+        guard !authCredentials.isExpired else {
+            throw GrokWebBillingError.missingCredentials
+        }
+        let snapshot = try await GrokWebBillingFetcher.fetch(credentials: authCredentials)
         return (snapshot, "grok-web", true)
     }
 
@@ -151,20 +188,32 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
     #if os(macOS)
     static func fetchFirstValidCookieSession(
         _ sessions: [GrokCookieImporter.SessionInfo],
-        fetch: (String) async throws -> GrokWebBillingSnapshot = { cookieHeader in
-            try await GrokWebBillingFetcher.fetch(cookieHeader: cookieHeader)
-        }) async throws -> (GrokWebBillingSnapshot, String)
+        credentials: GrokCredentials? = nil,
+        fetch: ((String, GrokCredentials?) async throws -> GrokWebBillingSnapshot)? = nil) async throws
+        -> (GrokWebBillingSnapshot, String)
     {
+        let fetchSnapshot = fetch ?? { cookieHeader, credentials in
+            try await GrokWebBillingFetcher.fetch(
+                cookieHeader: cookieHeader,
+                credentials: credentials)
+        }
         var lastError: Error?
         for session in sessions {
-            do {
-                let snapshot = try await fetch(session.cookieHeader)
-                return (snapshot, session.sourceLabel)
-            } catch {
-                lastError = error
+            for authCredentials in Self.cookieAuthAttempts(credentials: credentials) {
+                do {
+                    let snapshot = try await fetchSnapshot(session.cookieHeader, authCredentials)
+                    return (snapshot, session.sourceLabel)
+                } catch {
+                    lastError = error
+                }
             }
         }
         throw lastError ?? GrokWebBillingError.missingCredentials
+    }
+
+    static func cookieAuthAttempts(credentials: GrokCredentials?) -> [GrokCredentials?] {
+        guard let credentials, !credentials.isExpired else { return [nil] }
+        return [credentials, nil]
     }
     #endif
 

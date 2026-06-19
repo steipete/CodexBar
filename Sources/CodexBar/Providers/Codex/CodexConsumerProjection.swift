@@ -2,6 +2,9 @@ import CodexBarCore
 import Foundation
 
 struct CodexUIErrorMapper {
+    private static let codexCLINotSignedInMessage =
+        "Codex CLI is not signed in. Run `codex login --device-auth`, then refresh."
+
     static func userFacingMessage(_ raw: String?) -> String? {
         guard let raw, !raw.isEmpty else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -18,6 +21,10 @@ struct CodexUIErrorMapper {
 
         if self.looksCodexCLIMissing(lower: lower) {
             return CodexStatusProbeError.codexNotInstalled.localizedDescription
+        }
+
+        if self.looksCodexCLILoginRequired(lower: lower) {
+            return self.codexCLINotSignedInMessage
         }
 
         if self.looksExpired(lower: lower) {
@@ -72,6 +79,7 @@ struct CodexUIErrorMapper {
             || lower.contains("selected managed codex account is unavailable")
             || lower.contains("codex credits are still loading")
             || lower.contains("codex account changed; importing browser cookies")
+            || lower.contains("codex cli is not signed in.")
             || lower.contains("codex session expired. sign in again.")
             || lower.contains("openai web refresh timed out. refresh openai cookies and try again.")
             || lower.contains(
@@ -87,6 +95,12 @@ struct CodexUIErrorMapper {
             || lower.contains("missing cli 'codex'")
             || lower.contains("missing cli \"codex\"")
             || (lower.contains("binary not found") && lower.contains("codex"))
+    }
+
+    private static func looksCodexCLILoginRequired(lower: String) -> Bool {
+        lower.contains("codex account authentication required")
+            || lower.contains("account authentication required to read rate limits")
+            || lower.contains("requiresopenaiauth")
     }
 
     private static func looksExpired(lower: String) -> Bool {

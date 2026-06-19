@@ -6,10 +6,84 @@ public enum ResetTimeDisplayStyle: String, Codable, Sendable {
 }
 
 public enum UsageFormatter {
+    private final class BundleToken {}
+
+    private static let localizationLock = NSLock()
+    private nonisolated(unsafe) static var localizationProvider: (@Sendable (String) -> String)?
+    private nonisolated(unsafe) static var localeProvider: (@Sendable () -> Locale)?
+
+    public static func setLocalizationProvider(_ provider: @escaping @Sendable (String) -> String) {
+        self.localizationLock.lock()
+        self.localizationProvider = provider
+        self.localizationLock.unlock()
+    }
+
+    public static func clearLocalizationProvider() {
+        self.localizationLock.lock()
+        self.localizationProvider = nil
+        self.localizationLock.unlock()
+    }
+
+    public static func setLocaleProvider(_ provider: @escaping @Sendable () -> Locale) {
+        self.localizationLock.lock()
+        self.localeProvider = provider
+        self.localizationLock.unlock()
+    }
+
+    public static func clearLocaleProvider() {
+        self.localizationLock.lock()
+        self.localeProvider = nil
+        self.localizationLock.unlock()
+    }
+
+    private static func currentLocale() -> Locale {
+        self.localizationLock.lock()
+        let provider = self.localeProvider
+        self.localizationLock.unlock()
+        return provider?() ?? Locale(identifier: "en_US_POSIX")
+    }
+
+    private static func localized(_ key: String) -> String {
+        self.localizationLock.lock()
+        let provider = self.localizationProvider
+        self.localizationLock.unlock()
+        if let provider {
+            return provider(key)
+        }
+        let coreBundle = Bundle(for: BundleToken.self)
+        let coreValue = NSLocalizedString(key, tableName: "Localizable", bundle: coreBundle, value: key, comment: "")
+        if coreValue != key { return coreValue }
+
+        let mainValue = NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
+        if mainValue != key { return mainValue }
+
+        switch key {
+        case "usage_percent_suffix_left": return "left"
+        case "usage_percent_suffix_used": return "used"
+        case "reset_tomorrow_format": return "tomorrow, %@"
+        case "byte_unit_byte": return "byte"
+        case "byte_unit_bytes": return "bytes"
+        case "byte_unit_kilobyte": return "kilobyte"
+        case "byte_unit_kilobytes": return "kilobytes"
+        case "byte_unit_megabyte": return "megabyte"
+        case "byte_unit_megabytes": return "megabytes"
+        case "byte_unit_gigabyte": return "gigabyte"
+        case "byte_unit_gigabytes": return "gigabytes"
+        default: return key
+        }
+    }
+
+    private static func localized(_ key: String, _ args: CVarArg...) -> String {
+        let format = self.localized(key)
+        return String(format: format, locale: self.currentLocale(), arguments: args)
+    }
+
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
         let clamped = min(100, max(0, percent))
-        let suffix = showUsed ? "used" : "left"
+        let suffix = showUsed
+            ? self.localized("usage_percent_suffix_used")
+            : self.localized("usage_percent_suffix_left")
         return String(format: "%.0f%% %@", clamped, suffix)
     }
 
@@ -37,14 +111,15 @@ public enum UsageFormatter {
         // Human-friendly phrasing: today / tomorrow / date+time.
         let calendar = Calendar.current
         if calendar.isDate(date, inSameDayAs: now) {
-            return date.formatted(date: .omitted, time: .shortened)
+            return date.formatted(.dateTime.hour().minute().locale(self.currentLocale()))
         }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(date, inSameDayAs: tomorrow)
         {
-            return "tomorrow, \(date.formatted(date: .omitted, time: .shortened))"
+            let timeStr = date.formatted(.dateTime.hour().minute().locale(self.currentLocale()))
+            return self.localized("reset_tomorrow_format", timeStr)
         }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(self.currentLocale()))
     }
 
     public static func resetLine(
@@ -53,17 +128,30 @@ public enum UsageFormatter {
         now: Date = .init()) -> String?
     {
         if let date = window.resetsAt {
-            let text = style == .countdown
-                ? self.resetCountdownDescription(from: date, now: now)
-                : self.resetDescription(from: date, now: now)
-            return "Resets \(text)"
+            if style == .countdown {
+                let countdown = self.resetCountdownDescription(from: date, now: now)
+                if countdown == "now" {
+                    return self.localized("Resets now")
+                }
+                if countdown.hasPrefix("in ") {
+                    return self.localized("Resets in %@", String(countdown.dropFirst(3)))
+                }
+                return self.localized("Resets %@", countdown)
+            }
+            let text = self.resetDescription(from: date, now: now)
+            return self.localized("Resets %@", text)
         }
 
         if let desc = window.resetDescription {
             let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
-            if trimmed.lowercased().hasPrefix("resets") { return trimmed }
-            return "Resets \(trimmed)"
+            if trimmed.lowercased().hasPrefix("resets in ") {
+                return self.localized("Resets in %@", String(trimmed.dropFirst("Resets in ".count)))
+            }
+            if trimmed.lowercased().hasPrefix("resets ") {
+                return self.localized("Resets %@", String(trimmed.dropFirst("Resets ".count)))
+            }
+            return self.localized("Resets %@", trimmed)
         }
         return nil
     }
@@ -71,25 +159,27 @@ public enum UsageFormatter {
     public static func updatedString(from date: Date, now: Date = .init()) -> String {
         let delta = now.timeIntervalSince(date)
         if abs(delta) < 60 {
-            return "Updated just now"
+            return self.localized("Updated just now")
         }
         if let hours = Calendar.current.dateComponents([.hour], from: date, to: now).hour, hours < 24 {
             #if os(macOS)
             let rel = RelativeDateTimeFormatter()
-            rel.locale = Locale(identifier: "en_US")
+            rel.locale = self.currentLocale()
             rel.unitsStyle = .abbreviated
-            return "Updated \(rel.localizedString(for: date, relativeTo: now))"
+            return self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
             #else
             let seconds = max(0, Int(now.timeIntervalSince(date)))
             if seconds < 3600 {
                 let minutes = max(1, seconds / 60)
-                return "Updated \(minutes)m ago"
+                return self.localized("Updated %@m ago", String(minutes))
             }
             let wholeHours = max(1, seconds / 3600)
-            return "Updated \(wholeHours)h ago"
+            return self.localized("Updated %@h ago", String(wholeHours))
             #endif
         } else {
-            return "Updated \(date.formatted(date: .omitted, time: .shortened))"
+            return self.localized(
+                "Updated %@",
+                date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))
         }
     }
 
@@ -100,7 +190,7 @@ public enum UsageFormatter {
         // Use explicit locale for consistent formatting on all systems
         number.locale = Locale(identifier: "en_US_POSIX")
         let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
-        return "\(formatted) left"
+        return self.localized("%@ left", formatted)
     }
 
     public static func kiroCreditNumber(_ value: Double) -> String {
@@ -159,16 +249,12 @@ public enum UsageFormatter {
             return "\(sign)\(formatted)\(unit.suffix)"
         }
 
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return "\(value)"
     }
 
     public static func byteCountString(_ bytes: Int64) -> String {
         let sign = bytes < 0 ? "-" : ""
-        let absBytes = Double(Swift.abs(bytes))
+        let absBytes = Double(bytes.magnitude)
         let units: [(threshold: Double, divisor: Double, suffix: String)] = [
             (1024 * 1024 * 1024, 1024 * 1024 * 1024, "GB"),
             (1024 * 1024, 1024 * 1024, "MB"),
@@ -183,6 +269,30 @@ public enum UsageFormatter {
         }
 
         return "\(bytes) B"
+    }
+
+    /// Same magnitudes as `byteCountString`, but spelled out ("megabytes" instead of "MB").
+    public static func byteCountStringLong(_ bytes: Int64) -> String {
+        let sign = bytes < 0 ? "-" : ""
+        let absBytes = Double(bytes.magnitude)
+        let units: [(threshold: Double, divisor: Double, singularKey: String, pluralKey: String)] = [
+            (1024 * 1024 * 1024, 1024 * 1024 * 1024, "byte_unit_gigabyte", "byte_unit_gigabytes"),
+            (1024 * 1024, 1024 * 1024, "byte_unit_megabyte", "byte_unit_megabytes"),
+            (1024, 1024, "byte_unit_kilobyte", "byte_unit_kilobytes"),
+        ]
+
+        for unit in units where absBytes >= unit.threshold {
+            let scaled = absBytes / unit.divisor
+            let format = scaled >= 10 || scaled.rounded(.towardZero) == scaled ? "%.0f" : "%.1f"
+            let formatted = String(format: format, locale: self.currentLocale(), scaled)
+            let displayScale = format == "%.0f" ? 1.0 : 10.0
+            let displayedValue = (scaled * displayScale).rounded() / displayScale
+            let word = self.localized(displayedValue == 1 ? unit.singularKey : unit.pluralKey)
+            return "\(sign)\(formatted) \(word)"
+        }
+
+        let word = self.localized(bytes.magnitude == 1 ? "byte_unit_byte" : "byte_unit_bytes")
+        return "\(bytes) \(word)"
     }
 
     public static func creditEventSummary(_ event: CreditEvent) -> String {
@@ -246,11 +356,16 @@ public enum UsageFormatter {
         return cleaned.isEmpty ? raw : cleaned
     }
 
-    public static func modelCostDetail(_ model: String, costUSD: Double?, totalTokens: Int? = nil) -> String? {
+    public static func modelCostDetail(
+        _ model: String,
+        costUSD: Double?,
+        totalTokens: Int? = nil,
+        currencyCode: String = "USD") -> String?
+    {
         let costDetail: String? = if let label = CostUsagePricing.codexDisplayLabel(model: model) {
             label
         } else if let costUSD {
-            self.usdString(costUSD)
+            self.currencyString(costUSD, currencyCode: currencyCode)
         } else {
             nil
         }

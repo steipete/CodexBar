@@ -14,7 +14,7 @@ extension StatusItemController {
         guard let submenu = self.makeUsageHistorySubmenu(provider: provider, width: width) else { return false }
         let item = self.makeMenuCardItem(
             HStack(spacing: 0) {
-                Text("Subscription Utilization")
+                Text(L("Subscription Utilization"))
                     .font(.system(size: NSFont.menuFont(ofSize: 0).pointSize))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -24,6 +24,8 @@ extension StatusItemController {
             },
             id: "usageHistorySubmenu",
             width: width,
+            heightCacheScope: provider.rawValue,
+            heightCacheFingerprint: "usageHistorySubmenu:\(provider.rawValue)",
             submenu: submenu,
             submenuIndicatorAlignment: .trailing,
             submenuIndicatorTopPadding: 0)
@@ -51,10 +53,11 @@ extension StatusItemController {
         let histories = self.store.planUtilizationHistory(for: provider)
         let snapshot = self.store.snapshot(for: provider)
 
-        if !Self.menuCardRenderingEnabled {
+        if !self.menuCardRenderingEnabledForController {
             let chartItem = NSMenuItem()
             chartItem.isEnabled = true
             chartItem.representedObject = Self.usageHistoryChartID
+            chartItem.toolTip = provider.rawValue
             submenu.addItem(chartItem)
             return true
         }
@@ -65,14 +68,15 @@ extension StatusItemController {
             snapshot: snapshot,
             width: width)
         let hosting = UsageHistoryMenuHostingView(rootView: chartView)
-        let controller = NSHostingController(rootView: chartView)
-        let size = controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+        hosting.frame = NSRect(
+            origin: .zero,
+            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
 
         let chartItem = NSMenuItem()
         chartItem.view = hosting
         chartItem.isEnabled = true
         chartItem.representedObject = Self.usageHistoryChartID
+        chartItem.toolTip = provider.rawValue
         submenu.addItem(chartItem)
         return true
     }

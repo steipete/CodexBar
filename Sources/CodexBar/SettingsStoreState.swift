@@ -19,15 +19,19 @@ struct SettingsDefaultsState {
     var quotaWarningWeeklyEnabled: Bool
     var quotaWarningSoundEnabled: Bool
     var quotaWarningMarkersVisible: Bool
+    var weeklyProgressWorkDays: Int?
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var providerChangelogLinksEnabled: Bool
     var menuBarShowsBrandIconWithPercent: Bool
+    var menuBarHidesCritters: Bool
     var menuBarDisplayModeRaw: String?
     var kiroMenuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String
     var menuBarMetricPreferencesRaw: [String: String]
+    var copilotBudgetExtrasEnabled: Bool
+    var copilotIconSecondaryWindowIDRaw: String
     var costUsageEnabled: Bool
     var costUsageHistoryDays: Int
     var hidePersonalInfo: Bool
@@ -48,5 +52,7 @@ struct SettingsDefaultsState {
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
+    var providersSortedAlphabetically: Bool
     var appLanguageRaw: String?
+    var terminalAppRaw: String?
 }

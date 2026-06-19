@@ -8,6 +8,7 @@ public struct BedrockUsageSnapshot: Codable, Sendable {
     public let monthlyBudget: Double?
     public let inputTokens: Int?
     public let outputTokens: Int?
+    public let requestCount: Int?
     public let region: String
     public let updatedAt: Date
 
@@ -16,6 +17,7 @@ public struct BedrockUsageSnapshot: Codable, Sendable {
         monthlyBudget: Double?,
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
+        requestCount: Int? = nil,
         region: String,
         updatedAt: Date)
     {
@@ -23,6 +25,7 @@ public struct BedrockUsageSnapshot: Codable, Sendable {
         self.monthlyBudget = monthlyBudget
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
+        self.requestCount = requestCount
         self.region = region
         self.updatedAt = updatedAt
     }
@@ -64,7 +67,10 @@ extension BedrockUsageSnapshot {
             loginParts.append(String(format: "Budget: $%.2f", budget))
         }
         if let total = self.totalTokens {
-            loginParts.append("Tokens: \(Self.formattedTokenCount(total))")
+            loginParts.append("Claude 14d: \(Self.formattedTokenCount(total)) tokens")
+        }
+        if let requestCount = self.requestCount {
+            loginParts.append("Requests: \(Self.formattedTokenCount(requestCount))")
         }
 
         let identity = ProviderIdentitySnapshot(
@@ -115,20 +121,40 @@ enum BedrockUsageFetcher {
         credentials: BedrockAWSSigner.Credentials,
         region: String,
         budget: Double?,
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date(),
+        cloudWatchTransport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> BedrockUsageSnapshot
     {
         let spend = try await Self.fetchMonthlyCost(
             credentials: credentials,
             environment: environment)
 
+        var activity: BedrockClaudeActivity?
+        let cloudWatchOverride = environment[BedrockSettingsReader.cloudWatchAPIURLKey]
+        let shouldFetchCloudWatch = environment[BedrockSettingsReader.apiURLKey] == nil || cloudWatchOverride != nil
+        if shouldFetchCloudWatch {
+            do {
+                activity = try await BedrockCloudWatchUsageFetcher.fetch(
+                    credentials: credentials,
+                    region: region,
+                    now: now,
+                    endpointOverride: cloudWatchOverride,
+                    transport: cloudWatchTransport)
+            } catch {
+                if Task.isCancelled { throw error }
+                Self.log.debug("AWS CloudWatch Claude activity unavailable; keeping Cost Explorer usage.")
+            }
+        }
+
         return BedrockUsageSnapshot(
             monthlySpend: spend,
             monthlyBudget: budget,
-            inputTokens: nil,
-            outputTokens: nil,
+            inputTokens: activity?.inputTokens,
+            outputTokens: activity?.outputTokens,
+            requestCount: activity?.requestCount,
             region: region,
-            updatedAt: Date())
+            updatedAt: now)
     }
 
     static func fetchDailyReport(
@@ -206,10 +232,14 @@ enum BedrockUsageFetcher {
         environment: [String: String]) async throws -> Data
     {
         let ceRegion = "us-east-1"
-        let baseURL: URL = if let override = environment[BedrockSettingsReader.apiURLKey],
-                              let url = URL(string: BedrockSettingsReader.cleaned(override) ?? "")
-        {
-            url
+        let baseURL: URL = if environment[BedrockSettingsReader.apiURLKey] != nil {
+            if let override = BedrockSettingsReader.cleaned(environment[BedrockSettingsReader.apiURLKey]),
+               let url = ProviderEndpointOverrideValidator().validatedURLAllowingLoopbackHTTP(override)
+            {
+                url
+            } else {
+                throw BedrockUsageError.parseFailed("invalid endpoint override")
+            }
         } else {
             URL(string: "https://ce.\(ceRegion).amazonaws.com")!
         }
@@ -248,6 +278,10 @@ enum BedrockUsageFetcher {
 
         let response = try await ProviderHTTPClient.shared.response(for: request)
         guard response.statusCode == 200 else {
+            if Self.isDataUnavailableResponse(statusCode: response.statusCode, data: response.data) {
+                Self.log.info("AWS Cost Explorer data unavailable, assuming zero usage.")
+                return Data(#"{"ResultsByTime":[]}"#.utf8)
+            }
             let summary = Self.sanitizedResponseBody(response.data)
             Self.log.error("AWS Cost Explorer returned \(response.statusCode): \(summary)")
             throw BedrockUsageError.apiError("HTTP \(response.statusCode)")
@@ -394,6 +428,25 @@ enum BedrockUsageFetcher {
         return (formatter.string(from: startOfMonth), formatter.string(from: tomorrow))
     }
 
+    private static func isDataUnavailableResponse(statusCode: Int, data: Data) -> Bool {
+        guard statusCode == 400,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return false
+        }
+
+        let nestedError = json["Error"] as? [String: Any]
+        let candidates = [
+            json["__type"],
+            json["code"],
+            json["Code"],
+            nestedError?["Code"],
+        ]
+        return candidates.compactMap { $0 as? String }.contains { rawCode in
+            rawCode.split(separator: "#").last == "DataUnavailableException"
+        }
+    }
+
     private static func sanitizedResponseBody(_ data: Data) -> String {
         guard !data.isEmpty,
               let body = String(bytes: data, encoding: .utf8)
@@ -416,23 +469,35 @@ enum BedrockUsageFetcher {
     }
 }
 
-public enum BedrockUsageError: LocalizedError, Sendable {
+public enum BedrockUsageError: LocalizedError, Sendable, Equatable {
     case missingCredentials
+    case awsCLINotFound
+    case profileSessionExpired(String)
     case networkError(String)
     case apiError(String)
     case parseFailed(String)
+    case cloudWatchAPIError(String)
+    case cloudWatchParseFailed(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingCredentials:
             "AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY " +
                 "or configure Bedrock in Settings."
+        case .awsCLINotFound:
+            "AWS CLI not found. Install the AWS CLI (v2) or set AWS_CLI_PATH to its location."
+        case let .profileSessionExpired(profile):
+            "AWS profile session expired. Run `aws sso login --profile \(profile)` and try again."
         case let .networkError(message):
             "AWS Bedrock network error: \(message)"
         case let .apiError(message):
             "AWS Cost Explorer API error: \(message)"
         case let .parseFailed(message):
             "Failed to parse AWS Cost Explorer response: \(message)"
+        case let .cloudWatchAPIError(message):
+            "AWS CloudWatch API error: \(message)"
+        case let .cloudWatchParseFailed(message):
+            "Failed to parse AWS CloudWatch response: \(message)"
         }
     }
 }

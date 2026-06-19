@@ -4,6 +4,10 @@ import Foundation
 extension Notification.Name {
     static let codexbarOpenSettings = Notification.Name("codexbarOpenSettings")
     static let codexbarDebugBlinkNow = Notification.Name("codexbarDebugBlinkNow")
+    #if DEBUG
+    static let codexbarDebugSimulateMemoryPressure =
+        Notification.Name("com.steipete.codexbar.debug.simulateMemoryPressure")
+    #endif
     static let codexbarWeeklyLimitReset = Notification.Name("codexbarWeeklyLimitReset")
     static let codexbarProviderConfigDidChange = Notification.Name("codexbarProviderConfigDidChange")
     static let codexbarQuotaWarningDidPost = Notification.Name("codexbarQuotaWarningDidPost")

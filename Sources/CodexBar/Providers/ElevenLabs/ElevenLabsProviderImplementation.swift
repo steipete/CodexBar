@@ -1,8 +1,6 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct ElevenLabsProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .elevenlabs
 

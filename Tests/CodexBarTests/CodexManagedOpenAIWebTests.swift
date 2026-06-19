@@ -304,7 +304,7 @@ struct CodexManagedOpenAIWebTests {
         }
 
         var observedTargetEmail: String?
-        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _ in
+        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _, _ in
             observedTargetEmail = accountEmail
             return OpenAIDashboardSnapshot(
                 signedInEmail: "new@example.com",
@@ -365,7 +365,7 @@ struct CodexManagedOpenAIWebTests {
         store.lastSourceLabels[.codex] = "codex-cli"
 
         var observedTargetEmail: String?
-        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _ in
+        store._test_openAIDashboardLoaderOverride = { accountEmail, _, _, _ in
             observedTargetEmail = accountEmail
             return OpenAIDashboardSnapshot(
                 signedInEmail: "usage@example.com",
@@ -818,7 +818,7 @@ struct CodexManagedOpenAIWebTests {
             startupBehavior: .testing)
 
         var loaderCalls = 0
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             loaderCalls += 1
             throw OpenAIDashboardFetcher.FetchError.loginRequired
         }
@@ -860,7 +860,7 @@ struct CodexManagedOpenAIWebTests {
             settings: settings,
             startupBehavior: .testing)
 
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             throw OpenAIDashboardFetcher.FetchError.loginRequired
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }

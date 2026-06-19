@@ -4,6 +4,153 @@ import Testing
 
 struct AmpUsageParserTests {
     @Test
+    func `amp cli probe runs usage and parses balances`() async throws {
+        let script = """
+        [ "$1" = "usage" ] || exit 2
+        cat <<'EOF'
+        Signed in as cli@example.com (team)
+        Amp Free: $6/$10 remaining (replenishes +$0.5/hour)
+        Individual credits: $12.50 remaining
+        Workspace Test Team: $7.25 remaining
+        EOF
+        """
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = try await AmpCLIProbe(arguments: ["-c", script, "amp", "usage"]).fetch(
+            environment: ["AMP_CLI_PATH": "/bin/sh"],
+            now: now)
+
+        #expect(snapshot.freeUsed == 4)
+        #expect(snapshot.individualCredits == 12.5)
+        #expect(snapshot.workspaceBalances == [AmpWorkspaceBalance(name: "Test Team", remaining: 7.25)])
+        #expect(snapshot.accountEmail == "cli@example.com")
+        #expect(snapshot.updatedAt == now)
+    }
+
+    @Test
+    func `parses current amp usage display text`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let output = """
+        \u{1B}[2mSigned in as ampcode@3kh0.net (echo)\u{1B}[0m
+        Amp Free: $4.71/$10 remaining (replenishes +$0.42/hour) - https://ampcode.com/settings#amp-free
+        Individual credits: $25.64 remaining (set up automatic top-up to avoid running out) - https://ampcode.com/settings
+        Workspace meow: $10.22 remaining (set up automatic top-up to avoid running out) - https://ampcode.com/workspaces/meow
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+
+        #expect(snapshot.freeQuota == 10)
+        #expect(try abs(#require(snapshot.freeUsed) - 5.29) < 0.001)
+        #expect(snapshot.hourlyReplenishment == 0.42)
+        #expect(snapshot.windowHours == 24)
+        #expect(snapshot.individualCredits == 25.64)
+        #expect(snapshot.workspaceBalances == [AmpWorkspaceBalance(name: "meow", remaining: 10.22)])
+        #expect(snapshot.accountEmail == "ampcode@3kh0.net")
+        #expect(snapshot.accountOrganization == "echo")
+        #expect(snapshot.toUsageSnapshot(now: now).ampUsage == AmpUsageDetails(
+            individualCredits: 25.64,
+            workspaceBalances: [AmpWorkspaceBalance(name: "meow", remaining: 10.22)]))
+
+        let encoded = try JSONEncoder().encode(snapshot.toUsageSnapshot(now: now))
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: encoded)
+        #expect(decoded.ampUsage == AmpUsageDetails(
+            individualCredits: 25.64,
+            workspaceBalances: [AmpWorkspaceBalance(name: "meow", remaining: 10.22)]))
+    }
+
+    @Test
+    func `parses individual credits without free tier usage`() throws {
+        let output = """
+        Signed in as paid@example.com
+        Individual credits: $25.64 remaining
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.freeQuota == nil)
+        #expect(snapshot.freeUsed == nil)
+        #expect(snapshot.individualCredits == 25.64)
+        #expect(usage.primary == nil)
+        #expect(usage.ampUsage == AmpUsageDetails(individualCredits: 25.64, workspaceBalances: []))
+        #expect(usage.identity?.loginMethod == "Amp")
+    }
+
+    @Test
+    func `parses workspace credits without free tier usage`() throws {
+        let output = """
+        Signed in as workspace@example.com (team)
+        Workspace Alpha Team: $1,234.56 remaining
+        Workspace Beta: $7 remaining
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.freeQuota == nil)
+        #expect(snapshot.workspaceBalances == [
+            AmpWorkspaceBalance(name: "Alpha Team", remaining: 1234.56),
+            AmpWorkspaceBalance(name: "Beta", remaining: 7),
+        ])
+        #expect(usage.primary == nil)
+        #expect(usage.ampUsage == AmpUsageDetails(
+            individualCredits: nil,
+            workspaceBalances: snapshot.workspaceBalances))
+    }
+
+    @Test
+    func `signed in identity can contain login`() throws {
+        let output = """
+        Signed in as login@example.com (login-team)
+        Amp Free: $6/$10 remaining (replenishes +$0.5/hour)
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output)
+
+        #expect(snapshot.accountEmail == "login@example.com")
+        #expect(snapshot.accountOrganization == "login-team")
+    }
+
+    @Test
+    func `parses current usage api response`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_005_000)
+        let displayText = """
+        Signed in as user@example.com (team)
+        Amp Free: $8/$10 remaining (replenishes +$0.5/hour)
+        Individual credits: $12.50 remaining
+        Workspace Alpha Team: $1,234.56 remaining
+        Workspace Beta: $7 remaining
+        """
+        let data = try JSONSerialization.data(withJSONObject: [
+            "ok": true,
+            "result": ["displayText": displayText],
+        ])
+
+        let snapshot = try AmpUsageFetcher.parseUsageAPIResponse(data, now: now)
+
+        #expect(snapshot.freeUsed == 2)
+        #expect(snapshot.individualCredits == 12.5)
+        #expect(snapshot.workspaceBalances == [
+            AmpWorkspaceBalance(name: "Alpha Team", remaining: 1234.56),
+            AmpWorkspaceBalance(name: "Beta", remaining: 7),
+        ])
+        #expect(snapshot.accountEmail == "user@example.com")
+        #expect(snapshot.accountOrganization == "team")
+    }
+
+    @Test
+    func `usage api auth error is invalid API token`() {
+        let data = Data(#"{"ok":false,"error":{"code":"auth-required","message":"Sign in"}}"#.utf8)
+
+        #expect {
+            try AmpUsageFetcher.parseUsageAPIResponse(data)
+        } throws: { error in
+            guard case AmpUsageError.invalidAPIToken = error else { return false }
+            return true
+        }
+    }
+
+    @Test
     func `parses free tier usage from settings HTML`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """

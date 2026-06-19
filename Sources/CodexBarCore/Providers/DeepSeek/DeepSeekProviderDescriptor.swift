@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum DeepSeekProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .deepseek,
@@ -32,39 +31,18 @@ public enum DeepSeekProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "DeepSeek per-day cost history is not available via API." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [DeepSeekAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "deepseek.api",
+                resolveToken: { ProviderTokenResolver.deepseekToken(environment: $0) },
+                missingCredentialsError: { DeepSeekUsageError.missingCredentials },
+                loadUsage: { apiKey, context in
+                    try await DeepSeekUsageFetcher.fetchUsage(
+                        apiKey: apiKey,
+                        includeOptionalUsage: context.includeOptionalUsage).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "deepseek",
                 aliases: ["deep-seek", "ds"],
                 versionDetector: nil))
-    }
-}
-
-struct DeepSeekAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "deepseek.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw DeepSeekUsageError.missingCredentials
-        }
-        let usage = try await DeepSeekUsageFetcher.fetchUsage(apiKey: apiKey)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.deepseekToken(environment: environment)
     }
 }

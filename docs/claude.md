@@ -75,6 +75,8 @@ Admin API key setup:
   - `five_hour` → session window.
   - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
+  - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
+  - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
 - Successful OAuth login enables Claude and selects OAuth as the usage source.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
@@ -105,6 +107,7 @@ Admin API key setup:
   - `GET https://claude.ai/api/account` → email + plan hints.
 - Outputs:
   - Session + weekly + model-specific percent used.
+  - Daily Routines extra window when returned by the usage API.
   - Extra usage spend/limit (if enabled).
   - Account email + inferred plan.
 
@@ -113,6 +116,8 @@ Admin API key setup:
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.
+- After transient probes exit, CodexBar removes Claude Code `.jsonl` session artifacts for that dedicated
+  `ClaudeProbe` project directory so background `/usage` polling does not clutter the user's Claude project history.
 - Command flow:
   1) Start CLI with `--allowed-tools ""` (no tools).
   2) Auto-respond to first-run prompts (trust files, workspace, telemetry).

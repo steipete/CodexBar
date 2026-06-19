@@ -1,6 +1,27 @@
 import Foundation
 
 public enum CodexHomeScope {
+    public static func normalizedHomePath(
+        _ rawPath: String?,
+        fileManager: FileManager = .default)
+        -> String?
+    {
+        guard var path = rawPath?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else {
+            return nil
+        }
+        if path == "~" {
+            path = fileManager.homeDirectoryForCurrentUser.path
+        } else if path.hasPrefix("~/") {
+            path = fileManager.homeDirectoryForCurrentUser
+                .appendingPathComponent(String(path.dropFirst(2)), isDirectory: true)
+                .path
+        } else if path.hasPrefix("~") {
+            return nil
+        }
+        guard (path as NSString).isAbsolutePath else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+    }
+
     public static func ambientHomeURL(
         env: [String: String],
         fileManager: FileManager = .default)

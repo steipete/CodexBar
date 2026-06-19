@@ -587,6 +587,19 @@ struct ZaiThreeLimitTests {
 
 struct ZaiAPIRegionTests {
     @Test
+    func `dashboard URLs follow selected region`() {
+        #expect(
+            ZaiAPIRegion.global.dashboardURL.absoluteString ==
+                "https://z.ai/manage-apikey/coding-plan/personal/my-plan")
+        #expect(
+            ZaiAPIRegion.bigmodelCN.dashboardURL.absoluteString ==
+                "https://bigmodel.cn/coding-plan/personal/usage")
+        #expect(
+            ZaiProviderDescriptor.descriptor.metadata.dashboardURL ==
+                ZaiAPIRegion.global.dashboardURL.absoluteString)
+    }
+
+    @Test
     func `defaults to global endpoint`() {
         let url = ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: [:])
         #expect(url.absoluteString == "https://api.z.ai/api/monitor/usage/quota/limit")
@@ -610,5 +623,27 @@ struct ZaiAPIRegionTests {
         let env = [ZaiSettingsReader.apiHostKey: "open.bigmodel.cn"]
         let url = ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: env)
         #expect(url.absoluteString == "https://open.bigmodel.cn/api/monitor/usage/quota/limit")
+    }
+
+    @Test
+    func `dashboard follows known endpoint overrides`() {
+        let china = ZaiUsageFetcher.resolveDashboardURL(
+            region: .global,
+            environment: [ZaiSettingsReader.apiHostKey: "open.bigmodel.cn"])
+        #expect(china == ZaiAPIRegion.bigmodelCN.dashboardURL)
+
+        let global = ZaiUsageFetcher.resolveDashboardURL(
+            region: .bigmodelCN,
+            environment: [ZaiSettingsReader.apiHostKey: "api.z.ai"])
+        #expect(global == ZaiAPIRegion.global.dashboardURL)
+    }
+
+    @Test
+    func `dashboard keeps selected region for custom endpoint override`() {
+        let dashboard = ZaiUsageFetcher.resolveDashboardURL(
+            region: .bigmodelCN,
+            environment: [ZaiSettingsReader.apiHostKey: "zai.internal.example"])
+
+        #expect(dashboard == ZaiAPIRegion.bigmodelCN.dashboardURL)
     }
 }

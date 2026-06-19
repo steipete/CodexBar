@@ -31,6 +31,31 @@ Usage source picker:
 - Reads OAuth tokens from `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`).
 - Refreshes access tokens when `last_refresh` is older than 8 days.
 - Calls `GET https://chatgpt.com/backend-api/wham/usage` (default) with `Authorization: Bearer <token>`.
+- `rate_limit.primary_window` / `secondary_window` map to the session/weekly lanes.
+- `additional_rate_limits[]` (model-specific limits such as GPT-5.3-Codex-Spark) map to named
+  `UsageSnapshot.extraRateWindows` entries (Spark uses a stable `codex-spark` id / `Codex Spark` title).
+  When the field is absent, the snapshot is unchanged.
+
+### Advanced profile-home accounts
+- Managed Codex accounts remain the default multi-account path.
+- Advanced users can add existing Codex homes to `~/.codexbar/config.json` with
+  `providers[].codexProfileHomePaths`.
+- Each configured path must be absolute or start with `~/`, and point at a Codex home that contains `auth.json`.
+- CodexBar reads identity from the configured home, exposes it in the Codex account switcher, and scopes
+  remote Codex fetches with `CODEX_HOME`.
+- Profile homes are not copied, reauthenticated, or removed by CodexBar.
+
+Example:
+
+```json
+{
+  "id": "codex",
+  "codexProfileHomePaths": [
+    "~/.codex-work",
+    "~/.codex-personal"
+  ]
+}
+```
 
 ### OpenAI web dashboard (optional, off by default)
 - Enable it in Preferences -> Providers -> Codex -> OpenAI web extras.

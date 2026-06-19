@@ -28,6 +28,8 @@ read_when:
 ## Menu card
 - Provider-specific rows with resets (countdown by default; optional absolute clock display). Primary, secondary,
   tertiary, and extra windows render when the provider snapshot has data for them.
+- Manual refresh updates the open card subtitle and persistent Refresh-row spinner in place. Repeated clicks share the
+  active request, and the existing row geometry remains fixed through success or failure.
 - Codex credits can add a separate “Buy Credits…” menu action.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.

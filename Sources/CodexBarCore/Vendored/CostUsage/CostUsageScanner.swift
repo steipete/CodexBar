@@ -5,8 +5,10 @@ import Crypto
 #endif
 import Foundation
 
-// swiftlint:disable type_body_length
+// swiftlint:disable type_body_length file_length
 enum CostUsageScanner {
+    typealias CancellationCheck = () throws -> Void
+
     static let log = CodexBarLog.logger(LogCategories.tokenCost)
     static let codexActiveSessionLookbackDays = 30
     static let costScale = 1_000_000_000.0
@@ -46,7 +48,7 @@ enum CostUsageScanner {
 
     struct CodexParseResult {
         let days: [String: [String: [Int]]]
-        let parsedBytes: Int64
+        var parsedBytes: Int64
         let lastModel: String?
         let lastTotals: CostUsageCodexTotals?
         let lastCountedTotals: CostUsageCodexTotals?
@@ -76,6 +78,11 @@ enum CostUsageScanner {
         let timestamp: String
         let date: Date?
         let totals: CostUsageCodexTotals
+    }
+
+    enum CodexForkBaseline {
+        case resolved(CostUsageCodexTotals?)
+        case unresolved
     }
 
     private static func codexTotalsEqual(_ lhs: CostUsageCodexTotals?, _ rhs: CostUsageCodexTotals?) -> Bool {
@@ -110,6 +117,16 @@ enum CostUsageScanner {
             input: lhs.input + rhs.input,
             cached: lhs.cached + rhs.cached,
             output: lhs.output + rhs.output)
+    }
+
+    private static func codexMinTotals(
+        _ lhs: CostUsageCodexTotals,
+        _ rhs: CostUsageCodexTotals) -> CostUsageCodexTotals
+    {
+        CostUsageCodexTotals(
+            input: min(lhs.input, rhs.input),
+            cached: min(lhs.cached, rhs.cached),
+            output: min(lhs.output, rhs.output))
     }
 
     private static func codexTotalDelta(
@@ -159,6 +176,7 @@ enum CostUsageScanner {
         let requiresTurnIDCache: Bool
         let changedPriorityTurnIDs: Set<String>
         let resources: CodexScanResources
+        let checkCancellation: CancellationCheck?
     }
 
     struct CodexRefreshPlan {
@@ -187,16 +205,23 @@ enum CostUsageScanner {
         private let files: [URL]
         private let filePaths: Set<String>
         private let roots: [URL]
+        private let checkCancellation: CancellationCheck?
         private var nextUnindexedFile = 0
         private var didIndexRoots = false
         private var fileURLBySessionId: [String: URL] = [:]
         private var missingSessionIds: Set<String> = []
 
-        init(files: [URL], roots: [URL], cachedSessionFiles: [String: URL] = [:]) {
+        init(
+            files: [URL],
+            roots: [URL],
+            cachedSessionFiles: [String: URL] = [:],
+            checkCancellation: CancellationCheck? = nil)
+        {
             self.files = files
             self.filePaths = Set(files.map(\.path))
             self.roots = roots
             self.fileURLBySessionId = cachedSessionFiles
+            self.checkCancellation = checkCancellation
         }
 
         func remember(fileURL: URL, sessionId: String?) {
@@ -204,7 +229,7 @@ enum CostUsageScanner {
             self.fileURLBySessionId[sessionId] = fileURL
         }
 
-        func fileURL(for sessionId: String) -> URL? {
+        func fileURL(for sessionId: String) throws -> URL? {
             if let cached = self.fileURLBySessionId[sessionId] {
                 return cached
             }
@@ -213,9 +238,13 @@ enum CostUsageScanner {
             }
 
             while self.nextUnindexedFile < self.files.count {
+                try self.checkCancellation?()
                 let fileURL = self.files[self.nextUnindexedFile]
                 self.nextUnindexedFile += 1
-                guard let indexedSessionId = CostUsageScanner.parseCodexSessionIdentifier(fileURL: fileURL) else {
+                guard let indexedSessionId = try CostUsageScanner.parseCodexSessionIdentifier(
+                    fileURL: fileURL,
+                    checkCancellation: self.checkCancellation)
+                else {
                     continue
                 }
                 self.fileURLBySessionId[indexedSessionId] = fileURL
@@ -225,7 +254,7 @@ enum CostUsageScanner {
             }
 
             if !self.didIndexRoots {
-                self.indexRoots()
+                try self.indexRoots()
                 if let indexed = self.fileURLBySessionId[sessionId] {
                     return indexed
                 }
@@ -235,10 +264,11 @@ enum CostUsageScanner {
             return nil
         }
 
-        private func indexRoots() {
+        private func indexRoots() throws {
             self.didIndexRoots = true
             guard !self.roots.isEmpty else { return }
             for root in self.roots {
+                try self.checkCancellation?()
                 guard let enumerator = FileManager.default.enumerator(
                     at: root,
                     includingPropertiesForKeys: [.isRegularFileKey],
@@ -246,9 +276,13 @@ enum CostUsageScanner {
                 else { continue }
 
                 while let fileURL = enumerator.nextObject() as? URL {
+                    try self.checkCancellation?()
                     guard fileURL.pathExtension.lowercased() == "jsonl" else { continue }
                     guard !self.filePaths.contains(fileURL.path) else { continue }
-                    guard let indexedSessionId = CostUsageScanner.parseCodexSessionIdentifier(fileURL: fileURL) else {
+                    guard let indexedSessionId = try CostUsageScanner.parseCodexSessionIdentifier(
+                        fileURL: fileURL,
+                        checkCancellation: self.checkCancellation)
+                    else {
                         continue
                     }
                     self.fileURLBySessionId[indexedSessionId] = fileURL
@@ -259,21 +293,28 @@ enum CostUsageScanner {
 
     final class CodexInheritedTotalsResolver {
         private let fileIndex: CodexSessionFileIndex
+        private let checkCancellation: CancellationCheck?
         private var snapshotsBySessionId: [String: [CodexTimestampedTotals]] = [:]
 
-        init(fileIndex: CodexSessionFileIndex) {
+        init(fileIndex: CodexSessionFileIndex, checkCancellation: CancellationCheck?) {
             self.fileIndex = fileIndex
+            self.checkCancellation = checkCancellation
         }
 
-        func inheritedTotals(for sessionId: String, atOrBefore cutoffTimestamp: String) -> CostUsageCodexTotals? {
-            guard !cutoffTimestamp.isEmpty else { return nil }
+        func inheritedTotals(for sessionId: String, atOrBefore cutoffTimestamp: String) throws -> CodexForkBaseline {
+            guard !cutoffTimestamp.isEmpty else {
+                CostUsageScanner.log.warning(
+                    "Codex cost usage fork timestamp missing; treating parent baseline as unresolved",
+                    metadata: ["sessionId": sessionId])
+                return .unresolved
+            }
             let cutoffDate = CostUsageScanner.dateFromTimestamp(cutoffTimestamp)
             if cutoffDate == nil {
                 CostUsageScanner.log.warning(
                     "Codex cost usage could not parse fork timestamp; falling back to lexical comparison",
                     metadata: ["sessionId": sessionId, "timestamp": cutoffTimestamp])
             }
-            let snapshots = self.snapshots(for: sessionId)
+            guard let snapshots = try self.snapshots(for: sessionId) else { return .unresolved }
             var inherited: CostUsageCodexTotals?
             for snapshot in snapshots {
                 let isAtOrBefore: Bool = if let snapshotDate = snapshot.date, let cutoffDate {
@@ -285,25 +326,28 @@ enum CostUsageScanner {
                     inherited = snapshot.totals
                 }
             }
-            return inherited
+            return .resolved(inherited)
         }
 
-        private func snapshots(for sessionId: String) -> [CodexTimestampedTotals] {
+        private func snapshots(for sessionId: String) throws -> [CodexTimestampedTotals]? {
             if let cached = self.snapshotsBySessionId[sessionId] {
                 return cached
             }
-            guard let fileURL = self.fileIndex.fileURL(for: sessionId) else {
+            try self.checkCancellation?()
+            guard let fileURL = try self.fileIndex.fileURL(for: sessionId) else {
                 CostUsageScanner.log.warning(
                     "Codex cost usage parent session file not found",
                     metadata: ["sessionId": sessionId])
-                return []
+                return nil
             }
-            let parsed = CostUsageScanner.parseCodexTokenSnapshots(fileURL: fileURL)
+            let parsed = try CostUsageScanner.parseCodexTokenSnapshots(
+                fileURL: fileURL,
+                checkCancellation: self.checkCancellation)
             guard let parsedSessionId = parsed.sessionId else {
                 CostUsageScanner.log.warning(
                     "Codex cost usage parent session missing session metadata",
                     metadata: ["sessionId": sessionId, "path": fileURL.path])
-                return []
+                return nil
             }
             if parsedSessionId != sessionId {
                 CostUsageScanner.log.warning(
@@ -313,9 +357,10 @@ enum CostUsageScanner {
                         "resolvedSessionId": parsedSessionId,
                         "path": fileURL.path,
                     ])
+                return nil
             }
-            self.snapshotsBySessionId[parsedSessionId] = parsed.snapshots
-            return self.snapshotsBySessionId[sessionId] ?? []
+            self.snapshotsBySessionId[sessionId] = parsed.snapshots
+            return parsed.snapshots
         }
     }
 
@@ -336,11 +381,13 @@ enum CostUsageScanner {
         let sessionId: String?
         let messageId: String?
         let requestId: String?
+        let timestampUnixMs: Int64?
         let isSidechain: Bool
         let pathRole: ClaudePathRole
         let input: Int
         let cacheRead: Int
         let cacheCreate: Int
+        let cacheCreate1h: Int?
         let output: Int
         let costNanos: Int
         let costPriced: Bool?
@@ -353,26 +400,59 @@ enum CostUsageScanner {
         now: Date = Date(),
         options: Options = Options()) -> CostUsageDailyReport
     {
+        (
+            try? self.loadDailyReportCancellable(
+                provider: provider,
+                since: since,
+                until: until,
+                now: now,
+                options: options,
+                checkCancellation: nil)) ?? CostUsageDailyReport(data: [], summary: nil)
+    }
+
+    static func loadDailyReportCancellable(
+        provider: UsageProvider,
+        since: Date,
+        until: Date,
+        now: Date = Date(),
+        options: Options = Options(),
+        checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
+    {
         let range = CostUsageDayRange(since: since, until: until)
         let emptyReport = CostUsageDailyReport(data: [], summary: nil)
+        try checkCancellation?()
 
         switch provider {
         case .codex:
-            return self.loadCodexDaily(range: range, now: now, options: options)
+            return try self.loadCodexDaily(
+                range: range,
+                now: now,
+                options: options,
+                checkCancellation: checkCancellation)
         case .claude:
-            return self.loadClaudeDaily(provider: .claude, range: range, now: now, options: options)
+            return try self.loadClaudeDaily(
+                provider: .claude,
+                range: range,
+                now: now,
+                options: options,
+                checkCancellation: checkCancellation)
         case .vertexai:
             var filtered = options
             if filtered.claudeLogProviderFilter == .all {
                 filtered.claudeLogProviderFilter = .vertexAIOnly
             }
-            return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
+            return try self.loadClaudeDaily(
+                provider: .vertexai,
+                range: range,
+                now: now,
+                options: filtered,
+                checkCancellation: checkCancellation)
         case .openai, .azureopenai, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
              .alibabatokenplan, .factory,
-             .copilot, .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp, .ollama,
-             .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .abacus, .mistral,
-             .deepseek, .codebuff, .crof, .windsurf, .venice, .commandcode, .stepfun, .bedrock, .grok, .groq,
-             .llmproxy, .deepgram:
+             .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp,
+             .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .abacus,
+             .mistral, .deepseek, .codebuff, .crof, .windsurf, .zed, .venice, .commandcode, .stepfun, .bedrock, .grok,
+             .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes:
             return emptyReport
         }
     }
@@ -460,9 +540,11 @@ enum CostUsageScanner {
     private static func cachedCodexSessionFiles(
         cache: CostUsageCache,
         range: CostUsageDayRange,
-        roots: [URL]) -> [URL]
+        roots: [URL],
+        excludingPaths: Set<String>) -> [URL]
     {
         cache.files.compactMap { path, usage in
+            guard !excludingPaths.contains(path) else { return nil }
             let hasRelevantDay = usage.days.keys.contains {
                 CostUsageDayRange.isInRange(dayKey: $0, since: range.scanSinceKey, until: range.scanUntilKey)
             }
@@ -474,10 +556,18 @@ enum CostUsageScanner {
         }
     }
 
-    private static func cachedCodexSessionIndex(cache: CostUsageCache, roots: [URL]) -> [String: URL] {
+    private static func cachedCodexSessionIndex(
+        cache: CostUsageCache,
+        roots: [URL],
+        knownExistingPaths: Set<String>) -> [String: URL]
+    {
         var out: [String: URL] = [:]
         for (path, usage) in cache.files {
             guard let sessionId = usage.sessionId, !sessionId.isEmpty else { continue }
+            if knownExistingPaths.contains(path) {
+                out[sessionId] = URL(fileURLWithPath: path)
+                continue
+            }
             guard FileManager.default.fileExists(atPath: path) else { continue }
             let fileURL = URL(fileURLWithPath: path)
             guard Self.isWithinCodexRoots(fileURL: fileURL, roots: roots) else { continue }
@@ -492,6 +582,10 @@ enum CostUsageScanner {
             out[root.standardizedFileURL.path] = 0
         }
         return out
+    }
+
+    static func codexRootsFingerprint(options: Options) -> [String: Int64] {
+        self.codexRootsFingerprint(self.codexSessionsRoots(options: options))
     }
 
     private static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
@@ -601,13 +695,15 @@ enum CostUsageScanner {
     private static func changedPriorityTurnIDs(
         old: [String: [String]]?,
         new: [String: [String]],
+        oldKeys: [String: String]?,
+        newKeys: [String: String],
         range: CostUsageDayRange) -> Set<String>
     {
         var out = Set<String>()
         for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
             let oldIDs = Set(old?[dayKey] ?? [])
             let newIDs = Set(new[dayKey] ?? [])
-            if oldIDs != newIDs {
+            if oldIDs != newIDs || oldKeys?[dayKey] != newKeys[dayKey] {
                 out.formUnion(oldIDs)
                 out.formUnion(newIDs)
             }
@@ -837,26 +933,302 @@ enum CostUsageScanner {
         return String(filename[matchRange])
     }
 
-    static func fileIdentityString(fileURL: URL) -> String? {
-        guard let values = try? fileURL.resourceValues(forKeys: [.fileResourceIdentifierKey]) else { return nil }
-        guard let identifier = values.fileResourceIdentifier else { return nil }
-        if let data = identifier as? Data {
-            return data.base64EncodedString()
-        }
-        return String(describing: identifier)
-    }
-
     private struct CodexSessionMetadata {
         let sessionId: String?
         let forkedFromId: String?
         let forkTimestamp: String?
     }
 
-    private static func parseCodexSessionIdentifier(fileURL: URL) -> String? {
-        self.parseCodexSessionMetadata(fileURL: fileURL)?.sessionId
+    private struct CodexTokenCountRecord {
+        let timestamp: String
+        let model: String?
+        let turnID: String?
+        let last: CostUsageCodexTotals?
+        let total: CostUsageCodexTotals?
     }
 
-    private static func parseCodexSessionMetadata(fileURL: URL) -> CodexSessionMetadata? {
+    private enum CodexFastLine {
+        case sessionMeta(CodexSessionMetadata)
+        case turnContext(model: String?)
+        case taskStarted(turnID: String?)
+        case tokenCount(CodexTokenCountRecord)
+    }
+
+    private static let codexJSONFieldCachedInputTokens = Array("cached_input_tokens".utf8)
+    private static let codexJSONFieldCacheReadInputTokens = Array("cache_read_input_tokens".utf8)
+    private static let codexJSONFieldForkedFromId = Array("forked_from_id".utf8)
+    private static let codexJSONFieldForkedFromIdCamel = Array("forkedFromId".utf8)
+    private static let codexJSONFieldId = Array("id".utf8)
+    private static let codexJSONFieldInfo = Array("info".utf8)
+    private static let codexJSONFieldInputTokens = Array("input_tokens".utf8)
+    private static let codexJSONFieldLastTokenUsage = Array("last_token_usage".utf8)
+    private static let codexJSONFieldModel = Array("model".utf8)
+    private static let codexJSONFieldModelName = Array("model_name".utf8)
+    private static let codexJSONFieldOutputTokens = Array("output_tokens".utf8)
+    private static let codexJSONFieldParentSessionId = Array("parent_session_id".utf8)
+    private static let codexJSONFieldParentSessionIdCamel = Array("parentSessionId".utf8)
+    private static let codexJSONFieldPayload = Array("payload".utf8)
+    private static let codexJSONFieldSessionId = Array("session_id".utf8)
+    private static let codexJSONFieldSessionIdCamel = Array("sessionId".utf8)
+    private static let codexJSONFieldTimestamp = Array("timestamp".utf8)
+    private static let codexJSONFieldTotalTokenUsage = Array("total_token_usage".utf8)
+    private static let codexJSONFieldTurnId = Array("turn_id".utf8)
+    private static let codexJSONFieldTurnIdCamel = Array("turnId".utf8)
+    private static let codexJSONFieldType = Array("type".utf8)
+
+    private static func codexForkParentId(from payload: [String: Any]?) -> String? {
+        guard let payload else { return nil }
+        for key in ["forked_from_id", "forkedFromId", "parent_session_id", "parentSessionId"] {
+            guard let value = payload[key] as? String else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
+    private static func codexForkParentId(
+        from bytes: UnsafeBufferPointer<UInt8>,
+        in payloadRange: Range<Int>) -> String?
+    {
+        for key in [
+            self.codexJSONFieldForkedFromId,
+            self.codexJSONFieldForkedFromIdCamel,
+            self.codexJSONFieldParentSessionId,
+            self.codexJSONFieldParentSessionIdCamel,
+        ] {
+            guard let value = extractJSONByteStringField(key, from: bytes, in: payloadRange, atDepth: 1)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !value.isEmpty
+            else { continue }
+            return value
+        }
+        return nil
+    }
+
+    private static func codexTurnID(from bytes: UnsafeBufferPointer<UInt8>, in payloadRange: Range<Int>) -> String? {
+        for key in [self.codexJSONFieldTurnId, self.codexJSONFieldTurnIdCamel, self.codexJSONFieldId] {
+            if let value = extractJSONByteStringField(key, from: bytes, in: payloadRange, atDepth: 1), !value.isEmpty {
+                return value
+            }
+        }
+        if let infoRange = extractJSONByteObjectField(codexJSONFieldInfo, from: bytes, in: payloadRange, atDepth: 1) {
+            for key in [self.codexJSONFieldTurnId, self.codexJSONFieldTurnIdCamel, self.codexJSONFieldId] {
+                if let value = extractJSONByteStringField(key, from: bytes, in: infoRange, atDepth: 1), !value.isEmpty {
+                    return value
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func codexSessionId(
+        from bytes: UnsafeBufferPointer<UInt8>,
+        in rootRange: Range<Int>,
+        payloadRange: Range<Int>?) -> String?
+    {
+        if let payloadRange {
+            for key in [self.codexJSONFieldSessionId, self.codexJSONFieldSessionIdCamel, self.codexJSONFieldId] {
+                if let value = extractJSONByteStringField(key, from: bytes, in: payloadRange, atDepth: 1),
+                   !value.isEmpty
+                {
+                    return value
+                }
+            }
+        }
+        for key in [Self.codexJSONFieldSessionId, Self.codexJSONFieldSessionIdCamel, Self.codexJSONFieldId] {
+            if let value = Self.extractJSONByteStringField(key, from: bytes, in: rootRange, atDepth: 1),
+               !value.isEmpty
+            {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func codexTotals(
+        from bytes: UnsafeBufferPointer<UInt8>,
+        in objectRange: Range<Int>?) -> CostUsageCodexTotals?
+    {
+        guard let objectRange else { return nil }
+        let input = max(
+            0,
+            Self.extractJSONByteIntField(Self.codexJSONFieldInputTokens, from: bytes, in: objectRange, atDepth: 1) ?? 0)
+        let cached = max(
+            0,
+            Self.extractJSONByteIntField(Self.codexJSONFieldCachedInputTokens, from: bytes, in: objectRange, atDepth: 1)
+                ?? Self.extractJSONByteIntField(
+                    Self.codexJSONFieldCacheReadInputTokens,
+                    from: bytes,
+                    in: objectRange,
+                    atDepth: 1)
+                ?? 0)
+        let output = max(
+            0,
+            Self
+                .extractJSONByteIntField(Self.codexJSONFieldOutputTokens, from: bytes, in: objectRange, atDepth: 1) ??
+                0)
+        return CostUsageCodexTotals(input: input, cached: cached, output: output)
+    }
+
+    private static func parseCodexFastLine(_ bytes: Data) -> CodexFastLine? {
+        bytes.withUnsafeBytes { rawBytes in
+            let rawBuffer = rawBytes.bindMemory(to: UInt8.self)
+            guard !rawBuffer.isEmpty else { return nil }
+            let objectRange = 0..<rawBuffer.count
+            guard let type = Self.extractJSONByteStringField(
+                Self.codexJSONFieldType,
+                from: rawBuffer,
+                in: objectRange,
+                atDepth: 1)
+            else { return nil }
+
+            switch type {
+            case "session_meta":
+                let payloadRange = Self.extractJSONByteObjectField(
+                    Self.codexJSONFieldPayload,
+                    from: rawBuffer,
+                    in: objectRange,
+                    atDepth: 1)
+                return .sessionMeta(CodexSessionMetadata(
+                    sessionId: Self.codexSessionId(from: rawBuffer, in: objectRange, payloadRange: payloadRange),
+                    forkedFromId: payloadRange.flatMap { Self.codexForkParentId(from: rawBuffer, in: $0) },
+                    forkTimestamp: payloadRange.flatMap {
+                        Self.extractJSONByteStringField(
+                            Self.codexJSONFieldTimestamp,
+                            from: rawBuffer,
+                            in: $0,
+                            atDepth: 1)
+                    } ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldTimestamp,
+                        from: rawBuffer,
+                        in: objectRange,
+                        atDepth: 1)))
+
+            case "turn_context":
+                guard let payloadRange = Self.extractJSONByteObjectField(
+                    Self.codexJSONFieldPayload,
+                    from: rawBuffer,
+                    in: objectRange,
+                    atDepth: 1)
+                else { return .turnContext(model: nil) }
+                let model = Self.extractJSONByteStringField(
+                    Self.codexJSONFieldModel,
+                    from: rawBuffer,
+                    in: payloadRange,
+                    atDepth: 1)
+                    ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldModelName,
+                        from: rawBuffer,
+                        in: payloadRange,
+                        atDepth: 1)
+                    ?? Self.extractJSONByteObjectField(
+                        Self.codexJSONFieldInfo,
+                        from: rawBuffer,
+                        in: payloadRange,
+                        atDepth: 1).flatMap {
+                        Self.extractJSONByteStringField(
+                            Self.codexJSONFieldModel,
+                            from: rawBuffer,
+                            in: $0,
+                            atDepth: 1)
+                            ?? Self.extractJSONByteStringField(
+                                Self.codexJSONFieldModelName,
+                                from: rawBuffer,
+                                in: $0,
+                                atDepth: 1)
+                    }
+                return .turnContext(model: model)
+
+            case "event_msg":
+                guard let payloadRange = Self.extractJSONByteObjectField(
+                    Self.codexJSONFieldPayload,
+                    from: rawBuffer,
+                    in: objectRange,
+                    atDepth: 1),
+                    let payloadType = Self.extractJSONByteStringField(
+                        Self.codexJSONFieldType,
+                        from: rawBuffer,
+                        in: payloadRange,
+                        atDepth: 1)
+                else { return nil }
+
+                if payloadType == "task_started" {
+                    return .taskStarted(turnID: Self.codexTurnID(from: rawBuffer, in: payloadRange))
+                }
+
+                guard payloadType == "token_count",
+                      let timestamp = Self.extractJSONByteStringField(
+                          Self.codexJSONFieldTimestamp,
+                          from: rawBuffer,
+                          in: objectRange,
+                          atDepth: 1),
+                      let infoRange = Self.extractJSONByteObjectField(
+                          Self.codexJSONFieldInfo,
+                          from: rawBuffer,
+                          in: payloadRange,
+                          atDepth: 1)
+                else { return nil }
+
+                let model = Self.extractJSONByteStringField(
+                    Self.codexJSONFieldModel,
+                    from: rawBuffer,
+                    in: infoRange,
+                    atDepth: 1)
+                    ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldModelName,
+                        from: rawBuffer,
+                        in: infoRange,
+                        atDepth: 1)
+                    ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldModel,
+                        from: rawBuffer,
+                        in: payloadRange,
+                        atDepth: 1)
+                    ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldModel,
+                        from: rawBuffer,
+                        in: objectRange,
+                        atDepth: 1)
+                let total = Self.codexTotals(
+                    from: rawBuffer,
+                    in: Self.extractJSONByteObjectField(
+                        Self.codexJSONFieldTotalTokenUsage,
+                        from: rawBuffer,
+                        in: infoRange,
+                        atDepth: 1))
+                let last = Self.codexTotals(
+                    from: rawBuffer,
+                    in: Self.extractJSONByteObjectField(
+                        Self.codexJSONFieldLastTokenUsage,
+                        from: rawBuffer,
+                        in: infoRange,
+                        atDepth: 1))
+                return .tokenCount(CodexTokenCountRecord(
+                    timestamp: timestamp,
+                    model: model,
+                    turnID: Self.codexTurnID(from: rawBuffer, in: payloadRange),
+                    last: last,
+                    total: total))
+
+            default:
+                return nil
+            }
+        }
+    }
+
+    private static func parseCodexSessionIdentifier(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> String?
+    {
+        try self.parseCodexSessionMetadata(fileURL: fileURL, checkCancellation: checkCancellation)?.sessionId
+    }
+
+    private static func parseCodexSessionMetadata(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexSessionMetadata?
+    {
         let handle: FileHandle
         do {
             handle = try FileHandle(forReadingFrom: fileURL)
@@ -873,6 +1245,9 @@ enum CostUsageScanner {
 
         func parseSessionMetadata(from lineData: Data) -> CodexSessionMetadata? {
             guard !lineData.isEmpty else { return nil }
+            if case let .sessionMeta(metadata) = Self.parseCodexFastLine(lineData) {
+                return metadata
+            }
             return autoreleasepool {
                 guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any]
                 else { return nil }
@@ -885,10 +1260,7 @@ enum CostUsageScanner {
                         ?? obj["session_id"] as? String
                         ?? obj["sessionId"] as? String
                         ?? obj["id"] as? String,
-                    forkedFromId: payload?["forked_from_id"] as? String
-                        ?? payload?["forkedFromId"] as? String
-                        ?? payload?["parent_session_id"] as? String
-                        ?? payload?["parentSessionId"] as? String,
+                    forkedFromId: Self.codexForkParentId(from: payload),
                     forkTimestamp: payload?["timestamp"] as? String
                         ?? obj["timestamp"] as? String)
             }
@@ -896,6 +1268,7 @@ enum CostUsageScanner {
 
         do {
             while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                try checkCancellation?()
                 buffer.append(chunk)
                 while let newlineRange = buffer.range(of: newline) {
                     let lineData = buffer.subdata(in: 0..<newlineRange.lowerBound)
@@ -905,6 +1278,8 @@ enum CostUsageScanner {
                     }
                 }
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             self.log.warning(
                 "Codex cost usage failed while reading session file for session id parsing",
@@ -918,7 +1293,9 @@ enum CostUsageScanner {
         return nil
     }
 
-    private static func parseCodexTokenSnapshots(fileURL: URL) -> (
+    private static func parseCodexTokenSnapshots(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> (
         sessionId: String?,
         snapshots: [CodexTimestampedTotals])
     {
@@ -941,13 +1318,84 @@ enum CostUsageScanner {
             return date
         }
 
+        func appendSnapshot(timestamp: String, last: CostUsageCodexTotals?, total: CostUsageCodexTotals?) {
+            if let last {
+                let rawDelta = last
+                let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                var countedDelta = rawDelta
+
+                if let total {
+                    let rawTotals = total
+                    let totalDelta = Self.codexTotalDelta(from: rawTotalsBaseline, to: rawTotals)
+                    if Self.codexShouldPreferTotalDelta(
+                        rawBaseline: rawTotalsBaseline,
+                        currentTotal: rawTotals,
+                        totalDelta: totalDelta,
+                        lastDelta: rawDelta,
+                        sawDivergentTotals: sawDivergentTotals)
+                    {
+                        countedDelta = totalDelta
+                    }
+                    let next = Self.codexAddTotals(base, countedDelta)
+                    previousTotals = next
+                    rawTotalsBaseline = rawTotals
+                    if !Self.codexTotalsEqual(rawTotals, next) {
+                        sawDivergentTotals = true
+                    }
+                } else {
+                    let next = Self.codexAddTotals(base, countedDelta)
+                    previousTotals = next
+                    rawTotalsBaseline = next
+                }
+
+                snapshots.append(CodexTimestampedTotals(
+                    timestamp: timestamp,
+                    date: parsedSnapshotDate(timestamp: timestamp),
+                    totals: previousTotals ?? base))
+            } else if let total {
+                let next = total
+                let delta = sawDivergentTotals
+                    ? Self.codexDivergentTotalDelta(
+                        rawBaseline: rawTotalsBaseline,
+                        countedBaseline: previousTotals,
+                        current: next)
+                    : Self.codexTotalDelta(from: rawTotalsBaseline, to: next)
+                let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                let countedTotals = Self.codexAddTotals(base, delta)
+                previousTotals = countedTotals
+                rawTotalsBaseline = next
+                if !Self.codexTotalsEqual(next, countedTotals) {
+                    sawDivergentTotals = true
+                }
+                snapshots.append(CodexTimestampedTotals(
+                    timestamp: timestamp,
+                    date: parsedSnapshotDate(timestamp: timestamp),
+                    totals: countedTotals))
+            }
+        }
+
         do {
             _ = try CostUsageJsonl.scan(
                 fileURL: fileURL,
                 maxLineBytes: 512 * 1024,
                 prefixBytes: 512 * 1024,
+                checkCancellation: checkCancellation,
                 onLine: { line in
                     guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    if let fastLine = Self.parseCodexFastLine(line.bytes) {
+                        switch fastLine {
+                        case let .sessionMeta(metadata):
+                            if sessionId == nil {
+                                sessionId = metadata.sessionId
+                            }
+                        case let .tokenCount(record):
+                            appendSnapshot(timestamp: record.timestamp, last: record.last, total: record.total)
+                        case .turnContext, .taskStarted:
+                            break
+                        }
+                        return
+                    }
+
                     autoreleasepool {
                         guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
                         else { return }
@@ -976,73 +1424,23 @@ enum CostUsageScanner {
                             return 0
                         }
 
-                        let total = info["total_token_usage"] as? [String: Any]
-                        let last = info["last_token_usage"] as? [String: Any]
-
-                        if let last {
-                            let rawDelta = CostUsageCodexTotals(
-                                input: max(0, toInt(last["input_tokens"])),
-                                cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
-                                output: max(0, toInt(last["output_tokens"])))
-                            let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                            var countedDelta = rawDelta
-
-                            if let total {
-                                let rawTotals = CostUsageCodexTotals(
-                                    input: toInt(total["input_tokens"]),
-                                    cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                                    output: toInt(total["output_tokens"]))
-                                let totalDelta = Self.codexTotalDelta(from: rawTotalsBaseline, to: rawTotals)
-                                if Self.codexShouldPreferTotalDelta(
-                                    rawBaseline: rawTotalsBaseline,
-                                    currentTotal: rawTotals,
-                                    totalDelta: totalDelta,
-                                    lastDelta: rawDelta,
-                                    sawDivergentTotals: sawDivergentTotals)
-                                {
-                                    countedDelta = totalDelta
-                                }
-                                let next = Self.codexAddTotals(base, countedDelta)
-                                previousTotals = next
-                                rawTotalsBaseline = rawTotals
-                                if !Self.codexTotalsEqual(rawTotals, next) {
-                                    sawDivergentTotals = true
-                                }
-                            } else {
-                                let next = Self.codexAddTotals(base, countedDelta)
-                                previousTotals = next
-                                rawTotalsBaseline = next
-                            }
-
-                            snapshots.append(CodexTimestampedTotals(
-                                timestamp: timestamp,
-                                date: parsedSnapshotDate(timestamp: timestamp),
-                                totals: previousTotals ?? base))
-                        } else if let total {
-                            let next = CostUsageCodexTotals(
-                                input: toInt(total["input_tokens"]),
-                                cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                                output: toInt(total["output_tokens"]))
-                            let delta = sawDivergentTotals
-                                ? Self.codexDivergentTotalDelta(
-                                    rawBaseline: rawTotalsBaseline,
-                                    countedBaseline: previousTotals,
-                                    current: next)
-                                : Self.codexTotalDelta(from: rawTotalsBaseline, to: next)
-                            let base = previousTotals ?? .init(input: 0, cached: 0, output: 0)
-                            let countedTotals = Self.codexAddTotals(base, delta)
-                            previousTotals = countedTotals
-                            rawTotalsBaseline = next
-                            if !Self.codexTotalsEqual(next, countedTotals) {
-                                sawDivergentTotals = true
-                            }
-                            snapshots.append(CodexTimestampedTotals(
-                                timestamp: timestamp,
-                                date: parsedSnapshotDate(timestamp: timestamp),
-                                totals: countedTotals))
+                        let total = (info["total_token_usage"] as? [String: Any]).map {
+                            CostUsageCodexTotals(
+                                input: toInt($0["input_tokens"]),
+                                cached: toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"]),
+                                output: toInt($0["output_tokens"]))
                         }
+                        let last = (info["last_token_usage"] as? [String: Any]).map {
+                            CostUsageCodexTotals(
+                                input: max(0, toInt($0["input_tokens"])),
+                                cached: max(0, toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"])),
+                                output: max(0, toInt($0["output_tokens"])))
+                        }
+                        appendSnapshot(timestamp: timestamp, last: last, total: total)
                     }
                 })
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             self.log.warning(
                 "Codex cost usage failed while scanning parent token snapshots",
@@ -1052,7 +1450,6 @@ enum CostUsageScanner {
         return (sessionId, snapshots)
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func parseCodexFile(
         fileURL: URL,
         range: CostUsageDayRange,
@@ -1062,7 +1459,49 @@ enum CostUsageScanner {
         initialRawTotalsBaseline: CostUsageCodexTotals? = nil,
         initialHasDivergentTotals: Bool = false,
         initialCodexTurnID: String? = nil,
-        inheritedTotalsResolver: ((String, String) -> CostUsageCodexTotals?)? = nil) -> CodexParseResult
+        inheritedTotalsResolver: ((String, String) -> CodexForkBaseline)? = nil) -> CodexParseResult
+    {
+        let throwingResolver: ((String, String) throws -> CodexForkBaseline)? = inheritedTotalsResolver
+            .map { resolver in
+                { sessionId, timestamp in resolver(sessionId, timestamp) }
+            }
+        return (
+            try? Self.parseCodexFileCancellable(
+                fileURL: fileURL,
+                range: range,
+                startOffset: startOffset,
+                initialModel: initialModel,
+                initialTotals: initialTotals,
+                initialRawTotalsBaseline: initialRawTotalsBaseline,
+                initialHasDivergentTotals: initialHasDivergentTotals,
+                initialCodexTurnID: initialCodexTurnID,
+                inheritedTotalsResolver: throwingResolver,
+                checkCancellation: nil)) ?? CodexParseResult(
+            days: [:],
+            parsedBytes: startOffset,
+            lastModel: initialModel,
+            lastTotals: initialTotals,
+            lastCountedTotals: initialTotals,
+            lastRawTotalsBaseline: initialRawTotalsBaseline,
+            hasDivergentTotals: initialHasDivergentTotals,
+            lastCodexTurnID: initialCodexTurnID,
+            sessionId: nil,
+            forkedFromId: nil,
+            rows: [])
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    static func parseCodexFileCancellable(
+        fileURL: URL,
+        range: CostUsageDayRange,
+        startOffset: Int64 = 0,
+        initialModel: String? = nil,
+        initialTotals: CostUsageCodexTotals? = nil,
+        initialRawTotalsBaseline: CostUsageCodexTotals? = nil,
+        initialHasDivergentTotals: Bool = false,
+        initialCodexTurnID: String? = nil,
+        inheritedTotalsResolver: ((String, String) throws -> CodexForkBaseline)? = nil,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexParseResult
     {
         var currentModel = initialModel
         var previousTotals = initialTotals
@@ -1070,9 +1509,13 @@ enum CostUsageScanner {
         var forkedFromId: String?
         var inheritedTotals: CostUsageCodexTotals?
         var remainingInheritedTotals: CostUsageCodexTotals?
+        var forkBaselineResolved = false
+        var hasUnresolvedForkBaseline = false
+        var unresolvedForkTotalWatermark: CostUsageCodexTotals?
         var currentTurnID = initialCodexTurnID
         var rawTotalsBaseline = initialRawTotalsBaseline ?? initialTotals
         var sawDivergentTotals = initialHasDivergentTotals
+        var deferredError: Error?
 
         var days: [String: [String: [Int]]] = [:]
         var rows: [CodexUsageRow] = []
@@ -1091,11 +1534,243 @@ enum CostUsageScanner {
             days[dayKey] = dayModels
         }
 
+        func resolveForkBaseline(parentSessionId: String, forkedAt: String) throws {
+            guard !forkBaselineResolved else { return }
+            guard let inheritedTotalsResolver else { return }
+            forkBaselineResolved = true
+            switch try inheritedTotalsResolver(parentSessionId, forkedAt) {
+            case let .resolved(totals):
+                inheritedTotals = totals
+                remainingInheritedTotals = totals
+                hasUnresolvedForkBaseline = false
+            case .unresolved:
+                hasUnresolvedForkBaseline = true
+            }
+        }
+
+        func handleSessionMetadata(_ metadata: CodexSessionMetadata) throws {
+            if sessionId == nil {
+                sessionId = metadata.sessionId
+            }
+            if forkedFromId == nil {
+                forkedFromId = metadata.forkedFromId
+            }
+            if let forkedFromId {
+                try resolveForkBaseline(parentSessionId: forkedFromId, forkedAt: metadata.forkTimestamp ?? "")
+            }
+        }
+
+        // swiftlint:disable:next function_body_length
+        func handleTokenCount(_ record: CodexTokenCountRecord) throws {
+            guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp) ?? Self.dayKeyFromParsedISO(record.timestamp)
+            else { return }
+
+            let model = currentModel ?? record.model ?? "gpt-5"
+            let total = record.total
+            let last = record.last
+
+            var deltaInput = 0
+            var deltaCached = 0
+            var deltaOutput = 0
+
+            func adjustedLastDelta(_ rawDelta: CostUsageCodexTotals) -> CostUsageCodexTotals {
+                guard var remaining = remainingInheritedTotals else { return rawDelta }
+
+                let adjusted = CostUsageCodexTotals(
+                    input: max(0, rawDelta.input - remaining.input),
+                    cached: max(0, rawDelta.cached - remaining.cached),
+                    output: max(0, rawDelta.output - remaining.output))
+
+                remaining.input = max(0, remaining.input - rawDelta.input)
+                remaining.cached = max(0, remaining.cached - rawDelta.cached)
+                remaining.output = max(0, remaining.output - rawDelta.output)
+                remainingInheritedTotals = if remaining.input == 0, remaining.cached == 0,
+                                              remaining.output == 0
+                {
+                    nil
+                } else {
+                    remaining
+                }
+
+                return adjusted
+            }
+
+            let handledUnresolvedForkTotal = hasUnresolvedForkBaseline && total != nil
+            if hasUnresolvedForkBaseline, let total {
+                let currentRawTotals = total
+                defer {
+                    unresolvedForkTotalWatermark = currentRawTotals
+                }
+                guard let last,
+                      let watermark = unresolvedForkTotalWatermark
+                else {
+                    return
+                }
+
+                let rawLastDelta = last
+                let rawTotalDelta = Self.codexTotalDelta(from: watermark, to: currentRawTotals)
+                let adjustedDelta = Self.codexMinTotals(rawLastDelta, rawTotalDelta)
+                deltaInput = adjustedDelta.input
+                deltaCached = adjustedDelta.cached
+                deltaOutput = adjustedDelta.output
+                let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                previousTotals = Self.codexAddTotals(prev, adjustedDelta)
+                rawTotalsBaseline = previousTotals
+            }
+
+            if !handledUnresolvedForkTotal,
+               let total,
+               forkedFromId != nil,
+               !hasUnresolvedForkBaseline
+            {
+                let rawTotals = total
+                let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
+                    CostUsageCodexTotals(
+                        input: max(0, rawTotals.input - inheritedTotals.input),
+                        cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                        output: max(0, rawTotals.output - inheritedTotals.output))
+                } else {
+                    rawTotals
+                }
+                let delta = sawDivergentTotals
+                    ? Self.codexDivergentTotalDelta(
+                        rawBaseline: rawTotalsBaseline,
+                        countedBaseline: previousTotals,
+                        current: currentTotals)
+                    : Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
+                deltaInput = delta.input
+                deltaCached = delta.cached
+                deltaOutput = delta.output
+                let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                previousTotals = Self.codexAddTotals(prev, delta)
+                rawTotalsBaseline = currentTotals
+                if !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals) {
+                    sawDivergentTotals = true
+                }
+                remainingInheritedTotals = nil
+            } else if !handledUnresolvedForkTotal, let last {
+                let rawDelta = last
+                let hadRemainingInheritedTotals = remainingInheritedTotals != nil
+                var adjustedDelta = adjustedLastDelta(rawDelta)
+                deltaInput = adjustedDelta.input
+                deltaCached = adjustedDelta.cached
+                deltaOutput = adjustedDelta.output
+                let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+
+                if let total, !hasUnresolvedForkBaseline {
+                    let rawTotals = total
+                    let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
+                        CostUsageCodexTotals(
+                            input: max(0, rawTotals.input - inheritedTotals.input),
+                            cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                            output: max(0, rawTotals.output - inheritedTotals.output))
+                    } else {
+                        rawTotals
+                    }
+                    let totalDelta = Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
+                    if !hadRemainingInheritedTotals,
+                       Self.codexShouldPreferTotalDelta(
+                           rawBaseline: rawTotalsBaseline,
+                           currentTotal: currentTotals,
+                           totalDelta: totalDelta,
+                           lastDelta: rawDelta,
+                           sawDivergentTotals: sawDivergentTotals)
+                    {
+                        adjustedDelta = totalDelta
+                        deltaInput = adjustedDelta.input
+                        deltaCached = adjustedDelta.cached
+                        deltaOutput = adjustedDelta.output
+                        remainingInheritedTotals = nil
+                    }
+                    let countedTotals = Self.codexAddTotals(prev, adjustedDelta)
+                    previousTotals = countedTotals
+                    rawTotalsBaseline = currentTotals
+                    if !Self.codexTotalsEqual(currentTotals, countedTotals) {
+                        sawDivergentTotals = true
+                    }
+                } else {
+                    let countedTotals = Self.codexAddTotals(prev, adjustedDelta)
+                    previousTotals = countedTotals
+                    rawTotalsBaseline = countedTotals
+                }
+            } else if !handledUnresolvedForkTotal, let total {
+                let rawTotals = total
+
+                let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
+                    CostUsageCodexTotals(
+                        input: max(0, rawTotals.input - inheritedTotals.input),
+                        cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                        output: max(0, rawTotals.output - inheritedTotals.output))
+                } else {
+                    rawTotals
+                }
+
+                let delta = sawDivergentTotals
+                    ? Self.codexDivergentTotalDelta(
+                        rawBaseline: rawTotalsBaseline,
+                        countedBaseline: previousTotals,
+                        current: currentTotals)
+                    : Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
+                deltaInput = delta.input
+                deltaCached = delta.cached
+                deltaOutput = delta.output
+                let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                previousTotals = Self.codexAddTotals(prev, delta)
+                rawTotalsBaseline = currentTotals
+                if !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals) {
+                    sawDivergentTotals = true
+                }
+                remainingInheritedTotals = nil
+            } else if !handledUnresolvedForkTotal {
+                return
+            }
+
+            if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
+            let cachedClamp = min(deltaCached, deltaInput)
+            let normModel = CostUsagePricing.normalizeCodexModel(model)
+            add(
+                dayKey: dayKey,
+                model: normModel,
+                input: deltaInput,
+                cached: cachedClamp,
+                output: deltaOutput)
+            if CostUsageDayRange.isInRange(
+                dayKey: dayKey,
+                since: range.scanSinceKey,
+                until: range.scanUntilKey)
+            {
+                rows.append(CodexUsageRow(
+                    day: dayKey,
+                    model: normModel,
+                    turnID: record.turnID ?? currentTurnID,
+                    input: deltaInput,
+                    cached: cachedClamp,
+                    output: deltaOutput))
+            }
+        }
+
+        func handleFastLine(_ fastLine: CodexFastLine) throws {
+            switch fastLine {
+            case let .sessionMeta(metadata):
+                try handleSessionMetadata(metadata)
+            case let .turnContext(model):
+                if let model {
+                    currentModel = model
+                }
+            case let .taskStarted(turnID):
+                currentTurnID = turnID
+            case let .tokenCount(record):
+                try handleTokenCount(record)
+            }
+        }
+
         let maxLineBytes = 256 * 1024
         let prefixBytes = maxLineBytes
 
         if startOffset == 0,
-           let metadata = Self.parseCodexSessionMetadata(fileURL: fileURL)
+           let metadata = try Self.parseCodexSessionMetadata(
+               fileURL: fileURL,
+               checkCancellation: checkCancellation)
         {
             sessionId = metadata.sessionId
             forkedFromId = metadata.forkedFromId
@@ -1103,19 +1778,20 @@ enum CostUsageScanner {
                inheritedTotals == nil
             {
                 let forkedAt = metadata.forkTimestamp ?? ""
-                inheritedTotals = inheritedTotalsResolver?(forkedFromId, forkedAt)
-                remainingInheritedTotals = inheritedTotals
+                try resolveForkBaseline(parentSessionId: forkedFromId, forkedAt: forkedAt)
             }
         }
 
-        let parsedBytes: Int64
+        var parsedBytes: Int64
         do {
             parsedBytes = try CostUsageJsonl.scan(
                 fileURL: fileURL,
                 offset: startOffset,
                 maxLineBytes: maxLineBytes,
                 prefixBytes: prefixBytes,
+                checkCancellation: checkCancellation,
                 onLine: { line in
+                    if deferredError != nil { return }
                     guard !line.bytes.isEmpty else { return }
                     if line.wasTruncated {
                         // `turn_context` can carry very large prompts, but its model usually appears near the start.
@@ -1138,6 +1814,15 @@ enum CostUsageScanner {
                         return
                     }
 
+                    if let fastLine = Self.parseCodexFastLine(line.bytes) {
+                        do {
+                            try handleFastLine(fastLine)
+                        } catch {
+                            deferredError = error
+                        }
+                        return
+                    }
+
                     autoreleasepool {
                         guard
                             let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
@@ -1155,17 +1840,18 @@ enum CostUsageScanner {
                                     ?? obj["id"] as? String
                             }
                             if forkedFromId == nil {
-                                forkedFromId = payload?["forked_from_id"] as? String
-                                    ?? payload?["forkedFromId"] as? String
-                                    ?? payload?["parent_session_id"] as? String
-                                    ?? payload?["parentSessionId"] as? String
+                                forkedFromId = Self.codexForkParentId(from: payload)
                             }
-                            if inheritedTotals == nil, let forkedFromId {
+                            if let forkedFromId {
                                 let forkedAt = payload?["timestamp"] as? String
                                     ?? obj["timestamp"] as? String
                                     ?? ""
-                                inheritedTotals = inheritedTotalsResolver?(forkedFromId, forkedAt)
-                                remainingInheritedTotals = inheritedTotals
+                                do {
+                                    try resolveForkBaseline(parentSessionId: forkedFromId, forkedAt: forkedAt)
+                                } catch {
+                                    deferredError = error
+                                    return
+                                }
                             }
                             return
                         }
@@ -1207,6 +1893,13 @@ enum CostUsageScanner {
                             return 0
                         }
 
+                        func tokenTotals(_ usage: [String: Any]) -> CostUsageCodexTotals {
+                            CostUsageCodexTotals(
+                                input: max(0, toInt(usage["input_tokens"])),
+                                cached: max(0, toInt(usage["cached_input_tokens"] ?? usage["cache_read_input_tokens"])),
+                                output: max(0, toInt(usage["output_tokens"])))
+                        }
+
                         let total = (info?["total_token_usage"] as? [String: Any])
                         let last = (info?["last_token_usage"] as? [String: Any])
 
@@ -1236,7 +1929,60 @@ enum CostUsageScanner {
                             return adjusted
                         }
 
-                        if let last {
+                        let handledUnresolvedForkTotal = hasUnresolvedForkBaseline && total != nil
+                        if hasUnresolvedForkBaseline, let total {
+                            let currentRawTotals = tokenTotals(total)
+                            defer {
+                                unresolvedForkTotalWatermark = currentRawTotals
+                            }
+                            guard let last,
+                                  let watermark = unresolvedForkTotalWatermark
+                            else {
+                                return
+                            }
+
+                            let rawLastDelta = tokenTotals(last)
+                            let rawTotalDelta = Self.codexTotalDelta(from: watermark, to: currentRawTotals)
+                            let adjustedDelta = Self.codexMinTotals(rawLastDelta, rawTotalDelta)
+                            deltaInput = adjustedDelta.input
+                            deltaCached = adjustedDelta.cached
+                            deltaOutput = adjustedDelta.output
+                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            previousTotals = Self.codexAddTotals(prev, adjustedDelta)
+                            rawTotalsBaseline = previousTotals
+                        }
+
+                        if !handledUnresolvedForkTotal,
+                           let total,
+                           forkedFromId != nil,
+                           !hasUnresolvedForkBaseline
+                        {
+                            let rawTotals = tokenTotals(total)
+                            let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
+                                CostUsageCodexTotals(
+                                    input: max(0, rawTotals.input - inheritedTotals.input),
+                                    cached: max(0, rawTotals.cached - inheritedTotals.cached),
+                                    output: max(0, rawTotals.output - inheritedTotals.output))
+                            } else {
+                                rawTotals
+                            }
+                            let delta = sawDivergentTotals
+                                ? Self.codexDivergentTotalDelta(
+                                    rawBaseline: rawTotalsBaseline,
+                                    countedBaseline: previousTotals,
+                                    current: currentTotals)
+                                : Self.codexTotalDelta(from: rawTotalsBaseline, to: currentTotals)
+                            deltaInput = delta.input
+                            deltaCached = delta.cached
+                            deltaOutput = delta.output
+                            let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                            previousTotals = Self.codexAddTotals(prev, delta)
+                            rawTotalsBaseline = currentTotals
+                            if !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals) {
+                                sawDivergentTotals = true
+                            }
+                            remainingInheritedTotals = nil
+                        } else if !handledUnresolvedForkTotal, let last {
                             let rawDelta = CostUsageCodexTotals(
                                 input: max(0, toInt(last["input_tokens"])),
                                 cached: max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"])),
@@ -1248,11 +1994,8 @@ enum CostUsageScanner {
                             deltaOutput = adjustedDelta.output
                             let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
 
-                            if let total {
-                                let rawTotals = CostUsageCodexTotals(
-                                    input: toInt(total["input_tokens"]),
-                                    cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                                    output: toInt(total["output_tokens"]))
+                            if let total, !hasUnresolvedForkBaseline {
+                                let rawTotals = tokenTotals(total)
                                 let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
                                     CostUsageCodexTotals(
                                         input: max(0, rawTotals.input - inheritedTotals.input),
@@ -1287,11 +2030,8 @@ enum CostUsageScanner {
                                 previousTotals = countedTotals
                                 rawTotalsBaseline = countedTotals
                             }
-                        } else if let total {
-                            let rawTotals = CostUsageCodexTotals(
-                                input: toInt(total["input_tokens"]),
-                                cached: toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"]),
-                                output: toInt(total["output_tokens"]))
+                        } else if !handledUnresolvedForkTotal, let total {
+                            let rawTotals = tokenTotals(total)
 
                             let currentTotals: CostUsageCodexTotals = if let inheritedTotals {
                                 CostUsageCodexTotals(
@@ -1318,7 +2058,7 @@ enum CostUsageScanner {
                                 sawDivergentTotals = true
                             }
                             remainingInheritedTotals = nil
-                        } else {
+                        } else if !handledUnresolvedForkTotal {
                             return
                         }
 
@@ -1346,6 +2086,11 @@ enum CostUsageScanner {
                         }
                     }
                 })
+            if let deferredError {
+                throw deferredError
+            }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             self.log.warning(
                 "Codex cost usage failed while scanning session file",
@@ -1383,8 +2128,9 @@ enum CostUsageScanner {
         fileURL: URL,
         context: CodexFileScanContext,
         cache: inout CostUsageCache,
-        state: inout CodexScanState)
+        state: inout CodexScanState) throws
     {
+        try context.checkCancellation?()
         let metadata = Self.codexFileMetadata(fileURL: fileURL)
         if let fileId = metadata.fileId, state.seenFileIds.contains(fileId) {
             Self.dropCachedCodexFile(path: metadata.path, cached: cache.files[metadata.path], cache: &cache)
@@ -1401,10 +2147,10 @@ enum CostUsageScanner {
         if Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
             return
         }
-        if Self.appendCodexFileIncrementIfPossible(input: input, context: context, cache: &cache, state: &state) {
+        if try Self.appendCodexFileIncrementIfPossible(input: input, context: context, cache: &cache, state: &state) {
             return
         }
-        Self.rescanCodexFile(input: input, context: context, cache: &cache, state: &state)
+        try Self.rescanCodexFile(input: input, context: context, cache: &cache, state: &state)
     }
 
     private static func makeCodexRefreshPlan(
@@ -1460,6 +2206,8 @@ enum CostUsageScanner {
             ? Self.changedPriorityTurnIDs(
                 old: cache.codexPriorityTurnIDsByDay,
                 new: priorityTurnIDsByDay,
+                oldKeys: cache.codexPriorityTurnKeys,
+                newKeys: priorityTurnKeys,
                 range: range)
             : []
         let shouldRefresh = options.forceRescan
@@ -1496,12 +2244,18 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
-    private static func loadCodexDaily(range: CostUsageDayRange, now: Date, options: Options) -> CostUsageDailyReport {
+    private static func loadCodexDaily(
+        range: CostUsageDayRange,
+        now: Date,
+        options: Options,
+        checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
+    {
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
 
         if plan.shouldRefresh {
+            try checkCancellation?()
             if options.forceRescan {
                 cache = CostUsageCache()
             }
@@ -1539,22 +2293,30 @@ enum CostUsageScanner {
                 }
             }
 
-            for fileURL in Self.cachedCodexSessionFiles(cache: cache, range: range, roots: plan.roots)
+            for fileURL in Self.cachedCodexSessionFiles(
+                cache: cache,
+                range: range,
+                roots: plan.roots,
+                excludingPaths: seenPaths)
                 .sorted(by: { $0.path < $1.path })
-                where !seenPaths.contains(fileURL.path)
             {
                 seenPaths.insert(fileURL.path)
                 files.append(fileURL)
             }
 
             let filePathsInScan = Set(files.map(\.path))
-
             var scanState = CodexScanState()
             let fileIndex = CodexSessionFileIndex(
                 files: files,
                 roots: plan.roots,
-                cachedSessionFiles: Self.cachedCodexSessionIndex(cache: cache, roots: plan.roots))
-            let inheritedResolver = CodexInheritedTotalsResolver(fileIndex: fileIndex)
+                cachedSessionFiles: Self.cachedCodexSessionIndex(
+                    cache: cache,
+                    roots: plan.roots,
+                    knownExistingPaths: filePathsInScan),
+                checkCancellation: checkCancellation)
+            let inheritedResolver = CodexInheritedTotalsResolver(
+                fileIndex: fileIndex,
+                checkCancellation: checkCancellation)
             let resources = CodexScanResources(
                 fileIndex: fileIndex,
                 inheritedResolver: inheritedResolver,
@@ -1562,7 +2324,7 @@ enum CostUsageScanner {
                 modelsDevCacheRoot: options.cacheRoot,
                 priorityTurns: plan.priorityTurns)
             for fileURL in files {
-                Self.scanCodexFile(
+                try Self.scanCodexFile(
                     fileURL: fileURL,
                     context: CodexFileScanContext(
                         range: range,
@@ -1573,10 +2335,12 @@ enum CostUsageScanner {
                             || plan.needsTurnIDCacheMigration,
                         requiresTurnIDCache: plan.needsTurnIDCacheMigration,
                         changedPriorityTurnIDs: plan.changedPriorityTurnIDs,
-                        resources: resources),
+                        resources: resources,
+                        checkCancellation: checkCancellation),
                     cache: &cache,
                     state: &scanState)
             }
+            try checkCancellation?()
 
             Self.pruneForceRescanFilesOutsideWindow(
                 cache: &cache,
@@ -1635,6 +2399,7 @@ enum CostUsageScanner {
                     retainedUntilKey: retainedUntilKey)
             }
             cache.lastScanUnixMs = nowMs
+            try checkCancellation?()
             CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
         }
 

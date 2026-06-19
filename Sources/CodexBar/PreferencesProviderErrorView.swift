@@ -26,7 +26,7 @@ struct ProviderErrorView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Copy error")
+                .help(L("Copy error"))
             }
 
             Text(self.display.preview)

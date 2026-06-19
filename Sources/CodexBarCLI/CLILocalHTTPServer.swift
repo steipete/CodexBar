@@ -1,8 +1,10 @@
 import Foundation
 #if canImport(Darwin)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
@@ -134,7 +136,7 @@ enum CLIHTTPStatus {
     case notFound
     case methodNotAllowed
     case internalServerError
-
+    case gatewayTimeout
     var code: Int {
         switch self {
         case .ok: 200
@@ -143,6 +145,7 @@ enum CLIHTTPStatus {
         case .notFound: 404
         case .methodNotAllowed: 405
         case .internalServerError: 500
+        case .gatewayTimeout: 504
         }
     }
 
@@ -154,6 +157,7 @@ enum CLIHTTPStatus {
         case .notFound: "Not Found"
         case .methodNotAllowed: "Method Not Allowed"
         case .internalServerError: "Internal Server Error"
+        case .gatewayTimeout: "Gateway Timeout"
         }
     }
 }
@@ -162,11 +166,18 @@ struct CLILocalHTTPResponse {
     let status: CLIHTTPStatus
     let body: Data
     let contentType: String
+    let usageCacheKeys: [String?]?
 
-    init(status: CLIHTTPStatus, body: Data, contentType: String = "application/json; charset=utf-8") {
+    init(
+        status: CLIHTTPStatus,
+        body: Data,
+        contentType: String = "application/json; charset=utf-8",
+        usageCacheKeys: [String?]? = nil)
+    {
         self.status = status
         self.body = body
         self.contentType = contentType
+        self.usageCacheKeys = usageCacheKeys
     }
 
     var serialized: Data {
@@ -182,12 +193,15 @@ struct CLILocalHTTPResponse {
     }
 }
 
-final class CLILocalHTTPServer {
+final class CLILocalHTTPServer: @unchecked Sendable {
     typealias Handler = @Sendable (CLILocalHTTPRequest) async -> CLILocalHTTPResponse
 
     private let host: String
     private let port: UInt16
     private let handler: Handler
+    private let stateLock = NSLock()
+    private var listeningFD: Int32?
+    private var stopRequested = false
 
     init(host: String, port: UInt16, handler: @escaping Handler) {
         self.host = host
@@ -195,20 +209,33 @@ final class CLILocalHTTPServer {
         self.handler = handler
     }
 
+    func stop() {
+        self.stateLock.lock()
+        self.stopRequested = true
+        self.stateLock.unlock()
+    }
+
     func run(onListening: @Sendable () -> Void = {}) async throws {
         ignoreSIGPIPE()
 
         #if canImport(Darwin)
         let streamType = SOCK_STREAM
-        #else
+        #elseif canImport(Glibc)
         let streamType = Int32(SOCK_STREAM.rawValue)
+        #elseif canImport(Musl)
+        let streamType = Int32(SOCK_STREAM)
         #endif
 
         let serverFD = socket(AF_INET, streamType, 0)
         guard serverFD >= 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
-        defer { closeSocket(serverFD) }
+        var ownsServerFD = true
+        defer {
+            if ownsServerFD {
+                closeSocket(serverFD)
+            }
+        }
 
         var reuse: Int32 = 1
         setsockopt(
@@ -240,19 +267,60 @@ final class CLILocalHTTPServer {
         guard listen(serverFD, 16) == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
+        guard self.installListeningFD(serverFD) else {
+            return
+        }
+        ownsServerFD = false
+        defer {
+            if self.releaseListeningFD(serverFD) {
+                closeSocket(serverFD)
+            }
+        }
         onListening()
 
-        while true {
+        while !self.isStopRequested {
+            guard waitForReadable(serverFD, timeoutMilliseconds: 250) else {
+                continue
+            }
             var clientAddress = sockaddr()
             var clientLength = socklen_t(MemoryLayout<sockaddr>.size)
             let clientFD = accept(serverFD, &clientAddress, &clientLength)
-            guard clientFD >= 0 else { continue }
+            guard clientFD >= 0 else {
+                if self.isStopRequested { return }
+                if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED {
+                    continue
+                }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
             let handler = self.handler
             Task {
                 defer { closeSocket(clientFD) }
                 await handleClient(clientFD, handler: handler)
             }
         }
+    }
+
+    private var isStopRequested: Bool {
+        self.stateLock.lock()
+        let value = self.stopRequested
+        self.stateLock.unlock()
+        return value
+    }
+
+    private func installListeningFD(_ fd: Int32) -> Bool {
+        self.stateLock.lock()
+        defer { self.stateLock.unlock() }
+        guard !self.stopRequested else { return false }
+        self.listeningFD = fd
+        return true
+    }
+
+    private func releaseListeningFD(_ fd: Int32) -> Bool {
+        self.stateLock.lock()
+        defer { self.stateLock.unlock() }
+        guard self.listeningFD == fd else { return false }
+        self.listeningFD = nil
+        return true
     }
 }
 
@@ -347,15 +415,19 @@ private func sendNoSignalFlags() -> Int32 {
 private func ignoreSIGPIPE() {
     #if canImport(Darwin)
     _ = Darwin.signal(SIGPIPE, SIG_IGN)
-    #else
+    #elseif canImport(Glibc)
     _ = Glibc.signal(SIGPIPE, SIG_IGN)
+    #elseif canImport(Musl)
+    _ = Musl.signal(SIGPIPE, SIG_IGN)
     #endif
 }
 
 private func closeSocket(_ fd: Int32) {
     #if canImport(Darwin)
     Darwin.close(fd)
-    #else
+    #elseif canImport(Glibc)
     Glibc.close(fd)
+    #elseif canImport(Musl)
+    Musl.close(fd)
     #endif
 }

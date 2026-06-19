@@ -47,6 +47,120 @@ struct AlibabaCodingPlanSettingsReaderTests {
     }
 
     @Test
+    func `endpoint overrides allow custom https hosts by default`() {
+        let env = [
+            AlibabaCodingPlanSettingsReader.hostKey: "https://attacker.example",
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "https://attacker.example/data/api.json",
+        ]
+
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: env) == "attacker.example")
+        #expect(AlibabaCodingPlanSettingsReader.quotaURL(environment: env)?.host == "attacker.example")
+        #expect(AlibabaCodingPlanSettingsReader.rejectedEndpointOverrideKey(environment: env) == nil)
+    }
+
+    @Test
+    func `host endpoint overrides preserve explicit port`() {
+        let env = [AlibabaCodingPlanSettingsReader.hostKey: "proxy.example.test:8443"]
+
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: env) == "proxy.example.test:8443")
+        #expect(
+            AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env).absoluteString ==
+                "https://proxy.example.test:8443/data/api.json?action=zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2&product=broadscope-bailian&api=queryCodingPlanInstanceInfoV2&currentRegionId=ap-southeast-1")
+        #expect(
+            AlibabaCodingPlanUsageFetcher.resolveConsoleDashboardURL(region: .international, environment: env)
+                .absoluteString
+                .hasPrefix("https://proxy.example.test:8443/") == true)
+    }
+
+    @Test
+    func `endpoint overrides reject encoded host delimiters before suffix matching`() {
+        let encodedSlash = "https://attacker.example%2f.modelstudio.console.alibabacloud.com"
+        let doubleEncodedSlash = "https://attacker.example%252f.modelstudio.console.alibabacloud.com"
+        let env = [
+            AlibabaCodingPlanSettingsReader.hostKey: encodedSlash,
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "\(encodedSlash)/data/api.json",
+        ]
+
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: env) == nil)
+        #expect(AlibabaCodingPlanSettingsReader.quotaURL(environment: env) == nil)
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+            AlibabaCodingPlanSettingsReader.hostKey: doubleEncodedSlash,
+        ]) == nil)
+    }
+
+    @Test
+    func `endpoint overrides reject whitespace and control characters in hosts`() {
+        for host in ["https://bad host", "https://bad%20host", "https://bad%09host"] {
+            #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+                AlibabaCodingPlanSettingsReader.hostKey: host,
+            ]) == nil)
+            #expect(AlibabaCodingPlanSettingsReader.quotaURL(environment: [
+                AlibabaCodingPlanSettingsReader.quotaURLKey: "\(host)/data/api.json",
+            ]) == nil)
+        }
+    }
+
+    @Test
+    func `endpoint overrides require https and no userinfo`() {
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+            AlibabaCodingPlanSettingsReader.hostKey: "http://modelstudio.console.alibabacloud.com",
+        ]) == nil)
+        #expect(AlibabaCodingPlanSettingsReader.quotaURL(environment: [
+            AlibabaCodingPlanSettingsReader.quotaURLKey:
+                "https://user:pass@modelstudio.console.alibabacloud.com/data/api.json",
+        ]) == nil)
+    }
+
+    @Test
+    func `strict provider endpoint mode rejects custom hosts`() {
+        let env = [
+            AlibabaCodingPlanSettingsReader.requireProviderEndpointOverridesKey: "true",
+            AlibabaCodingPlanSettingsReader.hostKey: "proxy.example.test",
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "https://proxy.example.test/data/api.json",
+        ]
+
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: env) == nil)
+        #expect(AlibabaCodingPlanSettingsReader.quotaURL(environment: env) == nil)
+        #expect(AlibabaCodingPlanSettingsReader
+            .rejectedEndpointOverrideKey(environment: env) == AlibabaCodingPlanSettingsReader.hostKey)
+    }
+
+    @Test
+    func `strict provider endpoint mode rejects customer controlled Alibaba Cloud hosts`() {
+        let env = [
+            AlibabaCodingPlanSettingsReader.requireProviderEndpointOverridesKey: "true",
+            AlibabaCodingPlanSettingsReader.hostKey: "tenant.cn-beijing.fc.aliyuncs.com",
+        ]
+
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: env) == nil)
+        #expect(AlibabaCodingPlanSettingsReader
+            .rejectedEndpointOverrideKey(environment: env) == AlibabaCodingPlanSettingsReader.hostKey)
+    }
+
+    @Test
+    func `strict provider endpoint mode accepts known Coding Plan hosts`() {
+        let env = [
+            AlibabaCodingPlanSettingsReader.requireProviderEndpointOverridesKey: "true",
+            AlibabaCodingPlanSettingsReader.hostKey: "bailian-beijing-cs.aliyuncs.com",
+        ]
+
+        #expect(
+            AlibabaCodingPlanSettingsReader.hostOverride(environment: env) ==
+                "bailian-beijing-cs.aliyuncs.com")
+        #expect(AlibabaCodingPlanSettingsReader.rejectedEndpointOverrideKey(environment: env) == nil)
+    }
+
+    @Test
+    func `custom https compatibility mode still rejects http and userinfo`() {
+        #expect(AlibabaCodingPlanSettingsReader.hostOverride(environment: [
+            AlibabaCodingPlanSettingsReader.hostKey: "http://proxy.example.test",
+        ]) == nil)
+        #expect(AlibabaCodingPlanSettingsReader.rejectedEndpointOverrideKey(environment: [
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "https://user:pass@proxy.example.test/data/api.json",
+        ]) == AlibabaCodingPlanSettingsReader.quotaURLKey)
+    }
+
+    @Test
     func `missing cookie error includes access hint when present`() {
         let error = AlibabaCodingPlanSettingsError
             .missingCookie(details: "Safari cookie file exists but is not readable.")
@@ -657,9 +771,53 @@ struct AlibabaCodingPlanRegionTests {
 
     @Test
     func `quota url override beats host`() {
-        let env = [AlibabaCodingPlanSettingsReader.quotaURLKey: "https://example.com/custom/quota"]
+        let env = [
+            AlibabaCodingPlanSettingsReader.quotaURLKey:
+                "https://modelstudio.console.alibabacloud.com/custom/quota",
+        ]
         let url = AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env)
-        #expect(url.absoluteString == "https://example.com/custom/quota")
+        #expect(url.absoluteString == "https://modelstudio.console.alibabacloud.com/custom/quota")
+    }
+
+    @Test
+    func `custom quota url override is preserved by default`() {
+        let env = [AlibabaCodingPlanSettingsReader.quotaURLKey: "https://attacker.example/custom/quota"]
+        let url = AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env)
+        #expect(url.host == "attacker.example")
+    }
+
+    @Test
+    func `strict provider endpoint mode falls back to provider endpoint`() {
+        let env = [
+            AlibabaCodingPlanSettingsReader.requireProviderEndpointOverridesKey: "true",
+            AlibabaCodingPlanSettingsReader.quotaURLKey: "https://attacker.example/custom/quota",
+        ]
+        let url = AlibabaCodingPlanUsageFetcher.resolveQuotaURL(region: .international, environment: env)
+        #expect(url.host == AlibabaCodingPlanAPIRegion.international.quotaURL.host)
+    }
+
+    @Test
+    func `explicit endpoint override rejects invalid api scheme before network`() async {
+        await #expect(throws: ProviderEndpointOverrideError.alibabaCodingPlan(
+            AlibabaCodingPlanSettingsReader.quotaURLKey))
+        {
+            _ = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
+                apiKey: "cpk-test",
+                environment: [AlibabaCodingPlanSettingsReader
+                    .quotaURLKey: "http://modelstudio.console.alibabacloud.com/custom/quota"])
+        }
+    }
+
+    @Test
+    func `explicit endpoint override rejects invalid cookie scheme before network`() async {
+        await #expect(throws: ProviderEndpointOverrideError.alibabaCodingPlan(
+            AlibabaCodingPlanSettingsReader.quotaURLKey))
+        {
+            _ = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
+                cookieHeader: "login_aliyunid_ticket=ticket; login_aliyunid_pk=user",
+                environment: [AlibabaCodingPlanSettingsReader
+                    .quotaURLKey: "http://modelstudio.console.alibabacloud.com/custom/quota"])
+        }
     }
 }
 
@@ -667,24 +825,23 @@ struct AlibabaCodingPlanRegionTests {
 struct AlibabaCodingPlanUsageFetcherRequestTests {
     @Test
     func `api401 maps to invalid credentials`() async throws {
-        let registered = URLProtocol.registerClass(AlibabaUsageFetcherStubURLProtocol.self)
-        defer {
-            if registered {
-                URLProtocol.unregisterClass(AlibabaUsageFetcherStubURLProtocol.self)
-            }
-            AlibabaUsageFetcherStubURLProtocol.handler = nil
-        }
-
-        AlibabaUsageFetcherStubURLProtocol.handler = { request in
+        let transport = ProviderHTTPTransportHandler { request in
             guard let url = request.url else { throw URLError(.badURL) }
-            return Self.makeResponse(url: url, body: #"{"message":"unauthorized"}"#, statusCode: 401)
+            let (response, data) = Self.makeResponse(
+                url: url,
+                body: #"{"message":"unauthorized"}"#,
+                statusCode: 401)
+            return (data, response)
         }
 
         await #expect(throws: AlibabaCodingPlanUsageError.invalidCredentials) {
             _ = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
                 apiKey: "cpk-test",
                 region: .chinaMainland,
-                environment: [AlibabaCodingPlanSettingsReader.quotaURLKey: "https://alibaba-api.test/data/api.json"])
+                environment: [
+                    AlibabaCodingPlanSettingsReader.quotaURLKey: "https://bailian.console.aliyun.com/data/api.json",
+                ],
+                transport: transport)
         }
     }
 
@@ -756,7 +913,7 @@ struct AlibabaCodingPlanUsageFetcherRequestTests {
 
         AlibabaConsoleSECTokenStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
-            #expect(url.host == "alibaba-proxy.test")
+            #expect(url.host == "modelstudio.console.alibabacloud.com")
 
             if request.httpMethod == "GET", url.path == AlibabaCodingPlanAPIRegion.international.dashboardURL.path {
                 return Self.makeResponse(url: url, body: "<html></html>", statusCode: 200)
@@ -796,7 +953,7 @@ struct AlibabaCodingPlanUsageFetcherRequestTests {
         let snapshot = try await AlibabaCodingPlanUsageFetcher.fetchUsage(
             cookieHeader: "sec_token=cookie-sec-token; login_aliyunid_ticket=ticket; login_aliyunid_pk=user",
             region: .international,
-            environment: [AlibabaCodingPlanSettingsReader.hostKey: "https://alibaba-proxy.test"],
+            environment: [AlibabaCodingPlanSettingsReader.hostKey: "https://modelstudio.console.alibabacloud.com"],
             now: Date(timeIntervalSince1970: 1_700_000_000))
 
         #expect(snapshot.planName == "Alibaba Coding Plan Pro")
@@ -922,7 +1079,7 @@ final class AlibabaUsageFetcherStubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "alibaba-api.test"
+        request.url?.host == "bailian.console.aliyun.com"
     }
 
     override static func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -954,7 +1111,6 @@ final class AlibabaConsoleSECTokenStubURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool {
         guard let host = request.url?.host else { return false }
         return [
-            "alibaba-proxy.test",
             "modelstudio.console.alibabacloud.com",
             "bailian-singapore-cs.alibabacloud.com",
             "bailian.console.aliyun.com",

@@ -8,7 +8,9 @@ read_when:
 
 # CLI configuration
 
-`codexbar config` edits the same `~/.codexbar/config.json` file used by the app's Settings → Providers pane.
+`codexbar config` edits the same resolved config file used by the app's Settings → Providers pane.
+New installs use `~/.config/codexbar/config.json`; absolute `XDG_CONFIG_HOME` paths and `CODEXBAR_CONFIG` are
+supported, and existing `~/.codexbar/config.json` installs keep using the legacy file when no XDG config exists.
 The CLI writes the file with `0600` permissions.
 
 ## Providers
@@ -64,7 +66,7 @@ sessions instead of an xAI API key for CodexBar's billing view, so enable them w
 `codexbar config enable --provider grok`.
 
 LLM Proxy also needs a base URL. Use `LLM_PROXY_BASE_URL` for CLI runs, or add `"enterpriseHost"` to the provider entry
-in `~/.codexbar/config.json`.
+in the CodexBar config file.
 
 ## Isolated config files
 

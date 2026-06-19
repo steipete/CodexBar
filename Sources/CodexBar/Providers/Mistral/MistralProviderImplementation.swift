@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct MistralProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .mistral
 
@@ -69,7 +67,7 @@ struct MistralProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .mistral) else { return nil }
+                    guard let entry = CookieHeaderCache.loadForDisplay(provider: .mistral) else { return nil }
                     let when = entry.storedAt.relativeDescription()
                     return "Cached: \(entry.sourceLabel) • \(when)"
                 }),

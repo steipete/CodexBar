@@ -108,6 +108,90 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `command code config cookie is carried into CLI settings snapshot`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .commandcode,
+                cookieHeader: "better-auth.session_token=manual-token",
+                cookieSource: .manual),
+        ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .commandcode, account: nil))
+        let commandCodeSettings = try #require(snapshot.commandcode)
+
+        #expect(commandCodeSettings.cookieSource == .manual)
+        #expect(commandCodeSettings.manualCookieHeader == "better-auth.session_token=manual-token")
+    }
+
+    @Test
+    func `app snapshot override resolves cookie account without mutating stored selection`() throws {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-cookie-override-app")
+        settings.cursorCookieSource = .auto
+        settings.cursorCookieHeader = "configured=true"
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Override",
+            token: "account=true",
+            addedAt: 0,
+            lastUsed: nil)
+
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            settings: settings,
+            tokenOverride: TokenAccountOverride(provider: .cursor, account: account))
+        let cursorSettings = try #require(snapshot.cursor)
+
+        #expect(cursorSettings.cookieSource == .manual)
+        #expect(cursorSettings.manualCookieHeader == "account=true")
+        #expect(settings.tokenAccounts(for: .cursor).isEmpty)
+    }
+
+    @Test
+    func `stepfun CLI snapshot reads manual token from region field`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .stepfun,
+                    region: "Oasis-Token=manual-token; Oasis-Webid=web"),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .stepfun, account: nil))
+        let stepfunSettings = try #require(snapshot.stepfun)
+
+        #expect(stepfunSettings.cookieSource == .manual)
+        #expect(stepfunSettings.manualToken == "Oasis-Token=manual-token; Oasis-Webid=web")
+    }
+
+    @Test
+    func `stepfun CLI token account overrides region manual token`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "StepFun",
+            token: "account-token",
+            addedAt: Date().timeIntervalSince1970,
+            lastUsed: nil)
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .stepfun,
+                    region: "manual-token",
+                    tokenAccounts: ProviderTokenAccountData(
+                        version: 1,
+                        accounts: [account],
+                        activeIndex: 0)),
+            ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        let resolvedAccount = try #require(tokenContext.resolvedAccounts(for: .stepfun).first)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .stepfun, account: resolvedAccount))
+        let stepfunSettings = try #require(snapshot.stepfun)
+
+        #expect(stepfunSettings.cookieSource == .manual)
+        #expect(stepfunSettings.manualToken == "account-token")
+    }
+
+    @Test
     func `claude OAuth token account overrides environment in app environment builder`() {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-claude-app")
         settings.addTokenAccount(provider: .claude, label: "OAuth", token: "Bearer sk-ant-oat-account-token")
@@ -370,15 +454,21 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
-    func `codex all accounts selection exposes visible managed accounts and scopes CLI homes`() throws {
+    func `codex all accounts selection exposes configured accounts and scopes CLI homes`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-cli-all-accounts-\(UUID().uuidString)", isDirectory: true)
         let ambientHome = root.appendingPathComponent("ambient", isDirectory: true)
         let firstHome = root.appendingPathComponent("first", isDirectory: true)
         let secondHome = root.appendingPathComponent("second", isDirectory: true)
+        let profileHome = root.appendingPathComponent("profile", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: ambientHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: firstHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: secondHome, withIntermediateDirectories: true)
+        try Self.writeCodexAuthFile(
+            homeURL: profileHome,
+            email: "profile@example.com",
+            accountID: "acct_profile")
         let storeURL = root.appendingPathComponent("managed-codex-accounts.json")
         let firstID = UUID()
         let secondID = UUID()
@@ -402,7 +492,10 @@ struct TokenAccountEnvironmentPrecedenceTests {
         ])
         try FileManagedCodexAccountStore(fileURL: storeURL).storeAccounts(accounts)
         let config = CodexBarConfig(providers: [
-            ProviderConfig(id: .codex, codexActiveSource: .managedAccount(id: secondID)),
+            ProviderConfig(
+                id: .codex,
+                codexActiveSource: .managedAccount(id: secondID),
+                codexProfileHomePaths: [profileHome.path]),
         ])
         let context = try TokenAccountCLIContext(
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: true),
@@ -414,10 +507,12 @@ struct TokenAccountEnvironmentPrecedenceTests {
         let projection = context.visibleCodexAccounts()
         #expect(projection.visibleAccounts.map(\.menuDisplayName) == [
             "first@example.com — Team",
+            "profile@example.com",
             "second@example.com",
         ])
         #expect(projection.visibleAccounts.map(\.selectionSource) == [
             .managedAccount(id: firstID),
+            .profileHome(path: profileHome.path),
             .managedAccount(id: secondID),
         ])
         #expect(projection.visibleAccounts.first { $0.email == "second@example.com" }?.isActive == true)
@@ -428,6 +523,18 @@ struct TokenAccountEnvironmentPrecedenceTests {
             account: nil,
             codexActiveSourceOverride: .managedAccount(id: firstID))
         #expect(firstEnv["CODEX_HOME"] == firstHome.path)
+
+        let profileEnv = context.environment(
+            base: ["CODEX_HOME": ambientHome.path],
+            provider: .codex,
+            account: nil,
+            codexActiveSourceOverride: .profileHome(path: profileHome.path))
+        #expect(profileEnv["CODEX_HOME"] == profileHome.path)
+        #expect(context.settingsSnapshot(
+            for: .codex,
+            account: nil,
+            codexActiveSourceOverride: .profileHome(path: profileHome.path))?.codex?.openAIWebCacheScope
+            == .profileHome(profileHome.path))
 
         let liveEnv = context.environment(
             base: ["CODEX_HOME": ambientHome.path],
@@ -452,6 +559,30 @@ struct TokenAccountEnvironmentPrecedenceTests {
         let identity = try #require(labeled.identity(for: .codex))
         #expect(identity.accountEmail == "first@example.com")
         #expect(identity.accountOrganization == "Team")
+    }
+
+    @Test
+    func `codex CLI ignores relative profile homes`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .codex,
+                codexActiveSource: .profileHome(path: "relative-codex-home"),
+                codexProfileHomePaths: ["relative-codex-home"]),
+        ])
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false,
+            baseEnvironment: ["CODEX_HOME": "/tmp/ambient-codex"])
+
+        let environment = context.environment(
+            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            provider: .codex,
+            account: nil,
+            codexActiveSourceOverride: .profileHome(path: "relative-codex-home"))
+
+        #expect(context.visibleCodexAccounts().visibleAccounts.isEmpty)
+        #expect(environment["CODEX_HOME"] == "/tmp/ambient-codex")
     }
 
     @Test
@@ -815,6 +946,20 @@ extension TokenAccountEnvironmentPrecedenceTests {
         return environment["CODEX_HOME"]
     }
 
+    fileprivate static func writeCodexAuthFile(homeURL: URL, email: String, accountID: String) throws {
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        let auth: [String: Any] = [
+            "tokens": [
+                "accessToken": "access-token",
+                "refreshToken": "refresh-token",
+                "idToken": self.fakeJWT(email: email, plan: "pro", accountId: accountID),
+                "account_id": accountID,
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: auth)
+        try data.write(to: homeURL.appendingPathComponent("auth.json"))
+    }
+
     fileprivate static func knownOwnerMultiset(
         _ owners: [CodexDashboardKnownOwnerCandidate]) -> [CodexDashboardKnownOwnerCandidate: Int]
     {
@@ -929,6 +1074,8 @@ extension TokenAccountEnvironmentPrecedenceTests {
                 rateLimit: nil,
                 updatedAt: now),
             cursorRequests: CursorRequestUsage(used: 7, limit: 70),
+            subscriptionExpiresAt: reset.addingTimeInterval(86400),
+            subscriptionRenewsAt: reset.addingTimeInterval(43200),
             updatedAt: now,
             identity: identity)
     }
@@ -948,6 +1095,8 @@ extension TokenAccountEnvironmentPrecedenceTests {
         #expect(after.openRouterUsage?.rateLimit?.requests == before.openRouterUsage?.rateLimit?.requests)
         #expect(after.cursorRequests?.used == before.cursorRequests?.used)
         #expect(after.cursorRequests?.limit == before.cursorRequests?.limit)
+        #expect(after.subscriptionExpiresAt == before.subscriptionExpiresAt)
+        #expect(after.subscriptionRenewsAt == before.subscriptionRenewsAt)
         #expect(after.updatedAt == before.updatedAt)
     }
 }

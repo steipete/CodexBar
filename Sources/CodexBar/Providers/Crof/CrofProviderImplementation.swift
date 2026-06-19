@@ -1,9 +1,7 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct CrofProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .crof
 

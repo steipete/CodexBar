@@ -64,8 +64,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
     }
 
     private let provider: UsageProvider
-    private let histories: [PlanUtilizationSeriesHistory]
-    private let snapshot: UsageSnapshot?
+    private let visibleSeries: [VisibleSeries]
+    private let modelsBySeriesID: [String: Model]
+    private let emptyModel: Model
     private let width: CGFloat
 
     @State private var selectedSeriesID: String?
@@ -78,32 +79,33 @@ struct PlanUtilizationHistoryChartMenuView: View {
         width: CGFloat)
     {
         self.provider = provider
-        self.histories = histories
-        self.snapshot = snapshot
+        let visibleSeries = Self.visibleSeries(
+            histories: histories,
+            provider: provider,
+            snapshot: snapshot)
+        let referenceDate = Date()
+        self.visibleSeries = visibleSeries
+        self.modelsBySeriesID = Dictionary(uniqueKeysWithValues: visibleSeries.map {
+            ($0.id, Self.makeModel(history: $0.history, provider: provider, referenceDate: referenceDate))
+        })
+        self.emptyModel = Self.emptyModel(provider: provider)
         self.width = width
     }
 
     var body: some View {
-        let visibleSeries = Self.visibleSeries(
-            histories: self.histories,
-            provider: self.provider,
-            snapshot: self.snapshot)
-        let effectiveSelectedSeries = visibleSeries.first(where: { $0.id == self.selectedSeriesID }) ?? visibleSeries
-            .first
-        let model = Self.makeModel(
-            history: effectiveSelectedSeries?.history,
-            provider: self.provider,
-            referenceDate: Date())
+        let effectiveSelectedSeries = self.visibleSeries.first(where: { $0.id == self.selectedSeriesID })
+            ?? self.visibleSeries.first
+        let model = effectiveSelectedSeries.flatMap { self.modelsBySeriesID[$0.id] } ?? self.emptyModel
 
         VStack(alignment: .leading, spacing: 10) {
-            if visibleSeries.count > 1 {
+            if self.visibleSeries.count > 1 {
                 Picker(selection: Binding(
                     get: { effectiveSelectedSeries?.id ?? "" },
                     set: { newValue in
                         self.selectedSeriesID = newValue
                         self.selectedPointID = nil
                     })) {
-                        ForEach(visibleSeries) { series in
+                        ForEach(self.visibleSeries) { series in
                             Text(series.title).tag(series.id)
                         }
                     } label: {
@@ -146,8 +148,11 @@ struct PlanUtilizationHistoryChartMenuView: View {
                     }
                     .chartLegend(.hidden)
                     .frame(height: Layout.chartHeight)
-                    .accessibilityLabel("Plan utilization chart")
-                    .accessibilityValue(model.points.isEmpty ? "No data" : "\(model.points.count) utilization samples")
+                    .accessibilityLabel(L("Plan utilization chart"))
+                    .accessibilityValue(
+                        model.points.isEmpty
+                            ? L("No data")
+                            : String(format: L("%d utilization samples"), model.points.count))
                     .chartOverlay { proxy in
                         GeometryReader { geo in
                             MouseLocationReader { location in
@@ -169,9 +174,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(minWidth: self.width, maxWidth: .infinity, alignment: .topLeading)
-        .task(id: visibleSeries.map(\.id).joined(separator: ",")) {
-            guard let firstVisibleSeries = visibleSeries.first else { return }
-            guard !visibleSeries.contains(where: { $0.id == self.selectedSeriesID }) else { return }
+        .task(id: self.visibleSeries.map(\.id).joined(separator: ",")) {
+            guard let firstVisibleSeries = self.visibleSeries.first else { return }
+            guard !self.visibleSeries.contains(where: { $0.id == self.selectedSeriesID }) else { return }
             self.selectedSeriesID = firstVisibleSeries.id
             self.selectedPointID = nil
         }
@@ -225,12 +230,12 @@ struct PlanUtilizationHistoryChartMenuView: View {
             }
     }
 
-    private nonisolated static func mergedEntries(
+    nonisolated static func mergedEntries(
         _ entries: [PlanUtilizationHistoryEntry]) -> [PlanUtilizationHistoryEntry]
     {
-        entries.reduce(into: []) { result, entry in
-            guard !result.contains(entry) else { return }
-            result.append(entry)
+        var seen: Set<PlanUtilizationHistoryEntry> = []
+        return entries.filter { entry in
+            seen.insert(entry).inserted
         }
     }
 
@@ -241,18 +246,23 @@ struct PlanUtilizationHistoryChartMenuView: View {
         guard let snapshot else { return nil }
 
         var names: Set<PlanUtilizationSeriesName> = []
-        if snapshot.primary != nil {
-            names.insert(.session)
-        }
-        if snapshot.secondary != nil {
+        switch provider {
+        case .codex:
+            if snapshot.primary != nil { names.insert(.session) }
+            if snapshot.secondary != nil { names.insert(.weekly) }
+        case .claude:
+            if snapshot.primary != nil { names.insert(.session) }
+            if snapshot.secondary != nil { names.insert(.weekly) }
+            if snapshot.tertiary != nil,
+               ProviderDescriptorRegistry.metadata[provider]?.supportsOpus == true
+            {
+                names.insert(.opus)
+            }
+        default:
+            let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
+                + (snapshot.extraRateWindows?.filter(\.usageKnown).map(\.window) ?? [])
+            guard windows.contains(where: { $0.windowMinutes == 7 * 24 * 60 }) else { return nil }
             names.insert(.weekly)
-        }
-
-        if provider == .claude,
-           snapshot.tertiary != nil,
-           ProviderDescriptorRegistry.metadata[provider]?.supportsOpus == true
-        {
-            names.insert(.opus)
         }
 
         return names
@@ -608,9 +618,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
     {
         switch name {
         case .session:
-            metadata?.sessionLabel ?? "Session"
+            L(metadata?.sessionLabel ?? "Session")
         case .weekly:
-            metadata?.weeklyLabel ?? "Weekly"
+            L(metadata?.weeklyLabel ?? "Weekly")
         case .opus:
             metadata?.opusLabel ?? "Opus"
         default:
@@ -640,9 +650,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
 
     private nonisolated static func emptyStateText(title: String?) -> String {
         if let title {
-            return "No \(title.lowercased()) utilization data yet."
+            return String(format: L("No %@ utilization data yet."), title.lowercased())
         }
-        return "No utilization data yet."
+        return L("No utilization data yet.")
     }
 
     #if DEBUG
@@ -707,7 +717,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
     #endif
 
     private func xValue(for index: Int) -> PlottableValue<Double> {
-        .value("Series", Double(index))
+        .value(L("Series"), Double(index))
     }
 
     @ViewBuilder
@@ -729,14 +739,14 @@ struct PlanUtilizationHistoryChartMenuView: View {
         ForEach(model.points) { point in
             BarMark(
                 x: self.xValue(for: point.index),
-                yStart: .value("Capacity Start", 0),
-                yEnd: .value("Capacity End", 100),
+                yStart: .value(L("Capacity Start"), 0),
+                yEnd: .value(L("Capacity End"), 100),
                 width: .fixed(Layout.barWidth))
                 .foregroundStyle(model.trackColor)
             BarMark(
                 x: self.xValue(for: point.index),
-                yStart: .value("Utilization Start", 0),
-                yEnd: .value("Utilization End", point.usedPercent),
+                yStart: .value(L("Utilization Start"), 0),
+                yEnd: .value(L("Utilization End"), point.usedPercent),
                 width: .fixed(Layout.barWidth))
                 .foregroundStyle(model.barColor)
         }
@@ -809,16 +819,23 @@ extension PlanUtilizationHistoryChartMenuView {
             return "\(dateLabel): -"
         }
         let usedText = used.formatted(.number.precision(.fractionLength(0...1)))
-        return "\(dateLabel): \(usedText)% used"
+        return L("%@: %@%% used", dateLabel, usedText)
     }
 
     private nonisolated static func detailDateLabel(for date: Date, windowMinutes: Int) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.locale = codexBarLocalizedLocale()
         formatter.timeZone = TimeZone.current
-        formatter.amSymbol = "am"
-        formatter.pmSymbol = "pm"
-        formatter.dateFormat = "MMM d, h:mm a"
-        return formatter.string(from: date)
+        formatter.setLocalizedDateFormatFromTemplate("MMM d, h:mm a")
+        var rendered = formatter.string(from: date).replacingOccurrences(of: "\u{202F}", with: " ")
+        let amSymbol = formatter.amSymbol ?? ""
+        let pmSymbol = formatter.pmSymbol ?? ""
+        if !amSymbol.isEmpty {
+            rendered = rendered.replacingOccurrences(of: amSymbol, with: amSymbol.lowercased())
+        }
+        if !pmSymbol.isEmpty {
+            rendered = rendered.replacingOccurrences(of: pmSymbol, with: pmSymbol.lowercased())
+        }
+        return rendered
     }
 }

@@ -22,6 +22,9 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         public let percentRemaining: Double
         public let quotaId: String
         public let hasPercentRemaining: Bool
+        public let unlimited: Bool
+        private let entitlementWasDecoded: Bool
+        private let remainingWasDecoded: Bool
         public var usedPercent: Double {
             max(0, 100 - self.percentRemaining)
         }
@@ -31,7 +34,25 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         }
 
         public var isPlaceholder: Bool {
-            self.entitlement == 0 && self.remaining == 0 && self.percentRemaining == 0 && self.quotaId.isEmpty
+            if self.unlimited {
+                return false
+            }
+
+            if self.entitlement == 0,
+               self.remaining == 0,
+               self.percentRemaining == 0,
+               !self.hasPercentRemaining
+            {
+                return true
+            }
+
+            // An explicit zero-entitlement, zero-remaining snapshot carries no usable quota signal.
+            // GitHub returns this shape for token-based billing / Copilot Business seats,
+            // sometimes as percent_remaining=100 with a non-empty quota_id, which would
+            // otherwise render as a misleading "0% used" (100 - 100). Treat it as a
+            // placeholder so the usual handling drops it instead of showing fake usage.
+            return self.entitlementWasDecoded && self.remainingWasDecoded && self.entitlement == 0 && self
+                .remaining == 0
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -39,6 +60,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             case remaining
             case percentRemaining = "percent_remaining"
             case quotaId = "quota_id"
+            case unlimited
         }
 
         public init(
@@ -46,13 +68,17 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             remaining: Double,
             percentRemaining: Double,
             quotaId: String,
-            hasPercentRemaining: Bool = true)
+            hasPercentRemaining: Bool = true,
+            unlimited: Bool = false)
         {
             self.entitlement = entitlement
             self.remaining = remaining
-            self.percentRemaining = percentRemaining
+            self.percentRemaining = unlimited ? 100 : percentRemaining
             self.quotaId = quotaId
-            self.hasPercentRemaining = hasPercentRemaining
+            self.hasPercentRemaining = unlimited || hasPercentRemaining
+            self.unlimited = unlimited
+            self.entitlementWasDecoded = true
+            self.remainingWasDecoded = true
         }
 
         public init(from decoder: any Decoder) throws {
@@ -61,8 +87,14 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             let decodedRemaining = Self.decodeNumberIfPresent(container: container, key: .remaining)
             self.entitlement = decodedEntitlement ?? 0
             self.remaining = decodedRemaining ?? 0
+            self.entitlementWasDecoded = decodedEntitlement != nil
+            self.remainingWasDecoded = decodedRemaining != nil
+            let decodedUnlimited = try container.decodeIfPresent(Bool.self, forKey: .unlimited) ?? false
             let decodedPercent = Self.decodeNumberIfPresent(container: container, key: .percentRemaining)
-            if let decodedPercent {
+            if decodedUnlimited {
+                self.percentRemaining = 100
+                self.hasPercentRemaining = true
+            } else if let decodedPercent {
                 self.percentRemaining = decodedPercent
                 self.hasPercentRemaining = true
             } else if let entitlement = decodedEntitlement,
@@ -78,6 +110,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
                 self.hasPercentRemaining = false
             }
             self.quotaId = try container.decodeIfPresent(String.self, forKey: .quotaId) ?? ""
+            self.unlimited = decodedUnlimited
         }
 
         private static func decodeNumberIfPresent(
@@ -213,12 +246,14 @@ public struct CopilotUsageResponse: Sendable, Decodable {
 
     public let quotaSnapshots: QuotaSnapshots
     public let copilotPlan: String
+    public let tokenBasedBilling: Bool
     public let assignedDate: String?
     public let quotaResetDate: String?
 
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
         case copilotPlan = "copilot_plan"
+        case tokenBasedBilling = "token_based_billing"
         case assignedDate = "assigned_date"
         case quotaResetDate = "quota_reset_date"
         case monthlyQuotas = "monthly_quotas"
@@ -228,11 +263,13 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     public init(
         quotaSnapshots: QuotaSnapshots,
         copilotPlan: String,
+        tokenBasedBilling: Bool = false,
         assignedDate: String?,
         quotaResetDate: String?)
     {
         self.quotaSnapshots = quotaSnapshots
         self.copilotPlan = copilotPlan
+        self.tokenBasedBilling = tokenBasedBilling
         self.assignedDate = assignedDate
         self.quotaResetDate = quotaResetDate
     }
@@ -253,6 +290,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             self.quotaSnapshots = directSnapshots ?? QuotaSnapshots(premiumInteractions: nil, chat: nil)
         }
         self.copilotPlan = try container.decodeIfPresent(String.self, forKey: .copilotPlan) ?? "unknown"
+        self.tokenBasedBilling = try container.decodeIfPresent(Bool.self, forKey: .tokenBasedBilling) ?? false
         self.assignedDate = try container.decodeIfPresent(String.self, forKey: .assignedDate)
         self.quotaResetDate = try container.decodeIfPresent(String.self, forKey: .quotaResetDate)
     }

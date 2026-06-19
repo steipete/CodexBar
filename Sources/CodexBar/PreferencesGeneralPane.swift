@@ -5,10 +5,26 @@ import SwiftUI
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system = ""
     case english = "en"
-    case spanish = "es"
-    case catalan = "ca"
     case chineseSimplified = "zh-Hans"
+    case chineseTraditional = "zh-Hant"
+    case japanese = "ja"
+    case spanish = "es"
     case portugueseBrazilian = "pt-BR"
+    case korean = "ko"
+    case german = "de"
+    case french = "fr"
+    case arabic = "ar"
+    case italian = "it"
+    case vietnamese = "vi"
+    case dutch = "nl"
+    case turkish = "tr"
+    case ukrainian = "uk"
+    case indonesian = "id"
+    case polish = "pl"
+    case persian = "fa"
+    case thai = "th"
+    case catalan = "ca"
+    case swedish = "sv"
 
     var id: String {
         self.rawValue
@@ -18,10 +34,26 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .system: L("language_system")
         case .english: L("language_english")
-        case .spanish: L("language_spanish")
-        case .catalan: L("language_catalan")
         case .chineseSimplified: L("language_chinese_simplified")
+        case .chineseTraditional: L("language_chinese_traditional")
+        case .japanese: L("language_japanese")
+        case .spanish: L("language_spanish")
         case .portugueseBrazilian: L("language_portuguese_brazilian")
+        case .korean: L("language_korean")
+        case .german: L("language_german")
+        case .french: L("language_french")
+        case .arabic: L("language_arabic")
+        case .italian: L("language_italian")
+        case .vietnamese: L("language_vietnamese")
+        case .dutch: L("language_dutch")
+        case .turkish: L("language_turkish")
+        case .ukrainian: L("language_ukrainian")
+        case .indonesian: L("language_indonesian")
+        case .polish: L("language_polish")
+        case .persian: L("language_persian")
+        case .thai: L("language_thai")
+        case .catalan: L("language_catalan")
+        case .swedish: L("language_swedish")
         }
     }
 }
@@ -62,6 +94,26 @@ struct GeneralPane: View {
                         }
                     }
 
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("terminal_app_title"))
+                                .font(.body)
+                            Text(L("terminal_app_subtitle"))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Picker(L("terminal_app_title"), selection: self.$settings.terminalApp) {
+                            ForEach(TerminalApp.allCases) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 200)
+                    }
+
                     PreferenceToggleRow(
                         title: L("start_at_login_title"),
                         subtitle: L("start_at_login_subtitle"),
@@ -90,16 +142,7 @@ struct GeneralPane: View {
                                 .fixedSize(horizontal: false, vertical: true)
 
                             if self.settings.costUsageEnabled {
-                                Stepper(
-                                    value: self.$settings.costUsageHistoryDays,
-                                    in: 1...365,
-                                    step: 1)
-                                {
-                                    Text(String(
-                                        format: L("cost_history_days_title"),
-                                        self.settings.costUsageHistoryDays))
-                                        .font(.footnote)
-                                }
+                                CostHistoryDaysEditor(settings: self.settings)
 
                                 Text(L("cost_auto_refresh_info"))
                                     .font(.footnote)
@@ -129,7 +172,7 @@ struct GeneralPane: View {
                                     .foregroundStyle(.tertiary)
                             }
                             Spacer()
-                            Picker("Refresh cadence", selection: self.$settings.refreshFrequency) {
+                            Picker(L("Refresh cadence"), selection: self.$settings.refreshFrequency) {
                                 ForEach(RefreshFrequency.allCases) { option in
                                     Text(option.label).tag(option)
                                 }
@@ -202,8 +245,9 @@ struct GeneralPane: View {
         }
         if let snapshot = self.store.tokenSnapshot(for: provider) {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
-            let cost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-            let window = snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d"
+            let cost = snapshot.last30DaysCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+            let window = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d")
             return Text(String(format: L("cost_status_snapshot"), name, updated, window, cost))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
@@ -226,5 +270,39 @@ struct GeneralPane: View {
         return Text(String(format: L("cost_status_no_data"), name))
             .font(.footnote)
             .foregroundStyle(.tertiary)
+    }
+}
+
+@MainActor
+struct CostHistoryDaysEditor: View {
+    @Bindable var settings: SettingsStore
+
+    static func title(days: Int) -> String {
+        String(format: L("cost_history_days_title"), days)
+    }
+
+    var body: some View {
+        let title = Self.title(days: self.settings.costUsageHistoryDays)
+
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Stepper(
+                value: self.$settings.costUsageHistoryDays,
+                in: 1...365,
+                step: 1)
+            {
+                Text(title)
+                    .font(.footnote)
+            }
+
+            TextField(
+                title,
+                value: self.$settings.costUsageHistoryDays,
+                format: .number)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .font(.footnote)
+                .monospacedDigit()
+                .frame(width: 64)
+        }
     }
 }

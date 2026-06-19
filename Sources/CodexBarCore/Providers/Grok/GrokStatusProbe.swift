@@ -25,15 +25,15 @@ public struct GrokUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary window: monthly credit usage from the CLI RPC, falling back to
-        // the web billing RPC used by grok.com when the agent surface lacks billing.
+        // Primary window: credit usage (against included limit) from the CLI RPC,
+        // falling back to the web billing RPC used by grok.com when the agent surface lacks billing.
         var primary: RateWindow?
         if let billing,
            let percent = billing.monthlyUsedPercent
         {
             primary = RateWindow(
                 usedPercent: percent,
-                windowMinutes: nil,
+                windowMinutes: billing.billingPeriodMinutes,
                 resetsAt: billing.billingPeriodEndDate,
                 resetDescription: nil)
         } else if let webBilling,
@@ -66,30 +66,20 @@ public struct GrokStatusProbe: Sendable {
 
     public static func detectVersion(env: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         guard let binary = BinaryLocator.resolveGrokBinary(env: env) else { return nil }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [binary, "--version"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        do {
-            try process.run()
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return nil }
-            // Output is like "grok 0.1.210 (8b63e9068c)" — strip the leading "grok " so
-            // callers can prefix the CLI name themselves without duplicating it.
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            let firstLine = trimmed.split(separator: "\n").first.map(String.init) ?? trimmed
-            let withoutPrefix = firstLine.replacingOccurrences(
-                of: #"^grok\s+"#,
-                with: "",
-                options: [.regularExpression])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return withoutPrefix.isEmpty ? nil : withoutPrefix
-        } catch {
-            return nil
-        }
+        guard let output = ProviderVersionDetector.run(
+            path: binary,
+            args: ["--version"],
+            environment: env,
+            mergeStandardError: true)
+        else { return nil }
+        // Output is like "grok 0.1.210 (8b63e9068c)" — strip the leading "grok " so
+        // callers can prefix the CLI name themselves without duplicating it.
+        let withoutPrefix = output.replacingOccurrences(
+            of: #"^grok\s+"#,
+            with: "",
+            options: [.regularExpression])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return withoutPrefix.isEmpty ? nil : withoutPrefix
     }
 
     public func fetch(env: [String: String] = ProcessInfo.processInfo.environment) async throws -> GrokUsageSnapshot {

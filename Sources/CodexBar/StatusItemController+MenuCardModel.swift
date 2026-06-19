@@ -25,6 +25,10 @@ extension StatusItemController {
         } else {
             snapshotOverride ?? self.store.snapshot(for: target)
         }
+        let projectedTokenSnapshot = self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
+        let storedTokenSnapshot = UsageStore.tokenCostRequiresProviderSnapshot(target)
+            ? nil
+            : self.store.tokenSnapshot(for: target)
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: target,
@@ -44,25 +48,27 @@ extension StatusItemController {
             dashboard = nil
             dashboardError = codexProjection.userFacingErrors.dashboard
             if surface == .liveCard {
-                tokenSnapshot = self.store.tokenSnapshot(for: target)
+                tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
                 tokenError = self.store.tokenError(for: target)
             } else {
-                tokenSnapshot = nil
+                tokenSnapshot = projectedTokenSnapshot
                 tokenError = nil
             }
-        } else if target == .claude || target == .vertexai || target == .bedrock, snapshotOverride == nil {
+        } else if ProviderDescriptorRegistry.descriptor(for: target).tokenCost.supportsTokenCost,
+                  snapshotOverride == nil
+        {
             credits = nil
             creditsError = nil
             dashboard = nil
             dashboardError = nil
-            tokenSnapshot = self.store.tokenSnapshot(for: target)
+            tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
             tokenError = self.store.tokenError(for: target)
         } else {
             credits = nil
             creditsError = nil
             dashboard = nil
             dashboardError = nil
-            tokenSnapshot = nil
+            tokenSnapshot = projectedTokenSnapshot
             tokenError = nil
         }
 
@@ -79,6 +85,10 @@ extension StatusItemController {
                 self.store.weeklyPace(provider: target, window: window, now: now)
             }
         }
+        let fallbackAccount = accountOverride
+            ?? (metadata.usesAccountFallback
+                ? self.store.accountInfo(for: target)
+                : AccountInfo(email: nil, plan: nil))
         let input = UsageMenuCardView.Model.Input(
             provider: target,
             metadata: metadata,
@@ -90,8 +100,8 @@ extension StatusItemController {
             dashboardError: dashboardError,
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
-            account: accountOverride ?? self.store.accountInfo(for: target),
-            isRefreshing: self.store.shouldShowRefreshingMenuCard(for: target),
+            account: fallbackAccount,
+            isRefreshing: self.store.shouldShowRefreshingMenuCardIndicator(for: target),
             lastError: errorOverride
                 ?? codexProjection?.userFacingErrors.usage
                 ?? self.store.userFacingError(for: target),
@@ -99,6 +109,7 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             sourceLabel: sourceLabel,
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
@@ -107,6 +118,8 @@ extension StatusItemController {
                 .session: self.quotaWarningMarkerThresholds(provider: target, window: .session),
                 .weekly: self.quotaWarningMarkerThresholds(provider: target, window: .weekly),
             ],
+            workDaysPerWeek: self.settings.weeklyProgressWorkDays,
+            usesLiveSubtitle: surface == .liveCard,
             now: now)
         return UsageMenuCardView.Model.make(input)
     }

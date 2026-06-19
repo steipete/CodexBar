@@ -38,6 +38,10 @@ struct DisplayPane: View {
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
+                        title: L("hide_critters_title"),
+                        subtitle: L("hide_critters_subtitle"),
+                        binding: self.$settings.menuBarHidesCritters)
+                    PreferenceToggleRow(
                         title: L("menu_bar_shows_percent_title"),
                         subtitle: L("menu_bar_shows_percent_subtitle"),
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)
@@ -50,7 +54,7 @@ struct DisplayPane: View {
                                 .foregroundStyle(.tertiary)
                         }
                         Spacer()
-                        Picker("Display mode", selection: self.$settings.menuBarDisplayMode) {
+                        Picker(L("Display mode"), selection: self.$settings.menuBarDisplayMode) {
                             ForEach(MenuBarDisplayMode.allCases) { mode in
                                 Text(mode.label).tag(mode)
                             }
@@ -78,6 +82,25 @@ struct DisplayPane: View {
                         title: L("show_quota_warning_markers_title"),
                         subtitle: L("show_quota_warning_markers_subtitle"),
                         binding: self.$settings.quotaWarningMarkersVisible)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("weekly_progress_work_days_title"))
+                                .font(.body)
+                            Text(L("weekly_progress_work_days_subtitle"))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Picker(L("weekly_progress_work_days_title"), selection: self.$settings.weeklyProgressWorkDays) {
+                            Text(L("Off")).tag(nil as Int?)
+                            Text(L("4 days")).tag(4 as Int?)
+                            Text(L("5 days")).tag(5 as Int?)
+                            Text(L("7 days")).tag(7 as Int?)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 100)
+                    }
                     PreferenceToggleRow(
                         title: L("show_reset_time_as_clock_title"),
                         subtitle: L("show_reset_time_as_clock_subtitle"),

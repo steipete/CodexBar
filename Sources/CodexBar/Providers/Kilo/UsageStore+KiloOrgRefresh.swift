@@ -35,7 +35,7 @@ extension UsageStore {
         self.kiloEnabledScopes.count > 1
     }
 
-    func refreshKiloScopes() async {
+    func refreshKiloScopes(generation: UInt64? = nil) async {
         let scopes = self.kiloEnabledScopes
         guard scopes.count > 1 else {
             await MainActor.run { self.kiloScopeSnapshots = [] }
@@ -102,6 +102,7 @@ extension UsageStore {
         let ordered = scopes.compactMap { resultByID[$0.scopeIdentifier] }
 
         await MainActor.run {
+            guard self.isCurrentProviderRefreshGeneration(.kilo, generation: generation) else { return }
             self.kiloScopeSnapshots = ordered
         }
     }
@@ -115,17 +116,6 @@ extension UsageSnapshot {
             accountEmail: baseIdentity?.accountEmail,
             accountOrganization: org,
             loginMethod: baseIdentity?.loginMethod)
-        return UsageSnapshot(
-            primary: self.primary,
-            secondary: self.secondary,
-            tertiary: self.tertiary,
-            extraRateWindows: self.extraRateWindows,
-            providerCost: self.providerCost,
-            zaiUsage: self.zaiUsage,
-            minimaxUsage: self.minimaxUsage,
-            openRouterUsage: self.openRouterUsage,
-            cursorRequests: self.cursorRequests,
-            updatedAt: self.updatedAt,
-            identity: newIdentity)
+        return self.withIdentity(newIdentity)
     }
 }

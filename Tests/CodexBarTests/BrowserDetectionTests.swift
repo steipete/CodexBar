@@ -1,22 +1,109 @@
 import Foundation
+import os.lock
 import Testing
 @testable import CodexBarCore
 
 #if os(macOS)
 import SweetCookieKit
 
+@Suite(.serialized)
 struct BrowserDetectionTests {
-    @Test
-    func `safari always installed`() {
-        #expect(BrowserDetection(cacheTTL: 0).isAppInstalled(.safari) == true)
-        #expect(BrowserDetection(cacheTTL: 0).isCookieSourceAvailable(.safari) == true)
+    @Test(.disabled(
+        if: ProcessInfo.processInfo.environment[BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey] == "1",
+        "Default-home cookie access is explicitly enabled for this test run."))
+    func `default home detection is suppressed before profile probes`() throws {
+        let probeCount = OSAllocatedUnfairLock(initialState: 0)
+        let defaultHome = try #require(BrowserCookieClient.defaultHomeDirectories().first)
+        let detection = BrowserDetection(
+            homeDirectory: defaultHome.path,
+            cacheTTL: 0,
+            fileExists: { _ in
+                probeCount.withLock { $0 += 1 }
+                return false
+            },
+            directoryContents: { _ in
+                probeCount.withLock { $0 += 1 }
+                return nil
+            })
+
+        _ = detection.isCookieSourceAvailable(.chrome)
+        #expect(probeCount.withLock { $0 } == 0)
+    }
+
+    @Test(.disabled(
+        if: ProcessInfo.processInfo.environment[BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey] == "1",
+        "Default-home cookie access is explicitly enabled for this test run."))
+    func `default client reports structured suppression before store discovery`() {
+        let client = BrowserCookieClient()
+
+        #expect(throws: BrowserCookieStoreAccessSuppressedError.self) {
+            _ = try client.codexBarStores(for: .chrome)
+        }
+        #expect(throws: BrowserCookieStoreAccessSuppressedError.self) {
+            _ = try client.codexBarRecords(
+                matching: BrowserCookieQuery(domains: ["example.com"]),
+                in: .safari)
+        }
     }
 
     @Test
-    func `filter installed includes safari`() {
+    func `cookie store decision allows production and explicit test opt in`() {
+        let defaultHomes = BrowserCookieClient.defaultHomeDirectories()
+        let testProcess = "swiftpm-testing-helper"
+
+        #expect(BrowserCookieAccessGate.cookieStoreAccessDecision(
+            homeDirectories: defaultHomes,
+            processName: testProcess,
+            environment: [:]) == .suppressed)
+        #expect(BrowserCookieAccessGate.cookieStoreAccessDecision(
+            homeDirectories: defaultHomes,
+            processName: testProcess,
+            environment: [BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey: "1"]) == .allowed)
+        #expect(BrowserCookieAccessGate.cookieStoreAccessDecision(
+            homeDirectories: defaultHomes,
+            processName: "CodexBar",
+            environment: [:]) == .allowed)
+    }
+
+    @Test(.disabled(
+        if: ProcessInfo.processInfo.environment[BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey] == "1",
+        "Default-home cookie access is explicitly enabled for this test run."))
+    func `safari is installed but default cookie access is disabled during tests`() {
+        #expect(BrowserDetection(cacheTTL: 0).isAppInstalled(.safari) == true)
+        #expect(BrowserDetection(cacheTTL: 0).isCookieSourceAvailable(.safari) == false)
+    }
+
+    @Test(.disabled(
+        if: ProcessInfo.processInfo.environment[BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey] == "1",
+        "Default-home cookie access is explicitly enabled for this test run."))
+    func `default cookie candidates exclude safari during tests`() {
         let detection = BrowserDetection(cacheTTL: 0)
         let browsers: [Browser] = [.safari, .chrome, .firefox]
-        #expect(browsers.cookieImportCandidates(using: detection).contains(.safari))
+        #expect(browsers.cookieImportCandidates(using: detection).contains(.safari) == false)
+    }
+
+    @Test
+    func `explicit isolated home keeps safari cookie source available`() {
+        let detection = BrowserDetection(homeDirectory: "/tmp/codexbar-browser-detection", cacheTTL: 0)
+        #expect(detection.isCookieSourceAvailable(.safari))
+    }
+
+    @Test
+    func `cookie client permits isolated chromium stores during tests`() throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let profile = temp
+            .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network")
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: profile.appendingPathComponent("Cookies").path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let client = BrowserCookieClient(configuration: .init(homeDirectories: [temp]))
+        let stores = try KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in .allowed } operation: {
+                try client.codexBarStores(for: .chrome)
+            }
+        }
+        #expect(stores.count == 1)
     }
 
     @Test
@@ -104,26 +191,72 @@ struct BrowserDetectionTests {
         var preflightCount = 0
 
         KeychainAccessGate.withTaskOverrideForTesting(false) {
-            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
-                preflightCount += 1
-                return .interactionRequired
-            } operation: {
-                #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start) == false)
-            }
+            ProviderInteractionContext.$current.withValue(.userInitiated) {
+                KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    preflightCount += 1
+                    return .interactionRequired
+                } operation: {
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start) == false)
+                }
 
-            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
-                preflightCount += 1
-                return .allowed
-            } operation: {
-                #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == false)
-                #expect(
-                    BrowserCookieAccessGate.shouldAttempt(
-                        .chrome,
-                        now: start.addingTimeInterval((60 * 60 * 6) + 1)) == true)
+                KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    preflightCount += 1
+                    return .allowed
+                } operation: {
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == false)
+                    #expect(
+                        BrowserCookieAccessGate.shouldAttempt(
+                            .chrome,
+                            now: start.addingTimeInterval((60 * 60 * 6) + 1)) == true)
+                }
             }
         }
 
         #expect(preflightCount == 2)
+    }
+
+    @Test
+    func `background cookie import allows authorized chromium keychain sources`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        var preflightCount = 0
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                preflightCount += 1
+                return .allowed
+            } operation: {
+                ProviderInteractionContext.$current.withValue(.background) {
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == true)
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.safari) == true)
+                }
+            }
+        }
+
+        #expect(preflightCount == 1)
+    }
+
+    @Test
+    func `background cookie import suppresses chromium keychain sources requiring interaction`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        var preflightCount = 0
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                preflightCount += 1
+                return .interactionRequired
+            } operation: {
+                ProviderInteractionContext.$current.withValue(.background) {
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == false)
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.safari) == true)
+                }
+            }
+        }
+
+        #expect(preflightCount == 1)
     }
 
     @Test

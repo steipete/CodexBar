@@ -212,6 +212,12 @@ public final class AugmentSessionKeepalive {
                 try await Task.sleep(for: .seconds(1)) // Brief delay for browser to update cookies
                 let newSession = try AugmentCookieImporter.importSession(logger: self.logger)
 
+                await AugmentSessionStore.shared.setCookies(newSession.cookies)
+                CookieHeaderCache.store(
+                    provider: .augment,
+                    cookieHeader: newSession.cookieHeader,
+                    sourceLabel: newSession.sourceLabel)
+
                 self.log(
                     "✅ Session refresh successful - imported \(newSession.cookies.count) cookies " +
                         "from \(newSession.sourceLabel)")
@@ -220,6 +226,11 @@ public final class AugmentSessionKeepalive {
                 // Reset failure tracking on success
                 self.consecutiveFailures = 0
                 self.hasGivenUp = false
+
+                if let callback = self.onSessionRecovered {
+                    self.log("🔄 Triggering usage refresh after session refresh")
+                    await callback()
+                }
             } else {
                 self.log("⚠️ Session refresh returned no new cookies")
                 self.consecutiveFailures += 1

@@ -1,6 +1,11 @@
 import CodexBarCore
 import SwiftUI
 
+enum ProviderMetricInlinePresentation: Equatable {
+    case progress
+    case status(String)
+}
+
 @MainActor
 struct ProviderDetailView<SupplementaryContent: View>: View {
     let provider: UsageProvider
@@ -63,13 +68,22 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         L(UsageMenuCardView.popupMetricTitle(provider: provider, metric: metric))
     }
 
+    static func metricInlinePresentation(
+        _ metric: UsageMenuCardView.Model.Metric) -> ProviderMetricInlinePresentation
+    {
+        if let statusText = metric.statusText {
+            return .status(statusText)
+        }
+        return .progress
+    }
+
     static func planRow(provider: UsageProvider, planText: String?) -> (label: String, value: String)? {
         guard let rawPlan = planText?.trimmingCharacters(in: .whitespacesAndNewlines),
               !rawPlan.isEmpty
         else {
             return nil
         }
-        guard provider == .openrouter || provider == .mimo || provider == .moonshot else {
+        guard provider == .openrouter || provider == .mimo || provider == .moonshot || provider == .poe else {
             return (label: L("Plan"), value: rawPlan)
         }
 
@@ -80,6 +94,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
             if !trimmedValue.isEmpty {
                 return (label: L("Balance"), value: trimmedValue)
             }
+        }
+        if provider == .mimo {
+            return (label: L("Plan"), value: rawPlan)
         }
         return (label: L("Balance"), value: rawPlan)
     }
@@ -238,7 +255,7 @@ private struct ProviderDetailHeaderView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .help("Refresh")
+                .help(L("Refresh"))
 
                 Toggle("", isOn: self.$isEnabled)
                     .labelsHidden()
@@ -462,50 +479,57 @@ private struct ProviderMetricInlineRow: View {
                 .frame(width: self.labelWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
-                UsageProgressBar(
-                    percent: self.metric.percent,
-                    tint: self.progressColor,
-                    accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
-                    pacePercent: self.metric.pacePercent,
-                    paceOnTop: self.metric.paceOnTop,
-                    warningMarkerPercents: self.metric.warningMarkerPercents)
-                    .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(self.metric.percentLabel)
+                switch ProviderDetailView<EmptyView>.metricInlinePresentation(self.metric) {
+                case let .status(statusText):
+                    Text(statusText)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                    Spacer(minLength: 8)
-                    if let resetText = self.metric.resetText, !resetText.isEmpty {
-                        Text(resetText)
+                case .progress:
+                    UsageProgressBar(
+                        percent: self.metric.percent,
+                        tint: self.progressColor,
+                        accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
+                        pacePercent: self.metric.pacePercent,
+                        paceOnTop: self.metric.paceOnTop,
+                        warningMarkerPercents: self.metric.warningMarkerPercents)
+                        .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(self.metric.percentLabel)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                    }
-                }
-
-                let hasLeftDetail = self.metric.detailLeftText?.isEmpty == false
-                let hasRightDetail = self.metric.detailRightText?.isEmpty == false
-                if hasLeftDetail || hasRightDetail {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        if let leftDetail = self.metric.detailLeftText, !leftDetail.isEmpty {
-                            Text(leftDetail)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
+                            .monospacedDigit()
                         Spacer(minLength: 8)
-                        if let rightDetail = self.metric.detailRightText, !rightDetail.isEmpty {
-                            Text(rightDetail)
+                        if let resetText = self.metric.resetText, !resetText.isEmpty {
+                            Text(resetText)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
-                }
 
-                if let detail = self.detailText, !detail.isEmpty {
-                    Text(detail)
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                    let hasLeftDetail = self.metric.detailLeftText?.isEmpty == false
+                    let hasRightDetail = self.metric.detailRightText?.isEmpty == false
+                    if hasLeftDetail || hasRightDetail {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            if let leftDetail = self.metric.detailLeftText, !leftDetail.isEmpty {
+                                Text(leftDetail)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 8)
+                            if let rightDetail = self.metric.detailRightText, !rightDetail.isEmpty {
+                                Text(rightDetail)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    if let detail = self.detailText, !detail.isEmpty {
+                        Text(detail)
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -582,7 +606,7 @@ private struct ProviderMetricInlineCostRow: View {
                     UsageProgressBar(
                         percent: percentUsed,
                         tint: self.progressColor,
-                        accessibilityLabel: "Usage used")
+                        accessibilityLabel: L("Usage used"))
                         .frame(minWidth: ProviderSettingsMetrics.metricBarWidth, maxWidth: .infinity)
                 }
 

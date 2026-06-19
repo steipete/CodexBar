@@ -28,6 +28,33 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
+    func `descriptor uses Credits label for primary usage window`() {
+        let metadata = GrokProviderDescriptor.descriptor.metadata
+        #expect(metadata.sessionLabel == "Credits")
+        #expect(metadata.weeklyLabel == "On-demand")
+        #expect(!metadata.supportsOpus)
+    }
+
+    @Test
+    func `primaryLabel derives Weekly or Monthly from resetsAt`() {
+        let now = Date()
+        let in6Days = now.addingTimeInterval(6 * 86400)
+        let in30Days = now.addingTimeInterval(30 * 86400)
+        let in90Days = now.addingTimeInterval(90 * 86400)
+        let lateWeeklyWindow = RateWindow(
+            usedPercent: 25,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(86400),
+            resetDescription: nil)
+
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Days, now: now) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days, now: now) == "Monthly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in90Days, now: now) == nil)
+        #expect(GrokProviderDescriptor.primaryLabel(window: lateWeeklyWindow, now: now) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: nil) == nil)
+    }
+
+    @Test
     func `cli runtime does not import browser cookies unless explicitly enabled`() {
         #expect(GrokWebFetchStrategy.canImportBrowserCookies(runtime: .app, env: [:]))
         #expect(!GrokWebFetchStrategy.canImportBrowserCookies(runtime: .cli, env: [:]))
@@ -46,7 +73,7 @@ struct GrokWebBillingFetcherTests {
         ]
         var attemptedHeaders: [String] = []
 
-        let result = try await GrokWebFetchStrategy.fetchFirstValidCookieSession(sessions) { cookieHeader in
+        let result = try await GrokWebFetchStrategy.fetchFirstValidCookieSession(sessions) { cookieHeader, _ in
             attemptedHeaders.append(cookieHeader)
             guard cookieHeader.contains("valid") else {
                 throw GrokWebBillingError.requestFailed(401, "stale")
@@ -84,6 +111,131 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 42.5)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
+    }
+
+    @Test
+    func `parses unframed grok billing protobuf payload`() throws {
+        let hex =
+            "0a3f0d7f6a9c3f12001a002206088097f3d0062a060880b191d2063a07080215a9389b3f3a07080115d6ea183c" +
+            "421208011206088097f3d0061a060880b191d206"
+        let data = try #require(Self.data(hexString: hex))
+
+        let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
+            data,
+            now: Date(timeIntervalSince1970: 1_780_000_000))
+
+        #expect(snapshot.usedPercent == 1.222000002861023)
+        #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
+    }
+
+    @Test
+    func `parses unframed zero percent payload that resembles an empty grpc frame`() throws {
+        let reset = UInt64(1_800_000_000)
+        let payload = Self.protobufPayload(usedPercent: 0, resetEpoch: reset)
+
+        #expect(GrokWebBillingFetcher.grpcWebDataFrames(from: payload).isEmpty)
+
+        let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
+            payload,
+            now: Date(timeIntervalSince1970: 1_799_000_000))
+
+        #expect(snapshot.usedPercent == 0)
+        #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
+    }
+
+    @Test
+    func `does not treat grpc frame prefix as raw protobuf`() {
+        #expect(!GrokWebBillingFetcher.looksLikeProtobufPayload(Data([0, 0, 0, 0, 10])))
+    }
+
+    @Test
+    func `web strategy tries cookie plus bearer before cookie only`() async throws {
+        let cookie = try #require(Self.cookie(name: "sso", value: "session"))
+        let sessions = [GrokCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: "Chrome")]
+        var attempts: [String] = []
+
+        let result = try await GrokWebFetchStrategy.fetchFirstValidCookieSession(
+            sessions,
+            credentials: Self.credentials)
+        { _, authCredentials in
+            let mode = authCredentials == nil ? "cookie-only" : "cookie+bearer"
+            attempts.append(mode)
+            guard mode == "cookie+bearer" else {
+                throw GrokWebBillingError.requestFailed(401, "needs bearer")
+            }
+            return GrokWebBillingSnapshot(usedPercent: 9, resetsAt: nil)
+        }
+
+        #expect(attempts == ["cookie+bearer"])
+        #expect(result.0.usedPercent == 9)
+    }
+
+    @Test
+    func `web strategy skips expired bearer for browser cookies`() async throws {
+        let cookie = try #require(Self.cookie(name: "sso", value: "session"))
+        let sessions = [GrokCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: "Chrome")]
+        let expired = GrokCredentials(
+            accessToken: "expired-token",
+            refreshToken: nil,
+            scope: "https://auth.x.ai::client",
+            authMode: "oidc",
+            userId: nil,
+            email: nil,
+            firstName: nil,
+            lastName: nil,
+            teamId: nil,
+            oidcIssuer: nil,
+            oidcClientId: nil,
+            expiresAt: .distantPast,
+            createTime: nil)
+        var attempts: [String] = []
+
+        _ = try await GrokWebFetchStrategy.fetchFirstValidCookieSession(
+            sessions,
+            credentials: expired)
+        { _, authCredentials in
+            attempts.append(authCredentials == nil ? "cookie-only" : "cookie+bearer")
+            return GrokWebBillingSnapshot(usedPercent: 9, resetsAt: nil)
+        }
+
+        #expect(attempts == ["cookie-only"])
+    }
+
+    @Test
+    func `web strategy preserves malformed auth file error`() async throws {
+        let grokHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBar-GrokWebBilling-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: grokHome) }
+        try Data("not-json".utf8).write(to: grokHome.appendingPathComponent("auth.json"))
+
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .web,
+            includeCredits: true,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: ["GROK_HOME": grokHome.path],
+            settings: nil,
+            fetcher: UsageFetcher(),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+
+        await #expect {
+            _ = try await GrokWebFetchStrategy().fetch(context)
+        } throws: { error in
+            guard case GrokCredentialsError.decodeFailed = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `status seven scope failure is not classified as bad credentials`() {
+        #expect(!GrokWebBillingError.isAuthenticationFailure(
+            status: 7,
+            message: "OAuth2 access token lacks the required billing scope"))
     }
 
     @Test
@@ -175,6 +327,48 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
+    func `web fetch turns grpc permission denied bad credentials into reauth guidance`() async throws {
+        defer {
+            GrokWebBillingStubURLProtocol.requests = []
+            GrokWebBillingStubURLProtocol.requestBodies = []
+            GrokWebBillingStubURLProtocol.handler = nil
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GrokWebBillingStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let endpoint = try #require(URL(string: "https://grok.test/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"))
+        let message = "The OAuth2 access token could not be validated. [WKE=unauthenticated:bad-credentials]"
+        let encodedMessage = message.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? message
+        let body = Self.grpcFrame(
+            Data("grpc-status: 7\r\ngrpc-message: \(encodedMessage)\r\n".utf8),
+            flags: 0x80)
+
+        GrokWebBillingStubURLProtocol.requests = []
+        GrokWebBillingStubURLProtocol.requestBodies = []
+        GrokWebBillingStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/grpc-web+proto"])!
+            return (response, body)
+        }
+
+        await #expect {
+            _ = try await GrokWebBillingFetcher.fetch(
+                credentials: Self.credentials,
+                session: session,
+                endpoint: endpoint)
+        } throws: { error in
+            error.localizedDescription.contains("grok.com") &&
+                error.localizedDescription.contains("grok login") &&
+                !error.localizedDescription.contains("status 7")
+        }
+    }
+
+    @Test
     func `rejects reset only billing because it cannot render usage`() {
         var payload = Data()
         payload.append(0x10) // field 2, varint reset timestamp
@@ -209,6 +403,28 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 0)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_780_272_000))
+    }
+
+    @Test
+    func `parses omitted zero percent with current billing period`() throws {
+        let data = Data([
+            0x00, 0x00, 0x00, 0x00, 0x2A, 0x0A, 0x28, 0x12,
+            0x00, 0x1A, 0x00, 0x22, 0x06, 0x08, 0x80, 0x97,
+            0xF3, 0xD0, 0x06, 0x2A, 0x06, 0x08, 0x80, 0xB1,
+            0x91, 0xD2, 0x06, 0x42, 0x12, 0x08, 0x01, 0x12,
+            0x06, 0x08, 0x80, 0x97, 0xF3, 0xD0, 0x06, 0x1A,
+            0x06, 0x08, 0x80, 0xB1, 0x91, 0xD2, 0x06, 0x80,
+            0x00, 0x00, 0x00, 0x0F, 0x67, 0x72, 0x70, 0x63,
+            0x2D, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x3A,
+            0x30, 0x0D, 0x0A,
+        ])
+
+        let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
+            data,
+            now: Date(timeIntervalSince1970: 1_781_000_000))
+
+        #expect(snapshot.usedPercent == 0)
+        #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
     }
 
     @Test
@@ -457,6 +673,41 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
+    func `web fetch sends browser cookies with bearer credentials`() async throws {
+        defer {
+            GrokWebBillingStubURLProtocol.requests = []
+            GrokWebBillingStubURLProtocol.requestBodies = []
+            GrokWebBillingStubURLProtocol.handler = nil
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GrokWebBillingStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let endpoint = try #require(URL(string: "https://grok.test/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"))
+
+        GrokWebBillingStubURLProtocol.requests = []
+        GrokWebBillingStubURLProtocol.requestBodies = []
+        GrokWebBillingStubURLProtocol.handler = { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "sso=session")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token-123")
+            let response = HTTPURLResponse(
+                url: endpoint,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/grpc-web+proto"])!
+            return (response, Self.protobufPayload(usedPercent: 9, resetEpoch: 1_800_000_004))
+        }
+
+        let snapshot = try await GrokWebBillingFetcher.fetch(
+            cookieHeader: "sso=session",
+            credentials: Self.credentials,
+            session: session,
+            endpoint: endpoint)
+
+        #expect(snapshot.usedPercent == 9)
+    }
+
+    @Test
     func `web fetch turns unauthorized response into reauth guidance`() async throws {
         defer {
             GrokWebBillingStubURLProtocol.requests = []
@@ -506,6 +757,7 @@ struct GrokWebBillingFetcherTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 67.25)
+        #expect(usage.primary?.windowMinutes == nil)
         #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_800_000_003))
         #expect(usage.accountEmail(for: .grok) == "grok@example.com")
         #expect(usage.loginMethod(for: .grok) == "SuperGrok")
@@ -563,6 +815,18 @@ struct GrokWebBillingFetcherTests {
             .name: name,
             .value: value,
         ])
+    }
+
+    private static func data(hexString: String) -> Data? {
+        var data = Data()
+        var index = hexString.startIndex
+        while index < hexString.endIndex {
+            let next = hexString.index(index, offsetBy: 2, limitedBy: hexString.endIndex) ?? hexString.endIndex
+            guard let byte = UInt8(hexString[index..<next], radix: 16) else { return nil }
+            data.append(byte)
+            index = next
+        }
+        return data
     }
 }
 

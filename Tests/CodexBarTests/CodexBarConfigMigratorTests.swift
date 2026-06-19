@@ -57,6 +57,42 @@ struct CodexBarConfigMigratorTests {
         #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey) == true)
     }
 
+    @Test
+    func `legacy stores are kept when migrated config save fails`() throws {
+        let suite = "CodexBarConfigMigratorTests-save-failure-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-tests", isDirectory: true)
+            .appendingPathComponent(suite, isDirectory: true)
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        let blockedDirectory = base.appendingPathComponent("blocked")
+        try Data("not a directory".utf8).write(to: blockedDirectory)
+
+        let secrets = CountingLegacySecretStore(token: "legacy-token")
+        let accountStore = CountingTokenAccountStore()
+        let stores = Self.legacyStores(secrets: secrets, accountStore: accountStore)
+        let configStore = CodexBarConfigStore(
+            fileURL: blockedDirectory.appendingPathComponent("config.json"))
+
+        _ = CodexBarConfigMigrator.loadOrMigrate(configStore: configStore, userDefaults: defaults, stores: stores)
+
+        #expect(secrets.clearAttempts == 0)
+        #expect(try secrets.loadToken() == "legacy-token")
+        #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey) == false)
+
+        try FileManager.default.removeItem(at: blockedDirectory)
+        _ = CodexBarConfigMigrator.loadOrMigrate(configStore: configStore, userDefaults: defaults, stores: stores)
+
+        #expect(secrets.clearAttempts > 0)
+        #expect(try secrets.loadToken() == nil)
+        #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey) == true)
+    }
+
     private static let legacyMigrationCompletedKey = "codexbar.legacySecretsMigrationCompleted"
 
     private static func legacyStores(

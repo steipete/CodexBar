@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum VeniceProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .venice,
@@ -32,39 +31,16 @@ public enum VeniceProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Venice per-day cost history is not available via API." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [VeniceAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "venice.api",
+                resolveToken: { ProviderTokenResolver.veniceToken(environment: $0) },
+                missingCredentialsError: { VeniceUsageError.missingCredentials },
+                loadUsage: { apiKey, _ in
+                    try await VeniceUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "venice",
                 aliases: ["ven"],
                 versionDetector: nil))
-    }
-}
-
-struct VeniceAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "venice.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw VeniceUsageError.missingCredentials
-        }
-        let usage = try await VeniceUsageFetcher.fetchUsage(apiKey: apiKey)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.veniceToken(environment: environment)
     }
 }

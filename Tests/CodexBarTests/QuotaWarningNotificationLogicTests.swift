@@ -1,42 +1,64 @@
 import Testing
 @testable import CodexBar
 
+@Suite(.serialized)
 struct QuotaWarningNotificationLogicTests {
     @Test
     func `quota warning copy includes current remaining and threshold`() {
-        let copy = QuotaWarningNotificationLogic.notificationCopy(
-            providerName: "Codex",
-            window: .session,
-            threshold: 20,
-            currentRemaining: 12.4)
+        Self.withAppLanguage("en") {
+            let copy = QuotaWarningNotificationLogic.notificationCopy(
+                providerName: "Codex",
+                window: .session,
+                threshold: 20,
+                currentRemaining: 12.4)
 
-        #expect(copy.title == "Codex session quota low")
-        #expect(copy.body == "12% left. Reached your 20% session warning threshold.")
+            #expect(copy.title == "Codex session quota low")
+            #expect(copy.body == "12% left. Reached your 20% session warning threshold.")
+        }
     }
 
     @Test
     func `quota warning copy clamps current remaining`() {
-        let copy = QuotaWarningNotificationLogic.notificationCopy(
-            providerName: "Codex",
-            window: .weekly,
-            threshold: 50,
-            currentRemaining: -3)
+        Self.withAppLanguage("en") {
+            let copy = QuotaWarningNotificationLogic.notificationCopy(
+                providerName: "Codex",
+                window: .weekly,
+                threshold: 50,
+                currentRemaining: -3)
 
-        #expect(copy.title == "Codex weekly quota low")
-        #expect(copy.body == "0% left. Reached your 50% weekly warning threshold.")
+            #expect(copy.title == "Codex weekly quota low")
+            #expect(copy.body == "0% left. Reached your 50% weekly warning threshold.")
+        }
     }
 
     @Test
     func `quota warning copy includes account when provided`() {
-        let copy = QuotaWarningNotificationLogic.notificationCopy(
-            providerName: "Codex",
-            window: .session,
-            threshold: 50,
-            currentRemaining: 45,
-            accountDisplayName: "person@example.com")
+        Self.withAppLanguage("en") {
+            let copy = QuotaWarningNotificationLogic.notificationCopy(
+                providerName: "Codex",
+                window: .session,
+                threshold: 50,
+                currentRemaining: 45,
+                accountDisplayName: "person@example.com")
 
-        #expect(copy.title == "Codex session quota low")
-        #expect(copy.body == "Account person@example.com. 45% left. Reached your 50% session warning threshold.")
+            #expect(copy.title == "Codex session quota low")
+            #expect(copy.body == "Account person@example.com. 45% left. Reached your 50% session warning threshold.")
+        }
+    }
+
+    @Test
+    func `quota warning copy follows Traditional Chinese app language`() {
+        Self.withAppLanguage("zh-Hant") {
+            let copy = QuotaWarningNotificationLogic.notificationCopy(
+                providerName: "Codex",
+                window: .session,
+                threshold: 50,
+                currentRemaining: 45,
+                accountDisplayName: "person@example.com")
+
+            #expect(copy.title == "Codex 工作階段配額偏低")
+            #expect(copy.body == "帳號 person@example.com。剩餘 45%。已達到 50% 工作階段提醒門檻。")
+        }
     }
 
     @Test
@@ -122,5 +144,9 @@ struct QuotaWarningNotificationLogicTests {
 
         #expect(crossed == nil)
         #expect(QuotaWarningNotificationLogic.firedThresholdsAfterWarning(threshold: 10, thresholds: [10, 0]) == [10])
+    }
+
+    private static func withAppLanguage(_ language: String, perform body: () -> Void) {
+        CodexBarLocalizationOverride.$appLanguage.withValue(language, operation: body)
     }
 }

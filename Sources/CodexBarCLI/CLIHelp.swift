@@ -26,7 +26,7 @@ extension CodexBarCLI {
             Auto falls back to Claude CLI only when cookies are missing.
           - Kilo: app.kilo.ai API.
             Auto falls back to Kilo CLI when API credentials are missing or unauthorized.
-          Token accounts are loaded from ~/.codexbar/config.json.
+          Token accounts are loaded from the resolved CodexBar config file.
           Use --account or --account-index to select a specific token account.
           Use --all-accounts to fetch every token account, or every visible Codex account for Codex.
           Account selection requires a single provider.
@@ -78,6 +78,7 @@ extension CodexBarCLI {
 
         Usage:
           codexbar serve [--port <port>] [--refresh-interval <seconds>]
+                         [--request-timeout <seconds>]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
@@ -95,7 +96,7 @@ extension CodexBarCLI {
 
         Examples:
           codexbar serve
-          codexbar serve --port 8080 --refresh-interval 60
+          codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30
           curl http://127.0.0.1:8080/usage?provider=all
         """
     }
@@ -128,7 +129,7 @@ extension CodexBarCLI {
           Validate or print the CodexBar config file (default: validate).
           providers lists persistent provider enablement.
           enable/disable updates the same provider toggle used by Settings.
-          set-api-key stores a provider API key in ~/.codexbar/config.json and enables that provider by default.
+          set-api-key stores a provider API key in the resolved config file and enables that provider by default.
 
         Examples:
           codexbar config validate --format json --pretty
@@ -168,6 +169,28 @@ extension CodexBarCLI {
         """
     }
 
+    static func diagnoseHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar diagnose --provider <name|all> --format json
+                           [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
+                           [-v|--verbose]
+                           [--pretty]
+
+        Description:
+          Run provider diagnostic fetches and print a safe JSON export for issue reporting.
+          The export is redacted and omits raw API tokens, cookies, auth headers, emails,
+          account IDs, org IDs, raw responses, and billing-history records.
+
+        Examples:
+          codexbar diagnose --provider minimax --format json --pretty
+          codexbar diagnose --provider claude --format json --pretty
+          codexbar diagnose --provider all --format json
+        """
+    }
+
     static func rootHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -187,6 +210,7 @@ extension CodexBarCLI {
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
           codexbar serve [--port <port>] [--refresh-interval <seconds>]
+                       [--request-timeout <seconds>]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
           codexbar config <validate|dump|providers> [--format text|json]
                                         [--json]
@@ -198,6 +222,7 @@ extension CodexBarCLI {
           codexbar config disable --provider <name>
           codexbar config set-api-key --provider <name> (--api-key <key>|--stdin)
           codexbar cache clear <--cookies|--cost|--all> [--provider <name>]
+          codexbar diagnose --provider <name|all> --format json [--pretty]
 
         Global flags:
           -h, --help      Show help
@@ -218,6 +243,8 @@ extension CodexBarCLI {
           codexbar config enable --provider grok
           codexbar config set-api-key --provider elevenlabs --stdin
           codexbar cache clear --cookies
+          codexbar diagnose --provider minimax --format json --pretty
+          codexbar diagnose --provider all --format json
         """
     }
 }

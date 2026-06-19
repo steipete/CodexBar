@@ -14,9 +14,51 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
 
     private struct Record: Codable {
         let id: String
+        let accountIdentity: AccountIdentity?
         let snapshot: UsageSnapshot?
         let error: String?
         let sourceLabel: String?
+    }
+
+    private struct AccountIdentity: Codable, Equatable {
+        let normalizedEmail: String?
+        let workspaceAccountID: String?
+        let authFingerprint: String?
+        let storedAccountID: UUID?
+        let selectionSource: CodexActiveSource?
+
+        init(account: CodexVisibleAccount) {
+            self.normalizedEmail = CodexIdentityResolver.normalizeEmail(account.email)
+            self.workspaceAccountID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
+                account.workspaceAccountID)
+            self.authFingerprint = CodexAuthFingerprint.normalize(account.authFingerprint)
+            self.storedAccountID = account.storedAccountID
+            self.selectionSource = account.selectionSource
+        }
+
+        func matches(_ account: CodexVisibleAccount) -> Bool {
+            guard self.normalizedEmail == CodexIdentityResolver.normalizeEmail(account.email) else {
+                return false
+            }
+
+            let currentWorkspaceAccountID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
+                account.workspaceAccountID)
+            if self.workspaceAccountID != nil || currentWorkspaceAccountID != nil {
+                return self.workspaceAccountID == currentWorkspaceAccountID
+            }
+
+            let currentAuthFingerprint = CodexAuthFingerprint.normalize(account.authFingerprint)
+            if self.authFingerprint != nil || currentAuthFingerprint != nil {
+                return self.authFingerprint == currentAuthFingerprint
+            }
+
+            if self.storedAccountID != nil || account.storedAccountID != nil {
+                return self.storedAccountID == account.storedAccountID
+            }
+
+            guard let selectionSource else { return true }
+            return selectionSource == account.selectionSource
+        }
     }
 
     private static let currentVersion = 1
@@ -41,6 +83,11 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         let accountsByID = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0) })
         return payload.records.compactMap { record in
             guard let account = accountsByID[record.id] else { return nil }
+            guard record.accountIdentity?.matches(account)
+                ?? Self.canHydrateLegacyRecord(record, account: account)
+            else {
+                return nil
+            }
             return CodexAccountUsageSnapshot(
                 account: account,
                 snapshot: record.snapshot,
@@ -55,6 +102,7 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
             records: snapshots.map { snapshot in
                 Record(
                     id: snapshot.id,
+                    accountIdentity: AccountIdentity(account: snapshot.account),
                     snapshot: snapshot.snapshot,
                     error: snapshot.error,
                     sourceLabel: snapshot.sourceLabel)
@@ -75,6 +123,17 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         } catch {
             // Snapshot hydration is best-effort; never make menu refresh fail because disk cache failed.
         }
+    }
+
+    private static func canHydrateLegacyRecord(_ record: Record, account: CodexVisibleAccount) -> Bool {
+        guard record.accountIdentity == nil else { return false }
+        let normalizedID = CodexIdentityResolver.normalizeEmail(record.id)
+        let normalizedEmail = CodexIdentityResolver.normalizeEmail(account.email)
+        let isEmailOnlyVisibleID = normalizedID == normalizedEmail
+        guard isEmailOnlyVisibleID else { return true }
+        return CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(account.workspaceAccountID) == nil &&
+            account.storedAccountID == nil &&
+            CodexAuthFingerprint.normalize(account.authFingerprint) == nil
     }
 
     static func defaultURL() -> URL {

@@ -1,5 +1,12 @@
 import Foundation
 
+public protocol ProviderCookieSettings: Sendable {
+    var cookieSource: ProviderCookieSource { get }
+    var manualCookieHeader: String? { get }
+
+    init(cookieSource: ProviderCookieSource, manualCookieHeader: String?)
+}
+
 public struct ProviderSettingsSnapshot: Sendable {
     public static func make(
         debugMenuEnabled: Bool = false,
@@ -22,6 +29,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
         t3chat: T3ChatProviderSettings? = nil,
+        devin: DevinProviderSettings? = nil,
+        commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
@@ -52,6 +61,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             moonshot: moonshot,
             amp: amp,
             t3chat: t3chat,
+            devin: devin,
+            commandcode: commandcode,
             ollama: ollama,
             jetbrains: jetbrains,
             windsurf: windsurf,
@@ -68,6 +79,8 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let manualCookieHeader: String?
         public let managedAccountStoreUnreadable: Bool
         public let managedAccountTargetUnavailable: Bool
+        public let profileAccountTargetUnavailable: Bool
+        public let openAIWebCacheScope: CookieHeaderCache.Scope?
         public let dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate]
 
         public init(
@@ -76,6 +89,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             manualCookieHeader: String?,
             managedAccountStoreUnreadable: Bool = false,
             managedAccountTargetUnavailable: Bool = false,
+            profileAccountTargetUnavailable: Bool = false,
+            openAIWebCacheScope: CookieHeaderCache.Scope? = nil,
             dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate] = [])
         {
             self.usageDataSource = usageDataSource
@@ -83,6 +98,8 @@ public struct ProviderSettingsSnapshot: Sendable {
             self.manualCookieHeader = manualCookieHeader
             self.managedAccountStoreUnreadable = managedAccountStoreUnreadable
             self.managedAccountTargetUnavailable = managedAccountTargetUnavailable
+            self.profileAccountTargetUnavailable = profileAccountTargetUnavailable
+            self.openAIWebCacheScope = openAIWebCacheScope
             self.dashboardAuthorityKnownOwners = dashboardAuthorityKnownOwners
         }
     }
@@ -109,7 +126,17 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct CursorProviderSettings: Sendable {
+    public struct CookieProviderSettings: ProviderCookieSettings {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource = .auto, manualCookieHeader: String? = nil) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
+    public struct CursorProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -147,7 +174,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct AlibabaTokenPlanProviderSettings: Sendable {
+    public struct AlibabaTokenPlanProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -157,7 +184,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct FactoryProviderSettings: Sendable {
+    public struct FactoryProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -183,7 +210,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct ManusProviderSettings: Sendable {
+    public struct ManusProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -204,10 +231,25 @@ public struct ProviderSettingsSnapshot: Sendable {
     public struct CopilotProviderSettings: Sendable {
         public let apiToken: String?
         public let enterpriseHost: String?
+        public let selectedAccountExternalIdentifier: String?
+        public let budgetExtrasEnabled: Bool
+        public let budgetCookieSource: ProviderCookieSource
+        public let manualBudgetCookieHeader: String?
 
-        public init(apiToken: String? = nil, enterpriseHost: String? = nil) {
+        public init(
+            apiToken: String? = nil,
+            enterpriseHost: String? = nil,
+            selectedAccountExternalIdentifier: String? = nil,
+            budgetExtrasEnabled: Bool = false,
+            budgetCookieSource: ProviderCookieSource = .auto,
+            manualBudgetCookieHeader: String? = nil)
+        {
             self.apiToken = apiToken
             self.enterpriseHost = enterpriseHost
+            self.selectedAccountExternalIdentifier = selectedAccountExternalIdentifier
+            self.budgetExtrasEnabled = budgetExtrasEnabled
+            self.budgetCookieSource = budgetCookieSource
+            self.manualBudgetCookieHeader = manualBudgetCookieHeader
         }
     }
 
@@ -221,7 +263,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct KimiProviderSettings: Sendable {
+    public struct KimiProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -231,7 +273,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct AugmentProviderSettings: Sendable {
+    public struct AugmentProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -257,7 +299,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct AmpProviderSettings: Sendable {
+    public struct AmpProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -267,7 +309,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct T3ChatProviderSettings: Sendable {
+    public struct T3ChatProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -277,7 +319,19 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct CommandCodeProviderSettings: Sendable {
+    public struct DevinProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualBearerToken: String?
+        public let organization: String?
+
+        public init(cookieSource: ProviderCookieSource, manualBearerToken: String?, organization: String?) {
+            self.cookieSource = cookieSource
+            self.manualBearerToken = manualBearerToken
+            self.organization = organization
+        }
+    }
+
+    public struct CommandCodeProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -287,7 +341,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct OllamaProviderSettings: Sendable {
+    public struct OllamaProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -313,7 +367,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct PerplexityProviderSettings: Sendable {
+    public struct PerplexityProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -323,7 +377,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct MiMoProviderSettings: Sendable {
+    public struct MiMoProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -333,7 +387,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct AbacusProviderSettings: Sendable {
+    public struct AbacusProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -343,7 +397,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct MistralProviderSettings: Sendable {
+    public struct MistralProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
 
@@ -392,6 +446,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let moonshot: MoonshotProviderSettings?
     public let amp: AmpProviderSettings?
     public let t3chat: T3ChatProviderSettings?
+    public let devin: DevinProviderSettings?
     public let commandcode: CommandCodeProviderSettings?
     public let ollama: OllamaProviderSettings?
     public let jetbrains: JetBrainsProviderSettings?
@@ -427,6 +482,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings?,
         t3chat: T3ChatProviderSettings? = nil,
+        devin: DevinProviderSettings? = nil,
         commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings?,
         jetbrains: JetBrainsProviderSettings? = nil,
@@ -457,6 +513,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.moonshot = moonshot
         self.amp = amp
         self.t3chat = t3chat
+        self.devin = devin
         self.commandcode = commandcode
         self.ollama = ollama
         self.jetbrains = jetbrains
@@ -488,6 +545,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case moonshot(ProviderSettingsSnapshot.MoonshotProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case t3chat(ProviderSettingsSnapshot.T3ChatProviderSettings)
+    case devin(ProviderSettingsSnapshot.DevinProviderSettings)
     case commandcode(ProviderSettingsSnapshot.CommandCodeProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
@@ -520,6 +578,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var t3chat: ProviderSettingsSnapshot.T3ChatProviderSettings?
+    public var devin: ProviderSettingsSnapshot.DevinProviderSettings?
     public var commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
@@ -556,6 +615,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .moonshot(value): self.moonshot = value
         case let .amp(value): self.amp = value
         case let .t3chat(value): self.t3chat = value
+        case let .devin(value): self.devin = value
         case let .commandcode(value): self.commandcode = value
         case let .ollama(value): self.ollama = value
         case let .jetbrains(value): self.jetbrains = value
@@ -590,6 +650,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             moonshot: self.moonshot,
             amp: self.amp,
             t3chat: self.t3chat,
+            devin: self.devin,
             commandcode: self.commandcode,
             ollama: self.ollama,
             jetbrains: self.jetbrains,

@@ -68,6 +68,7 @@ enum ProviderChoice: String, AppEnum {
         case .zai: self = .zai
         case .factory: return nil // Factory not yet supported in widgets
         case .copilot: self = .copilot
+        case .devin: return nil // Devin not yet supported in widgets
         case .minimax: self = .minimax
         case .manus: return nil // Manus not yet supported in widgets
         case .vertexai: return nil // Vertex AI not yet supported in widgets
@@ -101,7 +102,11 @@ enum ProviderChoice: String, AppEnum {
         case .grok: return nil // Grok not yet supported in widgets
         case .groq: return nil // Groq not yet supported in widgets
         case .llmproxy: return nil // LLM Proxy not yet supported in widgets
+        case .litellm: return nil // LiteLLM not yet supported in widgets
         case .deepgram: return nil // Deepgram not yet supported in widgets
+        case .poe: return nil // Poe not yet supported in widgets
+        case .chutes: return nil // Chutes not yet supported in widgets
+        case .zed: return nil // Zed not yet supported in widgets
         }
     }
 }
@@ -306,8 +311,12 @@ enum WidgetPreviewData {
     }
 
     static func snapshot() -> WidgetSnapshot {
-        let primary = RateWindow(usedPercent: 35, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 4h")
-        let secondary = RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 3d")
+        let primary = RateWindow(usedPercent: 35, windowMinutes: 300, resetsAt: nil, resetDescription: "Resets in 4h")
+        let secondary = RateWindow(
+            usedPercent: 60,
+            windowMinutes: 10080,
+            resetsAt: nil,
+            resetDescription: "Resets in 3d")
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .codex,
             updatedAt: Date(),

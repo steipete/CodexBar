@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum ElevenLabsProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .elevenlabs,
@@ -33,41 +32,18 @@ public enum ElevenLabsProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ElevenLabs cost history is not available via API yet." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ElevenLabsAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "elevenlabs.api",
+                resolveToken: { ProviderTokenResolver.elevenLabsToken(environment: $0) },
+                missingCredentialsError: { ElevenLabsUsageError.missingCredentials },
+                loadUsage: { apiKey, context in
+                    try await ElevenLabsUsageFetcher.fetchUsage(
+                        apiKey: apiKey,
+                        environment: context.env).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "elevenlabs",
                 aliases: ["11labs", "eleven"],
                 versionDetector: nil))
-    }
-}
-
-struct ElevenLabsAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "elevenlabs.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw ElevenLabsUsageError.missingCredentials
-        }
-        let usage = try await ElevenLabsUsageFetcher.fetchUsage(
-            apiKey: apiKey,
-            environment: context.env)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.elevenLabsToken(environment: environment)
     }
 }

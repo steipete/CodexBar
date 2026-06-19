@@ -136,7 +136,43 @@ func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigSto
     return CodexBarConfigStore(fileURL: url)
 }
 
+@MainActor
+func testSettingsStore(
+    suiteName: String,
+    tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore()) -> SettingsStore
+{
+    let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
+    guard let defaults = UserDefaults(suiteName: isolatedSuiteName) else {
+        preconditionFailure("Could not create test defaults suite")
+    }
+    defaults.removePersistentDomain(forName: isolatedSuiteName)
+    return SettingsStore(
+        userDefaults: defaults,
+        configStore: testConfigStore(suiteName: isolatedSuiteName),
+        zaiTokenStore: NoopZaiTokenStore(),
+        syntheticTokenStore: NoopSyntheticTokenStore(),
+        codexCookieStore: InMemoryCookieHeaderStore(),
+        claudeCookieStore: InMemoryCookieHeaderStore(),
+        cursorCookieStore: InMemoryCookieHeaderStore(),
+        opencodeCookieStore: InMemoryCookieHeaderStore(),
+        factoryCookieStore: InMemoryCookieHeaderStore(),
+        minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+        minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+        kimiTokenStore: InMemoryKimiTokenStore(),
+        kimiK2TokenStore: InMemoryKimiK2TokenStore(),
+        augmentCookieStore: InMemoryCookieHeaderStore(),
+        ampCookieStore: InMemoryCookieHeaderStore(),
+        copilotTokenStore: InMemoryCopilotTokenStore(),
+        tokenAccountStore: tokenAccountStore)
+}
+
 #if os(macOS)
+@MainActor
+func testStatusBar() -> NSStatusBar {
+    // Standalone NSStatusBar instances can crash during swiftpm-testing-helper teardown.
+    .system
+}
+
 @MainActor
 @discardableResult
 func withStatusItemControllerForTesting<T>(

@@ -1,25 +1,10 @@
-import CodexBarMacroSupport
 import Foundation
 
-#if os(macOS)
-import SweetCookieKit
-#endif
-
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum MiMoProviderDescriptor {
-    static func makeDescriptor() -> ProviderDescriptor {
-        #if os(macOS)
-        let browserOrder: BrowserCookieImportOrder = [
-            .chrome,
-            .chromeBeta,
-            .chromeCanary,
-        ]
-        #else
-        let browserOrder: BrowserCookieImportOrder? = nil
-        #endif
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
-        return ProviderDescriptor(
+    static func makeDescriptor() -> ProviderDescriptor {
+        ProviderDescriptor(
             id: .mimo,
             metadata: ProviderMetadata(
                 id: .mimo,
@@ -35,7 +20,7 @@ public enum MiMoProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: browserOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.mimoCookieImportOrder,
                 dashboardURL: "https://platform.xiaomimimo.com/#/console/balance",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -47,7 +32,12 @@ public enum MiMoProviderDescriptor {
                 noDataMessage: { "Xiaomi MiMo cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MiMoWebFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    if context.sourceMode == .web {
+                        return [MiMoWebFetchStrategy()]
+                    }
+                    return [MiMoWebFetchStrategy(), MiMoLocalFetchStrategy()]
+                })),
             cli: ProviderCLIConfig(
                 name: "mimo",
                 aliases: ["xiaomi-mimo"],
@@ -64,25 +54,26 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         if context.settings?.mimo?.cookieSource == .manual {
             return Self.resolveManualCookieHeader(context: context) != nil
         }
-        if Self.resolveManualCookieHeader(context: context) != nil {
-            return true
-        }
-
-        #if os(macOS)
-        if let cached = CookieHeaderCache.load(provider: .mimo),
-           MiMoCookieHeader.normalizedHeader(from: cached.cookieHeader) != nil
-        {
-            return true
-        }
-        return MiMoCookieImporter.hasSession(browserDetection: context.browserDetection)
-        #else
-        return false
-        #endif
+        // Fetch resolves the session so missing-cookie and browser-permission errors stay actionable.
+        return true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try await self.fetchFromWeb(context)
+    }
+
+    private static func shouldFallbackToLocal(error: Error) -> Bool {
+        if error is MiMoSettingsError { return true }
+        guard let mimoError = error as? MiMoUsageError else { return false }
+        switch mimoError {
+        case .invalidCredentials, .loginRequired: return true
+        case .parseFailed, .networkError: return false
+        }
+    }
+
+    private func fetchFromWeb(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard context.settings?.mimo?.cookieSource != .off else {
-            throw MiMoSettingsError.missingCookie
+            throw MiMoSettingsError.missingCookie()
         }
         if context.settings?.mimo?.cookieSource == .manual {
             guard let manualCookie = Self.resolveManualCookieHeader(context: context) else {
@@ -123,7 +114,7 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         let sessions = try MiMoCookieImporter.importSessions(browserDetection: context.browserDetection)
         guard !sessions.isEmpty else {
             if let lastError { throw lastError }
-            throw MiMoSettingsError.missingCookie
+            throw MiMoSettingsError.missingCookie()
         }
 
         for session in sessions {
@@ -146,14 +137,14 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         }
 
         if let lastError { throw lastError }
-        throw MiMoSettingsError.missingCookie
+        throw MiMoSettingsError.missingCookie()
         #else
-        throw MiMoSettingsError.missingCookie
+        throw MiMoSettingsError.missingCookie()
         #endif
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+        Self.shouldFallbackToLocal(error: error)
     }
 
     private static func resolveManualCookieHeader(context: ProviderFetchContext) -> String? {
@@ -174,5 +165,41 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         case .networkError:
             return false
         }
+    }
+}
+
+enum MiMoLocalUsageError: LocalizedError {
+    case invalidCache(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .invalidCache(path):
+            "Xiaomi MiMo local usage cache is unreadable or malformed: \(path)"
+        }
+    }
+}
+
+struct MiMoLocalFetchStrategy: ProviderFetchStrategy {
+    let id: String = "mimo.local"
+    let kind: ProviderFetchKind = .localProbe
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        MiMoLocalUsageFallback.cacheExists(environment: context.env)
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let path = Self.cachePath(context: context)
+        guard let snapshot = MiMoLocalUsageFallback.snapshot(cachePath: path) else {
+            throw MiMoLocalUsageError.invalidCache(path)
+        }
+        return self.makeResult(usage: snapshot.toUsageSnapshot(includeBalance: false), sourceLabel: "local")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+
+    private static func cachePath(context: ProviderFetchContext) -> String {
+        MiMoLocalUsageFallback.cachePath(environment: context.env)
     }
 }

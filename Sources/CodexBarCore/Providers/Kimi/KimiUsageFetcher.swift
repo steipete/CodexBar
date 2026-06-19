@@ -9,6 +9,48 @@ public struct KimiUsageFetcher: Sendable {
     private static let usageURL =
         URL(string: "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages")!
 
+    public static func fetchCodeAPIUsage(
+        apiKey: String,
+        baseURL: URL = KimiSettingsReader.defaultCodeAPIBaseURL,
+        now: Date = Date()) async throws -> KimiUsageSnapshot
+    {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw KimiAPIError.missingAPIKey
+        }
+
+        guard let validatedBaseURL = ProviderEndpointOverrideValidator().validatedURL(baseURL.absoluteString) else {
+            throw KimiAPIError.invalidRequest("Kimi Code API base URL must use HTTPS without user info")
+        }
+
+        let endpoint = self.codeAPIUsageEndpoint(baseURL: validatedBaseURL)
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let data = response.data
+        guard response.statusCode == 200 else {
+            let responseBody = String(data: data, encoding: .utf8) ?? "<binary data>"
+            Self.log.error("Kimi Code API returned \(response.statusCode): \(responseBody)")
+            throw self.codeAPIError(statusCode: response.statusCode)
+        }
+
+        return try self.parseCodeAPIUsage(from: data, now: now)
+    }
+
+    static func _parseCodeAPIUsageForTesting(_ data: Data, now: Date = Date()) throws -> KimiUsageSnapshot {
+        try self.parseCodeAPIUsage(from: data, now: now)
+    }
+
+    static func _codeAPIUsageEndpointForTesting(baseURL: URL) -> URL {
+        self.codeAPIUsageEndpoint(baseURL: baseURL)
+    }
+
+    static func _codeAPIErrorForTesting(statusCode: Int) -> KimiAPIError {
+        self.codeAPIError(statusCode: statusCode)
+    }
+
     public static func fetchUsage(authToken: String, now: Date = Date()) async throws -> KimiUsageSnapshot {
         // Decode JWT to get session info
         let sessionInfo = self.decodeSessionInfo(from: authToken)
@@ -73,6 +115,44 @@ public struct KimiUsageFetcher: Sendable {
             weekly: codingUsage.detail,
             rateLimit: codingUsage.limits?.first?.detail,
             updatedAt: now)
+    }
+
+    private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {
+        let response = try JSONDecoder().decode(KimiCodeAPIUsageResponse.self, from: data)
+        return KimiUsageSnapshot(
+            weekly: response.usage,
+            rateLimit: response.limits?.first?.detail,
+            updatedAt: now)
+    }
+
+    private static func codeAPIUsageEndpoint(baseURL: URL) -> URL {
+        let normalizedPath = baseURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalizedPath == "coding/v1" || normalizedPath.hasSuffix("/coding/v1") {
+            return baseURL.appendingPathComponent("usages")
+        }
+        if normalizedPath == "coding" || normalizedPath.hasSuffix("/coding") {
+            return baseURL
+                .appendingPathComponent("v1")
+                .appendingPathComponent("usages")
+        }
+
+        return baseURL
+            .appendingPathComponent("coding")
+            .appendingPathComponent("v1")
+            .appendingPathComponent("usages")
+    }
+
+    private static func codeAPIError(statusCode: Int) -> KimiAPIError {
+        switch statusCode {
+        case 400:
+            .invalidRequest("Bad request")
+        case 401:
+            .invalidAPIKey
+        case 403:
+            .apiError("HTTP 403 (permission or quota denied)")
+        default:
+            .apiError("HTTP \(statusCode)")
+        }
     }
 
     private static func decodeSessionInfo(from jwt: String) -> SessionInfo? {

@@ -4,25 +4,10 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct CodexConsumerProjectionCharacterizationTests {
-    private func makeStatusBarForTesting() -> NSStatusBar {
-        let env = ProcessInfo.processInfo.environment
-        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
-            return .system
-        }
-        return NSStatusBar()
-    }
-
     private func makeSettings() -> SettingsStore {
-        let suite = "CodexConsumerProjectionCharacterizationTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
-        return SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        testSettingsStore(suiteName: "CodexConsumerProjectionCharacterizationTests")
     }
 
     private func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
@@ -87,7 +72,8 @@ struct CodexConsumerProjectionCharacterizationTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let overrideSnapshot = UsageSnapshot(
             primary: RateWindow(
@@ -139,7 +125,8 @@ struct CodexConsumerProjectionCharacterizationTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),

@@ -1,8 +1,10 @@
 import Foundation
 #if canImport(Darwin)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 
 public enum PathPurpose: Hashable, Sendable {
@@ -75,6 +77,31 @@ public enum BinaryLocator {
             "/usr/local/bin/claude",
             "/Applications/cmux.app/Contents/Resources/bin/claude",
         ]
+    }
+
+    public static func resolveAntigravityBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "agy",
+            overrideKey: "ANTIGRAVITY_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: [
+                "\(home)/.local/bin/agy",
+                "/opt/homebrew/bin/agy",
+                "/usr/local/bin/agy",
+            ],
+            fileManager: fileManager,
+            home: home)
     }
 
     public static func resolveCodexBinary(
@@ -154,6 +181,36 @@ public enum BinaryLocator {
             home: home)
     }
 
+    public static func resolveAmpBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "amp",
+            overrideKey: "AMP_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: self.ampWellKnownPaths(home: home),
+            fileManager: fileManager,
+            home: home)
+    }
+
+    static func ampWellKnownPaths(home: String) -> [String] {
+        [
+            "\(home)/.local/bin/amp",
+            "\(home)/.amp/bin/amp",
+            "/opt/homebrew/bin/amp",
+            "/usr/local/bin/amp",
+        ]
+    }
+
     /// Well-known install locations for the Grok Build CLI binary.
     /// Covers the installer's default (`~/.grok/bin/grok`) and the symlinks it sometimes
     /// creates into `~/.local/bin` and `/usr/local/bin`.
@@ -163,6 +220,37 @@ public enum BinaryLocator {
             "\(home)/.local/bin/grok",
             "/usr/local/bin/grok",
             "/opt/homebrew/bin/grok",
+        ]
+    }
+
+    public static func resolveAWSBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "aws",
+            overrideKey: "AWS_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: self.awsWellKnownPaths(home: home),
+            fileManager: fileManager,
+            home: home)
+    }
+
+    /// Well-known install locations for the AWS CLI v2 (`aws`).
+    /// Covers Homebrew (Apple Silicon + Intel) and the per-user pip/uv install path.
+    static func awsWellKnownPaths(home: String) -> [String] {
+        [
+            "/opt/homebrew/bin/aws",
+            "/usr/local/bin/aws",
+            "\(home)/.local/bin/aws",
         ]
     }
 
@@ -324,7 +412,7 @@ public enum CodexLaunchPreflight {
             return !hasQuarantine
         }
 
-        return !self.isExplicitlyBlockedAssessment(assessment)
+        return !self.isExplicitlyBlockedAssessment(assessment, path: native)
     }
 
     private static func nativeCodexExecutableCandidates(for path: String, fileManager: FileManager) -> [String] {
@@ -417,14 +505,39 @@ public enum CodexLaunchPreflight {
         return String(data: data, encoding: .utf8)
     }
 
-    private static func isExplicitlyBlockedAssessment(_ assessment: String) -> Bool {
-        let lower = assessment.lowercased()
-        return lower.contains("rejected") ||
-            lower.contains("denied") ||
+    private static func isExplicitlyBlockedAssessment(_ assessment: String, path: String) -> Bool {
+        let lower = self.assessmentDiagnosticText(assessment, path: path).lowercased()
+        if lower.contains("denied") ||
             lower.contains("cssmerr_tp_cert_revoked") ||
             lower.contains("revoked") ||
             lower.contains("malware") ||
             lower.contains("quarantine")
+        {
+            return true
+        }
+        if lower.contains("rejected") {
+            return !lower.contains("code is valid but does not seem to be an app")
+        }
+        return false
+    }
+
+    private static func assessmentDiagnosticText(_ assessment: String, path: String) -> String {
+        assessment
+            .split(whereSeparator: \.isNewline)
+            .enumerated()
+            .compactMap { offset, line -> String? in
+                var text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if offset == 0, text.hasPrefix("\(path):") {
+                    text = String(text.dropFirst(path.count + 1))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                let lower = text.lowercased()
+                guard !lower.hasPrefix("source="), !lower.hasPrefix("origin=") else {
+                    return nil
+                }
+                return text
+            }
+            .joined(separator: "\n")
     }
     #endif
 }
@@ -549,7 +662,7 @@ public enum ShellCommandLocator {
         // Build file actions: redirect stdin from /dev/null, dup pipe write ends to
         // fds 1 and 2, and close every pipe fd in the child.  The init pattern
         // differs between platforms because the typedef is an opaque pointer on
-        // Darwin and a struct on Glibc.
+        // Darwin and a struct on Linux C modules.
         #if canImport(Darwin)
         var fileActions: posix_spawn_file_actions_t?
         #else
@@ -849,9 +962,11 @@ public enum PathBuilder {
 }
 
 enum LoginShellPathCapturer {
+    static let defaultTimeout: TimeInterval = 6.0
+
     static func capture(
         shell: String? = ProcessInfo.processInfo.environment["SHELL"],
-        timeout: TimeInterval = 2.0) -> [String]?
+        timeout: TimeInterval = Self.defaultTimeout) -> [String]?
     {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
         let isCI = ["1", "true"].contains(ProcessInfo.processInfo.environment["CI"]?.lowercased())
@@ -888,9 +1003,14 @@ public final class LoginShellPathCache: @unchecked Sendable {
     public static let shared = LoginShellPathCache()
 
     private let lock = NSLock()
+    private let capture: @Sendable (String?, TimeInterval) -> [String]?
     private var captured: [String]?
     private var isCapturing = false
     private var callbacks: [([String]?) -> Void] = []
+
+    init(capture: @escaping @Sendable (String?, TimeInterval) -> [String]? = LoginShellPathCapturer.capture) {
+        self.capture = capture
+    }
 
     public var current: [String]? {
         self.lock.lock()
@@ -901,7 +1021,7 @@ public final class LoginShellPathCache: @unchecked Sendable {
 
     public func captureOnce(
         shell: String? = ProcessInfo.processInfo.environment["SHELL"],
-        timeout: TimeInterval = 2.0,
+        timeout: TimeInterval = 6.0,
         onFinish: (([String]?) -> Void)? = nil)
     {
         self.lock.lock()
@@ -923,8 +1043,9 @@ public final class LoginShellPathCache: @unchecked Sendable {
         self.isCapturing = true
         self.lock.unlock()
 
+        let capture = self.capture
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let result = LoginShellPathCapturer.capture(shell: shell, timeout: timeout)
+            let result = capture(shell, timeout)
             guard let self else { return }
 
             self.lock.lock()
@@ -936,5 +1057,43 @@ public final class LoginShellPathCache: @unchecked Sendable {
 
             callbacks.forEach { $0(result) }
         }
+    }
+
+    public func currentOrCapture(
+        shell: String? = ProcessInfo.processInfo.environment["SHELL"],
+        timeout: TimeInterval = 6.0) -> [String]?
+    {
+        self.lock.lock()
+        if let captured {
+            self.lock.unlock()
+            return captured
+        }
+
+        if self.isCapturing {
+            let semaphore = DispatchSemaphore(value: 0)
+            var callbackResult: [String]?
+            self.callbacks.append { result in
+                callbackResult = result
+                semaphore.signal()
+            }
+            self.lock.unlock()
+            let deadline = DispatchTime.now() + timeout
+            _ = semaphore.wait(timeout: deadline)
+            return callbackResult ?? self.current
+        }
+
+        self.isCapturing = true
+        self.lock.unlock()
+
+        let result = self.capture(shell, timeout)
+        self.lock.lock()
+        self.captured = result
+        self.isCapturing = false
+        let callbacks = self.callbacks
+        self.callbacks.removeAll()
+        self.lock.unlock()
+
+        callbacks.forEach { $0(result) }
+        return result
     }
 }

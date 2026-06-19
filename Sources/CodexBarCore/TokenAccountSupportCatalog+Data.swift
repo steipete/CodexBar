@@ -8,7 +8,8 @@ extension TokenAccountSupportCatalog {
             placeholder: "sk-admin-...",
             injection: .environment(key: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey),
             requiresManualCookieSource: false,
-            cookieName: nil),
+            cookieName: nil,
+            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]),
         .claude: TokenAccountSupport(
             title: "Claude credentials",
             subtitle: "Store Claude sessionKey cookies, OAuth tokens, or Anthropic Admin API keys.",
@@ -140,6 +141,13 @@ extension TokenAccountSupportCatalog {
             subtitle: "Store multiple LLM Proxy API keys.",
             placeholder: "Paste proxy API key…",
             injection: .environment(key: LLMProxySettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
+        .litellm: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple LiteLLM API keys.",
+            placeholder: "Paste LiteLLM API key…",
+            injection: .environment(key: LiteLLMSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
         .stepfun: TokenAccountSupport(

@@ -1,7 +1,9 @@
 #if canImport(Darwin)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 import Foundation
 
@@ -299,6 +301,13 @@ actor CodexCLISession {
             baseEnv: options.environment,
             home: options.environment["HOME"] ?? NSHomeDirectory())
         proc.environment = env
+
+        guard TTYCommandRunner.beginActiveProcessLaunchForAppShutdown() else {
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+            throw SessionError.launchFailed("App shutdown in progress")
+        }
+        defer { TTYCommandRunner.endActiveProcessLaunchForAppShutdown() }
 
         do {
             try proc.run()

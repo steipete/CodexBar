@@ -811,10 +811,11 @@ enum CodexHistoricalPaceEvaluator {
             let weights = weightedWeeks.map(\.weight)
             let historicalMedian = Self.weightedMedian(values: values, weights: weights)
             let linearBaseline = 100 * u
+            // Historical demand can exceed a sustainable quota pace. Never call that excess a reserve.
             expectedCurve[index] = Self.clamp(
                 (lambda * historicalMedian) + ((1 - lambda) * linearBaseline),
                 lower: 0,
-                upper: 100)
+                upper: linearBaseline)
         }
 
         // Expected cumulative usage should be monotone.
@@ -831,17 +832,30 @@ enum CodexHistoricalPaceEvaluator {
         crossingCandidates.reserveCapacity(weightedWeeks.count)
 
         for weighted in weightedWeeks {
-            let week = weighted.week
+            var extendedCurve = weighted.week.curve
+            if let capIndex = extendedCurve.firstIndex(where: { $0 >= 100 - Self.epsilon }),
+               capIndex > 0, capIndex < extendedCurve.count - 1
+            {
+                let gridCount = CodexHistoricalDataset.gridPointCount
+                let uCap = Double(capIndex) / Double(gridCount - 1)
+                let valCap = extendedCurve[capIndex]
+                let slope: Double = valCap / uCap
+                for i in capIndex..<extendedCurve.count {
+                    let u = Double(i) / Double(gridCount - 1)
+                    extendedCurve[i] = slope * u
+                }
+            }
+
             let weight = weighted.weight
-            let weekNow = Self.interpolate(curve: week.curve, at: uNow)
+            let weekNow = Self.interpolate(curve: extendedCurve, at: uNow)
             let shift = actual - weekNow
-            let shiftedEnd = Self.clamp((week.curve.last ?? 0) + shift, lower: 0, upper: 100)
+            let shiftedEnd = (extendedCurve.last ?? 0) + shift
             let runOut = shiftedEnd >= 100 - Self.epsilon
             if runOut {
                 weightedRunOutMass += weight
                 if let crossingU = Self.firstCrossing(
                     after: uNow,
-                    curve: week.curve,
+                    curve: extendedCurve,
                     shift: shift,
                     actualAtNow: actual)
                 {
@@ -855,12 +869,16 @@ enum CodexHistoricalPaceEvaluator {
             (weightedRunOutMass + 0.5) / (totalWeight + 1),
             lower: 0,
             upper: 1)
-        let runOutProbability: Double? = scopedWeeks.count >= Self.minimumWeeksForRisk ? smoothedProbability : nil
+        var runOutProbability: Double? = scopedWeeks.count >= Self.minimumWeeksForRisk ? smoothedProbability : nil
 
         var willLastToReset = smoothedProbability < 0.5
         var etaSeconds: TimeInterval?
 
-        if !willLastToReset {
+        if actual >= 100 {
+            willLastToReset = false
+            etaSeconds = 0
+            runOutProbability = 1
+        } else if !willLastToReset {
             let values = crossingCandidates.map(\.etaSeconds)
             let weights = crossingCandidates.map(\.weight)
             if values.isEmpty {

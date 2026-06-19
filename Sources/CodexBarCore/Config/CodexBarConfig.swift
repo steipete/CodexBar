@@ -22,6 +22,27 @@ public struct CodexBarConfig: Codable, Sendable {
         return CodexBarConfig(version: Self.currentVersion, providers: providers)
     }
 
+    /// Alphabetical provider ordering with enabled providers on top: enabled first, then disabled,
+    /// each group sorted case-insensitively by display name. Used by the Providers settings pane's
+    /// alphabetical sort toggle; it never mutates the user's stored manual order.
+    public static func alphabeticalProviderOrder(
+        metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata,
+        enablement: (UsageProvider) -> Bool) -> [UsageProvider]
+    {
+        UsageProvider.allCases.sorted { lhs, rhs in
+            let lhsEnabled = enablement(lhs)
+            let rhsEnabled = enablement(rhs)
+            if lhsEnabled != rhsEnabled { return lhsEnabled }
+            let lhsName = metadata[lhs]?.displayName ?? lhs.rawValue
+            let rhsName = metadata[rhs]?.displayName ?? rhs.rawValue
+            switch lhsName.localizedCaseInsensitiveCompare(rhsName) {
+            case .orderedAscending: return true
+            case .orderedDescending: return false
+            case .orderedSame: return lhs.rawValue < rhs.rawValue
+            }
+        }
+    }
+
     public func normalized(
         metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) -> CodexBarConfig
     {
@@ -86,9 +107,12 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var enterpriseHost: String?
     public var tokenAccounts: ProviderTokenAccountData?
     public var codexActiveSource: CodexActiveSource?
+    public var codexProfileHomePaths: [String]?
     public var quotaWarnings: QuotaWarningConfig?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
+    public var awsProfile: String?
+    public var awsAuthMode: String?
 
     public init(
         id: UsageProvider,
@@ -104,9 +128,12 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         enterpriseHost: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
         codexActiveSource: CodexActiveSource? = nil,
+        codexProfileHomePaths: [String]? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
         kiloKnownOrganizations: [KiloOrganization]? = nil,
-        kiloEnabledOrganizationIDs: [String]? = nil)
+        kiloEnabledOrganizationIDs: [String]? = nil,
+        awsProfile: String? = nil,
+        awsAuthMode: String? = nil)
     {
         self.id = id
         self.enabled = enabled
@@ -121,9 +148,12 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.enterpriseHost = enterpriseHost
         self.tokenAccounts = tokenAccounts
         self.codexActiveSource = codexActiveSource
+        self.codexProfileHomePaths = codexProfileHomePaths
         self.quotaWarnings = quotaWarnings
         self.kiloKnownOrganizations = kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = kiloEnabledOrganizationIDs
+        self.awsProfile = awsProfile
+        self.awsAuthMode = awsAuthMode
     }
 
     public var sanitizedAPIKey: String? {
@@ -150,6 +180,14 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         Self.clean(self.enterpriseHost)
     }
 
+    public var sanitizedAWSProfile: String? {
+        Self.clean(self.awsProfile)
+    }
+
+    public var sanitizedAWSAuthMode: String? {
+        Self.clean(self.awsAuthMode)
+    }
+
     private static func clean(_ raw: String?) -> String? {
         guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
             return nil
@@ -157,8 +195,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
             (value.hasPrefix("'") && value.hasSuffix("'"))
         {
-            value.removeFirst()
-            value.removeLast()
+            value = String(value.dropFirst().dropLast())
         }
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value

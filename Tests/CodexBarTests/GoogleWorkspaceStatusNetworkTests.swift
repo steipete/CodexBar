@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Testing
 @testable import CodexBar
 
@@ -40,5 +41,30 @@ struct GoogleWorkspaceStatusNetworkTests {
         let requests = await transport.requests()
         #expect(requests.count == 1)
         #expect(requests.first?.url?.host == "www.google.com")
+    }
+
+    @Test
+    func `fetchWorkspaceStatus decodes off the main thread when called from the main actor`() async throws {
+        // The incidents feed can run to hundreds of kilobytes; decoding it on the main
+        // actor stalls the UI for 150-340ms per Google-status provider per refresh (#1399).
+        let decodedOffMainThread = OSAllocatedUnfairLock(initialState: false)
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            return (Data("[]".utf8), response)
+        }
+
+        let status = try await UsageStore.fetchWorkspaceStatus(
+            productID: "npdyhgECDJ6tB66MxXyo",
+            transport: transport,
+            beforeDecoding: {
+                decodedOffMainThread.withLock { $0 = !Thread.isMainThread }
+            })
+
+        #expect(status.indicator == .none)
+        #expect(decodedOffMainThread.withLock { $0 })
     }
 }

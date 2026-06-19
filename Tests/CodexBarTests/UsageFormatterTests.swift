@@ -3,17 +3,138 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@Suite(.serialized)
 struct UsageFormatterTests {
+    private static let usageFormatterLocalizationKeys: [String] = [
+        "%@ left",
+        "Resets %@",
+        "Resets in %@",
+        "Resets now",
+        "reset_tomorrow_format",
+        "Updated %@",
+        "Updated %@h ago",
+        "Updated %@m ago",
+        "Updated just now",
+        "usage_percent_suffix_left",
+        "usage_percent_suffix_used",
+        "byte_unit_byte",
+        "byte_unit_bytes",
+        "byte_unit_kilobyte",
+        "byte_unit_kilobytes",
+        "byte_unit_megabyte",
+        "byte_unit_megabytes",
+        "byte_unit_gigabyte",
+        "byte_unit_gigabytes",
+    ]
+
     @Test
     func `formats usage line`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
         let line = UsageFormatter.usageLine(remaining: 25, used: 75, showUsed: false)
         #expect(line == "25% left")
     }
 
     @Test
     func `formats usage line show used`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
         let line = UsageFormatter.usageLine(remaining: 25, used: 75, showUsed: true)
         #expect(line == "75% used")
+    }
+
+    @Test
+    func `usage line respects injected localization provider`() {
+        UsageFormatter.setLocalizationProvider { key in
+            switch key {
+            case "usage_percent_suffix_left": "剩余"
+            case "usage_percent_suffix_used": "已使用"
+            default: key
+            }
+        }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        #expect(UsageFormatter.usageLine(remaining: 22, used: 78, showUsed: false) == "22% 剩余")
+        #expect(UsageFormatter.usageLine(remaining: 22, used: 78, showUsed: true) == "78% 已使用")
+    }
+
+    @Test
+    func `default locale fallback matches stable en US POSIX behavior`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
+
+        let now = Date(timeIntervalSince1970: 1_710_048_000)
+        let old = now.addingTimeInterval(-(26 * 3600))
+
+        let defaultOutput = UsageFormatter.updatedString(from: old, now: now)
+        UsageFormatter.setLocaleProvider { Locale(identifier: "en_US_POSIX") }
+        let injectedStableOutput = UsageFormatter.updatedString(from: old, now: now)
+        UsageFormatter.clearLocaleProvider()
+
+        #expect(defaultOutput == injectedStableOutput)
+    }
+
+    @Test
+    func `injected zh Hans locale applies app language formatting`() {
+        UsageFormatter.setLocalizationProvider { key in
+            switch key {
+            case "Updated %@":
+                "更新于 %@"
+            default:
+                key
+            }
+        }
+        UsageFormatter.setLocaleProvider { Locale(identifier: "zh-Hans") }
+        defer {
+            UsageFormatter.clearLocalizationProvider()
+            UsageFormatter.clearLocaleProvider()
+        }
+
+        let now = Date(timeIntervalSince1970: 1_710_048_000)
+        let old = now.addingTimeInterval(-(26 * 3600))
+        let output = UsageFormatter.updatedString(from: old, now: now)
+
+        #expect(output.hasPrefix("更新于 "))
+    }
+
+    @Test
+    func `clearing locale provider returns to stable default behavior`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
+
+        let now = Date(timeIntervalSince1970: 1_710_048_000)
+        let old = now.addingTimeInterval(-(26 * 3600))
+        let baseline = UsageFormatter.updatedString(from: old, now: now)
+
+        UsageFormatter.setLocaleProvider { Locale(identifier: "fr_FR") }
+        _ = UsageFormatter.updatedString(from: old, now: now)
+        UsageFormatter.clearLocaleProvider()
+
+        let restored = UsageFormatter.updatedString(from: old, now: now)
+        #expect(restored == baseline)
+    }
+
+    @Test
+    func `tomorrow reset description uses localized format`() throws {
+        UsageFormatter.setLocalizationProvider { key in
+            key == "reset_tomorrow_format" ? "明日 %@" : key
+        }
+        UsageFormatter.setLocaleProvider { Locale(identifier: "ja_JP") }
+        defer {
+            UsageFormatter.clearLocalizationProvider()
+            UsageFormatter.clearLocaleProvider()
+        }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_750_000_000))
+        let now = try #require(calendar.date(byAdding: .hour, value: 12, to: today))
+        let tomorrow = try #require(calendar.date(byAdding: .day, value: 1, to: today))
+        let reset = try #require(calendar.date(byAdding: .minute, value: 10 * 60 + 50, to: tomorrow))
+
+        let output = UsageFormatter.resetDescription(from: reset, now: now)
+        #expect(output.hasPrefix("明日 "))
+        #expect(!output.contains("tomorrow"))
+        #expect(!output.contains("%@"))
     }
 
     @Test
@@ -21,11 +142,9 @@ struct UsageFormatterTests {
         let now = Date()
         let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
         let text = UsageFormatter.updatedString(from: fiveHoursAgo, now: now)
-        #expect(text.hasPrefix("Updated "))
-        // Output must stay in English regardless of the host system locale,
-        // matching the surrounding hardcoded English UI labels.
+        #expect(text.hasPrefix("Updated ") || text.hasPrefix("更新"))
         #expect(text.contains("5"))
-        #expect(text.lowercased().contains("ago"))
+        #expect(text.lowercased().contains("ago") || text.contains("前"))
     }
 
     @Test
@@ -117,6 +236,13 @@ struct UsageFormatterTests {
             UsageFormatter.modelCostDetail("gpt-5.3-codex-spark", costUSD: 0, totalTokens: 1500)
                 == "Research Preview · 1.5K")
         #expect(UsageFormatter.modelCostDetail("custom-model", costUSD: nil, totalTokens: 987) == "987")
+    }
+
+    @Test
+    func `token count string formats small values without grouping`() {
+        #expect(UsageFormatter.tokenCountString(0) == "0")
+        #expect(UsageFormatter.tokenCountString(987) == "987")
+        #expect(UsageFormatter.tokenCountString(-42) == "-42")
     }
 
     @Test
@@ -233,5 +359,64 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.byteCountString(10 * 1024) == "10 KB")
         #expect(UsageFormatter.byteCountString(5 * 1024 * 1024) == "5 MB")
         #expect(UsageFormatter.byteCountString(Int64(1536 * 1024 * 1024)) == "1.5 GB")
+        #expect(UsageFormatter.byteCountString(.min) == "-8589934592 GB")
+    }
+
+    @Test
+    func `long byte count string localizes units and handles boundaries`() {
+        UsageFormatter.clearLocalizationProvider()
+        #expect(UsageFormatter.byteCountStringLong(1024 * 1024) == "1 megabyte")
+
+        UsageFormatter.setLocalizationProvider { "[\($0)]" }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        #expect(UsageFormatter.byteCountStringLong(1) == "1 [byte_unit_byte]")
+        #expect(UsageFormatter.byteCountStringLong(2) == "2 [byte_unit_bytes]")
+        #expect(UsageFormatter.byteCountStringLong(1536) == "1.5 [byte_unit_kilobytes]")
+        #expect(UsageFormatter.byteCountStringLong(1024 * 1024) == "1 [byte_unit_megabyte]")
+        #expect(UsageFormatter.byteCountStringLong(1024 * 1024 + 1) == "1.0 [byte_unit_megabyte]")
+        #expect(UsageFormatter.byteCountStringLong(.min) == "-8589934592 [byte_unit_gigabytes]")
+    }
+
+    @Test
+    func `usage formatter localization keys exist in en and zh Hans with matching placeholders`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let enURL = root.appendingPathComponent("Sources/CodexBar/Resources/en.lproj/Localizable.strings")
+        let zhURL = root.appendingPathComponent("Sources/CodexBar/Resources/zh-Hans.lproj/Localizable.strings")
+
+        let en = try Self.readStringsTable(at: enURL)
+        let zh = try Self.readStringsTable(at: zhURL)
+
+        for key in Self.usageFormatterLocalizationKeys {
+            let enValue = try #require(en[key], "Missing en key: \(key)")
+            let zhValue = try #require(zh[key], "Missing zh-Hans key: \(key)")
+            #expect(
+                Self.placeholderTokens(in: enValue) == Self.placeholderTokens(in: zhValue),
+                "Placeholder mismatch for key '\(key)': en='\(enValue)' zh='\(zhValue)'")
+        }
+    }
+
+    private static func readStringsTable(at url: URL) throws -> [String: String] {
+        guard let dict = NSDictionary(contentsOf: url) as? [String: String] else {
+            throw NSError(
+                domain: "UsageFormatterTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to parse strings file at \(url.path)"])
+        }
+        return dict
+    }
+
+    private static func placeholderTokens(in value: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "%(?:\\d+\\$)?[@dDuUxXfFeEgGcCsSpaA]") else {
+            return []
+        }
+        let nsRange = NSRange(value.startIndex..<value.endIndex, in: value)
+        return regex
+            .matches(in: value, options: [], range: nsRange)
+            .compactMap { Range($0.range, in: value).map { String(value[$0]) } }
     }
 }

@@ -70,8 +70,8 @@
     "id": "google-vertex-anthropic",
     "name": "Vertex (Anthropic)",
     "models": {
-      "claude-sonnet-4-6@default": {
-        "id": "claude-sonnet-4-6@default",
+      "claude-sonnet-4-6": {
+        "id": "claude-sonnet-4-6",
         "name": "Claude Sonnet 4.6",
         "cost": {
           "input": 3.1,

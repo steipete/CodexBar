@@ -112,6 +112,31 @@ struct CodexActiveSourceConfigTests {
     }
 
     @Test
+    func `provider config encodes profile home source in downgrade readable envelope`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    codexActiveSource: .profileHome(path: "/Users/test/.codex-work"),
+                    codexProfileHomePaths: ["/Users/test/.codex-work"]),
+            ])
+
+        let data = try JSONEncoder().encode(config)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let providers = try #require(object?["providers"] as? [[String: Any]])
+        let provider = try #require(providers.first(where: { $0["id"] as? String == "codex" }))
+        let activeSource = try #require(provider["codexActiveSource"] as? [String: Any])
+
+        #expect(activeSource.count == 2)
+        #expect(activeSource["kind"] as? String == "liveSystem")
+        #expect(activeSource["homePath"] as? String == "/Users/test/.codex-work")
+        #expect(provider["codexProfileHomePaths"] as? [String] == ["/Users/test/.codex-work"])
+
+        let releasedConfig = try JSONDecoder().decode(ReleasedCodexBarConfig.self, from: data)
+        #expect(releasedConfig.providers.first?.codexActiveSource == .liveSystem)
+    }
+
+    @Test
     func `provider config round trips live system active source`() throws {
         let config = CodexBarConfig(
             providers: [
@@ -140,5 +165,78 @@ struct CodexActiveSourceConfigTests {
         let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
 
         #expect(decoded.providerConfig(for: .codex)?.codexActiveSource == .managedAccount(id: accountID))
+    }
+
+    @Test
+    func `provider config round trips profile home active source`() throws {
+        let config = CodexBarConfig(
+            providers: [
+                ProviderConfig(
+                    id: .codex,
+                    codexActiveSource: .profileHome(path: "/Users/test/.codex-work"),
+                    codexProfileHomePaths: ["/Users/test/.codex-work"]),
+            ])
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(CodexBarConfig.self, from: data)
+        let providerConfig = decoded.providerConfig(for: .codex)
+
+        #expect(providerConfig?.codexActiveSource == .profileHome(path: "/Users/test/.codex-work"))
+        #expect(providerConfig?.codexProfileHomePaths == ["/Users/test/.codex-work"])
+    }
+
+    @Test
+    func `profile home discriminator written by development builds still decodes`() throws {
+        let data = Data(#"{"kind":"profileHome","homePath":"/Users/test/.codex-work"}"#.utf8)
+
+        let decoded = try JSONDecoder().decode(CodexActiveSource.self, from: data)
+        let canonicalData = try JSONEncoder().encode(decoded)
+        let canonical = try #require(JSONSerialization.jsonObject(with: canonicalData) as? [String: Any])
+
+        #expect(decoded == .profileHome(path: "/Users/test/.codex-work"))
+        #expect(canonical["kind"] as? String == "liveSystem")
+        #expect(canonical["homePath"] as? String == "/Users/test/.codex-work")
+    }
+
+    @Test
+    func `blank profile home sentinel falls back to live system`() throws {
+        let data = Data(#"{"kind":"liveSystem","homePath":"  "}"#.utf8)
+
+        let decoded = try JSONDecoder().decode(CodexActiveSource.self, from: data)
+
+        #expect(decoded == .liveSystem)
+    }
+}
+
+private struct ReleasedCodexBarConfig: Decodable {
+    let providers: [ReleasedProviderConfig]
+}
+
+private struct ReleasedProviderConfig: Decodable {
+    let codexActiveSource: ReleasedCodexActiveSource?
+}
+
+private enum ReleasedCodexActiveSource: Decodable, Equatable {
+    case liveSystem
+    case managedAccount(id: UUID)
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case accountID
+    }
+
+    private enum Kind: String, Decodable {
+        case liveSystem
+        case managedAccount
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(Kind.self, forKey: .kind) {
+        case .liveSystem:
+            self = .liveSystem
+        case .managedAccount:
+            self = try .managedAccount(id: container.decode(UUID.self, forKey: .accountID))
+        }
     }
 }

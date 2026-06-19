@@ -29,6 +29,14 @@ public enum MiniMaxAuthMode: Sendable {
         self != .apiToken
     }
 
+    public var description: String {
+        switch self {
+        case .apiToken: "apiToken"
+        case .cookie: "cookie"
+        case .none: "none"
+        }
+    }
+
     private static func cleaned(_ raw: String?) -> String? {
         guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty

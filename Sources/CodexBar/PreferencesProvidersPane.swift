@@ -16,10 +16,23 @@ struct ProvidersPane: View {
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var codexAccountsNotice: CodexAccountsSectionNotice?
     @State private var isAuthenticatingLiveCodexAccount = false
+    @State private var providerSearchText = ""
     @State private var selectedProvider: UsageProvider?
 
     private var providers: [UsageProvider] {
-        self.settings.orderedProviders()
+        guard self.settings.providersSortedAlphabetically else {
+            return self.settings.orderedProviders()
+        }
+        return CodexBarConfig.alphabeticalProviderOrder(enablement: { provider in
+            self.settings.isProviderEnabled(provider: provider, metadata: self.store.metadata(for: provider))
+        })
+    }
+
+    private var filteredProviders: [UsageProvider] {
+        Self.filteredProviders(
+            self.providers,
+            query: self.providerSearchText,
+            displayName: { provider in self.store.metadata(for: provider).displayName })
     }
 
     init(
@@ -45,16 +58,21 @@ struct ProvidersPane: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             ProviderSidebarListView(
-                providers: self.providers,
+                providers: self.filteredProviders,
+                orderedProviders: self.providers,
                 store: self.store,
                 isEnabled: { provider in self.binding(for: provider) },
-                subtitle: { provider in self.providerSubtitle(provider) },
+                subtitle: { provider in self.providerSidebarSubtitle(provider) },
+                searchText: self.$providerSearchText,
                 selection: self.$selectedProvider,
+                sortAlphabetically: Binding(
+                    get: { self.settings.providersSortedAlphabetically },
+                    set: { self.settings.providersSortedAlphabetically = $0 }),
                 moveProviders: { fromOffsets, toOffset in
-                    self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
+                    self.moveProviders(fromOffsets: fromOffsets, toOffset: toOffset)
                 })
 
-            if let provider = self.selectedProvider ?? self.providers.first {
+            if let provider = self.selectedVisibleProvider {
                 ProviderDetailView(
                     provider: provider,
                     store: self.store,
@@ -116,6 +134,9 @@ struct ProvidersPane: View {
         .onChange(of: self.providers) { _, _ in
             self.ensureSelection()
         }
+        .onChange(of: self.providerSearchText) { _, _ in
+            self.ensureSelection()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             self.runSettingsDidBecomeActiveHooks()
         }
@@ -142,15 +163,43 @@ struct ProvidersPane: View {
             })
     }
 
+    private var selectedVisibleProvider: UsageProvider? {
+        let filteredProviders = self.filteredProviders
+        if let selected = self.selectedProvider, filteredProviders.contains(selected) {
+            return selected
+        }
+        return filteredProviders.first
+    }
+
+    static func filteredProviders(
+        _ providers: [UsageProvider],
+        query: String,
+        displayName: (UsageProvider) -> String) -> [UsageProvider]
+    {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return providers }
+
+        return providers.filter { provider in
+            displayName(provider).localizedCaseInsensitiveContains(trimmedQuery)
+                || provider.rawValue.localizedCaseInsensitiveContains(trimmedQuery)
+        }
+    }
+
+    func moveProviders(fromOffsets: IndexSet, toOffset: Int) {
+        guard !self.settings.providersSortedAlphabetically else { return }
+        self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
+    }
+
     private func ensureSelection() {
-        guard !self.providers.isEmpty else {
+        let filteredProviders = self.filteredProviders
+        guard !filteredProviders.isEmpty else {
             self.selectedProvider = nil
             return
         }
-        if let selected = self.selectedProvider, self.providers.contains(selected) {
+        if let selected = self.selectedProvider, filteredProviders.contains(selected) {
             return
         }
-        self.selectedProvider = self.providers.first
+        self.selectedProvider = filteredProviders.first
     }
 
     private func triggerRefresh(for provider: UsageProvider) {
@@ -195,6 +244,27 @@ struct ProvidersPane: View {
             .presentation(context: presentationContext)
             ?? ProviderPresentation(detailLine: ProviderPresentation.standardDetailLine)
         let detailLine = presentation.detailLine(presentationContext)
+
+        return "\(detailLine)\n\(usageText)"
+    }
+
+    func providerSidebarSubtitle(_ provider: UsageProvider) -> String {
+        let meta = self.store.metadata(for: provider)
+        let usageText: String = if let snapshot = self.store.snapshot(for: provider) {
+            snapshot.updatedAt.relativeDescription()
+        } else if self.store.isStale(provider: provider) {
+            L("last_fetch_failed")
+        } else {
+            L("usage_not_fetched_yet")
+        }
+
+        let detailLine: String = if let sourceLabel = self.store.lastSourceLabels[provider], !sourceLabel.isEmpty {
+            sourceLabel
+        } else if let version = self.store.version(for: provider), !version.isEmpty {
+            "\(meta.cliName) \(version)"
+        } else {
+            meta.cliName
+        }
 
         return "\(detailLine)\n\(usageText)"
     }
@@ -486,10 +556,33 @@ struct ProvidersPane: View {
                     id: MenuBarMetricPreference.primary.rawValue,
                     title: L("primary_api_key_limit")),
             ]
+        } else if provider == .mistral {
+            options = [
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.automatic.rawValue,
+                    title: L("metric_mistral_payg")),
+                ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.monthlyPlan.rawValue,
+                    title: L("metric_mistral_monthly_plan")),
+            ]
         } else if SettingsStore.isBalanceOnlyProvider(provider) {
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("Automatic")),
             ]
+        } else if provider == .mimo {
+            let snapshot = self.store.snapshot(for: provider)
+            var metricOptions = [
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("automatic")),
+            ]
+            if snapshot?.primary != nil, snapshot?.mimoUsage != nil {
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.primary.rawValue,
+                    title: String(format: L("metric_primary"), L("Credits"))))
+                metricOptions.append(ProviderSettingsPickerOption(
+                    id: MenuBarMetricPreference.secondary.rawValue,
+                    title: String(format: L("metric_secondary"), L("Balance"))))
+            }
+            options = metricOptions
         } else if provider == .abacus {
             let metadata = self.store.metadata(for: provider)
             options = [
@@ -586,7 +679,7 @@ struct ProvidersPane: View {
             dashboardError = codexProjection.userFacingErrors.dashboard
             tokenSnapshot = self.store.tokenSnapshot(for: provider)
             tokenError = self.store.tokenError(for: provider)
-        } else if provider == .claude || provider == .vertexai {
+        } else if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost {
             credits = nil
             creditsError = nil
             dashboard = nil
@@ -631,12 +724,14 @@ struct ProvidersPane: View {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
             quotaWarningThresholds: [
                 .session: self.quotaWarningMarkerThresholds(provider: provider, window: .session),
                 .weekly: self.quotaWarningMarkerThresholds(provider: provider, window: .weekly),
             ],
+            workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             now: now)
         return UsageMenuCardView.Model.make(input)
     }
@@ -667,17 +762,7 @@ struct ProvidersPane: View {
         }
 
         if let error = error as? ManagedCodexAccountServiceError {
-            let message = switch error {
-            case .loginFailed:
-                L("managed_login_failed")
-            case .missingEmail:
-                L("managed_login_missing_email")
-            case .workspaceSelectionCancelled:
-                L("workspace_selection_cancelled")
-            case let .unsafeManagedHome(path):
-                String(format: L("unsafe_managed_home"), path)
-            }
-            return CodexAccountsSectionNotice(text: message, tone: .warning)
+            return CodexAccountsSectionNotice(text: error.userFacingMessage, tone: .warning)
         }
 
         return CodexAccountsSectionNotice(
@@ -687,8 +772,8 @@ struct ProvidersPane: View {
 
     private func presentLoginAlert(title: String, message: String) {
         let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
+        alert.messageText = L(title)
+        alert.informativeText = L(message)
         alert.alertStyle = .warning
         alert.runModal()
     }
@@ -753,9 +838,9 @@ struct ProviderSettingsConfirmationState: Identifiable {
     }
 
     init(confirmation: ProviderSettingsConfirmation) {
-        self.title = confirmation.title
-        self.message = confirmation.message
-        self.confirmTitle = confirmation.confirmTitle
+        self.title = L(confirmation.title)
+        self.message = L(confirmation.message)
+        self.confirmTitle = L(confirmation.confirmTitle)
         self.onConfirm = confirmation.onConfirm
     }
 }

@@ -26,36 +26,10 @@ extension SettingsStore {
 extension SettingsStore {
     func abacusSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .AbacusProviderSettings {
-        ProviderSettingsSnapshot.AbacusProviderSettings(
-            cookieSource: self.abacusSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.abacusSnapshotCookieHeader(tokenOverride: tokenOverride))
-    }
-
-    private func abacusSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.abacusCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .abacus),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        self.resolvedCookieSettings(
             provider: .abacus,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func abacusSnapshotCookieSource(tokenOverride _: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.abacusCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .abacus),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .abacus).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.abacusCookieSource,
+            configuredHeader: self.abacusCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

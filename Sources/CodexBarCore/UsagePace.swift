@@ -40,7 +40,9 @@ public struct UsagePace: Sendable {
     public static func weekly(
         window: RateWindow,
         now: Date = .init(),
-        defaultWindowMinutes: Int = 10080) -> UsagePace?
+        defaultWindowMinutes: Int = 10080,
+        workDays: Int? = nil,
+        calendar: Calendar = .current) -> UsagePace?
     {
         guard let resetsAt = window.resetsAt else { return nil }
         let minutes = window.windowMinutes ?? defaultWindowMinutes
@@ -51,7 +53,20 @@ public struct UsagePace: Sendable {
         guard timeUntilReset > 0 else { return nil }
         guard timeUntilReset <= duration else { return nil }
         let elapsed = (duration - timeUntilReset).clamped(to: 0...duration)
-        let expected = ((elapsed / duration) * 100).clamped(to: 0...100)
+        let workdayProgress: WorkdayProgress? = if let workDays, workDays >= 2, workDays < 7,
+                                                   minutes == 10080
+        {
+            Self.workdayProgress(
+                now: now,
+                duration: duration,
+                resetsAt: resetsAt,
+                workDays: workDays,
+                calendar: calendar)
+        } else {
+            nil
+        }
+        let expected = workdayProgress?.expectedUsedPercent
+            ?? ((elapsed / duration) * 100).clamped(to: 0...100)
         let actual = window.usedPercent.clamped(to: 0...100)
         if elapsed == 0, actual > 0 {
             return nil
@@ -62,18 +77,29 @@ public struct UsagePace: Sendable {
         var etaSeconds: TimeInterval?
         var willLastToReset = false
 
-        if elapsed > 0, actual > 0 {
-            let rate = actual / elapsed
+        let paceElapsed = workdayProgress?.elapsedSeconds ?? elapsed
+        if actual >= 100 {
+            etaSeconds = 0
+        } else if paceElapsed > 0, actual > 0 {
+            let rate = actual / paceElapsed
             if rate > 0 {
-                let remaining = max(0, 100 - actual)
+                let remaining = 100 - actual
                 let candidate = remaining / rate
-                if candidate >= timeUntilReset {
+                let effectiveTimeUntilReset = workdayProgress?.remainingSeconds ?? timeUntilReset
+                if candidate >= effectiveTimeUntilReset {
                     willLastToReset = true
+                } else if let workDays = workdayProgress?.workDays {
+                    etaSeconds = Self.wallClockInterval(
+                        from: now,
+                        to: resetsAt,
+                        consumingWorkSeconds: candidate,
+                        workDays: workDays,
+                        calendar: calendar)
                 } else {
                     etaSeconds = candidate
                 }
             }
-        } else if elapsed > 0, actual == 0 {
+        } else if paceElapsed > 0, actual == 0 {
             willLastToReset = true
         }
 
@@ -105,6 +131,101 @@ public struct UsagePace: Sendable {
             etaSeconds: etaSeconds,
             willLastToReset: willLastToReset,
             runOutProbability: runOutProbability)
+    }
+
+    private struct WorkdayProgress {
+        let workDays: Int
+        let totalSeconds: TimeInterval
+        let elapsedSeconds: TimeInterval
+        let remainingSeconds: TimeInterval
+
+        var expectedUsedPercent: Double {
+            ((self.elapsedSeconds / self.totalSeconds) * 100).clamped(to: 0...100)
+        }
+    }
+
+    /// Splits the weekly window at local day boundaries so reset offsets do not shift weekday classification.
+    private static func workdayProgress(
+        now: Date,
+        duration: TimeInterval,
+        resetsAt: Date,
+        workDays: Int,
+        calendar: Calendar) -> WorkdayProgress?
+    {
+        let windowStart = resetsAt.addingTimeInterval(-duration)
+
+        var totalWorkSeconds: TimeInterval = 0
+        var elapsedWorkSeconds: TimeInterval = 0
+        var remainingWorkSeconds: TimeInterval = 0
+
+        var cursor = windowStart
+        while cursor < resetsAt {
+            guard let startOfNextDay = Self.nextDayBoundary(after: cursor, calendar: calendar),
+                  startOfNextDay > cursor
+            else {
+                return nil
+            }
+            let sliceEnd = min(startOfNextDay, resetsAt)
+
+            if Self.isWorkday(cursor, calendar: calendar, workDays: workDays) {
+                let sliceDuration = sliceEnd.timeIntervalSince(cursor)
+                totalWorkSeconds += sliceDuration
+                if now > cursor {
+                    elapsedWorkSeconds += min(now, sliceEnd).timeIntervalSince(cursor)
+                }
+                if now < sliceEnd {
+                    remainingWorkSeconds += sliceEnd.timeIntervalSince(max(now, cursor))
+                }
+            }
+            cursor = sliceEnd
+        }
+
+        guard totalWorkSeconds > 0 else { return nil }
+        return WorkdayProgress(
+            workDays: workDays,
+            totalSeconds: totalWorkSeconds,
+            elapsedSeconds: elapsedWorkSeconds,
+            remainingSeconds: remainingWorkSeconds)
+    }
+
+    private static func wallClockInterval(
+        from now: Date,
+        to resetsAt: Date,
+        consumingWorkSeconds requiredWorkSeconds: TimeInterval,
+        workDays: Int,
+        calendar: Calendar) -> TimeInterval?
+    {
+        guard requiredWorkSeconds > 0 else { return 0 }
+
+        var remaining = requiredWorkSeconds
+        var cursor = now
+        while cursor < resetsAt {
+            guard let startOfNextDay = Self.nextDayBoundary(after: cursor, calendar: calendar),
+                  startOfNextDay > cursor
+            else {
+                return nil
+            }
+            let sliceEnd = min(startOfNextDay, resetsAt)
+            if Self.isWorkday(cursor, calendar: calendar, workDays: workDays) {
+                let available = sliceEnd.timeIntervalSince(cursor)
+                if remaining <= available {
+                    return cursor.addingTimeInterval(remaining).timeIntervalSince(now)
+                }
+                remaining -= available
+            }
+            cursor = sliceEnd
+        }
+        return nil
+    }
+
+    private static func nextDayBoundary(after date: Date, calendar: Calendar) -> Date? {
+        calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))
+    }
+
+    private static func isWorkday(_ date: Date, calendar: Calendar, workDays: Int) -> Bool {
+        let weekday = calendar.component(.weekday, from: date)
+        let isoWeekday = weekday == 1 ? 7 : weekday - 1
+        return isoWeekday <= workDays
     }
 
     private static func stage(for delta: Double) -> Stage {

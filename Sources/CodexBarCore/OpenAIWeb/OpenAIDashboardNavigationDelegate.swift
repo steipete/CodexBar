@@ -29,6 +29,10 @@ final class NavigationDelegate: NSObject, WKNavigationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
+    func cancel() {
+        self.completeOnce(.failure(CancellationError()))
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         self.completeOnce(.success(()))
     }

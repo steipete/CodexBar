@@ -28,36 +28,10 @@ extension SettingsStore {
 extension SettingsStore {
     func commandcodeSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .CommandCodeProviderSettings {
-        ProviderSettingsSnapshot.CommandCodeProviderSettings(
-            cookieSource: self.commandcodeSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.commandcodeSnapshotCookieHeader(tokenOverride: tokenOverride))
-    }
-
-    private func commandcodeSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.commandcodeCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .commandcode),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        self.resolvedCookieSettings(
             provider: .commandcode,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func commandcodeSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.commandcodeCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .commandcode),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .commandcode).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.commandcodeCookieSource,
+            configuredHeader: self.commandcodeCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

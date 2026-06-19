@@ -35,6 +35,7 @@ enum IconRenderer {
         let stale: Bool
         let style: Int
         let indicator: Int
+        let hideCritters: Bool
     }
 
     private final class IconCacheStore: @unchecked Sendable {
@@ -118,7 +119,8 @@ enum IconRenderer {
         blink: CGFloat = 0,
         wiggle: CGFloat = 0,
         tilt: CGFloat = 0,
-        statusIndicator: ProviderStatusIndicator = .none) -> NSImage
+        statusIndicator: ProviderStatusIndicator = .none,
+        hideCritters: Bool = false) -> NSImage
     {
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
         let render = {
@@ -655,17 +657,25 @@ enum IconRenderer {
                 // Warp special case: when no bonus or bonus exhausted, show "top monthly, bottom dimmed"
                 let warpNoBonus = style == .warp && !weeklyAvailable
 
+                // "Hide critters" renders plain meter bars: suppress all face/decoration twists.
+                let twistFace = !hideCritters && style == .codex
+                let twistNotches = !hideCritters && style == .claude
+                let twistGemini = !hideCritters && (style == .gemini || style == .antigravity)
+                let twistAntigravity = !hideCritters && style == .antigravity
+                let twistFactory = !hideCritters && style == .factory
+                let twistWarp = !hideCritters && style == .warp
+
                 if weeklyAvailable {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
                     drawBar(
                         rectPx: topRectPx,
                         remaining: topValue,
-                        addNotches: style == .claude,
-                        addFace: style == .codex,
-                        addGeminiTwist: style == .gemini || style == .antigravity,
-                        addAntigravityTwist: style == .antigravity,
-                        addFactoryTwist: style == .factory,
-                        addWarpTwist: style == .warp,
+                        addNotches: twistNotches,
+                        addFace: twistFace,
+                        addGeminiTwist: twistGemini,
+                        addAntigravityTwist: twistAntigravity,
+                        addFactoryTwist: twistFactory,
+                        addWarpTwist: twistWarp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
                 } else if !hasWeekly || warpNoBonus {
@@ -674,7 +684,7 @@ enum IconRenderer {
                         drawBar(
                             rectPx: topRectPx,
                             remaining: topValue,
-                            addWarpTwist: true,
+                            addWarpTwist: twistWarp,
                             blink: blink)
                         drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                     } else {
@@ -686,24 +696,24 @@ enum IconRenderer {
                                 rectPx: creditsRectPx,
                                 remaining: ratio,
                                 alpha: creditsAlpha,
-                                addNotches: style == .claude,
-                                addFace: style == .codex,
-                                addGeminiTwist: style == .gemini || style == .antigravity,
-                                addAntigravityTwist: style == .antigravity,
-                                addFactoryTwist: style == .factory,
-                                addWarpTwist: style == .warp,
+                                addNotches: twistNotches,
+                                addFace: twistFace,
+                                addGeminiTwist: twistGemini,
+                                addAntigravityTwist: twistAntigravity,
+                                addFactoryTwist: twistFactory,
+                                addWarpTwist: twistWarp,
                                 blink: blink)
                             drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
                         } else {
                             drawBar(
                                 rectPx: topRectPx,
                                 remaining: topValue,
-                                addNotches: style == .claude,
-                                addFace: style == .codex,
-                                addGeminiTwist: style == .gemini || style == .antigravity,
-                                addAntigravityTwist: style == .antigravity,
-                                addFactoryTwist: style == .factory,
-                                addWarpTwist: style == .warp,
+                                addNotches: twistNotches,
+                                addFace: twistFace,
+                                addGeminiTwist: twistGemini,
+                                addAntigravityTwist: twistAntigravity,
+                                addFactoryTwist: twistFactory,
+                                addWarpTwist: twistWarp,
                                 blink: blink)
                             drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                         }
@@ -715,24 +725,24 @@ enum IconRenderer {
                             rectPx: creditsRectPx,
                             remaining: ratio,
                             alpha: creditsAlpha,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
-                            addWarpTwist: style == .warp,
+                            addNotches: twistNotches,
+                            addFace: twistFace,
+                            addGeminiTwist: twistGemini,
+                            addAntigravityTwist: twistAntigravity,
+                            addFactoryTwist: twistFactory,
+                            addWarpTwist: twistWarp,
                             blink: blink)
                     } else {
                         // No credits available; fall back to 5h if present.
                         drawBar(
                             rectPx: topRectPx,
                             remaining: topValue,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
-                            addWarpTwist: style == .warp,
+                            addNotches: twistNotches,
+                            addFace: twistFace,
+                            addGeminiTwist: twistGemini,
+                            addAntigravityTwist: twistAntigravity,
+                            addFactoryTwist: twistFactory,
+                            addWarpTwist: twistWarp,
                             blink: blink)
                     }
                     drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)
@@ -749,7 +759,8 @@ enum IconRenderer {
                 credits: self.quantizedCredits(creditsRemaining),
                 stale: stale,
                 style: self.styleKey(style),
-                indicator: self.indicatorKey(statusIndicator))
+                indicator: self.indicatorKey(statusIndicator),
+                hideCritters: hideCritters)
             if let cached = self.cachedIcon(for: key) {
                 return cached
             }
@@ -764,14 +775,14 @@ enum IconRenderer {
     // swiftlint:enable function_body_length
 
     /// Morph helper: unbraids a simplified knot into our bar icon.
-    static func makeMorphIcon(progress: Double, style: IconStyle) -> NSImage {
+    static func makeMorphIcon(progress: Double, style: IconStyle, hideCritters: Bool = false) -> NSImage {
         let clamped = max(0, min(progress, 1))
-        let key = self.morphCacheKey(progress: clamped, style: style)
+        let key = self.morphCacheKey(progress: clamped, style: style, hideCritters: hideCritters)
         if let cached = self.morphCache.image(for: key) {
             return cached
         }
         let image = self.renderImage {
-            self.drawUnbraidMorph(t: clamped, style: style)
+            self.drawUnbraidMorph(t: clamped, style: style, hideCritters: hideCritters)
         }
         self.morphCache.set(image, for: key)
         return image
@@ -811,9 +822,9 @@ enum IconRenderer {
         }
     }
 
-    private static func morphCacheKey(progress: Double, style: IconStyle) -> NSNumber {
+    private static func morphCacheKey(progress: Double, style: IconStyle, hideCritters: Bool) -> NSNumber {
         let bucket = Int((progress * Double(self.morphBucketCount)).rounded())
-        let key = self.styleKey(style) * 1000 + bucket
+        let key = (hideCritters ? 1_000_000 : 0) + self.styleKey(style) * 1000 + bucket
         return NSNumber(value: key)
     }
 
@@ -825,7 +836,7 @@ enum IconRenderer {
         self.iconCacheStore.storeIcon(image, for: key, limit: self.iconCacheLimit)
     }
 
-    private static func drawUnbraidMorph(t: Double, style: IconStyle) {
+    private static func drawUnbraidMorph(t: Double, style: IconStyle, hideCritters: Bool) {
         let t = CGFloat(max(0, min(t, 1)))
         let size = Self.baseSize
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -903,7 +914,8 @@ enum IconRenderer {
                 weeklyRemaining: 100,
                 creditsRemaining: nil,
                 stale: false,
-                style: style)
+                style: style,
+                hideCritters: hideCritters)
             bars.draw(in: CGRect(origin: .zero, size: size), from: .zero, operation: .sourceOver, fraction: barT)
         }
     }
@@ -944,6 +956,8 @@ enum IconRenderer {
                 y: 2,
                 width: size,
                 height: size)
+            Self.clearStatusOverlayHalo(
+                NSBezierPath(ovalIn: rect.insetBy(dx: -1, dy: -1)))
             let path = NSBezierPath(ovalIn: rect)
             color.setFill()
             path.fill()
@@ -953,19 +967,33 @@ enum IconRenderer {
                 y: 4,
                 width: 2.0,
                 height: 6)
-            let linePath = NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1)
-            color.setFill()
-            linePath.fill()
-
             let dotRect = Self.snapRect(
                 x: Self.baseSize.width - 6,
                 y: 2,
                 width: 2.0,
                 height: 2.0)
+
+            let haloRect = lineRect.union(dotRect).insetBy(dx: -1, dy: -1)
+            Self.clearStatusOverlayHalo(
+                NSBezierPath(roundedRect: haloRect, xRadius: 2, yRadius: 2))
+
+            let linePath = NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1)
+            color.setFill()
+            linePath.fill()
             NSBezierPath(ovalIn: dotRect).fill()
         case .none:
             break
         }
+    }
+
+    private static func clearStatusOverlayHalo(_ path: NSBezierPath) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        ctx.saveGState()
+        ctx.setBlendMode(.clear)
+        // The fill color is ignored by .clear; it only drives the path fill operation.
+        NSColor.black.setFill()
+        path.fill()
+        ctx.restoreGState()
     }
 
     private static func withScaledContext(_ draw: () -> Void) {

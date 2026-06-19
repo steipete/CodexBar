@@ -61,4 +61,36 @@ struct OpenAIWebAccountSwitchTests {
         store.handleOpenAIWebTargetEmailChangeIfNeeded(targetEmail: "a@example.com")
         #expect(store.openAIDashboard == dash)
     }
+
+    @Test
+    func `clears dashboard when profile source changes with the same email`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-profile-source"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        store.handleOpenAIWebTargetEmailChangeIfNeeded(
+            targetEmail: "shared@example.com",
+            targetScope: .profileHome("/tmp/codex-profile-a"))
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "shared@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+
+        store.handleOpenAIWebTargetEmailChangeIfNeeded(
+            targetEmail: "shared@example.com",
+            targetScope: .profileHome("/tmp/codex-profile-b"))
+
+        #expect(store.openAIDashboard == nil)
+        #expect(store.openAIWebAccountDidChange)
+        #expect(store.openAIDashboardRequiresLogin)
+    }
 }

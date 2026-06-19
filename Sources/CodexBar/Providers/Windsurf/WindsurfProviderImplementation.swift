@@ -1,9 +1,7 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct WindsurfProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .windsurf
 

@@ -29,6 +29,16 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
+    func `background interaction keeps real keychain cache available for no UI reads writes and deletes`() {
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            ProviderInteractionContext.$current.withValue(.background) {
+                #expect(KeychainCacheStore.canUseRealKeychainForTesting == true)
+                #expect(KeychainCacheStore.canEnumerateOrDeleteRealKeychainForTesting == true)
+            }
+        }
+    }
+
+    @Test
     func `stores and loads entry`() {
         KeychainCacheStore.setTestStoreForTesting(true)
         defer { KeychainCacheStore.setTestStoreForTesting(false) }
@@ -144,6 +154,14 @@ struct KeychainCacheStoreTests {
         case .found, .missing, .invalid:
             #expect(Bool(false), "Expected temporary keychain lock to be retry-later")
         }
+    }
+
+    @Test
+    func `delete interaction not allowed is non fatal`() {
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        #expect(KeychainCacheStore.clearResultForKeychainDeleteStatus(
+            errSecInteractionNotAllowed,
+            key: key) == .failed)
     }
 
     @Test

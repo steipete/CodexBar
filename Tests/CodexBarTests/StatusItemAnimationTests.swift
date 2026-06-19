@@ -907,8 +907,7 @@ struct StatusItemAnimationTests {
             percentWindow: percentWindow,
             showUsed: true)
 
-        #expect(pace == nil)
-        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(pace == "40%")
         #expect(both == "40%")
     }
 
@@ -927,9 +926,106 @@ struct StatusItemAnimationTests {
             pace: nil,
             showUsed: true)
 
-        #expect(pace == nil)
-        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(pace == "40%")
         #expect(both == "40%")
+    }
+
+    @Test
+    func `claude primary menu bar metric computes pace from selected session window`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-primary-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 80,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(24 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        #expect(displayText == "20% · +60%")
+    }
+
+    @Test
+    func `codex menu bar pace does not fall back to session when weekly projection is unavailable`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-no-weekly-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 80,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "20%")
     }
 
     @Test

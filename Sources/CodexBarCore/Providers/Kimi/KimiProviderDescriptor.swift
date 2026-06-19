@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum KimiProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .kimi,
@@ -32,12 +31,64 @@ public enum KimiProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Kimi cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [KimiWebFetchStrategy()] })),
+                sourceModes: [.auto, .api, .web],
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "kimi",
                 aliases: ["kimi-ai"],
                 versionDetector: nil))
+    }
+
+    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        switch context.sourceMode {
+        case .api:
+            [KimiAPIFetchStrategy()]
+        case .web:
+            [KimiWebFetchStrategy()]
+        case .auto:
+            [KimiAPIFetchStrategy(), KimiWebFetchStrategy()]
+        case .cli, .oauth:
+            []
+        }
+    }
+}
+
+struct KimiAPIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "kimi.api"
+    let kind: ProviderFetchKind = .apiToken
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        context.sourceMode == .api || Self.resolveToken(environment: context.env) != nil
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        guard let apiKey = Self.resolveToken(environment: context.env) else {
+            throw KimiAPIError.missingAPIKey
+        }
+        let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
+        let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
+            apiKey: apiKey,
+            baseURL: baseURL)
+        return self.makeResult(
+            usage: snapshot.toUsageSnapshot(),
+            sourceLabel: "api")
+    }
+
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
+        if error is CancellationError { return false }
+        if let urlError = error as? URLError {
+            return urlError.code != .cancelled
+        }
+        if case KimiAPIError.missingAPIKey = error { return true }
+        if case KimiAPIError.invalidAPIKey = error { return true }
+        if case KimiAPIError.apiError = error { return true }
+        if error is DecodingError { return true }
+        return false
+    }
+
+    private static func resolveToken(environment: [String: String]) -> String? {
+        ProviderTokenResolver.kimiAPIToken(environment: environment)
     }
 }
 

@@ -14,15 +14,19 @@ public struct AlibabaTokenPlanSettingsReader: Sendable {
     public static func hostOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.hostKey])
+        guard let raw = self.cleaned(environment[self.hostKey]) else { return nil }
+        if let scheme = URL(string: raw)?.scheme {
+            return scheme.lowercased() == "https" ? raw : nil
+        }
+        return raw
     }
 
     public static func quotaURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         guard let raw = self.cleaned(environment[self.quotaURLKey]) else { return nil }
-        if let url = URL(string: raw), url.scheme != nil {
-            return url
+        if let url = URL(string: raw), let scheme = url.scheme {
+            return scheme.lowercased() == "https" ? url : nil
         }
         return URL(string: "https://\(raw)")
     }
@@ -34,8 +38,7 @@ public struct AlibabaTokenPlanSettingsReader: Sendable {
         if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
             (value.hasPrefix("'") && value.hasSuffix("'"))
         {
-            value.removeFirst()
-            value.removeLast()
+            value = String(value.dropFirst().dropLast())
         }
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value

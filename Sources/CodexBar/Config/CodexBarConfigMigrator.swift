@@ -54,12 +54,18 @@ struct CodexBarConfigMigrator {
             self.migrateLegacyAccounts(stores: stores, config: &config, state: &state)
         }
 
+        var didPersistUpdates = true
         if state.didUpdate {
             do {
                 try configStore.save(config)
             } catch {
+                didPersistUpdates = false
                 log.error("Failed to persist config: \(error)")
             }
+        }
+
+        guard didPersistUpdates else {
+            return config.normalized()
         }
 
         if state.sawLegacySecrets || state.sawLegacyAccounts {

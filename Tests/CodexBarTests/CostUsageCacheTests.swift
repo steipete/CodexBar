@@ -4,14 +4,16 @@ import Testing
 
 struct CostUsageCacheTests {
     @Test
-    func `cache file URL uses codex specific artifact version`() {
+    func `cache file URL uses provider artifact versions`() {
         let root = URL(fileURLWithPath: "/tmp/codexbar-cost-cache", isDirectory: true)
 
         let codexURL = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: root)
         let claudeURL = CostUsageCacheIO.cacheFileURL(provider: .claude, cacheRoot: root)
+        let vertexURL = CostUsageCacheIO.cacheFileURL(provider: .vertexai, cacheRoot: root)
 
         #expect(codexURL.lastPathComponent == "codex-v8.json")
-        #expect(claudeURL.lastPathComponent == "claude-v2.json")
+        #expect(claudeURL.lastPathComponent == "claude-v4.json")
+        #expect(vertexURL.lastPathComponent == "vertexai-v4.json")
     }
 
     @Test
@@ -76,6 +78,26 @@ struct CostUsageCacheTests {
 
         #expect(loaded.lastScanUnixMs == 0)
         #expect(loaded.days.isEmpty)
+    }
+
+    @Test
+    func `current codex cache accepts parser compatible 0_33 producer`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var cache = CostUsageCache()
+        cache.lastScanUnixMs = 123
+        cache.days = ["2026-05-18": ["gpt-5.5": [1, 2, 3]]]
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: "codex:cu:p3c27f997569eb3c5")
+
+        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+
+        #expect(loaded.lastScanUnixMs == 123)
+        #expect(loaded.days["2026-05-18"]?["gpt-5.5"] == [1, 2, 3])
     }
 
     @Test

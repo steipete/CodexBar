@@ -129,8 +129,26 @@ public enum MiMoCookieImporter {
             return try override(browserDetection, logger)
         }
 
+        return try self.importSessions(
+            browserDetection: browserDetection,
+            logger: logger,
+            loadRecords: { browserSource, query, log in
+                try Self.cookieClient.codexBarRecords(
+                    matching: query,
+                    in: browserSource,
+                    logger: log)
+            })
+    }
+
+    static func importSessions(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil,
+        loadRecords: (Browser, BrowserCookieQuery, ((String) -> Void)?) throws
+            -> [BrowserCookieStoreRecords]) throws -> [SessionInfo]
+    {
         let log: (String) -> Void = { msg in logger?("[mimo-cookie] \(msg)") }
         var sessions: [SessionInfo] = []
+        var accessDeniedHints: [String] = []
         let installed = miMoCookieImportOrder.cookieImportCandidates(using: browserDetection)
         let labels = installed.map(\.displayName).joined(separator: ", ")
         log("Cookie import candidates: \(labels)")
@@ -138,17 +156,24 @@ public enum MiMoCookieImporter {
         for browserSource in installed {
             do {
                 let query = BrowserCookieQuery(domains: self.cookieDomains)
-                let sources = try Self.cookieClient.records(
-                    matching: query,
-                    in: browserSource,
-                    logger: log)
+                let sources = try loadRecords(browserSource, query, log)
                 sessions.append(contentsOf: self.sessionInfos(from: sources, origin: query.origin))
+            } catch let error as BrowserCookieError {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                if let hint = error.accessDeniedHint {
+                    accessDeniedHints.append(hint)
+                }
+                log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             } catch {
                 BrowserCookieAccessGate.recordIfNeeded(error)
                 log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             }
         }
 
+        if sessions.isEmpty, !accessDeniedHints.isEmpty {
+            let details = Array(Set(accessDeniedHints)).sorted().joined(separator: " ")
+            throw MiMoSettingsError.missingCookie(details: details)
+        }
         return sessions
     }
 

@@ -126,6 +126,93 @@ struct CodexAccountReconciliationTests {
 
     @Test
     @MainActor
+    func `settings store can reuse short lived codex reconciliation snapshot`() throws {
+        let suite = "CodexAccountReconciliationTests-short-lived-cache"
+        let settings = try Self.makeSettings(suite: suite)
+        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        try Self.writeCodexAuthFile(homeURL: ambientHome, email: "cached@example.com", plan: "pro")
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": ambientHome.path]
+        SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = 60
+        defer {
+            SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = nil
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: ambientHome)
+        }
+
+        let first = settings.codexAccountReconciliationSnapshot
+        try FileManager.default.removeItem(at: ambientHome)
+        let cached = settings.codexAccountReconciliationSnapshot
+        settings.invalidateCodexAccountReconciliationSnapshotCache()
+        let refreshed = settings.codexAccountReconciliationSnapshot
+
+        #expect(first.liveSystemAccount?.email == "cached@example.com")
+        #expect(cached.liveSystemAccount?.email == "cached@example.com")
+        #expect(refreshed.liveSystemAccount == nil)
+    }
+
+    @Test
+    @MainActor
+    func `codex active source write invalidates short lived reconciliation snapshot`() throws {
+        let suite = "CodexAccountReconciliationTests-active-source-cache-invalidation"
+        let settings = try Self.makeSettings(suite: suite)
+        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true)
+        try Self.writeCodexAuthFile(homeURL: ambientHome, email: "before@example.com", plan: "pro")
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": ambientHome.path]
+        SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = 60
+        defer {
+            SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = nil
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: ambientHome)
+        }
+
+        #expect(settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email == "before@example.com")
+        try Self.writeCodexAuthFile(homeURL: ambientHome, email: "after@example.com", plan: "pro")
+        settings.codexActiveSource = .liveSystem
+
+        #expect(settings.codexAccountReconciliationSnapshot.liveSystemAccount?.email == "after@example.com")
+    }
+
+    @Test
+    @MainActor
+    func `managed account changes invalidate short lived reconciliation snapshot`() throws {
+        let suite = "CodexAccountReconciliationTests-managed-change-cache-invalidation"
+        let settings = try Self.makeSettings(suite: suite)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-store-\(UUID().uuidString).json")
+        try Self.writeManagedCodexStore(
+            ManagedCodexAccountSet(version: FileManagedCodexAccountStore.currentVersion, accounts: []),
+            to: storeURL)
+        let stored = ManagedCodexAccount(
+            id: UUID(),
+            email: "stored@example.com",
+            managedHomePath: "/tmp/stored-managed-home",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .managedAccount(id: stored.id)
+        SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = 60
+        defer {
+            SettingsStore.codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting = nil
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+
+        #expect(settings.codexAccountReconciliationSnapshot.storedAccounts.isEmpty)
+        try Self.writeManagedCodexStore(
+            ManagedCodexAccountSet(version: FileManagedCodexAccountStore.currentVersion, accounts: [stored]),
+            to: storeURL)
+        settings.refreshCodexAccountReconciliationAfterManagedAccountsDidChange()
+
+        #expect(settings.codexAccountReconciliationSnapshot.storedAccounts.map(\.id) == [stored.id])
+    }
+
+    @Test
+    @MainActor
     func `settings store home path override also keeps reconciliation hermetic`() throws {
         let suite = "CodexAccountReconciliationTests-home-path-only"
         let settings = try Self.makeSettings(suite: suite)

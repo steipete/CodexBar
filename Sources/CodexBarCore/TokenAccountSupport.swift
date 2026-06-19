@@ -12,6 +12,7 @@ public struct TokenAccountSupport: Sendable {
     public let injection: TokenAccountInjection
     public let requiresManualCookieSource: Bool
     public let cookieName: String?
+    public let environmentKeysToScrub: [String]
 
     public init(
         title: String,
@@ -19,7 +20,8 @@ public struct TokenAccountSupport: Sendable {
         placeholder: String,
         injection: TokenAccountInjection,
         requiresManualCookieSource: Bool,
-        cookieName: String?)
+        cookieName: String?,
+        environmentKeysToScrub: [String] = [])
     {
         self.title = title
         self.subtitle = subtitle
@@ -27,6 +29,7 @@ public struct TokenAccountSupport: Sendable {
         self.injection = injection
         self.requiresManualCookieSource = requiresManualCookieSource
         self.cookieName = cookieName
+        self.environmentKeysToScrub = environmentKeysToScrub
     }
 }
 
@@ -66,6 +69,9 @@ public enum TokenAccountSupportCatalog {
         switch support.injection {
         case let .environment(key):
             environment.removeValue(forKey: key)
+            for key in support.environmentKeysToScrub {
+                environment.removeValue(forKey: key)
+            }
         case .cookieHeader:
             guard provider == .claude else { return }
             environment.removeValue(forKey: ClaudeOAuthCredentialsStore.environmentTokenKey)

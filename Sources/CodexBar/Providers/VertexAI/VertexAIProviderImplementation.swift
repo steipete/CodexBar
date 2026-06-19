@@ -1,8 +1,6 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct VertexAIProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .vertexai
     let supportsLoginFlow: Bool = true

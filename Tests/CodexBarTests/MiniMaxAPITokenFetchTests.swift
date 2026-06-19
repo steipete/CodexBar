@@ -49,9 +49,16 @@ struct MiniMaxAPITokenFetchTests {
             session: Self.makeSession())
 
         #expect(snapshot.planName == "Max")
-        #expect(MiniMaxAPITokenStubURLProtocol.requests.count == 2)
-        #expect(MiniMaxAPITokenStubURLProtocol.requests.first?.url?.host == "api.minimax.io")
-        #expect(MiniMaxAPITokenStubURLProtocol.requests.last?.url?.host == "api.minimaxi.com")
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.host } == [
+            "api.minimax.io",
+            "api.minimax.io",
+            "api.minimaxi.com",
+        ])
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.path } == [
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+            "/v1/token_plan/remains",
+        ])
     }
 
     @Test
@@ -83,9 +90,49 @@ struct MiniMaxAPITokenFetchTests {
                 session: Self.makeSession())
         }
 
-        #expect(MiniMaxAPITokenStubURLProtocol.requests.count == 2)
-        #expect(MiniMaxAPITokenStubURLProtocol.requests.first?.url?.host == "api.minimax.io")
-        #expect(MiniMaxAPITokenStubURLProtocol.requests.last?.url?.host == "api.minimaxi.com")
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.host } == [
+            "api.minimax.io",
+            "api.minimax.io",
+            "api.minimaxi.com",
+            "api.minimaxi.com",
+        ])
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.path } == [
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+        ])
+    }
+
+    @Test
+    func `explicit china region preserves structured invalid credentials across legacy fallback`() async throws {
+        defer {
+            MiniMaxAPITokenStubURLProtocol.handler = nil
+            MiniMaxAPITokenStubURLProtocol.requests = []
+        }
+        MiniMaxAPITokenStubURLProtocol.requests = []
+
+        MiniMaxAPITokenStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/v1/token_plan/remains" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"{"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}"#)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        await #expect(throws: MiniMaxUsageError.invalidCredentials) {
+            _ = try await MiniMaxUsageFetcher.fetchUsage(
+                apiToken: "sk-cp-test",
+                region: .chinaMainland,
+                session: Self.makeSession())
+        }
+
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.path } == [
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+        ])
     }
 
     @Test

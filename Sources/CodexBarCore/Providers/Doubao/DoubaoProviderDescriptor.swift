@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum DoubaoProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .doubao,
@@ -31,39 +30,16 @@ public enum DoubaoProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Doubao cost summary is not available." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [DoubaoAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "doubao.api",
+                resolveToken: { ProviderTokenResolver.doubaoToken(environment: $0) },
+                missingCredentialsError: { DoubaoUsageError.missingCredentials },
+                loadUsage: { apiKey, _ in
+                    try await DoubaoUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "doubao",
                 aliases: ["volcengine", "ark", "bytedance"],
                 versionDetector: nil))
-    }
-}
-
-struct DoubaoAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "doubao.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw DoubaoUsageError.missingCredentials
-        }
-        let usage = try await DoubaoUsageFetcher.fetchUsage(apiKey: apiKey)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.doubaoToken(environment: environment)
     }
 }

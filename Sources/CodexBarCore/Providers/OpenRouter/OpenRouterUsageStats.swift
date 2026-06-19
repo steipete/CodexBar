@@ -225,6 +225,7 @@ public struct OpenRouterUsageFetcher: Sendable {
         guard !apiKey.isEmpty else {
             throw OpenRouterUsageError.invalidCredentials
         }
+        try OpenRouterSettingsReader.validateEndpointOverrides(environment: environment)
 
         let baseURL = OpenRouterSettingsReader.apiURL(environment: environment)
         let creditsURL = baseURL.appendingPathComponent("credits")
@@ -259,7 +260,7 @@ public struct OpenRouterUsageFetcher: Sendable {
 
             // Optionally fetch key quota/rate-limit info from /key endpoint, but keep this bounded so
             // credits updates are not blocked by a slow or unavailable secondary endpoint.
-            let keyFetch = await fetchKeyData(
+            let keyFetch = try await fetchKeyData(
                 apiKey: apiKey,
                 baseURL: baseURL,
                 timeoutSeconds: Self.rateLimitTimeoutSeconds)
@@ -277,6 +278,8 @@ public struct OpenRouterUsageFetcher: Sendable {
                 keyUsageMonthly: keyFetch.data?.usageMonthly,
                 rateLimit: keyFetch.data?.rateLimit,
                 updatedAt: Date())
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as DecodingError {
             Self.log.error("OpenRouter JSON decoding error: \(error.localizedDescription)")
             throw OpenRouterUsageError.parseFailed(error.localizedDescription)
@@ -297,37 +300,47 @@ public struct OpenRouterUsageFetcher: Sendable {
     private static func fetchKeyData(
         apiKey: String,
         baseURL: URL,
-        timeoutSeconds: TimeInterval) async -> OpenRouterKeyFetchResult
+        timeoutSeconds: TimeInterval) async throws -> OpenRouterKeyFetchResult
     {
         let timeout = max(0.1, timeoutSeconds)
-        let timeoutNanoseconds = UInt64(timeout * 1_000_000_000)
+        return try await self.boundedKeyFetch(timeout: .seconds(timeout)) {
+            await Self.fetchKeyDataRequest(
+                apiKey: apiKey,
+                baseURL: baseURL,
+                timeoutSeconds: timeout)
+        }
+    }
 
-        return await withTaskGroup(of: OpenRouterKeyFetchResult.self) { group in
-            group.addTask {
-                await Self.fetchKeyDataRequest(
-                    apiKey: apiKey,
-                    baseURL: baseURL,
-                    timeoutSeconds: timeout)
-            }
-            group.addTask {
-                do {
-                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
-                } catch {
-                    // Cancelled because the /key request finished first.
-                    return OpenRouterKeyFetchResult(data: nil, fetched: false)
-                }
-                guard !Task.isCancelled else {
-                    return OpenRouterKeyFetchResult(data: nil, fetched: false)
-                }
-                Self.log.debug("OpenRouter /key enrichment timed out after \(timeout)s")
-                return OpenRouterKeyFetchResult(data: nil, fetched: false)
-            }
+    static func _boundedKeyFetchForTesting(
+        timeout: Duration,
+        operation: @escaping @Sendable () async -> Void) async throws -> Bool
+    {
+        let result = try await self.boundedKeyFetch(timeout: timeout) {
+            await operation()
+            return OpenRouterKeyFetchResult(data: nil, fetched: true)
+        }
+        return result.fetched
+    }
 
-            let result = await group.next()
-            group.cancelAll()
-            if let result {
-                return result
-            }
+    private static func boundedKeyFetch(
+        timeout: Duration,
+        operation: @escaping @Sendable () async -> OpenRouterKeyFetchResult) async throws -> OpenRouterKeyFetchResult
+    {
+        let sourceTask = Task<OpenRouterKeyFetchResult, Error> {
+            await operation()
+        }
+        let race = BoundedTaskJoin(sourceTask: sourceTask)
+        switch await race.value(joinGrace: timeout) {
+        case let .value(result):
+            try Task.checkCancellation()
+            return result
+        case .timedOut:
+            try Task.checkCancellation()
+            Self.log.debug("OpenRouter /key enrichment timed out")
+            return OpenRouterKeyFetchResult(data: nil, fetched: false)
+        case .failure:
+            sourceTask.cancel()
+            try Task.checkCancellation()
             return OpenRouterKeyFetchResult(data: nil, fetched: false)
         }
     }

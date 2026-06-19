@@ -437,6 +437,140 @@ struct CopilotUsageModelsTests {
         #expect(response.quotaSnapshots.chat == nil)
     }
 
+    @Test
+    func `treats business token billing zero entitlement quotas as unavailable`() throws {
+        // GitHub Copilot Business token-based billing reports every quota as
+        // entitlement=0, remaining=0, percent_remaining=100. That previously rendered as a
+        // misleading "0% used" (100 - 100). A zero-entitlement quota carries no usage signal,
+        // so the snapshots must drop out instead of showing as usage. (#1258)
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "business",
+              "token_based_billing": true,
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100,
+                  "quota_id": "premium_interactions"
+                },
+                "chat": {
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100,
+                  "quota_id": "chat"
+                },
+                "completions": {
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100,
+                  "quota_id": "completions"
+                }
+              }
+            }
+            """)
+
+        #expect(response.tokenBasedBilling)
+        #expect(response.quotaSnapshots.premiumInteractions == nil)
+        #expect(response.quotaSnapshots.chat == nil)
+    }
+
+    @Test
+    func `keeps unlimited chat fallback quota without percent remaining`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "individual",
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "entitlement": 200,
+                  "remaining": 191,
+                  "percent_remaining": 95.5,
+                  "quota_id": "premium_interactions"
+                },
+                "chat_messages": {
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "quota_id": "chat_messages",
+                  "unlimited": true
+                }
+              }
+            }
+            """)
+
+        #expect(response.quotaSnapshots.premiumInteractions?.quotaId == "premium_interactions")
+        #expect(response.quotaSnapshots.chat?.quotaId == "chat_messages")
+        #expect(response.quotaSnapshots.chat?.unlimited == true)
+        #expect(response.quotaSnapshots.chat?.usedPercent == 0)
+    }
+
+    @Test
+    func `unlimited quota overrides placeholder percent remaining`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "individual",
+              "quota_snapshots": {
+                "chat": {
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 0,
+                  "quota_id": "chat",
+                  "unlimited": true
+                }
+              }
+            }
+            """)
+
+        let chat = try #require(response.quotaSnapshots.chat)
+        #expect(chat.percentRemaining == 100)
+        #expect(chat.usedPercent == 0)
+        #expect(!chat.isPlaceholder)
+    }
+
+    @Test
+    func `flags zero entitlement snapshot as placeholder`() {
+        let snapshot = CopilotUsageResponse.QuotaSnapshot(
+            entitlement: 0,
+            remaining: 0,
+            percentRemaining: 100,
+            quotaId: "chat")
+        #expect(snapshot.isPlaceholder)
+    }
+
+    @Test
+    func `keeps fully consumed quota with positive entitlement`() {
+        // entitlement > 0 with remaining 0 is a real "100% used" window, not a placeholder.
+        let snapshot = CopilotUsageResponse.QuotaSnapshot(
+            entitlement: 500,
+            remaining: 0,
+            percentRemaining: 0,
+            quotaId: "premium_interactions")
+        #expect(!snapshot.isPlaceholder)
+        #expect(snapshot.usedPercent == 100)
+    }
+
+    @Test
+    func `keeps percent only quota snapshots available`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "business",
+              "quota_snapshots": {
+                "chat": {
+                  "percent_remaining": 40,
+                  "quota_id": "chat"
+                }
+              }
+            }
+            """)
+
+        #expect(response.quotaSnapshots.chat?.percentRemaining == 40)
+        #expect(response.quotaSnapshots.chat?.usedPercent == 60)
+        #expect(response.quotaSnapshots.chat?.isPlaceholder == false)
+    }
+
     private static func decodeFixture(_ fixture: String) throws -> CopilotUsageResponse {
         try JSONDecoder().decode(CopilotUsageResponse.self, from: Data(fixture.utf8))
     }

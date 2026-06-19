@@ -1,8 +1,51 @@
 import CodexBarCore
 import Foundation
 
+/// Shared, lock-guarded ISO8601 formatters for status feeds. Allocating a fresh
+/// `ISO8601DateFormatter` per decoded date field is a measurable share of decoding the
+/// Google Workspace incidents feed, which can run to hundreds of kilobytes (#1399).
+private final class StatusISO8601FormatterBox: @unchecked Sendable {
+    let lock = NSLock()
+    let withFractional: ISO8601DateFormatter = {
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fmt
+    }()
+
+    let plain: ISO8601DateFormatter = {
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime]
+        return fmt
+    }()
+}
+
+private enum StatusFeedDateParser {
+    static let box = StatusISO8601FormatterBox()
+
+    static func parse(_ text: String) -> Date? {
+        self.box.lock.lock()
+        defer { self.box.lock.unlock() }
+        return self.box.withFractional.date(from: text) ?? self.box.plain.date(from: text)
+    }
+
+    static func decodingStrategy() -> JSONDecoder.DateDecodingStrategy {
+        .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            guard let date = StatusFeedDateParser.parse(raw) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO8601 date")
+            }
+            return date
+        }
+    }
+}
+
 extension UsageStore {
-    static func fetchStatus(
+    /// Status feeds decode off the main actor: the Google Workspace incidents payload alone
+    /// can be hundreds of kilobytes and cost 150-340ms to decode (#1399), and these helpers
+    /// touch no store state.
+    @concurrent
+    nonisolated static func fetchStatus(
         from baseURL: URL,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
         async throws -> ProviderStatus
@@ -32,16 +75,7 @@ extension UsageStore {
         }
 
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: raw) { return date }
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: raw) { return date }
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO8601 date")
-        }
+        decoder.dateDecodingStrategy = StatusFeedDateParser.decodingStrategy()
 
         let response = try decoder.decode(Response.self, from: data)
         let indicator = ProviderStatusIndicator(rawValue: response.status.indicator) ?? .unknown
@@ -51,9 +85,11 @@ extension UsageStore {
             updatedAt: response.page?.updatedAt)
     }
 
-    static func fetchWorkspaceStatus(
+    @concurrent
+    nonisolated static func fetchWorkspaceStatus(
         productID: String,
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        beforeDecoding: (@Sendable () -> Void)? = nil)
         async throws -> ProviderStatus
     {
         guard let url = URL(string: "https://www.google.com/appsstatus/dashboard/incidents.json") else {
@@ -62,22 +98,14 @@ extension UsageStore {
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
         let (data, _) = try await transport.data(for: request)
+        beforeDecoding?()
         return try Self.parseGoogleWorkspaceStatus(data: data, productID: productID)
     }
 
-    static func parseGoogleWorkspaceStatus(data: Data, productID: String) throws -> ProviderStatus {
+    nonisolated static func parseGoogleWorkspaceStatus(data: Data, productID: String) throws -> ProviderStatus {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: raw) { return date }
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: raw) { return date }
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO8601 date")
-        }
+        decoder.dateDecodingStrategy = StatusFeedDateParser.decodingStrategy()
 
         let incidents = try decoder.decode([GoogleWorkspaceIncident].self, from: data)
         let active = incidents.filter { $0.isRelevant(productID: productID) && $0.isActive }
@@ -105,7 +133,7 @@ extension UsageStore {
         return ProviderStatus(indicator: best.indicator, description: description, updatedAt: updatedAt)
     }
 
-    private static func indicatorRank(_ indicator: ProviderStatusIndicator) -> Int {
+    private nonisolated static func indicatorRank(_ indicator: ProviderStatusIndicator) -> Int {
         switch indicator {
         case .none: 0
         case .maintenance: 1
@@ -116,7 +144,7 @@ extension UsageStore {
         }
     }
 
-    private static func workspaceIndicator(status: String?, severity: String?) -> ProviderStatusIndicator {
+    private nonisolated static func workspaceIndicator(status: String?, severity: String?) -> ProviderStatusIndicator {
         switch status?.uppercased() {
         case "AVAILABLE": return .none
         case "SERVICE_INFORMATION": return .minor
@@ -134,7 +162,7 @@ extension UsageStore {
         }
     }
 
-    private static func workspaceSummary(from text: String?) -> String? {
+    private nonisolated static func workspaceSummary(from text: String?) -> String? {
         guard let text else { return nil }
         let normalized = text
             .replacingOccurrences(of: "\r\n", with: "\n")

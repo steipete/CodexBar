@@ -1,4 +1,9 @@
+import CodexBarCore
 import Foundation
+
+enum CodexBarLocalizationOverride {
+    @TaskLocal static var appLanguage: String?
+}
 
 private func appLanguageDefaults() -> UserDefaults {
     if Bundle.main.bundleIdentifier != nil {
@@ -11,10 +16,99 @@ private func appLanguageDefaults() -> UserDefaults {
     return UserDefaults(suiteName: "CodexBar") ?? .standard
 }
 
+private let isRunningTestsProcessAtStartup: Bool = {
+    let env = ProcessInfo.processInfo.environment
+    if env["XCTestConfigurationFilePath"] != nil { return true }
+    if env["TESTING_LIBRARY_VERSION"] != nil { return true }
+    if env["SWIFT_TESTING"] != nil { return true }
+    return NSClassFromString("XCTestCase") != nil
+}()
+
+private func isRunningTestsProcess() -> Bool {
+    isRunningTestsProcessAtStartup
+}
+
+private func resolvedAppLanguage() -> String {
+    if let override = CodexBarLocalizationOverride.appLanguage {
+        return override
+    }
+    if isRunningTestsProcess() {
+        return "en"
+    }
+    return appLanguageDefaults().string(forKey: "appLanguage") ?? ""
+}
+
+func codexBarLocalizationSignature() -> String {
+    resolvedAppLanguage()
+}
+
+/// Resolving the `.lproj`/resource bundles repeats `Bundle(url:)`/`Bundle(path:)` filesystem lookups,
+/// which are surprisingly hot: every `L(…)` and `codexBarLocalizationSignature()` call runs them, and
+/// menu row bodies (`MetricRow`, `ProviderCostContent`, `UsageMenuCardView.Model`) re-evaluate them on
+/// every closed-menu rebuild tick on the main thread (#1347). The resolved bundles never change unless
+/// the language changes, so cache them. A single lock with compute-happening-outside-the-lock keeps the
+/// disk work off the critical section and avoids re-entrant deadlock when the localized-bundle compute
+/// closure calls back into the resource-bundle accessor.
+private enum LocalizationBundleCache {
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var resourceBundle: Bundle?
+    private nonisolated(unsafe) static var cachedLanguage: String?
+    private nonisolated(unsafe) static var cachedLocalizedBundle: Bundle?
+
+    static func defaultResourceBundle(_ compute: () -> Bundle) -> Bundle {
+        self.lock.lock()
+        if let resourceBundle {
+            self.lock.unlock()
+            return resourceBundle
+        }
+        self.lock.unlock()
+        let computed = compute()
+        self.lock.lock()
+        resourceBundle = computed
+        self.lock.unlock()
+        return computed
+    }
+
+    static func localizedBundle(forLanguage language: String, _ compute: () -> Bundle) -> Bundle {
+        self.lock.lock()
+        if self.cachedLanguage == language, let cachedLocalizedBundle {
+            let hit = cachedLocalizedBundle
+            self.lock.unlock()
+            return hit
+        }
+        self.lock.unlock()
+        let computed = compute()
+        self.lock.lock()
+        self.cachedLanguage = language
+        cachedLocalizedBundle = computed
+        self.lock.unlock()
+        return computed
+    }
+
+    static func reset() {
+        self.lock.lock()
+        self.resourceBundle = nil
+        self.cachedLanguage = nil
+        self.cachedLocalizedBundle = nil
+        self.lock.unlock()
+    }
+}
+
 func codexBarLocalizationResourceBundle(
     mainBundle: Bundle = .main,
     bundleName: String = "CodexBar_CodexBar") -> Bundle
 {
+    // Only the default (process `.main`) resolution is cached: it is constant for the lifetime of the
+    // process. Custom arguments (tests) keep resolving directly so they stay isolated from the cache.
+    guard mainBundle === Bundle.main, bundleName == "CodexBar_CodexBar" else {
+        return resolveLocalizationResourceBundle(mainBundle: mainBundle, bundleName: bundleName)
+    }
+    return LocalizationBundleCache.defaultResourceBundle {
+        resolveLocalizationResourceBundle(mainBundle: mainBundle, bundleName: bundleName)
+    }
+}
+
+private func resolveLocalizationResourceBundle(mainBundle: Bundle, bundleName: String) -> Bundle {
     guard mainBundle.bundleURL.pathExtension == "app" else {
         return Bundle.module
     }
@@ -35,8 +129,16 @@ func codexBarLocalizationResourceBundle(
 }
 
 private func localizedBundle() -> Bundle {
+    // Keyed on the resolved language so a language switch (settings change or test override) transparently
+    // re-resolves; otherwise the cached bundle is returned without touching the filesystem.
+    let language = resolvedAppLanguage()
+    return LocalizationBundleCache.localizedBundle(forLanguage: language) {
+        resolveLocalizedBundle(forLanguage: language)
+    }
+}
+
+private func resolveLocalizedBundle(forLanguage language: String) -> Bundle {
     let resourceBundle = codexBarLocalizationResourceBundle()
-    let language = appLanguageDefaults().string(forKey: "appLanguage") ?? ""
     if !language.isEmpty {
         if let bundle = lprojBundle(named: language, in: resourceBundle) {
             return bundle
@@ -79,6 +181,21 @@ func L(_ key: String, _ arguments: CVarArg...) -> String {
     String(format: L(key), arguments: arguments)
 }
 
+func codexBarLocalizedLocale() -> Locale {
+    let language = resolvedAppLanguage()
+    guard !language.isEmpty else { return .current }
+    switch language.lowercased() {
+    case "zh-hans":
+        return Locale(identifier: "zh-Hans")
+    case "zh-hant":
+        return Locale(identifier: "zh-Hant")
+    case "pt-br":
+        return Locale(identifier: "pt-BR")
+    default:
+        return Locale(identifier: language)
+    }
+}
+
 func codexBarLocalizedString(_ key: String, bundle: Bundle, resourceBundle: Bundle) -> String {
     let value = bundle.localizedString(forKey: key, value: nil, table: nil)
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -94,4 +211,24 @@ func codexBarLocalizedString(_ key: String, bundle: Bundle, resourceBundle: Bund
 
     let fallback = englishBundle.localizedString(forKey: key, value: nil, table: nil)
     return fallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? key : fallback
+}
+
+#if DEBUG
+func codexBarLocalizedBundleForTesting() -> Bundle {
+    localizedBundle()
+}
+
+func resetCodexBarLocalizationCacheForTesting() {
+    LocalizationBundleCache.reset()
+}
+#endif
+
+func configureUsageFormatterLocalizationProvider() {
+    UsageFormatter.setLocalizationProvider { key in
+        let resourceBundle = codexBarLocalizationResourceBundle()
+        return codexBarLocalizedString(key, bundle: localizedBundle(), resourceBundle: resourceBundle)
+    }
+    UsageFormatter.setLocaleProvider {
+        codexBarLocalizedLocale()
+    }
 }

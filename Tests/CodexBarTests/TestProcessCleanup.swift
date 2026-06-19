@@ -7,12 +7,19 @@ import Glibc
 #endif
 
 enum TestProcessCleanup {
+    static let codexTestStubCommandRegex = [
+        #"codex-(stub|fallback-stub|plan-only-stub|credits-only-stub|hung-stub)-"#,
+        #"[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}"#,
+        #"[[:space:]]+app-server([[:space:]]|$)"#,
+    ].joined()
+
     static func register() {
         atexit(_testProcessCleanupAtExit)
     }
 
-    fileprivate static func terminateLeakedCodexAppServers() {
-        let pids = Self.pids(matchingFullCommandRegex: "codex.*app-server")
+    fileprivate static func terminateLeakedCodexTestStubs() {
+        // Never target an installed Codex process. These UUID-named executables are created only by this test target.
+        let pids = Self.pids(matchingFullCommandRegex: Self.codexTestStubCommandRegex)
             .filter { $0 > 0 && $0 != getpid() }
         guard !pids.isEmpty else { return }
 
@@ -65,5 +72,5 @@ private let _registerTestProcessCleanup: Void = TestProcessCleanup.register()
 
 @_cdecl("codexbar_test_cleanup_atexit")
 private func _testProcessCleanupAtExit() {
-    TestProcessCleanup.terminateLeakedCodexAppServers()
+    TestProcessCleanup.terminateLeakedCodexTestStubs()
 }

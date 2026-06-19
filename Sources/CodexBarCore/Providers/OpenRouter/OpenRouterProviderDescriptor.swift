@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum OpenRouterProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .openrouter,
@@ -31,9 +30,15 @@ public enum OpenRouterProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "OpenRouter cost summary is not yet supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenRouterAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "openrouter.api",
+                resolveToken: { ProviderTokenResolver.openRouterToken(environment: $0) },
+                missingCredentialsError: { OpenRouterSettingsError.missingToken },
+                loadUsage: { apiKey, context in
+                    try await OpenRouterUsageFetcher.fetchUsage(
+                        apiKey: apiKey,
+                        environment: context.env).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "openrouter",
                 aliases: ["or"],
@@ -41,43 +46,17 @@ public enum OpenRouterProviderDescriptor {
     }
 }
 
-struct OpenRouterAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "openrouter.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw OpenRouterSettingsError.missingToken
-        }
-        let usage = try await OpenRouterUsageFetcher.fetchUsage(
-            apiKey: apiKey,
-            environment: context.env)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.openRouterToken(environment: environment)
-    }
-}
-
 /// Errors related to OpenRouter settings
-public enum OpenRouterSettingsError: LocalizedError, Sendable {
+public enum OpenRouterSettingsError: LocalizedError, Sendable, Equatable {
     case missingToken
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingToken:
             "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings."
+        case let .invalidEndpointOverride(key):
+            "OpenRouter endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

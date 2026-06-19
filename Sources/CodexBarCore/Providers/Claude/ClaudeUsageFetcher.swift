@@ -301,6 +301,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 }
                 throw ClaudeUsageError.oauthFailed(error.localizedDescription)
             } catch let error as ClaudeOAuthFetchError {
+                if case .rateLimited = error {
+                    throw ClaudeUsageError.oauthFailed(error.localizedDescription)
+                }
                 ClaudeOAuthCredentialsStore.invalidateCache()
                 if case let .serverError(statusCode, body) = error,
                    statusCode == 403,
@@ -569,9 +572,48 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         private func loadViaCLI(model: String, timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
-            var snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: timeout)
+            var snapshot: ClaudeUsageSnapshot
+            do {
+                snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: timeout)
+            } catch {
+                if error is CancellationError { throw error }
+                guard Self.shouldTryDirectCLIUsage(after: error) else { throw error }
+                let ptyError = error
+                do {
+                    snapshot = try await self.fetcher.loadViaDirectCLI(
+                        timeout: Self.directCLIUsageTimeout(for: timeout))
+                } catch let directError {
+                    if directError is CancellationError { throw directError }
+                    guard Self.directCLIErrorShouldReplacePTYError(directError) else { throw ptyError }
+                    throw directError
+                }
+            }
             snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
             return snapshot
+        }
+
+        private static func directCLIUsageTimeout(for ptyTimeout: TimeInterval) -> TimeInterval {
+            min(max(ptyTimeout / 3, 6), 8)
+        }
+
+        private static func directCLIErrorShouldReplacePTYError(_ error: Error) -> Bool {
+            if case let ClaudeStatusProbeError.parseFailed(message) = error {
+                return message.lowercased().contains("subscription")
+            }
+            if case let ClaudeUsageError.parseFailed(message) = error {
+                return message.lowercased().contains("subscription")
+            }
+            return false
+        }
+
+        private static func shouldTryDirectCLIUsage(after error: Error) -> Bool {
+            if case ClaudeStatusProbeError.timedOut = error { return true }
+            if case let ClaudeStatusProbeError.parseFailed(message) = error {
+                let lower = message.lowercased()
+                return lower.contains("still loading usage") || lower.contains("could not load usage data")
+            }
+            let message = error.localizedDescription.lowercased()
+            return message.contains("timed out") || message.contains("timeout")
         }
 
         private static func shouldRetryCLIProbe(after error: Error) -> Bool {
@@ -822,7 +864,12 @@ extension ClaudeUsageFetcher {
         for outcome: ClaudeOAuthDelegatedRefreshCoordinator.Outcome,
         retryError: Error) -> String
     {
-        _ = retryError
+        if let oauthError = retryError as? ClaudeOAuthFetchError,
+           case .rateLimited = oauthError
+        {
+            return oauthError.localizedDescription
+        }
+
         switch outcome {
         case .skippedByCooldown:
             return "Claude OAuth token expired and delegated refresh is cooling down. "
@@ -856,6 +903,9 @@ extension ClaudeUsageFetcher {
             switch oauthError {
             case .unauthorized:
                 metadata["oauthError"] = "unauthorized"
+            case let .rateLimited(retryAfter):
+                metadata["oauthError"] = "rateLimited"
+                metadata["retryAfter"] = retryAfter.map { "\($0.timeIntervalSince1970)" } ?? "nil"
             case .invalidResponse:
                 metadata["oauthError"] = "invalidResponse"
             case let .serverError(statusCode, body):
@@ -954,7 +1004,7 @@ extension ClaudeUsageFetcher {
         let normalized = Self.normalizeClaudeExtraUsageAmounts(
             used: used,
             limit: limit,
-            treatAsMajorUnits: isSpendLimit)
+            treatAsMajorUnits: false)
         return ProviderCostSnapshot(
             used: normalized.used,
             limit: normalized.limit,
@@ -999,19 +1049,11 @@ extension ClaudeUsageFetcher {
     private static func oauthExtraRateWindows(from usage: OAuthUsageResponse) -> [NamedRateWindow] {
         let definitions: [(id: String, title: String, window: OAuthUsageWindow?, sourceKey: String?)] = [
             (
-                id: "claude-design",
-                title: "Designs",
-                window: usage.sevenDayDesign,
-                sourceKey: usage.sevenDayDesignSourceKey),
-            (
                 id: "claude-routines",
                 title: "Daily Routines",
                 window: usage.sevenDayRoutines,
                 sourceKey: usage.sevenDayRoutinesSourceKey),
         ]
-        if let designKey = usage.sevenDayDesignSourceKey {
-            Self.log.debug("Claude OAuth extra usage key matched: design=\(designKey)")
-        }
         if let routinesKey = usage.sevenDayRoutinesSourceKey {
             Self.log.debug("Claude OAuth extra usage key matched: routines=\(routinesKey)")
         }
@@ -1114,6 +1156,36 @@ extension ClaudeUsageFetcher {
             keepCLISessionsAlive: self.keepCLISessionsAlive)
         let snap = try await probe.fetch()
 
+        return try Self.makeSnapshot(from: snap)
+    }
+
+    private func loadViaDirectCLI(timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
+        guard let claudeBinary = ClaudeCLIResolver.resolvedBinaryPath(environment: self.environment) else {
+            throw ClaudeUsageError.claudeNotInstalled
+        }
+
+        let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
+        var environment = ClaudeCLISession.launchEnvironment(baseEnv: self.environment)
+        environment["PWD"] = workingDirectory.path
+        defer {
+            ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(
+                probeDirectory: workingDirectory,
+                environment: environment)
+        }
+
+        let result = try await SubprocessRunner.run(
+            binary: claudeBinary,
+            arguments: ["/usage"],
+            environment: environment,
+            timeout: timeout,
+            standardInput: FileHandle.nullDevice,
+            currentDirectoryURL: workingDirectory,
+            label: "claude-direct-usage")
+        let snap = try ClaudeStatusProbe.parse(text: result.stdout)
+        return try Self.makeSnapshot(from: snap)
+    }
+
+    private static func makeSnapshot(from snap: ClaudeStatusSnapshot) throws -> ClaudeUsageSnapshot {
         guard let sessionPctLeft = snap.sessionPercentLeft else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }

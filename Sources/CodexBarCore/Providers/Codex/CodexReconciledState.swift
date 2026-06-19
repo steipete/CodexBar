@@ -3,17 +3,21 @@ import Foundation
 public struct CodexReconciledState: Sendable {
     public let session: RateWindow?
     public let weekly: RateWindow?
+    /// Named model-specific limits (e.g. Codex Spark) surfaced through `UsageSnapshot.extraRateWindows`.
+    public let extraRateWindows: [NamedRateWindow]
     public let identity: ProviderIdentitySnapshot?
     public let updatedAt: Date
 
     public init(
         session: RateWindow?,
         weekly: RateWindow?,
+        extraRateWindows: [NamedRateWindow] = [],
         identity: ProviderIdentitySnapshot?,
         updatedAt: Date)
     {
         self.session = session
         self.weekly = weekly
+        self.extraRateWindows = extraRateWindows
         self.identity = identity
         self.updatedAt = updatedAt
     }
@@ -35,6 +39,9 @@ public struct CodexReconciledState: Sendable {
         self.make(
             primary: self.makeWindow(response.rateLimit?.primaryWindow),
             secondary: self.makeWindow(response.rateLimit?.secondaryWindow),
+            extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
+                from: response.additionalRateLimits,
+                now: updatedAt),
             identity: self.oauthIdentity(response: response, credentials: credentials),
             updatedAt: updatedAt)
     }
@@ -56,6 +63,7 @@ public struct CodexReconciledState: Sendable {
         return self.make(
             primary: snapshot.primaryLimit,
             secondary: snapshot.secondaryLimit,
+            extraRateWindows: snapshot.extraRateWindows ?? [],
             identity: identity,
             updatedAt: snapshot.updatedAt)
     }
@@ -65,6 +73,7 @@ public struct CodexReconciledState: Sendable {
             primary: self.session,
             secondary: self.weekly,
             tertiary: nil,
+            extraRateWindows: self.extraRateWindows.isEmpty ? nil : self.extraRateWindows,
             updatedAt: self.updatedAt,
             identity: self.identity)
     }
@@ -83,10 +92,13 @@ public struct CodexReconciledState: Sendable {
     private static func make(
         primary: RateWindow?,
         secondary: RateWindow?,
+        extraRateWindows: [NamedRateWindow] = [],
         identity: ProviderIdentitySnapshot?,
         updatedAt: Date) -> CodexReconciledState?
     {
         let normalized = CodexRateWindowNormalizer.normalize(primary: primary, secondary: secondary)
+        // Extra windows are supplemental, so they never resurrect a snapshot on their own: keep the
+        // existing primary/weekly gate to preserve current behavior when only extra limits are present.
         guard normalized.primary != nil || normalized.secondary != nil else {
             return nil
         }
@@ -94,6 +106,7 @@ public struct CodexReconciledState: Sendable {
         return CodexReconciledState(
             session: normalized.primary,
             weekly: normalized.secondary,
+            extraRateWindows: extraRateWindows,
             identity: identity,
             updatedAt: updatedAt)
     }

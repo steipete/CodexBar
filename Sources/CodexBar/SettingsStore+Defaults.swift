@@ -181,6 +181,18 @@ extension SettingsStore {
         }
     }
 
+    var weeklyProgressWorkDays: Int? {
+        get { self.defaultsState.weeklyProgressWorkDays }
+        set {
+            self.defaultsState.weeklyProgressWorkDays = newValue
+            if let newValue {
+                self.userDefaults.set(newValue, forKey: "weeklyProgressWorkDays")
+            } else {
+                self.userDefaults.removeObject(forKey: "weeklyProgressWorkDays")
+            }
+        }
+    }
+
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
         set {
@@ -210,6 +222,14 @@ extension SettingsStore {
         set {
             self.defaultsState.menuBarShowsBrandIconWithPercent = newValue
             self.userDefaults.set(newValue, forKey: "menuBarShowsBrandIconWithPercent")
+        }
+    }
+
+    var menuBarHidesCritters: Bool {
+        get { self.defaultsState.menuBarHidesCritters }
+        set {
+            self.defaultsState.menuBarHidesCritters = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarHidesCritters")
         }
     }
 
@@ -273,6 +293,14 @@ extension SettingsStore {
         set {
             self.defaultsState.menuBarMetricPreferencesRaw = newValue
             self.userDefaults.set(newValue, forKey: "menuBarMetricPreferences")
+        }
+    }
+
+    var copilotIconSecondaryWindowIDRaw: String {
+        get { self.defaultsState.copilotIconSecondaryWindowIDRaw }
+        set {
+            self.defaultsState.copilotIconSecondaryWindowIDRaw = newValue
+            self.userDefaults.set(newValue, forKey: "copilotIconSecondaryWindowID")
         }
     }
 
@@ -363,6 +391,17 @@ extension SettingsStore {
         set { self.claudeWebExtrasEnabledRaw = newValue }
     }
 
+    var copilotBudgetExtrasEnabled: Bool {
+        get { self.defaultsState.copilotBudgetExtrasEnabled }
+        set {
+            self.defaultsState.copilotBudgetExtrasEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "copilotBudgetExtrasEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Copilot budget extras updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+        }
+    }
+
     private var claudeWebExtrasEnabledRaw: Bool {
         get { self.defaultsState.claudeWebExtrasEnabledRaw }
         set {
@@ -440,9 +479,9 @@ extension SettingsStore {
     }
 
     var mergedMenuLastSelectedWasOverview: Bool {
-        get { self.defaultsState.mergedMenuLastSelectedWasOverview }
+        get { self.mergedMenuLastSelectedWasOverviewStorage }
         set {
-            self.defaultsState.mergedMenuLastSelectedWasOverview = newValue
+            self.mergedMenuLastSelectedWasOverviewStorage = newValue
             self.userDefaults.set(newValue, forKey: "mergedMenuLastSelectedWasOverview")
         }
     }
@@ -456,9 +495,9 @@ extension SettingsStore {
     }
 
     private var selectedMenuProviderRaw: String? {
-        get { self.defaultsState.selectedMenuProviderRaw }
+        get { self.selectedMenuProviderRawStorage }
         set {
-            self.defaultsState.selectedMenuProviderRaw = newValue
+            self.selectedMenuProviderRawStorage = newValue
             if let raw = newValue {
                 self.userDefaults.set(raw, forKey: "selectedMenuProvider")
             } else {
@@ -625,6 +664,17 @@ extension SettingsStore {
         }
     }
 
+    /// Whether the Providers settings pane displays providers sorted alphabetically (enabled on
+    /// top). Defaults to `false`. Purely a display preference — it never rewrites the stored manual
+    /// order, so turning it on sorts the display without losing the user's hand-arranged sequence.
+    var providersSortedAlphabetically: Bool {
+        get { self.defaultsState.providersSortedAlphabetically }
+        set {
+            self.defaultsState.providersSortedAlphabetically = newValue
+            self.userDefaults.set(newValue, forKey: "providersSortedAlphabetically")
+        }
+    }
+
     var appLanguage: String {
         get { self.defaultsState.appLanguageRaw ?? "" }
         set {
@@ -649,6 +699,14 @@ extension SettingsStore {
     var debugLoadingPattern: LoadingPattern? {
         get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
         set { self.debugLoadingPatternRaw = newValue?.rawValue }
+    }
+
+    var terminalApp: TerminalApp {
+        get { TerminalApp(rawValue: self.defaultsState.terminalAppRaw ?? "") ?? .terminal }
+        set {
+            self.defaultsState.terminalAppRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "terminalApp")
+        }
     }
 }
 

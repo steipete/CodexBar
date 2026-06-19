@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct KiloProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .kilo
 
@@ -110,6 +108,8 @@ struct KiloProviderImplementation: ProviderImplementation {
                             id: org.id,
                             title: org.name,
                             subtitle: org.role,
+                            localizesTitle: false,
+                            localizesSubtitle: false,
                             isEnabled: settings.kiloIsOrganizationEnabled(org.id),
                             isLocked: false))
                 }

@@ -276,4 +276,125 @@ struct StatusMenuCodexSwitcherPresentationTests {
         #expect(hydrated.first?.snapshot?.primary?.usedPercent == 17)
         #expect(hydrated.first?.account.email == account.email)
     }
+
+    @Test
+    func `codex account snapshot store rejects mismatched workspace records`() {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let oldAccountID = UUID()
+        let newAccountID = UUID()
+        let oldAccount = CodexVisibleAccount(
+            id: "workspace@example.com",
+            email: "workspace@example.com",
+            workspaceLabel: "Old Team",
+            workspaceAccountID: "acct-old",
+            storedAccountID: oldAccountID,
+            selectionSource: .managedAccount(id: oldAccountID),
+            isActive: false,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let newAccount = CodexVisibleAccount(
+            id: "workspace@example.com",
+            email: "workspace@example.com",
+            workspaceLabel: "New Team",
+            workspaceAccountID: "acct-new",
+            storedAccountID: newAccountID,
+            selectionSource: .managedAccount(id: newAccountID),
+            isActive: true,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let store = FileCodexAccountUsageSnapshotStore(fileURL: fileURL)
+        store.store([
+            CodexAccountUsageSnapshot(
+                account: oldAccount,
+                snapshot: self.snapshot(email: oldAccount.email, percent: 71),
+                error: nil,
+                sourceLabel: "test"),
+        ])
+
+        let hydrated = store.load(for: [newAccount])
+
+        #expect(hydrated.isEmpty)
+    }
+
+    @Test
+    func `codex account snapshot store rejects same stored account after auth fingerprint changes`() {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let accountID = UUID()
+        let oldAccount = CodexVisibleAccount(
+            id: "reauth@example.com",
+            email: "reauth@example.com",
+            authFingerprint: "old-auth-fingerprint",
+            storedAccountID: accountID,
+            selectionSource: .managedAccount(id: accountID),
+            isActive: false,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let newAccount = CodexVisibleAccount(
+            id: "reauth@example.com",
+            email: "reauth@example.com",
+            authFingerprint: "new-auth-fingerprint",
+            storedAccountID: accountID,
+            selectionSource: .managedAccount(id: accountID),
+            isActive: true,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let store = FileCodexAccountUsageSnapshotStore(fileURL: fileURL)
+        store.store([
+            CodexAccountUsageSnapshot(
+                account: oldAccount,
+                snapshot: self.snapshot(email: oldAccount.email, percent: 71),
+                error: nil,
+                sourceLabel: "test"),
+        ])
+
+        let hydrated = store.load(for: [newAccount])
+
+        #expect(hydrated.isEmpty)
+    }
+
+    @Test
+    func `codex account snapshot store rejects legacy workspace records without identity`() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let payload = """
+        {
+          "records" : [
+            {
+              "error" : "cached",
+              "id" : "legacy@example.com",
+              "snapshot" : null,
+              "sourceLabel" : "legacy"
+            }
+          ],
+          "version" : 1
+        }
+        """
+        try Data(payload.utf8).write(to: fileURL)
+
+        let accountID = UUID()
+        let workspaceAccount = CodexVisibleAccount(
+            id: "legacy@example.com",
+            email: "legacy@example.com",
+            workspaceLabel: "New Team",
+            workspaceAccountID: "acct-new",
+            storedAccountID: accountID,
+            selectionSource: .managedAccount(id: accountID),
+            isActive: true,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let store = FileCodexAccountUsageSnapshotStore(fileURL: fileURL)
+
+        let hydrated = store.load(for: [workspaceAccount])
+
+        #expect(hydrated.isEmpty)
+    }
 }

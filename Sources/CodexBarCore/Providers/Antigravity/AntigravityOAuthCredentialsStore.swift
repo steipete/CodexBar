@@ -35,6 +35,33 @@ public struct AntigravityOAuthCredentials: Codable, Sendable, Equatable {
         return Date(timeIntervalSince1970: expiryDateMilliseconds / 1000)
     }
 
+    /// Email of the Google account these credentials authenticate, preferring the
+    /// signed `id_token` claim (what the remote OAuth fetcher reports) and falling
+    /// back to the stored `email` field. Used to verify that an ambient local/CLI
+    /// Antigravity snapshot belongs to the account the user explicitly selected.
+    public var resolvedAccountEmail: String? {
+        Self.email(fromIDToken: self.idToken) ?? self.email?.trimmedNonEmptyEmail
+    }
+
+    static func email(fromIDToken idToken: String?) -> String? {
+        guard let idToken else { return nil }
+        let parts = idToken.components(separatedBy: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+        return (json["email"] as? String)?.trimmedNonEmptyEmail
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.accessToken =
@@ -381,6 +408,7 @@ public enum AntigravityOAuthConfig {
 
 public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
     public static let environmentCredentialsKey = "ANTIGRAVITY_OAUTH_CREDENTIALS_JSON"
+    private static let fileLock = NSLock()
 
     public let fileURL: URL
     private let fileManager: FileManager
@@ -391,22 +419,45 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
     }
 
     public func load() throws -> AntigravityOAuthCredentials? {
+        try Self.fileLock.withLock {
+            try self.loadUnlocked()
+        }
+    }
+
+    private func loadUnlocked() throws -> AntigravityOAuthCredentials? {
         guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return nil }
         let data = try Data(contentsOf: self.fileURL)
         return try JSONDecoder().decode(AntigravityOAuthCredentials.self, from: data)
     }
 
     public func save(_ credentials: AntigravityOAuthCredentials) throws {
-        let data = try JSONEncoder.antigravityCredentials.encode(credentials)
-        let directory = self.fileURL.deletingLastPathComponent()
-        if !self.fileManager.fileExists(atPath: directory.path) {
-            try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Self.fileLock.withLock {
+            let data = try JSONEncoder.antigravityCredentials.encode(credentials)
+            let directory = self.fileURL.deletingLastPathComponent()
+            if !self.fileManager.fileExists(atPath: directory.path) {
+                try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+            try data.write(to: self.fileURL, options: [.atomic])
+            try self.applySecurePermissionsIfNeeded()
         }
-        try data.write(to: self.fileURL, options: [.atomic])
-        try self.applySecurePermissionsIfNeeded()
     }
 
     public func deleteIfPresent() throws {
+        try Self.fileLock.withLock {
+            try self.deleteIfPresentUnlocked()
+        }
+    }
+
+    public func deleteIfPresent(
+        matching predicate: (AntigravityOAuthCredentials) -> Bool) throws
+    {
+        try Self.fileLock.withLock {
+            guard let credentials = try self.loadUnlocked(), predicate(credentials) else { return }
+            try self.deleteIfPresentUnlocked()
+        }
+    }
+
+    private func deleteIfPresentUnlocked() throws {
         guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return }
         try self.fileManager.removeItem(at: self.fileURL)
     }
@@ -456,5 +507,10 @@ extension JSONEncoder {
 extension String {
     fileprivate var nilIfEmpty: String? {
         self.isEmpty ? nil : self
+    }
+
+    fileprivate var trimmedNonEmptyEmail: String? {
+        let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

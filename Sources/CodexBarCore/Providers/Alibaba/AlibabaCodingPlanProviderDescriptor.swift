@@ -1,13 +1,12 @@
-import CodexBarMacroSupport
 import Foundation
 
 #if os(macOS)
 import SweetCookieKit
 #endif
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum AlibabaCodingPlanProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         #if os(macOS)
         let browserOrder: BrowserCookieImportOrder = [

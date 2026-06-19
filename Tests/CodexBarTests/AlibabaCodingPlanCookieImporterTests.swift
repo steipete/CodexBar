@@ -1,11 +1,67 @@
 import Foundation
+import os.lock
 import Testing
 @testable import CodexBarCore
 
 #if os(macOS)
 import SweetCookieKit
 
+@Suite(.serialized)
 struct AlibabaCodingPlanCookieImporterTests {
+    @Test(.disabled(
+        if: ProcessInfo.processInfo.environment[BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey] == "1",
+        "Default-home cookie access is explicitly enabled for this test run."))
+    func `default home import is suppressed before profile and keychain access`() throws {
+        let profileProbeCount = OSAllocatedUnfairLock(initialState: 0)
+        let keychainProbeCount = OSAllocatedUnfairLock(initialState: 0)
+        let defaultHome = try #require(BrowserCookieClient.defaultHomeDirectories().first)
+        let detection = BrowserDetection(
+            homeDirectory: defaultHome.path,
+            cacheTTL: 0,
+            fileExists: { _ in
+                profileProbeCount.withLock { $0 += 1 }
+                return true
+            },
+            directoryContents: { _ in
+                profileProbeCount.withLock { $0 += 1 }
+                return ["Default"]
+            })
+
+        _ = KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                keychainProbeCount.withLock { $0 += 1 }
+                return .allowed
+            } operation: {
+                #expect(throws: AlibabaCodingPlanSettingsError.self) {
+                    _ = try AlibabaCodingPlanCookieImporter.importSession(browserDetection: detection)
+                }
+            }
+        }
+
+        #expect(profileProbeCount.withLock { $0 } == 0)
+        #expect(keychainProbeCount.withLock { $0 } == 0)
+    }
+
+    @Test(.disabled(
+        if: ProcessInfo.processInfo.environment[BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey] == "1",
+        "Default-home cookie access is explicitly enabled for this test run."))
+    func `chromium fallback rejects default client before keychain access`() {
+        let keychainProbeCount = OSAllocatedUnfairLock(initialState: 0)
+        _ = KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                keychainProbeCount.withLock { $0 += 1 }
+                return .allowed
+            } operation: {
+                #expect(throws: BrowserCookieStoreAccessSuppressedError.self) {
+                    _ = try AlibabaChromiumCookieFallbackImporter.importSession(
+                        browser: .chrome,
+                        domains: ["example.com"])
+                }
+            }
+        }
+        #expect(keychainProbeCount.withLock { $0 } == 0)
+    }
+
     @Test
     func `domain matching requires exact or label bounded suffix`() {
         #expect(AlibabaCodingPlanCookieImporter.matchesCookieDomain("console.aliyun.com"))

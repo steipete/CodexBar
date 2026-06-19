@@ -70,6 +70,14 @@ struct CLIWebFallbackTests {
             after: OpenAIDashboardFetcher.FetchError.noDashboardData(body: "missing")))
         #expect(!CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
             after: OpenAIDashboardFetcher.FetchError.loginRequired))
+        #expect(!CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
+            after: OpenAIWebCodexError.timedOut(seconds: 30)))
+    }
+
+    @Test
+    func `codex shared deadline timeout has useful error`() {
+        let error = OpenAIWebCodexError.timedOut(seconds: 30)
+        #expect(error.localizedDescription == "OpenAI web dashboard fetch timed out after 30 seconds.")
     }
 
     @Test
@@ -118,6 +126,33 @@ struct CLIWebFallbackTests {
         let available = await strategy.isAvailable(context)
 
         #expect(!available)
+    }
+
+    @Test
+    func `codex web strategy fails closed when profile target is unavailable`() async {
+        let settings = ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                profileAccountTargetUnavailable: true))
+        let strategy = CodexWebDashboardStrategy()
+
+        let autoContext = self.makeContext(sourceMode: .auto, settings: settings)
+        let autoAvailable = await strategy.isAvailable(autoContext)
+        #expect(!autoAvailable)
+
+        let explicitWebContext = self.makeContext(sourceMode: .web, settings: settings)
+        let explicitWebAvailable = await strategy.isAvailable(explicitWebContext)
+        #expect(explicitWebAvailable)
+        do {
+            _ = try await strategy.fetch(explicitWebContext)
+            Issue.record("Expected unavailable profile target to require login")
+        } catch OpenAIDashboardFetcher.FetchError.loginRequired {
+            // Expected before browser import can accept an arbitrary account.
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
     }
 
     @Test

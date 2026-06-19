@@ -6,9 +6,18 @@ SIGNING_MODE=${CODEXBAR_SIGNING:-}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 LOWER_CONF=$(printf "%s" "$CONF" | tr '[:upper:]' '[:lower:]')
+case "$LOWER_CONF" in
+  debug|release) ;;
+  *)
+    echo "ERROR: Unsupported build configuration: $CONF (expected debug or release)" >&2
+    exit 1
+    ;;
+esac
 
 # Load version info
 source "$ROOT/version.env"
+source "$ROOT/Scripts/package_product_paths.sh"
+source "$ROOT/Scripts/sparkle_signing_paths.sh"
 
 # Clean build only when explicitly requested (slower).
 if [[ "${CODEXBAR_FORCE_CLEAN:-0}" == "1" ]]; then
@@ -99,168 +108,65 @@ path.write_text(text)
 PY
 }
 
-generate_widget_appintents_metadata() {
-  local widget_resources_dir="$1"
-  local metadata_mode="${CODEXBAR_WIDGET_METADATA_MODE:-}"
-  local xcode_conf
-  local host_arch
-  local derived_dir
-  local build_dir
-  local object_dir
-  local source_file_list
-  local const_values_list
-  local dependency_metadata
-  local static_dependency_metadata
-  local appintents_tool
-  local sdk_root
-  local swiftc_path
-  local toolchain_dir
-  local xcode_version
-
-  if [[ -z "$metadata_mode" ]]; then
-    if [[ "${SIGNING_MODE:-}" == "adhoc" || "$LOWER_CONF" == "debug" ]]; then
-      metadata_mode="skip"
-    else
-      metadata_mode="required"
-    fi
-  fi
-
-  if [[ "$metadata_mode" == "skip" ]]; then
-    echo "Skipping widget App Intents metadata (CODEXBAR_WIDGET_METADATA_MODE=skip)."
-    return 0
-  fi
-
-  widget_metadata_warn_or_fail() {
-    local message="$1"
-    if [[ "$metadata_mode" == "required" ]]; then
-      echo "ERROR: ${message}" >&2
-      exit 1
-    fi
-    echo "WARN: ${message}; continuing without widget App Intents metadata." >&2
-    return 0
-  }
-
-  xcode_conf="Release"
-  if [[ "$LOWER_CONF" == "debug" ]]; then
-    xcode_conf="Debug"
-  fi
-
-  host_arch=$(uname -m)
-  derived_dir="$ROOT/.build/xcode-widget-metadata-${LOWER_CONF}"
-  build_dir="$derived_dir/Build/Intermediates.noindex/CodexBar.build/${xcode_conf}/CodexBarWidget.build"
-  object_dir="$build_dir/Objects-normal/${host_arch}"
-  source_file_list="$object_dir/CodexBarWidget.SwiftFileList"
-  const_values_list="$object_dir/CodexBarWidget.SwiftConstValuesFileList"
-  dependency_metadata="$build_dir/CodexBarWidget.DependencyMetadataFileList"
-  static_dependency_metadata="$build_dir/CodexBarWidget.DependencyStaticMetadataFileList"
-
-  appintents_tool=$(xcrun --find appintentsmetadataprocessor)
-  sdk_root=$(xcrun --sdk macosx --show-sdk-path)
-  swiftc_path=$(xcrun --find swiftc)
-  toolchain_dir=$(dirname "$(dirname "$(dirname "$swiftc_path")")")
-  xcode_version=$(xcodebuild -version | awk '/Build version/ { print $3 }')
-
-  if [[ "${CODEXBAR_FORCE_WIDGET_METADATA_CLEAN:-0}" == "1" ]]; then
-    rm -rf "$derived_dir"
-  fi
-  mkdir -p "$derived_dir"
-  local xcodebuild_log="$derived_dir/xcodebuild.log"
-  local timeout_seconds="${CODEXBAR_WIDGET_METADATA_TIMEOUT_SECONDS:-}"
-  if [[ -z "$timeout_seconds" ]]; then
-    if [[ "$metadata_mode" == "required" ]]; then
-      timeout_seconds=600
-    else
-      timeout_seconds=45
-    fi
-  fi
-  echo "Generating widget App Intents metadata (${metadata_mode}, timeout ${timeout_seconds}s)."
-  xcodebuild \
-    -workspace "$ROOT/.swiftpm/xcode/package.xcworkspace" \
-    -scheme CodexBarWidget \
-    -configuration "$xcode_conf" \
-    -destination "platform=macOS,arch=${host_arch}" \
-    -derivedDataPath "$derived_dir" \
-    -skipPackageUpdates \
-    -disableAutomaticPackageResolution \
-    -skipMacroValidation \
-    -skipPackagePluginValidation \
-    build >"$xcodebuild_log" 2>&1 &
-  local xcodebuild_pid=$!
-  local elapsed=0
-  while kill -0 "$xcodebuild_pid" 2>/dev/null; do
-    if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
-      kill "$xcodebuild_pid" 2>/dev/null || true
-      wait "$xcodebuild_pid" 2>/dev/null || true
-      tail -40 "$xcodebuild_log" >&2 || true
-      if [[ "${CODEXBAR_ALLOW_MISSING_WIDGET_METADATA:-0}" == "1" ]]; then
-        echo "WARN: Timed out generating widget App Intents metadata after ${timeout_seconds}s; continuing without it." >&2
-        return 0
-      fi
-      widget_metadata_warn_or_fail "Timed out generating widget App Intents metadata after ${timeout_seconds}s"
-      return 0
-    fi
-    sleep 5
-    elapsed=$((elapsed + 5))
-    if (( elapsed > 0 && elapsed % 30 == 0 )); then
-      echo "Still generating widget App Intents metadata (${elapsed}s)..."
-    fi
-  done
-  if ! wait "$xcodebuild_pid"; then
-    tail -80 "$xcodebuild_log" >&2 || true
-    widget_metadata_warn_or_fail "Failed to build CodexBarWidget metadata inputs"
-    return 0
-  fi
-
-  local xcode_metadata_dir="$derived_dir/Build/Products/${xcode_conf}/CodexBarWidget.appintents/Metadata.appintents"
-  if [[ -f "$xcode_metadata_dir/extract.actionsdata" ]]; then
-    rm -rf "$widget_resources_dir/Metadata.appintents"
-    mkdir -p "$widget_resources_dir"
-    cp -R "$xcode_metadata_dir" "$widget_resources_dir/"
-    return 0
-  fi
-
-  if [[ ! -f "$source_file_list" ]]; then
-    widget_metadata_warn_or_fail "Missing App Intents metadata inputs for CodexBarWidget"
-    return 0
-  fi
-
-  find "$object_dir" -name '*.swiftconstvalues' | sort > "$const_values_list"
-  if [[ ! -s "$const_values_list" ]]; then
-    widget_metadata_warn_or_fail "Missing App Intents const-values outputs for CodexBarWidget"
-    return 0
-  fi
-  rm -rf "$widget_resources_dir/Metadata.appintents"
-  mkdir -p "$widget_resources_dir"
-
-  "$appintents_tool" \
-    --output "$widget_resources_dir" \
-    --toolchain-dir "$toolchain_dir" \
-    --module-name CodexBarWidget \
-    --sdk-root "$sdk_root" \
-    --xcode-version "$xcode_version" \
-    --platform-family macOS \
-    --deployment-target 14.0 \
-    --target-triple "${host_arch}-apple-macos14.0" \
-    --source-file-list "$source_file_list" \
-    --swift-const-vals-list "$const_values_list" \
-    --metadata-file-list "$dependency_metadata" \
-    --static-metadata-file-list "$static_dependency_metadata" \
-    --force >/dev/null
-
-  if [[ ! -f "$widget_resources_dir/Metadata.appintents/extract.actionsdata" ]]; then
-    widget_metadata_warn_or_fail "Failed to generate App Intents metadata for CodexBarWidget"
-    return 0
-  fi
-}
-
 KEYBOARD_SHORTCUTS_UTIL="$ROOT/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift"
 if [[ ! -f "$KEYBOARD_SHORTCUTS_UTIL" ]]; then
   swift build -c "$CONF" --arch "${ARCH_LIST[0]}"
 fi
 patch_keyboard_shortcuts
 
+# Resolve SwiftPM's current output path without relying on a fixed build-system layout.
+# The output variable keeps the per-arch cache in this shell instead of losing it to
+# command substitution.
+swiftpm_bin_path() {
+  local arch="$1"
+  local output_var="$2"
+  local cache_var="SWIFTPM_BIN_PATH_${arch//[^A-Za-z0-9]/_}"
+  if [[ -z "${!cache_var+set}" ]]; then
+    local resolved
+    if ! resolved=$(codexbar_swiftpm_bin_path "$CONF" "$arch"); then
+      return 1
+    fi
+    printf -v "$cache_var" '%s' "$resolved"
+  fi
+  printf -v "$output_var" '%s' "${!cache_var}"
+}
+
+binary_has_arch() {
+  local binary="$1"
+  local arch="$2"
+  [[ -f "$binary" ]] && lipo -archs "$binary" 2>/dev/null | tr ' ' '\n' | grep -qx "$arch"
+}
+
+# SwiftBuild can reuse one output directory for sequential per-arch builds. Snapshot
+# each fresh slice before the next build can replace it.
+PRODUCT_STAGE_ROOT="$ROOT/.build/package-products/$LOWER_CONF"
+rm -rf "$PRODUCT_STAGE_ROOT"
+
+stage_build_products() {
+  local arch="$1"
+  local bin_dir stage_dir name product
+  swiftpm_bin_path "$arch" bin_dir
+
+  stage_dir="$PRODUCT_STAGE_ROOT/$arch"
+  mkdir -p "$stage_dir"
+  for name in CodexBar CodexBarCLI CodexBarClaudeWatchdog; do
+    if ! product=$(codexbar_require_product_file "$bin_dir" "$name" "$arch"); then
+      return 1
+    fi
+    if ! binary_has_arch "$product" "$arch"; then
+      echo "ERROR: ${product} does not contain required architecture: ${arch}" >&2
+      return 1
+    fi
+    cp "$product" "$stage_dir/$name"
+  done
+  if [[ -d "$bin_dir/CodexBar.dSYM" ]]; then
+    cp -R "$bin_dir/CodexBar.dSYM" "$stage_dir/"
+  fi
+}
+
 for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c "$CONF" --arch "$ARCH"
+  stage_build_products "$ARCH"
 done
 
 APP_FINAL="$ROOT/CodexBar.app"
@@ -359,28 +265,21 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-build_product_path() {
-  local name="$1"
-  local arch="$2"
-  case "$arch" in
-    arm64|x86_64) echo ".build/${arch}-apple-macosx/$CONF/$name" ;;
-    *) echo ".build/$CONF/$name" ;;
-  esac
-}
-
-# Resolve path to built binary; some SwiftPM versions use .build/$CONF/ when building for host only.
+# Resolve a built binary from the fresh per-arch snapshot or SwiftPM's reported directory.
 resolve_binary_path() {
   local name="$1"
   local arch="$2"
-  local candidate
-  candidate=$(build_product_path "$name" "$arch")
-  if [[ -f "$candidate" ]]; then
-    echo "$candidate"
-    return
+  local bin_dir candidate
+  swiftpm_bin_path "$arch" bin_dir
+  if ! candidate=$(codexbar_resolve_staged_or_reported_file \
+    "$PRODUCT_STAGE_ROOT" "$bin_dir" "$name" "$arch"); then
+    return 1
   fi
-  if [[ "$arch" == "arm64" || "$arch" == "x86_64" ]] && [[ -f ".build/$CONF/$name" ]]; then
-    echo ".build/$CONF/$name"
+  if ! binary_has_arch "$candidate" "$arch"; then
+    echo "ERROR: ${candidate} does not contain required architecture: ${arch}" >&2
+    return 1
   fi
+  echo "$candidate"
 }
 
 verify_binary_arches() {
@@ -409,9 +308,7 @@ install_binary() {
   local binaries=()
   for arch in "${ARCH_LIST[@]}"; do
     local src
-    src=$(resolve_binary_path "$name" "$arch")
-    if [[ -z "$src" || ! -f "$src" ]]; then
-      echo "ERROR: Missing ${name} build for ${arch} at $(build_product_path "$name" "$arch")" >&2
+    if ! src=$(resolve_binary_path "$name" "$arch"); then
       exit 1
     fi
     binaries+=("$src")
@@ -425,50 +322,123 @@ install_binary() {
   verify_binary_arches "$dest" "${ARCH_LIST[@]}"
 }
 
+strip_release_binary() {
+  local binary="$1"
+  if [[ "$LOWER_CONF" != "release" ]]; then
+    return 0
+  fi
+  if [[ ! -f "$binary" ]]; then
+    return 0
+  fi
+  xcrun strip -x "$binary"
+}
+
+ensure_widget_extension_project() {
+  local spec="$ROOT/WidgetExtension/project.yml"
+  local project_dir="$ROOT/WidgetExtension/CodexBarWidgetExtension.xcodeproj"
+  if command -v xcodegen >/dev/null 2>&1; then
+    xcodegen generate --spec "$spec" --project "$ROOT/WidgetExtension" --quiet
+  elif [[ ! -f "$project_dir/project.pbxproj" ]]; then
+    echo "ERROR: Missing ${project_dir}; install xcodegen or restore the generated project." >&2
+    exit 1
+  fi
+}
+
+build_widget_extension() {
+  local xcode_conf="Release"
+  if [[ "$LOWER_CONF" == "debug" ]]; then
+    xcode_conf="Debug"
+  fi
+
+  ensure_widget_extension_project
+
+  local derived_dir="$ROOT/.build/xcode-widget-extension-${LOWER_CONF}"
+  local project_dir="$ROOT/WidgetExtension/CodexBarWidgetExtension.xcodeproj"
+  local build_log="$derived_dir/xcodebuild.log"
+  local timeout_seconds="${CODEXBAR_WIDGET_EXTENSION_TIMEOUT_SECONDS:-900}"
+  local archs="${ARCH_LIST[*]}"
+
+  mkdir -p "$derived_dir"
+  echo "Building CodexBarWidget Xcode extension (${xcode_conf}, ${archs})." >&2
+  xcodebuild \
+    -project "$project_dir" \
+    -scheme CodexBarWidgetExtension \
+    -configuration "$xcode_conf" \
+    -destination "generic/platform=macOS" \
+    -derivedDataPath "$derived_dir" \
+    -skipPackageUpdates \
+    -disableAutomaticPackageResolution \
+    -skipMacroValidation \
+    -skipPackagePluginValidation \
+    CODEXBAR_WIDGET_BUNDLE_ID="$WIDGET_BUNDLE_ID" \
+    CODEXBAR_TEAM_ID="$APP_TEAM_ID" \
+    MARKETING_VERSION="$MARKETING_VERSION" \
+    CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+    CODE_SIGNING_ALLOWED=NO \
+    ARCHS="$archs" \
+    ONLY_ACTIVE_ARCH=NO \
+    build >"$build_log" 2>&1 &
+
+  local xcodebuild_pid=$!
+  local elapsed=0
+  while kill -0 "$xcodebuild_pid" 2>/dev/null; do
+    if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
+      kill "$xcodebuild_pid" 2>/dev/null || true
+      wait "$xcodebuild_pid" 2>/dev/null || true
+      tail -80 "$build_log" >&2 || true
+      echo "ERROR: Timed out building CodexBarWidget extension after ${timeout_seconds}s" >&2
+      exit 1
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+    if (( elapsed > 0 && elapsed % 60 == 0 )); then
+      echo "Still building CodexBarWidget extension (${elapsed}s)..." >&2
+    fi
+  done
+  if ! wait "$xcodebuild_pid"; then
+    tail -120 "$build_log" >&2 || true
+    echo "ERROR: Failed to build CodexBarWidget extension" >&2
+    exit 1
+  fi
+
+  local appex="$derived_dir/Build/Products/${xcode_conf}/CodexBarWidget.appex"
+  if [[ ! -f "$appex/Contents/MacOS/CodexBarWidget" ]]; then
+    echo "ERROR: Missing Xcode-built CodexBarWidget.appex at ${appex}" >&2
+    exit 1
+  fi
+  echo "$appex"
+}
+
+install_widget_extension() {
+  local src_appex
+  src_appex="$(build_widget_extension)"
+  local widget_app="$APP/Contents/PlugIns/CodexBarWidget.appex"
+  rm -rf "$widget_app"
+  mkdir -p "$APP/Contents/PlugIns"
+  cp -R "$src_appex" "$widget_app"
+  verify_binary_arches "$widget_app/Contents/MacOS/CodexBarWidget" "${ARCH_LIST[@]}"
+}
+
 install_binary "CodexBar" "$APP/Contents/MacOS/CodexBar"
+strip_release_binary "$APP/Contents/MacOS/CodexBar"
 # Ship CodexBarCLI alongside the app for easy symlinking.
-if [[ -n "$(resolve_binary_path "CodexBarCLI" "${ARCH_LIST[0]}")" ]]; then
-  install_binary "CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
-fi
+install_binary "CodexBarCLI" "$APP/Contents/Helpers/CodexBarCLI"
+strip_release_binary "$APP/Contents/Helpers/CodexBarCLI"
 # Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
-if [[ -n "$(resolve_binary_path "CodexBarClaudeWatchdog" "${ARCH_LIST[0]}")" ]]; then
-  install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
-fi
-if [[ -n "$(resolve_binary_path "CodexBarWidget" "${ARCH_LIST[0]}")" ]]; then
-  WIDGET_APP="$APP/Contents/PlugIns/CodexBarWidget.appex"
-  mkdir -p "$WIDGET_APP/Contents/MacOS" "$WIDGET_APP/Contents/Resources"
-  cat > "$WIDGET_APP/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key><string>CodexBarWidget</string>
-    <key>CFBundleDisplayName</key><string>CodexBar</string>
-    <key>CFBundleIdentifier</key><string>${WIDGET_BUNDLE_ID}</string>
-    <key>CFBundleExecutable</key><string>CodexBarWidget</string>
-    <key>CFBundlePackageType</key><string>XPC!</string>
-    <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION}</string>
-    <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
-    <key>LSMinimumSystemVersion</key><string>14.0</string>
-    <key>CodexBarTeamID</key><string>${APP_TEAM_ID}</string>
-    <key>NSExtension</key>
-    <dict>
-        <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
-        <key>NSExtensionPrincipalClass</key><string>CodexBarWidget.CodexBarWidgetBundle</string>
-    </dict>
-</dict>
-</plist>
-PLIST
-  install_binary "CodexBarWidget" "$WIDGET_APP/Contents/MacOS/CodexBarWidget"
-  generate_widget_appintents_metadata "$WIDGET_APP/Contents/Resources"
-fi
+install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
+strip_release_binary "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
+install_widget_extension
+strip_release_binary "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget"
+
+swiftpm_bin_path "${ARCH_LIST[0]}" PREFERRED_BUILD_DIR
+
 # Embed Sparkle.framework
-if [[ -d ".build/$CONF/Sparkle.framework" ]]; then
-  cp -R ".build/$CONF/Sparkle.framework" "$APP/Contents/Frameworks/"
-  chmod -R a+rX "$APP/Contents/Frameworks/Sparkle.framework"
-  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/CodexBar"
-  # Re-sign Sparkle and all nested components with Developer ID + timestamp
-  SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+SPARKLE_SOURCE=$(codexbar_require_product_directory "$PREFERRED_BUILD_DIR" Sparkle.framework packaging)
+cp -R "$SPARKLE_SOURCE" "$APP/Contents/Frameworks/"
+chmod -R a+rX "$APP/Contents/Frameworks/Sparkle.framework"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/CodexBar"
+# Re-sign Sparkle and all nested components with Developer ID + timestamp
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   CODESIGN_ID="-"
   CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
@@ -480,19 +450,11 @@ else
   CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
 fi
 function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
-  # Sign innermost binaries first, then the framework root to seal resources
-  resign "$SPARKLE"
-  resign "$SPARKLE/Versions/B/Sparkle"
-  resign "$SPARKLE/Versions/B/Autoupdate"
-  resign "$SPARKLE/Versions/B/Updater.app"
-  resign "$SPARKLE/Versions/B/Updater.app/Contents/MacOS/Updater"
-  resign "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
-  resign "$SPARKLE/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
-  resign "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
-  resign "$SPARKLE/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
-  resign "$SPARKLE/Versions/B"
-  resign "$SPARKLE"
-fi
+# Validate Sparkle's nested layout before signing so framework layout drift fails clearly.
+SPARKLE_SIGNING_TARGETS=$(codexbar_sparkle_signing_targets "$SPARKLE")
+while IFS= read -r SPARKLE_TARGET; do
+  resign "$SPARKLE_TARGET"
+done <<<"$SPARKLE_SIGNING_TARGETS"
 
 if [[ -f "$ICON_TARGET" ]]; then
   cp "$ICON_TARGET" "$APP/Contents/Resources/Icon.icns"
@@ -509,8 +471,6 @@ if [[ ! -f "$APP/Contents/Resources/Icon-classic.icns" ]]; then
 fi
 
 # SwiftPM resource bundles (e.g. KeyboardShortcuts) are emitted next to the built binary.
-CODEXBAR_BINARY="$(resolve_binary_path "CodexBar" "${ARCH_LIST[0]}")"
-PREFERRED_BUILD_DIR="$(dirname "${CODEXBAR_BINARY:-$(build_product_path "CodexBar" "${ARCH_LIST[0]}")}")"
 shopt -s nullglob
 SWIFTPM_BUNDLES=("${PREFERRED_BUILD_DIR}/"*.bundle)
 shopt -u nullglob

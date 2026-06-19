@@ -65,8 +65,12 @@ public final class BrowserDetection: Sendable {
     /// This is intentionally stricter than `isAppInstalled`: for Chromium browsers, we only return true
     /// when profile data exists (to avoid unnecessary Keychain prompts).
     public func isCookieSourceAvailable(_ browser: Browser) -> Bool {
-        // We always allow Safari cookie attempts: no Keychain prompts, and it can still yield cookies
-        // even if the on-disk location changes across macOS versions.
+        let homeURL = URL(fileURLWithPath: self.homeDirectory, isDirectory: true)
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(homeDirectories: [homeURL]) == .allowed else {
+            return false
+        }
+
+        // Safari does not need Keychain decryption and can still yield cookies if its storage path changes.
         if browser == .safari {
             return true
         }

@@ -69,7 +69,7 @@ public enum ClaudeWebAPIFetcher {
             case .invalidResponse:
                 "Invalid response from Claude API."
             case .unauthorized:
-                "Unauthorized. Your Claude session may have expired."
+                "Sign in to claude.ai (or refresh Claude cookies) to load usage data."
             case let .serverError(code):
                 "Claude API error: HTTP \(code)"
             case .noOrganization:
@@ -515,9 +515,6 @@ public enum ClaudeWebAPIFetcher {
             opusPercent = Self.percentValue(from: sevenDayOpus["utilization"])
         }
         let extraRateParse = ClaudeWebExtraRateWindowParser.parse(from: json)
-        if let sourceKey = extraRateParse.sourceKeys["claude-design"] {
-            logger?("Usage API extra window key matched: design=\(sourceKey)")
-        }
         if let sourceKey = extraRateParse.sourceKeys["claude-routines"] {
             logger?("Usage API extra window key matched: routines=\(sourceKey)")
         }

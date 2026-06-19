@@ -9,6 +9,7 @@ private actor TokenRefreshGate {
     private var released = false
     private var startWaiters: [CheckedContinuation<Void, Never>] = []
     private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var calls: [(provider: UsageProvider, force: Bool)] = []
 
     func start(provider: UsageProvider, force: Bool) {
@@ -42,10 +43,20 @@ private actor TokenRefreshGate {
 
     func finish() {
         self.didFinish = true
+        let waiters = self.finishWaiters
+        self.finishWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 
     func hasFinished() -> Bool {
         self.didFinish
+    }
+
+    func waitForFinish() async {
+        if self.didFinish { return }
+        await withCheckedContinuation { continuation in
+            self.finishWaiters.append(continuation)
+        }
     }
 }
 
@@ -149,6 +160,96 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
+    func `scoped manual refresh drains scheduled token-cost refresh before forced pass`() async {
+        let store = Self.makeStore()
+        let scheduledGate = TokenRefreshGate()
+        let forcedGate = TokenRefreshGate()
+        let recorder = TokenRefreshRecorder()
+        let completion = CompletionFlag()
+        store._test_providerRefreshOverride = { _ in }
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+            if force {
+                await forcedGate.start(provider: provider, force: force)
+                await forcedGate.waitForRelease()
+                await forcedGate.finish()
+            } else {
+                await scheduledGate.start(provider: provider, force: force)
+                await scheduledGate.waitForRelease()
+                await scheduledGate.finish()
+            }
+        }
+
+        await store.refresh(forceTokenUsage: false)
+        await scheduledGate.waitForStart()
+
+        let task = Task { @MainActor in
+            await store.refreshTokenUsageNow(for: .codex, force: true)
+            await completion.markCompleted()
+        }
+
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await completion.isCompleted() == false)
+
+        await scheduledGate.release()
+        await forcedGate.waitForStart()
+        #expect(await completion.isCompleted() == false)
+
+        await forcedGate.release()
+        await task.value
+
+        #expect(await completion.isCompleted())
+        #expect(await scheduledGate.hasFinished())
+        #expect(await forcedGate.hasFinished())
+        #expect(await recorder.calls.map(\.provider) == [.codex, .codex])
+        #expect(await recorder.calls.map(\.force) == [false, true])
+    }
+
+    @Test
+    func `scoped manual refresh leaves unrelated scheduled token-cost refresh running`() async {
+        let store = Self.makeStore(enabledProviders: [.claude, .codex])
+        let scheduledGate = TokenRefreshGate()
+        let forcedGate = TokenRefreshGate()
+        let recorder = TokenRefreshRecorder()
+        let completion = CompletionFlag()
+        store._test_providerRefreshOverride = { _ in }
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+            if force {
+                await forcedGate.start(provider: provider, force: force)
+                await forcedGate.waitForRelease()
+                await forcedGate.finish()
+            } else {
+                await scheduledGate.start(provider: provider, force: force)
+                await scheduledGate.waitForRelease()
+                await scheduledGate.finish()
+            }
+        }
+
+        await store.refresh(forceTokenUsage: false)
+        await scheduledGate.waitForStart()
+
+        let task = Task { @MainActor in
+            await store.refreshTokenUsageNow(for: .claude, force: true)
+            await completion.markCompleted()
+        }
+
+        await forcedGate.waitForStart()
+        #expect(await scheduledGate.hasFinished() == false)
+        #expect(await completion.isCompleted() == false)
+        #expect(await recorder.calls.map(\.provider) == [.codex, .claude])
+        #expect(await recorder.calls.map(\.force) == [false, true])
+
+        await forcedGate.release()
+        await task.value
+        #expect(await completion.isCompleted())
+        #expect(await scheduledGate.hasFinished() == false)
+
+        await scheduledGate.release()
+        await scheduledGate.waitForFinish()
+    }
+
+    @Test
     func `regular refresh schedules token-cost refresh without waiting`() async {
         let store = Self.makeStore()
         let gate = TokenRefreshGate()
@@ -172,7 +273,7 @@ struct UsageStoreManualTokenRefreshTests {
         }
     }
 
-    private static func makeStore() -> UsageStore {
+    private static func makeStore(enabledProviders: Set<UsageProvider> = [.codex]) -> UsageStore {
         let suite = "UsageStoreManualTokenRefreshTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -191,7 +292,10 @@ struct UsageStoreManualTokenRefreshTests {
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: enabledProviders.contains(provider))
         }
 
         return UsageStore(

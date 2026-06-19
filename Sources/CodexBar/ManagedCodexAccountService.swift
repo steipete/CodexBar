@@ -35,10 +35,25 @@ protocol ManagedCodexWorkspaceSelecting: Sendable {
 }
 
 enum ManagedCodexAccountServiceError: Error, Equatable {
-    case loginFailed
+    case loginFailed(CodexLoginRunner.Result)
     case missingEmail
     case workspaceSelectionCancelled
     case unsafeManagedHome(String)
+}
+
+extension ManagedCodexAccountServiceError {
+    var userFacingMessage: String {
+        switch self {
+        case let .loginFailed(result):
+            CodexLoginAlertPresentation.managedLoginFailureMessage(for: result)
+        case .missingEmail:
+            L("managed_login_missing_email")
+        case .workspaceSelectionCancelled:
+            L("workspace_selection_cancelled")
+        case let .unsafeManagedHome(path):
+            String(format: L("unsafe_managed_home"), path)
+        }
+    }
 }
 
 struct ManagedCodexHomeFactory: ManagedCodexHomeProducing {
@@ -232,7 +247,7 @@ final class ManagedCodexAccountService {
 
         do {
             let result = await self.loginRunner.run(homePath: homeURL.path, timeout: timeout)
-            guard case .success = result.outcome else { throw ManagedCodexAccountServiceError.loginFailed }
+            guard case .success = result.outcome else { throw ManagedCodexAccountServiceError.loginFailed(result) }
 
             let identity = try self.identityReader.loadAccountIdentity(homePath: homeURL.path)
             guard let rawEmail = identity.email?.trimmingCharacters(in: .whitespacesAndNewlines),

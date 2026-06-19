@@ -17,7 +17,7 @@ struct ClaudeWebUsageExtraWindowTests {
     }
 
     @Test
-    func `parses claude web API omelette and cowork usage windows`() throws {
+    func `ignores merged claude web API omelette usage window`() throws {
         let json = """
         {
           "five_hour": { "utilization": 9, "resets_at": "2025-12-23T16:00:00.000Z" },
@@ -27,8 +27,8 @@ struct ClaudeWebUsageExtraWindowTests {
         """
         let data = Data(json.utf8)
         let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
-        #expect(parsed.extraRateWindows.count == 2)
-        #expect(parsed.extraRateWindows.first(where: { $0.id == "claude-design" })?.window.usedPercent == 26)
+        #expect(parsed.extraRateWindows.count == 1)
+        #expect(parsed.extraRateWindows.contains { $0.id == "claude-design" } == false)
         #expect(parsed.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 11)
     }
 
@@ -44,5 +44,6 @@ struct ClaudeWebUsageExtraWindowTests {
         let data = Data(json.utf8)
         let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
         #expect(parsed.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 0)
+        #expect(parsed.extraRateWindows.contains { $0.id == "claude-design" } == false)
     }
 }

@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct ZaiProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .zai
 

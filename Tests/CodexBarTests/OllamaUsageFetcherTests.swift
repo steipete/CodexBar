@@ -18,6 +18,13 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
+    func `rejects non https ollama urls`() {
+        #expect(!OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "http://ollama.com/settings")))
+        #expect(!OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "http://www.ollama.com")))
+        #expect(!OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "http://app.ollama.com/path")))
+    }
+
+    @Test
     func `manual mode without valid header throws no session cookie`() {
         do {
             _ = try OllamaUsageFetcher.resolveManualCookieHeader(

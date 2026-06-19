@@ -38,41 +38,72 @@ public enum OpenAIAPIUsageFetcher {
         URL(string: "https://api.openai.com/v1/organization/usage/completions")!
 
     private static let maxDailyBucketLimit = 31
+    private static let maxPaginationPages = 100
     private static let timeoutSeconds: TimeInterval = 20
+
+    private struct EndpointRequestContext {
+        let apiKey: String
+        let projectID: String?
+        let transport: any ProviderHTTPTransport
+        let retryPolicy: ProviderHTTPRetryPolicy
+    }
+
+    private struct UsageEndpoint<Bucket> {
+        let name: String
+        let baseURL: URL
+        let queryItems: [URLQueryItem]
+        let decodePage: (Data) throws -> UsagePage<Bucket>
+    }
+
+    private struct UsagePage<Bucket> {
+        let data: [Bucket]
+        let hasMore: Bool
+        let nextPage: String?
+    }
+
+    private typealias SnapshotMetadata = (now: Date, calendar: Calendar, historyDays: Int, projectID: String?)
 
     public static func fetchUsage(
         apiKey: String,
+        projectID: String? = nil,
         costsURL: URL = Self.organizationCostsURL,
         completionsURL: URL = Self.organizationCompletionsUsageURL,
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date(),
-        historyDays: Int = 30) async throws -> OpenAIAPIUsageSnapshot
+        historyDays: Int = 30,
+        retryPolicy: ProviderHTTPRetryPolicy = .transientIdempotent) async throws -> OpenAIAPIUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw OpenAIAPIUsageError.missingCredentials
         }
+        let normalizedProjectID = OpenAIAPISettingsReader.cleaned(projectID)
 
         let calendar = Self.utcCalendar
         let clampedHistoryDays = max(1, min(365, historyDays))
         let ranges = Self.dailyRanges(now: now, calendar: calendar, historyDays: clampedHistoryDays)
-        let costs = try await Self.fetchCosts(
+        let requestContext = EndpointRequestContext(
             apiKey: trimmed,
-            baseURL: costsURL,
-            ranges: ranges,
-            transport: transport)
-        let completions = try await Self.fetchCompletions(
-            apiKey: trimmed,
-            baseURL: completionsURL,
-            ranges: ranges,
-            transport: transport)
+            projectID: normalizedProjectID,
+            transport: transport,
+            retryPolicy: retryPolicy)
+        let costs = try await Self.fetchBuckets(
+            endpoint: Self.costsEndpoint(baseURL: costsURL),
+            context: requestContext,
+            ranges: ranges)
+        let completions = try await Self.fetchBuckets(
+            endpoint: Self.completionsEndpoint(baseURL: completionsURL),
+            context: requestContext,
+            ranges: ranges)
 
         return Self.makeSnapshot(
             costs: costs,
             completions: completions,
-            now: now,
-            calendar: calendar,
-            historyDays: clampedHistoryDays)
+            metadata: SnapshotMetadata(
+                now: now,
+                calendar: calendar,
+                historyDays: clampedHistoryDays,
+                projectID: normalizedProjectID))
     }
 
     static func _parseSnapshotForTesting(
@@ -80,63 +111,113 @@ public enum OpenAIAPIUsageFetcher {
         completions: Data,
         now: Date,
         calendar: Calendar = Self.utcCalendar,
-        historyDays: Int = 30) throws -> OpenAIAPIUsageSnapshot
+        historyDays: Int = 30,
+        projectID: String? = nil) throws -> OpenAIAPIUsageSnapshot
     {
-        let costs = try Self.decodeCosts(costs)
-        let completions = try Self.decodeCompletions(completions)
-        return Self.makeSnapshot(
-            costs: costs,
-            completions: completions,
-            now: now,
-            calendar: calendar,
-            historyDays: historyDays)
+        try self.makeSnapshot(
+            costs: self.decodeCosts(costs).data,
+            completions: self.decodeCompletions(completions).data,
+            metadata: SnapshotMetadata(
+                now: now,
+                calendar: calendar,
+                historyDays: historyDays,
+                projectID: OpenAIAPISettingsReader.cleaned(projectID)))
     }
 
-    private static func fetchCosts(
-        apiKey: String,
-        baseURL: URL,
-        ranges: [DateRange],
-        transport: any ProviderHTTPTransport) async throws -> CostsResponse
-    {
-        var buckets: [CostBucket] = []
-        for range in ranges {
-            let url = Self.url(
-                baseURL: baseURL,
-                range: range,
-                queryItems: [
-                    URLQueryItem(name: "group_by", value: "line_item"),
-                ])
-            let data = try await Self.fetchData(url: url, apiKey: apiKey, endpoint: "costs", transport: transport)
-            try buckets.append(contentsOf: Self.decodeCosts(data).data)
-        }
-        return CostsResponse(data: buckets)
+    private static func costsEndpoint(baseURL: URL) -> UsageEndpoint<OpenAICostBucket> {
+        UsageEndpoint(
+            name: "costs",
+            baseURL: baseURL,
+            queryItems: [URLQueryItem(name: "group_by", value: "line_item")],
+            decodePage: {
+                let response = try self.decodeCosts($0)
+                return UsagePage(
+                    data: response.data,
+                    hasMore: response.hasMore,
+                    nextPage: response.nextPage)
+            })
     }
 
-    private static func fetchCompletions(
-        apiKey: String,
-        baseURL: URL,
-        ranges: [DateRange],
-        transport: any ProviderHTTPTransport) async throws -> CompletionsUsageResponse
+    private static func completionsEndpoint(
+        baseURL: URL) -> UsageEndpoint<OpenAICompletionsUsageBucket>
     {
-        var buckets: [CompletionsUsageBucket] = []
+        UsageEndpoint(
+            name: "completions",
+            baseURL: baseURL,
+            queryItems: [URLQueryItem(name: "group_by", value: "model")],
+            decodePage: {
+                let response = try self.decodeCompletions($0)
+                return UsagePage(
+                    data: response.data,
+                    hasMore: response.hasMore,
+                    nextPage: response.nextPage)
+            })
+    }
+
+    private static func fetchBuckets<Bucket>(
+        endpoint: UsageEndpoint<Bucket>,
+        context: EndpointRequestContext,
+        ranges: [DateRange]) async throws -> [Bucket]
+    {
+        var buckets: [Bucket] = []
         for range in ranges {
-            let url = Self.url(
-                baseURL: baseURL,
-                range: range,
-                queryItems: [
-                    URLQueryItem(name: "group_by", value: "model"),
-                ])
-            let data = try await Self.fetchData(url: url, apiKey: apiKey, endpoint: "completions", transport: transport)
-            try buckets.append(contentsOf: Self.decodeCompletions(data).data)
+            var nextPage: String?
+            var seenPages: Set<String> = []
+            var pageCount = 0
+
+            repeat {
+                pageCount += 1
+                guard pageCount <= Self.maxPaginationPages else {
+                    throw OpenAIAPIUsageError.parseFailed(
+                        endpoint: endpoint.name,
+                        message: "Pagination exceeded \(Self.maxPaginationPages) pages.")
+                }
+
+                let url = Self.url(
+                    baseURL: endpoint.baseURL,
+                    range: range,
+                    queryItems: endpoint.queryItems + Self.projectQueryItems(projectID: context.projectID),
+                    page: nextPage)
+                let data = try await Self.fetchData(
+                    url: url,
+                    apiKey: context.apiKey,
+                    endpoint: endpoint.name,
+                    transport: context.transport,
+                    retryPolicy: context.retryPolicy)
+                let page = try endpoint.decodePage(data)
+                buckets.append(contentsOf: page.data)
+
+                guard page.hasMore else {
+                    nextPage = nil
+                    continue
+                }
+                guard let cursor = Self.cleanedPageCursor(page.nextPage) else {
+                    throw OpenAIAPIUsageError.parseFailed(
+                        endpoint: endpoint.name,
+                        message: "Pagination cursor missing.")
+                }
+                guard seenPages.insert(cursor).inserted else {
+                    throw OpenAIAPIUsageError.parseFailed(
+                        endpoint: endpoint.name,
+                        message: "Pagination cursor repeated.")
+                }
+                nextPage = cursor
+            } while nextPage != nil
         }
-        return CompletionsUsageResponse(data: buckets)
+        return buckets
+    }
+
+    private static func projectQueryItems(projectID: String?) -> [URLQueryItem] {
+        guard let projectID else { return [] }
+        return [URLQueryItem(name: "project_ids", value: projectID)]
     }
 
     private static func fetchData(
         url: URL,
         apiKey: String,
         endpoint: String,
-        transport: any ProviderHTTPTransport) async throws -> Data
+        transport: any ProviderHTTPTransport,
+        retryPolicy: ProviderHTTPRetryPolicy) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -146,7 +227,7 @@ public enum OpenAIAPIUsageFetcher {
 
         let response: ProviderHTTPResponse
         do {
-            response = try await transport.response(for: request)
+            response = try await transport.response(for: request, retryPolicy: retryPolicy)
         } catch {
             throw OpenAIAPIUsageError.networkError(error.localizedDescription)
         }
@@ -174,15 +255,13 @@ public enum OpenAIAPIUsageFetcher {
     }
 
     private static func makeSnapshot(
-        costs: CostsResponse,
-        completions: CompletionsUsageResponse,
-        now: Date,
-        calendar: Calendar,
-        historyDays: Int) -> OpenAIAPIUsageSnapshot
+        costs: [OpenAICostBucket],
+        completions: [OpenAICompletionsUsageBucket],
+        metadata: SnapshotMetadata) -> OpenAIAPIUsageSnapshot
     {
         var accumulators: [Int: DailyAccumulator] = [:]
 
-        for bucket in costs.data {
+        for bucket in costs {
             var accumulator = accumulators[bucket.startTime] ?? DailyAccumulator(
                 startTime: bucket.startTime,
                 endTime: bucket.endTime)
@@ -195,7 +274,7 @@ public enum OpenAIAPIUsageFetcher {
             accumulators[bucket.startTime] = accumulator
         }
 
-        for bucket in completions.data {
+        for bucket in completions {
             var accumulator = accumulators[bucket.startTime] ?? DailyAccumulator(
                 startTime: bucket.startTime,
                 endTime: bucket.endTime)
@@ -224,10 +303,14 @@ public enum OpenAIAPIUsageFetcher {
         }
 
         let daily = accumulators.values
-            .filter { $0.startDate <= now }
+            .filter { $0.startDate <= metadata.now }
             .sorted { $0.startTime < $1.startTime }
-            .map { $0.makeBucket(calendar: calendar) }
-        return OpenAIAPIUsageSnapshot(daily: daily, updatedAt: now, historyDays: historyDays)
+            .map { $0.makeBucket(calendar: metadata.calendar) }
+        return OpenAIAPIUsageSnapshot(
+            daily: daily,
+            updatedAt: metadata.now,
+            historyDays: metadata.historyDays,
+            projectID: metadata.projectID)
     }
 
     private static func displayName(_ raw: String?, fallback: String) -> String {
@@ -237,14 +320,30 @@ public enum OpenAIAPIUsageFetcher {
         return trimmed
     }
 
-    private static func url(baseURL: URL, range: DateRange, queryItems extraItems: [URLQueryItem]) -> URL {
+    private static func cleanedPageCursor(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func url(
+        baseURL: URL,
+        range: DateRange,
+        queryItems extraItems: [URLQueryItem],
+        page: String? = nil) -> URL
+    {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
-        components.queryItems = [
+        var queryItems = [
             URLQueryItem(name: "start_time", value: String(range.startTime)),
             URLQueryItem(name: "end_time", value: String(range.endTime)),
             URLQueryItem(name: "bucket_width", value: "1d"),
             URLQueryItem(name: "limit", value: String(range.limit)),
         ] + extraItems
+        if let page {
+            queryItems.append(URLQueryItem(name: "page", value: page))
+        }
+        components.queryItems = queryItems
         return components.url!
     }
 
@@ -359,110 +458,5 @@ private struct ModelAccumulator {
             cachedInputTokens: self.cachedInputTokens,
             outputTokens: self.outputTokens,
             totalTokens: self.totalTokens)
-    }
-}
-
-private struct CostsResponse: Decodable {
-    let data: [CostBucket]
-}
-
-private struct CostBucket: Decodable {
-    let startTime: Int
-    let endTime: Int
-    let results: [CostResult]
-
-    private enum CodingKeys: String, CodingKey {
-        case startTime = "start_time"
-        case endTime = "end_time"
-        case results
-    }
-}
-
-private struct CostResult: Decodable {
-    struct Amount: Decodable {
-        let value: Double?
-        let currency: String?
-
-        private enum CodingKeys: String, CodingKey {
-            case value
-            case currency
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            self.value = try container.decodeFlexibleDoubleIfPresent(forKey: .value)
-            self.currency = try container.decodeIfPresent(String.self, forKey: .currency)
-        }
-    }
-
-    let amount: Amount?
-    let lineItem: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case amount
-        case lineItem = "line_item"
-    }
-}
-
-extension KeyedDecodingContainer {
-    fileprivate func decodeFlexibleDoubleIfPresent(forKey key: Key) throws -> Double? {
-        guard self.contains(key), try !self.decodeNil(forKey: key) else {
-            return nil
-        }
-
-        if let value = try? self.decode(Double.self, forKey: key) {
-            return value
-        }
-
-        if let rawValue = try? self.decode(String.self, forKey: key) {
-            let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
-                return nil
-            }
-            if let value = Double(trimmed) {
-                return value
-            }
-        }
-
-        throw DecodingError.dataCorruptedError(
-            forKey: key,
-            in: self,
-            debugDescription: "Expected a number or numeric string for \(key.stringValue)")
-    }
-}
-
-private struct CompletionsUsageResponse: Decodable {
-    let data: [CompletionsUsageBucket]
-}
-
-private struct CompletionsUsageBucket: Decodable {
-    let startTime: Int
-    let endTime: Int
-    let results: [CompletionsUsageResult]
-
-    private enum CodingKeys: String, CodingKey {
-        case startTime = "start_time"
-        case endTime = "end_time"
-        case results
-    }
-}
-
-private struct CompletionsUsageResult: Decodable {
-    let inputTokens: Int?
-    let inputCachedTokens: Int?
-    let inputAudioTokens: Int?
-    let outputTokens: Int?
-    let outputAudioTokens: Int?
-    let numModelRequests: Int?
-    let model: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case inputTokens = "input_tokens"
-        case inputCachedTokens = "input_cached_tokens"
-        case inputAudioTokens = "input_audio_tokens"
-        case outputTokens = "output_tokens"
-        case outputAudioTokens = "output_audio_tokens"
-        case numModelRequests = "num_model_requests"
-        case model
     }
 }

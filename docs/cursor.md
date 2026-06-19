@@ -8,7 +8,7 @@ read_when:
 
 # Cursor provider
 
-Cursor is web-only. Usage is fetched via browser cookies or a stored WebKit session.
+Cursor is primarily web-backed. Usage is fetched via browser cookies or a stored WebKit session, with Cursor.app local auth as a final fallback.
 
 ## Data sources + fallback order
 
@@ -29,6 +29,13 @@ Cursor is web-only. Usage is fetched via browser cookies or a stored WebKit sess
    - Login teardown uses `WebKitTeardown` to avoid Intel WebKit crashes.
    - Stored at: `~/Library/Application Support/CodexBar/cursor-session.json`.
 
+4) **Cursor.app local auth** (last fallback)
+   - Reads Cursor.app's VS Code-style global state DB for the local app bearer token.
+   - File: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`.
+   - Used only after cookie/session sources fail so existing account-selection precedence stays stable.
+   - Derives Cursor's first-party web-session cookie, then uses the same usage and account endpoints as browser sessions.
+   - Account identity comes from that authenticated session; cached app profile fields are not mixed across accounts.
+
 Manual option:
 - Preferences → Providers → Cursor → Cookie source → Manual.
 - Paste the `Cookie:` header from a cursor.com request.
@@ -46,10 +53,24 @@ Manual option:
 - Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
 - Firefox: `~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite`
 
+## Local storage footprint
+When **Settings → Advanced → Track provider local storage** is enabled, CodexBar measures:
+- `~/Library/Application Support/Cursor`
+- `~/Library/Application Support/Caches/cursor-updater`
+- `~/.cursor`
+- `~/Library/Caches/Cursor`
+- `~/Library/Caches/com.todesktop.230313mzl4w4u92`
+- `~/Library/Caches/com.todesktop.230313mzl4w4u92.ShipIt`
+- `~/Library/Caches/cursor-compile-cache`
+- `~/Library/HTTPStorages/com.todesktop.230313mzl4w4u92`
+
+The storage detail lists measured paths and their sizes. CodexBar does not delete Cursor data.
+
 ## Snapshot mapping
 - Primary: plan usage percent (included plan).
-- Secondary: on-demand usage percent (individual usage).
-- Provider cost: on-demand usage USD (limit when known).
+- Secondary: Auto + Composer usage percent.
+- Tertiary: API (named model) usage percent.
+- Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
 - Reset: billing cycle end date.
 
 ## Key files

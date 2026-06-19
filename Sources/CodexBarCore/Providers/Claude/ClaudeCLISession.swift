@@ -1,7 +1,9 @@
 #if canImport(Darwin)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 import Foundation
 
@@ -300,10 +302,16 @@ actor ClaudeCLISession {
 
         let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
         proc.currentDirectoryURL = workingDirectory
-        var env = TTYCommandRunner.enrichedEnvironment()
-        env = Self.scrubbedClaudeEnvironment(from: env)
+        var env = Self.launchEnvironment()
         env["PWD"] = workingDirectory.path
         proc.environment = env
+
+        guard TTYCommandRunner.beginActiveProcessLaunchForAppShutdown() else {
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+            throw SessionError.launchFailed("App shutdown in progress")
+        }
+        defer { TTYCommandRunner.endActiveProcessLaunchForAppShutdown() }
 
         do {
             try proc.run()
@@ -342,6 +350,10 @@ actor ClaudeCLISession {
         self.processGroup = processGroup
         self.binaryPath = binary
         self.startedAt = Date()
+    }
+
+    static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        self.scrubbedClaudeEnvironment(from: TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv))
     }
 
     private static func scrubbedClaudeEnvironment(from base: [String: String]) -> [String: String] {

@@ -14,7 +14,7 @@ Goal: adding a provider should feel like:
 - add one implementation (UI hooks only)
 - done (tests + docs)
 
-This doc describes the **current provider architecture** (post-macro registry) and the exact steps to add a new provider.
+This doc describes the **current provider architecture** and the exact steps to add a new provider.
 
 ## Terms
 - **Provider**: a source of usage/quota/status data (Codex, Claude, Gemini, Antigravity, Cursor, …).
@@ -39,7 +39,8 @@ Common building blocks already exist:
 - OpenAI dashboard web scrape: `OpenAIDashboardFetcher` (WKWebView + JS)
 - cost usage: local log scanner (Codex + Claude)
 
-The old “switch provider” wiring is gone. Everything should be driven by the descriptor and its strategies.
+Provider behavior is descriptor-driven. Two explicit, exhaustive registries form the bootstrap boundary:
+`ProviderDescriptorRegistry` owns core descriptors and `ProviderImplementationRegistry` owns app implementations.
 
 ## Provider descriptor (source of truth)
 
@@ -93,12 +94,11 @@ Rule: providers do not talk to `FileManager`, `Security`, or “browser internal
 ## Minimal provider example (copy-paste)
 
 ```swift
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum ExampleProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .example,
@@ -169,12 +169,11 @@ Checklist:
   - `<ProviderID>Probe.swift` / `<ProviderID>Fetcher.swift`: concrete fetcher logic.
   - `<ProviderID>Models.swift`: snapshot structs.
   - `<ProviderID>Parser.swift` (if needed).
-- Attach `@ProviderDescriptorRegistration` + `@ProviderDescriptorDefinition` to the descriptor type.
-  Implement `static func makeDescriptor() -> ProviderDescriptor`.
-- Attach `@ProviderImplementationRegistration` to the implementation type (macros auto-register).
-  - No manual list edits.
+- Define a cached `public static let descriptor` and `static func makeDescriptor() -> ProviderDescriptor`.
+- Add the descriptor to `ProviderDescriptorRegistry.descriptorsByID`.
 - Add `Sources/CodexBar/Providers/<ProviderID>/<ProviderID>ProviderImplementation.swift`:
   - `ProviderImplementation` only for settings/login UI hooks.
+- Add an exhaustive case to `ProviderImplementationRegistry.makeImplementation(for:)`.
 - Add icons + color in descriptor:
   - `iconName` must match `ProviderIcon-<id>` asset.
   - Color used in menu cards + switcher.

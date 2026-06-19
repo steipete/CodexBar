@@ -1,0 +1,4 @@
+interface:
+  display_name: "CodexBar QA Test"
+  short_description: "Run live CodexBar CLI and menu QA safely."
+  default_prompt: "Run CodexBar live QA with CLI, Peekaboo, browser docs, and 1Password-safe credential checks."

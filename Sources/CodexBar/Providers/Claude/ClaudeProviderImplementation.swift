@@ -1,8 +1,6 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct ClaudeProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .claude
     let supportsLoginFlow: Bool = true
@@ -88,6 +86,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
+                isEnabled: { !context.settings.debugDisableKeychainAccess },
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
@@ -180,7 +179,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .claude) else { return nil }
+                    guard let entry = CookieHeaderCache.loadForDisplay(provider: .claude) else { return nil }
                     let when = entry.storedAt.relativeDescription()
                     return "Cached: \(entry.sourceLabel) • \(when)"
                 }),
@@ -228,8 +227,35 @@ struct ClaudeProviderImplementation: ProviderImplementation {
     func loginMenuAction(context: ProviderMenuLoginContext)
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
+        if self.shouldOpenBrowserForWebSessionError(context: context) {
+            return ("Re-login at claude.ai", .loginToProvider(url: "https://claude.ai/"))
+        }
         guard self.shouldOpenTerminalForOAuthError(store: context.store) else { return nil }
         return ("Open Terminal", .openTerminal(command: "claude"))
+    }
+
+    @MainActor
+    private func shouldOpenBrowserForWebSessionError(context: ProviderMenuLoginContext) -> Bool {
+        let settings = context.settings.claudeSettingsSnapshot(tokenOverride: nil)
+        let source = settings.usageDataSource
+        guard source == .auto || source == .web,
+              settings.cookieSource == .auto,
+              let error = context.store.error(for: .claude)
+        else { return false }
+
+        let sessionErrors = [
+            ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription,
+            ClaudeWebAPIFetcher.FetchError.noSessionKeyFound.localizedDescription,
+            ClaudeWebAPIFetcher.FetchError.invalidSessionKey.localizedDescription,
+        ]
+        if sessionErrors.contains(error) {
+            return true
+        }
+
+        guard error == ProviderFetchError.noAvailableStrategy(.claude).localizedDescription else { return false }
+        return context.store.fetchAttempts(for: .claude).contains {
+            $0.strategyID == "claude.web" && !$0.wasAvailable
+        }
     }
 
     @MainActor

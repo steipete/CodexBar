@@ -1,8 +1,10 @@
 import Foundation
 
-public struct MiMoUsageSnapshot: Sendable {
+public struct MiMoUsageSnapshot: Codable, Sendable {
     public let balance: Double
     public let currency: String
+    public let cashBalance: Double?
+    public let giftBalance: Double?
     public let planCode: String?
     public let planPeriodEnd: Date?
     public let planExpired: Bool
@@ -14,6 +16,8 @@ public struct MiMoUsageSnapshot: Sendable {
     public init(
         balance: Double,
         currency: String,
+        cashBalance: Double? = nil,
+        giftBalance: Double? = nil,
         planCode: String? = nil,
         planPeriodEnd: Date? = nil,
         planExpired: Bool = false,
@@ -24,6 +28,8 @@ public struct MiMoUsageSnapshot: Sendable {
     {
         self.balance = balance
         self.currency = currency
+        self.cashBalance = cashBalance
+        self.giftBalance = giftBalance
         self.planCode = planCode
         self.planPeriodEnd = planPeriodEnd
         self.planExpired = planExpired
@@ -35,11 +41,19 @@ public struct MiMoUsageSnapshot: Sendable {
 }
 
 extension MiMoUsageSnapshot {
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public var balanceDetail: String {
         let trimmedCurrency = self.currency.trimmingCharacters(in: .whitespacesAndNewlines)
         let balanceText = UsageFormatter.currencyString(self.balance, currencyCode: trimmedCurrency)
+        guard let cashBalance = self.cashBalance, let giftBalance = self.giftBalance else {
+            return balanceText
+        }
+        let paid = UsageFormatter.currencyString(cashBalance, currencyCode: trimmedCurrency)
+        let granted = UsageFormatter.currencyString(giftBalance, currencyCode: trimmedCurrency)
+        return "\(balanceText) (Paid: \(paid) / Granted: \(granted))"
+    }
 
-        let primary: RateWindow? = {
+    public func toUsageSnapshot(includeBalance: Bool = true) -> UsageSnapshot {
+        let tokenWindow: RateWindow? = {
             guard self.tokenLimit > 0 else { return nil }
             let usedPercent = max(0, min(100, self.tokenPercent * 100))
             let usedText = Self.fullCountString(self.tokenUsed)
@@ -61,13 +75,13 @@ extension MiMoUsageSnapshot {
             providerID: .mimo,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: planLabel ?? "Balance: \(balanceText)")
+            loginMethod: planLabel)
 
         return UsageSnapshot(
-            primary: primary,
+            primary: tokenWindow,
             secondary: nil,
             tertiary: nil,
-            providerCost: nil,
+            mimoUsage: includeBalance ? self : nil,
             updatedAt: self.updatedAt,
             identity: identity)
     }

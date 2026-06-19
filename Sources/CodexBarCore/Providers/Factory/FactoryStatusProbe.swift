@@ -816,15 +816,18 @@ public struct FactoryStatusProbe: Sendable {
     }
 
     private let browserDetection: BrowserDetection
+    private let transport: any ProviderHTTPTransport
 
     public init(
         baseURL: URL = URL(string: "https://app.factory.ai")!,
         timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
     {
         self.baseURL = baseURL
         self.timeout = timeout
         self.browserDetection = browserDetection
+        self.transport = transport
     }
 
     /// Fetch Factory usage using browser cookies with fallback to stored session.
@@ -1266,7 +1269,7 @@ public struct FactoryStatusProbe: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+            (data, response) = try await self.transport.data(for: request)
         } catch {
             return nil
         }
@@ -1303,7 +1306,7 @@ public struct FactoryStatusProbe: Sendable {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+        let (data, response) = try await self.transport.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid response")
@@ -1368,7 +1371,7 @@ public struct FactoryStatusProbe: Sendable {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+        let (data, response) = try await self.transport.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid response")
@@ -1502,7 +1505,7 @@ public struct FactoryStatusProbe: Sendable {
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
 
-        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+        let (data, response) = try await self.transport.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid WorkOS response")
         }
@@ -1572,7 +1575,7 @@ public struct FactoryStatusProbe: Sendable {
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
 
-        let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+        let (data, response) = try await self.transport.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FactoryStatusProbeError.networkError("Invalid WorkOS response")
         }
@@ -1715,11 +1718,13 @@ public struct FactoryStatusProbe: Sendable {
     public init(
         baseURL: URL = URL(string: "https://app.factory.ai")!,
         timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection)
+        browserDetection: BrowserDetection,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
     {
         _ = baseURL
         _ = timeout
         _ = browserDetection
+        _ = transport
     }
 
     public func fetch(

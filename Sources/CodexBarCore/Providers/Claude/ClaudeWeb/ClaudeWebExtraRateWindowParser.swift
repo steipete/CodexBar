@@ -3,18 +3,6 @@ import Foundation
 enum ClaudeWebExtraRateWindowParser {
     private static let definitions: [(id: String, title: String, keys: [String])] = [
         (
-            id: "claude-design",
-            title: "Designs",
-            keys: [
-                "seven_day_design",
-                "seven_day_claude_design",
-                "claude_design",
-                "design",
-                "seven_day_omelette",
-                "omelette",
-                "omelette_promotional",
-            ]),
-        (
             id: "claude-routines",
             title: "Daily Routines",
             keys: [

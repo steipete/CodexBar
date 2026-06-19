@@ -620,6 +620,7 @@ public struct OllamaUsageFetcher: Sendable {
     }
 
     static func shouldAttachCookie(to url: URL?) -> Bool {
+        guard url?.scheme?.lowercased() == "https" else { return false }
         guard let host = url?.host?.lowercased() else { return false }
         if host == "ollama.com" || host == "www.ollama.com" { return true }
         return host.hasSuffix(".ollama.com")
@@ -651,8 +652,7 @@ public struct OllamaAPISettingsReader: Sendable {
         if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
             (value.hasPrefix("'") && value.hasSuffix("'"))
         {
-            value.removeFirst()
-            value.removeLast()
+            value = String(value.dropFirst().dropLast())
         }
         return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }

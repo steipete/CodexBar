@@ -32,4 +32,13 @@ public enum ZaiAPIRegion: String, CaseIterable, Sendable {
     public var modelUsageURL: URL {
         URL(string: self.baseURLString)!.appendingPathComponent(Self.modelUsagePath)
     }
+
+    public var dashboardURL: URL {
+        switch self {
+        case .global:
+            URL(string: "https://z.ai/manage-apikey/coding-plan/personal/my-plan")!
+        case .bigmodelCN:
+            URL(string: "https://bigmodel.cn/coding-plan/personal/usage")!
+        }
+    }
 }

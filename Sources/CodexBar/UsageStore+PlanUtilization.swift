@@ -16,7 +16,16 @@ extension UsageStore {
         case .codex, .claude:
             true
         default:
-            false
+            if self.planUtilizationHistory[provider]?.isEmpty == false {
+                true
+            } else if self.settings.historicalTrackingEnabled, let snapshot = self.snapshots[provider] {
+                !self.planUtilizationSeriesSamples(
+                    provider: provider,
+                    snapshot: snapshot,
+                    capturedAt: snapshot.updatedAt).isEmpty
+            } else {
+                false
+            }
         }
     }
 
@@ -36,6 +45,12 @@ extension UsageStore {
     }
 
     func planUtilizationHistory(for provider: UsageProvider) -> [PlanUtilizationSeriesHistory] {
+        self.planUtilizationHistorySelection(for: provider).histories
+    }
+
+    func planUtilizationHistorySelection(for provider: UsageProvider)
+        -> (accountKey: String?, histories: [PlanUtilizationSeriesHistory])
+    {
         var providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
         let originalProviderBuckets = providerBuckets
         let accountKey = self.resolvePlanUtilizationAccountKey(
@@ -50,6 +65,34 @@ extension UsageStore {
                 await self.planUtilizationPersistenceCoordinator.enqueue(snapshotToPersist)
             }
         }
+        return (accountKey, providerBuckets.histories(for: accountKey))
+    }
+
+    func codexPlanUtilizationHistories(forVisibleAccount account: CodexVisibleAccount)
+        -> [PlanUtilizationSeriesHistory]
+    {
+        var providerBuckets = self.planUtilizationHistory[.codex] ?? PlanUtilizationHistoryBuckets()
+        let originalProviderBuckets = providerBuckets
+        let ownership = self.codexOwnershipContext(forVisibleAccount: account)
+        guard let canonicalKey = ownership.canonicalKey else { return [] }
+
+        if ownership.hasAdjacentEmailScopeAmbiguity {
+            guard canonicalKey != ownership.canonicalEmailHashKey else { return [] }
+            return providerBuckets.histories(for: canonicalKey)
+        }
+
+        let accountKey = self.materializeCodexPlanUtilizationHistoryIfNeeded(
+            into: canonicalKey,
+            ownership: ownership,
+            shouldAdoptUnscopedHistory: true,
+            providerBuckets: &providerBuckets)
+        self.planUtilizationHistory[.codex] = providerBuckets
+        if providerBuckets != originalProviderBuckets {
+            let snapshotToPersist = self.planUtilizationHistory
+            Task {
+                await self.planUtilizationPersistenceCoordinator.enqueue(snapshotToPersist)
+            }
+        }
         return providerBuckets.histories(for: accountKey)
     }
 
@@ -58,6 +101,11 @@ extension UsageStore {
         return isRefreshing
             && self.snapshots[provider] == nil
             && self.error(for: provider) == nil
+    }
+
+    func shouldShowRefreshingMenuCardIndicator(for provider: UsageProvider) -> Bool {
+        let isRefreshing = self.isRefreshing || self.refreshingProviders.contains(provider)
+        return isRefreshing && self.error(for: provider) == nil
     }
 
     func shouldHidePlanUtilizationMenuItem(for provider: UsageProvider) -> Bool {
@@ -90,7 +138,7 @@ extension UsageStore {
                 samples: samples)
         }
 
-        guard self.supportsPlanUtilizationHistory(for: provider) else { return }
+        guard self.shouldRecordPlanUtilizationHistory(for: provider) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
 
         var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?
@@ -115,11 +163,21 @@ extension UsageStore {
 
             providerBuckets.setHistories(updatedHistories, for: accountKey)
             self.planUtilizationHistory[provider] = providerBuckets
+            self.planUtilizationHistoryRevision &+= 1
             snapshotToPersist = self.planUtilizationHistory
         }
 
         guard let snapshotToPersist else { return }
         await self.planUtilizationPersistenceCoordinator.enqueue(snapshotToPersist)
+    }
+
+    private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
+        switch provider {
+        case .codex, .claude:
+            true
+        default:
+            self.settings.historicalTrackingEnabled
+        }
     }
 
     private nonisolated static func updatedPlanUtilizationHistories(
@@ -342,10 +400,32 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
+        case .antigravity:
+            let namedWeeklyWindows = snapshot.extraRateWindows?
+                .filter {
+                    $0.usageKnown
+                        && $0.id.hasPrefix("antigravity-quota-summary-")
+                        && $0.window.windowMinutes == Self.weeklyWindowMinutes
+                }
+                .map(\.window) ?? []
+            if let mostUsedWeeklyWindow = namedWeeklyWindows.max(by: { $0.usedPercent < $1.usedPercent }) {
+                appendWindow(mostUsedWeeklyWindow, name: .weekly)
+            } else {
+                for window in [snapshot.primary, snapshot.secondary, snapshot.tertiary] {
+                    guard let window, window.windowMinutes == Self.weeklyWindowMinutes else { continue }
+                    appendWindow(window, name: .weekly)
+                }
+            }
         default:
-            for window in [snapshot.primary, snapshot.secondary, snapshot.tertiary] {
-                guard let window, window.windowMinutes == Self.weeklyWindowMinutes else { continue }
-                appendWindow(window, name: .weekly)
+            let standardWeeklyWindow = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+                .compactMap(\.self)
+                .first { $0.windowMinutes == Self.weeklyWindowMinutes }
+            let extraWeeklyWindow = snapshot.extraRateWindows?
+                .lazy
+                .first { $0.usageKnown && $0.window.windowMinutes == Self.weeklyWindowMinutes }?
+                .window
+            if let weeklyWindow = standardWeeklyWindow ?? extraWeeklyWindow {
+                appendWindow(weeklyWindow, name: .weekly)
             }
         }
 
@@ -732,6 +812,7 @@ extension UsageStore {
                 targetCanonicalKey: canonicalKey,
                 canonicalEmailHashKey: ownership.canonicalEmailHashKey)
             if matchesTargetContinuity,
+               !Self.codexPlanHistoryOwnerIsAmbiguousEmailScope(owner, ownership: ownership),
                let accountHistories = providerBuckets.accounts[rawKey],
                !accountHistories.isEmpty
             {
@@ -773,6 +854,21 @@ extension UsageStore {
         let mergedHistory = Self.mergedPlanUtilizationHistories(provider: .codex, histories: historiesToMerge)
         providerBuckets.setHistories(mergedHistory, for: canonicalKey)
         return canonicalKey
+    }
+
+    private static func codexPlanHistoryOwnerIsAmbiguousEmailScope(
+        _ owner: CodexHistoryPersistedOwner,
+        ownership: CodexOwnershipContext) -> Bool
+    {
+        guard ownership.hasAdjacentEmailScopeAmbiguity else { return false }
+        return switch owner {
+        case let .canonical(key):
+            key == ownership.canonicalEmailHashKey
+        case .legacyEmailHash:
+            true
+        case .legacyOpaqueScoped, .legacyUnscoped:
+            false
+        }
     }
 
     private func materializeLegacyClaudePlanUtilizationHistoryIfNeeded(

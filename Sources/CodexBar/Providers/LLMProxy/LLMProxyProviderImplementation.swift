@@ -1,8 +1,6 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct LLMProxyProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .llmproxy
 

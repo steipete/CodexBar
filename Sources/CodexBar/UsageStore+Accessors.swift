@@ -83,15 +83,30 @@ extension UsageStore {
     }
 
     func accountInfo(for provider: UsageProvider) -> AccountInfo {
-        guard provider == .codex else {
-            return self.codexFetcher.loadAccountInfo()
+        let now = Date()
+        let configRevision = self.settings.configRevision
+        if let cached = self.accountInfoCache[provider],
+           cached.isValid(now: now, configRevision: configRevision)
+        {
+            return cached.account
         }
-        let env = ProviderRegistry.makeEnvironment(
-            base: self.environmentBase,
-            provider: .codex,
-            settings: self.settings,
-            tokenOverride: nil)
-        let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: .codex, env: env)
-        return fetcher.loadAccountInfo()
+
+        let account: AccountInfo
+        if provider == .codex {
+            let env = ProviderRegistry.makeEnvironment(
+                base: self.environmentBase,
+                provider: .codex,
+                settings: self.settings,
+                tokenOverride: nil)
+            let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: .codex, env: env)
+            account = fetcher.loadAccountInfo()
+        } else {
+            account = self.codexFetcher.loadAccountInfo()
+        }
+        self.accountInfoCache[provider] = AccountInfoCacheEntry(
+            account: account,
+            configRevision: configRevision,
+            expiresAt: now.addingTimeInterval(self.accountInfoCacheTTL))
+        return account
     }
 }

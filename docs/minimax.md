@@ -39,6 +39,8 @@ falls back across the provider's supported web requests when needed.
   - `MINIMAX_HOST=platform.minimaxi.com`
   - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
   - `MINIMAX_REMAINS_URL=...` (full URL override)
+- Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and authorization headers are not sent in cleartext.
+- Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io` or `minimaxi.com`.
 
 ## Cookie capture (optional override)
 - Open the Coding Plan page and DevTools → Network.
@@ -60,3 +62,34 @@ quota card and omits the chart instead of treating the whole provider as failed.
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxProviderDescriptor.swift`
 - `Sources/CodexBar/Providers/MiniMax/MiniMaxProviderImplementation.swift`
+
+## CLI diagnose command
+
+The generic `diagnose` command performs a real provider diagnostic invocation and emits a safe, redacted JSON export
+for issue reporting and verification. MiniMax adds a provider-specific `details` block with safe usage metadata.
+
+### Usage
+```
+codexbar diagnose --provider minimax --format json --pretty
+```
+
+### Output
+- Structural diagnostic JSON with provider, source/source mode, auth summary, usage summary, fetch attempts, and error categories.
+- Per-service quota percentages, used values, limits, remaining values, reset metadata, and unlimited state. These are
+  the same non-secret values shown in the menu and help diagnose boosted quota denominators.
+- All sensitive fields (API tokens, cookies, emails, auth headers) are redacted via `LogRedactor`.
+- Errors are mapped to safe categories (`network`, `auth`, `api`, `parse`) with user-friendly descriptions.
+- No raw API responses, raw error messages, tokens, cookies, emails, account IDs, org IDs, or billing history.
+
+### What is excluded from output
+- Raw API tokens (`sk-cp-*`, `sk-api-*`) and authorization headers
+- Cookie header values
+- Email addresses
+- Account IDs, org IDs
+- Raw error messages (replaced with safe category-based descriptions)
+- Raw HTTP responses or request bodies
+- Billing history details
+
+### Exit codes
+- `0`: Diagnostic completed successfully (even if provider auth is not configured)
+- `1`: Unknown error or invalid arguments

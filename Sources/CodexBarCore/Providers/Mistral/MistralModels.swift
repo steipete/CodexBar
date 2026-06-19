@@ -207,4 +207,44 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             updatedAt: self.updatedAt,
             identity: identity)
     }
+
+    public func toCostUsageTokenSnapshot(historyDays: Int = 30) -> CostUsageTokenSnapshot {
+        let clampedHistoryDays = max(1, min(365, historyDays))
+        let selected = self.daily
+        let entries = selected.map { bucket in
+            let modelBreakdowns = bucket.models.map {
+                CostUsageDailyReport.ModelBreakdown(
+                    modelName: $0.name,
+                    costUSD: max($0.cost, 0),
+                    totalTokens: $0.totalTokens)
+            }
+            let modelsUsed = bucket.models.map(\.name)
+            return CostUsageDailyReport.Entry(
+                date: bucket.day,
+                inputTokens: bucket.inputTokens,
+                outputTokens: bucket.outputTokens,
+                cacheReadTokens: bucket.cachedTokens,
+                cacheCreationTokens: nil,
+                totalTokens: bucket.totalTokens,
+                costUSD: max(bucket.cost, 0),
+                modelsUsed: modelsUsed.isEmpty ? nil : modelsUsed,
+                modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
+        }
+        let latest = selected.last
+        let totalCost = max(self.totalCost, 0)
+        let totalTokens = selected.isEmpty
+            ? self.totalInputTokens + self.totalCachedTokens + self.totalOutputTokens
+            : selected.reduce(0) { $0 + $1.totalTokens }
+        let tokens = totalTokens > 0 ? totalTokens : nil
+        return CostUsageTokenSnapshot(
+            sessionTokens: latest?.totalTokens,
+            sessionCostUSD: latest.map { max($0.cost, 0) },
+            last30DaysTokens: tokens,
+            last30DaysCostUSD: totalCost,
+            currencyCode: self.currency,
+            historyDays: selected.isEmpty ? clampedHistoryDays : max(1, min(365, selected.count)),
+            historyLabel: "This month",
+            daily: entries,
+            updatedAt: self.updatedAt)
+    }
 }

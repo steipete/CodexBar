@@ -300,12 +300,31 @@ struct GeminiTestEnvironment {
     func writeFakeFnm(
         currentVersion: String = "v24.6.0",
         npmRoot: String? = nil,
-        geminiPackageJSONPath: String) throws -> URL
+        geminiPackageJSONPath: String,
+        holdNpmRootStdoutOpen: Bool = false) throws -> URL
     {
         let binDir = self.homeURL.appendingPathComponent("bin")
         try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
 
         let fnmPath = binDir.appendingPathComponent("fnm")
+        let stdoutHolder = holdNpmRootStdoutOpen
+            ? #"""
+            python3 - <<'PY'
+            import os
+            import subprocess
+            import sys
+
+            child = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(5)"],
+                stdin=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            with open(os.environ["CODEXBAR_TEST_CHILD_PID_FILE"], "w") as handle:
+                handle.write(str(child.pid))
+            PY
+            """#
+            : ":"
         let script = if let npmRoot {
             """
             #!/bin/bash
@@ -315,6 +334,7 @@ struct GeminiTestEnvironment {
             fi
 
             if [ "$1" = "exec" ] && [ "$4" = "npm" ] && [ "$5" = "root" ] && [ "$6" = "-g" ]; then
+              \(stdoutHolder)
               printf '%s\n' "\(npmRoot)"
               exit 0
             fi

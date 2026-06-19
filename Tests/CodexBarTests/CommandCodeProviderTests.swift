@@ -1,6 +1,6 @@
-import CodexBarCore
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 struct CommandCodeProviderTests {
     @Test
@@ -13,6 +13,27 @@ struct CommandCodeProviderTests {
         #expect(descriptor.metadata.cliName == "commandcode")
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-commandcode")
         #expect(descriptor.branding.iconStyle == .commandcode)
+    }
+
+    @Test
+    func `manual cookie makes web strategy available`() async {
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let settings = ProviderSettingsSnapshot.make(
+            commandcode: .init(cookieSource: .manual, manualCookieHeader: "session=manual"))
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .web,
+            includeCredits: true,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: settings,
+            fetcher: UsageFetcher(),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+
+        #expect(await CommandCodeWebFetchStrategy().isAvailable(context))
     }
 
     @MainActor

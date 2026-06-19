@@ -1,6 +1,9 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
-struct AlibabaTokenPlanCookieHeaders: Sendable {
+struct AlibabaTokenPlanCookieHeaders {
     private static let cachedAPIHeaderName = "__codexbar_alibaba_token_plan_api"
     private static let cachedDashboardHeaderName = "__codexbar_alibaba_token_plan_dashboard"
 

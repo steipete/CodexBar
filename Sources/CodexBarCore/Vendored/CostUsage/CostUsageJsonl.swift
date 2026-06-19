@@ -15,6 +15,25 @@ enum CostUsageJsonl {
         onLine: (Line) -> Void) throws
         -> Int64
     {
+        try self.scan(
+            fileURL: fileURL,
+            offset: offset,
+            maxLineBytes: maxLineBytes,
+            prefixBytes: prefixBytes,
+            checkCancellation: nil,
+            onLine: onLine)
+    }
+
+    @discardableResult
+    static func scan(
+        fileURL: URL,
+        offset: Int64 = 0,
+        maxLineBytes: Int,
+        prefixBytes: Int,
+        checkCancellation: (() throws -> Void)? = nil,
+        onLine: (Line) -> Void) throws
+        -> Int64
+    {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
 
@@ -53,29 +72,36 @@ enum CostUsageJsonl {
         }
 
         while true {
-            let chunk = try handle.read(upToCount: 256 * 1024) ?? Data()
-            if chunk.isEmpty {
-                flushLine()
-                break
-            }
+            try checkCancellation?()
+            let reachedEOF = try autoreleasepool {
+                let chunk = try handle.read(upToCount: 256 * 1024) ?? Data()
+                if chunk.isEmpty {
+                    flushLine()
+                    return true
+                }
 
-            bytesRead += Int64(chunk.count)
-            chunk.withUnsafeBytes { rawBuffer in
-                guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
-                var segmentStart = 0
-                var index = 0
-                while index < rawBuffer.count {
-                    if base[index] == 0x0A {
-                        appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
-                        flushLine()
-                        segmentStart = index + 1
+                try checkCancellation?()
+                bytesRead += Int64(chunk.count)
+                chunk.withUnsafeBytes { rawBuffer in
+                    guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
+                    var segmentStart = 0
+                    var index = 0
+                    while index < rawBuffer.count {
+                        if base[index] == 0x0A {
+                            appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
+                            flushLine()
+                            segmentStart = index + 1
+                        }
+                        index += 1
                     }
-                    index += 1
+                    if segmentStart < rawBuffer.count {
+                        appendSegment(base.advanced(by: segmentStart), count: rawBuffer.count - segmentStart)
+                    }
                 }
-                if segmentStart < rawBuffer.count {
-                    appendSegment(base.advanced(by: segmentStart), count: rawBuffer.count - segmentStart)
-                }
+                return false
             }
+            if reachedEOF { break }
+            try checkCancellation?()
         }
 
         return startOffset + bytesRead

@@ -1,34 +1,193 @@
 import AppKit
 import CodexBarCore
 
+enum LoginNotificationLogic {
+    static func notificationCopy(providerName: String) -> (title: String, body: String) {
+        (
+            L("login_success_notification_title", providerName),
+            L("login_success_notification_body"))
+    }
+}
+
 extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     // MARK: - Actions reachable from menus
 
-    func refreshStore(forceTokenUsage: Bool, refreshOpenMenusWhenComplete: Bool = true) {
+    func refreshStore(
+        forceTokenUsage: Bool,
+        refreshOpenMenusWhenComplete: Bool = true,
+        interaction: ProviderInteraction = .userInitiated)
+    {
         Task {
-            await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                await self.store.refresh(forceTokenUsage: forceTokenUsage)
-                self.store.scheduleStorageFootprintRefreshForOverview(force: true)
-                if refreshOpenMenusWhenComplete {
-                    self.refreshOpenMenusAfterExplicitStoreAction()
-                } else {
-                    self.invalidateMenus()
+            await self.performStoreRefresh(
+                forceTokenUsage: forceTokenUsage,
+                refreshOpenMenusWhenComplete: refreshOpenMenusWhenComplete,
+                interaction: interaction)
+        }
+    }
+
+    func performStoreRefresh(
+        forceTokenUsage: Bool,
+        refreshOpenMenusWhenComplete: Bool,
+        interaction: ProviderInteraction) async
+    {
+        await ProviderInteractionContext.$current.withValue(interaction) {
+            await self.store.refresh(forceTokenUsage: forceTokenUsage)
+            guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            self.store.scheduleStorageFootprintRefreshForOverview(force: true)
+            if refreshOpenMenusWhenComplete {
+                self.refreshOpenMenusAfterExplicitStoreAction()
+            } else {
+                self.invalidateMenus()
+            }
+        }
+    }
+
+    func performStoreRefresh(
+        for provider: UsageProvider,
+        refreshOpenMenusWhenComplete: Bool,
+        interaction: ProviderInteraction) async
+    {
+        await ProviderInteractionContext.$current.withValue(interaction) {
+            let refreshStartedAt = Date()
+            await self.store.refreshProvider(provider)
+            guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            await self.store.refreshProviderStatus(provider)
+            guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            await self.store.refreshTokenUsageNow(for: provider, force: true)
+            guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            if provider == .codex {
+                await self.store.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
+                guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                await self.store.refreshOpenAIDashboardIfNeeded(
+                    force: true,
+                    expectedGuard: self.store.freshCodexOpenAIWebRefreshGuard())
+                guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                if self.store.openAIDashboardRequiresLogin {
+                    await self.store.refreshProvider(.codex)
+                    guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                    await self.store.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
+                    guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
                 }
+            }
+            self.store.scheduleStorageFootprintRefresh(for: [provider], force: true)
+            self.store.persistWidgetSnapshot(reason: "provider-refresh")
+            if refreshOpenMenusWhenComplete {
+                self.refreshOpenMenusAfterExplicitStoreAction()
+            } else {
+                self.invalidateMenus()
             }
         }
     }
 
     func refreshOpenMenusAfterExplicitStoreAction() {
-        self.invalidateMenus(refreshOpenMenus: true)
+        self.invalidateMenus(
+            refreshOpenMenus: true,
+            deferOpenParentMenuRebuild: true)
     }
 
     @objc func refreshNow() {
-        self.refreshStore(forceTokenUsage: true)
+        self.startManualRefresh(for: nil)
     }
 
-    nonisolated func performPersistentRefreshAction() {
+    func refreshMenuProviderNow(in menu: NSMenu?) {
+        guard let provider = self.manualRefreshProvider(for: menu) else {
+            self.startManualRefresh(for: nil)
+            return
+        }
+        self.startManualRefresh(for: provider)
+    }
+
+    private func refreshMenuProviderNow(menuID: ObjectIdentifier) {
+        if let menu = self.openMenus[menuID] {
+            self.refreshMenuProviderNow(in: menu)
+        } else if let mergedMenu = self.mergedMenu, ObjectIdentifier(mergedMenu) == menuID {
+            self.refreshMenuProviderNow(in: mergedMenu)
+        } else if let provider = self.menuProviders[menuID] {
+            self.startManualRefresh(for: provider)
+        } else {
+            self.startManualRefresh(for: nil)
+        }
+    }
+
+    private func startManualRefresh(for provider: UsageProvider?) {
+        let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
+            ?? !self.store.refreshingProviders.isEmpty
+        guard !self.hasPreparedForAppShutdown,
+              self.manualRefreshTask == nil,
+              !self.store.isRefreshing,
+              !scopedRefreshInFlight
+        else { return }
+
+        let frozenModels = self.frozenManualRefreshMenuCardModels()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.manualRefreshTask = nil
+                self.manualRefreshProvider = nil
+                self.menuCardRefreshMonitor.endManualRefresh()
+                self.updatePersistentRefreshRowsInProgress()
+                self.prepareAttachedClosedMenusIfNeeded()
+            }
+            guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            #if DEBUG
+            if let operation = self._test_manualRefreshOperation {
+                await operation()
+                guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                return
+            }
+            #endif
+            if let provider {
+                await self.performStoreRefresh(
+                    for: provider,
+                    refreshOpenMenusWhenComplete: true,
+                    interaction: .userInitiated)
+            } else {
+                await self.performStoreRefresh(
+                    forceTokenUsage: true,
+                    refreshOpenMenusWhenComplete: true,
+                    interaction: .userInitiated)
+            }
+        }
+        self.manualRefreshProvider = provider
+        self.manualRefreshTask = task
+        self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: provider)
+        self.updatePersistentRefreshRowsInProgress()
+    }
+
+    private func manualRefreshProvider(for menu: NSMenu?) -> UsageProvider? {
+        guard let menu else { return nil }
+        if self.shouldMergeIcons {
+            guard self.mergedMenu == nil || menu === self.mergedMenu else { return nil }
+            guard !self.isMergedOverviewSelected(in: menu) else { return nil }
+            return self.resolvedMenuProvider()
+        }
+        return self.menuProviders[ObjectIdentifier(menu)]
+    }
+
+    private func frozenManualRefreshMenuCardModels() -> [UsageProvider: UsageMenuCardView.Model] {
+        var providers = self.store.enabledProvidersForDisplay()
+        if let lastMenuProvider,
+           !providers.contains(lastMenuProvider)
+        {
+            providers.append(lastMenuProvider)
+        }
+        if providers.isEmpty,
+           let defaultProvider = self.settings.orderedProviders().first ?? UsageProvider.allCases.first
+        {
+            providers.append(defaultProvider)
+        }
+
+        var models: [UsageProvider: UsageMenuCardView.Model] = [:]
+        for provider in providers {
+            models[provider] = self.menuCardModel(for: provider)
+        }
+        return models
+    }
+
+    nonisolated func performPersistentRefreshAction(in menuID: ObjectIdentifier) {
         Task { @MainActor [weak self] in
-            self?.refreshNow()
+            guard let self else { return }
+            self.refreshMenuProviderNow(menuID: menuID)
         }
     }
 
@@ -78,7 +237,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    func dashboardURL(for provider: UsageProvider) -> URL? {
+    func dashboardURL(
+        for provider: UsageProvider,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
+    {
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
@@ -88,6 +250,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
         if provider == .opencodego {
             return self.settings.opencodegoDashboardURL
+        }
+
+        if provider == .zai {
+            return ZaiUsageFetcher.resolveDashboardURL(
+                region: self.settings.zaiAPIRegion,
+                environment: environment)
         }
 
         let meta = self.store.metadata(for: provider)
@@ -115,8 +283,21 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
         let autoStart = true
         let accountEmail = self.store.codexAccountEmailForOpenAIDashboard()
+        let cacheScope = self.store.codexCookieCacheScopeForOpenAIWeb()
+        guard OpenAICreditsPurchaseWindowController.canOpenPurchaseWindow(
+            accountEmail: accountEmail,
+            cacheScope: cacheScope)
+        else {
+            self.creditsPurchaseWindow?.close()
+            self.creditsPurchaseWindow = nil
+            return
+        }
         let controller = self.creditsPurchaseWindow ?? OpenAICreditsPurchaseWindowController()
-        controller.show(purchaseURL: url, accountEmail: accountEmail, autoStartPurchase: autoStart)
+        controller.show(
+            purchaseURL: url,
+            accountEmail: accountEmail,
+            cacheScope: cacheScope,
+            autoStartPurchase: autoStart)
         self.creditsPurchaseWindow = controller
     }
 
@@ -161,7 +342,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     @objc func openTerminalCommand(_ sender: NSMenuItem) {
         let command = sender.representedObject as? String ?? "claude"
-        Self.openTerminal(command: command)
+        self.openTerminal(command: command)
     }
 
     @objc func openLoginToProvider(_ sender: NSMenuItem) {
@@ -177,9 +358,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
         guard self.settings.hasUnreadableManagedCodexAccountStore == false else {
             self.presentLoginAlert(
-                title: "Managed Codex accounts unavailable",
-                message: "CodexBar could not read managed account storage. " +
-                    "Recover the store before adding another account.")
+                title: L("Managed Codex accounts unavailable"),
+                message: L(
+                    "CodexBar could not read managed account storage. " +
+                        "Recover the store before adding another account."))
             return
         }
 
@@ -304,7 +486,16 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func quit() {
-        NSApp.terminate(nil)
+        let openMenus = Array(self.openMenus.values)
+        for menu in openMenus {
+            menu.cancelTrackingWithoutAnimation()
+        }
+
+        self.scheduleQuitTermination { [weak self] in
+            guard let self else { return }
+            self.prepareForAppShutdown()
+            self.terminateApplicationForQuit()
+        }
     }
 
     @objc func copyError(_ sender: NSMenuItem) {
@@ -315,25 +506,48 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
-    private static func openTerminal(command: String) {
-        let escaped = command
-            .replacingOccurrences(of: "\\\\", with: "\\\\\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "\(escaped)"
-        end tell
-        """
-        if let appleScript = NSAppleScript(source: script) {
+    func openTerminal(command: String) {
+        let terminal = self.settings.terminalApp
+
+        if terminal == .iTerm, !terminal.isInstalled {
+            CodexBarLog.logger(LogCategories.terminal).warning(
+                "iTerm is not installed, falling back to Terminal.app",
+                metadata: ["terminal": terminal.rawValue])
+            Self.openTerminalInDefaultTerminal(command: command)
+            return
+        }
+
+        if Self.executeAppleScript(terminal.appleScript(command: command)) {
+            return
+        }
+        guard terminal != .terminal else { return }
+
+        CodexBarLog.logger(LogCategories.terminal).warning(
+            "\(terminal.label) AppleScript failed, falling back to Terminal.app",
+            metadata: ["terminal": terminal.rawValue])
+        Self.openTerminalInDefaultTerminal(command: command)
+    }
+
+    private static func openTerminalInDefaultTerminal(command: String) {
+        self.executeAppleScript(TerminalApp.terminal.appleScript(command: command))
+    }
+
+    /// Executes an AppleScript and returns `true` on success, `false` on failure.
+    @discardableResult
+    private static func executeAppleScript(_ source: String) -> Bool {
+        if let appleScript = NSAppleScript(source: source) {
             var error: NSDictionary?
             appleScript.executeAndReturnError(&error)
             if let error {
                 CodexBarLog.logger(LogCategories.terminal).error(
-                    "Failed to open Terminal",
+                    "Failed to execute AppleScript",
                     metadata: ["error": String(describing: error)])
+                return false
             }
+            return true
         }
+        CodexBarLog.logger(LogCategories.terminal).error("Failed to compile AppleScript")
+        return false
     }
 
     private func resolvedShortcutProvider() -> UsageProvider {
@@ -373,28 +587,16 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     private func presentManagedCodexAccountError(_ error: Error) {
-        let info: LoginAlertInfo
-        if let error = error as? ManagedCodexAccountCoordinatorError,
-           error == .authenticationInProgress
+        let info = if let error = error as? ManagedCodexAccountCoordinatorError,
+                      error == .authenticationInProgress
         {
-            info = LoginAlertInfo(
-                title: "Codex account login already running",
-                message: "Wait for the current managed Codex login to finish before adding another account.")
+            LoginAlertInfo(
+                title: L("Codex account login already running"),
+                message: L("Wait for the current managed Codex login to finish before adding another account."))
         } else if let error = error as? ManagedCodexAccountServiceError {
-            let message = switch error {
-            case .loginFailed:
-                L("managed_login_failed")
-            case .missingEmail:
-                "Codex login completed, but no account email was available. " +
-                    "Try again after confirming the account is fully signed in."
-            case .workspaceSelectionCancelled:
-                "CodexBar found multiple workspaces, but no workspace was selected."
-            case let .unsafeManagedHome(path):
-                "CodexBar refused to modify an unexpected managed home path: \(path)"
-            }
-            info = LoginAlertInfo(title: "Could not add Codex account", message: message)
+            LoginAlertInfo(title: L("Could not add Codex account"), message: error.userFacingMessage)
         } else {
-            info = LoginAlertInfo(title: "Could not add Codex account", message: error.localizedDescription)
+            LoginAlertInfo(title: L("Could not add Codex account"), message: error.localizedDescription)
         }
 
         self.presentLoginAlert(title: info.title, message: info.message)
@@ -406,18 +608,18 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return
         case .missingBinary:
             self.presentLoginAlert(
-                title: "Claude CLI not found",
-                message: "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again.")
+                title: L("Claude CLI not found"),
+                message: L("Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again."))
         case let .launchFailed(message):
-            self.presentLoginAlert(title: "Could not start claude /login", message: message)
+            self.presentLoginAlert(title: L("Could not start claude /login"), message: message)
         case .timedOut:
             self.presentLoginAlert(
-                title: "Claude login timed out",
+                title: L("Claude login timed out"),
                 message: self.trimmedLoginOutput(result.output))
         case let .failed(status):
-            let statusLine = "claude /login exited with status \(status)."
+            let statusLine = String(format: L("claude /login exited with status %d."), status)
             let message = self.trimmedLoginOutput(result.output.isEmpty ? statusLine : result.output)
-            self.presentLoginAlert(title: "Claude login failed", message: message)
+            self.presentLoginAlert(title: L("Claude login failed"), message: message)
         }
     }
 
@@ -485,10 +687,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             nil
         case .missingBinary:
             LoginAlertInfo(
-                title: "Gemini CLI not found",
-                message: "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again.")
+                title: L("Gemini CLI not found"),
+                message: L("Install the Gemini CLI (npm i -g @google/gemini-cli) and try again."))
         case let .launchFailed(message):
-            LoginAlertInfo(title: "Could not open Terminal for Gemini", message: message)
+            LoginAlertInfo(title: L("Could not open Terminal for Gemini"), message: message)
         }
     }
 
@@ -498,21 +700,21 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             nil
         case .timedOut:
             LoginAlertInfo(
-                title: "Antigravity login timed out",
-                message: "The browser login did not complete in time. Try Antigravity login again.")
+                title: L("Antigravity login timed out"),
+                message: L("The browser login did not complete in time. Try Antigravity login again."))
         case let .launchFailed(message):
             LoginAlertInfo(
-                title: "Could not open browser for Antigravity",
-                message: "Open this URL manually to continue login:\n\n\(message)")
+                title: L("Could not open browser for Antigravity"),
+                message: String(format: L("Open this URL manually to continue login:\n\n%@"), message))
         case let .failed(message):
-            LoginAlertInfo(title: "Antigravity login failed", message: message)
+            LoginAlertInfo(title: L("Antigravity login failed"), message: message)
         }
     }
 
     func presentLoginAlert(title: String, message: String) {
         let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
+        alert.messageText = L(title)
+        alert.informativeText = L(message)
         alert.alertStyle = .warning
         alert.runModal()
     }
@@ -520,7 +722,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     private func trimmedLoginOutput(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let limit = 600
-        if trimmed.isEmpty { return "No output captured." }
+        if trimmed.isEmpty { return L("No output captured.") }
         if trimmed.count <= limit { return trimmed }
         let idx = trimmed.index(trimmed.startIndex, offsetBy: limit)
         return "\(trimmed[..<idx])…"
@@ -528,8 +730,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func postLoginNotification(for provider: UsageProvider) {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        let title = "\(name) login successful"
-        let body = "You can return to the app; authentication finished."
+        let (title, body) = LoginNotificationLogic.notificationCopy(providerName: name)
         AppNotifications.shared.post(idPrefix: "login-\(provider.rawValue)", title: title, body: body)
     }
 
@@ -541,7 +742,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             // User closed the window; no alert needed
             return
         case let .failed(message):
-            self.presentLoginAlert(title: "Cursor login failed", message: message)
+            self.presentLoginAlert(title: L("Cursor login failed"), message: message)
         }
     }
 

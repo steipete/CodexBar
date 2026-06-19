@@ -2,8 +2,10 @@ import CodexBarCore
 import Commander
 #if canImport(Darwin)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 import Foundation
 
@@ -364,6 +366,10 @@ extension CodexBarCLI {
 
     static func _cacheSignatureForTesting() -> CommandSignature {
         CommandSignature.describe(CacheOptions())
+    }
+
+    static func _diagnoseSignatureForTesting() -> CommandSignature {
+        CommandSignature.describe(DiagnoseOptions())
     }
 
     static func _configSetAPIKeySignatureForTesting() -> CommandSignature {

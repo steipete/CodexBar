@@ -1,13 +1,12 @@
-import CodexBarMacroSupport
 import Foundation
 
 #if os(macOS)
 import SweetCookieKit
 #endif
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum AugmentProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         #if os(macOS)
         // Custom browser order that includes Chrome Beta and other variants
@@ -95,10 +94,8 @@ struct AugmentCLIFetchStrategy: ProviderFetchStrategy {
         // Fallback to web if CLI fails (not authenticated, etc.)
         if let cliError = error as? AuggieCLIError {
             switch cliError {
-            case .notAuthenticated, .noOutput:
+            case .notAuthenticated, .noOutput, .parseError:
                 return true
-            case .parseError:
-                return false // Don't fallback on parse errors - something is wrong
             }
         }
         return true

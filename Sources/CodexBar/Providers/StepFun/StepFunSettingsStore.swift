@@ -51,38 +51,15 @@ extension SettingsStore {
     func stepfunSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
         .StepFunProviderSettings
     {
-        ProviderSettingsSnapshot.StepFunProviderSettings(
-            cookieSource: self.stepfunSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualToken: self.stepfunSnapshotToken(tokenOverride: tokenOverride),
+        let cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings = self.resolvedCookieSettings(
+            provider: .stepfun,
+            configuredSource: self.stepfunCookieSource,
+            configuredHeader: self.stepfunToken,
+            tokenOverride: tokenOverride)
+        return ProviderSettingsSnapshot.StepFunProviderSettings(
+            cookieSource: cookieSettings.cookieSource,
+            manualToken: cookieSettings.manualCookieHeader ?? "",
             username: self.stepfunUsername,
             password: self.stepfunPassword)
-    }
-
-    private func stepfunSnapshotToken(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.stepfunToken
-        guard let support = TokenAccountSupportCatalog.support(for: .stepfun),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
-            provider: .stepfun,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func stepfunSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.stepfunCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .stepfun),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .stepfun).isEmpty { return fallback }
-        return .manual
     }
 }

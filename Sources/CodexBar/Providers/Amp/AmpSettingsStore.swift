@@ -2,6 +2,26 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    var ampUsageDataSource: ProviderSourceMode {
+        get { self.configSnapshot.providerConfig(for: .amp)?.source ?? .auto }
+        set {
+            self.updateProviderConfig(provider: .amp) { entry in
+                entry.source = newValue == .auto ? nil : newValue
+            }
+            self.logProviderModeChange(provider: .amp, field: "source", value: newValue.rawValue)
+        }
+    }
+
+    var ampAPIToken: String {
+        get { self.configSnapshot.providerConfig(for: .amp)?.sanitizedAPIKey ?? "" }
+        set {
+            self.updateProviderConfig(provider: .amp) { entry in
+                entry.apiKey = self.normalizedConfigValue(newValue)
+            }
+            self.logSecretUpdate(provider: .amp, field: "apiKey", value: newValue)
+        }
+    }
+
     var ampCookieHeader: String {
         get { self.configSnapshot.providerConfig(for: .amp)?.sanitizedCookieHeader ?? "" }
         set {
@@ -22,41 +42,17 @@ extension SettingsStore {
         }
     }
 
+    func ensureAmpAPITokenLoaded() {}
+
     func ensureAmpCookieLoaded() {}
 }
 
 extension SettingsStore {
     func ampSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.AmpProviderSettings {
-        ProviderSettingsSnapshot.AmpProviderSettings(
-            cookieSource: self.ampSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.ampSnapshotCookieHeader(tokenOverride: tokenOverride))
-    }
-
-    private func ampSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.ampCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .amp),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        self.resolvedCookieSettings(
             provider: .amp,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func ampSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.ampCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .amp),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .amp).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.ampCookieSource,
+            configuredHeader: self.ampCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

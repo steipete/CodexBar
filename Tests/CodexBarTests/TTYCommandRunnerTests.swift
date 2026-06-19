@@ -4,6 +4,8 @@ import Testing
 
 @Suite(.serialized)
 struct TTYCommandRunnerEnvTests {
+    private static let harnessPTYTimeout: TimeInterval = 10
+
     private final class CallbackCounter: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0
@@ -68,6 +70,28 @@ struct TTYCommandRunnerEnvTests {
 
         #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex") == false)
         #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+    }
+
+    @Test
+    func `shutdown waits for launch cleanup before draining`() {
+        TTYCommandRunner._test_resetTrackedProcesses()
+        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+
+        #expect(TTYCommandRunner._test_beginTrackedProcessLaunch())
+        let fenceSet = DispatchSemaphore(value: 0)
+        let completed = DispatchSemaphore(value: 0)
+        Thread.detachNewThread {
+            _ = TTYCommandRunner._test_drainTrackedProcessesForShutdown {
+                fenceSet.signal()
+            }
+            completed.signal()
+        }
+
+        #expect(fenceSet.wait(timeout: .now() + 1) == .success)
+        #expect(completed.wait(timeout: .now() + 0.05) == .timedOut)
+        #expect(!TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex"))
+        TTYCommandRunner._test_endTrackedProcessLaunch()
+        #expect(completed.wait(timeout: .now() + 1) == .success)
     }
 
     @Test
@@ -202,7 +226,10 @@ struct TTYCommandRunnerEnvTests {
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
 
         let runner = TTYCommandRunner()
-        let result = try runner.run(binary: "/bin/pwd", send: "", options: .init(timeout: 3, workingDirectory: dir))
+        let result = try runner.run(
+            binary: "/bin/pwd",
+            send: "",
+            options: .init(timeout: Self.harnessPTYTimeout, workingDirectory: dir))
         let clean = result.text.replacingOccurrences(of: "\r", with: "")
         #expect(clean.contains(dir.path))
     }
@@ -214,7 +241,7 @@ struct TTYCommandRunnerEnvTests {
         let result = try runner.run(
             binary: fakeClaude.path,
             send: "",
-            options: .init(timeout: 3, stopOnSubstrings: ["deep-link-enabled"]))
+            options: .init(timeout: Self.harnessPTYTimeout, stopOnSubstrings: ["deep-link-enabled"]))
         let clean = result.text.replacingOccurrences(of: "\r", with: "")
 
         #expect(clean.contains("deep-link-enabled"))
@@ -228,7 +255,7 @@ struct TTYCommandRunnerEnvTests {
             binary: fakeClaude.path,
             send: "",
             options: .init(
-                timeout: 3,
+                timeout: Self.harnessPTYTimeout,
                 stopOnSubstrings: ["deep-link-disabled"],
                 useClaudeProbeWorkingDirectory: true))
         let clean = result.text.replacingOccurrences(of: "\r", with: "")
@@ -247,7 +274,7 @@ struct TTYCommandRunnerEnvTests {
             binary: fakeClaude.path,
             send: "",
             options: .init(
-                timeout: 3,
+                timeout: Self.harnessPTYTimeout,
                 baseEnvironment: env,
                 stopOnSubstrings: ["deep-link-disabled"],
                 useClaudeProbeWorkingDirectory: true))

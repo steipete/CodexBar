@@ -1,9 +1,7 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct CodexProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .codex
     let supportsLoginFlow: Bool = true
@@ -169,7 +167,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 isVisible: { context.settings.openAIWebAccessEnabled },
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .codex) else { return nil }
+                    guard let entry = CookieHeaderCache.loadForDisplay(provider: .codex) else { return nil }
                     let when = entry.storedAt.relativeDescription()
                     return "Cached: \(entry.sourceLabel) • \(when)"
                 }),

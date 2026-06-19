@@ -70,4 +70,34 @@ struct BedrockSettingsFlowTests {
             settings: settings,
             environment: env)))
     }
+
+    @Test
+    func `profile mode maps profile into provider environment and is available`() throws {
+        let suite = "BedrockSettingsFlowTests-profile-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        settings.bedrockAuthMode = BedrockAuthMode.profile.rawValue
+        settings.bedrockProfile = "work"
+
+        let config = try #require(settings.providerConfig(for: .bedrock))
+        #expect(config.sanitizedAWSAuthMode == "profile")
+        #expect(config.sanitizedAWSProfile == "work")
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: [:],
+            provider: .bedrock,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(env[BedrockSettingsReader.authModeKey] == "profile")
+        #expect(env[BedrockSettingsReader.profileKey] == "work")
+        #expect(env[BedrockSettingsReader.accessKeyIDKey] == nil)
+        #expect(BedrockSettingsReader.hasCredentials(environment: env))
+    }
 }

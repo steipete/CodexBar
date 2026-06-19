@@ -11,4 +11,14 @@ extension SettingsStore {
             self.logSecretUpdate(provider: .openai, field: "apiKey", value: newValue)
         }
     }
+
+    var openAIAPIProjectID: String {
+        get { self.configSnapshot.providerConfig(for: .openai)?.sanitizedWorkspaceID ?? "" }
+        set {
+            self.updateProviderConfig(provider: .openai) { entry in
+                entry.workspaceID = self.normalizedConfigValue(newValue)
+            }
+            self.logSecretUpdate(provider: .openai, field: "projectID", value: newValue)
+        }
+    }
 }

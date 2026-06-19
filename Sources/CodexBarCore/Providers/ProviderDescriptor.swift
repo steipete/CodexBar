@@ -66,6 +66,7 @@ public enum ProviderDescriptorRegistry {
         .gemini: GeminiProviderDescriptor.descriptor,
         .antigravity: AntigravityProviderDescriptor.descriptor,
         .copilot: CopilotProviderDescriptor.descriptor,
+        .devin: DevinProviderDescriptor.descriptor,
         .zai: ZaiProviderDescriptor.descriptor,
         .minimax: MiniMaxProviderDescriptor.descriptor,
         .manus: ManusProviderDescriptor.descriptor,
@@ -85,6 +86,7 @@ public enum ProviderDescriptorRegistry {
         .elevenlabs: ElevenLabsProviderDescriptor.descriptor,
         .warp: WarpProviderDescriptor.descriptor,
         .windsurf: WindsurfProviderDescriptor.descriptor,
+        .zed: ZedProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
         .mimo: MiMoProviderDescriptor.descriptor,
         .doubao: DoubaoProviderDescriptor.descriptor,
@@ -100,7 +102,10 @@ public enum ProviderDescriptorRegistry {
         .grok: GrokProviderDescriptor.descriptor,
         .groq: GroqProviderDescriptor.descriptor,
         .llmproxy: LLMProxyProviderDescriptor.descriptor,
+        .litellm: LiteLLMProviderDescriptor.descriptor,
         .deepgram: DeepgramProviderDescriptor.descriptor,
+        .poe: PoeProviderDescriptor.descriptor,
+        .chutes: ChutesProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

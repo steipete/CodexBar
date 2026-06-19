@@ -1,5 +1,5 @@
 ---
-summary: "OpenCode provider notes: browser cookie import, _server endpoints, and usage parsing."
+summary: "OpenCode provider notes: browser cookies, local SQLite usage, and parsing."
 read_when:
   - Adding or modifying the OpenCode provider
   - Debugging OpenCode usage parsing or cookie import
@@ -9,6 +9,7 @@ read_when:
 
 ## Data sources
 - Browser cookies from `opencode.ai`.
+- OpenCode Go local history from `~/.local/share/opencode/opencode.db` on macOS and Linux.
 - `POST https://opencode.ai/_server` with server function IDs:
   - `workspaces` (`def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f`)
   - `subscription.get` (`7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4`)
@@ -26,3 +27,4 @@ read_when:
 - Workspace override accepts a raw `wrk_…` ID or a full `https://opencode.ai/workspace/...` URL.
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.opencode`, source + timestamp). Browser
   import only runs when the cached cookie fails.
+- OpenCode Go auto mode tries web usage first, then derives quota windows from local `opencode-go` assistant costs.

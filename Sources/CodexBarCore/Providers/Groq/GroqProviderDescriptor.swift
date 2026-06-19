@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum GroqProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .groq,
@@ -32,37 +31,19 @@ public enum GroqProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Groq cost history is not available via the metrics API." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [GroqAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "groq.api",
+                sourceLabel: "metrics",
+                resolveToken: { ProviderTokenResolver.groqToken(environment: $0) },
+                missingCredentialsError: { GroqUsageError.missingCredentials },
+                loadUsage: { apiKey, context in
+                    try await GroqUsageFetcher.fetchUsage(
+                        apiKey: apiKey,
+                        environment: context.env).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "groqcloud",
                 aliases: ["groq", "groq-api"],
                 versionDetector: nil))
-    }
-}
-
-struct GroqAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "groq.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ProviderTokenResolver.groqToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ProviderTokenResolver.groqToken(environment: context.env) else {
-            throw GroqUsageError.missingCredentials
-        }
-        let usage = try await GroqUsageFetcher.fetchUsage(
-            apiKey: apiKey,
-            environment: context.env)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "metrics")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
     }
 }

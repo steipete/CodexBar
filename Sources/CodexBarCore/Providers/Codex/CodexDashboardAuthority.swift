@@ -30,10 +30,16 @@ public enum CodexDashboardCleanup: String, Codable, CaseIterable, Hashable, Send
 public struct CodexDashboardKnownOwnerCandidate: Equatable, Hashable, Sendable {
     public let identity: CodexIdentity
     public let normalizedEmail: String?
+    public let sourceIsolationIdentifier: String?
 
-    public init(identity: CodexIdentity, normalizedEmail: String?) {
+    public init(
+        identity: CodexIdentity,
+        normalizedEmail: String?,
+        sourceIsolationIdentifier: String? = nil)
+    {
         self.identity = identity
         self.normalizedEmail = normalizedEmail
+        self.sourceIsolationIdentifier = sourceIsolationIdentifier
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -48,6 +54,7 @@ public struct CodexDashboardKnownOwnerCandidate: Equatable, Hashable, Sendable {
             hasher.combine("unresolved")
         }
         hasher.combine(self.normalizedEmail)
+        hasher.combine(self.sourceIsolationIdentifier)
     }
 }
 
@@ -179,15 +186,6 @@ public enum CodexDashboardAuthority {
 
         switch currentIdentity {
         case let .providerAccount(id):
-            let exactMatch = knownOwners.contains { candidate in
-                candidate.identity == .providerAccount(id: id) && candidate.normalizedEmail == dashboardSignedInEmail
-            }
-            if exactMatch {
-                return Self.makeDecision(
-                    disposition: .attach,
-                    reason: .exactProviderAccountMatch,
-                    sourceKind: input.sourceKind)
-            }
             guard expectedScopedEmail != nil else {
                 return Self.makeDecision(
                     disposition: .failClosed,
@@ -198,6 +196,15 @@ public enum CodexDashboardAuthority {
                 return Self.makeDecision(
                     disposition: .displayOnly,
                     reason: .sameEmailAmbiguity(email: dashboardSignedInEmail),
+                    sourceKind: input.sourceKind)
+            }
+            let exactMatch = knownOwners.contains { candidate in
+                candidate.identity == .providerAccount(id: id) && candidate.normalizedEmail == dashboardSignedInEmail
+            }
+            if exactMatch {
+                return Self.makeDecision(
+                    disposition: .attach,
+                    reason: .exactProviderAccountMatch,
                     sourceKind: input.sourceKind)
             }
             return Self.makeDecision(
@@ -271,9 +278,17 @@ public enum CodexDashboardAuthority {
         -> Set<CodexDashboardKnownOwnerCandidate>
     {
         Set(candidates.map { candidate in
-            CodexDashboardKnownOwnerCandidate(
-                identity: self.normalizeIdentity(candidate.identity),
-                normalizedEmail: CodexIdentityResolver.normalizeEmail(candidate.normalizedEmail))
+            let identity = self.normalizeIdentity(candidate.identity)
+            let sourceIsolationIdentifier: String? = switch identity {
+            case .providerAccount:
+                nil
+            case .emailOnly, .unresolved:
+                candidate.sourceIsolationIdentifier
+            }
+            return CodexDashboardKnownOwnerCandidate(
+                identity: identity,
+                normalizedEmail: CodexIdentityResolver.normalizeEmail(candidate.normalizedEmail),
+                sourceIsolationIdentifier: sourceIsolationIdentifier)
         })
     }
 

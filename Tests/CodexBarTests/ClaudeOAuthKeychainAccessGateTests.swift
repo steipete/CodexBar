@@ -59,6 +59,18 @@ struct ClaudeOAuthKeychainAccessGateTests {
     }
 
     @Test
+    func `process force disable survives settings override`() {
+        KeychainAccessGate.resetOverrideForTesting()
+        defer { KeychainAccessGate.resetOverrideForTesting() }
+
+        KeychainAccessGate.forceDisabledForProcess(reason: "unbundled-executable")
+        KeychainAccessGate.isDisabled = false
+
+        #expect(KeychainAccessGate.isDisabled)
+        #expect(KeychainAccessGate.processDisableReason == "unbundled-executable")
+    }
+
+    @Test
     func `clear denied allows immediate retry`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             ClaudeOAuthKeychainAccessGate.resetForTesting()

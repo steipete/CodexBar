@@ -3,9 +3,13 @@ import Foundation
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let sessionTokens: Int?
     public let sessionCostUSD: Double?
+    public let sessionRequests: Int?
     public let last30DaysTokens: Int?
     public let last30DaysCostUSD: Double?
+    public let last30DaysRequests: Int?
+    public let currencyCode: String
     public let historyDays: Int
+    public let historyLabel: String?
     public let daily: [CostUsageDailyReport.Entry]
     public let sessionDay: CostUsageDailyReport.Entry?
     public let updatedAt: Date
@@ -13,18 +17,28 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public init(
         sessionTokens: Int?,
         sessionCostUSD: Double?,
+        sessionRequests: Int? = nil,
         last30DaysTokens: Int?,
         last30DaysCostUSD: Double?,
+        last30DaysRequests: Int? = nil,
+        currencyCode: String = "USD",
         historyDays: Int = 30,
+        historyLabel: String? = nil,
         daily: [CostUsageDailyReport.Entry],
         sessionDay: CostUsageDailyReport.Entry? = nil,
         updatedAt: Date)
     {
         self.sessionTokens = sessionTokens
         self.sessionCostUSD = sessionCostUSD
+        self.sessionRequests = sessionRequests
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
+        self.last30DaysRequests = last30DaysRequests
+        self.currencyCode = currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "USD"
+            : currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         self.historyDays = historyDays
+        self.historyLabel = historyLabel
         self.daily = daily
         self.sessionDay = sessionDay
         self.updatedAt = updatedAt
@@ -55,12 +69,23 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let modelName: String
         public let costUSD: Double?
         public let totalTokens: Int?
+        public let requestCount: Int?
+        public let standardCostUSD: Double?
+        public let priorityCostUSD: Double?
+        public let standardTokens: Int?
+        public let priorityTokens: Int?
 
         private enum CodingKeys: String, CodingKey {
             case modelName
             case costUSD
             case cost
             case totalTokens
+            case requestCount
+            case requests
+            case standardCostUSD
+            case priorityCostUSD
+            case standardTokens
+            case priorityTokens
         }
 
         public init(from decoder: Decoder) throws {
@@ -70,12 +95,33 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .cost)
             self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+            self.requestCount =
+                try container.decodeIfPresent(Int.self, forKey: .requestCount)
+                ?? container.decodeIfPresent(Int.self, forKey: .requests)
+            self.standardCostUSD = try container.decodeIfPresent(Double.self, forKey: .standardCostUSD)
+            self.priorityCostUSD = try container.decodeIfPresent(Double.self, forKey: .priorityCostUSD)
+            self.standardTokens = try container.decodeIfPresent(Int.self, forKey: .standardTokens)
+            self.priorityTokens = try container.decodeIfPresent(Int.self, forKey: .priorityTokens)
         }
 
-        public init(modelName: String, costUSD: Double?, totalTokens: Int? = nil) {
+        public init(
+            modelName: String,
+            costUSD: Double?,
+            totalTokens: Int? = nil,
+            requestCount: Int? = nil,
+            standardCostUSD: Double? = nil,
+            priorityCostUSD: Double? = nil,
+            standardTokens: Int? = nil,
+            priorityTokens: Int? = nil)
+        {
             self.modelName = modelName
             self.costUSD = costUSD
             self.totalTokens = totalTokens
+            self.requestCount = requestCount
+            self.standardCostUSD = standardCostUSD
+            self.priorityCostUSD = priorityCostUSD
+            self.standardTokens = standardTokens
+            self.priorityTokens = priorityTokens
         }
     }
 
@@ -86,6 +132,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let cacheCreationTokens: Int?
         public let outputTokens: Int?
         public let totalTokens: Int?
+        public let requestCount: Int?
         public let costUSD: Double?
         public let modelsUsed: [String]?
         public let modelBreakdowns: [ModelBreakdown]?
@@ -99,6 +146,8 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case cacheCreationInputTokens
             case outputTokens
             case totalTokens
+            case requestCount
+            case requests
             case costUSD
             case totalCost
             case modelsUsed
@@ -118,6 +167,9 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 ?? container.decodeIfPresent(Int.self, forKey: .cacheCreationInputTokens)
             self.outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
             self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+            self.requestCount =
+                try container.decodeIfPresent(Int.self, forKey: .requestCount)
+                ?? container.decodeIfPresent(Int.self, forKey: .requests)
             self.costUSD =
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .totalCost)
@@ -132,6 +184,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             cacheReadTokens: Int? = nil,
             cacheCreationTokens: Int? = nil,
             totalTokens: Int?,
+            requestCount: Int? = nil,
             costUSD: Double?,
             modelsUsed: [String]?,
             modelBreakdowns: [ModelBreakdown]?)
@@ -142,6 +195,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.cacheReadTokens = cacheReadTokens
             self.cacheCreationTokens = cacheCreationTokens
             self.totalTokens = totalTokens
+            self.requestCount = requestCount
             self.costUSD = costUSD
             self.modelsUsed = modelsUsed
             self.modelBreakdowns = modelBreakdowns
@@ -266,6 +320,14 @@ extension CostUsageDailyReport {
         var sawTotalTokens = false
         var costUSD: Double = 0
         var sawCost = false
+        var standardCostUSD: Double = 0
+        var sawStandardCost = false
+        var priorityCostUSD: Double = 0
+        var sawPriorityCost = false
+        var standardTokens: Int = 0
+        var sawStandardTokens = false
+        var priorityTokens: Int = 0
+        var sawPriorityTokens = false
 
         mutating func add(_ breakdown: ModelBreakdown) {
             if let totalTokens = breakdown.totalTokens {
@@ -276,13 +338,33 @@ extension CostUsageDailyReport {
                 self.costUSD += costUSD
                 self.sawCost = true
             }
+            if let standardCostUSD = breakdown.standardCostUSD {
+                self.standardCostUSD += standardCostUSD
+                self.sawStandardCost = true
+            }
+            if let priorityCostUSD = breakdown.priorityCostUSD {
+                self.priorityCostUSD += priorityCostUSD
+                self.sawPriorityCost = true
+            }
+            if let standardTokens = breakdown.standardTokens {
+                self.standardTokens += standardTokens
+                self.sawStandardTokens = true
+            }
+            if let priorityTokens = breakdown.priorityTokens {
+                self.priorityTokens += priorityTokens
+                self.sawPriorityTokens = true
+            }
         }
 
         func build(modelName: String) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
-                totalTokens: self.sawTotalTokens ? self.totalTokens : nil)
+                totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
+                standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
+                priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
+                standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
+                priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
         }
     }
 
@@ -674,27 +756,32 @@ private struct CostUsageAnyCodingKey: CodingKey {
 }
 
 enum CostUsageDateParser {
+    private static let isoWithFractionalSecondsKey = "CostUsageDateParser.isoWithFractionalSeconds"
+    private static let isoInternetDateTimeKey = "CostUsageDateParser.isoInternetDateTime"
+    private static let dayFormatterKey = "CostUsageDateParser.dayFormatter"
+    private static let monthDayYearFormatterKey = "CostUsageDateParser.monthDayYearFormatter"
+    private static let monthYearFormatterKey = "CostUsageDateParser.monthYearFormatter"
+    private static let fullMonthYearFormatterKey = "CostUsageDateParser.fullMonthYearFormatter"
+    private static let yearMonthFormatterKey = "CostUsageDateParser.yearMonthFormatter"
+
     static func parse(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = iso.date(from: trimmed) { return d }
-        iso.formatOptions = [.withInternetDateTime]
-        if let d = iso.date(from: trimmed) { return d }
-
-        let day = DateFormatter()
-        day.locale = Locale(identifier: "en_US_POSIX")
-        day.timeZone = TimeZone.current
-        day.dateFormat = "yyyy-MM-dd"
-        if let d = day.date(from: trimmed) { return d }
-
-        let monthDayYear = DateFormatter()
-        monthDayYear.locale = Locale(identifier: "en_US_POSIX")
-        monthDayYear.timeZone = TimeZone.current
-        monthDayYear.dateFormat = "MMM d, yyyy"
-        if let d = monthDayYear.date(from: trimmed) { return d }
+        if let d = self.isoFormatter(
+            key: self.isoWithFractionalSecondsKey,
+            options: [.withInternetDateTime, .withFractionalSeconds])
+            .date(from: trimmed)
+        { return d }
+        if let d = self.isoFormatter(key: self.isoInternetDateTimeKey, options: [.withInternetDateTime])
+            .date(from: trimmed)
+        { return d }
+        if let d = self.dateFormatter(key: self.dayFormatterKey, format: "yyyy-MM-dd").date(from: trimmed) {
+            return d
+        }
+        if let d = self.dateFormatter(key: self.monthDayYearFormatterKey, format: "MMM d, yyyy")
+            .date(from: trimmed)
+        { return d }
 
         return nil
     }
@@ -703,24 +790,45 @@ enum CostUsageDateParser {
         guard let text, !text.isEmpty else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let monthYear = DateFormatter()
-        monthYear.locale = Locale(identifier: "en_US_POSIX")
-        monthYear.timeZone = TimeZone.current
-        monthYear.dateFormat = "MMM yyyy"
-        if let d = monthYear.date(from: trimmed) { return d }
-
-        let fullMonthYear = DateFormatter()
-        fullMonthYear.locale = Locale(identifier: "en_US_POSIX")
-        fullMonthYear.timeZone = TimeZone.current
-        fullMonthYear.dateFormat = "MMMM yyyy"
-        if let d = fullMonthYear.date(from: trimmed) { return d }
-
-        let ym = DateFormatter()
-        ym.locale = Locale(identifier: "en_US_POSIX")
-        ym.timeZone = TimeZone.current
-        ym.dateFormat = "yyyy-MM"
-        if let d = ym.date(from: trimmed) { return d }
+        if let d = self.dateFormatter(key: self.monthYearFormatterKey, format: "MMM yyyy").date(from: trimmed) {
+            return d
+        }
+        if let d = self.dateFormatter(key: self.fullMonthYearFormatterKey, format: "MMMM yyyy").date(from: trimmed) {
+            return d
+        }
+        if let d = self.dateFormatter(key: self.yearMonthFormatterKey, format: "yyyy-MM").date(from: trimmed) {
+            return d
+        }
 
         return nil
+    }
+
+    private static func isoFormatter(
+        key: String,
+        options: ISO8601DateFormatter.Options) -> ISO8601DateFormatter
+    {
+        let threadDict = Thread.current.threadDictionary
+        if let cached = threadDict[key] as? ISO8601DateFormatter {
+            return cached
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = options
+        threadDict[key] = formatter
+        return formatter
+    }
+
+    private static func dateFormatter(key: String, format: String) -> DateFormatter {
+        let threadDict = Thread.current.threadDictionary
+        let timeZone = TimeZone.current
+        let cacheKey = "\(key).\(timeZone.identifier)"
+        if let cached = threadDict[cacheKey] as? DateFormatter {
+            return cached
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = format
+        threadDict[cacheKey] = formatter
+        return formatter
     }
 }

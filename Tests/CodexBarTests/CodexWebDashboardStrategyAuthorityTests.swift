@@ -32,6 +32,39 @@ struct CodexWebDashboardStrategyAuthorityTests {
     }
 
     @Test
+    func `web dashboard attach preserves credits when usage limits are absent`() throws {
+        OpenAIDashboardCacheStore.clear()
+        defer { OpenAIDashboardCacheStore.clear() }
+
+        let authHome = try self.makeAuthHome(
+            email: "owner@example.com",
+            accountId: "acct-owner")
+        defer { try? FileManager.default.removeItem(at: authHome) }
+
+        let context = self.makeContext(
+            authHome: authHome,
+            knownOwners: [
+                CodexDashboardKnownOwnerCandidate(
+                    identity: .providerAccount(id: "acct-owner"),
+                    normalizedEmail: "owner@example.com"),
+            ])
+        let dashboard = self.makeDashboardWithoutUsageLimits(email: "owner@example.com")
+
+        let result = try CodexWebDashboardStrategy.makeAuthorizedDashboardResultForTesting(
+            dashboard: dashboard,
+            context: context,
+            routingTargetEmail: "route@example.com")
+
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.secondary == nil)
+        #expect(result.usage.updatedAt == dashboard.updatedAt)
+        #expect(result.usage.identity?.accountEmail == "owner@example.com")
+        #expect(result.usage.identity?.loginMethod == "pro")
+        #expect(result.credits?.remaining == 42)
+        #expect(result.dashboard == dashboard)
+    }
+
+    @Test
     func `web dashboard display only throws typed policy error`() throws {
         OpenAIDashboardCacheStore.clear()
         defer { OpenAIDashboardCacheStore.clear() }
@@ -326,6 +359,21 @@ struct CodexWebDashboardStrategyAuthorityTests {
                 windowMinutes: 300,
                 resetsAt: Date(timeIntervalSince1970: 7200),
                 resetDescription: nil),
+            secondaryLimit: nil,
+            creditsRemaining: 42,
+            accountPlan: "pro",
+            updatedAt: Date(timeIntervalSince1970: 2000))
+    }
+
+    private func makeDashboardWithoutUsageLimits(email: String) -> OpenAIDashboardSnapshot {
+        OpenAIDashboardSnapshot(
+            signedInEmail: email,
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: nil,
             secondaryLimit: nil,
             creditsRemaining: 42,
             accountPlan: "pro",

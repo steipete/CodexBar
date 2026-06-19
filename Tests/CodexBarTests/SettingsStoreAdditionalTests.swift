@@ -6,6 +6,55 @@ import Testing
 @MainActor
 struct SettingsStoreAdditionalTests {
     @Test
+    @MainActor
+    func `antigravity two pool migration preserves released metric meaning`() {
+        let primaryDefaults = UserDefaults(suiteName: #function + ".primary")!
+        primaryDefaults.removePersistentDomain(forName: #function + ".primary")
+        primaryDefaults.set(
+            [UsageProvider.antigravity.rawValue: MenuBarMetricPreference.primary.rawValue],
+            forKey: "menuBarMetricPreferences")
+
+        let primarySettings = SettingsStore(userDefaults: primaryDefaults)
+
+        #expect(primarySettings.menuBarMetricPreference(for: .antigravity) == .secondary)
+        #expect(primaryDefaults.bool(forKey: "antigravityTwoPoolMetricPreferenceMigrated"))
+
+        let secondaryDefaults = UserDefaults(suiteName: #function + ".secondary")!
+        secondaryDefaults.removePersistentDomain(forName: #function + ".secondary")
+        secondaryDefaults.set(
+            [UsageProvider.antigravity.rawValue: MenuBarMetricPreference.secondary.rawValue],
+            forKey: "menuBarMetricPreferences")
+
+        let secondarySettings = SettingsStore(userDefaults: secondaryDefaults)
+
+        #expect(secondarySettings.menuBarMetricPreference(for: .antigravity) == .primary)
+
+        let reloadedSettings = SettingsStore(userDefaults: secondaryDefaults)
+        #expect(reloadedSettings.menuBarMetricPreference(for: .antigravity) == .primary)
+
+        let tertiaryDefaults = UserDefaults(suiteName: #function + ".tertiary")!
+        tertiaryDefaults.removePersistentDomain(forName: #function + ".tertiary")
+        tertiaryDefaults.set(
+            [UsageProvider.antigravity.rawValue: MenuBarMetricPreference.tertiary.rawValue],
+            forKey: "menuBarMetricPreferences")
+
+        let tertiarySettings = SettingsStore(userDefaults: tertiaryDefaults)
+
+        #expect(tertiarySettings.menuBarMetricPreference(for: .antigravity) == .primary)
+
+        let migratedDefaults = UserDefaults(suiteName: #function + ".migrated")!
+        migratedDefaults.removePersistentDomain(forName: #function + ".migrated")
+        migratedDefaults.set(
+            [UsageProvider.antigravity.rawValue: MenuBarMetricPreference.primary.rawValue],
+            forKey: "menuBarMetricPreferences")
+        migratedDefaults.set(true, forKey: "antigravityTwoPoolMetricPreferenceMigrated")
+
+        let migratedSettings = SettingsStore(userDefaults: migratedDefaults)
+
+        #expect(migratedSettings.menuBarMetricPreference(for: .antigravity) == .primary)
+    }
+
+    @Test
     func `menu bar metric preference handles zai and average`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-metric")
 
@@ -23,6 +72,13 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricSupportsTertiary(for: .zai, snapshot: nil) == false)
 
         settings.setMenuBarMetricPreference(.average, for: .codex)
+        #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
+
+        settings.setMenuBarMetricPreference(.monthlyPlan, for: .codex)
+        #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
+
+        settings.menuBarMetricPreferencesRaw[UsageProvider.codex.rawValue] = MenuBarMetricPreference.monthlyPlan
+            .rawValue
         #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
 
         settings.setMenuBarMetricPreference(.average, for: .gemini)
@@ -76,10 +132,21 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func `menu bar metric preference restricts mistral to payg or monthly plan`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-mistral-metric")
+
+        settings.setMenuBarMetricPreference(.monthlyPlan, for: .mistral)
+        #expect(settings.menuBarMetricPreference(for: .mistral) == .monthlyPlan)
+
+        settings.setMenuBarMetricPreference(.secondary, for: .mistral)
+        #expect(settings.menuBarMetricPreference(for: .mistral) == .automatic)
+    }
+
+    @Test
     func `menu bar metric preference restricts text only balance providers to automatic`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-text-only-metric")
 
-        for provider in [UsageProvider.deepseek, .mistral, .kimik2] {
+        for provider in [UsageProvider.deepseek, .kimik2, .poe] {
             settings.setMenuBarMetricPreference(.primary, for: provider)
             #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
 

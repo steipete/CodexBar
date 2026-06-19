@@ -34,13 +34,21 @@ enum CLIRenderer {
             now: now,
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
+        self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendLimitsUnavailableLine(
             provider: provider,
             snapshot: snapshot,
             useColor: context.useColor,
             lines: &lines)
         self.appendCreditsLine(provider: provider, credits: credits, useColor: context.useColor, lines: &lines)
+        self.appendCodexResetCreditsLine(
+            provider: provider,
+            snapshot: snapshot,
+            now: now,
+            useColor: context.useColor,
+            lines: &lines)
         self.appendIdentityAndNotes(
             provider: provider,
             snapshot: snapshot,
@@ -113,6 +121,15 @@ enum CLIRenderer {
             lines: &lines)
     }
 
+    private static func appendMiMoBalanceLine(
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard let usage = snapshot.mimoUsage else { return }
+        lines.append(self.labelValueLine("Balance", value: usage.balanceDetail, useColor: useColor))
+    }
+
     private static func appendTertiaryLines(
         snapshot: UsageSnapshot,
         labels: RateWindowLabels,
@@ -146,6 +163,26 @@ enum CLIRenderer {
         }
     }
 
+    private static func appendAmpBalanceLines(
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard let usage = snapshot.ampUsage else { return }
+        if let individualCredits = usage.individualCredits {
+            lines.append(self.labelValueLine(
+                "Individual credits",
+                value: UsageFormatter.currencyString(individualCredits, currencyCode: "USD"),
+                useColor: useColor))
+        }
+        for workspace in usage.workspaceBalances {
+            lines.append(self.labelValueLine(
+                "Workspace \(workspace.name)",
+                value: UsageFormatter.currencyString(workspace.remaining, currencyCode: "USD"),
+                useColor: useColor))
+        }
+    }
+
     private struct RateWindowLabels {
         let primary: String
         let secondary: String
@@ -165,9 +202,11 @@ enum CLIRenderer {
                 tertiary: "Monthly",
                 showsTertiary: true)
         }
-
+        let primaryLabel = provider == .grok
+            ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+            : metadata.sessionLabel
         return RateWindowLabels(
-            primary: metadata.sessionLabel,
+            primary: primaryLabel,
             secondary: metadata.weeklyLabel,
             tertiary: metadata.opusLabel ?? "Sonnet",
             showsTertiary: metadata.supportsOpus)
@@ -184,6 +223,29 @@ enum CLIRenderer {
             "Credits",
             value: UsageFormatter.creditsString(from: credits.remaining),
             useColor: useColor))
+    }
+
+    private static func appendCodexResetCreditsLine(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        now: Date,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard provider == .codex, let resetCredits = snapshot.codexResetCredits else { return }
+        let value = if resetCredits.availableCount == 1 {
+            "1 available"
+        } else {
+            "\(resetCredits.availableCount) available"
+        }
+        lines.append(self.labelValueLine("Limit Reset Credits", value: value, useColor: useColor))
+        guard resetCredits.availableCount > 0,
+              let expiresAt = resetCredits.nextExpiringAvailableCredit?.expiresAt
+        else {
+            return
+        }
+        let expiry = UsageFormatter.resetCountdownDescription(from: expiresAt, now: now)
+        lines.append(self.subtleLine("Next reset credit expires \(expiry)", useColor: useColor))
     }
 
     private static func appendLimitsUnavailableLine(
@@ -215,7 +277,10 @@ enum CLIRenderer {
             for detail in kiloLogin.details {
                 lines.append(self.labelValueLine("Activity", value: detail, useColor: context.useColor))
             }
-        } else if let plan = snapshot.loginMethod(for: provider), !plan.isEmpty {
+        } else if let plan = snapshot.loginMethod(for: provider),
+                  !plan.isEmpty,
+                  provider != .mimo || !plan.localizedCaseInsensitiveContains("balance:")
+        {
             let displayPlan = if provider == .codex {
                 CodexPlanFormatting.displayName(plan) ?? plan
             } else {
@@ -365,7 +430,10 @@ enum CLIRenderer {
         useColor: Bool,
         now: Date) -> String?
     {
-        guard provider == .codex || provider == .claude || provider == .opencode else { return nil }
+        guard provider == .codex || provider == .claude || provider == .opencode || provider == .ollama else {
+            return nil
+        }
+        if provider == .ollama, window.windowMinutes == nil { return nil }
         guard window.remainingPercent > 0 else { return nil }
         guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080) else { return nil }
         guard pace.expectedUsedPercent >= Self.paceMinimumExpectedPercent else { return nil }

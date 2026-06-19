@@ -16,6 +16,8 @@ public struct CommandCodeUsageSnapshot: Sendable {
     public let billingPeriodEnd: Date?
     /// Subscription status (e.g. `active`, `canceled`).
     public let subscriptionStatus: String?
+    /// The optional subscription request timed out or failed for this refresh.
+    public let subscriptionEnrichmentUnavailable: Bool
     public let updatedAt: Date
 
     public init(
@@ -26,6 +28,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
         plan: CommandCodePlanCatalog.Plan?,
         billingPeriodEnd: Date?,
         subscriptionStatus: String?,
+        subscriptionEnrichmentUnavailable: Bool = false,
         updatedAt: Date = Date())
     {
         self.monthlyCreditsRemaining = monthlyCreditsRemaining
@@ -35,6 +38,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
         self.plan = plan
         self.billingPeriodEnd = billingPeriodEnd
         self.subscriptionStatus = subscriptionStatus
+        self.subscriptionEnrichmentUnavailable = subscriptionEnrichmentUnavailable
         self.updatedAt = updatedAt
     }
 
@@ -63,6 +67,9 @@ public struct CommandCodeUsageSnapshot: Sendable {
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
+            commandCodeSubscriptionEnrichmentUnavailable: self.subscriptionEnrichmentUnavailable,
+            commandCodeHasSubscriptionPlan: self.plan != nil,
+            commandCodeMonthlyGrantDepleted: self.monthlyCreditsRemaining <= 0,
             updatedAt: self.updatedAt,
             identity: identity)
     }

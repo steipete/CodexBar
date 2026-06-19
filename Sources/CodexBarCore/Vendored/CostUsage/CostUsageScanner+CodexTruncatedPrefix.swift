@@ -17,7 +17,7 @@ extension CostUsageScanner {
             ?? Self.extractJSONStringField("model_name", from: infoText, atDepth: 1)
     }
 
-    private static func truncatedUTF8String(from bytes: Data) -> String? {
+    static func truncatedUTF8String(from bytes: Data) -> String? {
         for dropCount in 0...min(4, bytes.count) {
             let end = bytes.count - dropCount
             if let text = String(bytes: bytes.prefix(end), encoding: .utf8) {
@@ -27,7 +27,7 @@ extension CostUsageScanner {
         return nil
     }
 
-    private static func extractJSONStringField(
+    static func extractJSONStringField(
         _ field: String,
         from text: Substring,
         atDepth targetDepth: Int) -> String?
@@ -39,7 +39,7 @@ extension CostUsageScanner {
         }
     }
 
-    private static func extractJSONObjectField(
+    static func extractJSONObjectField(
         _ field: String,
         from text: Substring,
         atDepth targetDepth: Int) -> Substring?
@@ -50,7 +50,17 @@ extension CostUsageScanner {
         }
     }
 
-    private static func extractJSONField<T>(
+    static func extractJSONIntField(
+        _ field: String,
+        from text: Substring,
+        atDepth targetDepth: Int) -> Int?
+    {
+        self.extractJSONField(field, from: text, atDepth: targetDepth) { text, index in
+            Self.parseJSONInt(in: text, index: &index)
+        }
+    }
+
+    static func extractJSONField<T>(
         _ field: String,
         from text: Substring,
         atDepth targetDepth: Int,
@@ -89,7 +99,7 @@ extension CostUsageScanner {
         return nil
     }
 
-    private static func parseJSONString(in text: Substring, index: inout String.Index) -> String? {
+    static func parseJSONString(in text: Substring, index: inout String.Index) -> String? {
         guard index < text.endIndex, text[index] == "\"" else { return nil }
         text.formIndex(after: &index)
         var value = ""
@@ -113,7 +123,24 @@ extension CostUsageScanner {
         return nil
     }
 
-    private static func skipJSONWhitespace(in text: Substring, index: inout String.Index) {
+    static func parseJSONInt(in text: Substring, index: inout String.Index) -> Int? {
+        var sign = 1
+        if index < text.endIndex, text[index] == "-" {
+            sign = -1
+            text.formIndex(after: &index)
+        }
+
+        var value = 0
+        var sawDigit = false
+        while index < text.endIndex, let digit = text[index].wholeNumberValue {
+            sawDigit = true
+            value = (value * 10) + digit
+            text.formIndex(after: &index)
+        }
+        return sawDigit ? value * sign : nil
+    }
+
+    static func skipJSONWhitespace(in text: Substring, index: inout String.Index) {
         while index < text.endIndex, text[index].isWhitespace {
             text.formIndex(after: &index)
         }

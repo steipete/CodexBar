@@ -64,4 +64,89 @@ struct CLIOutputTests {
         #expect(text.contains("Usage: 1.2 agent hours · 150 tokens · 1,200 TTS chars"))
         #expect(text.contains("Period: 2026-05-10 to 2026-05-17"))
     }
+
+    @Test
+    func `text renderer includes amp credits without free tier usage`() {
+        let snapshot = AmpUsageSnapshot(
+            freeQuota: nil,
+            freeUsed: nil,
+            hourlyReplenishment: nil,
+            windowHours: nil,
+            individualCredits: 25.64,
+            workspaceBalances: [
+                AmpWorkspaceBalance(name: "Alpha Team", remaining: 1234.56),
+            ],
+            accountEmail: "paid@example.com",
+            updatedAt: Date(timeIntervalSince1970: 0))
+            .toUsageSnapshot()
+
+        let text = CLIRenderer.renderText(
+            provider: .amp,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Amp (cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(text.contains("Individual credits: $25.64"))
+        #expect(text.contains("Workspace Alpha Team: $1,234.56"))
+        #expect(text.contains("Account: paid@example.com"))
+        #expect(!text.contains("Amp Free:"))
+    }
+
+    @Test
+    func `text renderer shows mimo balance without quota or reset text`() {
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            cashBalance: 20,
+            giftBalance: 5.51,
+            updatedAt: Date(timeIntervalSince1970: 0))
+            .toUsageSnapshot()
+
+        let text = CLIRenderer.renderText(
+            provider: .mimo,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Xiaomi MiMo (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(text.contains("Balance: $25.51 (Paid: $20.00 / Granted: $5.51)"))
+        #expect(!text.contains("100%"))
+        #expect(!text.contains("Resets"))
+        #expect(!text.contains("Plan: Balance"))
+    }
+
+    @Test
+    func `text renderer shows mimo token credits and balance`() {
+        let snapshot = MiMoUsageSnapshot(
+            balance: 25.51,
+            currency: "USD",
+            planCode: "standard",
+            tokenUsed: 10,
+            tokenLimit: 100,
+            tokenPercent: 0.1,
+            updatedAt: Date(timeIntervalSince1970: 0))
+            .toUsageSnapshot()
+
+        let text = CLIRenderer.renderText(
+            provider: .mimo,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Xiaomi MiMo (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(text.contains("Credits: 90% left"))
+        #expect(text.contains("Balance: $25.51"))
+        #expect(text.contains("Plan: Standard"))
+        #expect(!text.contains("Window: 100%"))
+    }
 }

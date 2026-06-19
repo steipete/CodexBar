@@ -39,37 +39,14 @@ extension SettingsStore {
 extension SettingsStore {
     func opencodeSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .OpenCodeProviderSettings {
-        ProviderSettingsSnapshot.OpenCodeProviderSettings(
-            cookieSource: self.opencodeSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.opencodeSnapshotCookieHeader(tokenOverride: tokenOverride),
-            workspaceID: self.opencodeWorkspaceID)
-    }
-
-    private func opencodeSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.opencodeCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .opencode),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        let cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings = self.resolvedCookieSettings(
             provider: .opencode,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func opencodeSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.opencodeCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .opencode),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .opencode).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.opencodeCookieSource,
+            configuredHeader: self.opencodeCookieHeader,
+            tokenOverride: tokenOverride)
+        return ProviderSettingsSnapshot.OpenCodeProviderSettings(
+            cookieSource: cookieSettings.cookieSource,
+            manualCookieHeader: cookieSettings.manualCookieHeader,
+            workspaceID: self.opencodeWorkspaceID)
     }
 }

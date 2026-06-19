@@ -188,6 +188,7 @@ public struct ElevenLabsUsageFetcher: Sendable {
         guard !trimmed.isEmpty else {
             throw ElevenLabsUsageError.missingCredentials
         }
+        try ElevenLabsSettingsReader.validateEndpointOverrides(environment: environment)
 
         let url = Self.subscriptionURL(baseURL: ElevenLabsSettingsReader.apiURL(environment: environment))
         var request = URLRequest(url: url)

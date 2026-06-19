@@ -6,20 +6,9 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct StatusItemAnimationCodexCreditsTests {
-    private func makeStatusBarForTesting() -> NSStatusBar {
-        let env = ProcessInfo.processInfo.environment
-        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
-            return .system
-        }
-        return NSStatusBar()
-    }
-
     @Test
     func `codex icon keeps credits only rendering when usage is missing`() {
-        let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-credits-only-icon"),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(suiteName: "StatusItemAnimationTests-credits-only-icon")
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -41,7 +30,8 @@ struct StatusItemAnimationCodexCreditsTests {
             account: fetcher.loadAccountInfo(),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
 
         controller.applyIcon(for: .codex, phase: nil)
 

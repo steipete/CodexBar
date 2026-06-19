@@ -79,10 +79,10 @@ struct AugmentCLIFetchStrategyFallbackTests {
     }
 
     @Test
-    func `parse error does not fall back`() {
+    func `parse error falls back to web`() {
         let strategy = AugmentCLIFetchStrategy()
         let context = self.makeContext()
-        #expect(strategy.shouldFallback(on: AuggieCLIError.parseError("bad data"), context: context) == false)
+        #expect(strategy.shouldFallback(on: AuggieCLIError.parseError("bad data"), context: context) == true)
     }
 
     @Test

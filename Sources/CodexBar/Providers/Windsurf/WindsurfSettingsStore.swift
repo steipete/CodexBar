@@ -45,10 +45,15 @@ extension SettingsStore {
     func windsurfSettingsSnapshot(
         tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.WindsurfProviderSettings
     {
-        ProviderSettingsSnapshot.WindsurfProviderSettings(
+        let cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings = self.resolvedCookieSettings(
+            provider: .windsurf,
+            configuredSource: self.windsurfCookieSource,
+            configuredHeader: self.windsurfCookieHeader,
+            tokenOverride: tokenOverride)
+        return ProviderSettingsSnapshot.WindsurfProviderSettings(
             usageDataSource: self.windsurfUsageDataSource,
-            cookieSource: self.windsurfSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.windsurfSnapshotCookieHeader(tokenOverride: tokenOverride))
+            cookieSource: cookieSettings.cookieSource,
+            manualCookieHeader: cookieSettings.manualCookieHeader)
     }
 
     private static func windsurfUsageDataSource(from source: ProviderSourceMode?) -> WindsurfUsageDataSource {
@@ -61,33 +66,5 @@ extension SettingsStore {
         case .cli:
             return .cli
         }
-    }
-
-    private func windsurfSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.windsurfCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .windsurf),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
-            provider: .windsurf,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func windsurfSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.windsurfCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .windsurf),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .windsurf).isEmpty { return fallback }
-        return .manual
     }
 }

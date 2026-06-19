@@ -11,6 +11,10 @@ extension ProvidersPane {
         self.providerSubtitle(provider)
     }
 
+    func _test_moveProviders(fromOffsets: IndexSet, toOffset: Int) {
+        self.moveProviders(fromOffsets: fromOffsets, toOffset: toOffset)
+    }
+
     func _test_menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
         self.menuBarMetricPicker(for: provider)
     }

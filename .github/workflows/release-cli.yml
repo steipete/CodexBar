@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to upload assets to (for example, v0.24)."
+        description: "Release tag/version to package for manual artifact builds; manual runs do not publish."
         required: false
         type: string
 
@@ -22,30 +22,76 @@ jobs:
           - name: linux-x64
             runs-on: ubuntu-24.04
             platform: linux
+            asset-platform: linux
             asset-arch: x86_64
             build-arch: ""
             static-swift-stdlib: true
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: x86-64
           - name: linux-arm64
             runs-on: ubuntu-24.04-arm
             platform: linux
+            asset-platform: linux
             asset-arch: aarch64
             build-arch: ""
             static-swift-stdlib: true
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: aarch64
+          - name: linux-musl-x64
+            runs-on: ubuntu-24.04
+            platform: linux
+            asset-platform: linux-musl
+            asset-arch: x86_64
+            build-arch: ""
+            static-swift-stdlib: false
+            swift-sdk: swift-6.2.1-RELEASE_static-linux-0.0.1
+            swift-sdk-triple: x86_64-swift-linux-musl
+            swift-sdk-arch: x86_64
+            file-arch-pattern: x86-64
+          - name: linux-musl-arm64
+            runs-on: ubuntu-24.04-arm
+            platform: linux
+            asset-platform: linux-musl
+            asset-arch: aarch64
+            build-arch: ""
+            static-swift-stdlib: false
+            swift-sdk: swift-6.2.1-RELEASE_static-linux-0.0.1
+            swift-sdk-triple: aarch64-swift-linux-musl
+            swift-sdk-arch: aarch64
+            file-arch-pattern: aarch64
           - name: macos-arm64
             runs-on: macos-15
             platform: macos
+            asset-platform: macos
             asset-arch: arm64
             build-arch: arm64
             static-swift-stdlib: false
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: ""
           - name: macos-x86_64
             runs-on: macos-15-intel
             platform: macos
+            asset-platform: macos
             asset-arch: x86_64
             build-arch: x86_64
             static-swift-stdlib: false
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: ""
     runs-on: ${{ matrix.runs-on }}
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      SWIFT_STATIC_LINUX_SDK_URL: https://download.swift.org/swift-6.2.1-release/static-sdk/swift-6.2.1-RELEASE/swift-6.2.1-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
+      SWIFT_STATIC_LINUX_SDK_CHECKSUM: 08e1939a504e499ec871b36826569173103e4562769e12b9b8c2a50f098374ad
+      SQLITE_AMALGAMATION_VERSION: "3530200"
+      SQLITE_AMALGAMATION_SHA3_256: 81142986038e18f96c4a54e1a72562ae17e502a916f2a7701eff43388cbf1a40
     steps:
       - uses: actions/checkout@v6
 
@@ -68,6 +114,20 @@ jobs:
           uname -a
           uname -m
           swift --version
+
+      - name: Validate release tag
+        if: github.event_name == 'release' || inputs.tag != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo "Missing release tag." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
 
       - name: Install Swift 6.2.1 via swiftly
         if: matrix.platform == 'linux'
@@ -104,6 +164,106 @@ jobs:
           hash -r
           swift --version
 
+      - name: Install Swift Static Linux SDK
+        if: matrix.swift-sdk != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift sdk install "$SWIFT_STATIC_LINUX_SDK_URL" --checksum "$SWIFT_STATIC_LINUX_SDK_CHECKSUM"
+          swift sdk list | grep -Fx "${{ matrix.swift-sdk }}"
+
+          sdk_root="$(
+            find "$HOME" -type d -path "*/${{ matrix.swift-sdk }}.artifactbundle/${{ matrix.swift-sdk }}/swift-linux-musl" | head -n1
+          )"
+          if [[ -z "$sdk_root" ]]; then
+            echo "Swift SDK root not found." >&2
+            exit 1
+          fi
+
+          python3 - "$sdk_root/swift-sdk.json" "${{ matrix.swift-sdk-triple }}" <<'PY'
+          import json
+          import sys
+
+          sdk_json_path, target_triple = sys.argv[1], sys.argv[2]
+          with open(sdk_json_path, encoding="utf-8") as handle:
+              sdk_json = json.load(handle)
+
+          target_triples = sdk_json.get("targetTriples", {})
+          if target_triple not in target_triples:
+              raise SystemExit(f"Swift SDK target triple not found: {target_triple}")
+
+          sdk_json["targetTriples"] = {target_triple: target_triples[target_triple]}
+          with open(sdk_json_path, "w", encoding="utf-8") as handle:
+              json.dump(sdk_json, handle, indent=2)
+              handle.write("\n")
+          PY
+
+          for sdk_arch in "$sdk_root"/musl-1.2.5.sdk/*; do
+            if [[ "$(basename "$sdk_arch")" != "${{ matrix.swift-sdk-arch }}" ]]; then
+              rm -rf "$sdk_arch"
+            fi
+          done
+
+      - name: Build static SQLite for musl SDK
+        if: matrix.swift-sdk != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing_packages=()
+          for tool in clang openssl unzip; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              missing_packages+=("$tool")
+            fi
+          done
+          if [[ "${#missing_packages[@]}" -gt 0 ]]; then
+            sudo apt-get update
+            sudo apt-get install -y "${missing_packages[@]}"
+          fi
+
+          sqlite_zip="$RUNNER_TEMP/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}.zip"
+          sqlite_src="$RUNNER_TEMP/sqlite-src"
+          sqlite_out="$RUNNER_TEMP/sqlite-${{ matrix.swift-sdk-triple }}"
+
+          curl -fsSL "https://www.sqlite.org/2026/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}.zip" -o "$sqlite_zip"
+          actual_sha3="$(openssl dgst -sha3-256 "$sqlite_zip" | awk '{print $NF}')"
+          if [[ "$actual_sha3" != "$SQLITE_AMALGAMATION_SHA3_256" ]]; then
+            echo "SQLite amalgamation checksum mismatch: $actual_sha3" >&2
+            exit 1
+          fi
+
+          rm -rf "$sqlite_src" "$sqlite_out"
+          mkdir -p "$sqlite_src" "$sqlite_out/build" "$sqlite_out/lib"
+          unzip -q "$sqlite_zip" -d "$sqlite_src"
+
+          sdk_bundle="$(
+            find "$HOME" -type d -name "${{ matrix.swift-sdk }}.artifactbundle" | head -n1
+          )"
+          if [[ -z "$sdk_bundle" ]]; then
+            echo "Swift SDK artifact bundle not found." >&2
+            exit 1
+          fi
+          sysroot="$sdk_bundle/${{ matrix.swift-sdk }}/swift-linux-musl/musl-1.2.5.sdk/${{ matrix.swift-sdk-arch }}"
+          if [[ ! -d "$sysroot" ]]; then
+            echo "Swift SDK sysroot not found: $sysroot" >&2
+            exit 1
+          fi
+
+          sqlite_amalgamation="$sqlite_src/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}"
+          mkdir -p "$sysroot/usr/include"
+          install -m 0644 "$sqlite_amalgamation/sqlite3.h" "$sysroot/usr/include/sqlite3.h"
+
+          clang \
+            -target "${{ matrix.swift-sdk-triple }}" \
+            --sysroot="$sysroot" \
+            -O2 \
+            -DSQLITE_OMIT_LOAD_EXTENSION=1 \
+            -c "$sqlite_amalgamation/sqlite3.c" \
+            -o "$sqlite_out/build/sqlite3.o"
+          llvm-ar crs "$sqlite_out/lib/libsqlite3.a" "$sqlite_out/build/sqlite3.o"
+
+          echo "CODEXBAR_SQLITE3_LIB_DIR=$sqlite_out/lib" >> "$GITHUB_ENV"
+
       - name: Build CodexBarCLI (release)
         id: build
         shell: bash
@@ -111,7 +271,9 @@ jobs:
           set -euo pipefail
 
           BUILD_ARGS=(swift build -c release --product CodexBarCLI)
-          if [[ -n "${{ matrix.build-arch }}" ]]; then
+          if [[ -n "${{ matrix.swift-sdk }}" ]]; then
+            BUILD_ARGS+=(--swift-sdk "${{ matrix.swift-sdk }}" --triple "${{ matrix.swift-sdk-triple }}")
+          elif [[ -n "${{ matrix.build-arch }}" ]]; then
             BUILD_ARGS+=(--arch "${{ matrix.build-arch }}")
           fi
           if [[ "${{ matrix.static-swift-stdlib }}" == "true" ]]; then
@@ -120,7 +282,9 @@ jobs:
           "${BUILD_ARGS[@]}"
 
           SHOW_BIN_ARGS=(swift build -c release --product CodexBarCLI --show-bin-path)
-          if [[ -n "${{ matrix.build-arch }}" ]]; then
+          if [[ -n "${{ matrix.swift-sdk }}" ]]; then
+            SHOW_BIN_ARGS+=(--swift-sdk "${{ matrix.swift-sdk }}" --triple "${{ matrix.swift-sdk-triple }}")
+          elif [[ -n "${{ matrix.build-arch }}" ]]; then
             SHOW_BIN_ARGS+=(--arch "${{ matrix.build-arch }}")
           fi
           if [[ "${{ matrix.static-swift-stdlib }}" == "true" ]]; then
@@ -170,9 +334,14 @@ jobs:
           if [[ "${{ matrix.platform }}" == "macos" ]]; then
             lipo -archs "$BIN" | tr ' ' '\n' | grep -Fx "${{ matrix.asset-arch }}"
             run_with_timeout "$RUNNER_TEMP/codexbar-cli-smoke-${{ matrix.name }}.txt" "$BIN" config validate --format json
+          elif [[ -n "${{ matrix.swift-sdk }}" ]]; then
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-config-${{ matrix.name }}.json" "$BIN" config validate --format json
+            file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
+            file "$BIN" | grep -q "statically linked"
           else
             run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
-            file "$BIN" | grep -q "${{ matrix.asset-arch }}"
+            file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
           fi
           printf '%s\n' "${RELEASE_TAG#v}" > "$BIN_DIR/VERSION"
           VERSION_OUTPUT="$RUNNER_TEMP/codexbar-cli-version-${{ matrix.name }}.txt"
@@ -199,7 +368,7 @@ jobs:
           ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
           printf '%s\n' "${SAFE_REF_NAME#v}" > "$OUT_DIR/VERSION"
 
-          ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.platform }}-${{ matrix.asset-arch }}.tar.gz"
+          ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"
           (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar VERSION)
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
@@ -211,7 +380,7 @@ jobs:
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
       - name: Upload release assets
-        if: github.event_name == 'release' || inputs.tag != ''
+        if: github.event_name == 'release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -223,7 +392,7 @@ jobs:
           gh release upload "$TAG" "$OUT_DIR/$ASSET" "$OUT_DIR/$ASSET.sha256" --clobber
 
       - name: Upload workflow artifact (manual runs)
-        if: github.event_name != 'release' && inputs.tag == ''
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v6
         with:
           name: codexbar-cli-${{ matrix.name }}
@@ -234,16 +403,22 @@ jobs:
   update-homebrew-tap:
     runs-on: ubuntu-latest
     needs: build-cli
-    if: github.event_name == 'release' || inputs.tag != ''
+    if: github.event_name == 'release'
     steps:
       - name: Resolve release tag
         id: release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="${{ inputs.tag || github.ref_name }}"
+          tag="${RELEASE_TAG}"
           if [[ -z "$tag" ]]; then
             echo "Missing release tag." >&2
+            exit 1
+          fi
+          if [[ ! "$tag" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Invalid release tag: $tag" >&2
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -252,6 +427,8 @@ jobs:
       - name: Dispatch tap update
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          REQUEST_ID: ${{ steps.release.outputs.request_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -260,13 +437,13 @@ jobs:
             if gh workflow run update-formula.yml \
               --repo steipete/homebrew-tap \
               -f formula=codexbar \
-              -f tag="${{ steps.release.outputs.tag }}" \
+              -f tag="$RELEASE_TAG" \
               -f repository=steipete/CodexBar \
               -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
               -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
               -f cask=codexbar \
               -f cask_artifact='CodexBar-macos-universal-{version}.zip' \
-              -f request_id="${{ steps.release.outputs.request_id }}"; then
+              -f request_id="$REQUEST_ID"; then
               exit 0
             fi
             if [[ "$attempt" -eq 6 ]]; then
@@ -279,6 +456,7 @@ jobs:
       - name: Wait for tap update
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          REQUEST_ID: ${{ steps.release.outputs.request_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -288,7 +466,7 @@ jobs:
                 --repo steipete/homebrew-tap \
                 --workflow update-formula.yml \
                 --json databaseId,displayTitle \
-                --jq '.[] | select(.displayTitle | contains("${{ steps.release.outputs.request_id }}")) | .databaseId' 2>/tmp/codexbar-tap-run-list.err \
+                --jq '.[] | select(.displayTitle | contains(env.REQUEST_ID)) | .databaseId' 2>/tmp/codexbar-tap-run-list.err \
                 | head -n1 || true
             )"
             if [[ -n "$run_id" ]]; then

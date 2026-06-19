@@ -199,6 +199,16 @@ extension CodexAccountScopedRefreshTests {
         }
     }
 
+    func installContextualCodexProvider(
+        on store: UsageStore,
+        loader: @escaping @Sendable (ProviderFetchContext) async throws -> UsageSnapshot)
+    {
+        let baseSpec = store.providerSpecs[.codex]!
+        store.providerSpecs[.codex] = Self.makeCodexProviderSpec(baseSpec: baseSpec) { _ in
+            [ContextualTestCodexFetchStrategy(loader: loader, sourceLabel: "test-codex")]
+        }
+    }
+
     static func makeCodexProviderSpec(
         baseSpec: ProviderSpec,
         loader: @escaping @Sendable () async throws -> UsageSnapshot) -> ProviderSpec
@@ -327,6 +337,30 @@ struct TestCodexFetchStrategy: ProviderFetchStrategy {
     }
 }
 
+struct ContextualTestCodexFetchStrategy: ProviderFetchStrategy {
+    let loader: @Sendable (ProviderFetchContext) async throws -> UsageSnapshot
+    let sourceLabel: String
+
+    var id = "contextual-test-codex"
+    var kind: ProviderFetchKind = .cli
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let snapshot = try await self.loader(context)
+        return self.makeResult(
+            usage: snapshot,
+            credits: nil,
+            sourceLabel: self.sourceLabel)
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
 struct ThrowingTestCodexFetchStrategy: ProviderFetchStrategy {
     let loader: @Sendable () async throws -> UsageSnapshot
 
@@ -429,6 +463,17 @@ actor BlockingWidgetSnapshotSaver {
         }
     }
 
+    func waitUntilStartedWithin(count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while self.snapshots.count < count {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
+
     func startedCount() -> Int {
         self.snapshots.count
     }
@@ -437,6 +482,29 @@ actor BlockingWidgetSnapshotSaver {
         guard !self.waiters.isEmpty else { return }
         let waiter = self.waiters.removeFirst()
         waiter.resume()
+    }
+
+    func savedSnapshots() -> [WidgetSnapshot] {
+        self.snapshots
+    }
+}
+
+actor RecordingWidgetSnapshotSaver {
+    private var snapshots: [WidgetSnapshot] = []
+
+    func save(_ snapshot: WidgetSnapshot) {
+        self.snapshots.append(snapshot)
+    }
+
+    func waitUntilSavedWithin(count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while self.snapshots.count < count {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
     }
 
     func savedSnapshots() -> [WidgetSnapshot] {
