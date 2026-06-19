@@ -62,6 +62,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                     force: true,
                     expectedGuard: self.store.freshCodexOpenAIWebRefreshGuard())
                 guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                if self.store.openAIDashboardRequiresLogin {
+                    await self.store.refreshProvider(.codex)
+                    guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                    await self.store.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
+                    guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                }
             }
             self.store.scheduleStorageFootprintRefresh(for: [provider], force: true)
             self.store.persistWidgetSnapshot(reason: "provider-refresh")
