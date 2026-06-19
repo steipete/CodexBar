@@ -263,6 +263,27 @@ public enum UsageFormatter {
         return "\(bytes) B"
     }
 
+    /// Same magnitudes as `byteCountString`, but spelled out ("megabytes" instead of "MB").
+    public static func byteCountStringLong(_ bytes: Int64) -> String {
+        let sign = bytes < 0 ? "-" : ""
+        let absBytes = Double(Swift.abs(bytes))
+        let units: [(threshold: Double, divisor: Double, singular: String, plural: String)] = [
+            (1024 * 1024 * 1024, 1024 * 1024 * 1024, "gigabyte", "gigabytes"),
+            (1024 * 1024, 1024 * 1024, "megabyte", "megabytes"),
+            (1024, 1024, "kilobyte", "kilobytes"),
+        ]
+
+        for unit in units where absBytes >= unit.threshold {
+            let scaled = absBytes / unit.divisor
+            let format = scaled >= 10 || scaled.rounded(.towardZero) == scaled ? "%.0f" : "%.1f"
+            let formatted = String(format: format, scaled)
+            let word = formatted == "1" ? unit.singular : unit.plural
+            return "\(sign)\(formatted) \(word)"
+        }
+
+        return "\(bytes) \(Swift.abs(bytes) == 1 ? "byte" : "bytes")"
+    }
+
     public static func creditEventSummary(_ event: CreditEvent) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
