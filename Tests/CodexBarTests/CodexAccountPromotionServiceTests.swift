@@ -63,6 +63,20 @@ struct CodexAccountPromotionServiceTests {
     }
 
     @Test
+    func `unsupported daemon capability reports partial success after promotion`() async throws {
+        try await self.assertManualDaemonRestartOutcome(
+            .unavailable,
+            suiteName: "CodexAccountPromotionServiceTests-daemon-unavailable")
+    }
+
+    @Test
+    func `unmanaged daemon reports partial success after promotion`() async throws {
+        try await self.assertManualDaemonRestartOutcome(
+            .unmanaged,
+            suiteName: "CodexAccountPromotionServiceTests-daemon-unmanaged")
+    }
+
+    @Test
     func `retry after daemon restart failure reloads converged promoted account`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionServiceTests-daemon-restart-retry")
@@ -89,6 +103,30 @@ struct CodexAccountPromotionServiceTests {
         #expect(retryResult.didMutateLiveAuth == false)
         #expect(retryResult.appServerDaemonReloadOutcome == .restarted)
         #expect(daemonReloader.reloadCallCount == 2)
+        #expect(container.settings.codexActiveSource == .liveSystem)
+        #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
+    }
+
+    private func assertManualDaemonRestartOutcome(
+        _ outcome: CodexAppServerDaemonReloadOutcome,
+        suiteName: String) async throws
+    {
+        let container = try CodexAccountPromotionTestContainer(suiteName: suiteName)
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        try container.removeLiveAuthFile()
+
+        let daemonReloader = RecordingCodexAppServerDaemonReloader(outcome: outcome)
+        let service = container.makeService(appServerDaemonReloader: daemonReloader)
+
+        await #expect(throws: CodexAccountPromotionError.appServerDaemonRestartFailed("")) {
+            try await service.promoteManagedAccount(id: target.id)
+        }
+        #expect(daemonReloader.reloadCallCount == 1)
         #expect(container.settings.codexActiveSource == .liveSystem)
         #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
     }

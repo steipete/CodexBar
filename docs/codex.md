@@ -96,7 +96,8 @@ Example:
 - The normal Codex account selector changes only which managed account CodexBar displays.
 - Use the **System Account** submenu to promote a managed account into the live Codex home used by Codex CLI.
 - After promotion, Codex CLI sees the new account immediately. Reopen the Codex desktop app if it is running.
-- If a local app-server daemon is running, CodexBar restarts it after promotion. Remote-control mode is preserved.
+- If a managed local app-server daemon is running, CodexBar restarts it after promotion. Remote-control mode is preserved.
+- If the installed CLI lacks daemon lifecycle support, or the running app-server is unmanaged, the account switch still completes and CodexBar asks you to restart the service manually. Runtime capability detection is authoritative; managed lifecycle support first shipped in stable Codex CLI 0.131.0.
 
 ### Codex CLI RPC (automatic CLI source)
 - Launches local RPC server: `codex -s read-only -a untrusted app-server`.

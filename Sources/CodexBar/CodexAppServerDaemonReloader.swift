@@ -6,6 +6,7 @@ enum CodexAppServerDaemonReloadOutcome: Equatable, Sendable {
     case notRunning
     case restarted
     case unavailable
+    case unmanaged
     case failed(String)
 }
 
@@ -14,6 +15,10 @@ protocol CodexAppServerDaemonReloading: Sendable {
 }
 
 struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
+    private struct DaemonVersionResponse: Decodable {
+        let backend: String?
+    }
+
     typealias BinaryResolver = @Sendable ([String: String]) -> String?
     typealias CommandRunner = @Sendable (
         _ executable: String,
@@ -53,11 +58,12 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
             loginPATH: LoginShellPathCache.shared.current)
 
         guard let executable = self.binaryResolver(environment) else {
-            return .unavailable
+            return .notNeeded
         }
 
+        let versionOutput: String
         do {
-            _ = try await self.commandRunner(
+            versionOutput = try await self.commandRunner(
                 executable,
                 ["app-server", "daemon", "version"],
                 environment,
@@ -66,7 +72,19 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
             if Self.probeShowsDaemonAbsent(error) {
                 return .notRunning
             }
+            if Self.probeShowsCapabilityUnavailable(error) {
+                return .unavailable
+            }
             return .failed(Self.limitedOutput(for: error))
+        }
+
+        guard let data = versionOutput.data(using: .utf8),
+              let response = try? JSONDecoder().decode(DaemonVersionResponse.self, from: data)
+        else {
+            return .failed("Codex daemon returned an invalid version response.")
+        }
+        guard response.backend != nil else {
+            return .unmanaged
         }
 
         do {
@@ -93,15 +111,18 @@ struct DefaultCodexAppServerDaemonReloader: CodexAppServerDaemonReloading {
             environment: environment,
             timeout: timeout,
             label: "Codex app-server daemon reload")
-        return [result.stdout, result.stderr]
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+        return result.stdout
     }
 
     private static func probeShowsDaemonAbsent(_ error: Error) -> Bool {
         guard case let SubprocessRunnerError.nonZeroExit(_, stderr) = error else { return false }
         let normalized = stderr.lowercased()
         return normalized.contains("no such file or directory") || normalized.contains("connection refused")
+    }
+
+    private static func probeShowsCapabilityUnavailable(_ error: Error) -> Bool {
+        guard case let SubprocessRunnerError.nonZeroExit(code, _) = error else { return false }
+        return code == 2
     }
 
     private static func limitedOutput(for error: Error) -> String {

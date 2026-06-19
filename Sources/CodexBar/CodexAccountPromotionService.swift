@@ -226,7 +226,7 @@ final class CodexAccountPromotionService {
             self.activeSourceWriter.writeCodexActiveSource(resultingActiveSource)
             let daemonReloadOutcome = await self.appServerDaemonReloader.reloadAfterAuthPromotion()
             await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
-            try Self.throwOnDaemonReloadFailure(daemonReloadOutcome)
+            try Self.throwIfDaemonReloadRequiresAttention(daemonReloadOutcome)
             return CodexAccountPromotionResult(
                 targetManagedAccountID: id,
                 outcome: .convergedNoOp,
@@ -253,7 +253,7 @@ final class CodexAccountPromotionService {
         self.activeSourceWriter.writeCodexActiveSource(.liveSystem)
         let daemonReloadOutcome = await self.appServerDaemonReloader.reloadAfterAuthPromotion()
         await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
-        try Self.throwOnDaemonReloadFailure(daemonReloadOutcome)
+        try Self.throwIfDaemonReloadRequiresAttention(daemonReloadOutcome)
 
         return CodexAccountPromotionResult(
             targetManagedAccountID: id,
@@ -268,9 +268,14 @@ final class CodexAccountPromotionService {
         homeURL.appendingPathComponent("auth.json", isDirectory: false)
     }
 
-    private static func throwOnDaemonReloadFailure(_ outcome: CodexAppServerDaemonReloadOutcome) throws {
-        if case let .failed(output) = outcome {
+    private static func throwIfDaemonReloadRequiresAttention(_ outcome: CodexAppServerDaemonReloadOutcome) throws {
+        switch outcome {
+        case .unavailable, .unmanaged:
+            throw CodexAccountPromotionError.appServerDaemonRestartFailed("")
+        case let .failed(output):
             throw CodexAccountPromotionError.appServerDaemonRestartFailed(output)
+        case .notNeeded, .notRunning, .restarted:
+            break
         }
     }
 

@@ -10,7 +10,7 @@ struct CodexAppServerDaemonReloaderTests {
             baseEnvironment: [:],
             binaryResolver: { _ in nil })
 
-        #expect(await reloader.reloadAfterAuthPromotion() == .unavailable)
+        #expect(await reloader.reloadAfterAuthPromotion() == .notNeeded)
     }
 
     @Test
@@ -38,6 +38,20 @@ struct CodexAppServerDaemonReloaderTests {
     }
 
     @Test
+    func `unsupported daemon command requests manual restart`() async {
+        let version = ["app-server", "daemon", "version"]
+        let recorder = DaemonCommandRecorder(
+            failingArguments: version,
+            failure: SubprocessRunnerError.nonZeroExit(
+                code: 2,
+                stderr: "unrecognized subcommand 'daemon'"))
+        let reloader = Self.makeReloader(recorder: recorder)
+
+        #expect(await reloader.reloadAfterAuthPromotion() == .unavailable)
+        #expect(await recorder.arguments == [version])
+    }
+
+    @Test
     func `running daemon restarts after auth promotion`() async {
         let recorder = DaemonCommandRecorder()
         let reloader = Self.makeReloader(recorder: recorder)
@@ -48,6 +62,25 @@ struct CodexAppServerDaemonReloaderTests {
             ["app-server", "daemon", "restart"],
         ])
         #expect(await recorder.timeouts == [10, 120])
+    }
+
+    @Test
+    func `unmanaged daemon requests manual restart without invoking restart`() async {
+        let recorder = DaemonCommandRecorder(successOutput: #"{"status":"running","backend":null}"#)
+        let reloader = Self.makeReloader(recorder: recorder)
+
+        #expect(await reloader.reloadAfterAuthPromotion() == .unmanaged)
+        #expect(await recorder.arguments == [["app-server", "daemon", "version"]])
+    }
+
+    @Test
+    func `invalid daemon version response fails without invoking restart`() async {
+        let recorder = DaemonCommandRecorder(successOutput: "not-json")
+        let reloader = Self.makeReloader(recorder: recorder)
+
+        #expect(await reloader.reloadAfterAuthPromotion() ==
+            .failed("Codex daemon returned an invalid version response."))
+        #expect(await recorder.arguments == [["app-server", "daemon", "version"]])
     }
 
     @Test
@@ -87,13 +120,16 @@ private actor DaemonCommandRecorder {
     private(set) var timeouts: [TimeInterval] = []
     private let failingArguments: [String]?
     private let failure: Error
+    private let successOutput: String
 
     init(
         failingArguments: [String]? = nil,
-        failure: Error = DaemonCommandTestError.failed("command failed"))
+        failure: Error = DaemonCommandTestError.failed("command failed"),
+        successOutput: String = #"{"status":"running","backend":"pid"}"#)
     {
         self.failingArguments = failingArguments
         self.failure = failure
+        self.successOutput = successOutput
     }
 
     func run(arguments: [String], timeout: TimeInterval) throws -> String {
@@ -102,7 +138,7 @@ private actor DaemonCommandRecorder {
         if arguments == self.failingArguments {
             throw self.failure
         }
-        return ""
+        return self.successOutput
     }
 }
 
