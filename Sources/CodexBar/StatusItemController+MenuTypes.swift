@@ -130,10 +130,11 @@ struct OverviewMenuCardRowView: View {
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
+        let liveModel = self.resolvedLiveModel(refreshMonitor: self.refreshMonitor)
         VStack(alignment: .leading, spacing: 8) {
-            self.header(model: self.model, subtitle: self.liveSubtitle)
-            if let summary = Self.LiteSummary.make(for: self.model) {
-                self.summary(summary, tint: self.model.progressColor)
+            self.header(model: liveModel, subtitle: self.liveSubtitle(model: liveModel))
+            if let summary = Self.LiteSummary.make(for: liveModel) {
+                self.summary(summary, tint: liveModel.progressColor)
             }
             if let storageText {
                 self.storageLine(storageText)
@@ -148,8 +149,19 @@ struct OverviewMenuCardRowView: View {
         Self.LiteSummary.make(for: self.model)
     }
 
-    private var liveSubtitle: MenuCardLiveSubtitle {
-        let fallback = MenuCardLiveSubtitle(text: self.model.subtitleText, style: self.model.subtitleStyle)
+    @MainActor
+    func liteSummary(refreshMonitor: MenuCardRefreshMonitor?) -> LiteSummary? {
+        Self.LiteSummary.make(for: self.resolvedLiveModel(refreshMonitor: refreshMonitor))
+    }
+
+    @MainActor
+    func resolvedLiveModel(refreshMonitor: MenuCardRefreshMonitor?) -> UsageMenuCardView.Model {
+        guard self.model.usesLiveSubtitle else { return self.model }
+        return refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
+    }
+
+    private func liveSubtitle(model: UsageMenuCardView.Model) -> MenuCardLiveSubtitle {
+        let fallback = MenuCardLiveSubtitle(text: model.subtitleText, style: model.subtitleStyle)
         guard self.model.usesLiveSubtitle else { return fallback }
         return self.refreshMonitor?.subtitle(for: self.model.provider, fallback: fallback) ?? fallback
     }

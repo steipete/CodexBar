@@ -8,41 +8,27 @@ struct OverviewMenuCardRowViewTests {
     @Test
     @MainActor
     func `overview lite summary uses first metric progress`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let metadata = try #require(ProviderDefaults.metadata[.claude])
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(
-                usedPercent: 25,
-                windowMinutes: nil,
-                resetsAt: now.addingTimeInterval(3600),
-                resetDescription: nil),
-            secondary: nil,
-            updatedAt: now,
-            identity: nil)
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .claude,
-            metadata: metadata,
-            snapshot: snapshot,
-            credits: nil,
-            creditsError: nil,
-            dashboard: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: nil, plan: nil),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: false,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            now: now))
+        let model = try Self.makeClaudeModel(usedPercent: 25)
         let row = OverviewMenuCardRowView(model: model, storageText: nil, width: 310)
 
         let summary = try #require(row.liteSummary)
         #expect(summary.progressPercent == 75)
         #expect(summary.progressAccessibilityLabel == "Usage remaining")
+    }
+
+    @Test
+    @MainActor
+    func `overview lite summary uses monitor resolved refreshed model`() throws {
+        let staleModel = try Self.makeClaudeModel(usedPercent: 25, updatedAt: Date(timeIntervalSince1970: 1))
+        let refreshedModel = try Self.makeClaudeModel(usedPercent: 60, updatedAt: Date(timeIntervalSince1970: 2))
+        let monitor = MenuCardRefreshMonitor { provider in
+            provider == .claude ? refreshedModel : nil
+        }
+        let row = OverviewMenuCardRowView(model: staleModel, storageText: nil, width: 310)
+
+        #expect(row.liteSummary?.progressPercent == 75)
+        let liveSummary = try #require(row.liteSummary(refreshMonitor: monitor))
+        #expect(liveSummary.progressPercent == 40)
     }
 
     @Test
@@ -87,5 +73,41 @@ struct OverviewMenuCardRowViewTests {
         let row = OverviewMenuCardRowView(model: model, storageText: nil, width: 310)
 
         #expect(row.liteSummary == nil)
+    }
+
+    private static func makeClaudeModel(
+        usedPercent: Double,
+        updatedAt: Date = Date(timeIntervalSince1970: 1_700_000_000)) throws -> UsageMenuCardView.Model
+    {
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: nil,
+                resetsAt: updatedAt.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: updatedAt,
+            identity: nil)
+        return UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            usesLiveSubtitle: true,
+            now: updatedAt))
     }
 }
