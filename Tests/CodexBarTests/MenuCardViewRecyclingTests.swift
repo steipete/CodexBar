@@ -68,6 +68,46 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `overview row hosting consumes hit tests and highlights at appkit boundary`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let item = controller.makeOverviewMenuRowItem(
+            Text("Overview"),
+            id: "\(StatusItemController.overviewRowIdentifierPrefix)codex",
+            configuration: OverviewMenuRowItemConfiguration(
+                width: 300,
+                heightCacheScope: "codex",
+                heightCacheFingerprint: "test",
+                submenu: NSMenu(),
+                onClick: {}))
+        menu.addItem(item)
+
+        guard let hosting = item.view as? OverviewMenuRowHostingView<OverviewMenuRowContainerView<Text>> else {
+            Issue.record("expected an overview row hosting view")
+            return
+        }
+
+        #expect(item.isEnabled)
+        #expect(hosting.hitTest(NSPoint(x: hosting.bounds.midX, y: hosting.bounds.midY)) === hosting)
+        #expect(!hosting.isHighlighted)
+
+        controller.menu(menu, willHighlight: item)
+        #expect(hosting.isHighlighted)
+
+        controller.menu(menu, willHighlight: nil)
+        #expect(!hosting.isHighlighted)
+    }
+
+    @Test
     func `embedded controls stay enabled without highlighting the card`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled

@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+struct OverviewMenuRowItemConfiguration {
+    let width: CGFloat
+    let heightCacheScope: String
+    let heightCacheFingerprint: String
+    let submenu: NSMenu?
+    let onClick: (() -> Void)?
+}
+
 extension StatusItemController {
     func refreshMenuCardHeights(in menu: NSMenu) {
         let width = self.renderedMenuWidth(for: menu)
@@ -95,6 +103,59 @@ extension StatusItemController {
         item.representedObject = id
         item.submenu = submenu
         if submenu != nil {
+            item.target = self
+            item.action = #selector(self.menuCardNoOp(_:))
+        }
+        return item
+    }
+
+    func makeOverviewMenuRowItem<RowContent: View>(
+        _ view: RowContent,
+        id: String,
+        configuration: OverviewMenuRowItemConfiguration) -> NSMenuItem
+    {
+        let allowsMenuHighlight = configuration.submenu != nil || configuration.onClick != nil
+        if !self.menuCardRenderingEnabledForController {
+            let item = NSMenuItem()
+            item.isEnabled = allowsMenuHighlight
+            item.representedObject = id
+            item.submenu = configuration.submenu
+            if configuration.submenu != nil {
+                item.target = self
+                item.action = #selector(self.menuCardNoOp(_:))
+            }
+            return item
+        }
+
+        let wrapped = OverviewMenuRowContainerView(refreshMonitor: self.menuCardRefreshMonitor) {
+            view
+        }
+        let hosting: OverviewMenuRowHostingView<OverviewMenuRowContainerView<RowContent>>
+        if let recycled = self.takeRecyclableMenuCardView(
+            for: id,
+            as: OverviewMenuRowHostingView<OverviewMenuRowContainerView<RowContent>>.self)
+        {
+            recycled.prepareForReuse(rootView: wrapped, onClick: configuration.onClick)
+            hosting = recycled
+        } else {
+            hosting = OverviewMenuRowHostingView(rootView: wrapped, onClick: configuration.onClick)
+        }
+        let height = self.cachedMenuCardHeight(
+            for: id,
+            scope: configuration.heightCacheScope,
+            width: configuration.width,
+            fingerprint: configuration.heightCacheFingerprint)
+        {
+            self.menuCardHeight(for: hosting, width: configuration.width)
+        }
+        hosting.frame = NSRect(origin: .zero, size: NSSize(width: configuration.width, height: height))
+
+        let item = NSMenuItem()
+        item.view = hosting
+        item.isEnabled = allowsMenuHighlight
+        item.representedObject = id
+        item.submenu = configuration.submenu
+        if configuration.submenu != nil {
             item.target = self
             item.action = #selector(self.menuCardNoOp(_:))
         }

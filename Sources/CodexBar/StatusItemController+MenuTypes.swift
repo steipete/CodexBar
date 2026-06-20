@@ -17,7 +17,7 @@ struct OverviewMenuCardRowView: View {
     let model: UsageMenuCardView.Model
     let storageText: String?
     let width: CGFloat
-    @Environment(\.menuItemHighlighted) private var isHighlighted
+    var showsSubmenuIndicator = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -36,10 +36,10 @@ struct OverviewMenuCardRowView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("\(L("Storage")):")
                         .font(.footnote)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .foregroundStyle(MenuHighlightStyle.secondary(false))
                     Text(storageText)
                         .font(.footnote)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .foregroundStyle(MenuHighlightStyle.secondary(false))
                         .lineLimit(1)
                     Spacer()
                 }
@@ -50,6 +50,15 @@ struct OverviewMenuCardRowView: View {
             }
         }
         .frame(width: self.width, alignment: .leading)
+        .overlay(alignment: .topTrailing) {
+            if self.showsSubmenuIndicator {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(MenuHighlightStyle.secondary(false))
+                    .padding(.top, 8)
+                    .padding(.trailing, 10)
+            }
+        }
     }
 
     private var hasUsageBlock: Bool {

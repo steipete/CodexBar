@@ -552,19 +552,24 @@ extension StatusItemController {
                 provider: row.provider,
                 model: row.model,
                 width: menuWidth)
-            let item = self.makeMenuCardItem(
-                OverviewMenuCardRowView(model: row.model, storageText: storageText, width: menuWidth),
+            let item = self.makeOverviewMenuRowItem(
+                OverviewMenuCardRowView(
+                    model: row.model,
+                    storageText: storageText,
+                    width: menuWidth,
+                    showsSubmenuIndicator: submenu != nil),
                 id: identifier,
-                width: menuWidth,
-                heightCacheScope: row.provider.rawValue,
-                heightCacheFingerprint: row.model.heightFingerprint(
-                    section: "overview",
-                    additional: [UsageMenuCardView.Model.heightFingerprintField("storage", storageText)]),
-                submenu: submenu,
-                onClick: { [weak self, weak interactionMenu] in
-                    guard let self, let interactionMenu else { return }
-                    self.selectOverviewProvider(row.provider, menu: interactionMenu)
-                })
+                configuration: OverviewMenuRowItemConfiguration(
+                    width: menuWidth,
+                    heightCacheScope: row.provider.rawValue,
+                    heightCacheFingerprint: row.model.heightFingerprint(
+                        section: "overview",
+                        additional: [UsageMenuCardView.Model.heightFingerprintField("storage", storageText)]),
+                    submenu: submenu,
+                    onClick: { [weak self, weak interactionMenu] in
+                        guard let self, let interactionMenu else { return }
+                        self.selectOverviewProvider(row.provider, menu: interactionMenu)
+                    }))
             if submenu == nil {
                 // Keep plain rows wired for keyboard activation and accessibility action paths.
                 item.target = self

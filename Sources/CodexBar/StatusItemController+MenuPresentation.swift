@@ -1,6 +1,7 @@
 import AppKit
 import CodexBarCore
 import Observation
+import QuartzCore
 import SwiftUI
 
 extension StatusItemController {
@@ -197,6 +198,121 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     }
 }
 
+@MainActor
+final class OverviewMenuRowHostingView<Content: View>: NSView, MenuCardHighlighting, MenuCardMeasuring {
+    private let hostingView: NSHostingView<Content>
+    private let selectionLayer = CALayer()
+    private var measuredHeight: CGFloat?
+    private var onClick: (() -> Void)?
+    private var hasClickRecognizer = false
+    private(set) var isHighlighted = false
+
+    var allowsMenuHighlight: Bool {
+        true
+    }
+
+    override var allowsVibrancy: Bool {
+        true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard let measuredHeight else {
+            let size = self.hostingView.fittingSize
+            return NSSize(width: self.frame.width, height: size.height)
+        }
+        return NSSize(width: self.frame.width, height: measuredHeight)
+    }
+
+    init(rootView: Content, onClick: (() -> Void)? = nil) {
+        self.hostingView = NSHostingView(rootView: rootView)
+        self.onClick = onClick
+        super.init(frame: .zero)
+        self.configureView()
+        if onClick != nil {
+            self.installClickRecognizer()
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func prepareForReuse(rootView: Content, onClick: (() -> Void)?) {
+        self.hostingView.rootView = rootView
+        self.onClick = onClick
+        if onClick != nil, !self.hasClickRecognizer {
+            self.installClickRecognizer()
+        }
+        self.setHighlighted(false)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        self.bounds.contains(point) ? self : nil
+    }
+
+    override func layout() {
+        super.layout()
+        self.hostingView.frame = self.bounds
+        self.selectionLayer.frame = self.bounds.insetBy(dx: 6, dy: 2)
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        guard newSize.height > 0 else { return }
+        let resolvedHeight = ceil(newSize.height)
+        guard self.measuredHeight != resolvedHeight else { return }
+        self.measuredHeight = resolvedHeight
+        self.invalidateIntrinsicContentSize()
+    }
+
+    func measuredHeight(width: CGFloat) -> CGFloat {
+        self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
+        self.hostingView.frame = self.bounds
+        self.layoutSubtreeIfNeeded()
+        return self.hostingView.fittingSize.height
+    }
+
+    func setHighlighted(_ highlighted: Bool) {
+        guard self.isHighlighted != highlighted else { return }
+        self.isHighlighted = highlighted
+        self.selectionLayer.isHidden = !highlighted
+    }
+
+    private func configureView() {
+        self.wantsLayer = true
+        self.layer?.masksToBounds = false
+        self.selectionLayer.cornerRadius = 6
+        self.selectionLayer.cornerCurve = .continuous
+        self.selectionLayer.backgroundColor = NSColor.selectedContentBackgroundColor
+            .withAlphaComponent(0.16)
+            .cgColor
+        self.selectionLayer.isHidden = true
+        self.layer?.addSublayer(self.selectionLayer)
+
+        self.hostingView.translatesAutoresizingMaskIntoConstraints = true
+        self.hostingView.autoresizingMask = [.width, .height]
+        self.hostingView.frame = self.bounds
+        self.addSubview(self.hostingView)
+    }
+
+    private func installClickRecognizer() {
+        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
+        recognizer.buttonMask = 0x1
+        self.addGestureRecognizer(recognizer)
+        self.hasClickRecognizer = true
+    }
+
+    @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        self.onClick?()
+    }
+}
+
 struct MenuCardSectionContainerView<Content: View>: View {
     @Bindable var highlightState: MenuCardHighlightState
     let showsSubmenuIndicator: Bool
@@ -227,5 +343,15 @@ struct MenuCardSectionContainerView<Content: View>: View {
                         .padding(.trailing, 10)
                 }
             }
+    }
+}
+
+struct OverviewMenuRowContainerView<Content: View>: View {
+    let refreshMonitor: MenuCardRefreshMonitor?
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        self.content()
+            .environment(\.menuCardRefreshMonitor, self.refreshMonitor)
     }
 }
