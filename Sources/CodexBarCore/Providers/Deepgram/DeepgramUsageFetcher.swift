@@ -5,6 +5,7 @@ import FoundationNetworking
 
 public enum DeepgramUsageError: LocalizedError, Sendable {
     case missingAPIKey
+    case invalidEndpointOverride(String)
     case invalidCredentials
     case invalidProjectID
     case forbidden(String)
@@ -16,6 +17,8 @@ public enum DeepgramUsageError: LocalizedError, Sendable {
         switch self {
         case .missingAPIKey:
             "Missing Deepgram API key. Set apiKey in ~/.codexbar/config.json or DEEPGRAM_API_KEY."
+        case let .invalidEndpointOverride(key):
+            "Deepgram endpoint override \(key) must use HTTPS or a bare host."
         case .invalidCredentials:
             "Deepgram API key is invalid or expired."
         case .invalidProjectID:
@@ -309,6 +312,7 @@ public struct DeepgramUsageFetcher: Sendable {
         guard !cleanedAPIKey.isEmpty else {
             throw DeepgramUsageError.missingAPIKey
         }
+        try self.validateEndpointOverrides(environment: environment)
 
         let updatedAt = Date()
         let context = FetchContext(
@@ -457,14 +461,21 @@ public struct DeepgramUsageFetcher: Sendable {
     }
 
     private static func apiURL(environment: [String: String]) -> URL {
-        if let raw = environment["DEEPGRAM_API_URL"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !raw.isEmpty,
-           let url = URL(string: raw)
+        if let raw = self.cleaned(environment["DEEPGRAM_API_URL"]),
+           let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
         {
             return url
         }
 
         return self.defaultBaseURL
+    }
+
+    public static func validateEndpointOverrides(environment: [String: String] = ProcessInfo.processInfo
+        .environment) throws
+    {
+        guard let raw = self.cleaned(environment["DEEPGRAM_API_URL"]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
+        throw DeepgramUsageError.invalidEndpointOverride("DEEPGRAM_API_URL")
     }
 
     private static func parseUsage(

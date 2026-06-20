@@ -24,10 +24,17 @@ public struct ZaiSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         guard let raw = self.cleaned(environment[quotaURLKey]) else { return nil }
-        if let url = URL(string: raw), url.scheme != nil {
-            return url
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
+    }
+
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        for key in [self.apiHostKey, self.quotaURLKey] {
+            guard let raw = self.cleaned(environment[key]) else { continue }
+            guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { continue }
+            throw ZaiSettingsError.invalidEndpointOverride(key)
         }
-        return URL(string: "https://\(raw)")
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -46,13 +53,16 @@ public struct ZaiSettingsReader: Sendable {
     }
 }
 
-public enum ZaiSettingsError: LocalizedError, Sendable {
+public enum ZaiSettingsError: LocalizedError, Sendable, Equatable {
     case missingToken
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingToken:
             "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY."
+        case let .invalidEndpointOverride(key):
+            "z.ai endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

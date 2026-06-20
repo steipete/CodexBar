@@ -6,6 +6,7 @@ import FoundationNetworking
 public enum MiMoSettingsError: LocalizedError, Sendable, Equatable {
     case missingCookie(details: String? = nil)
     case invalidCookie
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
@@ -18,6 +19,8 @@ public enum MiMoSettingsError: LocalizedError, Sendable, Equatable {
                 .joined(separator: " ")
         case .invalidCookie:
             "Xiaomi MiMo requires the api-platform_serviceToken and userId cookies."
+        case let .invalidEndpointOverride(key):
+            "Xiaomi MiMo endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }
@@ -46,13 +49,25 @@ public enum MiMoSettingsReader {
     public static let apiURLKey = "MIMO_API_URL"
 
     public static func apiURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let override = environment[self.apiURLKey],
-           let url = URL(string: override.trimmingCharacters(in: .whitespacesAndNewlines)),
-           let scheme = url.scheme, !scheme.isEmpty
+        if let override = self.cleaned(environment[self.apiURLKey]),
+           let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: override)
         {
             return url
         }
         return URL(string: "https://platform.xiaomimimo.com/api/v1")!
+    }
+
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        guard let override = self.cleaned(environment[self.apiURLKey]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: override) == nil else { return }
+        throw MiMoSettingsError.invalidEndpointOverride(self.apiURLKey)
+    }
+
+    private static func cleaned(_ raw: String?) -> String? {
+        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
     }
 }
 
@@ -68,6 +83,7 @@ public enum MiMoUsageFetcher {
         guard let normalizedCookie = MiMoCookieHeader.normalizedHeader(from: cookieHeader) else {
             throw MiMoSettingsError.invalidCookie
         }
+        try MiMoSettingsReader.validateEndpointOverrides(environment: environment)
 
         let balanceURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("balance")
         let tokenDetailURL = MiMoSettingsReader.apiURL(environment: environment)
