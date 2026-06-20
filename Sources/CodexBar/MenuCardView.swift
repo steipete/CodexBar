@@ -2,15 +2,6 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
-enum UsageMenuCardLayout {
-    static let horizontalPadding: CGFloat = 20
-    static let headerOnlyVerticalPadding: CGFloat = 7
-    static let sectionTopPadding: CGFloat = 6
-    static let sectionBottomPadding: CGFloat = 6
-    static let headerLineSpacing: CGFloat = 4
-    static let headerColumnSpacing: CGFloat = 12
-}
-
 /// SwiftUI card used inside the NSMenu to mirror Apple's rich menu panels.
 struct UsageMenuCardView: View {
     struct Model {
@@ -143,11 +134,13 @@ struct UsageMenuCardView: View {
 
     var body: some View {
         let liveModel = self.liveModel
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
             UsageMenuCardHeaderView(model: self.layoutModel ?? self.model)
 
-            if self.hasDetails(model: liveModel) {
+            if Self.hasDetails(for: liveModel) {
                 Divider()
+                    .padding(.top, UsageMenuCardLayout.headerContentSpacing)
+                    .padding(.bottom, Self.dividerBottomPadding(for: liveModel))
             }
 
             if !liveModel.usesStackedDetailLayout {
@@ -156,6 +149,7 @@ struct UsageMenuCardView: View {
                 } else if !liveModel.usageNotes.isEmpty {
                     UsageNotesContent(notes: liveModel.usageNotes)
                 } else if let placeholder = liveModel.placeholder {
+                    // Non-stacked placeholders are standalone detail rows; stacked usage placeholders are gated below.
                     Text(placeholder)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .font(.subheadline)
@@ -168,29 +162,7 @@ struct UsageMenuCardView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(liveModel.metrics, id: \.id) { metric in
-                                MetricRow(
-                                    metric: metric,
-                                    title: Self.popupMetricTitle(provider: liveModel.provider, metric: metric),
-                                    progressColor: liveModel.progressColor)
-                            }
-                            if let resetCredits = liveModel.codexResetCreditsText {
-                                Divider()
-                                CodexResetCreditsContent(
-                                    text: resetCredits,
-                                    detailText: liveModel.codexResetCreditsDetailText)
-                            }
-                            if let dashboard = liveModel.inlineUsageDashboard {
-                                InlineUsageDashboardContent(model: dashboard)
-                            } else if !liveModel.usageNotes.isEmpty {
-                                UsageNotesContent(notes: liveModel.usageNotes)
-                            } else if let placeholder = liveModel.placeholder {
-                                Text(placeholder)
-                                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                                    .font(.subheadline)
-                            }
-                        }
+                        UsageMenuCardUsageContentView(model: liveModel, showBottomDivider: false)
                     }
                     if hasUsage, hasCredits || hasCost {
                         Divider()
@@ -245,18 +217,18 @@ struct UsageMenuCardView: View {
                         }
                     }
                 }
-                .padding(.bottom, liveModel.creditsText == nil ? 6 : 0)
             }
         }
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(
             .top,
-            self.hasDetails(model: liveModel)
+            Self.hasDetails(for: liveModel)
                 ? UsageMenuCardLayout.sectionTopPadding
                 : UsageMenuCardLayout.headerOnlyVerticalPadding)
+        // AppKit's following separator row adds visual bottom space, so detail cards keep this inset tight.
         .padding(
             .bottom,
-            self.hasDetails(model: liveModel)
+            Self.hasDetails(for: liveModel)
                 ? UsageMenuCardLayout.sectionBottomPadding
                 : UsageMenuCardLayout.headerOnlyVerticalPadding)
         .frame(width: self.width, alignment: .leading)
@@ -267,8 +239,15 @@ struct UsageMenuCardView: View {
         return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
     }
 
-    private func hasDetails(model: Model) -> Bool {
+    private static func hasDetails(for model: Model) -> Bool {
         model.hasUsageContent || model.usesStackedDetailLayout
+    }
+
+    static func dividerBottomPadding(for model: Model) -> CGFloat {
+        if model.usesStackedDetailLayout, model.hasUsageContent {
+            return UsageMenuCardLayout.postHeaderDividerContentSpacing
+        }
+        return UsageMenuCardLayout.sectionBottomPadding
     }
 }
 
@@ -531,7 +510,7 @@ struct UsageMenuCardHeaderSectionView: View {
     let width: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: UsageMenuCardLayout.headerContentSpacing) {
             UsageMenuCardHeaderView(model: self.model)
 
             if self.showDivider {
@@ -554,37 +533,33 @@ struct UsageMenuCardHeaderSectionView: View {
     }
 }
 
-struct UsageMenuCardUsageSectionView: View {
+private struct UsageMenuCardUsageContentView: View {
     let model: UsageMenuCardView.Model
     let showBottomDivider: Bool
-    let bottomPadding: CGFloat
-    let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
-    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
-        let liveModel = self.liveModel
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(liveModel.metrics, id: \.id) { metric in
+            ForEach(self.model.metrics, id: \.id) { metric in
                 MetricRow(
                     metric: metric,
-                    title: UsageMenuCardView.popupMetricTitle(provider: liveModel.provider, metric: metric),
-                    progressColor: liveModel.progressColor)
+                    title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
+                    progressColor: self.model.progressColor)
             }
-            if let resetCredits = liveModel.codexResetCreditsText {
-                if !liveModel.metrics.isEmpty {
+            if let resetCredits = self.model.codexResetCreditsText {
+                if !self.model.metrics.isEmpty {
                     Divider()
                 }
                 CodexResetCreditsContent(
                     text: resetCredits,
-                    detailText: liveModel.codexResetCreditsDetailText)
+                    detailText: self.model.codexResetCreditsDetailText)
             }
-            if let dashboard = liveModel.inlineUsageDashboard {
+            if let dashboard = self.model.inlineUsageDashboard {
                 InlineUsageDashboardContent(model: dashboard)
-            } else if !liveModel.usageNotes.isEmpty {
-                UsageNotesContent(notes: liveModel.usageNotes)
-            } else if let placeholder = liveModel.placeholder, liveModel.metrics.isEmpty,
-                      liveModel.codexResetCreditsText == nil
+            } else if !self.model.usageNotes.isEmpty {
+                UsageNotesContent(notes: self.model.usageNotes)
+            } else if let placeholder = self.model.placeholder, self.model.metrics.isEmpty,
+                      self.model.codexResetCreditsText == nil
             {
                 Text(placeholder)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
@@ -594,10 +569,23 @@ struct UsageMenuCardUsageSectionView: View {
                 Divider()
             }
         }
-        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
-        .padding(.top, 10)
-        .padding(.bottom, self.bottomPadding)
-        .frame(width: self.width, alignment: .leading)
+    }
+}
+
+struct UsageMenuCardUsageSectionView: View {
+    let model: UsageMenuCardView.Model
+    let showBottomDivider: Bool
+    let bottomPadding: CGFloat
+    let width: CGFloat
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
+
+    var body: some View {
+        let liveModel = self.liveModel
+        UsageMenuCardUsageContentView(model: liveModel, showBottomDivider: self.showBottomDivider)
+            .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+            .padding(.top, UsageMenuCardLayout.usageSectionTopPadding)
+            .padding(.bottom, self.bottomPadding)
+            .frame(width: self.width, alignment: .leading)
     }
 
     private var liveModel: UsageMenuCardView.Model {
