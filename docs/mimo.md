@@ -38,7 +38,9 @@ Safari cookie import may require granting CodexBar Full Disk Access in **System 
 - Fetches balance and token-plan detail/usage endpoints under `https://platform.xiaomimimo.com/api/v1`
 - Requires the `api-platform_serviceToken` and `userId` cookies
 - Accepts optional MiMo cookies like `api-platform_ph` and `api-platform_slh` when present
-- Supports `MIMO_API_URL` to override the base API URL for testing
+- Supports `MIMO_API_URL` to override the base API URL for testing. Override values must be explicit HTTPS URLs or
+  bare hosts/paths that CodexBar normalizes to HTTPS. Explicit `http://` values fail closed before MiMo cookies are
+  attached to a request, and invalid endpoint overrides do not fall back to local MiMo usage accounting.
 
 ## Limitations
 

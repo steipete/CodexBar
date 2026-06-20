@@ -21,6 +21,10 @@ z.ai is API-token based. No browser cookies.
 - BigModel (China mainland) host: `https://open.bigmodel.cn`
 - Override host via Providers → z.ai → *API region* or `Z_AI_API_HOST=open.bigmodel.cn`.
 - Override the full quota URL (e.g. coding plan endpoint) via `Z_AI_QUOTA_URL=https://open.bigmodel.cn/api/coding/paas/v4`.
+- Endpoint overrides must be explicit HTTPS URLs or bare hosts/paths that CodexBar normalizes to HTTPS. Explicit
+  `http://` overrides fail closed before the bearer token is attached to a request. If both z.ai overrides are set,
+  `Z_AI_QUOTA_URL` has priority for quota requests; a stale lower-priority `Z_AI_API_HOST` is ignored for that quota
+  path, but direct model-usage requests still validate `Z_AI_API_HOST` before sending bearer auth.
 - Headers:
   - `authorization: Bearer <token>`
   - `accept: application/json`
