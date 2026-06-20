@@ -714,6 +714,8 @@ extension StatusItemController {
             if context.hasCostHistory {
                 _ = self.addCostHistorySubmenu(to: menu, provider: currentProvider)
             }
+        }
+        if menu.items.last?.isSeparatorItem != true {
             menu.addItem(.separator())
         }
     }

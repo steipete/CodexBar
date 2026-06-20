@@ -71,12 +71,18 @@ struct StatusMenuNativeSectionSpacingTests {
 
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
-        let ids = menu.items.compactMap { $0.representedObject as? String }
-        let storageIndex = try #require(ids.firstIndex(of: "menuCardStorage"))
-        let creditsIndex = try #require(ids.firstIndex(of: "menuCardCredits"))
-        let costIndex = try #require(ids.firstIndex(of: "menuCardCost"))
+        let storageIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "menuCardStorage"
+        })
+        let creditsIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "menuCardCredits"
+        })
+        let costIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "menuCardCost"
+        })
         #expect(storageIndex < creditsIndex)
         #expect(creditsIndex < costIndex)
+        #expect(menu.items[costIndex + 1].isSeparatorItem)
         #expect(!zip(menu.items, menu.items.dropFirst()).contains { first, second in
             first.isSeparatorItem && second.isSeparatorItem
         })
