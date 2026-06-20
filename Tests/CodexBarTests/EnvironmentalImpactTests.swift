@@ -30,16 +30,23 @@ struct EnvironmentalImpactTests {
 
         #expect(abs(claudeImpact.energyKWh - 0.138888) < 0.0001)
 
-        // Test fallback (unknown model)
-        // Joules = 10_000 * 10.0 = 100,000 J
-        // kWh = 100,000 / 3,600,000 = 0.02777... kWh
+        // Test fallback (unknown model should return nil)
         let fallbackBreakdowns = [CostUsageDailyReport.ModelBreakdown(
             modelName: "unknown-model",
             costUSD: nil,
             totalTokens: 10000)]
-        let fallbackImpact = try #require(EnvironmentalImpact(provider: .synthetic, breakdowns: fallbackBreakdowns))
+        #expect(EnvironmentalImpact(provider: .synthetic, breakdowns: fallbackBreakdowns) == nil)
 
-        #expect(abs(fallbackImpact.energyKWh - 0.02777) < 0.0001)
+        // Test Vertex AI Claude model
+        // Joules = 100_000 * 15.0 (Sonnet) = 1,500,000 J
+        // kWh = 1,500,000 / 3,600,000 = 0.41666... kWh
+        let vertexClaudeBreakdowns = [CostUsageDailyReport.ModelBreakdown(
+            modelName: "claude-3-5-sonnet-v2@20241022",
+            costUSD: nil,
+            totalTokens: 100_000)]
+        let vertexClaudeImpact = try #require(
+            EnvironmentalImpact(provider: .vertexai, breakdowns: vertexClaudeBreakdowns))
+        #expect(abs(vertexClaudeImpact.energyKWh - 0.41666) < 0.0001)
 
         // Return nil when no tokens
         let emptyBreakdowns: [CostUsageDailyReport.ModelBreakdown] = []

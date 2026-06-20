@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import CodexBarCore
 import Foundation
 import SwiftUI

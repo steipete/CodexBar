@@ -1108,3 +1108,12 @@
 "byte_unit_megabytes" = "เมกะไบต์";
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
+
+
+"environmental_impact_header" = "Environmental estimate";
+"environmental_impact_energy_today" = "Today: %1$@ (%2$d phone charges / %3$d kettle boils)";
+"environmental_impact_co2_today" = "Today CO₂e: %1$@ (~%2$.1f km driving)";
+"environmental_impact_energy_month" = "%1$@: %2$@ (%3$d phone charges / %4$d kettle boils)";
+"environmental_impact_co2_month" = "%1$@ CO₂e: %2$@ (~%3$.1f km driving)";
+"environmental_impact_hint" = "Rough estimate from token count; actual impact varies by model, hardware, and grid mix.";
+"Eco" = "Eco";
