@@ -441,11 +441,13 @@ extension UsageStore {
         generation: UInt64) async
     {
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
+        let interaction = ProviderInteractionContext.current
         await MainActor.run {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
             let hadPriorData = self.snapshots[provider] != nil
             let preservesPriorData = Self.shouldPreservePriorSnapshot(
                 after: error,
+                provider: provider,
                 hadPriorData: hadPriorData)
             let shouldSurface =
                 self.failureGates[provider]?
@@ -458,6 +460,21 @@ extension UsageStore {
                !shouldSurface
             {
                 self.errors[provider] = nil
+                return
+            }
+            if provider == .claude,
+               preservesPriorData,
+               interaction != .userInitiated,
+               Self.isClaudeCLIBackgroundCooldownBlock(error)
+            {
+                self.errors[provider] = nil
+                return
+            }
+            if provider == .claude,
+               preservesPriorData,
+               Self.isClaudeCLIRateLimit(error)
+            {
+                self.errors[provider] = error.localizedDescription
                 return
             }
             if provider == .claude,
@@ -491,10 +508,15 @@ extension UsageStore {
         }
     }
 
-    private static func shouldPreservePriorSnapshot(after error: Error, hadPriorData: Bool) -> Bool {
+    private static func shouldPreservePriorSnapshot(
+        after error: Error,
+        provider: UsageProvider,
+        hadPriorData: Bool) -> Bool
+    {
         guard hadPriorData else { return false }
         if error is CancellationError { return true }
         if self.isPreservableNetworkTransportError(error) { return true }
+        if provider == .claude, self.isClaudeCLIRateLimit(error) { return true }
 
         let message = error.localizedDescription.lowercased()
         return message.contains("timed out") ||
@@ -558,6 +580,14 @@ extension UsageStore {
     private static func isClaudeUsageProbeTimeout(_ error: Error) -> Bool {
         if case ClaudeStatusProbeError.timedOut = error { return true }
         return error.localizedDescription == ClaudeStatusProbeError.timedOut.localizedDescription
+    }
+
+    private static func isClaudeCLIRateLimit(_ error: Error) -> Bool {
+        ClaudeStatusProbeError.isTypedRateLimited(error)
+    }
+
+    private static func isClaudeCLIBackgroundCooldownBlock(_ error: Error) -> Bool {
+        ClaudeStatusProbeError.isBackgroundCooldownBlock(error)
     }
 
     private static func isClaudeWebSessionRefreshFailure(_ error: Error) -> Bool {

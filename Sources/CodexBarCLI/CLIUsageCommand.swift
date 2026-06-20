@@ -139,7 +139,6 @@ extension CodexBarCLI {
 
         for p in providerList {
             let status = includeStatus ? await Self.fetchStatus(for: p) : nil
-            // CLI usage should not clear Keychain cooldowns or attempt interactive Keychain prompts.
             let output = await ProviderInteractionContext.$current.withValue(.background) {
                 await Self.fetchUsageOutputs(
                     provider: p,
@@ -288,26 +287,21 @@ extension CodexBarCLI {
         }
         #endif
 
-        let fetchContext = ProviderFetchContext(
-            runtime: .cli,
-            sourceMode: effectiveSourceMode,
-            includeCredits: command.includeCredits,
-            webTimeout: command.webTimeout,
-            webDebugDumpHTML: command.webDebugDumpHTML,
-            verbose: command.verbose,
-            env: env,
-            settings: settings,
-            fetcher: tokenContext.fetcher(base: command.fetcher, provider: provider, env: env),
-            claudeFetcher: command.claudeFetcher,
-            browserDetection: command.browserDetection,
-            selectedTokenAccountID: account?.id,
-            tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
-            providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
-            persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),
-            persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow)
-        let outcome = await Self.fetchProviderUsage(
+        let fetchContext = Self.makeProviderFetchContext(
             provider: provider,
-            context: fetchContext)
+            account: account,
+            sourceMode: effectiveSourceMode,
+            resolved: (env: env, settings: settings),
+            commandContext: (token: tokenContext, command: command))
+        let interaction = Self.providerInteraction(
+            provider: provider,
+            sourceMode: effectiveSourceMode,
+            command: command)
+        let outcome = await ProviderInteractionContext.$current.withValue(interaction) {
+            await Self.fetchProviderUsage(
+                provider: provider,
+                context: fetchContext)
+        }
         if command.verbose, !command.jsonOnly {
             Self.printFetchAttempts(provider: provider, attempts: outcome.attempts)
         }
@@ -407,6 +401,46 @@ extension CodexBarCLI {
         }
 
         return await Self.finishUsageOutput(output, provider: provider, command: command)
+    }
+
+    private static func makeProviderFetchContext(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        sourceMode: ProviderSourceMode,
+        resolved: (env: [String: String], settings: ProviderSettingsSnapshot?),
+        commandContext: (token: TokenAccountCLIContext, command: UsageCommandContext)) -> ProviderFetchContext
+    {
+        let tokenContext = commandContext.token
+        let command = commandContext.command
+        return ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: sourceMode,
+            includeCredits: command.includeCredits,
+            webTimeout: command.webTimeout,
+            webDebugDumpHTML: command.webDebugDumpHTML,
+            verbose: command.verbose,
+            env: resolved.env,
+            settings: resolved.settings,
+            fetcher: tokenContext.fetcher(base: command.fetcher, provider: provider, env: resolved.env),
+            claudeFetcher: command.claudeFetcher,
+            browserDetection: command.browserDetection,
+            selectedTokenAccountID: account?.id,
+            tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
+            providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
+            persistsCLISessions: self.persistsCLISessions(provider: provider, command: command),
+            persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow)
+    }
+
+    private static func providerInteraction(
+        provider: UsageProvider,
+        sourceMode: ProviderSourceMode,
+        command: UsageCommandContext) -> ProviderInteraction
+    {
+        if provider == .claude, sourceMode == .cli, !command.persistCLISessions {
+            return .userInitiated
+        }
+        // CLI usage should not clear Keychain cooldowns or attempt interactive Keychain prompts.
+        return .background
     }
 
     private static func holdsAntigravitySession(

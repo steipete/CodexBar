@@ -28,6 +28,7 @@ public struct ClaudeAccountIdentity: Sendable {
 public enum ClaudeStatusProbeError: LocalizedError, Sendable {
     case claudeNotInstalled
     case parseFailed(String)
+    case rateLimited(String)
     case timedOut
 
     public var errorDescription: String? {
@@ -36,9 +37,37 @@ public enum ClaudeStatusProbeError: LocalizedError, Sendable {
             "Claude CLI is not installed or not on PATH."
         case let .parseFailed(msg):
             "Could not parse Claude usage: \(msg)"
+        case let .rateLimited(msg):
+            msg
         case .timedOut:
             "Claude usage probe timed out."
         }
+    }
+
+    public static func isRateLimited(_ error: Error) -> Bool {
+        if self.isTypedRateLimited(error) {
+            return true
+        }
+        if case let .parseFailed(message) = error as? ClaudeUsageError {
+            return ClaudeStatusProbe.isUsageRateLimitMessage(message)
+        }
+        return ClaudeStatusProbe.isUsageRateLimitMessage(error.localizedDescription)
+    }
+
+    public static func isTypedRateLimited(_ error: Error) -> Bool {
+        if let probeError = error as? ClaudeStatusProbeError,
+           case .rateLimited = probeError
+        {
+            return true
+        }
+        return false
+    }
+
+    public static func isBackgroundCooldownBlock(_ error: Error) -> Bool {
+        if case let ClaudeStatusProbeError.rateLimited(message) = error {
+            return message.lowercased().contains("background refresh is paused")
+        }
+        return false
     }
 }
 
@@ -162,6 +191,9 @@ public struct ClaudeStatusProbe: Sendable {
                 reason: "usageError: \(usageError)",
                 usage: clean,
                 status: statusText)
+            if self.isUsageRateLimitMessage(usageError) {
+                throw ClaudeStatusProbeError.rateLimited(usageError)
+            }
             throw ClaudeStatusProbeError.parseFailed(usageError)
         }
 
@@ -457,6 +489,7 @@ public struct ClaudeStatusProbe: Sendable {
         }
         if lower.contains("rate_limit_error")
             || lower.contains("rate limited")
+            || lower.contains("rate limit")
             || compact.contains("ratelimited")
         {
             return "Claude CLI usage endpoint is rate limited right now. Please try again later."
@@ -471,6 +504,15 @@ public struct ClaudeStatusProbe: Sendable {
             return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
         }
         return nil
+    }
+
+    public static func isUsageRateLimitMessage(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        let compact = lower.filter { !$0.isWhitespace }
+        return lower.contains("rate_limit_error") ||
+            lower.contains("rate limited") ||
+            lower.contains("rate limit") ||
+            compact.contains("ratelimited")
     }
 
     private static func isUsageStillLoading(text: String) -> Bool {

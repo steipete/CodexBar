@@ -553,25 +553,57 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
         private func loadViaAutoCLI(model: String) async throws -> ClaudeUsageSnapshot {
             do {
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
+                return try await self.loadViaCLIRecordingRateLimit(
+                    model: model,
+                    timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
             } catch {
                 if error is CancellationError { throw error }
                 guard Self.shouldRetryCLIProbe(after: error) else { throw error }
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
+                return try await self.loadViaCLIRecordingRateLimit(
+                    model: model,
+                    timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
             }
         }
 
         private func loadViaCLIWithRetry(model: String) async throws -> ClaudeUsageSnapshot {
             do {
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliProbeTimeout)
+                return try await self.loadViaCLIRecordingRateLimit(
+                    model: model,
+                    timeout: ClaudeUsageFetcher.cliProbeTimeout)
             } catch {
                 if error is CancellationError { throw error }
                 guard Self.shouldRetryCLIProbe(after: error) else { throw error }
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
+                return try await self.loadViaCLIRecordingRateLimit(
+                    model: model,
+                    timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
+            }
+        }
+
+        private func loadViaCLIRecordingRateLimit(model: String, timeout: TimeInterval) async throws
+            -> ClaudeUsageSnapshot
+        {
+            do {
+                let snapshot = try await self.loadViaCLI(model: model, timeout: timeout)
+                ClaudeCLIRateLimitGate.recordSuccess()
+                return snapshot
+            } catch {
+                if ClaudeStatusProbeError.isRateLimited(error),
+                   !Self.isCLIRateLimitCooldownBlock(error)
+                {
+                    ClaudeCLIRateLimitGate.recordRateLimit()
+                }
+                throw error
             }
         }
 
         private func loadViaCLI(model: String, timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
+            if let blockedUntil = ClaudeCLIRateLimitGate.blockedUntil() {
+                let seconds = max(1, Int(blockedUntil.timeIntervalSinceNow.rounded(.up)))
+                throw ClaudeStatusProbeError.rateLimited(
+                    "Claude CLI usage endpoint is rate limited right now. Background refresh is paused for "
+                        + "\(seconds)s; refresh manually to retry sooner.")
+            }
+
             var snapshot: ClaudeUsageSnapshot
             do {
                 snapshot = try await self.fetcher.loadViaPTY(model: model, timeout: timeout)
@@ -584,6 +616,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         timeout: Self.directCLIUsageTimeout(for: timeout))
                 } catch let directError {
                     if directError is CancellationError { throw directError }
+                    if ClaudeStatusProbeError.isRateLimited(directError) {
+                        throw directError
+                    }
                     guard Self.directCLIErrorShouldReplacePTYError(directError) else { throw ptyError }
                     throw directError
                 }
@@ -607,6 +642,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         private static func shouldTryDirectCLIUsage(after error: Error) -> Bool {
+            if ClaudeStatusProbeError.isRateLimited(error) { return false }
             if case ClaudeStatusProbeError.timedOut = error { return true }
             if case let ClaudeStatusProbeError.parseFailed(message) = error {
                 let lower = message.lowercased()
@@ -617,12 +653,17 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         private static func shouldRetryCLIProbe(after error: Error) -> Bool {
+            if ClaudeStatusProbeError.isRateLimited(error) { return false }
             if case ClaudeStatusProbeError.timedOut = error { return true }
             if case let ClaudeStatusProbeError.parseFailed(message) = error {
                 return message.lowercased().contains("still loading usage")
             }
             let message = error.localizedDescription.lowercased()
             return message.contains("timed out") || message.contains("timeout")
+        }
+
+        private static func isCLIRateLimitCooldownBlock(_ error: Error) -> Bool {
+            ClaudeStatusProbeError.isBackgroundCooldownBlock(error)
         }
     }
 }
@@ -645,6 +686,10 @@ extension ClaudeUsageFetcher {
 
         if let ok = obj["ok"] as? Bool, !ok {
             let hint = obj["hint"] as? String ?? (obj["pane_preview"] as? String ?? "")
+            if ClaudeStatusProbe.isUsageRateLimitMessage(hint) {
+                throw ClaudeStatusProbeError.rateLimited(
+                    "Claude CLI usage endpoint is rate limited right now. Please try again later.")
+            }
             throw ClaudeUsageError.parseFailed(hint)
         }
 

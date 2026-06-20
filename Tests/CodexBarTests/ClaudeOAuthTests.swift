@@ -351,6 +351,14 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `O auth429 is not classified as CLI rate limit`() {
+        let error = ClaudeUsageError.oauthFailed(
+            ClaudeOAuthFetchError.rateLimited(retryAfter: nil).localizedDescription)
+
+        #expect(!ClaudeStatusProbeError.isTypedRateLimited(error))
+    }
+
+    @Test
     func `O auth429 usage fetch surfaces guidance without raw JSON`() async throws {
         let fetcher = ClaudeUsageFetcher(
             browserDetection: BrowserDetection(cacheTTL: 0),

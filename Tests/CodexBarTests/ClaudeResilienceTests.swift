@@ -196,6 +196,83 @@ struct ClaudeResilienceTests {
     }
 
     @Test
+    func `manual Claude CLI rate limit surfaces first failure while preserving prior snapshot`() async throws {
+        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+
+            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                let (store, prior) = try await MainActor.run {
+                    let settings = Self.makeSettingsStore(suite: "ClaudeResilienceTests-cli-rate-limit")
+                    settings.refreshFrequency = .manual
+                    settings.statusChecksEnabled = false
+                    settings.claudeUsageDataSource = .cli
+
+                    let metadata = ProviderRegistry.shared.metadata
+                    for provider in UsageProvider.allCases {
+                        try settings.setProviderEnabled(
+                            provider: provider,
+                            metadata: #require(metadata[provider]),
+                            enabled: provider == .claude)
+                    }
+
+                    let store = UsageStore(
+                        fetcher: UsageFetcher(environment: [:]),
+                        browserDetection: BrowserDetection(cacheTTL: 0),
+                        settings: settings,
+                        startupBehavior: .testing,
+                        environmentBase: [:])
+                    let prior = UsageSnapshot(
+                        primary: RateWindow(
+                            usedPercent: 12,
+                            windowMinutes: 300,
+                            resetsAt: nil,
+                            resetDescription: nil),
+                        secondary: nil,
+                        updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+                        identity: ProviderIdentitySnapshot(
+                            providerID: .claude,
+                            accountEmail: "claude@example.com",
+                            accountOrganization: nil,
+                            loginMethod: "Pro"))
+                    store._setSnapshotForTesting(prior, provider: .claude)
+
+                    let baseSpec = try #require(store.providerSpecs[.claude])
+                    let descriptor = ProviderDescriptor(
+                        id: .claude,
+                        metadata: baseSpec.descriptor.metadata,
+                        branding: baseSpec.descriptor.branding,
+                        tokenCost: baseSpec.descriptor.tokenCost,
+                        fetchPlan: ProviderFetchPlan(
+                            sourceModes: [.cli],
+                            pipeline: ProviderFetchPipeline { _ in [RateLimitFetchStrategy()] }),
+                        cli: baseSpec.descriptor.cli)
+                    store.providerSpecs[.claude] = ProviderSpec(
+                        style: baseSpec.style,
+                        isEnabled: baseSpec.isEnabled,
+                        descriptor: descriptor,
+                        makeFetchContext: baseSpec.makeFetchContext)
+                    return (store, prior)
+                }
+
+                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await store.refreshProvider(.claude)
+                }
+                let result = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        error: store.error(for: .claude))
+                }
+
+                #expect(result.updatedAt == prior.updatedAt)
+                #expect(result.error?.localizedCaseInsensitiveContains("rate limit") == true)
+            }
+        }
+    }
+
+    @Test
     func `credentials change clears prior Claude snapshot for non transient failure`() async throws {
         try await KeychainCacheStore.withServiceOverrideForTesting("com.steipete.codexbar.cache.tests.\(UUID())") {
             KeychainCacheStore.setTestStoreForTesting(true)
@@ -1045,6 +1122,24 @@ private struct NetworkLostFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         throw URLError(.networkConnectionLost)
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct RateLimitFetchStrategy: ProviderFetchStrategy {
+    let id = "test.rate-limit"
+    let kind: ProviderFetchKind = .cli
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        throw ClaudeStatusProbeError.rateLimited(
+            "Claude CLI usage endpoint is rate limited right now. Please try again later.")
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

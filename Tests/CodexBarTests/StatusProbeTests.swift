@@ -458,7 +458,26 @@ struct StatusProbeTests {
         do {
             _ = try ClaudeStatusProbe.parse(text: sample)
             #expect(Bool(false), "Parsing should fail for rate limiting")
-        } catch let ClaudeStatusProbeError.parseFailed(message) {
+        } catch let ClaudeStatusProbeError.rateLimited(message) {
+            let lower = message.lowercased()
+            #expect(lower.contains("rate"))
+            #expect(lower.contains("limit"))
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `surfaces claude rate limit from failed load wording`() {
+        let sample = """
+        Settings: Status Config Usage
+        Error: Failed to load usage data: Rate limit exceeded
+        """
+
+        do {
+            _ = try ClaudeStatusProbe.parse(text: sample)
+            #expect(Bool(false), "Parsing should fail for rate limiting")
+        } catch let ClaudeStatusProbeError.rateLimited(message) {
             let lower = message.lowercased()
             #expect(lower.contains("rate"))
             #expect(lower.contains("limit"))
