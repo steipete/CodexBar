@@ -2,28 +2,6 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
-struct StorageMenuCardSectionView: View {
-    let storageText: String
-    let topPadding: CGFloat
-    let bottomPadding: CGFloat
-    let width: CGFloat
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text(L("Storage"))
-                .font(.body)
-            Text(self.storageText)
-                .font(.body)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
-        .padding(.top, self.topPadding)
-        .padding(.bottom, self.bottomPadding)
-        .frame(width: self.width, alignment: .leading)
-    }
-}
-
 struct StorageBreakdownMenuView: View {
     let footprint: ProviderStorageFootprint
     let width: CGFloat

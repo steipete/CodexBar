@@ -714,8 +714,8 @@ extension StatusItemController {
             if context.hasCostHistory {
                 _ = self.addCostHistorySubmenu(to: menu, provider: currentProvider)
             }
+            menu.addItem(.separator())
         }
-        menu.addItem(.separator())
     }
 
     func addPrimaryMenuContent(
@@ -1245,7 +1245,7 @@ extension StatusItemController {
         }
 
         if self.addStorageMenuCardSection(to: menu, provider: provider, width: width),
-           hasCredits || hasExtraUsage || hasCost
+           hasCredits || hasExtraUsage
         {
             menu.addItem(.separator())
         }
@@ -1298,27 +1298,28 @@ extension StatusItemController {
                 .makeCostHistorySubmenu(provider: provider, width: width) : nil
             menu.addItem(self.makeCostMenuCardItem(
                 model: model,
-                submenu: costSubmenu,
-                width: width))
+                submenu: costSubmenu))
         }
     }
 
     @discardableResult
     func addStorageMenuCardSection(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
         guard let storageText = self.store.storageFootprintText(for: provider) else { return false }
-        let storageView = StorageMenuCardSectionView(
-            storageText: storageText,
-            topPadding: 6,
-            bottomPadding: 6,
-            width: width)
         let storageSubmenu = self.makeStorageBreakdownSubmenu(provider: provider, width: width)
-        menu.addItem(self.makeMenuCardItem(
-            storageView,
-            id: "menuCardStorage",
-            width: width,
-            heightCacheScope: provider.rawValue,
-            heightCacheFingerprint: UsageMenuCardView.Model.heightFingerprintField("storage", storageText),
-            submenu: storageSubmenu))
+        let menuFont = NSFont.menuFont(ofSize: 0)
+        let title = NSMutableAttributedString(
+            string: L("Storage"),
+            attributes: [.font: menuFont])
+        let detail = NSAttributedString(
+            string: "  \(storageText)",
+            attributes: [.font: menuFont, .foregroundColor: NSColor.secondaryLabelColor])
+        title.append(detail)
+        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        item.attributedTitle = title
+        item.isEnabled = storageSubmenu != nil
+        item.representedObject = "menuCardStorage"
+        item.submenu = storageSubmenu
+        menu.addItem(item)
         return true
     }
 
