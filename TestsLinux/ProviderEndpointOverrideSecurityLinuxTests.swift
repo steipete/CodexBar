@@ -1,4 +1,4 @@
-import CodexBarCore
+@testable import CodexBarCore
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -7,6 +7,14 @@ import Testing
 
 @Suite
 struct ProviderEndpointOverrideSecurityLinuxTests {
+    @Test
+    func mimoInvalidEndpointOverrideDoesNotFallbackToLocalCache() {
+        #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(
+            error: MiMoSettingsError.invalidEndpointOverride(MiMoSettingsReader.apiURLKey)) == false)
+        #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(error: MiMoSettingsError.missingCookie()) == true)
+        #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(error: MiMoSettingsError.invalidCookie) == true)
+    }
+
     @Test
     func deepgramRejectsInsecureOverrideBeforeSendingToken() async {
         let transport = FailingTransport()
