@@ -99,7 +99,15 @@ extension StatusItemController {
         hasSubmenu: Bool) -> [String]
     {
         guard !hasSubmenu else { return [] }
-        return [tokenUsage?.sessionLine, tokenUsage?.monthLine]
+        let primaryLines = [
+            tokenUsage?.sessionLine,
+            tokenUsage?.monthLine,
+            tokenUsage?.errorLine,
+        ]
+            .compactMap(\.self)
+            .filter { !$0.isEmpty }
+        guard primaryLines.isEmpty else { return primaryLines }
+        return [tokenUsage?.hintLine]
             .compactMap(\.self)
             .filter { !$0.isEmpty }
     }

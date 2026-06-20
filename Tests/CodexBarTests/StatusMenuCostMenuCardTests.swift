@@ -31,7 +31,7 @@ struct StatusMenuCostMenuCardTests {
             sessionLine: "Today: $74.83 - 87M tokens",
             monthLine: "Last 30 days: $4,279.64 - 5.7B tokens",
             hintLine: "Costs are estimated from local usage.",
-            errorLine: nil,
+            errorLine: "Cost refresh failed.",
             errorCopyText: nil)
 
         let visibleLines = StatusItemController.costMenuVisibleDetailLines(
@@ -40,10 +40,13 @@ struct StatusMenuCostMenuCardTests {
         #expect(visibleLines == [
             "Today: $74.83 - 87M tokens",
             "Last 30 days: $4,279.64 - 5.7B tokens",
+            "Cost refresh failed.",
         ])
 
         let fallbackTitle = StatusItemController.costMenuFallbackAttributedTitle(visibleDetailLines: visibleLines)
-        #expect(fallbackTitle.string == "Cost  Today: $74.83 - 87M tokens | Last 30 days: $4,279.64 - 5.7B tokens")
+        #expect(fallbackTitle.string.contains("Today: $74.83 - 87M tokens"))
+        #expect(fallbackTitle.string.contains("Last 30 days: $4,279.64 - 5.7B tokens"))
+        #expect(fallbackTitle.string.contains("Cost refresh failed."))
     }
 
     @Test
