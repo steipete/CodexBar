@@ -43,11 +43,10 @@ struct StatusMenuHostedSubmenuRefreshTests {
         controller.menuVersions[parentKey] = controller.menuContentVersion
 
         let costItem = try #require(menu.items.first { ($0.representedObject as? String) == "menuCardCost" })
-        #expect(costItem.view is any MenuCardMeasuring)
+        #expect(costItem.view == nil)
+        #expect(costItem.title == StatusItemController.costMenuTitle)
+        #expect(costItem.isEnabled)
         let submenu = try #require(costItem.submenu)
-        let submenuAction = try #require(costItem.action)
-        #expect(NSStringFromSelector(submenuAction) == "menuCardNoOp:")
-        #expect(costItem.target === controller)
         #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
         #expect(submenu.minimumWidth >= StatusItemController.menuCardBaseWidth)
         #expect(submenu.items.first?.view == nil)

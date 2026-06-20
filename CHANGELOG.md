@@ -4,6 +4,7 @@
 
 ### Fixed
 - Memory pressure: avoid actor-isolation crashes when system callbacks arrive on a utility queue. Thanks @Zihao-Qi!
+- Menu: remove extra separators and spacing around Storage, Cost, and Subscription Utilization rows. Thanks @elijahfriedman!
 
 ## 0.37.0 — 2026-06-19
 
