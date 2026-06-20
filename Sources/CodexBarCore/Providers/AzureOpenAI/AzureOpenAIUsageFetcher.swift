@@ -56,6 +56,7 @@ public enum AzureOpenAIUsageError: LocalizedError, Sendable, Equatable {
     case missingEndpoint
     case missingDeploymentName
     case invalidEndpoint
+    case invalidEndpointOverride(String)
     case invalidURL
     case networkError(String)
     case apiError(statusCode: Int, message: String)
@@ -71,6 +72,8 @@ public enum AzureOpenAIUsageError: LocalizedError, Sendable, Equatable {
             AzureOpenAISettingsError.missingDeploymentName.errorDescription
         case .invalidEndpoint:
             AzureOpenAISettingsError.invalidEndpoint.errorDescription
+        case let .invalidEndpointOverride(key):
+            AzureOpenAISettingsError.invalidEndpointOverride(key).errorDescription
         case .invalidURL:
             "Azure OpenAI validation URL is invalid."
         case let .networkError(message):
@@ -108,7 +111,9 @@ public enum AzureOpenAIUsageFetcher {
         let apiVersion = apiVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apiKey.isEmpty else { throw AzureOpenAIUsageError.missingAPIKey }
         guard !deploymentName.isEmpty else { throw AzureOpenAIUsageError.missingDeploymentName }
-        guard endpoint.host?.isEmpty == false else { throw AzureOpenAIUsageError.invalidEndpoint }
+        guard let endpoint = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: endpoint.absoluteString) else {
+            throw AzureOpenAIUsageError.invalidEndpointOverride(AzureOpenAISettingsReader.endpointEnvironmentKey)
+        }
         let effectiveAPIVersion = apiVersion.isEmpty ? AzureOpenAISettingsReader.defaultAPIVersion : apiVersion
 
         var request = try URLRequest(url: self.chatCompletionsURL(

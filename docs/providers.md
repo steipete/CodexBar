@@ -92,6 +92,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Azure OpenAI
 - API key, endpoint, and deployment from `~/.codexbar/config.json` or `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, and `AZURE_OPENAI_DEPLOYMENT_NAME`.
+- `AZURE_OPENAI_ENDPOINT` and configured endpoint overrides must be HTTPS URLs or bare hosts normalized to HTTPS; explicit `http://` URLs, user info, and encoded host-delimiter tricks fail closed before `api-key` headers are attached.
 - Validates the configured deployment with a minimal chat-completions request; it does not expose Azure spend or quota history.
 - Use `AZURE_OPENAI_API_VERSION` to override the API version. Set it to `v1` for Azure's OpenAI-compatible v1 API path.
 - Status: Azure status page link.

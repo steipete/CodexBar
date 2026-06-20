@@ -27,15 +27,16 @@ public enum AzureOpenAISettingsReader {
     public static func endpointURL(from rawEndpoint: String) -> URL? {
         let trimmed = rawEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: trimmed)
+    }
 
-        let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
-        guard let url = URL(string: withScheme),
-              let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !host.isEmpty
-        else {
-            return nil
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        guard let rawEndpoint = self.cleaned(environment[self.endpointEnvironmentKey]) else { return }
+        guard self.endpointURL(from: rawEndpoint) != nil else {
+            throw AzureOpenAISettingsError.invalidEndpointOverride(self.endpointEnvironmentKey)
         }
-        return url
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -59,6 +60,7 @@ public enum AzureOpenAISettingsError: LocalizedError, Sendable, Equatable {
     case missingEndpoint
     case missingDeploymentName
     case invalidEndpoint
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
@@ -71,6 +73,9 @@ public enum AzureOpenAISettingsError: LocalizedError, Sendable, Equatable {
                 "in Settings."
         case .invalidEndpoint:
             "Azure OpenAI endpoint is invalid."
+        case let .invalidEndpointOverride(key):
+            "Azure OpenAI endpoint override \(key) is not allowed. " +
+                "Use an HTTPS endpoint without user info or encoded host tricks."
         }
     }
 }
