@@ -331,12 +331,16 @@ extension UsageMenuCardView.Model {
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
         var details: [String] = []
         if let topModel = Self.topCostModel(from: snapshot.daily) {
-            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+            let topLabel = provider == .codex &&
+                UsageMenuCardView.Model.isCodexDashboardCreditCostSnapshot(snapshot)
+                ? "Top source"
+                : L("Top model")
+            details.append("\(topLabel): \(Self.shortModelName(topModel))")
         }
         if let requestCount = snapshot.last30DaysRequests {
             details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
         }
-        if let hint = Self.tokenUsageHint(provider: provider) {
+        if let hint = Self.tokenUsageHint(provider: provider, snapshot: snapshot) {
             details.append(hint)
         } else {
             details.append(L("cost_estimate_hint"))

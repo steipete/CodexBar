@@ -134,27 +134,41 @@ extension UsageMenuCardView.Model {
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
-            hintLine: Self.tokenUsageHint(provider: provider),
+            hintLine: Self.tokenUsageHint(provider: provider, snapshot: snapshot),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
 
-    static func tokenUsageHint(provider: UsageProvider) -> String? {
+    static func tokenUsageHint(provider: UsageProvider, snapshot: CostUsageTokenSnapshot) -> String? {
         switch provider {
         case .codex:
-            L("Estimated from local Codex logs for the selected account.")
+            if self.isCodexDashboardCreditCostSnapshot(snapshot) {
+                return "Estimated from OpenAI dashboard credits for the selected account."
+            }
+            return L("Estimated from local Codex logs for the selected account.")
         case .claude:
-            UsageFormatter.costEstimateHint(provider: provider)
+            return UsageFormatter.costEstimateHint(provider: provider)
         case .vertexai:
-            L("cost_estimate_hint")
+            return L("cost_estimate_hint")
         case .bedrock:
-            L("AWS Cost Explorer billing can lag.")
+            return L("AWS Cost Explorer billing can lag.")
         case .openai:
-            L("Reported by OpenAI Admin API organization usage.")
+            return L("Reported by OpenAI Admin API organization usage.")
         case .mistral:
-            L("Reported by Mistral billing usage.")
+            return L("Reported by Mistral billing usage.")
         default:
-            nil
+            return nil
+        }
+    }
+
+    static func isCodexDashboardCreditCostSnapshot(_ snapshot: CostUsageTokenSnapshot) -> Bool {
+        let dashboardServices = Set(["exec", "desktop app", "cli", "unknown"])
+        return snapshot.daily.contains { entry in
+            (entry.modelsUsed ?? []).contains {
+                dashboardServices.contains($0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+            } || (entry.modelBreakdowns ?? []).contains {
+                dashboardServices.contains($0.modelName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+            }
         }
     }
 

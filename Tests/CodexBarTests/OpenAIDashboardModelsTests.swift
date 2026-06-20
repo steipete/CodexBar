@@ -91,4 +91,97 @@ struct OpenAIDashboardModelsTests {
                 totalCreditsUsed: 4),
         ])
     }
+
+    @Test
+    func `usage breakdown converts dashboard exec credits to cost snapshot`() throws {
+        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "codex@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [
+                OpenAIDashboardDailyBreakdown(
+                    day: "2026-06-18",
+                    services: [
+                        OpenAIDashboardServiceUsage(service: "Exec", creditsUsed: 25),
+                    ],
+                    totalCreditsUsed: 25),
+                OpenAIDashboardDailyBreakdown(
+                    day: "2026-06-19",
+                    services: [
+                        OpenAIDashboardServiceUsage(service: "Exec", creditsUsed: 457.34),
+                        OpenAIDashboardServiceUsage(service: "Desktop App", creditsUsed: 33.65),
+                        OpenAIDashboardServiceUsage(service: "Skillusage:imagegen", creditsUsed: 9),
+                    ],
+                    totalCreditsUsed: 500),
+            ],
+            creditsPurchaseURL: nil,
+            updatedAt: updatedAt)
+
+        let cost = try #require(snapshot.toCostUsageTokenSnapshot(historyDays: 30))
+
+        #expect(cost.sessionTokens == nil)
+        #expect(cost.last30DaysTokens == nil)
+        #expect(abs((cost.sessionCostUSD ?? 0) - 19.6396) < 0.0001)
+        #expect(abs((cost.last30DaysCostUSD ?? 0) - 20.6396) < 0.0001)
+        #expect(cost.daily.map(\.date) == ["2026-06-18", "2026-06-19"])
+        #expect(cost.daily.last?.modelsUsed == ["Exec", "Desktop App"])
+        let modelBreakdowns = try #require(cost.daily.last?.modelBreakdowns)
+        #expect(modelBreakdowns.map(\.modelName) == ["Exec", "Desktop App"])
+        #expect(abs((modelBreakdowns[0].costUSD ?? 0) - 18.2936) < 0.0001)
+        #expect(abs((modelBreakdowns[1].costUSD ?? 0) - 1.346) < 0.0001)
+        #expect(cost.updatedAt == updatedAt)
+    }
+
+    @Test
+    func `usage breakdown cost snapshot merges local token context without replacing dashboard USD`() throws {
+        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "codex@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [
+                OpenAIDashboardDailyBreakdown(
+                    day: "2026-06-19",
+                    services: [
+                        OpenAIDashboardServiceUsage(service: "Exec", creditsUsed: 457.34),
+                        OpenAIDashboardServiceUsage(service: "Desktop App", creditsUsed: 33.65),
+                    ],
+                    totalCreditsUsed: 490.99),
+            ],
+            creditsPurchaseURL: nil,
+            updatedAt: updatedAt)
+        let local = CostUsageTokenSnapshot(
+            sessionTokens: 30_000_000,
+            sessionCostUSD: 28.23,
+            last30DaysTokens: 4_700_000_000,
+            last30DaysCostUSD: 3528.07,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-06-19",
+                    inputTokens: 20_000_000,
+                    outputTokens: 10_000_000,
+                    totalTokens: 30_000_000,
+                    costUSD: 28.23,
+                    modelsUsed: ["gpt-5.5"],
+                    modelBreakdowns: [
+                        .init(modelName: "gpt-5.5", costUSD: 28.23, totalTokens: 30_000_000),
+                    ]),
+            ],
+            updatedAt: updatedAt.addingTimeInterval(-60))
+
+        let cost = try #require(snapshot.toCostUsageTokenSnapshot(historyDays: 30, merging: local))
+
+        #expect(cost.sessionTokens == 30_000_000)
+        #expect(cost.last30DaysTokens == 4_700_000_000)
+        #expect(abs((cost.sessionCostUSD ?? 0) - 19.6396) < 0.0001)
+        #expect(abs((cost.last30DaysCostUSD ?? 0) - 19.6396) < 0.0001)
+        let day = try #require(cost.daily.first)
+        #expect(day.totalTokens == 30_000_000)
+        #expect(abs((day.costUSD ?? 0) - 19.6396) < 0.0001)
+        #expect(day.modelsUsed == ["Exec", "Desktop App"])
+        #expect(day.modelBreakdowns?.map(\.modelName) == ["Exec", "Desktop App"])
+    }
 }
