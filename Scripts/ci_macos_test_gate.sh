@@ -10,7 +10,18 @@ if [[ -z "$changed_paths_file" || ! -f "$changed_paths_file" ]]; then
 fi
 
 macos_tests=false
+macos_tests_reason=""
 path_count=0
+
+require_macos_tests() {
+  local path="$1"
+  local reason="$2"
+
+  macos_tests=true
+  if [[ -z "$macos_tests_reason" ]]; then
+    macos_tests_reason="${path}: ${reason}"
+  fi
+}
 
 classify_path() {
   local path="$1"
@@ -20,12 +31,16 @@ classify_path() {
 
   case "$path" in
     AGENTS.md|docs/configuration.md)
-      macos_tests=true
+      require_macos_tests "$path" "changes contributor or runtime configuration contracts"
       ;;
     *.md)
       ;;
+    docs/.nojekyll|docs/CNAME|docs/index.html|docs/llms.txt|docs/site-locales.mjs|docs/site.css|docs/site.js|docs/social.html|docs/social.png)
+      ;;
+    docs/*.png|docs/*.jpg|docs/*.jpeg|docs/*.webp|docs/*.ico|docs/*.svg)
+      ;;
     *)
-      macos_tests=true
+      require_macos_tests "$path" "not covered by portable docs/site checks"
       ;;
   esac
 }
@@ -68,7 +83,7 @@ if [[ "$invalid_row" == true ]]; then
 fi
 
 if [[ "$path_count" -eq 0 ]]; then
-  macos_tests=true
+  require_macos_tests '<empty diff>' 'no changed paths were reported'
 fi
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
@@ -76,7 +91,7 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
 fi
 
 if [[ "$macos_tests" == true ]]; then
-  printf 'macOS Swift tests required for this change set.\n'
+  printf 'macOS Swift tests required for this change set: %s.\n' "$macos_tests_reason"
 else
-  printf 'Skipping macOS Swift tests for docs/Markdown-only changes.\n'
+  printf 'Skipping macOS Swift tests for docs/site-only changes covered by portable checks.\n'
 fi
