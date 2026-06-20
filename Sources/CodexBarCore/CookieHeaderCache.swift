@@ -473,13 +473,14 @@ public enum CookieHeaderCache {
         do {
             return try self.withLegacyMutationLock {
                 guard self.currentEntryMatches(expected, provider: provider, scope: scope) else { return false }
+                // Keep the expected Keychain row intact when legacy cleanup fails so fallback can replace it.
+                if scope == nil, self.removeLegacyEntry(for: provider) == .failed {
+                    return false
+                }
                 let key = self.key(for: provider, scope: scope)
                 let result = KeychainCacheStore.clearResult(key: key)
                 guard result != .failed else { return false }
                 self.updateDisplaySnapshot(key: key, entry: nil)
-                if scope == nil {
-                    return self.removeLegacyEntry(for: provider) != .failed
-                }
                 return true
             }
         } catch {
