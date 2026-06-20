@@ -1,3 +1,11 @@
+---
+summary: "Post-fix validation for issue #139 Codex CLI timeout and energy improvements."
+read_when:
+  - Validating Codex CLI timeout or retry changes
+  - Reviewing post-fix evidence for issue 139
+  - Investigating CodexBar CPU exposure under failed CLI probes
+---
+
 # CodexBar Issue #139 Main Fix Validation (Post-Fix vs Pre-Fix)
 
 Date: 2026-02-19

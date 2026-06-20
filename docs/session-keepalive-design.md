@@ -1,3 +1,11 @@
+---
+summary: "Design notes for unified provider session keepalive scheduling and refresh control."
+read_when:
+  - Planning provider session keepalive work
+  - Refactoring Augment keepalive behavior
+  - Designing background session refresh scheduling
+---
+
 # Session Keepalive Enhancement Design
 
 **Date:** 2026-01-04  

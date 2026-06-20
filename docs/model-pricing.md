@@ -1,3 +1,11 @@
+---
+summary: "models.dev pricing metadata pipeline, cache, lookup rules, and token-cost units."
+read_when:
+  - Updating models.dev pricing metadata support
+  - Debugging model-pricing cache refresh or lookup behavior
+  - Routing provider cost calculations through shared pricing metadata
+---
+
 # Model pricing metadata
 
 CodexBar has an additive models.dev pricing pipeline for future cost lookup work. Existing hardcoded pricing remains unchanged for now.

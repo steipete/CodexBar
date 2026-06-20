@@ -1,3 +1,11 @@
+---
+summary: "Claude fetch behavior comparison covering OAuth, web, CLI, and Keychain prompt changes."
+read_when:
+  - Reviewing Claude fetch regressions since 0.18.0 beta 2
+  - Changing Claude OAuth, web, CLI, or Keychain prompt behavior
+  - Comparing old and current Claude credential flows
+---
+
 # Claude Fetch Comparison (`7b79b2d` vs `HEAD`)
 
 This document compares Claude data fetching behavior between:

@@ -1,3 +1,11 @@
+---
+summary: "Issue #139 performance and energy simulation report for Codex CLI subprocess failure paths."
+read_when:
+  - Investigating CodexBar CPU or energy regressions
+  - Changing Codex CLI PTY probe timing or retry behavior
+  - Reviewing issue 139 performance evidence
+---
+
 # CodexBar Issue #139 Performance/Energy Simulation Report
 
 Date: 2026-02-19
