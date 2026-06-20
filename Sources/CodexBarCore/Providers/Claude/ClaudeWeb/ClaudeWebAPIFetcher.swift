@@ -170,9 +170,9 @@ public enum ClaudeWebAPIFetcher {
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
-        var expectedCachedEntry: CookieHeaderCache.Entry?
+        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
 
-        if let cached = CookieHeaderCache.load(provider: .claude),
+        if let cached = cacheObservation.entry,
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             log("Using cached cookie header from \(cached.sourceLabel)")
@@ -185,7 +185,7 @@ public enum ClaudeWebAPIFetcher {
                 switch error {
                 case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
                     let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: cached)
-                    expectedCachedEntry = cleared ? nil : cached
+                    cacheObservation = .authoritative(cleared ? nil : cached)
                 default:
                     throw error
                 }
@@ -202,7 +202,7 @@ public enum ClaudeWebAPIFetcher {
             targetOrganizationID: targetOrganizationID,
             logger: log,
             cacheSourceLabel: sessionInfo.sourceLabel,
-            expectedCachedEntry: expectedCachedEntry,
+            expectedCacheObservation: cacheObservation,
             persistInitialSessionKey: true)
     }
 
@@ -230,7 +230,7 @@ public enum ClaudeWebAPIFetcher {
             targetOrganizationID: targetOrganizationID,
             logger: logger,
             cacheSourceLabel: nil,
-            expectedCachedEntry: nil)
+            expectedCacheObservation: .authoritative(nil))
     }
 
     private static func fetchUsageAndRenewCache(
@@ -244,7 +244,7 @@ public enum ClaudeWebAPIFetcher {
             targetOrganizationID: targetOrganizationID,
             logger: logger,
             cacheSourceLabel: cachedEntry.sourceLabel,
-            expectedCachedEntry: cachedEntry)
+            expectedCacheObservation: .authoritative(cachedEntry))
     }
 
     private static func fetchUsage(
@@ -252,7 +252,7 @@ public enum ClaudeWebAPIFetcher {
         targetOrganizationID: String?,
         logger: ((String) -> Void)?,
         cacheSourceLabel: String?,
-        expectedCachedEntry: CookieHeaderCache.Entry?,
+        expectedCacheObservation: CookieHeaderCache.ConditionalMutationObservation,
         persistInitialSessionKey: Bool = false) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?(msg) }
@@ -327,7 +327,7 @@ public enum ClaudeWebAPIFetcher {
             self.persistSessionKeyIfNeeded(
                 source: (sessionKey, cacheSourceLabel),
                 renewedCookieHeader: renewalTracker.renewedCookieHeader,
-                expectedCachedEntry: expectedCachedEntry,
+                expectedCacheObservation: expectedCacheObservation,
                 persistInitialSessionKey: persistInitialSessionKey,
                 logger: log)
         }
@@ -963,15 +963,15 @@ extension ClaudeWebAPIFetcher {
     private static func persistSessionKeyIfNeeded(
         source: (initialSessionKey: String, label: String),
         renewedCookieHeader: String?,
-        expectedCachedEntry: CookieHeaderCache.Entry?,
+        expectedCacheObservation: CookieHeaderCache.ConditionalMutationObservation,
         persistInitialSessionKey: Bool,
         logger: (String) -> Void)
     {
         let importedCookieHeader = persistInitialSessionKey ? "sessionKey=\(source.initialSessionKey)" : nil
         guard let cookieHeader = renewedCookieHeader ?? importedCookieHeader else { return }
-        let stored = CookieHeaderCache.storeIfCurrent(
+        let stored = CookieHeaderCache.storeIfObservationCurrent(
             provider: .claude,
-            expected: expectedCachedEntry,
+            expected: expectedCacheObservation,
             cookieHeader: cookieHeader,
             sourceLabel: source.label)
         if renewedCookieHeader != nil {

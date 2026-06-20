@@ -4,6 +4,55 @@ import Testing
 
 @Suite(.serialized)
 struct CookieHeaderCacheConditionalMutationTests {
+    #if os(macOS)
+    @Test
+    func `temporary keychain read permits fresh replacement when legacy state is unchanged`() {
+        self.withIsolatedCookieCache {
+            let legacy = CookieHeaderCache.Entry(
+                cookieHeader: "sessionKey=sk-ant-legacy",
+                storedAt: Date(timeIntervalSince1970: 1),
+                sourceLabel: "Legacy")
+            CookieHeaderCache.store(legacy, to: CookieHeaderCache.legacyURLForTesting(provider: .claude))
+
+            let observation = KeychainCacheStore.withLoadFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+            }
+            let replaced = CookieHeaderCache.storeIfObservationCurrent(
+                provider: .claude,
+                expected: observation,
+                cookieHeader: "sessionKey=sk-ant-fresh",
+                sourceLabel: "Safari")
+
+            #expect(observation.entry == nil)
+            #expect(replaced)
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-fresh")
+            #expect(!CookieHeaderCache.hasLegacyEntryForTesting(provider: .claude))
+        }
+    }
+
+    @Test
+    func `temporary keychain read does not overwrite a concurrent keychain entry`() {
+        self.withIsolatedCookieCache {
+            let observation = KeychainCacheStore.withLoadFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+            }
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-concurrent",
+                sourceLabel: "Chrome")
+
+            let replaced = CookieHeaderCache.storeIfObservationCurrent(
+                provider: .claude,
+                expected: observation,
+                cookieHeader: "sessionKey=sk-ant-fresh",
+                sourceLabel: "Safari")
+
+            #expect(!replaced)
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-concurrent")
+        }
+    }
+    #endif
+
     @Test
     func `legacy clear failure still permits replacing the keychain entry`() {
         self.withIsolatedCookieCache {
@@ -42,13 +91,11 @@ struct CookieHeaderCacheConditionalMutationTests {
         KeychainCacheStore.withServiceOverrideForTesting("cookie-conditional-\(UUID().uuidString)") {
             let legacyBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            CookieHeaderCache.setLegacyBaseURLOverrideForTesting(legacyBase)
-            defer { CookieHeaderCache.setLegacyBaseURLOverrideForTesting(nil) }
-            KeychainCacheStore.setTestStoreForTesting(true)
-            defer { KeychainCacheStore.setTestStoreForTesting(false) }
-            CookieHeaderCache.resetDisplayCacheForTesting()
-            defer { CookieHeaderCache.resetDisplayCacheForTesting() }
-            return operation()
+            return CookieHeaderCache.withLegacyBaseURLOverrideForTesting(legacyBase) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+                return operation()
+            }
         }
     }
 }

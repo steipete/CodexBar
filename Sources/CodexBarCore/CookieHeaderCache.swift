@@ -748,6 +748,15 @@ public enum CookieHeaderCache {
     #if DEBUG
     static func withLegacyBaseURLOverrideForTesting<T>(
         _ url: URL?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskLegacyBaseURLOverride.withValue(url) {
+            try operation()
+        }
+    }
+
+    static func withLegacyBaseURLOverrideForTesting<T>(
+        _ url: URL?,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskLegacyBaseURLOverride.withValue(url) {
@@ -861,5 +870,97 @@ public enum CookieHeaderCache {
 
     private static func key(for provider: UsageProvider, scope: Scope?) -> KeychainCacheStore.Key {
         KeychainCacheStore.Key.cookie(provider: provider, scopeIdentifier: scope?.keychainIdentifier)
+    }
+}
+
+extension CookieHeaderCache {
+    enum ConditionalMutationObservation {
+        case authoritative(Entry?)
+        case keychainTemporarilyUnavailable(legacyEntry: Entry?)
+
+        var entry: Entry? {
+            switch self {
+            case let .authoritative(entry): entry
+            case .keychainTemporarilyUnavailable: nil
+            }
+        }
+    }
+
+    /// Captures enough state to conditionally persist an asynchronous refresh after a transient
+    /// Keychain read failure without mistaking an untouched legacy entry for a concurrent write.
+    static func observeForConditionalMutation(
+        provider: UsageProvider,
+        scope: Scope? = nil) -> ConditionalMutationObservation
+    {
+        do {
+            return try self.withLegacyMutationLock {
+                let key = self.key(for: provider, scope: scope)
+                switch KeychainCacheStore.load(key: key, as: Entry.self) {
+                case let .found(entry):
+                    return .authoritative(entry)
+                case .temporarilyUnavailable:
+                    let legacyEntry = scope == nil ? self.loadLegacyEntry(for: provider) : nil
+                    return .keychainTemporarilyUnavailable(legacyEntry: legacyEntry)
+                case .invalid:
+                    KeychainCacheStore.clear(key: key)
+                case .missing:
+                    break
+                }
+                guard scope == nil else { return .authoritative(nil) }
+                return .authoritative(self.migrateLegacyEntryIfNeededLocked(provider: provider))
+            }
+        } catch {
+            self.log.error("Cookie cache observation lock failed: \(error)")
+            return .keychainTemporarilyUnavailable(legacyEntry: nil)
+        }
+    }
+
+    /// Stores against a state captured by `observeForConditionalMutation`. A transient initial
+    /// Keychain failure may proceed only after Keychain recovers as missing and legacy state is unchanged.
+    @discardableResult
+    static func storeIfObservationCurrent(
+        provider: UsageProvider,
+        scope: Scope? = nil,
+        expected: ConditionalMutationObservation,
+        cookieHeader: String,
+        sourceLabel: String,
+        now: Date = Date()) -> Bool
+    {
+        let trimmed = cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let normalized = CookieHeaderNormalizer.normalize(trimmed), !normalized.isEmpty else { return false }
+        let entry = Entry(cookieHeader: normalized, storedAt: now, sourceLabel: sourceLabel)
+        do {
+            return try self.withLegacyMutationLock {
+                guard self.currentStateMatches(expected, provider: provider, scope: scope) else { return false }
+                return self.store(entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel)
+            }
+        } catch {
+            self.log.error("Cookie cache observed store lock failed: \(error)")
+            return false
+        }
+    }
+
+    private static func currentStateMatches(
+        _ expected: ConditionalMutationObservation,
+        provider: UsageProvider,
+        scope: Scope?) -> Bool
+    {
+        switch expected {
+        case let .authoritative(entry):
+            return self.currentEntryMatches(entry, provider: provider, scope: scope)
+        case let .keychainTemporarilyUnavailable(expectedLegacyEntry):
+            let key = self.key(for: provider, scope: scope)
+            guard case .missing = KeychainCacheStore.load(key: key, as: Entry.self) else { return false }
+            guard scope == nil else { return true }
+            return self.optionalEntriesMatch(self.loadLegacyEntry(for: provider), expectedLegacyEntry)
+        }
+    }
+
+    private static func optionalEntriesMatch(_ current: Entry?, _ expected: Entry?) -> Bool {
+        switch (current, expected) {
+        case (nil, nil): true
+        case let (current?, expected?): self.entriesMatch(current, expected)
+        default: false
+        }
     }
 }
