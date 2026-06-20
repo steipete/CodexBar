@@ -9,6 +9,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SWIFT_VERSION: 6.2.1
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -141,14 +144,27 @@ jobs:
           uname -a
           uname -m
 
-      - name: Install Swift 6.2.1 via swiftly
+      - name: Restore Swift toolchain cache
+        id: swift-toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/swiftly
+          key: swift-${{ runner.os }}-${{ runner.arch }}-${{ env.SWIFT_VERSION }}-v2
+
+      - name: Install Swift ${{ env.SWIFT_VERSION }} via swiftly
         shell: bash
         run: |
           set -euo pipefail
 
-          if ! command -v gpg >/dev/null 2>&1; then
+          missing_packages=()
+          for package in ca-certificates gpg libcurl4-openssl-dev; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed"; then
+              missing_packages+=("$package")
+            fi
+          done
+          if [[ "${#missing_packages[@]}" -gt 0 ]]; then
             sudo apt-get update
-            sudo apt-get install -y ca-certificates gpg
+            sudo apt-get install -y "${missing_packages[@]}"
           fi
 
           SWIFTLY_ARCH="$(uname -m)"
@@ -157,6 +173,7 @@ jobs:
           POST_INSTALL_SCRIPT="$(mktemp)"
 
           mkdir -p "$SWIFTLY_BIN_DIR"
+          echo "Swift toolchain cache hit: ${{ steps.swift-toolchain-cache.outputs.cache-hit }}"
           curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_ARCH}.tar.gz" -o /tmp/swiftly.tar.gz
           tar -xzf /tmp/swiftly.tar.gz -C /tmp
           /tmp/swiftly init --assume-yes --skip-install
@@ -166,7 +183,7 @@ jobs:
           echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
           echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
 
-          swiftly install 6.2.1 --use --assume-yes --post-install-file "$POST_INSTALL_SCRIPT"
+          swiftly install "$SWIFT_VERSION" --use --assume-yes --post-install-file "$POST_INSTALL_SCRIPT"
           if [[ -s "$POST_INSTALL_SCRIPT" ]]; then
             sudo apt-get update
             sudo bash "$POST_INSTALL_SCRIPT"
