@@ -19,6 +19,8 @@ public struct ProviderDiagnosticBatchExport: Codable, Sendable {
 public struct ProviderDiagnosticExport: Codable, Sendable {
     public let schemaVersion: String
     public let timestamp: Date
+    public let platform: String
+    public let appVersion: String?
     public let provider: String
     public let displayName: String
     public let source: String
@@ -33,6 +35,8 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
     public init(
         schemaVersion: String = "1.0",
         timestamp: Date,
+        platform: String = ProviderDiagnosticPlatform.current,
+        appVersion: String? = nil,
         provider: String,
         displayName: String,
         source: String,
@@ -46,6 +50,8 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
     {
         self.schemaVersion = schemaVersion
         self.timestamp = timestamp
+        self.platform = platform
+        self.appVersion = appVersion
         self.provider = provider
         self.displayName = displayName
         self.source = source
@@ -56,6 +62,18 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
         self.error = error
         self.settings = settings
         self.details = details
+    }
+}
+
+public enum ProviderDiagnosticPlatform {
+    public static var current: String {
+        #if os(macOS)
+        "macOS"
+        #elseif os(Linux)
+        "Linux"
+        #else
+        "unknown"
+        #endif
     }
 }
 
@@ -445,6 +463,7 @@ public enum ProviderDiagnosticExportBuilder {
         public let sourceMode: ProviderSourceMode
         public let settings: ProviderSettingsSnapshot?
         public let auth: ProviderDiagnosticAuthSummary
+        public let appVersion: String?
 
         public init(
             provider: UsageProvider,
@@ -452,7 +471,8 @@ public enum ProviderDiagnosticExportBuilder {
             outcome: ProviderFetchOutcome,
             sourceMode: ProviderSourceMode,
             settings: ProviderSettingsSnapshot?,
-            auth: ProviderDiagnosticAuthSummary)
+            auth: ProviderDiagnosticAuthSummary,
+            appVersion: String? = nil)
         {
             self.provider = provider
             self.descriptor = descriptor
@@ -460,6 +480,7 @@ public enum ProviderDiagnosticExportBuilder {
             self.sourceMode = sourceMode
             self.settings = settings
             self.auth = auth
+            self.appVersion = appVersion
         }
     }
 
@@ -474,6 +495,7 @@ public enum ProviderDiagnosticExportBuilder {
 
         return ProviderDiagnosticExport(
             timestamp: Date(),
+            appVersion: input.appVersion,
             provider: input.provider.rawValue,
             displayName: input.descriptor.metadata.displayName,
             source: input.outcome.sourceLabel,

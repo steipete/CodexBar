@@ -84,4 +84,19 @@ struct CLIArgumentParsingTests {
             Issue.record("diagnose should not emit provider logs beside the safe JSON export")
         }
     }
+
+    @Test
+    func `diagnose accepts explicit redact and output path`() throws {
+        let signature = CodexBarCLI._diagnoseSignatureForTesting()
+        let parser = CommandParser(signature: signature)
+        let parsed = try parser.parse(arguments: [
+            "--provider", "minimax",
+            "--format", "json",
+            "--redact",
+            "--output", "diagnostic.json",
+        ])
+
+        #expect(parsed.flags.contains("redact"))
+        #expect(parsed.options["output"] == ["diagnostic.json"])
+    }
 }

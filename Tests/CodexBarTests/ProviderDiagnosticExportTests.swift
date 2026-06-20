@@ -35,6 +35,7 @@ struct ProviderDiagnosticExportTests {
 
         #expect(json.contains("\"provider\""))
         #expect(json.contains("\"openai\""))
+        #expect(json.contains("\"platform\""))
         #expect(json.contains("\"auth\""))
         #expect(json.contains("\"dataConfidence\""))
         #expect(json.contains("\"unknown\""))
@@ -478,9 +479,12 @@ struct ProviderDiagnosticExportTests {
             outcome: outcome,
             sourceMode: .auto,
             settings: nil,
-            auth: ProviderDiagnosticAuthSummary(configured: true, modes: ["apiToken"])))
+            auth: ProviderDiagnosticAuthSummary(configured: true, modes: ["apiToken"]),
+            appVersion: "9.8.7"))
 
         #expect(diag.provider == "minimax")
+        #expect(diag.platform == ProviderDiagnosticPlatform.current)
+        #expect(diag.appVersion == "9.8.7")
         #expect(diag.source == "failed")
         #expect(diag.auth.configured == true)
         #expect(diag.usage == nil)
