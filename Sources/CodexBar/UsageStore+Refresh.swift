@@ -5,6 +5,7 @@ extension UsageStore {
     private struct ProviderRefreshOutcomeContext {
         let generation: UInt64
         let codexExpectedGuard: CodexAccountScopedRefreshGuard?
+        let codexResetCreditEnvironment: [String: String]?
         let claudeCredentialsChanged: Bool
         let shouldConsumeClaudeKeychainFingerprint: Bool
         let claudeOAuthHistoryPersistentRefHash: String?
@@ -217,6 +218,7 @@ extension UsageStore {
             context: ProviderRefreshOutcomeContext(
                 generation: generation,
                 codexExpectedGuard: codexExpectedGuard,
+                codexResetCreditEnvironment: provider == .codex ? fetchContext.env : nil,
                 claudeCredentialsChanged: claudeCredentialsChanged,
                 shouldConsumeClaudeKeychainFingerprint: shouldConsumeClaudeKeychainFingerprint,
                 claudeOAuthHistoryPersistentRefHash: claudeOAuthHistoryPersistentRefHash))
@@ -240,6 +242,13 @@ extension UsageStore {
             {
                 return
             }
+            let codexResetCredits: CodexRateLimitResetCreditsSnapshot? = if let env = context
+                .codexResetCreditEnvironment
+            {
+                await self.fetchCodexResetCreditsIfAvailable(env: env)
+            } else {
+                nil
+            }
             let backfilled = await MainActor.run { () -> UsageSnapshot? in
                 guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else {
                     return nil
@@ -253,9 +262,18 @@ extension UsageStore {
                 let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
                     current: scoped,
                     previous: self.snapshots[provider])
-                let backfilled = stabilized.backfillingResetTimes(from: resetBackfillSource)
+                var backfilled = stabilized.backfillingResetTimes(from: resetBackfillSource)
+                if provider == .codex {
+                    let resetCredits = self.settings.showOptionalCreditsAndExtraUsage
+                        ? codexResetCredits ?? scoped.codexResetCredits ?? self.snapshots[provider]?.codexResetCredits
+                        : nil
+                    backfilled = backfilled.withCodexResetCredits(resetCredits)
+                }
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
+                if provider == .codex {
+                    self.handleCodexResetCreditNotifications(snapshot: backfilled)
+                }
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
                 if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: backfilled, provider: provider) {

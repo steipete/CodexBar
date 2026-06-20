@@ -39,8 +39,10 @@ struct CodexResetCreditsMenuCardTests {
             showOptionalUsage: true,
             now: now))
 
-        #expect(model.codexResetCreditsText == "1 available")
-        #expect(model.codexResetCreditsDetailText == "Next expires in 1d")
+        #expect(model.codexResetCredits?.text == "1 available")
+        #expect(model.codexResetCredits?.detailText == "Next expires in 1d")
+        #expect(model.codexResetCredits?.helpText?.contains("available, in 1d (") == true)
+        #expect(model.codexResetCredits?.creditToConsume?.id == "reset-1")
     }
 
     @Test
@@ -88,7 +90,7 @@ struct CodexResetCreditsMenuCardTests {
             showOptionalUsage: true,
             now: now))
 
-        #expect(model.codexResetCreditsText == "2 available")
+        #expect(model.codexResetCredits?.text == "2 available")
     }
 
     @Test
@@ -110,8 +112,26 @@ struct CodexResetCreditsMenuCardTests {
             showOptionalUsage: false,
             now: now))
 
-        #expect(model.codexResetCreditsText == nil)
-        #expect(model.codexResetCreditsDetailText == nil)
+        #expect(model.codexResetCredits == nil)
+    }
+
+    @Test
+    func `split menu usage card omits reset credits when native reset item exists`() {
+        let model = Self.modelWithResetCredits()
+
+        let split = StatusItemController.splitMenuUsageSectionModels(
+            model: model,
+            layoutModel: model,
+            hasNativeResetCreditsItem: true)
+        #expect(split.model.codexResetCredits == nil)
+        #expect(split.layoutModel.codexResetCredits == nil)
+
+        let unsplit = StatusItemController.splitMenuUsageSectionModels(
+            model: model,
+            layoutModel: model,
+            hasNativeResetCreditsItem: false)
+        #expect(unsplit.model.codexResetCredits?.text == "1 available")
+        #expect(unsplit.layoutModel.codexResetCredits?.text == "1 available")
     }
 
     private static func input(
@@ -139,5 +159,47 @@ struct CodexResetCreditsMenuCardTests {
             showOptionalCreditsAndExtraUsage: showOptionalUsage,
             hidePersonalInfo: false,
             now: now)
+    }
+
+    private static func modelWithResetCredits() -> UsageMenuCardView.Model {
+        UsageMenuCardView.Model(
+            provider: .codex,
+            providerName: "Codex",
+            email: "",
+            subtitleText: "Signed in",
+            subtitleStyle: .info,
+            planText: nil,
+            metrics: [
+                .init(
+                    id: "primary",
+                    title: "5-hour limit",
+                    percent: 25,
+                    percentStyle: .left,
+                    statusText: "25%",
+                    resetText: nil,
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true),
+            ],
+            usageNotes: [],
+            openAIAPIUsage: nil,
+            inlineUsageDashboard: nil,
+            creditsText: nil,
+            creditsRemaining: nil,
+            creditsProgressPercent: nil,
+            creditsScaleText: nil,
+            creditsHintText: nil,
+            creditsHintCopyText: nil,
+            codexResetCredits: CodexResetCreditsPresentation(
+                text: "1 available",
+                detailText: "Next expires in 1d",
+                helpText: nil,
+                creditToConsume: nil),
+            providerCost: nil,
+            tokenUsage: nil,
+            placeholder: nil,
+            progressColor: .blue)
     }
 }

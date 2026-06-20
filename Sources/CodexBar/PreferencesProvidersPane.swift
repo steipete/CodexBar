@@ -91,6 +91,9 @@ struct ProvidersPane: View {
                     onRefresh: {
                         self.triggerRefresh(for: provider)
                     },
+                    onConsumeCodexResetCredit: { credit in
+                        self.requestCodexResetCreditConsumption(credit)
+                    },
                     showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
                     supplementarySettingsContent: {
                         if let state = self.codexAccountsSectionState(for: provider) {
@@ -385,6 +388,26 @@ struct ProvidersPane: View {
                     await self.removeManagedCodexAccount(id: accountID)
                 }
             })
+    }
+
+    func requestCodexResetCreditConsumption(_ credit: CodexRateLimitResetCredit) {
+        self.activeConfirmation = ProviderSettingsConfirmationState(
+            title: L("Use Codex reset?"),
+            message: L("This spends one banked Codex reset credit now."),
+            confirmTitle: L("Use Reset"),
+            onConfirm: {
+                Task { @MainActor in
+                    await self.consumeCodexResetCreditFromSettings(credit)
+                }
+            })
+    }
+
+    private func consumeCodexResetCreditFromSettings(_ credit: CodexRateLimitResetCredit) async {
+        do {
+            _ = try await self.store.consumeCodexResetCredit(credit)
+        } catch {
+            self.presentLoginAlert(title: L("Codex reset failed"), message: error.localizedDescription)
+        }
     }
 
     func providerErrorDisplay(_ provider: UsageProvider) -> ProviderErrorDisplay? {

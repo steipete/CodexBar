@@ -1111,7 +1111,11 @@
 "Limit Reset Credits" = "Limit Sıfırlama Kredileri";
 "1 available" = "1 kullanılabilir";
 "%d available" = "%d kullanılabilir";
+"1 manual reset available" = "1 manuel sıfırlama kullanılabilir";
+"%d manual resets available" = "%d manuel sıfırlama kullanılabilir";
+"Reset bank" = "Sıfırlama bankası";
 "Next expires %@" = "Sonraki sona erme %@";
+"Available reset" = "Available reset";
 "byte_unit_byte" = "bayt";
 "byte_unit_bytes" = "bayt";
 "byte_unit_kilobyte" = "kilobayt";
@@ -1120,3 +1124,13 @@
 "byte_unit_megabytes" = "megabayt";
 "byte_unit_gigabyte" = "gigabayt";
 "byte_unit_gigabytes" = "gigabayt";
+"Use Reset" = "Sıfırlamayı kullan";
+"Use the next expiring Codex reset credit" = "En yakında süresi dolacak Codex sıfırlama kredisini kullan";
+"No expiry" = "Son kullanma yok";
+"Codex reset expires soon" = "Codex sıfırlaması yakında sona eriyor";
+"A Codex reset credit expires %@." = "Bir Codex sıfırlama kredisi %@ sona eriyor.";
+"Use Codex reset?" = "Codex sıfırlaması kullanılsın mı?";
+"This spends one banked Codex reset credit now." = "Bu, saklanan bir Codex sıfırlama kredisini şimdi harcar.";
+"Codex reset used" = "Codex sıfırlaması kullanıldı";
+"%d window reset." = "%d pencere sıfırlandı.";
+"Codex reset failed" = "Codex sıfırlaması başarısız";

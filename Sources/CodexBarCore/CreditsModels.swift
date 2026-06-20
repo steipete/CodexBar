@@ -113,6 +113,24 @@ public struct CodexRateLimitResetCreditsSnapshot: Equatable, Codable, Sendable {
     }
 }
 
+public struct CodexRateLimitResetCreditConsumption: Equatable, Codable, Sendable {
+    public let code: String
+    public let credit: CodexRateLimitResetCredit?
+    public let windowsReset: Int
+
+    public init(code: String, credit: CodexRateLimitResetCredit?, windowsReset: Int) {
+        self.code = code
+        self.credit = credit
+        self.windowsReset = windowsReset
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case credit
+        case windowsReset = "windows_reset"
+    }
+}
+
 public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifiable {
     public let id: String
     public let resetType: String

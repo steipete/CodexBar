@@ -1184,7 +1184,18 @@ extension UsageStore {
         self.lastFetchAttempts[.codex] = outcome.attempts
         switch outcome.result {
         case .success:
-            guard let snapshot else { return }
+            guard var snapshot else { return }
+            if self.settings.showOptionalCreditsAndExtraUsage {
+                let resetCreditEnv = self
+                    .codexResetCreditEnvironment(codexActiveSourceOverride: account.selectionSource)
+                snapshot = await snapshot.withCodexResetCredits(
+                    self.fetchCodexResetCreditsIfAvailable(env: resetCreditEnv) ??
+                        snapshot.codexResetCredits ??
+                        self.snapshots[.codex]?.codexResetCredits)
+            } else {
+                snapshot = snapshot.withCodexResetCredits(nil)
+            }
+            self.handleCodexResetCreditNotifications(snapshot: snapshot)
             self.handleSessionQuotaTransition(provider: .codex, snapshot: snapshot)
             self.lastKnownResetSnapshots[.codex] = snapshot
             self.lastCodexAccountScopedRefreshGuard = Self.codexScopedRefreshGuard(for: account)

@@ -128,4 +128,55 @@ struct CodexRateLimitResetCreditsTests {
         #expect(snapshot.credits[3].status == .unknown("future_status"))
         #expect(snapshot.nextExpiringAvailableCredit?.id == "RateLimitResetCredit_earlier")
     }
+
+    @Test
+    func `consume request scopes auth account and body`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.url?
+                .absoluteString == "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume")
+            #expect(request.httpMethod == "POST")
+            #expect(request.timeoutInterval == 10)
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            #expect(request.value(forHTTPHeaderField: "ChatGPT-Account-ID") == "account-123")
+            #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+            let body = try #require(request.httpBody)
+            let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
+            #expect(json["credit_id"] == "reset-123")
+            #expect(json["redeem_request_id"] == "request-123")
+
+            let payload = """
+            {
+              "code": "reset",
+              "windows_reset": 1,
+              "credit": {
+                "id": "reset-123",
+                "reset_type": "codex_rate_limits",
+                "status": "redeemed",
+                "granted_at": "2026-06-12T04:03:43Z",
+                "expires_at": "2026-07-12T04:03:43Z",
+                "redeem_started_at": "2026-06-20T04:03:43Z",
+                "redeemed_at": "2026-06-20T04:03:44Z",
+                "title": "One free rate limit reset",
+                "description": null
+              }
+            }
+            """
+            return (Data(payload.utf8), HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil)!)
+        }
+
+        let result = try await CodexOAuthUsageFetcher.consumeRateLimitResetCredit(
+            id: "reset-123",
+            accessToken: "test-token",
+            accountId: "account-123",
+            redeemRequestID: "request-123",
+            session: transport)
+
+        #expect(result.code == "reset")
+        #expect(result.windowsReset == 1)
+        #expect(result.credit?.status == .redeemed)
+    }
 }

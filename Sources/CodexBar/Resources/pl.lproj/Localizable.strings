@@ -1113,7 +1113,11 @@
 "Limit Reset Credits" = "Kredyty resetowania limitu";
 "1 available" = "1 dostępny";
 "%d available" = "%d dostępne";
+"1 manual reset available" = "Dostępny 1 ręczny reset";
+"%d manual resets available" = "Dostępne ręczne resety: %d";
+"Reset bank" = "Bank resetów";
 "Next expires %@" = "Następny wygasa %@";
+"Available reset" = "Available reset";
 "byte_unit_byte" = "bajt";
 "byte_unit_bytes" = "bajty";
 "byte_unit_kilobyte" = "kilobajt";
@@ -1122,3 +1126,13 @@
 "byte_unit_megabytes" = "megabajty";
 "byte_unit_gigabyte" = "gigabajt";
 "byte_unit_gigabytes" = "gigabajty";
+"Use Reset" = "Użyj resetu";
+"Use the next expiring Codex reset credit" = "Użyj najbliżej wygasającego kredytu resetu Codex";
+"No expiry" = "Brak terminu ważności";
+"Codex reset expires soon" = "Reset Codex wkrótce wygaśnie";
+"A Codex reset credit expires %@." = "Kredyt resetu Codex wygasa %@.";
+"Use Codex reset?" = "Użyć resetu Codex?";
+"This spends one banked Codex reset credit now." = "To zużyje teraz jeden zachowany kredyt resetu Codex.";
+"Codex reset used" = "Reset Codex użyty";
+"%d window reset." = "Zresetowano %d okno.";
+"Codex reset failed" = "Reset Codex nie powiódł się";

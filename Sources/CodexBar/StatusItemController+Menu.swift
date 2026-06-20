@@ -674,7 +674,10 @@ extension StatusItemController {
         if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
             let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
             menu.addItem(self.makeMenuCardItem(
-                UsageMenuCardView(model: model, layoutModel: renderedModel, width: context.menuWidth),
+                UsageMenuCardView(
+                    model: model,
+                    layoutModel: renderedModel,
+                    width: context.menuWidth),
                 id: "menuCard",
                 width: context.menuWidth,
                 heightCacheScope: context.currentProvider.rawValue,
@@ -1220,6 +1223,12 @@ extension StatusItemController {
         let hasExtraUsage = layoutModel.providerCost != nil
         let hasCost = layoutModel.tokenUsage != nil
         let hasStorage = self.store.storageFootprintText(for: provider) != nil
+        let hasResetCredits = provider == .codex &&
+            (self.store.snapshot(for: .codex)?.codexResetCredits?.availableCount ?? 0) > 0
+        let usageSectionModels = Self.splitMenuUsageSectionModels(
+            model: model,
+            layoutModel: layoutModel,
+            hasNativeResetCreditsItem: hasResetCredits)
         let bottomPadding = CGFloat(hasCredits ? 4 : 6)
         let sectionSpacing = CGFloat(6)
         let usageBottomPadding = bottomPadding
@@ -1231,8 +1240,8 @@ extension StatusItemController {
 
         if hasUsageBlock {
             let usageView = UsageMenuCardHeaderAndUsageSectionView(
-                model: model,
-                layoutModel: layoutModel,
+                model: usageSectionModels.model,
+                layoutModel: usageSectionModels.layoutModel,
                 bottomPadding: usageBottomPadding,
                 width: width)
             let usageSubmenu = self.makeUsageSubmenu(
@@ -1245,7 +1254,7 @@ extension StatusItemController {
                 id: "menuCardUsage",
                 width: width,
                 heightCacheScope: provider.rawValue,
-                heightCacheFingerprint: layoutModel.heightFingerprint(section: "usage"),
+                heightCacheFingerprint: usageSectionModels.layoutModel.heightFingerprint(section: "usage"),
                 submenu: usageSubmenu,
                 containsInteractiveControls: true))
         } else {
@@ -1262,7 +1271,13 @@ extension StatusItemController {
                 containsInteractiveControls: true))
         }
 
-        if hasStorage || hasCredits || hasExtraUsage || hasCost {
+        if hasResetCredits || hasStorage || hasCredits || hasExtraUsage || hasCost {
+            addSectionSeparator()
+        }
+
+        if self.addCodexResetCreditsMenuItemIfNeeded(to: menu, provider: provider),
+           hasStorage || hasCredits || hasExtraUsage || hasCost
+        {
             addSectionSeparator()
         }
 
