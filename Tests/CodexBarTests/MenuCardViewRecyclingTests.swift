@@ -108,6 +108,53 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `recycled overview row keeps hosting view and clears appkit highlight state`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let original = controller.makeOverviewMenuRowItem(
+            Text("Before"),
+            id: "\(StatusItemController.overviewRowIdentifierPrefix)codex",
+            configuration: OverviewMenuRowItemConfiguration(
+                width: 300,
+                heightCacheScope: "codex",
+                heightCacheFingerprint: "before",
+                submenu: nil,
+                onClick: {}))
+        menu.addItem(original)
+
+        guard let originalView = original.view as? OverviewMenuRowHostingView<OverviewMenuRowContainerView<Text>>
+        else {
+            Issue.record("expected an overview row hosting view")
+            return
+        }
+        originalView.setHighlighted(true)
+
+        controller.harvestRecyclableMenuCardViews(in: menu, fromIndex: 0, displacedSelection: nil)
+        defer { controller.clearMenuCardViewRecyclePool() }
+        let rebuilt = controller.makeOverviewMenuRowItem(
+            Text("After"),
+            id: "\(StatusItemController.overviewRowIdentifierPrefix)codex",
+            configuration: OverviewMenuRowItemConfiguration(
+                width: 300,
+                heightCacheScope: "codex",
+                heightCacheFingerprint: "after",
+                submenu: nil,
+                onClick: {}))
+
+        #expect(rebuilt.view === originalView)
+        #expect(!originalView.isHighlighted)
+    }
+
+    @Test
     func `embedded controls stay enabled without highlighting the card`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
