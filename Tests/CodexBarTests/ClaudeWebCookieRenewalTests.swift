@@ -101,6 +101,104 @@ struct ClaudeWebCookieRenewalTests {
     }
 
     @Test
+    func `concurrent cached fetches serialize session key rotations`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-initial-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let probe = ConcurrentClaudeFetchProbe()
+            let transport = ProviderHTTPTransportHandler { request in
+                let setCookie: String? = if request.url?.path == "/api/organizations" {
+                    await probe.organizationSessionCookie(
+                        requestCookie: request.value(forHTTPHeaderField: "Cookie"))
+                } else {
+                    nil
+                }
+                let (response, data) = try Self.response(for: request, setCookie: setCookie)
+                return (data, response)
+            }
+
+            try await ClaudeWebHTTPTransport.$overrideForTesting.withValue(transport) {
+                let first = Task {
+                    try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+                }
+                await probe.waitForOrganizationCount(1)
+                let second = Task {
+                    try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+                }
+                for _ in 0..<20 {
+                    await Task.yield()
+                }
+                #expect(await probe.organizationRequestCount == 1)
+
+                await probe.releaseFirstRequest()
+                _ = try await first.value
+                _ = try await second.value
+            }
+
+            #expect(await probe.organizationRequestCookies == [
+                "sessionKey=sk-ant-initial-token",
+                "sessionKey=sk-ant-first-rotation",
+            ])
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader ==
+                "sessionKey=sk-ant-second-rotation")
+        }
+    }
+
+    @Test
+    func `cancelled waiting fetch relinquishes the serialization gate`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-initial-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let probe = ConcurrentClaudeFetchProbe()
+            let transport = ProviderHTTPTransportHandler { request in
+                let setCookie: String? = if request.url?.path == "/api/organizations" {
+                    await probe.organizationSessionCookie(
+                        requestCookie: request.value(forHTTPHeaderField: "Cookie"))
+                } else {
+                    nil
+                }
+                let (response, data) = try Self.response(for: request, setCookie: setCookie)
+                return (data, response)
+            }
+
+            try await ClaudeWebHTTPTransport.$overrideForTesting.withValue(transport) {
+                let first = Task {
+                    try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+                }
+                await probe.waitForOrganizationCount(1)
+                let cancelled = Task {
+                    try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+                }
+                for _ in 0..<20 {
+                    await Task.yield()
+                }
+                cancelled.cancel()
+                await #expect(throws: CancellationError.self) {
+                    try await cancelled.value
+                }
+                #expect(await probe.organizationRequestCount == 1)
+
+                await probe.releaseFirstRequest()
+                _ = try await first.value
+                _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+            }
+
+            #expect(await probe.organizationRequestCookies == [
+                "sessionKey=sk-ant-initial-token",
+                "sessionKey=sk-ant-first-rotation",
+            ])
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader ==
+                "sessionKey=sk-ant-second-rotation")
+        }
+    }
+
+    @Test
     func `manual web session fetch does not rewrite cached cookie`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
@@ -345,5 +443,49 @@ private final class RequestHeaderLog: @unchecked Sendable {
         self.lock.lock()
         self.storage.append(value)
         self.lock.unlock()
+    }
+}
+
+private actor ConcurrentClaudeFetchProbe {
+    private var requestCookies: [String?] = []
+    private var organizationCountWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
+    private var firstRequestReleased = false
+    private var firstRequestReleaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    var organizationRequestCount: Int {
+        self.requestCookies.count
+    }
+
+    var organizationRequestCookies: [String?] {
+        self.requestCookies
+    }
+
+    func organizationSessionCookie(requestCookie: String?) async -> String {
+        self.requestCookies.append(requestCookie)
+        let ordinal = self.requestCookies.count
+        let readyWaiters = self.organizationCountWaiters.filter { $0.0 <= ordinal }
+        self.organizationCountWaiters.removeAll { $0.0 <= ordinal }
+        readyWaiters.forEach { $0.1.resume() }
+        if ordinal == 1, !self.firstRequestReleased {
+            await withCheckedContinuation { continuation in
+                self.firstRequestReleaseWaiters.append(continuation)
+            }
+        }
+        let value = ordinal == 1 ? "sk-ant-first-rotation" : "sk-ant-second-rotation"
+        return "sessionKey=\(value); Path=/; HttpOnly"
+    }
+
+    func waitForOrganizationCount(_ count: Int) async {
+        if self.requestCookies.count >= count { return }
+        await withCheckedContinuation { continuation in
+            self.organizationCountWaiters.append((count, continuation))
+        }
+    }
+
+    func releaseFirstRequest() {
+        self.firstRequestReleased = true
+        let waiters = self.firstRequestReleaseWaiters
+        self.firstRequestReleaseWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 }

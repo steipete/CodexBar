@@ -33,6 +33,68 @@ enum ClaudeWebSessionKeyImport {
     }
 }
 
+private actor ClaudeWebBrowserFetchGate {
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Bool, Never>
+    }
+
+    private var ownerID: UUID?
+    private var waiters: [Waiter] = []
+
+    func acquire(id: UUID) async -> Bool {
+        if Task.isCancelled { return false }
+        guard self.ownerID != nil else {
+            self.ownerID = id
+            return true
+        }
+        return await withCheckedContinuation { continuation in
+            self.waiters.append(Waiter(id: id, continuation: continuation))
+        }
+    }
+
+    func cancel(id: UUID) {
+        if self.ownerID == id { return }
+        guard let index = self.waiters.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = self.waiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
+    }
+
+    func release(id: UUID) {
+        guard self.ownerID == id else { return }
+        guard !self.waiters.isEmpty else {
+            self.ownerID = nil
+            return
+        }
+        let waiter = self.waiters.removeFirst()
+        self.ownerID = waiter.id
+        waiter.continuation.resume(returning: true)
+    }
+}
+
+private enum ClaudeWebBrowserFetchSerialization {
+    private static let gate = ClaudeWebBrowserFetchGate()
+
+    static func run<T>(_ operation: () async throws -> T) async throws -> T {
+        let id = UUID()
+        let acquired = await withTaskCancellationHandler {
+            await self.gate.acquire(id: id)
+        } onCancel: {
+            Task { await self.gate.cancel(id: id) }
+        }
+        guard acquired else { throw CancellationError() }
+        do {
+            try Task.checkCancellation()
+            let value = try await operation()
+            await self.gate.release(id: id)
+            return value
+        } catch {
+            await self.gate.release(id: id)
+            throw error
+        }
+    }
+}
+
 /// Fetches Claude usage data directly from the claude.ai API using browser session cookies.
 ///
 /// This approach mirrors what Claude Usage Tracker does, but automatically extracts the session key
@@ -169,41 +231,12 @@ public enum ClaudeWebAPIFetcher {
         targetOrganizationID: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> WebUsageData
     {
-        let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
-        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
-
-        if let cached = cacheObservation.entry,
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            log("Using cached cookie header from \(cached.sourceLabel)")
-            do {
-                return try await self.fetchUsageAndRenewCache(
-                    cachedEntry: cached,
-                    targetOrganizationID: targetOrganizationID,
-                    logger: log)
-            } catch let error as FetchError {
-                switch error {
-                case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
-                    let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: cached)
-                    cacheObservation = .authoritative(cleared ? nil : cached)
-                default:
-                    throw error
-                }
-            } catch {
-                throw error
-            }
+        try await ClaudeWebBrowserFetchSerialization.run {
+            try await self.fetchUsageSerialized(
+                browserDetection: browserDetection,
+                targetOrganizationID: targetOrganizationID,
+                logger: logger)
         }
-
-        let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
-        log("Found session key (\(sessionInfo.cookieCount) cookies)")
-
-        return try await self.fetchUsage(
-            using: sessionInfo,
-            targetOrganizationID: targetOrganizationID,
-            logger: log,
-            cacheSourceLabel: sessionInfo.sourceLabel,
-            expectedCacheObservation: cacheObservation,
-            persistInitialSessionKey: true)
     }
 
     public static func fetchUsage(
@@ -1158,6 +1191,52 @@ private enum ClaudeWebExtraUsageCost {
         }
     }
 }
+
+#if os(macOS)
+extension ClaudeWebAPIFetcher {
+    fileprivate static func fetchUsageSerialized(
+        browserDetection: BrowserDetection,
+        targetOrganizationID: String?,
+        logger: ((String) -> Void)?) async throws -> WebUsageData
+    {
+        let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
+        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+
+        if let cached = cacheObservation.entry,
+           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            log("Using cached cookie header from \(cached.sourceLabel)")
+            do {
+                return try await self.fetchUsageAndRenewCache(
+                    cachedEntry: cached,
+                    targetOrganizationID: targetOrganizationID,
+                    logger: log)
+            } catch let error as FetchError {
+                switch error {
+                case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
+                    let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: cached)
+                    cacheObservation = .authoritative(cleared ? nil : cached)
+                default:
+                    throw error
+                }
+            } catch {
+                throw error
+            }
+        }
+
+        let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
+        log("Found session key (\(sessionInfo.cookieCount) cookies)")
+
+        return try await self.fetchUsage(
+            using: sessionInfo,
+            targetOrganizationID: targetOrganizationID,
+            logger: log,
+            cacheSourceLabel: sessionInfo.sourceLabel,
+            expectedCacheObservation: cacheObservation,
+            persistInitialSessionKey: true)
+    }
+}
+#endif
 
 private struct ClaudeWebOrganizationResponse: Decodable {
     let uuid: String
