@@ -239,6 +239,9 @@ struct MenuDescriptor {
             }
 
             Self.appendProviderUsageSummaries(entries: &entries, snapshot: snap)
+            if snap.rateLimitsUnavailable(for: provider) {
+                entries.append(.text(L("Limits not available"), .secondary))
+            }
         } else {
             entries.append(.text(L("No usage yet"), .secondary))
         }

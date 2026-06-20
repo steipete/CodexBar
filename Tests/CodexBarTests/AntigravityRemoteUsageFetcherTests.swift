@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 private actor AntigravityCredentialUpdateCapture {
     private var captured: [AntigravityOAuthCredentials] = []
@@ -1109,10 +1109,12 @@ struct AntigravityRemoteUsageFetcherTests {
             homeDirectory: env.homeURL.path,
             dataLoader: dataLoader)
             .fetch()
+        let usage = try AntigravityOAuthFetchStrategy.usageSnapshot(from: snapshot)
 
         #expect(snapshot.modelQuotas.isEmpty)
         #expect(snapshot.accountEmail == "user@example.com")
         #expect(snapshot.accountPlan == "Paid")
+        #expect(usage.rateLimitsUnavailable(for: .antigravity))
     }
 
     @Test

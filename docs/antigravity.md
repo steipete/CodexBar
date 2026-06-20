@@ -33,6 +33,8 @@ it accepts the first account-matching source in Antigravity app -> `agy` CLI -> 
 when CodexBar has a selected/injected Google account or an existing shared credentials file. An all-100%
 `fetchAvailableModels` payload is only accepted after `retrieveUserQuota` echoes bucket fractions; this can be an
 availability-style fallback rather than the full Antigravity quota summary.
+When OAuth identifies the account but quota endpoints deny access, CodexBar shows `Limits not available` instead of an
+empty quota card.
 
 ## OAuth account switching
 

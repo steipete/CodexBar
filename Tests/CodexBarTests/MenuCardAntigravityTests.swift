@@ -5,6 +5,47 @@ import Testing
 
 struct MenuCardAntigravityTests {
     @Test
+    func `antigravity identity only snapshot shows limits unavailable`() throws {
+        let now = Date(timeIntervalSince1970: 1_742_771_200)
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: "user@example.com",
+                accountOrganization: nil,
+                loginMethod: "Paid"))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.placeholder == "Limits not available")
+        #expect(model.subtitleStyle == .info)
+        #expect(model.email == "user@example.com")
+        #expect(model.planText == "Paid")
+    }
+
+    @Test
     func `antigravity metrics omit missing groups`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(

@@ -327,6 +327,25 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
         true
     }
 
+    static func usageSnapshot(
+        from snapshot: AntigravityStatusSnapshot,
+        updatedAt: Date = Date()) throws -> UsageSnapshot
+    {
+        if snapshot.modelQuotas.isEmpty {
+            return UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .antigravity,
+                    accountEmail: snapshot.accountEmail,
+                    accountOrganization: nil,
+                    loginMethod: snapshot.accountPlan))
+        }
+        return try snapshot.toUsageSnapshot()
+    }
+
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let fetcher = AntigravityRemoteUsageFetcher(
             environment: context.env,
@@ -340,20 +359,7 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
                 await updater(.antigravity, accountID, token)
             })
         let snapshot = try await fetcher.fetch()
-        let usage = if snapshot.modelQuotas.isEmpty {
-            UsageSnapshot(
-                primary: nil,
-                secondary: nil,
-                tertiary: nil,
-                updatedAt: Date(),
-                identity: ProviderIdentitySnapshot(
-                    providerID: .antigravity,
-                    accountEmail: snapshot.accountEmail,
-                    accountOrganization: nil,
-                    loginMethod: snapshot.accountPlan))
-        } else {
-            try snapshot.toUsageSnapshot()
-        }
+        let usage = try Self.usageSnapshot(from: snapshot)
         return self.makeResult(
             usage: usage,
             sourceLabel: "oauth")

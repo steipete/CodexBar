@@ -576,7 +576,7 @@ public enum UsageLimitsAvailability: Equatable, Sendable {
         account: AccountInfo? = nil,
         lastErrorDescription: String? = nil) -> Self
     {
-        if provider == .doubao {
+        if provider == .doubao || provider == .antigravity {
             guard let snapshot,
                   snapshot.identity(for: provider) != nil
             else {
