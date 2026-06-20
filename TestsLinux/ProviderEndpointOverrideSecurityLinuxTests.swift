@@ -46,10 +46,36 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func zaiRejectsInsecureAPIHostOverride() {
+    func zaiRejectsInsecureAPIHostOverrideWhenQuotaURLIsAbsent() {
         #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
             try ZaiSettingsReader.validateEndpointOverrides(
                 environment: [ZaiSettingsReader.apiHostKey: "http://attacker.test"])
+        }
+    }
+
+    @Test
+    func zaiQuotaURLPrecedenceIgnoresInvalidLowerPriorityAPIHost() throws {
+        let environment = [
+            ZaiSettingsReader.quotaURLKey: "https://zai-proxy.test/quota",
+            ZaiSettingsReader.apiHostKey: "http://attacker.test",
+        ]
+
+        try ZaiSettingsReader.validateEndpointOverrides(environment: environment)
+        #expect(ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: environment).absoluteString ==
+            "https://zai-proxy.test/quota")
+    }
+
+    @Test
+    func zaiModelUsageRejectsInsecureAPIHostOverride() async {
+        do {
+            _ = try await ZaiUsageFetcher.fetchModelUsage(
+                apiKey: "zai-test-token",
+                environment: [ZaiSettingsReader.apiHostKey: "http://attacker.test"])
+            Issue.record("Expected ZaiSettingsError.invalidEndpointOverride")
+        } catch ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey) {
+            // Expected.
+        } catch {
+            Issue.record("Expected ZaiSettingsError.invalidEndpointOverride, got \(error)")
         }
     }
 

@@ -30,10 +30,28 @@ public struct ZaiSettingsReader: Sendable {
     public static func validateEndpointOverrides(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        for key in [self.apiHostKey, self.quotaURLKey] {
-            guard let raw = self.cleaned(environment[key]) else { continue }
-            guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { continue }
-            throw ZaiSettingsError.invalidEndpointOverride(key)
+        try self.validateQuotaEndpointOverride(environment: environment)
+    }
+
+    public static func validateQuotaEndpointOverride(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        if let raw = self.cleaned(environment[self.quotaURLKey]) {
+            guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) != nil else {
+                throw ZaiSettingsError.invalidEndpointOverride(self.quotaURLKey)
+            }
+            return
+        }
+
+        try self.validateAPIHostEndpointOverride(environment: environment)
+    }
+
+    public static func validateAPIHostEndpointOverride(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        guard let raw = self.cleaned(environment[self.apiHostKey]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) != nil else {
+            throw ZaiSettingsError.invalidEndpointOverride(self.apiHostKey)
         }
     }
 

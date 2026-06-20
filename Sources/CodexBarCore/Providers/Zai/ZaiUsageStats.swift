@@ -333,7 +333,7 @@ public struct ZaiUsageFetcher: Sendable {
         guard !apiKey.isEmpty else {
             throw ZaiUsageError.invalidCredentials
         }
-        try ZaiSettingsReader.validateEndpointOverrides(environment: environment)
+        try ZaiSettingsReader.validateQuotaEndpointOverride(environment: environment)
 
         let quotaURL = self.resolveQuotaURL(region: region, environment: environment)
 
@@ -572,6 +572,7 @@ extension ZaiUsageFetcher {
         guard !apiKey.isEmpty else {
             throw ZaiUsageError.invalidCredentials
         }
+        try ZaiSettingsReader.validateAPIHostEndpointOverride(environment: environment)
 
         let baseURL: URL = if let host = ZaiSettingsReader.apiHost(environment: environment),
                               let resolved = Self.modelUsageURL(baseURLString: host)
