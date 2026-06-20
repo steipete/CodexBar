@@ -864,7 +864,7 @@ extension StatusItemController {
     }
 
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {
-        let item = NSMenuItem(title: L("Storage"), action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         let view = self.makeWrappedSecondaryTextView(text: text)
         let height = self.menuTextItemHeight(for: view, width: width)
         view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
@@ -1206,6 +1206,10 @@ extension StatusItemController {
         let sectionSpacing = CGFloat(6)
         let usageBottomPadding = bottomPadding
         let creditsBottomPadding = bottomPadding
+        func addSectionSeparator() {
+            guard menu.items.last?.isSeparatorItem != true else { return }
+            menu.addItem(.separator())
+        }
 
         if hasUsageBlock {
             let usageView = UsageMenuCardHeaderAndUsageSectionView(
@@ -1241,18 +1245,18 @@ extension StatusItemController {
         }
 
         if hasStorage || hasCredits || hasExtraUsage || hasCost {
-            menu.addItem(.separator())
+            addSectionSeparator()
         }
 
         if self.addStorageMenuCardSection(to: menu, provider: provider, width: width),
            hasCredits || hasExtraUsage
         {
-            menu.addItem(.separator())
+            addSectionSeparator()
         }
 
         if hasCredits {
             if hasExtraUsage || hasCost {
-                menu.addItem(.separator())
+                addSectionSeparator()
             }
             let creditsView = UsageMenuCardCreditsSectionView(
                 model: model,
@@ -1274,7 +1278,7 @@ extension StatusItemController {
         }
         if hasExtraUsage {
             if hasCredits {
-                menu.addItem(.separator())
+                addSectionSeparator()
             }
             let extraUsageSubmenu = self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
             let extraUsageView = UsageMenuCardExtraUsageSectionView(
@@ -1292,7 +1296,7 @@ extension StatusItemController {
         }
         if hasCost {
             if hasCredits || hasExtraUsage {
-                menu.addItem(.separator())
+                addSectionSeparator()
             }
             let costSubmenu = webItems.hasCostHistory ? self
                 .makeCostHistorySubmenu(provider: provider, width: width) : nil
@@ -1312,7 +1316,7 @@ extension StatusItemController {
         title.append(NSAttributedString(
             string: "  \(storageText)",
             attributes: [.font: menuFont, .foregroundColor: NSColor.secondaryLabelColor]))
-        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L("Storage"), action: nil, keyEquivalent: "")
         item.attributedTitle = title
         item.isEnabled = storageSubmenu != nil
         item.representedObject = "menuCardStorage"
