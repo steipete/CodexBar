@@ -1298,7 +1298,8 @@ extension StatusItemController {
                 .makeCostHistorySubmenu(provider: provider, width: width) : nil
             menu.addItem(self.makeCostMenuCardItem(
                 model: model,
-                submenu: costSubmenu))
+                submenu: costSubmenu,
+                width: width))
         }
     }
 
@@ -1307,13 +1308,10 @@ extension StatusItemController {
         guard let storageText = self.store.storageFootprintText(for: provider) else { return false }
         let storageSubmenu = self.makeStorageBreakdownSubmenu(provider: provider, width: width)
         let menuFont = NSFont.menuFont(ofSize: 0)
-        let title = NSMutableAttributedString(
-            string: L("Storage"),
-            attributes: [.font: menuFont])
-        let detail = NSAttributedString(
+        let title = NSMutableAttributedString(string: L("Storage"), attributes: [.font: menuFont])
+        title.append(NSAttributedString(
             string: "  \(storageText)",
-            attributes: [.font: menuFont, .foregroundColor: NSColor.secondaryLabelColor])
-        title.append(detail)
+            attributes: [.font: menuFont, .foregroundColor: NSColor.secondaryLabelColor]))
         let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         item.attributedTitle = title
         item.isEnabled = storageSubmenu != nil

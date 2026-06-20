@@ -67,7 +67,11 @@ struct StatusMenuCostMenuCardTests {
     }
 
     @Test
-    func `cost menu item has correct title tooltip and submenu`() {
+    func `rendered cost menu keeps long dynamic details inside fixed row width`() throws {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
         let settings = self.makeSettings()
         let fetcher = UsageFetcher()
         let store = UsageStore(
@@ -83,20 +87,27 @@ struct StatusMenuCostMenuCardTests {
             statusBar: .system)
         defer { controller.releaseStatusItemsForTesting() }
 
+        let width = StatusItemController.menuCardBaseWidth
         let tokenUsage = UsageMenuCardView.Model.TokenUsageSection(
-            sessionLine: "Today: $227.42 - 267M tokens",
-            monthLine: "Last 30 days: $52,431.09 - 77B tokens",
+            sessionLine: "Today: $227.42 - 267M tokens - " + String(repeating: "wide ", count: 20),
+            monthLine: "Last 30 days: $52,431.09 - 77B tokens - " + String(repeating: "wide ", count: 20),
             hintLine: "Costs are estimated from local usage.",
             errorLine: nil,
             errorCopyText: nil)
         let model = self.makeModel(tokenUsage: tokenUsage)
-        let submenu = NSMenu()
 
-        let item = controller.makeCostMenuCardItem(model: model, submenu: submenu)
+        // No history submenu — detail lines are visible and must be clipped to the row width.
+        let item = controller.makeCostMenuCardItem(
+            model: model,
+            submenu: nil,
+            width: width)
+        let view = try #require(item.view)
 
+        #expect(view is any MenuCardMeasuring)
+        #expect(abs(view.frame.width - width) <= 0.5)
         #expect(item.title == "Cost")
         #expect(item.toolTip?.contains("$52,431.09") == true)
-        #expect(item.submenu === submenu)
+        #expect(item.submenu == nil)
     }
 
     private func makeSettings() -> SettingsStore {
