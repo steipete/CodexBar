@@ -16,11 +16,34 @@ struct StatusMenuCostMenuCardTests {
             errorLine: "Cost refresh failed.",
             errorCopyText: nil)
 
-        let visibleLines = StatusItemController.costMenuVisibleDetailLines(tokenUsage: tokenUsage)
+        let visibleLines = StatusItemController.costMenuVisibleDetailLines(
+            tokenUsage: tokenUsage,
+            hasSubmenu: true)
         #expect(visibleLines == [])
 
         let fallbackTitle = StatusItemController.costMenuFallbackAttributedTitle(visibleDetailLines: visibleLines)
         #expect(fallbackTitle.string == "Cost")
+    }
+
+    @Test
+    func `cost menu preserves summary lines without history submenu`() {
+        let tokenUsage = UsageMenuCardView.Model.TokenUsageSection(
+            sessionLine: "Today: $74.83 - 87M tokens",
+            monthLine: "Last 30 days: $4,279.64 - 5.7B tokens",
+            hintLine: "Costs are estimated from local usage.",
+            errorLine: nil,
+            errorCopyText: nil)
+
+        let visibleLines = StatusItemController.costMenuVisibleDetailLines(
+            tokenUsage: tokenUsage,
+            hasSubmenu: false)
+        #expect(visibleLines == [
+            "Today: $74.83 - 87M tokens",
+            "Last 30 days: $4,279.64 - 5.7B tokens",
+        ])
+
+        let fallbackTitle = StatusItemController.costMenuFallbackAttributedTitle(visibleDetailLines: visibleLines)
+        #expect(fallbackTitle.string == "Cost  Today: $74.83 - 87M tokens | Last 30 days: $4,279.64 - 5.7B tokens")
     }
 
     @Test
