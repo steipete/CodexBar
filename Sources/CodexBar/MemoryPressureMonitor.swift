@@ -63,16 +63,30 @@ final class MemoryPressureMonitor {
         let source = DispatchSource.makeMemoryPressureSource(
             eventMask: [.warning, .critical],
             queue: .global(qos: .utility))
-        source.setEventHandler { [weak self, weak source] in
-            let event = source?.data ?? []
-            let isWarning = event.contains(.warning)
-            let isCritical = event.contains(.critical)
-            Task { @MainActor [weak self] in
+        source.setEventHandler(handler: Self.makeEventHandler(
+            eventReader: { [weak source] in source?.data ?? [] },
+            handle: { [weak self] isWarning, isCritical in
                 self?.handleMemoryPressure(isWarning: isWarning, isCritical: isCritical)
-            }
-        }
+            }))
         self.source = source
         source.resume()
+    }
+
+    nonisolated static func makeEventHandler(
+        eventReader: @escaping @Sendable () -> DispatchSource.MemoryPressureEvent,
+        handle: @escaping @MainActor @Sendable (_ isWarning: Bool, _ isCritical: Bool) -> Void)
+        -> @Sendable () -> Void
+    {
+        // DispatchSource invokes this on the utility queue. Keep the handler
+        // nonisolated, then hop to MainActor for app-state cleanup.
+        { @Sendable in
+            let event = eventReader()
+            let isWarning = event.contains(.warning)
+            let isCritical = event.contains(.critical)
+            Task { @MainActor in
+                handle(isWarning, isCritical)
+            }
+        }
     }
 
     func stop() {

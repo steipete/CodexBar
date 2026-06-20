@@ -29,6 +29,35 @@ struct MemoryPressureCacheTrimTests {
     }
 
     @Test
+    func `memory pressure event handler runs from utility queue and hops to main actor`() async {
+        let probe = MemoryPressureEventHandlerProbe()
+        let handler = MemoryPressureMonitor.makeEventHandler(
+            eventReader: { [.warning] },
+            handle: { isWarning, isCritical in
+                probe.record(
+                    isWarning: isWarning,
+                    isCritical: isCritical,
+                    handledOnMainThread: Thread.isMainThread)
+            })
+
+        DispatchQueue.global(qos: .utility).async {
+            probe.recordInvocationThread(isMainThread: Thread.isMainThread)
+            handler()
+        }
+
+        let completed = await Task.detached {
+            probe.wait(timeout: .now() + 2)
+        }.value
+        #expect(completed)
+
+        let snapshot = probe.snapshot()
+        #expect(snapshot.invokedOnMainThread == false)
+        #expect(snapshot.isWarning)
+        #expect(!snapshot.isCritical)
+        #expect(snapshot.handledOnMainThread)
+    }
+
+    @Test
     func `status controller trims rebuildable menu caches on memory pressure`() {
         let controller = self.makeController()
         defer { controller.releaseStatusItemsForTesting() }
@@ -139,5 +168,50 @@ private final class MemoryPressureReleaseProbe: @unchecked Sendable {
 
     func wait(timeout: DispatchTime) -> Bool {
         self.semaphore.wait(timeout: timeout) == .success
+    }
+}
+
+private final class MemoryPressureEventHandlerProbe: @unchecked Sendable {
+    struct Snapshot {
+        let invokedOnMainThread: Bool?
+        let isWarning: Bool
+        let isCritical: Bool
+        let handledOnMainThread: Bool
+    }
+
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var invokedOnMainThread: Bool?
+    private var isWarning = false
+    private var isCritical = false
+    private var handledOnMainThread = false
+
+    func recordInvocationThread(isMainThread: Bool) {
+        self.lock.withLock {
+            self.invokedOnMainThread = isMainThread
+        }
+    }
+
+    func record(isWarning: Bool, isCritical: Bool, handledOnMainThread: Bool) {
+        self.lock.withLock {
+            self.isWarning = isWarning
+            self.isCritical = isCritical
+            self.handledOnMainThread = handledOnMainThread
+        }
+        self.semaphore.signal()
+    }
+
+    func wait(timeout: DispatchTime) -> Bool {
+        self.semaphore.wait(timeout: timeout) == .success
+    }
+
+    func snapshot() -> Snapshot {
+        self.lock.withLock {
+            Snapshot(
+                invokedOnMainThread: self.invokedOnMainThread,
+                isWarning: self.isWarning,
+                isCritical: self.isCritical,
+                handledOnMainThread: self.handledOnMainThread)
+        }
     }
 }
