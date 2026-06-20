@@ -75,7 +75,7 @@ public enum MistralUsageFetcher {
         // Forward ory_session_* and csrftoken cookies — scoped to what console.mistral.ai needs.
         let consoleCookie = Self.consoleCookieHeader(
             csrfToken: validatedCSRFToken,
-            sourceCookieHeader: cookieHeader)
+            adminCookieHeader: cookieHeader)
         request.setValue(consoleCookie, forHTTPHeaderField: "Cookie")
         request.setValue(validatedCSRFToken, forHTTPHeaderField: "X-CSRFToken")
 
@@ -117,12 +117,12 @@ public enum MistralUsageFetcher {
         try "csrftoken=\(self.validatedVibeCSRFToken(csrfToken))"
     }
 
-    // Builds a Cookie header for console.mistral.ai: csrftoken + any ory_session_* cookies
-    // from the admin cookie header. Keeps unrelated admin cookies origin-bound.
-    static func consoleCookieHeader(csrfToken: String, sourceCookieHeader: String?) -> String {
+    // Builds a minimal Cookie header for console.mistral.ai.
+    // Only csrftoken + ory_session_* pass through; all other admin.mistral.ai cookies stay origin-bound.
+    static func consoleCookieHeader(csrfToken: String, adminCookieHeader: String?) -> String {
         var pairs: [String] = ["csrftoken=\(csrfToken)"]
-        if let source = sourceCookieHeader {
-            let sessionPairs = CookieHeaderNormalizer.pairs(from: source)
+        if let adminCookies = adminCookieHeader {
+            let sessionPairs = CookieHeaderNormalizer.pairs(from: adminCookies)
                 .filter { $0.name.hasPrefix("ory_session_") }
                 .map { "\($0.name)=\($0.value)" }
             pairs.append(contentsOf: sessionPairs)
