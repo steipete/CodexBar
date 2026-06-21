@@ -283,6 +283,9 @@
 - Antigravity: align compact icons and automatic highest-usage selection with grouped Gemini and Claude/GPT 5-hour and weekly lanes while ignoring non-renderable cadences. Thanks @Yuxin-Qiao!
 - Antigravity CLI: reuse an authenticated user-launched `agy` server for faster, more reliable one-shot usage checks. Thanks @junmo-kim!
 
+### Added
+- LongCat: show console token quota (总额度) and fuel-pack balance (加油包) from a browser session. Thanks @LeoLin990405!
+
 ## 0.37.2 — 2026-06-22
 
 ### Added
