@@ -67,6 +67,40 @@ struct StatusMenuCostMenuCardTests {
     }
 
     @Test
+    func `cost menu with history submenu omits native tooltip`() {
+        let settings = self.makeSettings()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let tokenUsage = UsageMenuCardView.Model.TokenUsageSection(
+            sessionLine: "Today: $1.00",
+            monthLine: "Last 30 days: $9.00",
+            hintLine: "Costs are estimated from local usage.",
+            errorLine: nil,
+            errorCopyText: nil)
+        let submenu = NSMenu()
+
+        let item = controller.makeCostMenuCardItem(
+            model: self.makeModel(tokenUsage: tokenUsage),
+            submenu: submenu,
+            width: StatusItemController.menuCardBaseWidth)
+
+        #expect(item.submenu === submenu)
+        #expect(item.toolTip == nil)
+    }
+
+    @Test
     func `rendered cost menu keeps long dynamic details inside fixed row width`() throws {
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true

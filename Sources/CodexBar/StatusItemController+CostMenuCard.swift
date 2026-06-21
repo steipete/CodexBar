@@ -74,7 +74,11 @@ extension StatusItemController {
         item.isEnabled = true
         item.representedObject = "menuCardCost"
         item.submenu = submenu
-        item.toolTip = tooltipLines.joined(separator: "\n")
+        // Submenu cost rows already show these details; keep tooltips only for inline rows
+        // where they reveal truncated text and avoid flashes during in-place menu refreshes.
+        if submenu == nil {
+            item.toolTip = tooltipLines.joined(separator: "\n")
+        }
         if #available(macOS 14.4, *) {
             item.subtitle = visibleDetailLines.joined(separator: "\n")
         } else if !visibleDetailLines.isEmpty {
