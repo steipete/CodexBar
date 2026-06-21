@@ -137,7 +137,10 @@ enum MenuBarMetricWindowResolver {
                 api: snapshot.tertiary)
         }
         if provider == .minimax {
-            return self.window(in: snapshot, following: [.primary, .secondary, .tertiary])
+            return Self.mostConstrainedWindow(
+                primary: snapshot.primary,
+                secondary: snapshot.secondary,
+                tertiary: snapshot.tertiary)
         }
         if provider == .claude,
            Self.shouldUseClaudeSpendLimit(providerCost: snapshot.providerCost, snapshot: snapshot),

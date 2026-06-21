@@ -5,6 +5,23 @@ import Testing
 
 struct MiniMaxCurrentTokenPlanResponseTests {
     @Test
+    func `coarse html plan name does not replace remains api plan name`() {
+        let remainsSnapshot = MiniMaxUsageSnapshot(
+            planName: "Token Plan Pro",
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: Date())
+
+        let enriched = remainsSnapshot.withPlanNameIfMissing("Plus")
+
+        #expect(enriched.planName == "Token Plan Pro")
+    }
+
+    @Test
     func `parses token plan boosted weekly lane with permille spelling`() throws {
         let now = Date(timeIntervalSince1970: 1_782_050_596)
 

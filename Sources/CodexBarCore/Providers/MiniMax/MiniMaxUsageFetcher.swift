@@ -58,7 +58,7 @@ public struct MiniMaxUsageFetcher: Sendable {
                             authorizationToken: authorizationToken,
                             groupID: groupID),
                         now: now)
-                        .withPlanNameIfAvailable(htmlSnapshot.planName)
+                        .withPlanNameIfMissing(htmlSnapshot.planName)
                     let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
                         to: remainsSnapshot,
                         context: context,

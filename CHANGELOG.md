@@ -3,6 +3,7 @@
 ## 0.37.1 — 2026-06-21
 
 ### Fixed
+- MiniMax: recover detailed token-plan windows from the remains API when the coding-plan page only exposes coarse usage. Thanks @Yuxin-Qiao!
 - Cost history: remove the redundant tooltip from submenu-backed Cost rows. Thanks @Zihao-Qi!
 - Menu: align provider usage-card spacing with the Overview layout. Thanks @Zihao-Qi!
 - Memory pressure: avoid actor-isolation crashes when system callbacks arrive on a utility queue. Thanks @Zihao-Qi!
