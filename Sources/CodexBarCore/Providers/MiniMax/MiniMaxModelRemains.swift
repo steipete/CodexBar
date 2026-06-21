@@ -25,6 +25,7 @@ struct MiniMaxModelRemains: Decodable {
         case endTime = "end_time"
         case remainsTime = "remains_time"
         case intervalBoostPermille = "interval_boost_permill"
+        case intervalBoostPermilleAlt = "interval_boost_permille"
         case currentIntervalRemainingPercent = "current_interval_remaining_percent"
         case currentIntervalStatus = "current_interval_status"
         case currentWeeklyTotalCount = "current_weekly_total_count"
@@ -33,6 +34,7 @@ struct MiniMaxModelRemains: Decodable {
         case weeklyEndTime = "weekly_end_time"
         case weeklyRemainsTime = "weekly_remains_time"
         case weeklyBoostPermille = "weekly_boost_permill"
+        case weeklyBoostPermilleAlt = "weekly_boost_permille"
         case currentWeeklyRemainingPercent = "current_weekly_remaining_percent"
         case currentWeeklyStatus = "current_weekly_status"
     }
@@ -46,6 +48,7 @@ struct MiniMaxModelRemains: Decodable {
         self.endTime = MiniMaxDecoding.decodeInt(container, forKey: .endTime)
         self.remainsTime = MiniMaxDecoding.decodeInt(container, forKey: .remainsTime)
         self.intervalBoostPermille = MiniMaxDecoding.decodeInt(container, forKey: .intervalBoostPermille)
+            ?? MiniMaxDecoding.decodeInt(container, forKey: .intervalBoostPermilleAlt)
         self.currentIntervalRemainingPercent = MiniMaxDecoding.decodeDouble(
             container,
             forKey: .currentIntervalRemainingPercent)
@@ -56,6 +59,7 @@ struct MiniMaxModelRemains: Decodable {
         self.weeklyEndTime = MiniMaxDecoding.decodeInt(container, forKey: .weeklyEndTime)
         self.weeklyRemainsTime = MiniMaxDecoding.decodeInt(container, forKey: .weeklyRemainsTime)
         self.weeklyBoostPermille = MiniMaxDecoding.decodeInt(container, forKey: .weeklyBoostPermille)
+            ?? MiniMaxDecoding.decodeInt(container, forKey: .weeklyBoostPermilleAlt)
         self.currentWeeklyRemainingPercent = MiniMaxDecoding.decodeDouble(
             container,
             forKey: .currentWeeklyRemainingPercent)
