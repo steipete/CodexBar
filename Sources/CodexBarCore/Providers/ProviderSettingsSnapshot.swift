@@ -25,6 +25,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         copilot: CopilotProviderSettings? = nil,
         kilo: KiloProviderSettings? = nil,
         kimi: KimiProviderSettings? = nil,
+        longcat: LongCatProviderSettings? = nil,
         augment: AugmentProviderSettings? = nil,
         moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings? = nil,
@@ -58,6 +59,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             copilot: copilot,
             kilo: kilo,
             kimi: kimi,
+            longcat: longcat,
             augment: augment,
             moonshot: moonshot,
             amp: amp,
@@ -293,6 +295,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct LongCatProviderSettings: ProviderCookieSettings {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct AugmentProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -472,6 +484,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let copilot: CopilotProviderSettings?
     public let kilo: KiloProviderSettings?
     public let kimi: KimiProviderSettings?
+    public let longcat: LongCatProviderSettings?
     public let augment: AugmentProviderSettings?
     public let moonshot: MoonshotProviderSettings?
     public let amp: AmpProviderSettings?
@@ -509,6 +522,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         copilot: CopilotProviderSettings?,
         kilo: KiloProviderSettings?,
         kimi: KimiProviderSettings?,
+        longcat: LongCatProviderSettings? = nil,
         augment: AugmentProviderSettings?,
         moonshot: MoonshotProviderSettings? = nil,
         amp: AmpProviderSettings?,
@@ -541,6 +555,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.copilot = copilot
         self.kilo = kilo
         self.kimi = kimi
+        self.longcat = longcat
         self.augment = augment
         self.moonshot = moonshot
         self.amp = amp
@@ -574,6 +589,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case copilot(ProviderSettingsSnapshot.CopilotProviderSettings)
     case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
     case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
+    case longcat(ProviderSettingsSnapshot.LongCatProviderSettings)
     case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
     case moonshot(ProviderSettingsSnapshot.MoonshotProviderSettings)
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
@@ -608,6 +624,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var copilot: ProviderSettingsSnapshot.CopilotProviderSettings?
     public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
     public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
+    public var longcat: ProviderSettingsSnapshot.LongCatProviderSettings?
     public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
     public var moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings?
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
@@ -646,6 +663,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .copilot(value): self.copilot = value
         case let .kilo(value): self.kilo = value
         case let .kimi(value): self.kimi = value
+        case let .longcat(value): self.longcat = value
         case let .augment(value): self.augment = value
         case let .moonshot(value): self.moonshot = value
         case let .amp(value): self.amp = value
@@ -682,6 +700,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             copilot: self.copilot,
             kilo: self.kilo,
             kimi: self.kimi,
+            longcat: self.longcat,
             augment: self.augment,
             moonshot: self.moonshot,
             amp: self.amp,

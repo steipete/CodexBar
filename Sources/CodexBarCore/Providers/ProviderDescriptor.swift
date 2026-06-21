@@ -108,6 +108,7 @@ public enum ProviderDescriptorRegistry {
         .deepgram: DeepgramProviderDescriptor.descriptor,
         .poe: PoeProviderDescriptor.descriptor,
         .chutes: ChutesProviderDescriptor.descriptor,
+        .longcat: LongCatProviderDescriptor.descriptor,
         .crossmodel: CrossModelProviderDescriptor.descriptor,
         .clawrouter: ClawRouterProviderDescriptor.descriptor,
         .sub2api: Sub2APIProviderDescriptor.descriptor,
