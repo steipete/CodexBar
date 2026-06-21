@@ -29,6 +29,82 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `zai token account descriptor shows team mode controls only for zai`() throws {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-zai-team-controls")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let zaiDescriptor = try #require(pane._test_tokenAccountDescriptor(for: .zai))
+        #expect(zaiDescriptor.showsTeamModeControls)
+        #expect(!zaiDescriptor.showsOrganizationField)
+
+        let claudeDescriptor = try #require(pane._test_tokenAccountDescriptor(for: .claude))
+        #expect(!claudeDescriptor.showsTeamModeControls)
+        #expect(claudeDescriptor.showsOrganizationField)
+    }
+
+    @Test
+    func `zai team account add button requires organization and project`() {
+        #expect(ProviderSettingsTokenAccountsRowView.isAddDisabled(
+            label: "Team",
+            token: "token",
+            showsTeamModeControls: true,
+            teamMode: true,
+            teamContext: (organizationID: "", projectID: "proj-test")))
+        #expect(ProviderSettingsTokenAccountsRowView.isAddDisabled(
+            label: "Team",
+            token: "token",
+            showsTeamModeControls: true,
+            teamMode: true,
+            teamContext: (organizationID: "org-test", projectID: "")))
+        #expect(!ProviderSettingsTokenAccountsRowView.isAddDisabled(
+            label: "Team",
+            token: "token",
+            showsTeamModeControls: true,
+            teamMode: true,
+            teamContext: (organizationID: "org-test", projectID: "proj-test")))
+        #expect(!ProviderSettingsTokenAccountsRowView.isAddDisabled(
+            label: "Personal",
+            token: "token",
+            showsTeamModeControls: true,
+            teamMode: false,
+            teamContext: (organizationID: "", projectID: "")))
+    }
+
+    @Test
+    func `zai team account draft requires complete ids before apply`() {
+        let original = ProviderSettingsTokenAccountsRowView.TeamAccountDraft(
+            teamMode: false,
+            organizationID: "",
+            projectID: "")
+
+        #expect(ProviderSettingsTokenAccountsRowView.isTeamDraftApplyDisabled(
+            draft: original,
+            original: original))
+        #expect(ProviderSettingsTokenAccountsRowView.isTeamDraftApplyDisabled(
+            draft: ProviderSettingsTokenAccountsRowView.TeamAccountDraft(
+                teamMode: true,
+                organizationID: "org-test",
+                projectID: ""),
+            original: original))
+        #expect(!ProviderSettingsTokenAccountsRowView.isTeamDraftApplyDisabled(
+            draft: ProviderSettingsTokenAccountsRowView.TeamAccountDraft(
+                teamMode: true,
+                organizationID: "org-test",
+                projectID: "proj-test"),
+            original: original))
+        #expect(!ProviderSettingsTokenAccountsRowView.isTeamDraftApplyDisabled(
+            draft: ProviderSettingsTokenAccountsRowView.TeamAccountDraft(
+                teamMode: false,
+                organizationID: "",
+                projectID: ""),
+            original: ProviderSettingsTokenAccountsRowView.TeamAccountDraft(
+                teamMode: true,
+                organizationID: "org-test",
+                projectID: "proj-test")))
+    }
+
+    @Test
     func `provider search filters display names and raw ids`() {
         let providers: [UsageProvider] = [.codex, .claude, .openrouter, .deepseek]
         let names: [UsageProvider: String] = [

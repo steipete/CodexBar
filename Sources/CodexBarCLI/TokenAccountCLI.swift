@@ -121,7 +121,10 @@ struct TokenAccountCLIContext {
                     organizationID: account?.sanitizedOrganizationID))
         case .zai:
             return self.makeSnapshot(
-                zai: ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.resolveZaiRegion(config)))
+                zai: ProviderSettingsSnapshot.ZaiProviderSettings(
+                    apiRegion: self.resolveZaiRegion(config),
+                    usageScope: Self.zaiUsageScope(for: account),
+                    teamContext: Self.zaiTeamContext(for: account)))
         case .moonshot:
             return self.makeSnapshot(
                 moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings(
@@ -360,7 +363,9 @@ struct TokenAccountCLIContext {
             addedAt: existing.addedAt,
             lastUsed: existing.lastUsed,
             externalIdentifier: existing.externalIdentifier,
-            organizationID: existing.organizationID)
+            usageScope: existing.usageScope,
+            organizationID: existing.organizationID,
+            workspaceID: existing.workspaceID)
         providerConfig.tokenAccounts = ProviderTokenAccountData(
             version: data.version,
             accounts: accounts,
@@ -550,6 +555,22 @@ struct TokenAccountCLIContext {
             return .global
         }
         return ZaiAPIRegion(rawValue: raw) ?? .global
+    }
+
+    private static func zaiUsageScope(for account: ProviderTokenAccount?) -> ZaiUsageScope {
+        guard let raw = account?.sanitizedUsageScope?.lowercased(),
+              let scope = ZaiUsageScope(rawValue: raw)
+        else {
+            return .personal
+        }
+        return scope
+    }
+
+    private static func zaiTeamContext(for account: ProviderTokenAccount?) -> ZaiBigModelTeamContext? {
+        guard self.zaiUsageScope(for: account) == .team else { return nil }
+        return ZaiBigModelTeamContext(
+            organizationID: account?.sanitizedOrganizationID,
+            projectID: account?.sanitizedWorkspaceID)
     }
 
     private func resolveMiniMaxRegion(_ config: ProviderConfig?) -> MiniMaxAPIRegion {

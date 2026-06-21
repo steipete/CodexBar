@@ -1008,6 +1008,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "İsteğe bağlı. API anahtarına görünür projeleri keşfetmek ve toplamak için boş bırakın.";
 "Org ID (optional)" = "Kuruluş Kimliği (isteğe bağlı)";
 "Organizations" = "Kuruluşlar";
+"Organization ID" = "Kuruluş Kimliği";
 "Password" = "Parola";
 "%@ authentication is disabled." = "%@ kimlik doğrulaması devre dışı.";
 "%@ cookies are disabled." = "%@ çerezleri devre dışı.";
@@ -1060,6 +1061,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "~/.codexbar/config.json dosyasında depolandı. Ayrıca CROF_API_KEY sağlayabilirsiniz.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "~/.codexbar/config.json dosyasında depolandı. Ayrıca KILO_API_KEY veya ~/.local/share/kilo/auth.json (kilo.access) sağlayabilirsiniz.";
 "T3 Chat cookie" = "T3 Chat çerezi";
+"Team mode" = "Takım modu";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "Bu hesap artık CodexBar'da kullanılamıyor. Hesap listesini yenileyin ve tekrar deneyin.";
 "The browser login did not complete in time. Try Antigravity login again." = "Tarayıcı girişi zamanında tamamlanmadı. Antigravity girişini tekrar deneyin.";
 "Timed out waiting for Cursor login. %@" = "Cursor girişi beklenirken zaman aşımı. %@";

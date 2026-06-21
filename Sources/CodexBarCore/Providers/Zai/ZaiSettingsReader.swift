@@ -6,6 +6,8 @@ public struct ZaiSettingsReader: Sendable {
     public static let apiTokenKey = "Z_AI_API_KEY"
     public static let apiHostKey = "Z_AI_API_HOST"
     public static let quotaURLKey = "Z_AI_QUOTA_URL"
+    public static let bigModelOrganizationKey = "Z_AI_BIGMODEL_ORGANIZATION"
+    public static let bigModelProjectKey = "Z_AI_BIGMODEL_PROJECT"
 
     public static func apiToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?

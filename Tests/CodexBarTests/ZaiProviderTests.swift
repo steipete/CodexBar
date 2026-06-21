@@ -365,6 +365,243 @@ struct ZaiUsageParsingTests {
     }
 }
 
+struct ZaiBigModelTeamScopeTests {
+    @Test
+    func `team scope appends type 2 and sends BigModel project headers`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let json = """
+            {
+              "code": 200,
+              "msg": "操作成功",
+              "data": {
+                "level": "pro",
+                "limits": [
+                  {
+                    "type": "TIME_LIMIT",
+                    "unit": 5,
+                    "number": 1,
+                    "usage": 1000,
+                    "currentValue": 224,
+                    "remaining": 776,
+                    "percentage": 22,
+                    "nextResetTime": 1777575229998,
+                    "usageDetails": []
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "percentage": 25,
+                    "nextResetTime": 1775020168897
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 6,
+                    "number": 1,
+                    "percentage": 9,
+                    "nextResetTime": 1775588029998
+                  }
+                ]
+              },
+              "success": true
+            }
+            """
+            return (
+                Data(json.utf8),
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil)!)
+        }
+
+        let snapshot = try await ZaiUsageFetcher.fetchUsage(
+            apiKey: "zai-test-token",
+            region: .bigmodelCN,
+            usageScope: .team,
+            teamContext: ZaiBigModelTeamContext(
+                organizationID: "org-test",
+                projectID: "proj-test"),
+            environment: [:],
+            transport: transport)
+
+        let requests = await transport.requests()
+        let request = try #require(requests.first)
+
+        #expect(request.url?.absoluteString == "https://open.bigmodel.cn/api/monitor/usage/quota/limit?type=2")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer zai-test-token")
+        #expect(request.value(forHTTPHeaderField: "Bigmodel-Organization") == "org-test")
+        #expect(request.value(forHTTPHeaderField: "Bigmodel-Project") == "proj-test")
+        #expect(snapshot.tokenLimit?.unit == .weeks)
+        #expect(snapshot.sessionTokenLimit?.unit == .hours)
+        #expect(snapshot.timeLimit?.usage == 1000)
+    }
+
+    @Test
+    func `personal scope keeps existing quota URL and omits team headers`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let json = """
+            {
+              "code": 200,
+              "msg": "Operation successful",
+              "data": {
+                "limits": [
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "percentage": 34,
+                    "nextResetTime": 1768507567547
+                  }
+                ]
+              },
+              "success": true
+            }
+            """
+            return (
+                Data(json.utf8),
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil)!)
+        }
+
+        _ = try await ZaiUsageFetcher.fetchUsage(
+            apiKey: "zai-test-token",
+            region: .bigmodelCN,
+            usageScope: .personal,
+            teamContext: ZaiBigModelTeamContext(
+                organizationID: "org-test",
+                projectID: "proj-test"),
+            environment: [:],
+            transport: transport)
+
+        let requests = await transport.requests()
+        let request = try #require(requests.first)
+
+        #expect(request.url?.absoluteString == "https://open.bigmodel.cn/api/monitor/usage/quota/limit")
+        #expect(request.value(forHTTPHeaderField: "Bigmodel-Organization") == nil)
+        #expect(request.value(forHTTPHeaderField: "Bigmodel-Project") == nil)
+    }
+
+    @Test
+    func `team scope requires complete BigModel context`() async {
+        let transport = ProviderHTTPTransportStub { request in
+            (
+                Data(),
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil)!)
+        }
+
+        await self.expectMissingTeamContext {
+            _ = try await ZaiUsageFetcher.fetchUsage(
+                apiKey: "zai-test-token",
+                region: .bigmodelCN,
+                usageScope: .team,
+                teamContext: nil,
+                environment: [:],
+                transport: transport)
+        }
+
+        let requests = await transport.requests()
+        #expect(requests.isEmpty)
+
+        await self.expectMissingTeamContext {
+            _ = try await ZaiUsageFetcher.fetchUsage(
+                apiKey: "zai-test-token",
+                region: .bigmodelCN,
+                usageScope: .team,
+                teamContext: nil,
+                environment: [ZaiSettingsReader.bigModelOrganizationKey: "org-only"],
+                transport: transport)
+        }
+
+        await self.expectMissingTeamContext {
+            _ = try await ZaiUsageFetcher.fetchUsage(
+                apiKey: "zai-test-token",
+                region: .bigmodelCN,
+                usageScope: .team,
+                teamContext: nil,
+                environment: [ZaiSettingsReader.bigModelProjectKey: "proj-only"],
+                transport: transport)
+        }
+    }
+
+    @Test
+    func `team model usage appends type 3 and sends BigModel project headers`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let json = """
+            {
+              "code": 200,
+              "msg": "success",
+              "success": true,
+              "data": {
+                "x_time": ["2026-06-21 08:00"],
+                "modelDataList": [
+                  { "modelName": "glm-4.6", "tokensUsage": [100] }
+                ]
+              }
+            }
+            """
+            return (
+                Data(json.utf8),
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil)!)
+        }
+
+        let usage = try await ZaiUsageFetcher.fetchModelUsage(
+            apiKey: "zai-test-token",
+            region: .bigmodelCN,
+            usageScope: .team,
+            teamContext: ZaiBigModelTeamContext(
+                organizationID: "org-test",
+                projectID: "proj-test"),
+            environment: [:],
+            transport: transport)
+
+        let requests = await transport.requests()
+        let request = try #require(requests.first)
+        let requestURL = try #require(request.url)
+        let components = try #require(URLComponents(url: requestURL, resolvingAgainstBaseURL: false))
+
+        #expect(components.path == "/api/monitor/usage/model-usage")
+        #expect(components.queryItems?.first { $0.name == "type" }?.value == "3")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer zai-test-token")
+        #expect(request.value(forHTTPHeaderField: "Bigmodel-Organization") == "org-test")
+        #expect(request.value(forHTTPHeaderField: "Bigmodel-Project") == "proj-test")
+        #expect(usage.modelNames == ["glm-4.6"])
+    }
+
+    private func expectMissingTeamContext(_ operation: () async throws -> Void) async {
+        do {
+            try await operation()
+            Issue.record("Expected z.ai missing team context error.")
+        } catch ZaiUsageError.missingTeamContext {
+            // Expected.
+        } catch {
+            Issue.record("Expected z.ai missing team context error, got \(error).")
+        }
+    }
+
+    @Test
+    func `team context can be resolved from environment`() {
+        let env = [
+            ZaiSettingsReader.bigModelOrganizationKey: " org-env ",
+            ZaiSettingsReader.bigModelProjectKey: " proj-env ",
+        ]
+
+        #expect(ZaiBigModelTeamContext(environment: env)?.organizationID == "org-env")
+        #expect(ZaiBigModelTeamContext(environment: env)?.projectID == "proj-env")
+    }
+}
+
 struct ZaiHourlyUsageTests {
     @Test
     func `model usage parser decodes hourly model payload`() throws {

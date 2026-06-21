@@ -864,6 +864,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "Opcional. Deixeu-ho en blanc per descobrir i agregar projectes visibles per a la clau API.";
 "Org ID (optional)" = "ID d'org. (opcional)";
 "Organizations" = "Organitzacions";
+"Organization ID" = "ID d'organització";
 "Password" = "Contrasenya";
 "%@ authentication is disabled." = "L'autenticació de %@ està desactivada.";
 "%@ cookies are disabled." = "Les galetes de %@ estan desactivades.";
@@ -917,6 +918,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Desat a ~/.codexbar/config.json. També podeu proporcionar CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Desat a ~/.codexbar/config.json. També podeu proporcionar KILO_API_KEY o ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Galeta de T3 Chat";
+"Team mode" = "Mode d'equip";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "Aquest compte ja no està disponible a CodexBar. Actualitzeu la llista de comptes i torneu-ho a provar.";
 "The browser login did not complete in time. Try Antigravity login again." = "L'inici de sessió del navegador no s'ha completat a temps. Torna a provar l'inici de sessió d'Antigravity.";
 "Timed out waiting for Cursor login. %@" = "S'ha esgotat el temps esperant l'inici de sessió de Cursor. %@";

@@ -60,6 +60,18 @@ printf '%s' "$LLM_PROXY_API_KEY" | codexbar config set-api-key --provider llmpro
 printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin
 ```
 
+For a z.ai team account:
+
+```bash
+printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin \
+  --label Team \
+  --usage-scope team \
+  --organization-id org_... \
+  --workspace-id proj_...
+```
+
+Use single-line BigModel organization/project IDs; see [z.ai](zai.md).
+
 Only providers that consume config-backed API keys accept this command. Admin API providers may require a key with
 organization/usage permissions, not a normal inference key. Browser/OAuth providers such as Grok use their own provider
 sessions instead of an xAI API key for CodexBar's billing view, so enable them with

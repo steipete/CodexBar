@@ -1011,6 +1011,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "ไม่บังคับ เว้นว่างไว้เพื่อค้นหาและรวมโครงการที่มองเห็นได้จากคีย์ API";
 "Org ID (optional)" = "รหัสองค์กร (ไม่บังคับ)";
 "Organizations" = "องค์กร";
+"Organization ID" = "รหัสองค์กร";
 "Password" = "รหัสผ่าน";
 "%@ authentication is disabled." = "%@ การตรวจสอบสิทธิ์ถูกปิดใช้งาน";
 "%@ cookies are disabled." = "คุกกี้ %@ ถูกปิดใช้งาน";
@@ -1064,6 +1065,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "เก็บไว้ใน ~/.codexbar/config.json. คุณยังสามารถให้ CROF_API_KEY";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "เก็บไว้ใน ~/.codexbar/config.json. คุณยังสามารถระบุ KILO_API_KEY หรือ ~/.local/share/kilo/auth.json (kilo.access) ได้อีกด้วย";
 "T3 Chat cookie" = "คุกกี้ T3 Chat";
+"Team mode" = "โหมดทีม";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "บัญชีนั้นไม่พร้อมใช้งานใน CodexBar อีกต่อไป รีเฟรชรายการบัญชีแล้วลองอีกครั้ง";
 "The browser login did not complete in time. Try Antigravity login again." = "การเข้าสู่ระบบเบราว์เซอร์ไม่เสร็จสมบูรณ์ทันเวลา ลองเข้าสู่ระบบ Antigravity อีกครั้ง";
 "Timed out waiting for Cursor login. %@" = "หมดเวลารอการเข้าสู่ระบบ Cursor %@";

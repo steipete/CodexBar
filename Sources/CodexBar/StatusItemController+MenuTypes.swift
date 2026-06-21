@@ -93,7 +93,9 @@ struct TokenAccountMenuDisplay: Equatable {
                 id: account.id,
                 label: account.label,
                 externalIdentifier: account.externalIdentifier,
-                organizationID: account.organizationID)
+                usageScope: account.usageScope,
+                organizationID: account.organizationID,
+                workspaceID: account.workspaceID)
         }
     }
 
@@ -111,7 +113,9 @@ struct TokenAccountMenuDisplay: Equatable {
         let id: UUID
         let label: String
         let externalIdentifier: String?
+        let usageScope: String?
         let organizationID: String?
+        let workspaceID: String?
     }
 
     private struct SnapshotIdentity: Equatable {

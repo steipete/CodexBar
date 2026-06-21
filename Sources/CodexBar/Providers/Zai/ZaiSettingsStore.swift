@@ -28,7 +28,37 @@ extension SettingsStore {
 }
 
 extension SettingsStore {
-    func zaiSettingsSnapshot() -> ProviderSettingsSnapshot.ZaiProviderSettings {
-        ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.zaiAPIRegion)
+    func zaiSettingsSnapshot(
+        tokenOverride: TokenAccountOverride? = nil) -> ProviderSettingsSnapshot.ZaiProviderSettings
+    {
+        let usageScope = self.zaiEffectiveUsageScope(tokenOverride: tokenOverride)
+        let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .zai,
+            settings: self,
+            override: tokenOverride)
+        let teamContext: ZaiBigModelTeamContext? = if usageScope == .team {
+            ZaiBigModelTeamContext(
+                organizationID: account?.sanitizedOrganizationID,
+                projectID: account?.sanitizedWorkspaceID)
+        } else {
+            nil
+        }
+        return ProviderSettingsSnapshot.ZaiProviderSettings(
+            apiRegion: self.zaiAPIRegion,
+            usageScope: usageScope,
+            teamContext: teamContext)
+    }
+
+    func zaiEffectiveUsageScope(tokenOverride: TokenAccountOverride? = nil) -> ZaiUsageScope {
+        let account = ProviderTokenAccountSelection.selectedAccount(
+            provider: .zai,
+            settings: self,
+            override: tokenOverride)
+        return Self.zaiUsageScope(from: account) ?? .personal
+    }
+
+    private static func zaiUsageScope(from account: ProviderTokenAccount?) -> ZaiUsageScope? {
+        guard let raw = account?.sanitizedUsageScope?.lowercased() else { return nil }
+        return ZaiUsageScope(rawValue: raw)
     }
 }

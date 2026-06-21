@@ -222,9 +222,17 @@ public struct ProviderSettingsSnapshot: Sendable {
 
     public struct ZaiProviderSettings: Sendable {
         public let apiRegion: ZaiAPIRegion
+        public let usageScope: ZaiUsageScope
+        public let teamContext: ZaiBigModelTeamContext?
 
-        public init(apiRegion: ZaiAPIRegion = .global) {
+        public init(
+            apiRegion: ZaiAPIRegion = .global,
+            usageScope: ZaiUsageScope = .personal,
+            teamContext: ZaiBigModelTeamContext? = nil)
+        {
             self.apiRegion = apiRegion
+            self.usageScope = usageScope
+            self.teamContext = teamContext
         }
     }
 
