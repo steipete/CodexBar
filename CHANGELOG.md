@@ -7,6 +7,7 @@
 
 ### Fixed
 - Claude: pause background CLI usage probes briefly after rate limiting while keeping manual refresh available. Thanks @kiranmagic7!
+- Codex OAuth: publish refreshed `auth.json` credentials with private file permissions already applied. Thanks @Hinotoi-agent!
 
 ## 0.37.1 — 2026-06-21
 
