@@ -5,6 +5,9 @@
 ### Added
 - Diagnostics: write redacted provider reports to a file with platform and app-version context. Thanks @Yuxin-Qiao!
 
+### Fixed
+- Claude: pause background CLI usage probes briefly after rate limiting while keeping manual refresh available. Thanks @kiranmagic7!
+
 ## 0.37.1 — 2026-06-21
 
 ### Fixed
