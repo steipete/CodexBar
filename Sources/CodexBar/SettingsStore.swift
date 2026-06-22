@@ -417,6 +417,8 @@ extension SettingsStore {
         let providersSortedAlphabetically = userDefaults.object(
             forKey: "providersSortedAlphabetically") as? Bool ?? false
         let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
+        let proxyEnabled = userDefaults.object(forKey: "proxyEnabled") as? Bool ?? false
+        let proxyURL = userDefaults.string(forKey: "proxyURL") ?? ""
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
             launchAtLogin: launchAtLogin,
@@ -471,7 +473,9 @@ extension SettingsStore {
             providerDetectionCompleted: providerDetectionCompleted,
             providersSortedAlphabetically: providersSortedAlphabetically,
             appLanguageRaw: appLanguageRaw,
-            terminalAppRaw: userDefaults.string(forKey: "terminalApp"))
+            terminalAppRaw: userDefaults.string(forKey: "terminalApp"),
+            proxyEnabled: proxyEnabled,
+            proxyURL: proxyURL)
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {

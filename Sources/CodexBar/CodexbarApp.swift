@@ -47,6 +47,7 @@ struct CodexBarApp: App {
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
         Self.applyLanguagePreference(from: settings)
+        ProxyConfigurator.apply(from: settings)
         configureUsageFormatterLocalizationProvider()
         let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
         managedCodexAccountCoordinator.onManagedAccountsDidChange = {

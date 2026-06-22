@@ -531,6 +531,11 @@
 "hide_personal_info_subtitle" = "在菜单栏和菜单界面中隐藏电子邮件地址。";
 "show_provider_storage_usage_title" = "显示提供商存储用量";
 "show_provider_storage_usage_subtitle" = "在菜单中显示本地磁盘用量。会在后台扫描已知的提供商自有路径。";
+"proxy_enabled_title" = "网络代理";
+"proxy_enabled_subtitle" = "开启后，CodexBar 会将所有提供商请求经由下方代理转发。http:// 代理同样适用于 HTTPS 流量。";
+"proxy_url_placeholder" = "http://127.0.0.1:9000";
+"proxy_invalid_url" = "请输入有效的代理地址，例如 http://127.0.0.1:9000 或 socks5://127.0.0.1:1080。";
+
 "section_keychain_access" = "钥匙串访问";
 "keychain_access_caption" = "禁用所有钥匙串读写。浏览器 Cookie 导入不可用；请在“提供商”中手动粘贴 Cookie 标头。";
 "disable_keychain_access_title" = "禁用钥匙串访问";

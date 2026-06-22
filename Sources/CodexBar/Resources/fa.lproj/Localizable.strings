@@ -546,6 +546,11 @@
 "hide_personal_info_subtitle" = "آدرس های ایمیل مبهم در نوار منو و رابط کاربری منو.";
 "show_provider_storage_usage_title" = "استفاده از ذخیره سازی ارائه دهنده را نمایش دهید";
 "show_provider_storage_usage_subtitle" = "استفاده محلی از دیسک را در منوها نمایش دهید. مسیرهای شناخته شده متعلق به ارائه دهندگان را در پس زمینه اسکن می کند.";
+"proxy_enabled_title" = "پراکسی شبکه";
+"proxy_enabled_subtitle" = "وقتی روشن است، CodexBar همهٔ درخواست‌های ارائه‌دهندگان را از طریق پراکسی زیر هدایت می‌کند. پراکسی http:// ترافیک HTTPS را نیز پوشش می‌دهد.";
+"proxy_url_placeholder" = "http://127.0.0.1:9000";
+"proxy_invalid_url" = "یک نشانی پراکسی معتبر وارد کنید، مثلاً http://127.0.0.1:9000 یا socks5://127.0.0.1:1080.";
+
 "section_keychain_access" = "دسترسی Keychain";
 "keychain_access_caption" = "تمام قابلیت های خواندن و نوشتن Keychain را غیرفعال کنید. اگر macOS حتی بعد از کلیک روی همیشه اجازه مدام درخواست «ذخیره سازی امن» Chrome/Brave/Edge کند، از این گزینه استفاده کنید. وارد کردن کوکی مرورگر در حالت فعال بودن در دسترس نیست؛ هدرهای کوکی را به صورت دستی در Providers پیست کنید. Claude/Codex OAuth از طریق CLI هنوز کار می کند.";
 "disable_keychain_access_title" = "غیرفعال کردن دسترسی Keychain";

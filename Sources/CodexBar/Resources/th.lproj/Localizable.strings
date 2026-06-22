@@ -546,6 +546,11 @@
 "hide_personal_info_subtitle" = "ปิดบังที่อยู่อีเมลในแถบเมนูและ UI เมนู";
 "show_provider_storage_usage_title" = "แสดงการใช้พื้นที่เก็บข้อมูลของผู้ให้บริการ";
 "show_provider_storage_usage_subtitle" = "แสดงการใช้ดิสก์ในเครื่องในเมนู สแกนเส้นทางที่รู้จักโดยผู้ให้บริการในเบื้องหลัง";
+"proxy_enabled_title" = "พร็อกซีเครือข่าย";
+"proxy_enabled_subtitle" = "เมื่อเปิด CodexBar จะกำหนดเส้นทางคำขอของผู้ให้บริการทั้งหมดผ่านพร็อกซีด้านล่าง พร็อกซี http:// ครอบคลุมทราฟฟิก HTTPS ด้วย";
+"proxy_url_placeholder" = "http://127.0.0.1:9000";
+"proxy_invalid_url" = "ป้อน URL พร็อกซีที่ถูกต้อง เช่น http://127.0.0.1:9000 หรือ socks5://127.0.0.1:1080";
+
 "section_keychain_access" = "การเข้าถึง Keychain";
 "keychain_access_caption" = "ปิดใช้งานการอ่านและเขียน Keychain ทั้งหมด ใช้ตัวเลือกนี้หาก macOS ยังคงแจ้งให้ 'Chrome/Brave/Edge ที่เก็บข้อมูลที่ปลอดภัย' แม้ว่าจะคลิกอนุญาตเสมอแล้วก็ตาม การนําเข้าคุกกี้ของเบราว์เซอร์ไม่พร้อมใช้งานในขณะที่เปิดใช้งาน วางส่วนหัวของคุกกี้ด้วยตนเองในผู้ให้บริการ Claude/Codex OAuth ผ่าน CLI ยังคงใช้งานได้";
 "disable_keychain_access_title" = "ปิดใช้งานการเข้าถึง Keychain";

@@ -1,3 +1,4 @@
+import CodexBarCore
 import KeyboardShortcuts
 import SwiftUI
 
@@ -24,6 +25,29 @@ struct AdvancedPane: View {
                     Text(L("open_menu_shortcut_subtitle"))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
+                }
+
+                Divider()
+
+                SettingsSection(contentSpacing: 10) {
+                    PreferenceToggleRow(
+                        title: L("proxy_enabled_title"),
+                        subtitle: L("proxy_enabled_subtitle"),
+                        binding: self.$settings.proxyEnabled)
+                    TextField(L("proxy_url_placeholder"), text: self.$settings.proxyURL)
+                        .textFieldStyle(.roundedBorder)
+                        .disableAutocorrection(true)
+                        .disabled(!self.settings.proxyEnabled)
+                        .onSubmit { ProxyConfigurator.apply(from: self.settings) }
+                    if let message = self.proxyValidationMessage {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .onChange(of: self.settings.proxyEnabled) {
+                    ProxyConfigurator.apply(from: self.settings)
                 }
 
                 Divider()
@@ -129,6 +153,14 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
 }
 
 extension AdvancedPane {
+    var proxyValidationMessage: String? {
+        guard self.settings.proxyEnabled else { return nil }
+        let trimmed = self.settings.proxyURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if (try? ProxyConfiguration.parse(from: trimmed)) != nil { return nil }
+        return L("proxy_invalid_url")
+    }
+
     private func installCLI() async {
         if self.isInstallingCLI { return }
         self.isInstallingCLI = true

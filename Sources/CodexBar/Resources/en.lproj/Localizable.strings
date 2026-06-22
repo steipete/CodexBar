@@ -546,6 +546,11 @@
 "hide_personal_info_subtitle" = "Obscure email addresses in the menu bar and menu UI.";
 "show_provider_storage_usage_title" = "Show provider storage usage";
 "show_provider_storage_usage_subtitle" = "Show local disk usage in menus. Scans known provider-owned paths in the background.";
+"proxy_enabled_title" = "Network proxy";
+"proxy_enabled_subtitle" = "When on, CodexBar routes all provider requests through the proxy below. An http:// proxy also covers HTTPS.";
+"proxy_url_placeholder" = "http://127.0.0.1:9000";
+"proxy_invalid_url" = "Enter a valid proxy URL, e.g. http://127.0.0.1:9000 or socks5://127.0.0.1:1080.";
+
 "section_keychain_access" = "Keychain access";
 "keychain_access_caption" = "Disable all Keychain reads and writes. Use this if macOS keeps prompting for 'Chrome/Brave/Edge Safe Storage' even after clicking Always Allow. Browser cookie import is unavailable while enabled; paste Cookie headers manually in Providers. Claude/Codex OAuth via the CLI still works.";
 "disable_keychain_access_title" = "Disable Keychain access";

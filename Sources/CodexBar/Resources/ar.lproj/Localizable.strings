@@ -546,6 +546,11 @@
 "hide_personal_info_subtitle" = "عناوين بريد إلكتروني غامضة في شريط القائمة وواجهة القائمة.";
 "show_provider_storage_usage_title" = "عرض استخدام التخزين لمزود الخدمة";
 "show_provider_storage_usage_subtitle" = "عرض استخدام القرص المحلي في القوائم. يمسح المسارات المعروفة المملوكة لمزود الخدمة في الخلفية.";
+"proxy_enabled_title" = "وكيل الشبكة";
+"proxy_enabled_subtitle" = "عند التشغيل، يوجّه CodexBar جميع طلبات المزوّدين عبر الوكيل أدناه. كما يغطي وكيل http:// حركة مرور HTTPS.";
+"proxy_url_placeholder" = "http://127.0.0.1:9000";
+"proxy_invalid_url" = "أدخل عنوان وكيل صالحًا، مثل http://127.0.0.1:9000 أو socks5://127.0.0.1:1080.";
+
 "section_keychain_access" = "Keychain الوصول";
 "keychain_access_caption" = "قم بتعطيل جميع Keychain القراءة والكتابة. استخدم هذا إذا استمر macOS في طلب 'Chrome/Brave/Edge التخزين الآمن' حتى بعد الضغط على 'دائما السماح'. استيراد ملفات تعريف الارتباط من المتصفح غير متاح أثناء تفعيله؛ الصق رؤوس الكوكيز يدويا في المزودين. Claude/Codex OAuth عبر CLI لا يزال يعمل.";
 "disable_keychain_access_title" = "تعطيل Keychain الوصول";

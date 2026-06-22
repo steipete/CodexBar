@@ -462,6 +462,22 @@ extension SettingsStore {
         }
     }
 
+    var proxyEnabled: Bool {
+        get { self.defaultsState.proxyEnabled }
+        set {
+            self.defaultsState.proxyEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "proxyEnabled")
+        }
+    }
+
+    var proxyURL: String {
+        get { self.defaultsState.proxyURL }
+        set {
+            self.defaultsState.proxyURL = newValue
+            self.userDefaults.set(newValue, forKey: "proxyURL")
+        }
+    }
+
     var mergeIcons: Bool {
         get { self.defaultsState.mergeIcons }
         set {

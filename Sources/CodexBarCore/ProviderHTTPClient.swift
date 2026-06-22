@@ -168,19 +168,35 @@ extension ProviderHTTPTransport {
 public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendable {
     public static let shared = ProviderHTTPClient(session: ProviderHTTPClient.sharedSession())
 
-    private let session: URLSession
+    private let lock = NSLock()
+    private var session: URLSession
 
     public init(session: URLSession? = nil) {
         self.session = session ?? Self.redirectGuardedSession()
     }
 
-    static func defaultConfiguration() -> URLSessionConfiguration {
+    /// Rebuilds the underlying session so all subsequent requests use the given proxy.
+    /// Passing `nil` reverts to a direct (system-proxy) session.
+    public func applyProxyConfiguration(_ config: ProxyConfiguration?) {
+        let newSession = Self.redirectGuardedSession(configuration: Self.defaultConfiguration(proxy: config))
+        let previous = self.lock.withLock { () -> URLSession in
+            let previous = self.session
+            self.session = newSession
+            return previous
+        }
+        previous.finishTasksAndInvalidate()
+    }
+
+    static func defaultConfiguration(proxy: ProxyConfiguration? = nil) -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 90
         #if !os(Linux)
         configuration.waitsForConnectivity = false
         #endif
+        if let proxy {
+            configuration.connectionProxyDictionary = proxy.connectionProxyDictionary()
+        }
         return configuration
     }
 
@@ -213,7 +229,8 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        try await self.session.data(for: request)
+        let session = self.lock.withLock { self.session }
+        return try await session.data(for: request)
     }
 }
 

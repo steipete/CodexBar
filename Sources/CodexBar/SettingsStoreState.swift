@@ -55,4 +55,6 @@ struct SettingsDefaultsState {
     var providersSortedAlphabetically: Bool
     var appLanguageRaw: String?
     var terminalAppRaw: String?
+    var proxyEnabled: Bool
+    var proxyURL: String
 }
