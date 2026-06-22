@@ -83,8 +83,10 @@ public enum ClaudeAccountDiscovery {
         // 1) file-based stores (rare on macOS, but authoritative when present)
         for dir in fileCredsDirectories {
             let path = (dir as NSString).appendingPathComponent(self.credentialsFileName)
-            add(.credentialsFile(path: path),
-                self.label(forConfigDirectory: dir, defaultClaudeDirectory: defaultClaudeDir), dir)
+            add(
+                .credentialsFile(path: path),
+                self.label(forConfigDirectory: dir, defaultClaudeDirectory: defaultClaudeDir),
+                dir)
         }
 
         // 2) the default Keychain login, if present

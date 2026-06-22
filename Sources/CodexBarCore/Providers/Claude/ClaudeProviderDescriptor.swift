@@ -261,10 +261,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         sourceMode: ProviderSourceMode,
         environment: [String: String]) -> Bool
     {
-        let hasEnvironmentOAuthToken = !(environment[ClaudeOAuthCredentialsStore.environmentTokenKey]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty ?? true)
-        if hasEnvironmentOAuthToken {
+        if self.hasSelectedOAuthCredential(environment: environment) {
             return true
         }
 
@@ -348,7 +345,31 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
         // In Auto mode, fall back to the next strategy (cli/web) if OAuth fails (e.g. user cancels keychain prompt
         // or auth breaks).
-        context.runtime == .app && context.sourceMode == .auto
+        context.runtime == .app &&
+            context.sourceMode == .auto &&
+            !Self.hasSelectedOAuthAccount(context: context)
+    }
+
+    private static func hasSelectedOAuthAccount(context: ProviderFetchContext) -> Bool {
+        guard context.selectedTokenAccountID != nil else { return false }
+        return self.hasSelectedOAuthCredential(environment: context.env)
+    }
+
+    private static func hasSelectedOAuthCredential(environment: [String: String]) -> Bool {
+        let hasEnvironmentOAuthToken = !(environment[ClaudeOAuthCredentialsStore.environmentTokenKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+        if hasEnvironmentOAuthToken {
+            return true
+        }
+
+        guard let descriptor = environment[ClaudeCredentialSource.environmentDescriptorKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !descriptor.isEmpty
+        else {
+            return false
+        }
+        return ClaudeCredentialSource.parse(descriptor).isRefreshableSource
     }
 
     fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {

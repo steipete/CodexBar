@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import SwiftUI
 
@@ -215,6 +216,19 @@ extension UsageMenuCardView.Model {
 
         let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
         return Color(red: color.red, green: color.green, blue: color.blue)
+    }
+
+    static func stackedAccountProgressColor(for provider: UsageProvider, index: Int) -> Color {
+        guard index > 0 else { return self.progressColor(for: provider) }
+
+        let palette: [NSColor] = [
+            .systemBlue,
+            .systemGreen,
+            .systemPurple,
+            .systemPink,
+            .systemTeal,
+        ]
+        return Color(nsColor: palette[(index - 1) % palette.count])
     }
 
     static func rateWindowLabels(

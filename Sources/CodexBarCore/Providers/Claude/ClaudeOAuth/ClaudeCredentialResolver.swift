@@ -46,8 +46,11 @@ public enum ClaudeCredentialResolver {
 
     private static func staticCredentials(_ token: String) -> ClaudeOAuthCredentials {
         ClaudeOAuthCredentials(
-            accessToken: token, refreshToken: nil, expiresAt: nil,
-            scopes: [], rateLimitTier: nil)
+            accessToken: token,
+            refreshToken: nil,
+            expiresAt: nil,
+            scopes: [],
+            rateLimitTier: nil)
     }
 
     /// Best-effort account email for an access token, via the OAuth profile
@@ -102,11 +105,11 @@ public enum ClaudeCredentialResolver {
     static func shouldPersist(to source: ClaudeCredentialSource) -> Bool {
         switch source {
         case .credentialsFile:
-            return true
+            true
         case let .keychainService(service, _):
-            return service != ClaudeAccountDiscovery.defaultKeychainService
+            service != ClaudeAccountDiscovery.defaultKeychainService
         case .oauthToken, .environment:
-            return false
+            false
         }
     }
 

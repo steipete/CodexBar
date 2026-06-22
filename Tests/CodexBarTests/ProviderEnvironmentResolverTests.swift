@@ -69,6 +69,27 @@ struct ProviderEnvironmentResolverTests {
     }
 
     @Test
+    func `Claude source account replaces incompatible credentials`() {
+        let source = ClaudeCredentialSource.credentialsFile(
+            path: "/Users/test/.claude-work/.credentials.json")
+            .encodedTokenValue()
+        let environment = ProviderEnvironmentResolver.resolve(
+            base: [
+                ClaudeAdminAPISettingsReader.alternateAdminAPIKeyEnvironmentKey: "ambient-admin",
+                ClaudeOAuthCredentialsStore.environmentTokenKey: "ambient-oauth",
+            ],
+            provider: .claude,
+            config: ProviderConfig(id: .claude, apiKey: "saved-admin"),
+            selectedAccount: Self.account(token: source))
+
+        for key in ClaudeAdminAPISettingsReader.apiKeyEnvironmentKeys {
+            #expect(environment[key] == nil)
+        }
+        #expect(environment[ClaudeOAuthCredentialsStore.environmentTokenKey] == nil)
+        #expect(environment[ClaudeCredentialSource.environmentDescriptorKey] == source)
+    }
+
+    @Test
     func `cookie account leaves unrelated provider environment intact`() {
         let base = ["FOO": "bar"]
         let environment = ProviderEnvironmentResolver.resolve(

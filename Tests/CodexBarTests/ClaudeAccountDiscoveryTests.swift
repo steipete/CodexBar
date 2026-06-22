@@ -1,6 +1,6 @@
-@testable import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 struct ClaudeAccountDiscoveryTests {
     @Test
@@ -33,8 +33,8 @@ struct ClaudeAccountDiscoveryTests {
         #expect(accounts[0].label == "Claude")
         #expect(accounts[0].source == .keychainService(service: "Claude Code-credentials", account: nil))
         #expect(accounts[1].source == .keychainService(service: acct2, account: nil))
-        #expect(accounts[1].label == "acct2")            // reverse-mapped from the dir
-        #expect(accounts[2].label == "Claude deadbeef")  // unknown service -> suffix label
+        #expect(accounts[1].label == "acct2") // reverse-mapped from the dir
+        #expect(accounts[2].label == "Claude deadbeef") // unknown service -> suffix label
     }
 
     @Test
@@ -50,7 +50,7 @@ struct ClaudeAccountDiscoveryTests {
                 "Claude Code-credentials-cccccccc",
             ],
             maxAccounts: 2)
-        #expect(accounts.count == 2)             // default + 1 suffixed
+        #expect(accounts.count == 2) // default + 1 suffixed
         #expect(accounts[0].label == "Claude")
     }
 

@@ -10,6 +10,44 @@ extension StatusItemController {
     static let loadingAnimationPhaseIncrement: Double =
         2.7 / StatusItemController.loadingAnimationFPS
     private static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
+    private static let menuBarStackedAccountDisplayLimit = 3
+    private static let menuBarWeeklyWindowMinutes = 7 * 24 * 60
+
+    private struct MenuBarStatSegment: Equatable {
+        let label: String
+        let primary: String
+        let weekly: String?
+
+        var compactValue: String {
+            guard let weekly else { return self.primary }
+            return "\(self.primary)/\(weekly)"
+        }
+    }
+
+    private struct MenuBarQuotaText: Equatable {
+        let primary: String
+        let weekly: String?
+
+        var stackedValue: String {
+            guard let weekly else { return self.primary }
+            return "\(String(self.primary.dropLast()))(\(String(weekly.dropLast())))%"
+        }
+    }
+
+    private struct MergedBrandPercentIconInput {
+        let provider: UsageProvider
+        let snapshot: UsageSnapshot?
+        let brand: NSImage
+        let style: IconStyle
+        let primary: Double?
+        let weekly: Double?
+        let credits: Double?
+        let stale: Bool
+        let statusIndicator: ProviderStatusIndicator
+        let warningFlash: Bool
+        let needsAnimation: Bool
+    }
+
     func needsMenuBarIconAnimation() -> Bool {
         if self.shouldMergeIcons {
             let primaryProvider = self.primaryProviderForUnifiedIcon()
@@ -297,33 +335,20 @@ extension StatusItemController {
         if showBrandPercent,
            let brand = ProviderBrandIcon.image(for: primaryProvider)
         {
-            let displayText = self.menuBarDisplayText(for: primaryProvider, snapshot: snapshot)
-            let signature = [
-                "mode=brandPercent",
-                "provider=\(primaryProvider.rawValue)",
-                "style=\(String(describing: style))",
-                "primary=\(Self.iconSignatureValue(primary))",
-                "weekly=\(Self.iconSignatureValue(weekly))",
-                "credits=\(Self.iconSignatureValue(credits))",
-                "stale=\(stale ? "1" : "0")",
-                "status=\(statusIndicator.rawValue)",
-                "text=\(displayText ?? "nil")",
-                "warningFlash=\(warningFlash ? "1" : "0")",
-                "anim=\(needsAnimation ? "1" : "0")",
-                "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
-            ].joined(separator: "|")
-            if self.shouldSkipMergedIconRender(signature) {
-                // AppKit can lose button title/image-position state independently of the cached render signature.
-                // Keep the cheap title path self-healing even when the icon image itself can be skipped.
-                self.setButtonTitle(displayText, for: button)
-                self.noteIconPerfRender(skipped: true)
-                return true
-            }
-            self.setButtonImage(
-                warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
-            self.setButtonTitle(displayText, for: button)
-            self.noteIconPerfRender(skipped: false)
-            return false
+            return self.applyMergedBrandPercentIcon(
+                input: MergedBrandPercentIconInput(
+                    provider: primaryProvider,
+                    snapshot: snapshot,
+                    brand: brand,
+                    style: style,
+                    primary: primary,
+                    weekly: weekly,
+                    credits: credits,
+                    stale: stale,
+                    statusIndicator: statusIndicator,
+                    warningFlash: warningFlash,
+                    needsAnimation: needsAnimation),
+                button: button)
         }
 
         self.setButtonTitle(nil, for: button)
@@ -382,6 +407,56 @@ extension StatusItemController {
                 hideCritters: self.settings.menuBarHidesCritters)
             self.setButtonImage(
                 warningFlash ? Self.quotaWarningFlashImage(base: image) : image, for: button)
+        }
+        self.noteIconPerfRender(skipped: false)
+        return false
+    }
+
+    private func applyMergedBrandPercentIcon(input: MergedBrandPercentIconInput, button: NSStatusBarButton) -> Bool {
+        let displaySegments = self.mergedCodexAndClaudeMenuBarDisplaySegments(
+            provider: input.provider,
+            snapshot: input.snapshot)
+        let displayText = displaySegments.map(Self.menuBarStatsDisplayText)
+            ?? self.menuBarDisplayText(for: input.provider, snapshot: input.snapshot)
+        let signature = [
+            "mode=brandPercent",
+            "provider=\(input.provider.rawValue)",
+            "style=\(String(describing: input.style))",
+            "primary=\(Self.iconSignatureValue(input.primary))",
+            "weekly=\(Self.iconSignatureValue(input.weekly))",
+            "credits=\(Self.iconSignatureValue(input.credits))",
+            "stale=\(input.stale ? "1" : "0")",
+            "status=\(input.statusIndicator.rawValue)",
+            "text=\(displayText ?? "nil")",
+            "warningFlash=\(input.warningFlash ? "1" : "0")",
+            "anim=\(input.needsAnimation ? "1" : "0")",
+            "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
+        ].joined(separator: "|")
+        let displayBrand = input.warningFlash ? Self.quotaWarningFlashImage(base: input.brand) : input.brand
+
+        if self.shouldSkipMergedIconRender(signature) {
+            if let displaySegments {
+                self.setButtonStatsImageIfNeeded(
+                    displaySegments,
+                    brand: displayBrand,
+                    for: button,
+                    force: button.image == nil)
+            } else {
+                self.setButtonTitle(displayText, for: button)
+            }
+            self.noteIconPerfRender(skipped: true)
+            return true
+        }
+
+        if let displaySegments {
+            self.setButtonStatsImageIfNeeded(
+                displaySegments,
+                brand: displayBrand,
+                for: button,
+                force: true)
+        } else {
+            self.setButtonImage(displayBrand, for: button)
+            self.setButtonTitle(displayText, for: button)
         }
         self.noteIconPerfRender(skipped: false)
         return false
@@ -662,12 +737,49 @@ extension StatusItemController {
         }
     }
 
+    private func setButtonStatsImageIfNeeded(
+        _ segments: [MenuBarStatSegment],
+        brand: NSImage,
+        for button: NSStatusBarButton,
+        force: Bool)
+    {
+        if force {
+            self.setButtonImage(Self.menuBarStatsImage(segments, brand: brand), for: button)
+        }
+        self.clearButtonTitle(for: button)
+        if button.imagePosition != .imageOnly {
+            button.imagePosition = .imageOnly
+        }
+    }
+
+    private func clearButtonTitle(for button: NSStatusBarButton) {
+        if !button.title.isEmpty {
+            button.title = ""
+        }
+        if button.attributedTitle.length > 0 {
+            button.attributedTitle = NSAttributedString(string: "")
+        }
+    }
+
     nonisolated static func buttonTitle(_ title: String?, hasImage: Bool) -> String {
         guard let title, !title.isEmpty else { return "" }
         return hasImage ? " \(title)" : title
     }
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        if let mergedText = self.mergedCodexAndClaudeMenuBarDisplayText(
+            provider: provider,
+            snapshot: snapshot)
+        {
+            return mergedText
+        }
+        if let stackedText = self.stackedAccountsMenuBarDisplayText(for: provider) {
+            return stackedText
+        }
+        return self.singleAccountMenuBarDisplayText(for: provider, snapshot: snapshot)
+    }
+
+    private func singleAccountMenuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
         let mode = self.settings.menuBarDisplayMode
         if provider == .openrouter,
            self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic,
@@ -787,6 +899,261 @@ extension StatusItemController {
             percentWindow: percentWindow,
             pace: pace,
             showUsed: self.settings.usageBarsShowUsed)
+    }
+
+    private func mergedCodexAndClaudeMenuBarDisplayText(provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        self.mergedCodexAndClaudeMenuBarDisplaySegments(provider: provider, snapshot: snapshot)
+            .map(Self.menuBarStatsDisplayText)
+    }
+
+    private func mergedCodexAndClaudeMenuBarDisplaySegments(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> [MenuBarStatSegment]?
+    {
+        guard self.shouldMergeIcons,
+              self.settings.multiAccountMenuLayout == .stacked,
+              provider == .codex || provider == .claude
+        else {
+            return nil
+        }
+
+        let enabledProviders = self.store.enabledProvidersForDisplay()
+        guard enabledProviders.contains(.codex),
+              enabledProviders.contains(.claude)
+        else {
+            return nil
+        }
+
+        let codexSnapshot = provider == .codex ? snapshot : self.store.snapshot(for: .codex)
+        guard let codexSnapshot,
+              let codexQuota = self.stackedAccountMenuBarQuotaText(for: .codex, snapshot: codexSnapshot)
+        else {
+            return nil
+        }
+
+        let claudeQuotas = self.stackedAccountMenuBarQuotaTexts(
+            for: .claude,
+            limit: Self.menuBarStackedAccountDisplayLimit - 1)
+        guard !claudeQuotas.isEmpty else { return nil }
+
+        let claudeSegments = claudeQuotas.enumerated().map { index, quota in
+            MenuBarStatSegment(label: "C\(index + 1)", primary: quota.primary, weekly: quota.weekly)
+        }
+        return [MenuBarStatSegment(label: "Codex", primary: codexQuota.primary, weekly: codexQuota.weekly)] +
+            claudeSegments
+    }
+
+    private func stackedAccountsMenuBarDisplayText(for provider: UsageProvider) -> String? {
+        let accountTexts = self.stackedAccountMenuBarDisplayTexts(
+            for: provider,
+            limit: Self.menuBarStackedAccountDisplayLimit)
+        guard accountTexts.count > 1 else { return nil }
+        return accountTexts.joined(separator: " · ")
+    }
+
+    private func stackedAccountMenuBarDisplayTexts(for provider: UsageProvider, limit: Int) -> [String] {
+        self.stackedAccountMenuBarQuotaTexts(for: provider, limit: limit).map(\.stackedValue)
+    }
+
+    private func stackedAccountMenuBarQuotaTexts(for provider: UsageProvider, limit: Int) -> [MenuBarQuotaText] {
+        guard self.settings.multiAccountMenuLayout == .stacked else { return [] }
+        guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
+        let accounts = self.settings.tokenAccounts(for: provider)
+        guard accounts.count > 1 else { return [] }
+
+        let displayAccounts = Self.menuBarDisplayAccounts(
+            accounts,
+            selected: self.settings.selectedTokenAccount(for: provider),
+            limit: limit)
+        var snapshotsByAccountID: [UUID: TokenAccountUsageSnapshot] = [:]
+        for snapshot in self.store.accountSnapshots[provider] ?? [] {
+            snapshotsByAccountID[snapshot.account.id] = snapshot
+        }
+        return displayAccounts
+            .prefix(limit)
+            .compactMap { account -> MenuBarQuotaText? in
+                guard let snapshot = snapshotsByAccountID[account.id]?.snapshot else { return nil }
+                return self.stackedAccountMenuBarQuotaText(for: provider, snapshot: snapshot)
+            }
+    }
+
+    private func stackedAccountMenuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
+        self.stackedAccountMenuBarQuotaText(for: provider, snapshot: snapshot)?.stackedValue
+    }
+
+    private func stackedAccountMenuBarQuotaText(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot)
+        -> MenuBarQuotaText?
+    {
+        let baseText = self.singleAccountMenuBarDisplayText(
+            for: provider,
+            snapshot: snapshot)
+        guard self.settings.menuBarDisplayMode == .percent,
+              let baseText,
+              baseText.hasSuffix("%"),
+              !baseText.contains("·"),
+              let weeklyWindow = self.stackedAccountWeeklyWindow(for: provider, snapshot: snapshot)
+        else {
+            return baseText.map { MenuBarQuotaText(primary: $0, weekly: nil) }
+        }
+
+        let weeklyPercent = Self.compactPercentNumber(
+            window: weeklyWindow,
+            showUsed: self.settings.usageBarsShowUsed)
+        return MenuBarQuotaText(primary: baseText, weekly: "\(weeklyPercent)%")
+    }
+
+    private func stackedAccountWeeklyWindow(for provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
+        if provider == .codex {
+            let projection = self.store.codexConsumerProjectionIfNeeded(
+                for: provider,
+                surface: .menuBar,
+                snapshotOverride: snapshot,
+                now: snapshot.updatedAt)
+            if let weekly = projection?.rateWindow(for: .weekly) {
+                return weekly
+            }
+        }
+
+        let standardWindows = [
+            snapshot.secondary,
+            snapshot.tertiary,
+            snapshot.primary,
+        ]
+        if let weekly = standardWindows.compactMap(\.self).first(where: Self.isWeeklyWindow) {
+            return weekly
+        }
+        return snapshot.extraRateWindows?
+            .first { $0.usageKnown && Self.isWeeklyWindow($0.window) }?
+            .window
+    }
+
+    private static func isWeeklyWindow(_ window: RateWindow) -> Bool {
+        guard let minutes = window.windowMinutes else { return false }
+        return abs(minutes - Self.menuBarWeeklyWindowMinutes) <= 10
+    }
+
+    private static func compactPercentNumber(window: RateWindow, showUsed: Bool) -> String {
+        let percent = showUsed ? window.usedPercent : window.remainingPercent
+        let clamped = min(100, max(0, percent))
+        return String(format: "%.0f", clamped)
+    }
+
+    private static func menuBarDisplayAccounts(
+        _ accounts: [ProviderTokenAccount],
+        selected: ProviderTokenAccount?,
+        limit: Int) -> [ProviderTokenAccount]
+    {
+        guard limit > 0 else { return [] }
+        if accounts.count <= limit { return accounts }
+        var limited = Array(accounts.prefix(limit))
+        if let selected, !limited.contains(where: { $0.id == selected.id }) {
+            limited.removeLast()
+            limited.append(selected)
+        }
+        return limited
+    }
+
+    private static func menuBarStatsDisplayText(_ segments: [MenuBarStatSegment]) -> String {
+        segments.map { "\($0.label) \($0.compactValue)" }.joined(separator: " · ")
+    }
+
+    private static func menuBarStatsImage(
+        _ segments: [MenuBarStatSegment],
+        brand: NSImage)
+        -> NSImage
+    {
+        guard !segments.isEmpty else { return brand }
+
+        let canvasHeight: CGFloat = 22
+        let iconSize: CGFloat = 15
+        let iconGap: CGFloat = 4
+        let segmentGap: CGFloat = 7
+        let trailingPadding: CGFloat = 1
+        let topAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 10.5, weight: .semibold),
+            .foregroundColor: NSColor.black,
+        ]
+        let bottomAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
+            .foregroundColor: NSColor.black.withAlphaComponent(0.86),
+        ]
+        let segmentSizes = segments.map { segment -> (top: CGSize, bottom: CGSize, width: CGFloat) in
+            let topText = Self.menuBarStatsTopText(segment)
+            let bottomText = segment.weekly ?? ""
+            let topSize = Self.menuBarStatsTextSize(topText, attributes: topAttributes)
+            let bottomSize = Self.menuBarStatsTextSize(bottomText, attributes: bottomAttributes)
+            return (topSize, bottomSize, ceil(max(topSize.width, bottomSize.width)))
+        }
+        let segmentsWidth = segmentSizes.reduce(CGFloat(0)) { $0 + $1.width } +
+            segmentGap * CGFloat(max(0, segments.count - 1))
+        let width = ceil(iconSize + iconGap + segmentsWidth + trailingPadding)
+        let size = NSSize(width: width, height: canvasHeight)
+        let image = NSImage(size: size)
+
+        image.lockFocus()
+        NSColor.clear.setFill()
+        NSRect(origin: .zero, size: size).fill()
+
+        let iconRect = NSRect(
+            x: 0,
+            y: floor((canvasHeight - iconSize) / 2),
+            width: iconSize,
+            height: iconSize)
+        brand.draw(
+            in: iconRect,
+            from: NSRect(origin: .zero, size: brand.size),
+            operation: .sourceOver,
+            fraction: 1.0)
+
+        var x = iconSize + iconGap
+        for (index, segment) in segments.enumerated() {
+            if index > 0 {
+                x += segmentGap
+            }
+            let topText = Self.menuBarStatsTopText(segment)
+            let bottomText = segment.weekly ?? ""
+            let metrics = segmentSizes[index]
+            Self.drawMenuBarStatsText(
+                topText,
+                at: CGPoint(x: x, y: 10.5),
+                attributes: topAttributes)
+            if !bottomText.isEmpty {
+                let bottomX = x + floor((metrics.width - metrics.bottom.width) / 2)
+                Self.drawMenuBarStatsText(
+                    bottomText,
+                    at: CGPoint(x: bottomX, y: 1.5),
+                    attributes: bottomAttributes)
+            }
+            x += metrics.width
+        }
+
+        image.unlockFocus()
+        image.isTemplate = true
+        return image
+    }
+
+    private static func menuBarStatsTopText(_ segment: MenuBarStatSegment) -> String {
+        "\(segment.label) \(segment.primary)"
+    }
+
+    private static func menuBarStatsTextSize(
+        _ text: String,
+        attributes: [NSAttributedString.Key: Any])
+        -> CGSize
+    {
+        guard !text.isEmpty else { return .zero }
+        return (text as NSString).size(withAttributes: attributes)
+    }
+
+    private static func drawMenuBarStatsText(
+        _ text: String,
+        at point: CGPoint,
+        attributes: [NSAttributedString.Key: Any])
+    {
+        (text as NSString).draw(at: point, withAttributes: attributes)
     }
 
     nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {

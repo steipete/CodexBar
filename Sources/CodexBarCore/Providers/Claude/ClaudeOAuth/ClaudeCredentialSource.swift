@@ -30,9 +30,9 @@ public enum ClaudeCredentialSource: Sendable, Equatable, Codable {
     public var isRefreshableSource: Bool {
         switch self {
         case .oauthToken:
-            return false
+            false
         case .keychainService, .credentialsFile, .environment:
-            return true
+            true
         }
     }
 

@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import SwiftUI
 
 extension StatusItemController {
     func menuCardModel(
@@ -7,7 +8,8 @@ extension StatusItemController {
         snapshotOverride: UsageSnapshot? = nil,
         errorOverride: String? = nil,
         forceOverrideCard: Bool = false,
-        accountOverride: AccountInfo? = nil) -> UsageMenuCardView.Model?
+        accountOverride: AccountInfo? = nil,
+        progressColorOverride: Color? = nil) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
@@ -120,6 +122,7 @@ extension StatusItemController {
             ],
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             usesLiveSubtitle: surface == .liveCard,
+            progressColorOverride: progressColorOverride,
             now: now)
         return UsageMenuCardView.Model.make(input)
     }
