@@ -82,6 +82,11 @@ extension UsageStore {
         self.status(for: provider)?.indicator ?? .none
     }
 
+    func statusComponents(for provider: UsageProvider) -> [ProviderStatusComponent] {
+        guard self.statusChecksEnabled else { return [] }
+        return self.statusComponents[provider] ?? []
+    }
+
     func accountInfo(for provider: UsageProvider) -> AccountInfo {
         let now = Date()
         let configRevision = self.settings.configRevision

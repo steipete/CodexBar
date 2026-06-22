@@ -643,6 +643,7 @@
 
 /* Provider status */
 "status_operational" = "Operational";
+"status_degraded" = "Degraded performance";
 "status_partial_outage" = "Partial outage";
 "status_major_outage" = "Major outage";
 "status_critical_issue" = "Critical issue";
@@ -699,6 +700,7 @@
 "Add Account..." = "Add Account...";
 "Usage Dashboard" = "Usage Dashboard";
 "Status Page" = "Status Page";
+"Open Status Page" = "Open Status Page";
 "Settings..." = "Settings...";
 "About CodexBar" = "About CodexBar";
 "Quit" = "Quit";

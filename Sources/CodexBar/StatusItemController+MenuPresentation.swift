@@ -110,6 +110,21 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         self.layoutSubtreeIfNeeded()
         self.superview?.layoutSubtreeIfNeeded()
     }
+
+    /// Measures the true SwiftUI content height at `width`. The cached `measuredHeight` is routed
+    /// through `intrinsicContentSize`, so `fittingSize` would otherwise echo the stale cached value;
+    /// clearing it for the measurement lets the live content size drive the result. Used to resize
+    /// the row exactly when expandable content (e.g. status groups) toggles.
+    func measuredFittingHeight(width: CGFloat) -> CGFloat {
+        let saved = self.measuredHeight
+        self.measuredHeight = nil
+        self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
+        self.invalidateIntrinsicContentSize()
+        self.layoutSubtreeIfNeeded()
+        let height = self.fittingSize.height
+        self.measuredHeight = saved
+        return height
+    }
 }
 
 @MainActor

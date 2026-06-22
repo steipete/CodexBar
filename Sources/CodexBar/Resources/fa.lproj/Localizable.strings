@@ -643,6 +643,7 @@
 
 /* Provider status */
 "status_operational" = "عملیاتی";
+"status_degraded" = "کارایی کاهش‌یافته";
 "status_partial_outage" = "قطعی جزئی";
 "status_major_outage" = "قطعی عمده";
 "status_critical_issue" = "مسئله بحرانی";
@@ -699,6 +700,7 @@
 "Add Account..." = "افزودن حساب...";
 "Usage Dashboard" = "داشبورد استفاده";
 "Status Page" = "صفحه وضعیت";
+"Open Status Page" = "باز کردن صفحه وضعیت";
 "Settings..." = "محیط ها...";
 "About CodexBar" = "درباره CodexBar";
 "Quit" = "ترک کن";

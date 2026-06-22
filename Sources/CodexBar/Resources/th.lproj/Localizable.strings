@@ -643,6 +643,7 @@
 
 /* Provider status */
 "status_operational" = "การดําเนินงาน";
+"status_degraded" = "ประสิทธิภาพลดลง";
 "status_partial_outage" = "ไฟฟ้าดับบางส่วน";
 "status_major_outage" = "ไฟฟ้าดับครั้งใหญ่";
 "status_critical_issue" = "ปัญหาสําคัญ";
@@ -699,6 +700,7 @@
 "Add Account..." = "เพิ่มบัญชี...";
 "Usage Dashboard" = "แดชบอร์ดการใช้งาน";
 "Status Page" = "หน้าสถานะ";
+"Open Status Page" = "เปิดหน้าสถานะ";
 "Settings..." = "การตั้งค่า...";
 "About CodexBar" = "เกี่ยวกับ CodexBar";
 "Quit" = "ออก";

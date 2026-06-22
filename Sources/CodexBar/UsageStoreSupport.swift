@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import SwiftUI
 
 enum ProviderStatusIndicator: String {
     case none
@@ -26,12 +27,62 @@ enum ProviderStatusIndicator: String {
         case .unknown: L("status_unknown")
         }
     }
+
+    /// Traffic-light color used for the per-component dot in the status submenu.
+    var dotColor: Color {
+        switch self {
+        case .none: Color(red: 0.20, green: 0.78, blue: 0.35) // green
+        case .minor, .maintenance: Color(red: 0.96, green: 0.77, blue: 0.13) // yellow
+        case .major, .critical: Color(red: 0.91, green: 0.30, blue: 0.24) // red
+        case .unknown: Color.secondary
+        }
+    }
 }
 
 struct ProviderStatus {
     let indicator: ProviderStatusIndicator
     let description: String?
     let updatedAt: Date?
+}
+
+/// A single component/service row on a statuspage.io-style status page
+/// (e.g. "Codex API", "CLI", "FedRAMP") with its current state. A row with non-empty
+/// `children` is a component group and renders as an expandable dropdown.
+struct ProviderStatusComponent: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let indicator: ProviderStatusIndicator
+    /// Right-aligned status text shown for the row (e.g. "Operational").
+    let statusLabel: String
+    /// Child rows for a component group; empty for leaf components.
+    var children: [ProviderStatusComponent] = []
+
+    var isGroup: Bool {
+        !self.children.isEmpty
+    }
+
+    /// Maps a statuspage.io component `status` string to our indicator + display label.
+    static func indicator(forStatuspageStatus status: String) -> ProviderStatusIndicator {
+        switch status {
+        case "operational": .none
+        case "degraded_performance": .minor
+        case "partial_outage": .major
+        case "major_outage": .critical
+        case "under_maintenance": .maintenance
+        default: .unknown
+        }
+    }
+
+    static func label(forStatuspageStatus status: String) -> String {
+        switch status {
+        case "operational": L("status_operational")
+        case "degraded_performance": L("status_degraded")
+        case "partial_outage": L("status_partial_outage")
+        case "major_outage": L("status_major_outage")
+        case "under_maintenance": L("status_maintenance")
+        default: L("status_unknown")
+        }
+    }
 }
 
 /// Tracks consecutive failures so we can ignore a single flake when we previously had fresh data.

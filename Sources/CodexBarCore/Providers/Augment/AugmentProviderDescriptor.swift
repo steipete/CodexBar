@@ -46,8 +46,7 @@ public enum AugmentProviderDescriptor {
                 usesAccountFallback: false,
                 browserCookieOrder: browserOrder,
                 dashboardURL: "https://app.augmentcode.com/account/subscription",
-                statusPageURL: nil,
-                statusLinkURL: nil),
+                statusPageURL: "https://status.augmentcode.com"),
             branding: ProviderBranding(
                 iconStyle: .augment,
                 iconResourceName: "ProviderIcon-augment",
