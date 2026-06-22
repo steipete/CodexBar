@@ -88,6 +88,24 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `health response reports ok status and build version`() throws {
+        let response = CodexBarCLI.serveHealthResponse(version: "1.2.3")
+        #expect(response.status == .ok)
+        let object = try JSONSerialization.jsonObject(with: response.body) as? [String: Any]
+        #expect(object?["status"] as? String == "ok")
+        #expect(object?["version"] as? String == "1.2.3")
+    }
+
+    @Test
+    func `health response omits version detail when unavailable`() throws {
+        let response = CodexBarCLI.serveHealthResponse(version: nil)
+        #expect(response.status == .ok)
+        let object = try JSONSerialization.jsonObject(with: response.body) as? [String: Any]
+        #expect(object?["status"] as? String == "ok")
+        #expect(object?.keys.contains("version") == false)
+    }
+
+    @Test
     func `serve numeric options reject malformed values`() {
         #expect(CodexBarCLI.decodeServePort(from: ParsedValues(
             positional: [],

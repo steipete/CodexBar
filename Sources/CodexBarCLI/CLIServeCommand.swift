@@ -61,8 +61,20 @@ private struct ServeErrorPayload: Encodable {
     let error: String
 }
 
-private struct ServeHealthPayload: Encodable {
+struct ServeHealthPayload: Encodable {
     let status: String
+    let version: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case status
+        case version
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.status, forKey: .status)
+        try container.encodeIfPresent(self.version, forKey: .version)
+    }
 }
 
 struct CLIServeConfigSnapshot {
@@ -524,7 +536,7 @@ extension CodexBarCLI {
 
         switch route {
         case .health:
-            return Self.serveJSON(ServeHealthPayload(status: "ok"))
+            return Self.serveHealthResponse(version: Self.serveHealthVersion)
         case let .usage(provider):
             let snapshot: CLIServeConfigSnapshot
             do {
@@ -767,6 +779,12 @@ extension CodexBarCLI {
             throw CLIServeArgumentError.invalidProvider(rawProvider)
         }
         return selection
+    }
+
+    private static let serveHealthVersion: String? = currentVersion()
+
+    static func serveHealthResponse(version: String?) -> CLILocalHTTPResponse {
+        self.serveJSON(ServeHealthPayload(status: "ok", version: version))
     }
 
     private static func serveJSON(
