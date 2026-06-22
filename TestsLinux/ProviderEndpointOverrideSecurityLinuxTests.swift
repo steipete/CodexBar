@@ -21,10 +21,10 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
         do {
             _ = try await DeepgramUsageFetcher.fetchUsage(
                 apiKey: "dg-test-token",
-                environment: ["DEEPGRAM_API_URL": "http://attacker.test/v1"],
+                environment: [DeepgramUsageFetcher.apiURLKey: "http://attacker.test/v1"],
                 transport: transport)
             Issue.record("Expected DeepgramUsageError.invalidEndpointOverride")
-        } catch DeepgramUsageError.invalidEndpointOverride("DEEPGRAM_API_URL") {
+        } catch DeepgramUsageError.invalidEndpointOverride(DeepgramUsageFetcher.apiURLKey) {
             // Expected.
         } catch {
             Issue.record("Expected DeepgramUsageError.invalidEndpointOverride, got \(error)")
@@ -54,15 +54,29 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func zaiQuotaURLPrecedenceIgnoresInvalidLowerPriorityAPIHost() throws {
+    func zaiQuotaResolutionIgnoresInvalidLowerPriorityAPIHost() throws {
         let environment = [
             ZaiSettingsReader.quotaURLKey: "https://zai-proxy.test/quota",
             ZaiSettingsReader.apiHostKey: "http://attacker.test",
         ]
 
-        try ZaiSettingsReader.validateEndpointOverrides(environment: environment)
+        try ZaiSettingsReader.validateQuotaEndpointOverride(environment: environment)
         #expect(ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: environment).absoluteString ==
             "https://zai-proxy.test/quota")
+    }
+
+    @Test
+    func zaiCombinedFetchRejectsInvalidAPIHostBeforeQuotaRequest() async {
+        let environment = [
+            ZaiSettingsReader.quotaURLKey: "https://127.0.0.1:31337/quota",
+            ZaiSettingsReader.apiHostKey: "http://127.0.0.1:31337",
+        ]
+
+        await #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
+            try await ZaiUsageFetcher.fetchUsageWithModelUsage(
+                apiKey: "ZAI_CANARY_KEY",
+                environment: environment)
+        }
     }
 
     @Test
@@ -97,7 +111,9 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
 
     @Test
     func affectedProviderOverridesAcceptHTTPSAndBareHosts() throws {
-        try DeepgramUsageFetcher.validateEndpointOverrides(environment: ["DEEPGRAM_API_URL": "deepgram-proxy.test/v1"])
+        try DeepgramUsageFetcher.validateEndpointOverrides(environment: [
+            DeepgramUsageFetcher.apiURLKey: "deepgram-proxy.test/v1",
+        ])
         try ZaiSettingsReader
             .validateEndpointOverrides(environment: [ZaiSettingsReader.quotaURLKey: "https://zai-proxy.test/quota"])
         try ZaiSettingsReader.validateEndpointOverrides(environment: [ZaiSettingsReader.apiHostKey: "localhost:9443"])

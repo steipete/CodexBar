@@ -288,6 +288,8 @@ extension DeepgramUsageSnapshot {
 // MARK: - Fetcher
 
 public struct DeepgramUsageFetcher: Sendable {
+    public static let apiURLKey = "DEEPGRAM_API_URL"
+
     private static let log = CodexBarLog.logger(LogCategories.deepgramUsage)
     private static let defaultBaseURL = URL(string: "https://api.deepgram.com/v1")!
 
@@ -461,7 +463,7 @@ public struct DeepgramUsageFetcher: Sendable {
     }
 
     private static func apiURL(environment: [String: String]) -> URL {
-        if let raw = self.cleaned(environment["DEEPGRAM_API_URL"]),
+        if let raw = self.cleaned(environment[self.apiURLKey]),
            let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
         {
             return url
@@ -473,9 +475,9 @@ public struct DeepgramUsageFetcher: Sendable {
     public static func validateEndpointOverrides(environment: [String: String] = ProcessInfo.processInfo
         .environment) throws
     {
-        guard let raw = self.cleaned(environment["DEEPGRAM_API_URL"]) else { return }
+        guard let raw = self.cleaned(environment[self.apiURLKey]) else { return }
         guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
-        throw DeepgramUsageError.invalidEndpointOverride("DEEPGRAM_API_URL")
+        throw DeepgramUsageError.invalidEndpointOverride(self.apiURLKey)
     }
 
     private static func parseUsage(

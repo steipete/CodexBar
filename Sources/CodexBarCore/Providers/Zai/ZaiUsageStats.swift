@@ -662,6 +662,7 @@ extension ZaiUsageFetcher {
         region: ZaiAPIRegion = .global,
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ZaiUsageSnapshot
     {
+        try ZaiSettingsReader.validateEndpointOverrides(environment: environment)
         let snapshot = try await Self.fetchUsage(apiKey: apiKey, region: region, environment: environment)
         let modelUsage: ZaiModelUsageData?
         do {

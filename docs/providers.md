@@ -109,7 +109,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `Z_AI_API_KEY` env var.
 - Supports global and BigModel CN quota hosts; override with `Z_AI_API_HOST` or `Z_AI_QUOTA_URL`.
 - z.ai endpoint overrides must be HTTPS or bare hosts normalized to HTTPS. `Z_AI_QUOTA_URL` takes precedence for
-  quota requests; direct model-usage requests validate `Z_AI_API_HOST` before sending bearer auth.
+  quota resolution; combined usage validates both configured endpoints before sending bearer auth.
 - Status: none yet.
 - Details: `docs/zai.md`.
 
