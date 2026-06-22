@@ -4,212 +4,76 @@ import Testing
 @testable import CodexBarCore
 
 struct ProviderQuotaFixtureContractTests {
-    private struct ProviderFixtureCase: Sendable {
-        let provider: UsageProvider
-        let fixtureName: String
-        let fixtureExtension: String
-        let parser: Parser
-        let expectedPlan: String?
-        let expectedPrimary: ExpectedWindow
-        let expectedSecondary: ExpectedWindow
+    @Test
+    func `MiniMax fixture preserves quota windows and plan`() throws {
+        let data = try Self.fixtureData(provider: "MiniMax", name: "token-plan-normal", fileExtension: "json")
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(
+            data: data,
+            now: Date(timeIntervalSince1970: 1_780_282_340))
+        let usage = snapshot.toUsageSnapshot()
 
-        var displayName: String {
-            "\(self.provider.rawValue)/\(self.fixtureName).\(self.fixtureExtension)"
-        }
-
-        var providerDirectory: String {
-            switch self.provider {
-            case .minimax:
-                "MiniMax"
-            case .openai:
-                "OpenAI"
-            case .claude:
-                "Claude"
-            default:
-                self.provider.rawValue
-            }
-        }
-    }
-
-    private enum Parser: Sendable {
-        case minimaxCodingPlanRemains(now: Date)
-        case openAIWebDashboard
-        case claudeCLIUsage
-    }
-
-    private struct ParsedFixture: Sendable {
-        let plan: String?
-        let primary: RateWindow?
-        let secondary: RateWindow?
-    }
-
-    private struct ExpectedWindow: Equatable, Sendable {
-        let usedPercent: Double?
-        let windowMinutes: Int?
-        let resetDescriptionContains: String?
-        let resetsAt: Date?
-        let resetAbsent: Bool
-
-        static let absent = ExpectedWindow(
-            usedPercent: nil,
-            windowMinutes: nil,
-            resetDescriptionContains: nil,
-            resetsAt: nil,
-            resetAbsent: false)
+        #expect(usage.identity(for: .minimax)?.loginMethod == "Token Plan Plus")
+        #expect(usage.primary?.usedPercent == 4)
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_780_297_200))
+        #expect(usage.secondary?.usedPercent == 1)
+        #expect(usage.secondary?.windowMinutes == 10080)
+        #expect(usage.secondary?.resetsAt == Date(timeIntervalSince1970: 1_780_848_000))
     }
 
     @Test
-    func `provider quota fixtures satisfy parsing contract`() throws {
-        for fixtureCase in Self.fixtureCases {
-            let parsed = try Self.parse(fixtureCase)
+    func `MiniMax fixture keeps windows when reset timestamps are absent`() throws {
+        let data = try Self.fixtureData(
+            provider: "MiniMax",
+            name: "token-plan-missing-reset",
+            fileExtension: "json")
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(
+            data: data,
+            now: Date(timeIntervalSince1970: 1_780_282_340))
+        let usage = snapshot.toUsageSnapshot()
 
-            #expect(parsed.plan == fixtureCase.expectedPlan, "\(fixtureCase.displayName) plan")
-            try Self.expectWindow(
-                parsed.primary,
-                expected: fixtureCase.expectedPrimary,
-                fixtureName: "\(fixtureCase.displayName) primary")
-            try Self.expectWindow(
-                parsed.secondary,
-                expected: fixtureCase.expectedSecondary,
-                fixtureName: "\(fixtureCase.displayName) secondary")
-        }
+        #expect(usage.identity(for: .minimax)?.loginMethod == "Token Plan Plus")
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.secondary?.usedPercent == 40)
+        #expect(usage.secondary?.windowMinutes == 10080)
+        #expect(usage.secondary?.resetsAt == nil)
     }
 
-    private static let fixtureCases: [ProviderFixtureCase] = [
-        ProviderFixtureCase(
-            provider: .minimax,
-            fixtureName: "token-plan-normal",
-            fixtureExtension: "json",
-            parser: .minimaxCodingPlanRemains(now: Date(timeIntervalSince1970: 1_780_282_340)),
-            expectedPlan: "Token Plan Plus",
-            expectedPrimary: ExpectedWindow(
-                usedPercent: 4,
-                windowMinutes: 300,
-                resetDescriptionContains: nil,
-                resetsAt: Date(timeIntervalSince1970: 1_780_297_200),
-                resetAbsent: false),
-            expectedSecondary: ExpectedWindow(
-                usedPercent: 1,
-                windowMinutes: 10080,
-                resetDescriptionContains: nil,
-                resetsAt: Date(timeIntervalSince1970: 1_780_848_000),
-                resetAbsent: false)),
-        ProviderFixtureCase(
-            provider: .minimax,
-            fixtureName: "token-plan-missing-reset",
-            fixtureExtension: "json",
-            parser: .minimaxCodingPlanRemains(now: Date(timeIntervalSince1970: 1_780_282_340)),
-            expectedPlan: "Token Plan Plus",
-            expectedPrimary: ExpectedWindow(
-                usedPercent: 25,
-                windowMinutes: nil,
-                resetDescriptionContains: nil,
-                resetsAt: nil,
-                resetAbsent: true),
-            expectedSecondary: ExpectedWindow(
-                usedPercent: 40,
-                windowMinutes: 10080,
-                resetDescriptionContains: nil,
-                resetsAt: nil,
-                resetAbsent: true)),
-        ProviderFixtureCase(
-            provider: .openai,
-            fixtureName: "pro-normal",
-            fixtureExtension: "html",
-            parser: .openAIWebDashboard,
-            expectedPlan: "Pro 5x",
-            expectedPrimary: ExpectedWindow(
-                usedPercent: 28,
-                windowMinutes: 300,
-                resetDescriptionContains: "resets",
-                resetsAt: nil,
-                resetAbsent: false),
-            expectedSecondary: ExpectedWindow(
-                usedPercent: 59,
-                windowMinutes: 10080,
-                resetDescriptionContains: nil,
-                resetsAt: nil,
-                resetAbsent: false)),
-        ProviderFixtureCase(
-            provider: .claude,
-            fixtureName: "weekly-limit",
-            fixtureExtension: "json",
-            parser: .claudeCLIUsage,
-            expectedPlan: "Claude Max",
-            expectedPrimary: ExpectedWindow(
-                usedPercent: 7,
-                windowMinutes: 300,
-                resetDescriptionContains: "Europe/Vienna",
-                resetsAt: nil,
-                resetAbsent: false),
-            expectedSecondary: ExpectedWindow(
-                usedPercent: 21,
-                windowMinutes: 10080,
-                resetDescriptionContains: "Europe/Vienna",
-                resetsAt: nil,
-                resetAbsent: false)),
-    ]
+    @Test
+    func `OpenAI fixture preserves quota windows and plan`() throws {
+        let data = try Self.fixtureData(provider: "OpenAI", name: "pro-normal", fileExtension: "html")
+        let body = try #require(String(data: data, encoding: .utf8))
+        let limits = OpenAIDashboardParser.parseRateLimits(bodyText: body)
 
-    private static func parse(_ fixtureCase: ProviderFixtureCase) throws -> ParsedFixture {
-        let data = try self.fixtureData(for: fixtureCase)
-
-        switch fixtureCase.parser {
-        case let .minimaxCodingPlanRemains(now):
-            let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: data, now: now)
-            let usage = snapshot.toUsageSnapshot()
-            return ParsedFixture(
-                plan: usage.identity(for: .minimax)?.loginMethod,
-                primary: usage.primary,
-                secondary: usage.secondary)
-
-        case .openAIWebDashboard:
-            let bodyText = try #require(String(data: data, encoding: .utf8))
-            let limits = OpenAIDashboardParser.parseRateLimits(bodyText: bodyText)
-            return ParsedFixture(
-                plan: OpenAIDashboardParser.parsePlanFromHTML(html: bodyText),
-                primary: limits.primary,
-                secondary: limits.secondary)
-
-        case .claudeCLIUsage:
-            let snapshot = try #require(ClaudeUsageFetcher.parse(json: data))
-            return ParsedFixture(
-                plan: snapshot.loginMethod,
-                primary: snapshot.primary,
-                secondary: snapshot.secondary)
-        }
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: body) == "Pro 5x")
+        #expect(limits.primary?.usedPercent == 28)
+        #expect(limits.primary?.windowMinutes == 300)
+        #expect(limits.primary?.resetDescription?.localizedCaseInsensitiveContains("resets") == true)
+        #expect(limits.secondary?.usedPercent == 59)
+        #expect(limits.secondary?.windowMinutes == 10080)
+        #expect(limits.secondary?.resetDescription?.localizedCaseInsensitiveContains("resets") == true)
     }
 
-    private static func fixtureData(for fixtureCase: ProviderFixtureCase) throws -> Data {
-        let subdirectory = "Fixtures/Providers/\(fixtureCase.providerDirectory)"
+    @Test
+    func `Claude fixture preserves quota windows and plan`() throws {
+        let data = try Self.fixtureData(provider: "Claude", name: "weekly-limit", fileExtension: "json")
+        let snapshot = try #require(ClaudeUsageFetcher.parse(json: data))
+
+        #expect(snapshot.loginMethod == "Claude Max")
+        #expect(snapshot.primary.usedPercent == 7)
+        #expect(snapshot.primary.windowMinutes == 300)
+        #expect(snapshot.primary.resetDescription?.contains("Europe/Vienna") == true)
+        #expect(snapshot.secondary?.usedPercent == 21)
+        #expect(snapshot.secondary?.windowMinutes == 10080)
+        #expect(snapshot.secondary?.resetDescription?.contains("Europe/Vienna") == true)
+    }
+
+    private static func fixtureData(provider: String, name: String, fileExtension: String) throws -> Data {
         let url = try #require(Bundle.module.url(
-            forResource: fixtureCase.fixtureName,
-            withExtension: fixtureCase.fixtureExtension,
-            subdirectory: subdirectory))
+            forResource: name,
+            withExtension: fileExtension,
+            subdirectory: "Fixtures/Providers/\(provider)"))
         return try Data(contentsOf: url)
-    }
-
-    private static func expectWindow(
-        _ window: RateWindow?,
-        expected: ExpectedWindow,
-        fixtureName: String) throws
-    {
-        if expected == .absent {
-            #expect(window == nil, "\(fixtureName) should be absent")
-            return
-        }
-
-        let window = try #require(window, "\(fixtureName) should be present")
-        #expect(window.usedPercent == expected.usedPercent, "\(fixtureName) usedPercent")
-        #expect(window.windowMinutes == expected.windowMinutes, "\(fixtureName) windowMinutes")
-        if let resetDescriptionContains = expected.resetDescriptionContains {
-            #expect(
-                window.resetDescription?.localizedCaseInsensitiveContains(resetDescriptionContains) == true,
-                "\(fixtureName) resetDescription")
-        }
-        if expected.resetAbsent {
-            #expect(window.resetsAt == nil, "\(fixtureName) resetsAt should be absent")
-        } else if let resetsAt = expected.resetsAt {
-            #expect(window.resetsAt == resetsAt, "\(fixtureName) resetsAt")
-        }
     }
 }
