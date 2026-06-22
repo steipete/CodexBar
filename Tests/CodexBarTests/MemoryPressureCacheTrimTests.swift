@@ -58,6 +58,40 @@ struct MemoryPressureCacheTrimTests {
     }
 
     @Test
+    func `memory pressure source event handler can read source data from utility queue`() async {
+        let source = DispatchSource.makeMemoryPressureSource(
+            eventMask: [.warning, .critical],
+            queue: .global(qos: .utility))
+        source.setEventHandler {}
+        source.resume()
+        defer { source.cancel() }
+
+        let probe = MemoryPressureEventHandlerProbe()
+        let handler = MemoryPressureMonitor.makeEventHandler(
+            source: source,
+            handle: { isWarning, isCritical in
+                probe.record(
+                    isWarning: isWarning,
+                    isCritical: isCritical,
+                    handledOnMainThread: Thread.isMainThread)
+            })
+
+        DispatchQueue.global(qos: .utility).async {
+            probe.recordInvocationThread(isMainThread: Thread.isMainThread)
+            handler()
+        }
+
+        let completed = await Task.detached {
+            probe.wait(timeout: .now() + 2)
+        }.value
+        #expect(completed)
+
+        let snapshot = probe.snapshot()
+        #expect(snapshot.invokedOnMainThread == false)
+        #expect(snapshot.handledOnMainThread)
+    }
+
+    @Test
     func `status controller trims rebuildable menu caches on memory pressure`() {
         let controller = self.makeController()
         defer { controller.releaseStatusItemsForTesting() }
