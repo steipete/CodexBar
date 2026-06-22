@@ -214,10 +214,24 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                         style: .bordered,
                         isVisible: { true },
                         perform: {
+                            // Self-cleaning: drop our own previously auto-discovered
+                            // (source-pointer) accounts and re-add only the live ones,
+                            // so stale/revoked Keychain leftovers don't pile up.
+                            // Manually pasted accounts (raw tokens) are left untouched.
+                            for stale in context.settings.tokenAccounts(for: .claude)
+                                where stale.token.hasPrefix(ClaudeCredentialSource.descriptorPrefix)
+                            {
+                                context.settings.removeTokenAccount(provider: .claude, accountID: stale.id)
+                            }
                             let existing = Set(context.settings.tokenAccounts(for: .claude).map(\.token))
                             for account in ClaudeAccountDiscovery.discover() {
                                 let token = account.source.encodedTokenValue()
                                 guard !existing.contains(token) else { continue }
+                                // Only keep accounts whose credential actually
+                                // reads/refreshes — skips stale/revoked leftovers.
+                                guard (try? await ClaudeCredentialResolver
+                                    .resolveCredentials(from: account.source)) != nil
+                                else { continue }
                                 context.settings.addTokenAccount(
                                     provider: .claude,
                                     label: account.label,
