@@ -440,6 +440,9 @@ extension UsageStore {
         var selectedOutcome: ProviderFetchOutcome?
         var selectedSnapshot: UsageSnapshot?
         var sawAnyNonCancellationOutcome = false
+        // Relabel discovered accounts to their real email once a fetch reveals
+        // it (so tabs read "name@email" instead of "acct5"/keychain-suffix).
+        var relabels: [(id: UUID, label: String)] = []
 
         let results = await self.fetchTokenAccountOutcomes(provider: provider, accounts: limitedAccounts)
         guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
@@ -465,6 +468,12 @@ extension UsageStore {
                 selectedOutcome = outcome
                 selectedSnapshot = resolved.usage
             }
+            if let email = resolved.usage?.identity(for: provider)?.accountEmail?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !email.isEmpty, email != account.label
+            {
+                relabels.append((account.id, email))
+            }
         }
 
         // If every fetch was cancelled (e.g. the user closed/reopened the menu mid-flight)
@@ -475,6 +484,14 @@ extension UsageStore {
         if !shouldPreservePriorState {
             await MainActor.run {
                 self.accountSnapshots[provider] = snapshots
+            }
+        }
+
+        if !relabels.isEmpty {
+            await MainActor.run {
+                for (id, label) in relabels {
+                    self.settings.updateTokenAccount(provider: provider, accountID: id, label: label)
+                }
             }
         }
 
