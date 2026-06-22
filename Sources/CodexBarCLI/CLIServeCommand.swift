@@ -82,6 +82,14 @@ struct CLIServeConfigSnapshot {
     let cacheToken: String
 }
 
+private struct ServeRuntime: Sendable {
+    let configStore: CodexBarConfigStore
+    let cache: CLIServeResponseCache
+    let refreshInterval: TimeInterval
+    let requestTimeout: TimeInterval
+    let healthVersion: String?
+}
+
 private final class CLIServeDeadlineState: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<CLILocalHTTPResponse, Never>?
@@ -444,15 +452,18 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
-        let configStore = CodexBarConfigStore()
-        let cache = CLIServeResponseCache()
+        // Resolve the running build version once, at startup, before an in-place
+        // app/tarball update can replace the on-disk binary. Resolving it lazily
+        // per request would let a stale serve report the newly installed version
+        // and defeat the client stale-process detection this field exists for.
+        let runtime = ServeRuntime(
+            configStore: CodexBarConfigStore(),
+            cache: CLIServeResponseCache(),
+            refreshInterval: refreshInterval,
+            requestTimeout: requestTimeout,
+            healthVersion: Self.currentVersion())
         let server = CLILocalHTTPServer(host: "127.0.0.1", port: port) { request in
-            await Self.handleServeRequest(
-                request,
-                configStore: configStore,
-                cache: cache,
-                refreshInterval: refreshInterval,
-                requestTimeout: requestTimeout)
+            await Self.handleServeRequest(request, runtime: runtime)
         }
         let signalMonitor = CLITerminationSignalMonitor { _ in
             TTYCommandRunner.terminateActiveProcessesForAppShutdown()
@@ -517,10 +528,7 @@ extension CodexBarCLI {
 
     private static func handleServeRequest(
         _ request: CLILocalHTTPRequest,
-        configStore: CodexBarConfigStore,
-        cache: CLIServeResponseCache,
-        refreshInterval: TimeInterval,
-        requestTimeout: TimeInterval) async -> CLILocalHTTPResponse
+        runtime: ServeRuntime) async -> CLILocalHTTPResponse
     {
         let route: CLIServeRoute
         do {
@@ -536,37 +544,37 @@ extension CodexBarCLI {
 
         switch route {
         case .health:
-            return Self.serveHealthResponse(version: Self.serveHealthVersion)
+            return Self.serveHealthResponse(version: runtime.healthVersion)
         case let .usage(provider):
             let snapshot: CLIServeConfigSnapshot
             do {
-                snapshot = try Self.loadServeConfigSnapshot(configStore: configStore)
+                snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
             } catch {
                 return Self.serveError(status: .internalServerError, message: error.localizedDescription)
             }
             return await Self.cachedServeResponse(
                 key: Self.serveCacheKey(kind: "usage", provider: provider, configToken: snapshot.cacheToken),
-                cache: cache,
-                refreshInterval: refreshInterval,
-                requestTimeout: requestTimeout)
+                cache: runtime.cache,
+                refreshInterval: runtime.refreshInterval,
+                requestTimeout: runtime.requestTimeout)
             {
                 await Self.serveUsage(
                     provider: provider,
                     config: snapshot.config,
-                    refreshInterval: refreshInterval)
+                    refreshInterval: runtime.refreshInterval)
             }
         case let .cost(provider):
             let snapshot: CLIServeConfigSnapshot
             do {
-                snapshot = try Self.loadServeConfigSnapshot(configStore: configStore)
+                snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
             } catch {
                 return Self.serveError(status: .internalServerError, message: error.localizedDescription)
             }
             return await Self.cachedServeResponse(
                 key: Self.serveCacheKey(kind: "cost", provider: provider, configToken: snapshot.cacheToken),
-                cache: cache,
-                refreshInterval: refreshInterval,
-                requestTimeout: requestTimeout)
+                cache: runtime.cache,
+                refreshInterval: runtime.refreshInterval,
+                requestTimeout: runtime.requestTimeout)
             {
                 await Self.serveCost(provider: provider, config: snapshot.config)
             }
@@ -780,8 +788,6 @@ extension CodexBarCLI {
         }
         return selection
     }
-
-    private static let serveHealthVersion: String? = currentVersion()
 
     static func serveHealthResponse(version: String?) -> CLILocalHTTPResponse {
         self.serveJSON(ServeHealthPayload(status: "ok", version: version))
