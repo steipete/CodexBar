@@ -509,18 +509,11 @@ public struct ZaiUsageFetcher: Sendable {
 
     private static func quotaURL(baseURLString: String) -> URL? {
         guard let cleaned = ZaiSettingsReader.cleaned(baseURLString) else { return nil }
-
-        if let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) {
-            if url.path.isEmpty || url.path == "/" {
-                return url.appendingPathComponent(Self.quotaAPIPath)
-            }
-            return url
+        guard let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
+        if url.path.isEmpty || url.path == "/" {
+            return url.appendingPathComponent(Self.quotaAPIPath)
         }
-        guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
-        if base.path.isEmpty || base.path == "/" {
-            return base.appendingPathComponent(Self.quotaAPIPath)
-        }
-        return base
+        return url
     }
 }
 
@@ -783,18 +776,11 @@ extension ZaiUsageFetcher {
     private static func modelUsageURL(baseURLString: String) -> URL? {
         guard let cleaned = ZaiSettingsReader.cleaned(baseURLString) else { return nil }
         let path = "api/monitor/usage/model-usage"
-
-        if let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) {
-            if url.path.isEmpty || url.path == "/" {
-                return url.appendingPathComponent(path)
-            }
-            return url
+        guard let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
+        if url.path.isEmpty || url.path == "/" {
+            return url.appendingPathComponent(path)
         }
-        guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
-        if base.path.isEmpty || base.path == "/" {
-            return base.appendingPathComponent(path)
-        }
-        return base
+        return url
     }
 }
 

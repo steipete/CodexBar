@@ -607,13 +607,7 @@ struct ZaiBigModelTeamScopeTests {
     func `team quota rejects insecure override before sending credentials`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             Issue.record("Unexpected z.ai team quota request to \(request.url?.absoluteString ?? "<nil>")")
-            return (
-                Data(),
-                HTTPURLResponse(
-                    url: request.url ?? URL(string: "https://unused.example")!,
-                    statusCode: 200,
-                    httpVersion: nil,
-                    headerFields: nil)!)
+            throw URLError(.badURL)
         }
 
         await #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.quotaURLKey)) {
@@ -636,13 +630,7 @@ struct ZaiBigModelTeamScopeTests {
     func `team model usage rejects insecure API host before sending credentials`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             Issue.record("Unexpected z.ai team model usage request to \(request.url?.absoluteString ?? "<nil>")")
-            return (
-                Data(),
-                HTTPURLResponse(
-                    url: request.url ?? URL(string: "https://unused.example")!,
-                    statusCode: 200,
-                    httpVersion: nil,
-                    headerFields: nil)!)
+            throw URLError(.badURL)
         }
 
         await #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
