@@ -55,7 +55,6 @@ public enum AzureOpenAIUsageError: LocalizedError, Sendable, Equatable {
     case missingAPIKey
     case missingEndpoint
     case missingDeploymentName
-    case invalidEndpoint
     case invalidEndpointOverride(String)
     case invalidURL
     case networkError(String)
@@ -70,8 +69,6 @@ public enum AzureOpenAIUsageError: LocalizedError, Sendable, Equatable {
             AzureOpenAISettingsError.missingEndpoint.errorDescription
         case .missingDeploymentName:
             AzureOpenAISettingsError.missingDeploymentName.errorDescription
-        case .invalidEndpoint:
-            AzureOpenAISettingsError.invalidEndpoint.errorDescription
         case let .invalidEndpointOverride(key):
             AzureOpenAISettingsError.invalidEndpointOverride(key).errorDescription
         case .invalidURL:

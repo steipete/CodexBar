@@ -12,8 +12,12 @@ public enum AzureOpenAISettingsReader {
     }
 
     public static func endpoint(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
-        guard let rawEndpoint = self.cleaned(environment[self.endpointEnvironmentKey]) else { return nil }
+        guard let rawEndpoint = self.rawEndpoint(environment: environment) else { return nil }
         return self.endpointURL(from: rawEndpoint)
+    }
+
+    public static func rawEndpoint(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.cleaned(environment[self.endpointEnvironmentKey])
     }
 
     public static func deploymentName(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
@@ -33,7 +37,7 @@ public enum AzureOpenAISettingsReader {
     public static func validateEndpointOverrides(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        guard let rawEndpoint = self.cleaned(environment[self.endpointEnvironmentKey]) else { return }
+        guard let rawEndpoint = self.rawEndpoint(environment: environment) else { return }
         guard self.endpointURL(from: rawEndpoint) != nil else {
             throw AzureOpenAISettingsError.invalidEndpointOverride(self.endpointEnvironmentKey)
         }
@@ -59,7 +63,6 @@ public enum AzureOpenAISettingsError: LocalizedError, Sendable, Equatable {
     case missingAPIKey
     case missingEndpoint
     case missingDeploymentName
-    case invalidEndpoint
     case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
@@ -71,8 +74,6 @@ public enum AzureOpenAISettingsError: LocalizedError, Sendable, Equatable {
         case .missingDeploymentName:
             "Azure OpenAI deployment not configured. Set AZURE_OPENAI_DEPLOYMENT_NAME or configure a deployment " +
                 "in Settings."
-        case .invalidEndpoint:
-            "Azure OpenAI endpoint is invalid."
         case let .invalidEndpointOverride(key):
             "Azure OpenAI endpoint override \(key) is not allowed. " +
                 "Use an HTTPS endpoint without user info or encoded host tricks."
