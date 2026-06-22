@@ -50,6 +50,34 @@ public enum ClaudeCredentialResolver {
             scopes: [], rateLimitTier: nil)
     }
 
+    /// Best-effort account email for an access token, via the OAuth profile
+    /// endpoint. Used to label and de-duplicate discovered accounts. Returns nil
+    /// on any failure (network, scope, parse) — callers fall back gracefully.
+    public static func fetchAccountEmail(accessToken: String) async -> String? {
+        guard let url = URL(string: "https://api.anthropic.com/api/oauth/profile") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("claude-code/2.1.5", forHTTPHeaderField: "User-Agent")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return nil }
+            if let account = obj["account"] as? [String: Any],
+               let email = account["email"] as? String, !email.isEmpty
+            {
+                return email
+            }
+            if let email = obj["email"] as? String, !email.isEmpty { return email }
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
     static func refreshed(
         _ creds: ClaudeOAuthCredentials,
         persistTo source: ClaudeCredentialSource) async throws -> ClaudeOAuthCredentials

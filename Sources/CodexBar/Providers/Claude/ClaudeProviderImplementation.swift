@@ -224,19 +224,26 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                                 context.settings.removeTokenAccount(provider: .claude, accountID: stale.id)
                             }
                             let existing = Set(context.settings.tokenAccounts(for: .claude).map(\.token))
+                            var seenEmails = Set<String>()
                             for account in ClaudeAccountDiscovery.discover() {
                                 let token = account.source.encodedTokenValue()
                                 guard !existing.contains(token) else { continue }
                                 // Only keep accounts whose credential actually
                                 // reads/refreshes — skips stale/revoked leftovers.
-                                guard (try? await ClaudeCredentialResolver
-                                    .resolveCredentials(from: account.source)) != nil
+                                guard let creds = try? await ClaudeCredentialResolver
+                                    .resolveCredentials(from: account.source)
                                 else { continue }
+                                // Collapse duplicate Keychain slots of the SAME
+                                // login (one account in several config dirs) and
+                                // label by the real email.
+                                let email = await ClaudeCredentialResolver
+                                    .fetchAccountEmail(accessToken: creds.accessToken)
+                                if let email, !seenEmails.insert(email).inserted { continue }
                                 context.settings.addTokenAccount(
                                     provider: .claude,
-                                    label: account.label,
+                                    label: email ?? account.label,
                                     token: token,
-                                    externalIdentifier: token)
+                                    externalIdentifier: email ?? token)
                             }
                             await context.store.refreshProvider(.claude, allowDisabled: true)
                         }),
