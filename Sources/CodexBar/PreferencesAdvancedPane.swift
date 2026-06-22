@@ -7,6 +7,7 @@ struct AdvancedPane: View {
     @Bindable var settings: SettingsStore
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
+    @FocusState private var proxyURLFocused: Bool
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -38,7 +39,12 @@ struct AdvancedPane: View {
                         .textFieldStyle(.roundedBorder)
                         .disableAutocorrection(true)
                         .disabled(!self.settings.proxyEnabled)
+                        .focused(self.$proxyURLFocused)
                         .onSubmit { ProxyConfigurator.apply(from: self.settings) }
+                        .onChange(of: self.proxyURLFocused) { _, focused in
+                            // Apply when editing finishes (tab/click away), not only on Return.
+                            if !focused { ProxyConfigurator.apply(from: self.settings) }
+                        }
                     if let message = self.proxyValidationMessage {
                         Text(message)
                             .font(.footnote)
@@ -47,6 +53,10 @@ struct AdvancedPane: View {
                     }
                 }
                 .onChange(of: self.settings.proxyEnabled) {
+                    ProxyConfigurator.apply(from: self.settings)
+                }
+                .onDisappear {
+                    // Safety net for closing Preferences without the field losing focus first.
                     ProxyConfigurator.apply(from: self.settings)
                 }
 
