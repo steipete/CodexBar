@@ -676,7 +676,10 @@ extension UsageStore {
             provider: provider,
             settings: self.settings,
             override: override)
-        let sourceMode = self.sourceMode(for: provider)
+        let sourceMode = ProviderTokenAccountSourceModeResolver.effectiveSourceMode(
+            base: self.sourceMode(for: provider),
+            provider: provider,
+            account: account)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
             settings: self.settings,
             tokenOverride: override,
