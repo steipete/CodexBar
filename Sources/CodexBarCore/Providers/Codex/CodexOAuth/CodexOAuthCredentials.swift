@@ -139,6 +139,17 @@ public enum CodexOAuthCredentialsStore {
         let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
+        try self.applyPrivateFilePermissions(to: url)
+    }
+
+    private static func applyPrivateFilePermissions(to url: URL) throws {
+        #if os(macOS) || os(Linux)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o600))],
+            ofItemAtPath: url.path)
+        #else
+        _ = url
+        #endif
     }
 
     private static func parseLastRefresh(from raw: Any?) -> Date? {
