@@ -5,10 +5,13 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const docsDir = path.join(repoRoot, "docs");
+const args = process.argv.slice(2);
+const mode = parseMode(args);
 const cname = fs.readFileSync(path.join(docsDir, "CNAME"), "utf8").trim();
 const origin = "https://" + cname;
 const productName = "CodexBar";
 const source = "https://github.com/steipete/CodexBar";
+const outputPath = path.join(docsDir, "llms.txt");
 
 const pages = allHtml(docsDir)
   .map((file) => {
@@ -42,9 +45,27 @@ const lines = [
   "- Fetch only the pages needed for the current task; this is an index, not a full-site corpus.",
   "",
 ];
+const output = lines.join("\n");
 
-fs.writeFileSync(path.join(docsDir, "llms.txt"), lines.join("\n"), "utf8");
-console.log("wrote " + path.relative(repoRoot, path.join(docsDir, "llms.txt")));
+if (mode === "check") {
+  const current = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, "utf8") : null;
+  if (current !== output) {
+    console.error(`${path.relative(repoRoot, outputPath)} is out of date; run node Scripts/generate-llms.mjs`);
+    process.exit(1);
+  }
+  console.log("llms index OK: " + path.relative(repoRoot, outputPath));
+} else {
+  fs.writeFileSync(outputPath, output, "utf8");
+  console.log("wrote " + path.relative(repoRoot, outputPath));
+}
+
+function parseMode(values) {
+  if (values.length === 0) return "write";
+  if (values.length === 1 && (values[0] === "write" || values[0] === "--write")) return "write";
+  if (values.length === 1 && (values[0] === "check" || values[0] === "--check")) return "check";
+  console.error("Usage: node Scripts/generate-llms.mjs [write|--write|check|--check]");
+  process.exit(2);
+}
 
 function allHtml(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
