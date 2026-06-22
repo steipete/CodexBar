@@ -32,6 +32,23 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
     public let settings: ProviderDiagnosticSettingsSummary
     public let details: ProviderDiagnosticDetails?
 
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case timestamp
+        case platform
+        case appVersion
+        case provider
+        case displayName
+        case source
+        case sourceMode
+        case auth
+        case usage
+        case fetchAttempts
+        case error
+        case settings
+        case details
+    }
+
     public init(
         schemaVersion: String = "1.0",
         timestamp: Date,
@@ -62,6 +79,26 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
         self.error = error
         self.settings = settings
         self.details = details
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            schemaVersion: container.decode(String.self, forKey: .schemaVersion),
+            timestamp: container.decode(Date.self, forKey: .timestamp),
+            platform: container.decodeIfPresent(String.self, forKey: .platform)
+                ?? ProviderDiagnosticPlatform.current,
+            appVersion: container.decodeIfPresent(String.self, forKey: .appVersion),
+            provider: container.decode(String.self, forKey: .provider),
+            displayName: container.decode(String.self, forKey: .displayName),
+            source: container.decode(String.self, forKey: .source),
+            sourceMode: container.decode(String.self, forKey: .sourceMode),
+            auth: container.decode(ProviderDiagnosticAuthSummary.self, forKey: .auth),
+            usage: container.decodeIfPresent(ProviderDiagnosticUsageSummary.self, forKey: .usage),
+            fetchAttempts: container.decode([ProviderDiagnosticFetchAttempt].self, forKey: .fetchAttempts),
+            error: container.decodeIfPresent(ProviderDiagnosticError.self, forKey: .error),
+            settings: container.decode(ProviderDiagnosticSettingsSummary.self, forKey: .settings),
+            details: container.decodeIfPresent(ProviderDiagnosticDetails.self, forKey: .details))
     }
 }
 

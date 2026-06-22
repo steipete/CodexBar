@@ -49,6 +49,35 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
+    func `diagnostic export decodes legacy schema without platform metadata`() throws {
+        let export = ProviderDiagnosticExport(
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            provider: "openai",
+            displayName: "OpenAI",
+            source: "api",
+            sourceMode: "auto",
+            auth: ProviderDiagnosticAuthSummary(configured: true, modes: ["api"]),
+            usage: nil,
+            fetchAttempts: [],
+            error: nil,
+            settings: ProviderDiagnosticSettingsSummary(sourceMode: .auto),
+            details: nil)
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: Data(self.json(export).utf8)) as? [String: Any])
+        object.removeValue(forKey: "platform")
+        object.removeValue(forKey: "appVersion")
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(
+            ProviderDiagnosticExport.self,
+            from: JSONSerialization.data(withJSONObject: object))
+
+        #expect(decoded.platform == ProviderDiagnosticPlatform.current)
+        #expect(decoded.appVersion == nil)
+    }
+
+    @Test
     func `usage snapshot defaults legacy payloads to unknown confidence without reencoding unknown`() throws {
         let json = """
         {
