@@ -34,7 +34,7 @@ assert_gate true source $'M\tSources/CodexBar/App.swift'
 assert_gate false docs-site $'M\tdocs/index.html' $'M\tdocs/site.css' $'M\tdocs/site.js' \
   $'M\tdocs/site-locales.mjs' $'M\tdocs/social.html' $'M\tdocs/social.png' \
   $'M\tdocs/CNAME' $'M\tdocs/.nojekyll' $'M\tdocs/llms.txt'
-assert_gate false docs-site-assets $'M\tdocs/icon.png' $'M\tdocs/provider-logo.svg'
+assert_gate false docs-site-assets $'M\tdocs/icon.png' $'M\tdocs/logos/provider-logo.svg'
 assert_gate true docs-unknown-code $'M\tdocs/custom-tool.js'
 assert_gate true docs-site-with-config $'M\tdocs/site.css' $'M\tdocs/configuration.md'
 assert_gate true empty
