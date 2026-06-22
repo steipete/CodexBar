@@ -239,9 +239,17 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                                 let email = await ClaudeCredentialResolver
                                     .fetchAccountEmail(accessToken: creds.accessToken)
                                 if let email, !seenEmails.insert(email).inserted { continue }
+                                let plan = ClaudePlan.fromOAuthCredentials(
+                                    subscriptionType: creds.subscriptionType,
+                                    rateLimitTier: creds.rateLimitTier)?.compactLoginMethod
+                                let label: String = switch (email, plan) {
+                                case let (email?, plan?): "\(email) · \(plan)"
+                                case let (email?, nil): email
+                                default: account.label
+                                }
                                 context.settings.addTokenAccount(
                                     provider: .claude,
-                                    label: email ?? account.label,
+                                    label: label,
                                     token: token,
                                     externalIdentifier: email ?? token)
                             }
