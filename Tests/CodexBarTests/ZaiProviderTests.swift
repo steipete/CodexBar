@@ -27,6 +27,30 @@ struct ZaiSettingsReaderTests {
             .quotaURL(environment: [ZaiSettingsReader.quotaURLKey: "open.bigmodel.cn/api/coding"])
         #expect(url?.absoluteString == "https://open.bigmodel.cn/api/coding")
     }
+
+    @Test
+    func `endpoint override validation accepts HTTPS and bare hosts`() throws {
+        try ZaiSettingsReader.validateEndpointOverrides(environment: [
+            ZaiSettingsReader.quotaURLKey: "https://open.bigmodel.cn/api/coding",
+        ])
+        try ZaiSettingsReader.validateEndpointOverrides(environment: [
+            ZaiSettingsReader.apiHostKey: "open.bigmodel.cn",
+        ])
+    }
+
+    @Test
+    func `endpoint override validation rejects insecure URLs`() {
+        #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.quotaURLKey)) {
+            try ZaiSettingsReader.validateEndpointOverrides(environment: [
+                ZaiSettingsReader.quotaURLKey: "http://attacker.test/quota",
+            ])
+        }
+        #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
+            try ZaiSettingsReader.validateEndpointOverrides(environment: [
+                ZaiSettingsReader.apiHostKey: "http://attacker.test",
+            ])
+        }
+    }
 }
 
 struct ZaiUsageSnapshotTests {
@@ -577,6 +601,64 @@ struct ZaiBigModelTeamScopeTests {
         #expect(request.value(forHTTPHeaderField: "Bigmodel-Organization") == "org-test")
         #expect(request.value(forHTTPHeaderField: "Bigmodel-Project") == "proj-test")
         #expect(usage.modelNames == ["glm-4.6"])
+    }
+
+    @Test
+    func `team quota rejects insecure override before sending credentials`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            Issue.record("Unexpected z.ai team quota request to \(request.url?.absoluteString ?? "<nil>")")
+            return (
+                Data(),
+                HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://unused.example")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil)!)
+        }
+
+        await #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.quotaURLKey)) {
+            try await ZaiUsageFetcher.fetchUsage(
+                apiKey: "zai-test-token",
+                region: .bigmodelCN,
+                usageScope: .team,
+                teamContext: ZaiBigModelTeamContext(
+                    organizationID: "org-test",
+                    projectID: "proj-test"),
+                environment: [ZaiSettingsReader.quotaURLKey: "http://attacker.test/quota"],
+                transport: transport)
+        }
+
+        let requests = await transport.requests()
+        #expect(requests.isEmpty)
+    }
+
+    @Test
+    func `team model usage rejects insecure API host before sending credentials`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            Issue.record("Unexpected z.ai team model usage request to \(request.url?.absoluteString ?? "<nil>")")
+            return (
+                Data(),
+                HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://unused.example")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil)!)
+        }
+
+        await #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
+            try await ZaiUsageFetcher.fetchModelUsage(
+                apiKey: "zai-test-token",
+                region: .bigmodelCN,
+                usageScope: .team,
+                teamContext: ZaiBigModelTeamContext(
+                    organizationID: "org-test",
+                    projectID: "proj-test"),
+                environment: [ZaiSettingsReader.apiHostKey: "http://attacker.test"],
+                transport: transport)
+        }
+
+        let requests = await transport.requests()
+        #expect(requests.isEmpty)
     }
 
     private func expectMissingTeamContext(_ operation: () async throws -> Void) async {

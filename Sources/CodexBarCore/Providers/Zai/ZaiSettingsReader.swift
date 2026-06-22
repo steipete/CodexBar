@@ -26,10 +26,35 @@ public struct ZaiSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         guard let raw = self.cleaned(environment[quotaURLKey]) else { return nil }
-        if let url = URL(string: raw), url.scheme != nil {
-            return url
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
+    }
+
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        try self.validateQuotaEndpointOverride(environment: environment)
+    }
+
+    public static func validateQuotaEndpointOverride(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        if let raw = self.cleaned(environment[self.quotaURLKey]) {
+            guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) != nil else {
+                throw ZaiSettingsError.invalidEndpointOverride(self.quotaURLKey)
+            }
+            return
         }
-        return URL(string: "https://\(raw)")
+
+        try self.validateAPIHostEndpointOverride(environment: environment)
+    }
+
+    public static func validateAPIHostEndpointOverride(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        guard let raw = self.cleaned(environment[self.apiHostKey]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) != nil else {
+            throw ZaiSettingsError.invalidEndpointOverride(self.apiHostKey)
+        }
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -48,13 +73,16 @@ public struct ZaiSettingsReader: Sendable {
     }
 }
 
-public enum ZaiSettingsError: LocalizedError, Sendable {
+public enum ZaiSettingsError: LocalizedError, Sendable, Equatable {
     case missingToken
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingToken:
             "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY."
+        case let .invalidEndpointOverride(key):
+            "z.ai endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

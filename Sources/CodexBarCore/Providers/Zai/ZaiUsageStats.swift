@@ -363,6 +363,7 @@ public struct ZaiUsageFetcher: Sendable {
         guard !apiKey.isEmpty else {
             throw ZaiUsageError.invalidCredentials
         }
+        try ZaiSettingsReader.validateQuotaEndpointOverride(environment: environment)
 
         let resolvedScope = usageScope ?? .personal
         let quotaURL = try self.requestURL(
@@ -509,13 +510,13 @@ public struct ZaiUsageFetcher: Sendable {
     private static func quotaURL(baseURLString: String) -> URL? {
         guard let cleaned = ZaiSettingsReader.cleaned(baseURLString) else { return nil }
 
-        if let url = URL(string: cleaned), url.scheme != nil {
+        if let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) {
             if url.path.isEmpty || url.path == "/" {
                 return url.appendingPathComponent(Self.quotaAPIPath)
             }
             return url
         }
-        guard let base = URL(string: "https://\(cleaned)") else { return nil }
+        guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         if base.path.isEmpty || base.path == "/" {
             return base.appendingPathComponent(Self.quotaAPIPath)
         }
@@ -644,6 +645,7 @@ extension ZaiUsageFetcher {
         guard !apiKey.isEmpty else {
             throw ZaiUsageError.invalidCredentials
         }
+        try ZaiSettingsReader.validateAPIHostEndpointOverride(environment: environment)
 
         let resolvedScope = usageScope ?? .personal
         let resolvedTeamContext = try self.resolvedTeamContext(
@@ -782,13 +784,13 @@ extension ZaiUsageFetcher {
         guard let cleaned = ZaiSettingsReader.cleaned(baseURLString) else { return nil }
         let path = "api/monitor/usage/model-usage"
 
-        if let url = URL(string: cleaned), url.scheme != nil {
+        if let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) {
             if url.path.isEmpty || url.path == "/" {
                 return url.appendingPathComponent(path)
             }
             return url
         }
-        guard let base = URL(string: "https://\(cleaned)") else { return nil }
+        guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         if base.path.isEmpty || base.path == "/" {
             return base.appendingPathComponent(path)
         }
