@@ -44,10 +44,14 @@ public enum TokenAccountSupportCatalog {
         case let .environment(key):
             return [key: token]
         case .cookieHeader:
-            if provider == .claude,
-               case let route = ClaudeCredentialRouting.resolve(tokenAccountToken: token, manualCookieHeader: nil)
-            {
-                switch route {
+            if provider == .claude {
+                // A refreshable source pointer (multi-account) is passed through
+                // verbatim; the Claude fetcher resolves + refreshes it per
+                // account at fetch time (it can't be refreshed synchronously here).
+                if ClaudeCredentialSource.parse(token).isRefreshableSource {
+                    return [ClaudeCredentialSource.environmentDescriptorKey: token]
+                }
+                switch ClaudeCredentialRouting.resolve(tokenAccountToken: token, manualCookieHeader: nil) {
                 case let .oauth(accessToken):
                     return [ClaudeOAuthCredentialsStore.environmentTokenKey: accessToken]
                 case let .adminAPIKey(apiKey):
@@ -75,6 +79,7 @@ public enum TokenAccountSupportCatalog {
         case .cookieHeader:
             guard provider == .claude else { return }
             environment.removeValue(forKey: ClaudeOAuthCredentialsStore.environmentTokenKey)
+            environment.removeValue(forKey: ClaudeCredentialSource.environmentDescriptorKey)
             for key in ClaudeAdminAPISettingsReader.apiKeyEnvironmentKeys {
                 environment.removeValue(forKey: key)
             }

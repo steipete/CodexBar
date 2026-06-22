@@ -199,6 +199,36 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "claude-discover-accounts",
+                title: "Multiple accounts",
+                subtitle: "Find your Claude Code logins (~/.claude*) and track each as a separate "
+                    + "account, refreshed independently.",
+                kind: .plain,
+                placeholder: nil,
+                binding: .constant(""),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "claude-discover-accounts-action",
+                        title: "Discover accounts",
+                        style: .bordered,
+                        isVisible: { true },
+                        perform: {
+                            let existing = Set(context.settings.tokenAccounts(for: .claude).map(\.token))
+                            for account in ClaudeAccountDiscovery.discover() {
+                                let token = account.source.encodedTokenValue()
+                                guard !existing.contains(token) else { continue }
+                                context.settings.addTokenAccount(
+                                    provider: .claude,
+                                    label: account.label,
+                                    token: token,
+                                    externalIdentifier: token)
+                            }
+                            await context.store.refreshProvider(.claude, allowDisabled: true)
+                        }),
+                ],
+                isVisible: nil,
+                onActivate: nil),
         ]
     }
 
