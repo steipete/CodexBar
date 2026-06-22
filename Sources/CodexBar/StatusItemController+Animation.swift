@@ -17,11 +17,6 @@ extension StatusItemController {
         let label: String
         let primary: String
         let weekly: String?
-
-        var compactValue: String {
-            guard let weekly else { return self.primary }
-            return "\(self.primary)/\(weekly)"
-        }
     }
 
     private struct MenuBarQuotaText: Equatable {
@@ -1057,7 +1052,11 @@ extension StatusItemController {
     }
 
     private static func menuBarStatsDisplayText(_ segments: [MenuBarStatSegment]) -> String {
-        segments.map { "\($0.label) \($0.compactValue)" }.joined(separator: " · ")
+        let primaryRow = segments.map { "\($0.label) \($0.primary)" }.joined(separator: " · ")
+        guard segments.contains(where: { $0.weekly != nil }) else { return primaryRow }
+
+        let weeklyRow = segments.map { $0.weekly ?? "-" }.joined(separator: " · ")
+        return "5h \(primaryRow) / 7d \(weeklyRow)"
     }
 
     private static func menuBarStatsImage(
@@ -1070,8 +1069,9 @@ extension StatusItemController {
         let canvasHeight: CGFloat = 22
         let iconSize: CGFloat = 15
         let iconGap: CGFloat = 4
-        let segmentGap: CGFloat = 7
+        let segmentGap: CGFloat = 8
         let trailingPadding: CGFloat = 1
+        let showsWeeklyRow = segments.contains { $0.weekly != nil }
         let topAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10.5, weight: .semibold),
             .foregroundColor: NSColor.black,
@@ -1080,6 +1080,10 @@ extension StatusItemController {
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
             .foregroundColor: NSColor.black.withAlphaComponent(0.86),
         ]
+        let rowLabelAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .semibold),
+            .foregroundColor: NSColor.black.withAlphaComponent(0.72),
+        ]
         let segmentSizes = segments.map { segment -> (top: CGSize, bottom: CGSize, width: CGFloat) in
             let topText = Self.menuBarStatsTopText(segment)
             let bottomText = segment.weekly ?? ""
@@ -1087,7 +1091,15 @@ extension StatusItemController {
             let bottomSize = Self.menuBarStatsTextSize(bottomText, attributes: bottomAttributes)
             return (topSize, bottomSize, ceil(max(topSize.width, bottomSize.width)))
         }
+        let rowLabelWidth: CGFloat = showsWeeklyRow
+            ? ceil(max(
+                Self.menuBarStatsTextSize("5h", attributes: rowLabelAttributes).width,
+                Self.menuBarStatsTextSize("7d", attributes: rowLabelAttributes).width))
+            : 0
+        let rowLabelGap: CGFloat = showsWeeklyRow ? 4 : 0
         let segmentsWidth = segmentSizes.reduce(CGFloat(0)) { $0 + $1.width } +
+            rowLabelWidth +
+            rowLabelGap +
             segmentGap * CGFloat(max(0, segments.count - 1))
         let width = ceil(iconSize + iconGap + segmentsWidth + trailingPadding)
         let size = NSSize(width: width, height: canvasHeight)
@@ -1109,6 +1121,18 @@ extension StatusItemController {
             fraction: 1.0)
 
         var x = iconSize + iconGap
+        if showsWeeklyRow {
+            Self.drawMenuBarStatsText(
+                "5h",
+                at: CGPoint(x: x, y: 11),
+                attributes: rowLabelAttributes)
+            Self.drawMenuBarStatsText(
+                "7d",
+                at: CGPoint(x: x, y: 1.8),
+                attributes: rowLabelAttributes)
+            x += rowLabelWidth + rowLabelGap
+        }
+
         for (index, segment) in segments.enumerated() {
             if index > 0 {
                 x += segmentGap

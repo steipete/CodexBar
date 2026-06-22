@@ -1208,7 +1208,7 @@ struct StatusItemAnimationTests {
 
         let displayText = controller.menuBarDisplayText(for: .claude, snapshot: store.snapshot(for: .claude))
 
-        #expect(displayText == "Codex 70%/55% · C1 90%/80% · C2 80%/70%")
+        #expect(displayText == "5h Codex 70% · C1 90% · C2 80% / 7d 55% · 80% · 70%")
 
         controller.applyIcon(phase: nil)
 
