@@ -847,6 +847,17 @@ enum CostUsageDateParser {
     }
 }
 
+enum CostUsageBucketInterval {
+    static func contains(
+        _ date: Date,
+        startTime: Date,
+        endTime: Date) -> Bool
+    {
+        guard startTime < endTime else { return false }
+        return startTime <= date && date < endTime
+    }
+}
+
 enum CostUsageLocalDay {
     static func key(from date: Date, calendar: Calendar = .current) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
@@ -854,18 +865,5 @@ enum CostUsageLocalDay {
         let month = components.month ?? 0
         let day = components.day ?? 0
         return String(format: "%04d-%02d-%02d", year, month, day)
-    }
-
-    static func intervalOverlapsLocalDay(
-        startTime: Date,
-        endTime: Date,
-        localDayContaining date: Date,
-        calendar: Calendar = .current) -> Bool
-    {
-        let localDayStart = calendar.startOfDay(for: date)
-        guard let localDayEnd = calendar.date(byAdding: .day, value: 1, to: localDayStart) else {
-            return false
-        }
-        return startTime < localDayEnd && endTime > localDayStart
     }
 }

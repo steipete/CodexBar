@@ -137,13 +137,12 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
         self.summary(days: 1)
     }
 
-    public func summary(forLocalDayContaining date: Date, calendar: Calendar = .current) -> Summary {
+    public func summary(forLocalDayContaining date: Date, calendar _: Calendar = .current) -> Summary {
         let selected = self.daily.filter { bucket in
-            CostUsageLocalDay.intervalOverlapsLocalDay(
+            CostUsageBucketInterval.contains(
+                date,
                 startTime: bucket.startTime,
-                endTime: bucket.endTime,
-                localDayContaining: date,
-                calendar: calendar)
+                endTime: bucket.endTime)
         }
         return Summary(
             costUSD: selected.reduce(0) { $0 + $1.costUSD },
