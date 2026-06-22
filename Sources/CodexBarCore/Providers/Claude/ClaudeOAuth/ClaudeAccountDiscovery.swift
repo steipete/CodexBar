@@ -1,5 +1,8 @@
 import Crypto
 import Foundation
+#if os(macOS)
+import Security
+#endif
 
 /// A Claude login discovered on this machine, expressed as a refreshable
 /// `ClaudeCredentialSource` so the fetch path can read AND refresh it per
@@ -16,24 +19,123 @@ public struct DiscoveredClaudeAccount: Sendable, Equatable {
     }
 }
 
-/// Finds the Claude Code logins on this machine by scanning `~/.claude*` config
-/// directories — the same layout Clawd Pet enumerates. Each directory maps to
-/// either a credentials file or a Keychain service.
+/// Finds the Claude Code logins on this machine.
 ///
-/// Prompt-safety: discovery only checks directory/file existence and *computes*
-/// Keychain service names; it never reads a token, so it cannot trigger a
-/// Keychain prompt. The token read (and any prompt) happens later, per account,
-/// in `ClaudeCredentialResolver` at fetch time.
+/// Source of truth is the **Keychain itself**: it enumerates the real
+/// `Claude Code-credentials*` generic-password services (attributes only — no
+/// token data, so it does not prompt), newest first, instead of guessing
+/// service names from `~/.claude*` paths (which doesn't survive moved/renamed
+/// config dirs). `~/.claude*` dirs are used only to give matching accounts a
+/// friendly label and to pick up file-based credential stores.
+///
+/// The actual token read (and any Keychain prompt) happens later, per account,
+/// in `ClaudeCredentialResolver` at fetch time — only for accounts shown.
 public enum ClaudeAccountDiscovery {
-    /// Default (no CLAUDE_CONFIG_DIR) Keychain service used by Claude Code.
     public static let defaultKeychainService = "Claude Code-credentials"
     private static let credentialsFileName = ".credentials.json"
 
-    /// Keychain service Claude Code uses for a given config dir. `~/.claude`
-    /// uses the bare service; a CLAUDE_CONFIG_DIR uses
-    /// `"Claude Code-credentials-" + sha256(absolutePath)[0..<8]` (the scheme
-    /// Clawd Pet decodes). The path is hashed verbatim (no symlink resolution)
-    /// to match what Claude Code stored.
+    public static func discover(
+        homeDirectory: String = NSHomeDirectory(),
+        fileManager: FileManager = .default,
+        maxAccounts: Int = 4) -> [DiscoveredClaudeAccount]
+    {
+        let configDirs = self.claudeConfigDirectories(homeDirectory: homeDirectory, fileManager: fileManager)
+        let fileCredsDirs = configDirs.filter { dir in
+            fileManager.fileExists(
+                atPath: (dir as NSString).appendingPathComponent(self.credentialsFileName))
+        }
+        return self.assemble(
+            homeDirectory: homeDirectory,
+            configDirectories: configDirs,
+            fileCredsDirectories: fileCredsDirs,
+            keychainServicesNewestFirst: self.keychainServices(),
+            maxAccounts: maxAccounts)
+    }
+
+    /// Pure assembly (no Keychain / filesystem) so it is unit-testable: pick the
+    /// default store, any file-based stores, then the most-recently-used
+    /// remaining Keychain services up to `maxAccounts`, deduped, each labelled
+    /// from its matching `~/.claude*` dir when one exists.
+    static func assemble(
+        homeDirectory: String,
+        configDirectories: [String],
+        fileCredsDirectories: [String],
+        keychainServicesNewestFirst: [String],
+        maxAccounts: Int) -> [DiscoveredClaudeAccount]
+    {
+        let defaultClaudeDir = (homeDirectory as NSString).appendingPathComponent(".claude")
+        // computed service -> friendly dir label (best-effort)
+        var labelByService: [String: String] = [:]
+        for dir in configDirectories {
+            let service = self.keychainServiceName(
+                forConfigDirectory: dir, defaultClaudeDirectory: defaultClaudeDir)
+            labelByService[service] = self.label(
+                forConfigDirectory: dir, defaultClaudeDirectory: defaultClaudeDir)
+        }
+
+        var seen = Set<String>()
+        var accounts: [DiscoveredClaudeAccount] = []
+        func add(_ source: ClaudeCredentialSource, _ label: String, _ dir: String) {
+            guard seen.insert(source.encodedTokenValue()).inserted else { return }
+            accounts.append(DiscoveredClaudeAccount(source: source, label: label, configDirectory: dir))
+        }
+
+        // 1) file-based stores (rare on macOS, but authoritative when present)
+        for dir in fileCredsDirectories {
+            let path = (dir as NSString).appendingPathComponent(self.credentialsFileName)
+            add(.credentialsFile(path: path),
+                self.label(forConfigDirectory: dir, defaultClaudeDirectory: defaultClaudeDir), dir)
+        }
+
+        // 2) the default Keychain login, if present
+        if keychainServicesNewestFirst.contains(self.defaultKeychainService) {
+            add(.keychainService(service: self.defaultKeychainService, account: nil), "Claude", defaultClaudeDir)
+        }
+
+        // 3) remaining Keychain services, most-recently-used first, capped
+        for service in keychainServicesNewestFirst where service != self.defaultKeychainService {
+            if accounts.count >= max(1, maxAccounts) { break }
+            let label = labelByService[service] ?? self.shortSuffix(of: service)
+            add(.keychainService(service: service, account: nil), label, "")
+        }
+        return accounts
+    }
+
+    /// Real `Claude Code-credentials*` Keychain services, newest first.
+    /// Attributes-only query (no `kSecReturnData`) so it does not prompt.
+    static func keychainServices() -> [String] {
+        #if os(macOS)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+            kSecReturnAttributes as String: true,
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let rows = result as? [[String: Any]]
+        else {
+            return []
+        }
+        var newestByService: [String: Date] = [:]
+        for row in rows {
+            guard let service = row[kSecAttrService as String] as? String,
+                  service.hasPrefix(self.defaultKeychainService)
+            else { continue }
+            let modified = (row[kSecAttrModificationDate as String] as? Date)
+                ?? (row[kSecAttrCreationDate as String] as? Date)
+                ?? .distantPast
+            if let existing = newestByService[service], existing >= modified { continue }
+            newestByService[service] = modified
+        }
+        return newestByService.sorted { $0.value > $1.value }.map(\.key)
+        #else
+        return []
+        #endif
+    }
+
+    /// Keychain service Claude Code uses for a config dir (used only for nice
+    /// labels now): `~/.claude` → bare service; else
+    /// `"Claude Code-credentials-" + sha256(absolutePath)[0..<8]`.
     public static func keychainServiceName(
         forConfigDirectory configDir: String,
         defaultClaudeDirectory: String) -> String
@@ -41,34 +143,7 @@ public enum ClaudeAccountDiscovery {
         if configDir == defaultClaudeDirectory {
             return self.defaultKeychainService
         }
-        let suffix = self.sha256Hex(configDir).prefix(8)
-        return "\(self.defaultKeychainService)-\(suffix)"
-    }
-
-    /// Enumerate Claude logins from `~/.claude*` config directories.
-    public static func discover(
-        homeDirectory: String = NSHomeDirectory(),
-        fileManager: FileManager = .default) -> [DiscoveredClaudeAccount]
-    {
-        let defaultClaudeDir = (homeDirectory as NSString).appendingPathComponent(".claude")
-        var seen = Set<String>()
-        var accounts: [DiscoveredClaudeAccount] = []
-        for dir in self.claudeConfigDirectories(homeDirectory: homeDirectory, fileManager: fileManager) {
-            let credsFile = (dir as NSString).appendingPathComponent(self.credentialsFileName)
-            let source: ClaudeCredentialSource = fileManager.fileExists(atPath: credsFile)
-                ? .credentialsFile(path: credsFile)
-                : .keychainService(
-                    service: self.keychainServiceName(
-                        forConfigDirectory: dir,
-                        defaultClaudeDirectory: defaultClaudeDir),
-                    account: nil)
-            guard seen.insert(source.encodedTokenValue()).inserted else { continue }
-            accounts.append(DiscoveredClaudeAccount(
-                source: source,
-                label: self.label(forConfigDirectory: dir, defaultClaudeDirectory: defaultClaudeDir),
-                configDirectory: dir))
-        }
-        return accounts
+        return "\(self.defaultKeychainService)-\(self.sha256Hex(configDir).prefix(8))"
     }
 
     static func claudeConfigDirectories(
@@ -97,6 +172,14 @@ public enum ClaudeAccountDiscovery {
             return String(name[range.upperBound...])
         }
         return name
+    }
+
+    static func shortSuffix(of service: String) -> String {
+        let prefix = self.defaultKeychainService + "-"
+        if service.hasPrefix(prefix) {
+            return "Claude " + String(service.dropFirst(prefix.count))
+        }
+        return "Claude"
     }
 
     private static func sha256Hex(_ string: String) -> String {

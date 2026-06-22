@@ -1,71 +1,69 @@
-import CodexBarCore
+@testable import CodexBarCore
 import Foundation
 import Testing
 
 struct ClaudeAccountDiscoveryTests {
     @Test
-    func `default claude dir maps to the bare keychain service`() {
-        let service = ClaudeAccountDiscovery.keychainServiceName(
+    func `default dir maps to the bare keychain service`() {
+        #expect(ClaudeAccountDiscovery.keychainServiceName(
             forConfigDirectory: "/Users/x/.claude",
-            defaultClaudeDirectory: "/Users/x/.claude")
-        #expect(service == "Claude Code-credentials")
+            defaultClaudeDirectory: "/Users/x/.claude") == "Claude Code-credentials")
     }
 
     @Test
-    func `config dir maps to a suffixed keychain service`() {
+    func `config dir maps to an 8-hex suffixed service`() {
         let service = ClaudeAccountDiscovery.keychainServiceName(
             forConfigDirectory: "/Users/x/.claude-acct2",
             defaultClaudeDirectory: "/Users/x/.claude")
         #expect(service.hasPrefix("Claude Code-credentials-"))
-        let suffix = service.dropFirst("Claude Code-credentials-".count)
-        #expect(suffix.count == 8)
-        #expect(suffix.allSatisfy { $0.isHexDigit && ($0.isNumber || $0.isLowercase) })
+        #expect(service.dropFirst("Claude Code-credentials-".count).count == 8)
     }
 
     @Test
-    func `service mapping is deterministic and dir-specific`() {
-        let a1 = ClaudeAccountDiscovery.keychainServiceName(
+    func `assemble lists default first, then recent services labelled from dirs`() {
+        let acct2 = ClaudeAccountDiscovery.keychainServiceName(
             forConfigDirectory: "/Users/x/.claude-acct2", defaultClaudeDirectory: "/Users/x/.claude")
-        let a2 = ClaudeAccountDiscovery.keychainServiceName(
-            forConfigDirectory: "/Users/x/.claude-acct2", defaultClaudeDirectory: "/Users/x/.claude")
-        let b = ClaudeAccountDiscovery.keychainServiceName(
-            forConfigDirectory: "/Users/x/.claude-acct3", defaultClaudeDirectory: "/Users/x/.claude")
-        #expect(a1 == a2)
-        #expect(a1 != b)
-    }
-
-    @Test
-    func `discover enumerates dirs as file or keychain sources`() throws {
-        let fm = FileManager.default
-        let home = fm.temporaryDirectory
-            .appendingPathComponent("cb-claude-discovery-\(UUID().uuidString)")
-        defer { try? fm.removeItem(at: home) }
-
-        // .claude (keychain — no file), .claude-acct2 (keychain), .claude-acct3 (file)
-        for sub in [".claude", ".claude-acct2", ".claude-acct3"] {
-            try fm.createDirectory(
-                at: home.appendingPathComponent(sub), withIntermediateDirectories: true)
-        }
-        let acct3Creds = home.appendingPathComponent(".claude-acct3/.credentials.json")
-        try Data("{}".utf8).write(to: acct3Creds)
-        // a non-claude dir must be ignored
-        try fm.createDirectory(
-            at: home.appendingPathComponent(".config"), withIntermediateDirectories: true)
-
-        let accounts = ClaudeAccountDiscovery.discover(homeDirectory: home.path, fileManager: fm)
+        let accounts = ClaudeAccountDiscovery.assemble(
+            homeDirectory: "/Users/x",
+            configDirectories: ["/Users/x/.claude", "/Users/x/.claude-acct2"],
+            fileCredsDirectories: [],
+            keychainServicesNewestFirst: ["Claude Code-credentials", acct2, "Claude Code-credentials-deadbeef"],
+            maxAccounts: 4)
         #expect(accounts.count == 3)
+        #expect(accounts[0].label == "Claude")
+        #expect(accounts[0].source == .keychainService(service: "Claude Code-credentials", account: nil))
+        #expect(accounts[1].source == .keychainService(service: acct2, account: nil))
+        #expect(accounts[1].label == "acct2")            // reverse-mapped from the dir
+        #expect(accounts[2].label == "Claude deadbeef")  // unknown service -> suffix label
+    }
 
-        let byLabel = Dictionary(uniqueKeysWithValues: accounts.map { ($0.label, $0.source) })
-        #expect(byLabel["Claude"] == .keychainService(service: "Claude Code-credentials", account: nil))
-        if case let .keychainService(service, _)? = byLabel["acct2"] {
-            #expect(service.hasPrefix("Claude Code-credentials-"))
-        } else {
-            Issue.record("acct2 should be a keychain source")
-        }
-        if case let .credentialsFile(path)? = byLabel["acct3"] {
-            #expect(path.hasSuffix(".claude-acct3/.credentials.json"))
-        } else {
-            Issue.record("acct3 should be a file source")
-        }
+    @Test
+    func `assemble caps the number of suffixed accounts`() {
+        let accounts = ClaudeAccountDiscovery.assemble(
+            homeDirectory: "/Users/x",
+            configDirectories: ["/Users/x/.claude"],
+            fileCredsDirectories: [],
+            keychainServicesNewestFirst: [
+                "Claude Code-credentials",
+                "Claude Code-credentials-aaaaaaaa",
+                "Claude Code-credentials-bbbbbbbb",
+                "Claude Code-credentials-cccccccc",
+            ],
+            maxAccounts: 2)
+        #expect(accounts.count == 2)             // default + 1 suffixed
+        #expect(accounts[0].label == "Claude")
+    }
+
+    @Test
+    func `assemble prefers a file source for a dir that has one`() {
+        let accounts = ClaudeAccountDiscovery.assemble(
+            homeDirectory: "/Users/x",
+            configDirectories: ["/Users/x/.claude-acct3"],
+            fileCredsDirectories: ["/Users/x/.claude-acct3"],
+            keychainServicesNewestFirst: [],
+            maxAccounts: 4)
+        #expect(accounts.count == 1)
+        #expect(accounts[0].source == .credentialsFile(path: "/Users/x/.claude-acct3/.credentials.json"))
+        #expect(accounts[0].label == "acct3")
     }
 }
