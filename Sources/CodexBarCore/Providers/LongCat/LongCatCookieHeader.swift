@@ -26,7 +26,11 @@ public enum LongCatCookieHeader {
             }
         }
 
-        if let envHeader = self.override(from: context.env["LONGCAT_MANUAL_COOKIE"]) {
+        // Route env cookies through the settings reader so the lower-case
+        // `longcat_manual_cookie` alias and quote-trimming apply on the env path too.
+        if let envValue = LongCatSettingsReader.cookieHeader(environment: context.env),
+           let envHeader = self.override(from: envValue)
+        {
             return envHeader
         }
 
