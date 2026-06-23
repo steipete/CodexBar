@@ -145,6 +145,33 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
         self.summary(days: 1)
     }
 
+    /// Summary for the current local day (derived from `updatedAt`), or a zero
+    /// summary when there is no bucket for today — so a "Today" label never shows
+    /// a stale historical bucket (#1705).
+    public func currentDay(calendar: Calendar = .current) -> Summary {
+        let key = CostUsageTokenSnapshot.localDayKey(from: self.updatedAt, calendar: calendar)
+        let match = self.daily.first { bucket in
+            guard let date = CostUsageDateParser.parse(bucket.day) else { return false }
+            return CostUsageTokenSnapshot.localDayKey(from: date, calendar: calendar) == key
+        }
+        guard let match else {
+            return Summary(
+                costUSD: 0,
+                requests: 0,
+                inputTokens: 0,
+                cachedInputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0)
+        }
+        return Summary(
+            costUSD: match.costUSD,
+            requests: match.requests,
+            inputTokens: match.inputTokens,
+            cachedInputTokens: match.cachedInputTokens,
+            outputTokens: match.outputTokens,
+            totalTokens: match.totalTokens)
+    }
+
     public func summary(days: Int) -> Summary {
         let selected = self.daily.suffix(max(1, days))
         return Summary(
@@ -238,12 +265,14 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
                 modelsUsed: modelsUsed.isEmpty ? nil : modelsUsed,
                 modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
         }
-        let latest = self.latestDay
+        // sessionTokens/sessionCostUSD feed "Today" labels, so use the current local
+        // day (zero when no usage today), never the latest historical bucket (#1705).
+        let today = self.currentDay()
         let total = self.last30Days
         return CostUsageTokenSnapshot(
-            sessionTokens: latest.totalTokens,
-            sessionCostUSD: latest.costUSD,
-            sessionRequests: latest.requests,
+            sessionTokens: today.totalTokens,
+            sessionCostUSD: today.costUSD,
+            sessionRequests: today.requests,
             last30DaysTokens: total.totalTokens,
             last30DaysCostUSD: total.costUSD,
             last30DaysRequests: total.requests,

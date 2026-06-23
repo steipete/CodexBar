@@ -42,3 +42,6 @@ docs/.astro/
 # Swift Package Manager metadata (leave sources tracked)
 # Packages/
 # Package.resolved
+
+# fanout round cache (local tooling)
+.fanout-cache/

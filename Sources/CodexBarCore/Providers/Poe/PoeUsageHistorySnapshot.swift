@@ -71,6 +71,21 @@ public struct PoeUsageHistorySnapshot: Codable, Equatable, Sendable {
         self.summary(days: 1)
     }
 
+    /// Summary for the current local day (derived from `updatedAt`), or a zero
+    /// summary when there is no bucket for today — so a "Today" label never shows
+    /// a stale historical bucket (#1705).
+    public func currentDay(calendar: Calendar = .current) -> Summary {
+        let key = CostUsageTokenSnapshot.localDayKey(from: self.updatedAt, calendar: calendar)
+        let match = self.daily.first { bucket in
+            guard let date = CostUsageDateParser.parse(bucket.day) else { return false }
+            return CostUsageTokenSnapshot.localDayKey(from: date, calendar: calendar) == key
+        }
+        guard let match else {
+            return Summary(points: 0, requests: 0, costUSD: nil)
+        }
+        return Summary(points: match.points, requests: match.requests, costUSD: match.costUSD)
+    }
+
     public var last7Days: Summary {
         self.summary(days: 7)
     }

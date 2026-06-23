@@ -59,50 +59,35 @@ struct CostUsageTodayBucketTests {
             modelBreakdowns: nil)
     }
 
-    // MARK: - 1. No local-day row → session nil, historical totals preserved
+    // MARK: - 1. No local-day row → session reports zero, historical totals preserved
 
     @Test
-    func `token snapshot with past rows only has nil session values but keeps history`() {
-        let calendar = Calendar(identifier: .gregorian)
-        // "now" is June 22, 2026. The daily rows only go up to June 20.
-        let now = Self.fixedDate(2026, 6, 22, calendar: calendar)
-        let past = Self.pastEntry(year: 2026, month: 6, day: 20, tokens: 600, cost: 0.04)
-        let older = Self.pastEntry(year: 2026, month: 6, day: 19, tokens: 300, cost: 0.02)
+    func `token snapshot with past rows only reports zero today but keeps history`() {
+        // "now" is June 22, 2026; the daily rows only go up to June 20.
+        let now = Self.fixedDate(2026, 6, 22)
+        let past = Self.pastEntry(year: 2026, month: 6, day: 20, tokens: 600, cost: 0.5)
+        let older = Self.pastEntry(year: 2026, month: 6, day: 19, tokens: 300, cost: 0.25)
+        let report = CostUsageDailyReport(data: [older, past], summary: nil)
 
-        let snapshot = CostUsageTokenSnapshot(
-            sessionTokens: nil, // will be set by the new fetcher logic
-            sessionCostUSD: nil,
-            last30DaysTokens: 900, // 600 + 300
-            last30DaysCostUSD: 0.06,
-            daily: [older, past],
-            updatedAt: now)
+        // Drive the actual fixed path, not a hand-built snapshot.
+        let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: now)
 
-        // Simulate what CostUsageFetcher.tokenSnapshot does with the new API:
-        // it calls currentDayEntry / entry(in:forLocalDayContaining:).
-        let todayRow = CostUsageTokenSnapshot.entry(
-            in: snapshot.daily,
-            forLocalDayContaining: now,
-            calendar: calendar)
-
-        // No row for June 22 → todayRow must be nil.
-        #expect(todayRow == nil)
-
-        // The entries DO exist for June 19/20.
-        let june19Row = CostUsageTokenSnapshot.entry(
-            in: snapshot.daily,
-            forLocalDayContaining: Self.fixedDate(2026, 6, 19, calendar: calendar),
-            calendar: calendar)
-        #expect(june19Row?.totalTokens == 300)
-
-        let june20Row = CostUsageTokenSnapshot.entry(
-            in: snapshot.daily,
-            forLocalDayContaining: Self.fixedDate(2026, 6, 20, calendar: calendar),
-            calendar: calendar)
-        #expect(june20Row?.totalTokens == 600)
-
-        // Historical totals are still in the snapshot regardless of today.
+        // History exists but no row for today → known zero ($0.00 · 0 tokens),
+        // never the latest historical bucket.
+        #expect(snapshot.sessionTokens == 0)
+        #expect(snapshot.sessionCostUSD == 0)
+        // Historical totals are preserved (0.5 + 0.25 is binary-exact).
         #expect(snapshot.last30DaysTokens == 900)
-        #expect(snapshot.last30DaysCostUSD == 0.06)
+        #expect(snapshot.last30DaysCostUSD == 0.75)
+        #expect(snapshot.daily.count == 2)
+    }
+
+    @Test
+    func `empty history reports nil today`() {
+        let now = Self.fixedDate(2026, 6, 22)
+        let snapshot = CostUsageFetcher.tokenSnapshot(from: CostUsageDailyReport(data: [], summary: nil), now: now)
+        #expect(snapshot.sessionTokens == nil)
+        #expect(snapshot.sessionCostUSD == nil)
     }
 
     // MARK: - 2. Local-day row EXISTS → session populated

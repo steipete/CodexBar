@@ -386,7 +386,9 @@ struct OpenAIAPIUsageFetcherTests {
 
     @Test
     func `maps project scoped admin usage to cost token snapshot`() {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        // 2023-11-14 12:00 UTC — the current local day must match the latest
+        // bucket so "Today" reflects it (#1705).
+        let now = Date(timeIntervalSince1970: 1_699_963_200)
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [
                 OpenAIAPIUsageSnapshot.DailyBucket(

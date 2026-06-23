@@ -22,7 +22,9 @@ struct MenuDescriptorOpenAIAPITests {
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        // 2023-11-14 12:00 UTC — current local day matches the latest bucket so
+        // "Today" reflects it (#1705).
+        let now = Date(timeIntervalSince1970: 1_699_963_200)
         let usage = OpenAIAPIUsageSnapshot(
             daily: [
                 OpenAIAPIUsageSnapshot.DailyBucket(

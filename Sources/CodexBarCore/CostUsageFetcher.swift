@@ -278,8 +278,23 @@ public struct CostUsageFetcher: Sendable {
         now: Date,
         historyDays: Int = 30) -> CostUsageTokenSnapshot
     {
-        // "Today" must reflect the current local day only; no usage today => nil (not the latest bucket).
+        // "Today" must reflect the current local day only, never the latest historical bucket:
+        // - a row for today => that row's values
+        // - history exists but no row for today => known zero ($0.00 · 0 tokens)
+        // - no history at all => nil (unknown)
         let currentDay = CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now)
+        let sessionTokens: Int?
+        let sessionCostUSD: Double?
+        if let currentDay {
+            sessionTokens = currentDay.totalTokens
+            sessionCostUSD = currentDay.costUSD
+        } else if daily.data.isEmpty {
+            sessionTokens = nil
+            sessionCostUSD = nil
+        } else {
+            sessionTokens = 0
+            sessionCostUSD = 0
+        }
         // Prefer summary totals when present; fall back to summing daily entries.
         let totalFromSummary = daily.summary?.totalCostUSD
         let totalFromEntries = daily.data.compactMap(\.costUSD).reduce(0, +)
@@ -289,8 +304,8 @@ public struct CostUsageFetcher: Sendable {
         let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
 
         return CostUsageTokenSnapshot(
-            sessionTokens: currentDay?.totalTokens,
-            sessionCostUSD: currentDay?.costUSD,
+            sessionTokens: sessionTokens,
+            sessionCostUSD: sessionCostUSD,
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
             historyDays: historyDays,

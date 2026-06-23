@@ -6,7 +6,7 @@ import Testing
 struct OpenAIAPIMenuCardModelTests {
     @Test
     func `admin usage model shows summaries and spend without fake quota bars`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.openai])
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [
@@ -71,7 +71,7 @@ struct OpenAIAPIMenuCardModelTests {
 
     @Test
     func `admin usage dashboard ignores stale token snapshot after fallback refresh`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.openai])
         let staleTokenSnapshot = CostUsageTokenSnapshot(
             sessionTokens: 1500,
@@ -119,7 +119,7 @@ struct OpenAIAPIMenuCardModelTests {
 
     @Test
     func `admin usage model can show cost card summary`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.openai])
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [

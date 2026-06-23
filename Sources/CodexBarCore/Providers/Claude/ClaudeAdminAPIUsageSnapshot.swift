@@ -133,6 +133,33 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
         self.summary(days: 1)
     }
 
+    /// Summary for the current local day (derived from `updatedAt`), or a zero
+    /// summary when there is no bucket for today — so a "Today" label never shows
+    /// a stale historical bucket (#1705).
+    public func currentDay(calendar: Calendar = .current) -> Summary {
+        let key = CostUsageTokenSnapshot.localDayKey(from: self.updatedAt, calendar: calendar)
+        let match = self.daily.first { bucket in
+            guard let date = CostUsageDateParser.parse(bucket.day) else { return false }
+            return CostUsageTokenSnapshot.localDayKey(from: date, calendar: calendar) == key
+        }
+        guard let match else {
+            return Summary(
+                costUSD: 0,
+                inputTokens: 0,
+                cacheCreationInputTokens: 0,
+                cacheReadInputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0)
+        }
+        return Summary(
+            costUSD: match.costUSD,
+            inputTokens: match.inputTokens,
+            cacheCreationInputTokens: match.cacheCreationInputTokens,
+            cacheReadInputTokens: match.cacheReadInputTokens,
+            outputTokens: match.outputTokens,
+            totalTokens: match.totalTokens)
+    }
+
     public func summary(days: Int) -> Summary {
         let selected = self.daily.suffix(max(1, days))
         return Summary(

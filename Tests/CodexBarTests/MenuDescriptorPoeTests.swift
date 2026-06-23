@@ -72,7 +72,9 @@ struct MenuDescriptorPoeTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
 
-        let now = Date(timeIntervalSince1970: 1_717_171_717)
+        // 2026-05-31 12:00 UTC — current local day matches the latest bucket so
+        // "Today" reflects it (#1705).
+        let now = Date(timeIntervalSince1970: 1_780_228_800)
         let history = PoeUsageHistorySnapshot(
             entries: [
                 .init(
