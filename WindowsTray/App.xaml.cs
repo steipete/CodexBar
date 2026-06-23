@@ -114,32 +114,52 @@ public partial class App : Application
         return menu;
     }
 
+    // Cost data is only available for Claude and Codex (local token-cost files).
+    private static readonly HashSet<string> CostProviderIds =
+        new(StringComparer.OrdinalIgnoreCase) { "claude", "codex" };
+
     private void PopulateWidgetsMenu(MenuItem root)
     {
         root.Items.Clear();
 
-        var add = new MenuItem { Header = "Add usage widget" };
-        if (_latestTiles.Count == 0)
-        {
-            add.Items.Add(new MenuItem { Header = "No providers yet", IsEnabled = false });
-        }
-        else
-        {
-            foreach (var tile in _latestTiles)
-            {
-                var id = tile.Id;
-                if (string.IsNullOrEmpty(id)) continue;
-                var item = new MenuItem { Header = tile.Name };
-                item.Click += (_, _) => _widgets.AddWidget(id);
-                add.Items.Add(item);
-            }
-        }
-        root.Items.Add(add);
+        root.Items.Add(BuildAddSubmenu("Add usage widget", WidgetKind.Usage, _ => true));
+        root.Items.Add(BuildAddSubmenu("Add cost widget", WidgetKind.Cost, CostProviderIds.Contains));
+        root.Items.Add(BuildAddSubmenu("Add cost history", WidgetKind.CostHistory, CostProviderIds.Contains));
 
         root.Items.Add(new Separator());
         var removeAll = new MenuItem { Header = "Remove all widgets", IsEnabled = _widgets.Count > 0 };
         removeAll.Click += (_, _) => _widgets.RemoveAll();
         root.Items.Add(removeAll);
+    }
+
+    private MenuItem BuildAddSubmenu(string header, WidgetKind kind, Func<string, bool> providerFilter)
+    {
+        var menu = new MenuItem { Header = header };
+        var providers = _latestTiles
+            .Where(t => !string.IsNullOrEmpty(t.Id) && providerFilter(t.Id))
+            .ToList();
+
+        if (providers.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "No providers yet", IsEnabled = false });
+            return menu;
+        }
+
+        foreach (var tile in providers)
+        {
+            var id = tile.Id;
+            var item = new MenuItem { Header = tile.Name };
+            item.Click += (_, _) => AddWidgetAndRefresh(id, kind);
+            menu.Items.Add(item);
+        }
+        return menu;
+    }
+
+    private void AddWidgetAndRefresh(string providerId, WidgetKind kind)
+    {
+        _widgets.AddWidget(providerId, kind);
+        // Refresh promptly so the new widget (especially cost) populates without waiting.
+        _ = RefreshUsageAsync();
     }
 
     private async Task StartEngineAsync()
@@ -195,6 +215,17 @@ public partial class App : Application
                 _ui.QuotaWarningNotificationsEnabled,
                 _ui.QuotaWarningThresholds);
             var notifications = _notifications.Evaluate(results, prefs);
+
+            // Only pay for /cost when a cost widget is actually pinned. The widget
+            // list lives on the UI thread, so read the flag there.
+            var costs = new List<CostResult>();
+            if (Dispatcher.Invoke(() => _widgets.NeedsCost))
+            {
+                try { costs = CostJson.Parse(await _client.GetCostJsonAsync()); }
+                catch { /* cost is best-effort; leave empty on failure */ }
+            }
+            var widgetData = new WidgetData(tiles, costs);
+
             Dispatcher.Invoke(() =>
             {
                 _usageVm.Replace(tiles);
@@ -202,7 +233,7 @@ public partial class App : Application
                 UpdateTrayIcon(maxPercent / 100.0, connected: true);
                 foreach (var notification in notifications) ShowNotification(notification);
                 _latestTiles = tiles;
-                _widgets.UpdateData(tiles);
+                _widgets.UpdateData(widgetData);
             });
             SetTooltip(tiles.Count == 0
                 ? "CodexBar — no providers enabled"

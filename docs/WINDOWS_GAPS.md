@@ -34,7 +34,7 @@ From `Package.swift`, these targets/dependencies build only on macOS:
 | Feature | Source | Windows status |
 |---|---|---|
 | Native menu-bar UI (rich menu + cards) | `CodexBar` target | Replaced by minimal WPF tray (see §4) |
-| WidgetKit widgets (Usage/History/Metric/Burn-Down) | `CodexBarWidget` + `WidgetExtension/` | Partial — pinnable **desktop widget windows** in the tray (`WindowsTray/Widgets/`); no OS Widgets-Board host, History/Burn-Down charts, or Metric/cost widgets yet |
+| WidgetKit widgets (Usage/History/Metric/Burn-Down) | `CodexBarWidget` + `WidgetExtension/` | Partial — pinnable **desktop widget windows** in the tray (`WindowsTray/Widgets/`): Usage, Cost (session/today/30-day), and Cost-History mini-chart. Still missing: OS Widgets-Board host, usage-history & session/weekly **burn-down** charts (need a new CLI history endpoint — `/usage` and `/cost` expose no intra-window time series) |
 | Claude usage watchdog helper | `CodexBarClaudeWatchdog` | Missing |
 | Claude web probe helper | `CodexBarClaudeWebProbe` | Missing |
 | Auto-update | `Sparkle` + `appcast.xml` | No updater in the tray |

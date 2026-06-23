@@ -1,6 +1,7 @@
 <Window x:Class="CodexBarTray.DesktopWidget"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:CodexBarTray"
         Title="CodexBar Widget"
         WindowStyle="None"
         ResizeMode="NoResize"
@@ -58,6 +59,88 @@
                            HorizontalAlignment="Right" VerticalAlignment="Center" />
             </Grid>
         </DataTemplate>
+
+        <!-- Body: Usage widget -->
+        <DataTemplate DataType="{x:Type local:UsageWidgetViewModel}">
+            <StackPanel>
+                <TextBlock Text="{Binding Provider.Account}" Foreground="{StaticResource TextDim}"
+                           FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"
+                           Visibility="{Binding Provider.HasAccount, Converter={StaticResource BoolToVis}}" />
+                <ItemsControl ItemsSource="{Binding Provider.Windows}"
+                              ItemTemplate="{StaticResource WidgetWindowTemplate}"
+                              Visibility="{Binding Provider.HasWindows, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding Provider.ErrorMessage}" Foreground="{StaticResource ErrorBrush}"
+                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Visibility="{Binding Provider.HasError, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="Waiting for data…" Foreground="{StaticResource TextDim}"
+                           FontSize="11" Margin="0,4,0,0"
+                           Visibility="{Binding NoData, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Body: Cost metric widget -->
+        <DataTemplate DataType="{x:Type local:CostWidgetViewModel}">
+            <StackPanel>
+                <Grid Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Session" Foreground="{StaticResource TextDim}"
+                               FontSize="11" Margin="0,4,0,0" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SessionText}"
+                               Foreground="{StaticResource TextPrimary}" FontSize="12" FontWeight="SemiBold"
+                               Margin="0,4,0,0" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Today" Foreground="{StaticResource TextDim}"
+                               FontSize="11" Margin="0,4,0,0" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding TodayText}"
+                               Foreground="{StaticResource TextPrimary}" FontSize="12" FontWeight="SemiBold"
+                               Margin="0,4,0,0" />
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="30 days" Foreground="{StaticResource TextDim}"
+                               FontSize="11" Margin="0,4,0,0" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding MonthText}"
+                               Foreground="{StaticResource TextPrimary}" FontSize="12" FontWeight="SemiBold"
+                               Margin="0,4,0,0" />
+                </Grid>
+                <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource TextDim}"
+                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Visibility="{Binding NoData, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Body: Cost history mini chart -->
+        <DataTemplate DataType="{x:Type local:CostHistoryWidgetViewModel}">
+            <StackPanel>
+                <Border Height="48" Margin="0,6,0,0"
+                        Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl ItemsSource="{Binding Bars}" VerticalAlignment="Bottom">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="9" Height="{Binding Height}" Margin="1,0"
+                                        VerticalAlignment="Bottom" CornerRadius="2"
+                                        Background="{Binding Fill}" ToolTip="{Binding Tooltip}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+                <TextBlock Text="{Binding Caption}" Foreground="{StaticResource TextDim}"
+                           FontSize="10" Margin="0,4,0,0"
+                           Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource TextDim}"
+                           FontSize="11" Margin="0,4,0,0"
+                           Visibility="{Binding NoData, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <Window.ContextMenu>
@@ -74,27 +157,14 @@
         </Border.Effect>
         <StackPanel>
             <Grid>
-                <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextPrimary}"
-                           FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Title}" Foreground="{StaticResource TextPrimary}"
+                           FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Margin="0,0,16,0" />
                 <TextBlock x:Name="CloseButton" Text="✕" Foreground="{StaticResource TextDim}"
                            FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"
                            Cursor="Hand" Padding="4,0" ToolTip="Remove widget" />
             </Grid>
-            <TextBlock Text="{Binding Provider.Account}" Foreground="{StaticResource TextDim}"
-                       FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"
-                       Visibility="{Binding Provider.HasAccount, Converter={StaticResource BoolToVis}}" />
-
-            <ItemsControl ItemsSource="{Binding Provider.Windows}"
-                          ItemTemplate="{StaticResource WidgetWindowTemplate}"
-                          Visibility="{Binding Provider.HasWindows, Converter={StaticResource BoolToVis}}" />
-
-            <TextBlock Text="{Binding Provider.ErrorMessage}" Foreground="{StaticResource ErrorBrush}"
-                       FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
-                       Visibility="{Binding Provider.HasError, Converter={StaticResource BoolToVis}}" />
-
-            <TextBlock Text="Waiting for data…" Foreground="{StaticResource TextDim}"
-                       FontSize="11" Margin="0,4,0,0"
-                       Visibility="{Binding NoData, Converter={StaticResource BoolToVis}}" />
+            <ContentPresenter Content="{Binding}" />
         </StackPanel>
     </Border>
 </Window>

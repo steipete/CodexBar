@@ -4,15 +4,16 @@ using System.Windows.Input;
 namespace CodexBarTray;
 
 /// <summary>
-/// A single borderless, always-on-top desktop widget showing one provider's
-/// usage. Draggable anywhere; position and removal are reported back to the
+/// A single borderless, always-on-top desktop widget. Shared chrome (header,
+/// drag, ×, context menu); the body is chosen per content type via implicit
+/// DataTemplates. Position and removal are reported back to the
 /// <see cref="WidgetManager"/> via events. Data is pushed in by the manager on
-/// each /usage refresh through the bound <see cref="WidgetViewModel"/>.
+/// each refresh through the bound <see cref="WidgetContentViewModel"/>.
 /// </summary>
 public partial class DesktopWidget : Window
 {
     public string WidgetId { get; }
-    public WidgetViewModel ViewModel { get; }
+    public WidgetContentViewModel Vm { get; }
 
     /// <summary>Raised when the user removes this widget (× or context menu).</summary>
     public event Action<DesktopWidget>? RemoveRequested;
@@ -23,12 +24,12 @@ public partial class DesktopWidget : Window
     /// <summary>Raised after a drag, with the new (Left, Top).</summary>
     public event Action<DesktopWidget>? PositionChanged;
 
-    public DesktopWidget(WidgetConfig config, WidgetViewModel viewModel)
+    public DesktopWidget(WidgetConfig config, WidgetContentViewModel content)
     {
         InitializeComponent();
         WidgetId = config.Id;
-        ViewModel = viewModel;
-        DataContext = viewModel;
+        Vm = content;
+        DataContext = content;
         Loaded += (_, _) => PositionWindow(config);
     }
 

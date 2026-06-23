@@ -2,33 +2,36 @@ namespace CodexBarTray;
 
 /// <summary>
 /// Owns the live desktop widget windows: restores saved ones on launch, adds and
-/// removes them on request, persists their positions, and pushes fresh provider
-/// data into each on every /usage refresh. All members must be called on the UI
-/// thread (they create and mutate WPF windows).
+/// removes them on request, persists their positions, and pushes fresh data into
+/// each on every refresh. All members must be called on the UI thread (they
+/// create and mutate WPF windows).
 /// </summary>
 public sealed class WidgetManager
 {
     private readonly WidgetStore _store;
     private readonly List<DesktopWidget> _widgets = new();
-    private IReadOnlyList<ProviderViewModel> _latest = Array.Empty<ProviderViewModel>();
+    private WidgetData _latest = WidgetData.Empty;
 
-    /// <summary>Raised when a widget's "Refresh" is invoked; the app re-fetches usage.</summary>
+    /// <summary>Raised when a widget's "Refresh" is invoked; the app re-fetches.</summary>
     public event Action? RefreshRequested;
 
     public WidgetManager(WidgetStore store) => _store = store;
 
     public int Count => _widgets.Count;
 
-    /// <summary>Recreate windows for every persisted widget config.</summary>
+    /// <summary>True when any live widget needs /cost data, so the app fetches it.</summary>
+    public bool NeedsCost =>
+        _widgets.Any(w => w.Vm is CostWidgetViewModel or CostHistoryWidgetViewModel);
+
     public void RestoreSaved()
     {
         foreach (var config in _store.Widgets.ToList())
             CreateWindow(config);
     }
 
-    public DesktopWidget AddWidget(string providerId)
+    public DesktopWidget AddWidget(string providerId, WidgetKind kind)
     {
-        var config = new WidgetConfig { ProviderId = providerId };
+        var config = new WidgetConfig { ProviderId = providerId, Kind = kind };
         _store.Widgets.Add(config);
         _store.Save();
         return CreateWindow(config);
@@ -48,12 +51,12 @@ public sealed class WidgetManager
             RemoveWidget(widget);
     }
 
-    /// <summary>Push the latest usage tiles into every open widget.</summary>
-    public void UpdateData(IReadOnlyList<ProviderViewModel> tiles)
+    /// <summary>Push the latest data into every open widget.</summary>
+    public void UpdateData(WidgetData data)
     {
-        _latest = tiles;
+        _latest = data;
         foreach (var widget in _widgets)
-            widget.ViewModel.Provider = Find(widget.ViewModel.ProviderId);
+            widget.Vm.Update(data);
     }
 
     /// <summary>Close all windows without forgetting them (used on app exit).</summary>
@@ -66,17 +69,26 @@ public sealed class WidgetManager
 
     private DesktopWidget CreateWindow(WidgetConfig config)
     {
-        var vm = new WidgetViewModel(config.ProviderId, UsageViewModelBuilder.DisplayName(config.ProviderId))
-        {
-            Provider = Find(config.ProviderId),
-        };
-        var widget = new DesktopWidget(config, vm);
+        var content = CreateContent(config);
+        content.Update(_latest);
+        var widget = new DesktopWidget(config, content);
         widget.RemoveRequested += RemoveWidget;
         widget.RefreshRequested += () => RefreshRequested?.Invoke();
         widget.PositionChanged += OnPositionChanged;
         _widgets.Add(widget);
         widget.Show();
         return widget;
+    }
+
+    private static WidgetContentViewModel CreateContent(WidgetConfig config)
+    {
+        var name = UsageViewModelBuilder.DisplayName(config.ProviderId);
+        return config.Kind switch
+        {
+            WidgetKind.Cost => new CostWidgetViewModel(config.ProviderId, name),
+            WidgetKind.CostHistory => new CostHistoryWidgetViewModel(config.ProviderId, name),
+            _ => new UsageWidgetViewModel(config.ProviderId, name),
+        };
     }
 
     private void OnPositionChanged(DesktopWidget widget)
@@ -87,7 +99,4 @@ public sealed class WidgetManager
         config.Top = widget.Top;
         _store.Save();
     }
-
-    private ProviderViewModel? Find(string providerId) =>
-        _latest.FirstOrDefault(p => string.Equals(p.Id, providerId, StringComparison.OrdinalIgnoreCase));
 }

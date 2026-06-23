@@ -42,5 +42,13 @@ public sealed class UsageClient : IDisposable
         return await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
     }
 
+    /// <summary>Fetches cost JSON (Claude/Codex local token-cost data).</summary>
+    public async Task<string> GetCostJsonAsync(string? provider = null, CancellationToken ct = default)
+    {
+        var path = provider is null ? "/cost" : $"/cost?provider={Uri.EscapeDataString(provider)}";
+        using var response = await _http.GetAsync(path, ct).ConfigureAwait(false);
+        return await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+    }
+
     public void Dispose() => _http.Dispose();
 }
