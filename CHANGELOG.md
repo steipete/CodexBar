@@ -2,6 +2,9 @@
 
 ## 0.37.3 — Unreleased
 
+### Fixed
+- Cost usage: "Today" now reflects the current local day and shows $0.00 · 0 tokens when there is no usage today, instead of the latest historical bucket — across the token-cost menu card, inline dashboard, and the OpenAI/Claude Admin and Poe summaries. Thanks @LeoLin990405!
+
 ## 0.37.2 — 2026-06-22
 
 ### Added
