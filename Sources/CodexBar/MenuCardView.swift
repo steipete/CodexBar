@@ -803,6 +803,7 @@ extension UsageMenuCardView.Model {
         let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
         let workDaysPerWeek: Int?
         let usesLiveSubtitle: Bool
+        let progressColorOverride: Color?
         let now: Date
 
         init(
@@ -831,6 +832,7 @@ extension UsageMenuCardView.Model {
             quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
             workDaysPerWeek: Int? = nil,
             usesLiveSubtitle: Bool = false,
+            progressColorOverride: Color? = nil,
             now: Date)
         {
             self.provider = provider
@@ -858,6 +860,7 @@ extension UsageMenuCardView.Model {
             self.quotaWarningThresholds = quotaWarningThresholds
             self.workDaysPerWeek = workDaysPerWeek
             self.usesLiveSubtitle = usesLiveSubtitle
+            self.progressColorOverride = progressColorOverride
             self.now = now
         }
     }
@@ -936,7 +939,7 @@ extension UsageMenuCardView.Model {
             providerCost: providerCost,
             tokenUsage: tokenUsage,
             placeholder: placeholder,
-            progressColor: Self.progressColor(for: input.provider))
+            progressColor: input.progressColorOverride ?? Self.progressColor(for: input.provider))
     }
 
     private static func usageNotes(input: Input) -> [String] {

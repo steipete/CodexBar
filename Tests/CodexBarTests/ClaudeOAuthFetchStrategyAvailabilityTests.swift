@@ -21,7 +21,8 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
 
     private func makeContext(
         sourceMode: ProviderSourceMode,
-        env: [String: String] = [:]) -> ProviderFetchContext
+        env: [String: String] = [:],
+        selectedTokenAccountID: UUID? = nil) -> ProviderFetchContext
     {
         ProviderFetchContext(
             runtime: .app,
@@ -34,7 +35,8 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
             settings: nil,
             fetcher: UsageFetcher(environment: env),
             claudeFetcher: StubClaudeFetcher(),
-            browserDetection: BrowserDetection(cacheTTL: 0))
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            selectedTokenAccountID: selectedTokenAccountID)
     }
 
     private func expiredRecord(owner: ClaudeOAuthCredentialOwner = .claudeCLI) -> ClaudeOAuthCredentialRecord {
@@ -117,6 +119,38 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         #expect(strategy.shouldFallback(
             on: ClaudeUsageError.oauthFailed("oauth failed"),
             context: context) == true)
+    }
+
+    @Test
+    func `auto mode source descriptor account is available without ambient OAuth`() async {
+        let descriptor = ClaudeCredentialSource.credentialsFile(
+            path: "/tmp/claude-account/.credentials.json")
+            .encodedTokenValue()
+        let context = self.makeContext(
+            sourceMode: .auto,
+            env: [ClaudeCredentialSource.environmentDescriptorKey: descriptor],
+            selectedTokenAccountID: UUID())
+        let strategy = ClaudeOAuthFetchStrategy()
+
+        let available = await strategy.isAvailable(context)
+
+        #expect(available == true)
+    }
+
+    @Test
+    func `auto mode selected source descriptor does not fallback to ambient account`() {
+        let descriptor = ClaudeCredentialSource.credentialsFile(
+            path: "/tmp/claude-account/.credentials.json")
+            .encodedTokenValue()
+        let context = self.makeContext(
+            sourceMode: .auto,
+            env: [ClaudeCredentialSource.environmentDescriptorKey: descriptor],
+            selectedTokenAccountID: UUID())
+        let strategy = ClaudeOAuthFetchStrategy()
+
+        #expect(strategy.shouldFallback(
+            on: ClaudeUsageError.oauthFailed("oauth failed"),
+            context: context) == false)
     }
 
     @Test

@@ -604,11 +604,15 @@ extension StatusItemController {
             let accountSnapshots = tokenAccountDisplay.snapshots
             let cards = accountSnapshots.isEmpty
                 ? []
-                : accountSnapshots.compactMap { accountSnapshot in
+                : accountSnapshots.enumerated().compactMap { index, accountSnapshot in
                     self.menuCardModel(
                         for: context.currentProvider,
                         snapshotOverride: accountSnapshot.snapshot,
-                        errorOverride: accountSnapshot.error)
+                        errorOverride: accountSnapshot.error,
+                        accountOverride: AccountInfo(email: accountSnapshot.account.label, plan: nil),
+                        progressColorOverride: UsageMenuCardView.Model.stackedAccountProgressColor(
+                            for: context.currentProvider,
+                            index: index))
                 }
             self.addStackedMenuCards(cards, to: menu, context: context)
             return false

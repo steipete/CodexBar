@@ -830,6 +830,15 @@ extension ClaudeUsageFetcher {
             return try await override(environment, allowKeychainPrompt, respectKeychainPromptCooldown)
         }
         #endif
+        // Multi-account: a token-account override injects a source descriptor;
+        // read + refresh THAT account's credential instead of the default login.
+        if let descriptor = environment[ClaudeCredentialSource.environmentDescriptorKey],
+           !descriptor.isEmpty
+        {
+            return try await ClaudeCredentialResolver.resolveCredentials(
+                from: ClaudeCredentialSource.parse(descriptor),
+                environment: environment)
+        }
         return try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
             environment: environment,
             allowKeychainPrompt: allowKeychainPrompt,

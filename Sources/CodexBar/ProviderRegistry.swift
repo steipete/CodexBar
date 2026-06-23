@@ -41,9 +41,13 @@ struct ProviderRegistry {
                         provider: provider,
                         settings: settings,
                         override: nil)
-                    let sourceMode = ProviderCatalog.implementation(for: provider)?
+                    let baseSourceMode = ProviderCatalog.implementation(for: provider)?
                         .sourceMode(context: ProviderSourceModeContext(provider: provider, settings: settings))
                         ?? .auto
+                    let sourceMode = ProviderTokenAccountSourceModeResolver.effectiveSourceMode(
+                        base: baseSourceMode,
+                        provider: provider,
+                        account: account)
                     let snapshot = Self.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
                     let env = Self.makeEnvironment(
                         base: environmentBase,

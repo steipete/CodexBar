@@ -124,6 +124,12 @@ extension SettingsStore {
     }
 
     private func claudeCredentialRouting(account: ProviderTokenAccount?) -> ClaudeCredentialRouting {
+        // A multi-account source pointer is OAuth-backed; the real (refreshed)
+        // token is resolved at fetch time, so the snapshot just needs OAuth mode
+        // (empty placeholder token — it is not used as the bearer).
+        if let token = account?.token, ClaudeCredentialSource.parse(token).isRefreshableSource {
+            return .oauth(accessToken: "")
+        }
         let manualCookieHeader = account == nil ? self.claudeCookieHeader : nil
         return ClaudeCredentialRouting.resolve(
             tokenAccountToken: account?.token,

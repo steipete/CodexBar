@@ -199,6 +199,65 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "claude-discover-accounts",
+                title: "Multiple accounts",
+                subtitle: "Find your Claude Code logins (~/.claude*) and track each as a separate "
+                    + "account, refreshed independently.",
+                kind: .plain,
+                placeholder: nil,
+                binding: .constant(""),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "claude-discover-accounts-action",
+                        title: "Discover accounts",
+                        style: .bordered,
+                        isVisible: { true },
+                        perform: {
+                            // Self-cleaning: drop our own previously auto-discovered
+                            // (source-pointer) accounts and re-add only the live ones,
+                            // so stale/revoked Keychain leftovers don't pile up.
+                            // Manually pasted accounts (raw tokens) are left untouched.
+                            for stale in context.settings.tokenAccounts(for: .claude)
+                                where stale.token.hasPrefix(ClaudeCredentialSource.descriptorPrefix)
+                            {
+                                context.settings.removeTokenAccount(provider: .claude, accountID: stale.id)
+                            }
+                            let existing = Set(context.settings.tokenAccounts(for: .claude).map(\.token))
+                            var seenEmails = Set<String>()
+                            for account in ClaudeAccountDiscovery.discover() {
+                                let token = account.source.encodedTokenValue()
+                                guard !existing.contains(token) else { continue }
+                                // Only keep accounts whose credential actually
+                                // reads/refreshes — skips stale/revoked leftovers.
+                                guard let creds = try? await ClaudeCredentialResolver
+                                    .resolveCredentials(from: account.source)
+                                else { continue }
+                                // Collapse duplicate Keychain slots of the SAME
+                                // login (one account in several config dirs) and
+                                // label by the real email.
+                                let email = await ClaudeCredentialResolver
+                                    .fetchAccountEmail(accessToken: creds.accessToken)
+                                if let email, !seenEmails.insert(email).inserted { continue }
+                                let plan = ClaudePlan.fromOAuthCredentials(
+                                    subscriptionType: creds.subscriptionType,
+                                    rateLimitTier: creds.rateLimitTier)?.compactLoginMethod
+                                let label: String = switch (email, plan) {
+                                case let (email?, plan?): "\(email) · \(plan)"
+                                case let (email?, nil): email
+                                default: account.label
+                                }
+                                context.settings.addTokenAccount(
+                                    provider: .claude,
+                                    label: label,
+                                    token: token,
+                                    externalIdentifier: email ?? token)
+                            }
+                            await context.store.refreshProvider(.claude, allowDisabled: true)
+                        }),
+                ],
+                isVisible: nil,
+                onActivate: nil),
         ]
     }
 

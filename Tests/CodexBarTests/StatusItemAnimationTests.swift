@@ -1064,6 +1064,164 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `stacked Claude token accounts menu bar display shows three accounts and keeps selected visible`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-stacked-menu-bar"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.multiAccountMenuLayout = .stacked
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+        for index in 1...4 {
+            settings.addTokenAccount(
+                provider: .claude,
+                label: "claude-\(index)@example.com",
+                token: "Bearer sk-ant-oat-\(index)")
+        }
+        settings.setActiveTokenAccountIndex(3, for: .claude)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let accounts = settings.tokenAccounts(for: .claude)
+        store.accountSnapshots[.claude] = accounts.enumerated().map { index, account in
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: Double((index + 1) * 10),
+                        windowMinutes: 300,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    secondary: RateWindow(
+                        usedPercent: Double((index * 10) + 5),
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    updatedAt: Date()),
+                error: nil,
+                sourceLabel: nil)
+        }
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: store.snapshot(for: .claude))
+
+        #expect(displayText == "90(95)% · 80(85)% · 60(65)%")
+    }
+
+    @Test
+    func `merged menu bar display shows codex and two stacked Claude accounts`() throws {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-claude-stacked-menu-bar"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.multiAccountMenuLayout = .stacked
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .codex)
+        settings.setMenuBarMetricPreference(.primary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+        for index in 1...2 {
+            settings.addTokenAccount(
+                provider: .claude,
+                label: "claude-\(index)@example.com",
+                token: "Bearer sk-ant-oat-\(index)")
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 45,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let accounts = settings.tokenAccounts(for: .claude)
+        store.accountSnapshots[.claude] = accounts.enumerated().map { index, account in
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: Double((index + 1) * 10),
+                        windowMinutes: 300,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    secondary: RateWindow(
+                        usedPercent: Double((index + 2) * 10),
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    updatedAt: Date()),
+                error: nil,
+                sourceLabel: nil)
+        }
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: store.snapshot(for: .claude))
+
+        #expect(displayText == "5h Codex 70% · C1 90% · C2 80% / 7d 55% · 80% · 70%")
+
+        controller.applyIcon(phase: nil)
+
+        let button = try #require(controller.statusItem.button)
+        let image = try #require(button.image)
+        #expect(button.title.isEmpty)
+        #expect(button.attributedTitle.string.isEmpty)
+        #expect(button.imagePosition == .imageOnly)
+        #expect(image.isTemplate)
+        #expect(image.size.height == 22)
+    }
+
+    @Test
     func `codex menu bar pace does not fall back to session when weekly projection is unavailable`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-no-weekly-pace"),
