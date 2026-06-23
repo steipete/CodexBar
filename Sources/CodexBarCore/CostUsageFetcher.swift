@@ -116,7 +116,12 @@ public struct CostUsageFetcher: Sendable {
                 environment: environment,
                 since: since,
                 until: until)
-            return Self.tokenSnapshot(from: daily, now: now, historyDays: clampedHistoryDays)
+            // AWS Cost Explorer lags, so Bedrock shows the latest billing day, not "Today".
+            return Self.tokenSnapshot(
+                from: daily,
+                now: now,
+                historyDays: clampedHistoryDays,
+                sessionDay: .latest)
         }
 
         var options = overrideScannerOptions ?? CostUsageScanner.Options()
@@ -273,27 +278,44 @@ public struct CostUsageFetcher: Sendable {
             environment: environment)
     }
 
+    /// How the session ("first KPI") row is selected.
+    enum SessionDaySelection {
+        /// Current local day; zero when there is no usage today (default; "Today" labels).
+        case today
+        /// Newest historical bucket; for lagged sources labeled "Latest billing day"
+        /// (e.g. AWS Cost Explorer), where today's row legitimately does not exist yet.
+        case latest
+    }
+
     static func tokenSnapshot(
         from daily: CostUsageDailyReport,
         now: Date,
-        historyDays: Int = 30) -> CostUsageTokenSnapshot
+        historyDays: Int = 30,
+        sessionDay: SessionDaySelection = .today) -> CostUsageTokenSnapshot
     {
-        // "Today" must reflect the current local day only, never the latest historical bucket:
-        // - a row for today => that row's values
-        // - history exists but no row for today => known zero ($0.00 · 0 tokens)
-        // - no history at all => nil (unknown)
-        let currentDay = CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now)
         let sessionTokens: Int?
         let sessionCostUSD: Double?
-        if let currentDay {
-            sessionTokens = currentDay.totalTokens
-            sessionCostUSD = currentDay.costUSD
-        } else if daily.data.isEmpty {
-            sessionTokens = nil
-            sessionCostUSD = nil
-        } else {
-            sessionTokens = 0
-            sessionCostUSD = 0
+        switch sessionDay {
+        case .latest:
+            // "Latest billing day": newest historical bucket, never zeroed.
+            let latest = CostUsageTokenSnapshot.latestEntry(in: daily.data)
+            sessionTokens = latest?.totalTokens
+            sessionCostUSD = latest?.costUSD
+        case .today:
+            // "Today" must reflect the current local day only, never the latest bucket:
+            // - a row for today => that row's values
+            // - history exists but no row for today => known zero ($0.00 · 0 tokens)
+            // - no history at all => nil (unknown)
+            if let currentDay = CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now) {
+                sessionTokens = currentDay.totalTokens
+                sessionCostUSD = currentDay.costUSD
+            } else if daily.data.isEmpty {
+                sessionTokens = nil
+                sessionCostUSD = nil
+            } else {
+                sessionTokens = 0
+                sessionCostUSD = 0
+            }
         }
         // Prefer summary totals when present; fall back to summing daily entries.
         let totalFromSummary = daily.summary?.totalCostUSD

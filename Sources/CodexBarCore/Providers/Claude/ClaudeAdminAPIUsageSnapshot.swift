@@ -137,10 +137,11 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
     /// summary when there is no bucket for today — so a "Today" label never shows
     /// a stale historical bucket (#1705).
     public func currentDay(calendar: Calendar = .current) -> Summary {
+        // Match on the bucket's absolute startTime so the local day is resolved
+        // correctly even though `day` strings are UTC-based.
         let key = CostUsageTokenSnapshot.localDayKey(from: self.updatedAt, calendar: calendar)
         let match = self.daily.first { bucket in
-            guard let date = CostUsageDateParser.parse(bucket.day) else { return false }
-            return CostUsageTokenSnapshot.localDayKey(from: date, calendar: calendar) == key
+            CostUsageTokenSnapshot.localDayKey(from: bucket.startTime, calendar: calendar) == key
         }
         guard let match else {
             return Summary(
