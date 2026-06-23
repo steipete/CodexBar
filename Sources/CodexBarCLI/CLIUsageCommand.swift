@@ -13,6 +13,7 @@ struct UsageCommandContext {
     let verbose: Bool
     let useColor: Bool
     let resetStyle: ResetTimeDisplayStyle
+    let weeklyWorkDays: Int?
     let jsonOnly: Bool
     let includeAllCodexAccounts: Bool
     let fetcher: UsageFetcher
@@ -66,6 +67,7 @@ extension CodexBarCLI {
         let noColor = values.flags.contains("noColor")
         let useColor = Self.shouldUseColor(noColor: noColor, format: format)
         let resetStyle = Self.resetTimeDisplayStyleFromDefaults()
+        let weeklyWorkDays = Self.weeklyProgressWorkDaysFromDefaults()
         let providerList = provider.asList
 
         let tokenSelection: TokenAccountCLISelection
@@ -131,6 +133,7 @@ extension CodexBarCLI {
             verbose: verbose,
             useColor: useColor,
             resetStyle: resetStyle,
+            weeklyWorkDays: weeklyWorkDays,
             jsonOnly: output.jsonOnly,
             includeAllCodexAccounts: tokenSelection.allAccounts && providerList == [.codex],
             fetcher: fetcher,
@@ -252,7 +255,8 @@ extension CodexBarCLI {
         usage: UsageSnapshot,
         credits: CreditsSnapshot?,
         antigravityPlanInfo: AntigravityPlanInfoSummary?,
-        dashboard: OpenAIDashboardSnapshot?) -> ProviderPayload
+        dashboard: OpenAIDashboardSnapshot?,
+        weeklyWorkDays: Int?) -> ProviderPayload
     {
         ProviderPayload(
             provider: provider,
@@ -266,7 +270,7 @@ extension CodexBarCLI {
             antigravityPlanInfo: antigravityPlanInfo,
             openaiDashboard: dashboard,
             error: nil,
-            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage))
+            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage, weeklyWorkDays: weeklyWorkDays))
     }
 
     private static func fetchUsageOutput(
@@ -387,6 +391,7 @@ extension CodexBarCLI {
                         status: status,
                         useColor: command.useColor,
                         resetStyle: command.resetStyle,
+                        weeklyWorkDays: command.weeklyWorkDays,
                         notes: notes))
                 if let dashboard, provider == .codex, effectiveSourceMode.usesWeb {
                     text += "\n" + Self.renderOpenAIWebDashboardText(dashboard)
@@ -403,7 +408,8 @@ extension CodexBarCLI {
                     usage: usage,
                     credits: result.credits,
                     antigravityPlanInfo: antigravityPlanInfo,
-                    dashboard: dashboard))
+                    dashboard: dashboard,
+                    weeklyWorkDays: command.weeklyWorkDays))
             }
         case let .failure(error):
             output.exitCode = Self.mapError(error)

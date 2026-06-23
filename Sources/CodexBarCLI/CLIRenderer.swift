@@ -66,13 +66,14 @@ enum CLIRenderer {
     static func providerPacePayload(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
+        weeklyWorkDays: Int? = nil,
         now: Date = Date()) -> ProviderPacePayload?
     {
         let primary = snapshot.primary.flatMap {
             self.pacePayload(provider: provider, window: $0, kind: .session, now: now)
         }
         let secondary = snapshot.secondary.flatMap {
-            self.pacePayload(provider: provider, window: $0, kind: .weekly, now: now)
+            self.pacePayload(provider: provider, window: $0, kind: .weekly, weeklyWorkDays: weeklyWorkDays, now: now)
         }
         guard primary != nil || secondary != nil else { return nil }
         return ProviderPacePayload(primary: primary, secondary: secondary)
@@ -327,6 +328,7 @@ enum CLIRenderer {
                provider: provider,
                window: window,
                kind: paceKind,
+               weeklyWorkDays: context.weeklyWorkDays,
                useColor: context.useColor,
                now: now)
         {
@@ -444,8 +446,10 @@ enum CLIRenderer {
         return self.ansi(self.accentColor, bar)
     }
 
-    /// .session mirrors the GUI's session pace (5h window, real session windows only); .weekly is a
-    /// linear approximation (no workDays / Codex history, fixed allowlist) and can differ from the menu.
+    /// .session mirrors the GUI's session pace (5h window, real session windows only); .weekly reads
+    /// weeklyProgressWorkDays from the GUI's UserDefaults (same key) and passes it to UsagePace.weekly,
+    /// so the baseline matches the menu bar when the setting is configured. Codex historical refinement
+    /// is not applied (fixed allowlist only), so it can still differ from the menu for Codex accounts.
     private enum PaceKind {
         case session
         case weekly
@@ -471,6 +475,7 @@ enum CLIRenderer {
         provider: UsageProvider,
         window: RateWindow,
         kind: PaceKind,
+        weeklyWorkDays: Int? = nil,
         now: Date) -> UsagePace?
     {
         guard kind.supports(provider: provider) else { return nil }
@@ -478,10 +483,13 @@ enum CLIRenderer {
         if case .session = kind, let minutes = window.windowMinutes, minutes > 300 { return nil }
         if provider == .ollama, window.windowMinutes == nil { return nil }
         guard window.remainingPercent > 0 else { return nil }
+        // workDays applies only to the weekly (10 080-min) window; UsagePace.weekly ignores it for other durations.
+        let workDays = kind == .weekly ? weeklyWorkDays : nil
         guard let pace = UsagePace.weekly(
             window: window,
             now: now,
-            defaultWindowMinutes: kind.defaultWindowMinutes) else { return nil }
+            defaultWindowMinutes: kind.defaultWindowMinutes,
+            workDays: workDays) else { return nil }
         guard pace.expectedUsedPercent >= Self.paceMinimumExpectedPercent else { return nil }
         return pace
     }
@@ -501,12 +509,16 @@ enum CLIRenderer {
         provider: UsageProvider,
         window: RateWindow,
         kind: PaceKind,
+        weeklyWorkDays: Int? = nil,
         useColor: Bool,
         now: Date) -> String?
     {
-        guard let pace = self.computePace(provider: provider, window: window, kind: kind, now: now) else {
-            return nil
-        }
+        guard let pace = self.computePace(
+            provider: provider,
+            window: window,
+            kind: kind,
+            weeklyWorkDays: weeklyWorkDays,
+            now: now) else { return nil }
         let label = self.label("Pace", useColor: useColor)
         return "\(label): \(self.paceSummary(for: pace, kind: kind, now: now))"
     }
@@ -515,11 +527,15 @@ enum CLIRenderer {
         provider: UsageProvider,
         window: RateWindow,
         kind: PaceKind,
+        weeklyWorkDays: Int? = nil,
         now: Date) -> PacePayload?
     {
-        guard let pace = self.computePace(provider: provider, window: window, kind: kind, now: now) else {
-            return nil
-        }
+        guard let pace = self.computePace(
+            provider: provider,
+            window: window,
+            kind: kind,
+            weeklyWorkDays: weeklyWorkDays,
+            now: now) else { return nil }
         return PacePayload(
             stage: Self.stageString(pace.stage),
             deltaPercent: pace.deltaPercent.rounded(),
@@ -615,6 +631,7 @@ struct RenderContext {
     let status: ProviderStatusPayload?
     let useColor: Bool
     let resetStyle: ResetTimeDisplayStyle
+    let weeklyWorkDays: Int?
     let notes: [String]
 
     init(
@@ -622,12 +639,14 @@ struct RenderContext {
         status: ProviderStatusPayload?,
         useColor: Bool,
         resetStyle: ResetTimeDisplayStyle,
+        weeklyWorkDays: Int? = nil,
         notes: [String] = [])
     {
         self.header = header
         self.status = status
         self.useColor = useColor
         self.resetStyle = resetStyle
+        self.weeklyWorkDays = weeklyWorkDays
         self.notes = notes
     }
 }
