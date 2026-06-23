@@ -622,6 +622,7 @@
 "display_mode_both_desc" = "백분율과 사용 속도 모두 표시(예: 45% · +5%)";
 "display_mode_reset_time_desc" = "선택한 지표의 재설정 시간 표시(예: ↻ 오후 3:56)";
 "status_operational" = "정상 작동";
+"status_degraded" = "성능 저하";
 "status_partial_outage" = "부분 장애";
 "status_major_outage" = "주요 장애";
 "status_critical_issue" = "심각한 문제";
@@ -672,6 +673,7 @@
 "Add Account..." = "계정 추가...";
 "Usage Dashboard" = "사용량 대시보드";
 "Status Page" = "상태 페이지";
+"Open Status Page" = "상태 페이지 열기";
 "Settings..." = "설정...";
 "About CodexBar" = "CodexBar 정보";
 "Quit" = "종료";

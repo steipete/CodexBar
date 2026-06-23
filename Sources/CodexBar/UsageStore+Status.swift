@@ -119,11 +119,12 @@ extension UsageStore {
 
         let (summaryData, _) = try await transport.data(for: summaryRequest)
         let status = try Self.parseStatuspageStatus(data: summaryData)
-        let components: [ProviderStatusComponent]
-        if let (componentsData, _) = try? await transport.data(for: componentsRequest) {
-            components = (try? Self.parseStatuspageComponents(data: componentsData)) ?? []
+        let components: [ProviderStatusComponent] = if let (componentsData, _) = try? await transport
+            .data(for: componentsRequest)
+        {
+            (try? Self.parseStatuspageComponents(data: componentsData)) ?? []
         } else {
-            components = []
+            []
         }
         return (status, components)
     }

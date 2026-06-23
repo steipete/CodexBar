@@ -642,6 +642,7 @@
 
 /* Provider status */
 "status_operational" = "Fungerar normalt";
+"status_degraded" = "Försämrad prestanda";
 "status_partial_outage" = "Delvis avbrott";
 "status_major_outage" = "Större avbrott";
 "status_critical_issue" = "Kritiskt problem";
@@ -698,6 +699,7 @@
 "Add Account..." = "Lägg till konto...";
 "Usage Dashboard" = "Användningsinstrumentpanel";
 "Status Page" = "Statussida";
+"Open Status Page" = "Öppna statussida";
 "Settings..." = "Inställningar...";
 "About CodexBar" = "Om CodexBar";
 "Quit" = "Avsluta";

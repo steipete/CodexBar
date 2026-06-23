@@ -628,6 +628,7 @@
 "display_mode_both_desc" = "同時顯示百分比和進度（例如 45% · +5%）";
 "display_mode_reset_time_desc" = "顯示所選指標的重置時間（例如 ↻ 3:56 PM）";
 "status_operational" = "運作正常";
+"status_degraded" = "效能下降";
 "status_partial_outage" = "部分服務中斷";
 "status_major_outage" = "重大服務中斷";
 "status_critical_issue" = "嚴重問題";
@@ -732,6 +733,7 @@
 "Add Account..." = "新增帳號…";
 "Usage Dashboard" = "使用量儀表板";
 "Status Page" = "狀態頁";
+"Open Status Page" = "打開狀態頁";
 "Settings..." = "設定…";
 "About CodexBar" = "關於 CodexBar";
 "Quit" = "結束";

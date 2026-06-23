@@ -643,6 +643,7 @@
 
 /* Provider status */
 "status_operational" = "Opérationnel";
+"status_degraded" = "Performances dégradées";
 "status_partial_outage" = "Dégradation partielle";
 "status_major_outage" = "Panne majeure";
 "status_critical_issue" = "Problème critique";
@@ -699,6 +700,7 @@
 "Add Account..." = "Ajouter un compte...";
 "Usage Dashboard" = "Tableau de bord d'utilisation";
 "Status Page" = "Page d'état";
+"Open Status Page" = "Ouvrir la page d'état";
 "Settings..." = "Réglages…";
 "About CodexBar" = "À propos de CodexBar";
 "Quit" = "Quitter";

@@ -632,6 +632,7 @@
 
 /* Provider status */
 "status_operational" = "Operatiu";
+"status_degraded" = "Rendiment degradat";
 "status_partial_outage" = "Interrupció parcial";
 "status_major_outage" = "Interrupció greu";
 "status_critical_issue" = "Problema crític";
@@ -1084,6 +1085,7 @@
 "Source" = "Origen";
 "State" = "Estat";
 "Status Page" = "Pàgina d'estat";
+"Open Status Page" = "Obre la pàgina d'estat";
 "Store multiple Antigravity Google OAuth accounts for quick switching." = "Deseu diversos comptes OAuth de Google d'Antigravity per canviar ràpidament.";
 "Store multiple DeepSeek API keys." = "Deseu diverses claus d'API de DeepSeek.";
 "Store multiple OpenAI API keys." = "Deseu diverses claus d'API d'OpenAI.";

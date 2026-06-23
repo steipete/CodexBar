@@ -639,6 +639,7 @@
 
 /* Provider status */
 "status_operational" = "Hoạt động";
+"status_degraded" = "Hiệu suất giảm";
 "status_partial_outage" = "Mất điện một phần";
 "status_major_outage" = "Mất điện lớn";
 "status_critical_issue" = "Sự cố nghiêm trọng";
@@ -695,6 +696,7 @@
 "Add Account..." = "Thêm tài khoản...";
 "Usage Dashboard" = "Mức sử dụng Trang tổng quan";
 "Status Page" = "Trang trạng thái";
+"Open Status Page" = "Mở trang trạng thái";
 "Settings..." = "Cài đặt ...";
 "About CodexBar" = "Giới thiệu về CodexBar";
 "Quit" = "Thoát";

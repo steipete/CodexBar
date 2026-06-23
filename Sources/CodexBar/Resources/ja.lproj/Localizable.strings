@@ -640,6 +640,7 @@
 
 /* Provider status */
 "status_operational" = "正常稼働中";
+"status_degraded" = "パフォーマンス低下";
 "status_partial_outage" = "一部障害";
 "status_major_outage" = "重大な障害";
 "status_critical_issue" = "致命的な問題";
@@ -696,6 +697,7 @@
 "Add Account..." = "アカウントを追加...";
 "Usage Dashboard" = "使用状況ダッシュボード";
 "Status Page" = "ステータスページ";
+"Open Status Page" = "ステータスページを開く";
 "Settings..." = "設定...";
 "About CodexBar" = "CodexBar について";
 "Quit" = "終了";

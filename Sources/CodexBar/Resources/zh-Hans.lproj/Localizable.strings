@@ -617,6 +617,7 @@
 "display_mode_both_desc" = "同时显示百分比和进度（例如 45% · +5%）";
 "display_mode_reset_time_desc" = "显示所选指标的重置时间（例如 ↻ 3:56 PM）";
 "status_operational" = "正常运行";
+"status_degraded" = "性能下降";
 "status_partial_outage" = "部分中断";
 "status_major_outage" = "重大中断";
 "status_critical_issue" = "严重问题";
@@ -673,6 +674,7 @@
 "Add Account..." = "添加账户…";
 "Usage Dashboard" = "用量仪表盘";
 "Status Page" = "状态页";
+"Open Status Page" = "打开状态页";
 "Settings..." = "设置…";
 "About CodexBar" = "关于 CodexBar";
 "Quit" = "退出";

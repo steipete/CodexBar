@@ -643,6 +643,7 @@
 
 /* Provider status */
 "status_operational" = "Operationeel";
+"status_degraded" = "Verminderde prestaties";
 "status_partial_outage" = "Gedeeltelijke uitval";
 "status_major_outage" = "Grote storing";
 "status_critical_issue" = "Kritieke kwestie";
@@ -699,6 +700,7 @@
 "Add Account..." = "Account toevoegen...";
 "Usage Dashboard" = "Gebruiksdashboard";
 "Status Page" = "Statuspagina";
+"Open Status Page" = "Statuspagina openen";
 "Settings..." = "Instellingen...";
 "About CodexBar" = "Over CodexBar";
 "Quit" = "Stoppen";

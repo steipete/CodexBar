@@ -640,6 +640,7 @@
 
 /* Provider status */
 "status_operational" = "Operacional";
+"status_degraded" = "Desempenho degradado";
 "status_partial_outage" = "Falha parcial";
 "status_major_outage" = "Falha geral";
 "status_critical_issue" = "Problema crítico";
@@ -696,6 +697,7 @@
 "Add Account..." = "Adicionar conta...";
 "Usage Dashboard" = "Dashboard de uso";
 "Status Page" = "Página de status";
+"Open Status Page" = "Abrir página de status";
 "Settings..." = "Ajustes...";
 "About CodexBar" = "Sobre o CodexBar";
 "Quit" = "Encerrar";

@@ -643,6 +643,7 @@
 
 /* Provider status */
 "status_operational" = "Працює";
+"status_degraded" = "Знижена продуктивність";
 "status_partial_outage" = "Часткове відключення";
 "status_major_outage" = "Серйозний збій";
 "status_critical_issue" = "Критична проблема";
@@ -699,6 +700,7 @@
 "Add Account..." = "Додати обліковий запис...";
 "Usage Dashboard" = "Панель використання";
 "Status Page" = "Сторінка стану";
+"Open Status Page" = "Відкрити сторінку стану";
 "Settings..." = "Налаштування...";
 "About CodexBar" = "Про CodexBar";
 "Quit" = "Вийти";

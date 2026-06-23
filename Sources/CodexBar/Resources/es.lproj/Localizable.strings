@@ -632,6 +632,7 @@
 
 /* Provider status */
 "status_operational" = "Operativo";
+"status_degraded" = "Rendimiento degradado";
 "status_partial_outage" = "Interrupción parcial";
 "status_major_outage" = "Interrupción grave";
 "status_critical_issue" = "Problema crítico";
@@ -963,3 +964,4 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
+"Open Status Page" = "Abrir página de estado";
