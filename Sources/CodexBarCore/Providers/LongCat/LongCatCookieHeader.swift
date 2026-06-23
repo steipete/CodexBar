@@ -20,6 +20,11 @@ public enum LongCatCookieHeader {
     ]
 
     public static func resolveCookieOverride(context: ProviderFetchContext) -> LongCatCookieOverride? {
+        // Off disables LongCat web auth entirely — including a lingering env cookie.
+        if context.settings?.longcat?.cookieSource == .off {
+            return nil
+        }
+
         if let settings = context.settings?.longcat, settings.cookieSource == .manual {
             if let manual = settings.manualCookieHeader, !manual.isEmpty {
                 return self.override(from: manual)
