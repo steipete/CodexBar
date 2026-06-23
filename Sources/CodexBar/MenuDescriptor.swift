@@ -393,7 +393,7 @@ struct MenuDescriptor {
         entries: inout [Entry],
         usage: PoeUsageHistorySnapshot)
     {
-        let today = usage.latestDay
+        let today = usage.currentDay()
         let week = usage.last7Days
         let month = usage.last30Days
         let todayCostSuffix = today.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""

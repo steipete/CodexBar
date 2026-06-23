@@ -148,6 +148,76 @@ struct PoeUsageHistorySnapshotTests {
         #expect(snapshot.last30Days == snapshot.summary(days: 30))
     }
 
+    @Test
+    func `current day does not reuse a stale latest bucket`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/London"))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-06-23T12:00:00Z"))
+        let yesterday = try #require(ISO8601DateFormatter().date(from: "2026-06-22T12:00:00Z"))
+        let snapshot = PoeUsageHistorySnapshot(
+            entries: [
+                self.makeEntry(
+                    id: "stale",
+                    createdAt: yesterday,
+                    model: "GPT-4o",
+                    usageType: "chat",
+                    points: 100,
+                    costUSD: 0.10),
+            ],
+            daily: [
+                PoeUsageHistorySnapshot.DailyBucket(
+                    day: "2026-06-22",
+                    points: 100,
+                    requests: 1,
+                    costUSD: 0.10),
+            ],
+            updatedAt: now)
+
+        #expect(snapshot.latestDay.points == 100)
+        #expect(snapshot.currentDay(now: now, calendar: calendar).points == 0)
+        #expect(snapshot.currentDay(now: now, calendar: calendar).requests == 0)
+        #expect(snapshot.currentDay(now: now, calendar: calendar).costUSD == nil)
+    }
+
+    @Test
+    func `current day filters raw entries across a UTC bucket boundary`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-06-23T01:00:00Z"))
+        let localToday = try #require(ISO8601DateFormatter().date(from: "2026-06-22T20:00:00Z"))
+        let localYesterday = try #require(ISO8601DateFormatter().date(from: "2026-06-22T06:00:00Z"))
+        let snapshot = PoeUsageHistorySnapshot(
+            entries: [
+                self.makeEntry(
+                    id: "today",
+                    createdAt: localToday,
+                    model: "GPT-4o",
+                    usageType: "chat",
+                    points: 80,
+                    costUSD: 0.08),
+                self.makeEntry(
+                    id: "yesterday",
+                    createdAt: localYesterday,
+                    model: "Claude",
+                    usageType: "chat",
+                    points: 20,
+                    costUSD: 0.02),
+            ],
+            daily: [
+                PoeUsageHistorySnapshot.DailyBucket(
+                    day: "2026-06-22",
+                    points: 100,
+                    requests: 2,
+                    costUSD: 0.10),
+            ],
+            updatedAt: now)
+
+        let current = snapshot.currentDay(now: now, calendar: calendar)
+        #expect(current.points == 80)
+        #expect(current.requests == 1)
+        #expect(current.costUSD == 0.08)
+    }
+
     // MARK: - topModels / topModel
 
     @Test

@@ -76,7 +76,7 @@ extension UsageMenuCardView.Model {
         if input.provider == .poe,
            let usage = input.snapshot?.poeUsage
         {
-            return self.poeUsageNotes(usage)
+            return self.poeUsageNotes(usage, now: input.now)
         }
 
         if input.provider == .ollama,
@@ -113,8 +113,12 @@ extension UsageMenuCardView.Model {
         return notes
     }
 
-    static func poeUsageNotes(_ usage: PoeUsageHistorySnapshot) -> [String] {
-        let today = usage.latestDay
+    static func poeUsageNotes(
+        _ usage: PoeUsageHistorySnapshot,
+        now: Date = Date(),
+        calendar: Calendar = .current) -> [String]
+    {
+        let today = usage.currentDay(now: now, calendar: calendar)
         let week = usage.last7Days
         let month = usage.last30Days
         let todayUSD = today.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
@@ -196,7 +200,7 @@ extension UsageMenuCardView.Model {
            let usage = input.snapshot?.poeUsage,
            !usage.daily.isEmpty
         {
-            return Self.poeInlineDashboard(usage)
+            return Self.poeInlineDashboard(usage, now: input.now)
         }
         if [.codex, .claude, .vertexai, .bedrock].contains(input.provider),
            input.tokenCostUsageEnabled,
@@ -229,8 +233,12 @@ extension UsageMenuCardView.Model {
         }
     }
 
-    static func poeInlineDashboard(_ usage: PoeUsageHistorySnapshot) -> InlineUsageDashboardModel {
-        let today = usage.latestDay
+    static func poeInlineDashboard(
+        _ usage: PoeUsageHistorySnapshot,
+        now: Date = Date(),
+        calendar: Calendar = .current) -> InlineUsageDashboardModel
+    {
+        let today = usage.currentDay(now: now, calendar: calendar)
         let week = usage.last7Days
         let month = usage.last30Days
         let points = usage.daily.suffix(30).map {
