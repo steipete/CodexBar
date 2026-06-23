@@ -14,10 +14,13 @@ public struct LongCatUsageFetcher: Sendable {
 
     public static func fetchUsage(cookieHeader: String, now: Date = Date()) async throws -> LongCatUsageSnapshot {
         // Account name. The user-current payload also carries a session token and
-        // phone number, so its body is never logged. Failure here is non-fatal.
+        // phone number, so its body is never logged. This is the required probe:
+        // a Meituan envelope with HTTP 200 but code 401/403 surfaces as
+        // `.invalidSession` here (via unwrap) so expired cookies are reported
+        // rather than masked by an empty snapshot.
         var account: [String: Any]?
         if let data = try await self.get(self.userCurrentPath, cookieHeader: cookieHeader, required: true) {
-            account = (try? LongCatEnvelope.unwrap(self.json(data))) as? [String: Any]
+            account = try LongCatEnvelope.unwrap(self.json(data)) as? [String: Any]
         }
 
         var usage: [String: Any]?
@@ -56,7 +59,6 @@ public struct LongCatUsageFetcher: Sendable {
             snapshot.totalQuota = LongCatJSON.double(usage["totalToken"])
             snapshot.usedQuota = LongCatJSON.double(usage["usedToken"])
             snapshot.remainingQuota = LongCatJSON.double(usage["availableToken"])
-            snapshot.freeQuota = LongCatJSON.double(usage["freeAvailableToken"])
         }
 
         if let pendingFuel {

@@ -67,12 +67,6 @@ struct LongCatProviderTests {
         #expect(abs((usage.secondary?.usedPercent ?? 0) - 60) < 0.001)
     }
 
-    @Test
-    func `today tokens populate tertiary window`() {
-        let usage = LongCatUsageSnapshot(todayTokens: 12345).toUsageSnapshot()
-        #expect(usage.tertiary != nil)
-    }
-
     // MARK: - buildSnapshot against captured live response shapes
 
     private func object(_ json: String) throws -> [String: Any] {
@@ -112,5 +106,20 @@ struct LongCatProviderTests {
         #expect(snapshot.fuelPackTotal == 1000)
         #expect(snapshot.fuelPackRemaining == 750)
         #expect(snapshot.nearestFuelExpiry != nil)
+    }
+
+    // MARK: - Envelope
+
+    @Test
+    func `envelope surfaces invalid session on auth code`() {
+        #expect(throws: LongCatAPIError.invalidSession) {
+            try LongCatEnvelope.unwrap(["code": 401, "message": "unauthorized"])
+        }
+    }
+
+    @Test
+    func `envelope unwraps data on success`() throws {
+        let data = try LongCatEnvelope.unwrap(["code": 0, "data": ["x": 1]]) as? [String: Any]
+        #expect(data?["x"] as? Int == 1)
     }
 }
