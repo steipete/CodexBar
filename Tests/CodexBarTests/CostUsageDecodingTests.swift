@@ -434,7 +434,10 @@ struct CostUsageDecodingTests {
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: Date())
+        // "Today" is the current local day (2026-05-13 here); the impossible 2026-06-31
+        // row must never be parsed/selected. Fixed `now` keeps this deterministic.
+        let now = Date(timeIntervalSince1970: 1_778_630_400) // 2026-05-13
+        let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: now)
 
         #expect(snapshot.sessionTokens == 30)
         #expect(snapshot.sessionCostUSD == 23.45)

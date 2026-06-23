@@ -3,12 +3,13 @@ import Testing
 @testable import CodexBarCore
 
 struct CostUsageTodayBucketTests {
-
     // MARK: - Helpers
 
     /// Returns a fixed calendar date built from explicit components (UTC).
     private static func fixedDate(
-        _ year: Int, _ month: Int, _ day: Int,
+        _ year: Int,
+        _ month: Int,
+        _ day: Int,
         calendar: Calendar = .current) -> Date
     {
         var comps = DateComponents()
@@ -26,12 +27,14 @@ struct CostUsageTodayBucketTests {
 
     /// A one-day-old entry with modest token/cost values.
     private static func pastEntry(
-        year: Int, month: Int, day: Int,
+        year: Int,
+        month: Int,
+        day: Int,
         tokens: Int = 500,
         cost: Double = 0.03) -> CostUsageDailyReport.Entry
     {
         CostUsageDailyReport.Entry(
-            date: dayString(year, month, day),
+            date: self.dayString(year, month, day),
             inputTokens: tokens / 2,
             outputTokens: tokens / 2,
             totalTokens: tokens,
@@ -46,7 +49,7 @@ struct CostUsageTodayBucketTests {
         year: Int, month: Int, day: Int) -> CostUsageDailyReport.Entry
     {
         CostUsageDailyReport.Entry(
-            date: dayString(year, month, day),
+            date: self.dayString(year, month, day),
             inputTokens: 120,
             outputTokens: 80,
             totalTokens: 200,
@@ -67,9 +70,9 @@ struct CostUsageTodayBucketTests {
         let older = Self.pastEntry(year: 2026, month: 6, day: 19, tokens: 300, cost: 0.02)
 
         let snapshot = CostUsageTokenSnapshot(
-            sessionTokens: nil,      // will be set by the new fetcher logic
+            sessionTokens: nil, // will be set by the new fetcher logic
             sessionCostUSD: nil,
-            last30DaysTokens: 900,    // 600 + 300
+            last30DaysTokens: 900, // 600 + 300
             last30DaysCostUSD: 0.06,
             daily: [older, past],
             updatedAt: now)
@@ -112,7 +115,7 @@ struct CostUsageTodayBucketTests {
         let yesterday = Self.pastEntry(year: 2026, month: 6, day: 21, tokens: 400, cost: 0.02)
 
         let snapshot = CostUsageTokenSnapshot(
-            sessionTokens: 200,       // pre-populated by fetcher from today's row
+            sessionTokens: 200, // pre-populated by fetcher from today's row
             sessionCostUSD: 0.01,
             last30DaysTokens: 600,
             last30DaysCostUSD: 0.03,
