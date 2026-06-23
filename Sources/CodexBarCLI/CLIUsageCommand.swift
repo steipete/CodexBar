@@ -241,6 +241,34 @@ extension CodexBarCLI {
         return output
     }
 
+    // swiftlint:disable:next function_parameter_count
+    private static func makeUsagePayload(
+        provider: UsageProvider,
+        accountLabel: String?,
+        cacheAccountKey: String?,
+        version: String?,
+        source: String,
+        status: ProviderStatusPayload?,
+        usage: UsageSnapshot,
+        credits: CreditsSnapshot?,
+        antigravityPlanInfo: AntigravityPlanInfoSummary?,
+        dashboard: OpenAIDashboardSnapshot?) -> ProviderPayload
+    {
+        ProviderPayload(
+            provider: provider,
+            account: accountLabel,
+            cacheAccountKey: cacheAccountKey,
+            version: version,
+            source: source,
+            status: status,
+            usage: usage,
+            credits: credits,
+            antigravityPlanInfo: antigravityPlanInfo,
+            openaiDashboard: dashboard,
+            error: nil,
+            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage))
+    }
+
     private static func fetchUsageOutput(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -365,9 +393,9 @@ extension CodexBarCLI {
                 }
                 output.sections.append(text)
             case .json:
-                output.payload.append(ProviderPayload(
+                output.payload.append(Self.makeUsagePayload(
                     provider: provider,
-                    account: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                    accountLabel: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheAccountKey: cacheAccountKey,
                     version: version,
                     source: source,
@@ -375,8 +403,7 @@ extension CodexBarCLI {
                     usage: usage,
                     credits: result.credits,
                     antigravityPlanInfo: antigravityPlanInfo,
-                    openaiDashboard: dashboard,
-                    error: nil))
+                    dashboard: dashboard))
             }
         case let .failure(error):
             output.exitCode = Self.mapError(error)
