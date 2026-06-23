@@ -242,9 +242,11 @@ struct UsageStoreHighestUsageTests {
         #expect(highest?.provider == .codex)
         #expect(highest?.usedPercent == 70)
     }
+}
 
+extension UsageStoreHighestUsageTests {
     @Test
-    func `automatic metric ranks antigravity by all quota summary lanes`() {
+    func `automatic metric ranks antigravity by rendered quota summary lanes across groups`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-all-summary"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -271,12 +273,21 @@ struct UsageStoreHighestUsageTests {
                 secondary: nil,
                 updatedAt: Date()),
             provider: .codex)
+        let antigravity = self.antigravityQuotaSummarySnapshot(
+            geminiSessionUsed: 10,
+            geminiWeeklyUsed: 20,
+            otherSessionUsed: 95,
+            otherWeeklyUsed: 90)
+        let unknownCadence = NamedRateWindow(
+            id: "antigravity-quota-summary-future-daily",
+            title: "Future daily lane",
+            window: RateWindow(
+                usedPercent: 99,
+                windowMinutes: 24 * 60,
+                resetsAt: nil,
+                resetDescription: nil))
         store._setSnapshotForTesting(
-            self.antigravityQuotaSummarySnapshot(
-                geminiSessionUsed: 10,
-                geminiWeeklyUsed: 20,
-                otherSessionUsed: 95,
-                otherWeeklyUsed: 90),
+            antigravity.with(extraRateWindows: (antigravity.extraRateWindows ?? []) + [unknownCadence]),
             provider: .antigravity)
 
         var highest = store.providerWithHighestUsage()
