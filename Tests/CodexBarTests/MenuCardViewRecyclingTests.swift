@@ -632,6 +632,25 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `recycled card clears button role when click action is removed`() {
+        let highlightState = MenuCardHighlightState()
+        let hosting = MenuCardItemHostingView(
+            rootView: Text("clickable"),
+            highlightState: highlightState,
+            allowsMenuHighlight: true,
+            onClick: {})
+
+        #expect(hosting.accessibilityRole() == .button)
+
+        hosting.prepareForReuse(
+            rootView: Text("informational"),
+            allowsMenuHighlight: false,
+            onClick: nil)
+
+        #expect(hosting.accessibilityRole() == .group)
+    }
+
+    @Test
     func `harvesting a highlighted card clears its highlight and tracking entry`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled

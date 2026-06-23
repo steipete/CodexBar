@@ -10,6 +10,7 @@ extension StatusItemController {
     static let menuCardBaseWidth: CGFloat = 310
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
     static let overviewRowIdentifierPrefix = "overviewRow-"
+    static let persistentRefreshMenuItemID = "persistentRefreshAction"
     private static let defaultMenuOpenRefreshDelay: Duration = .seconds(1.2)
     #if DEBUG
     private static var menuOpenRefreshDelayForTesting: Duration = .seconds(1.2)
@@ -38,8 +39,6 @@ extension StatusItemController {
 
     private func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
         switch action {
-        case .refresh:
-            ("r", [.command])
         case .settings:
             (",", [.command])
         case .quit:
@@ -47,6 +46,10 @@ extension StatusItemController {
         default:
             nil
         }
+    }
+
+    func isPersistentRefreshItem(_ item: NSMenuItem) -> Bool {
+        item.representedObject as? String == Self.persistentRefreshMenuItemID
     }
 
     func makeMenu() -> NSMenu {
@@ -797,6 +800,16 @@ extension StatusItemController {
                     }
                     menu.addItem(item)
                 case let .action(title, action):
+                    if action == .refresh {
+                        let item = self.makePersistentRefreshItem(
+                            title: L(title),
+                            action: action,
+                            menu: captureMenu ?? menu,
+                            width: width)
+                        menu.addItem(item)
+                        self.persistentRefreshItems.add(item)
+                        continue
+                    }
                     let localizedTitle = L(title)
                     let (selector, represented) = self.selector(for: action)
                     let item = NSMenuItem(title: localizedTitle, action: selector, keyEquivalent: "")
@@ -823,11 +836,6 @@ extension StatusItemController {
                     {
                         item.isEnabled = false
                         self.applySubtitle(subtitle, to: item, title: localizedTitle)
-                    }
-                    if action == .refresh {
-                        let targetMenu = captureMenu ?? menu
-                        item.isEnabled = !self.isRefreshActionInFlight(for: targetMenu)
-                        self.persistentRefreshItems.add(item)
                     }
                     menu.addItem(item)
                 case let .submenu(title, systemImageName, submenuItems):
@@ -863,6 +871,28 @@ extension StatusItemController {
                 menu.addItem(.separator())
             }
         }
+    }
+
+    private func makePersistentRefreshItem(
+        title: String,
+        action: MenuDescriptor.MenuAction,
+        menu: NSMenu,
+        width: CGFloat) -> NSMenuItem
+    {
+        let item = self.makeMenuCardItem(
+            PersistentMenuActionRowView(
+                title: title,
+                systemImageName: action.systemImageName),
+            id: Self.persistentRefreshMenuItemID,
+            width: width,
+            heightCacheFingerprint: "persistentRefreshAction:\(action.systemImageName ?? "")|\(title)",
+            onClick: { [weak self, weak menu] in
+                guard let self, let menu else { return }
+                self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+            })
+        item.title = title
+        item.isEnabled = !self.isRefreshActionInFlight(for: menu)
+        return item
     }
 
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {

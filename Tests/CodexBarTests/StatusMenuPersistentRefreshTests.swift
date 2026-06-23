@@ -121,7 +121,11 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `refresh menu item is native so clicking it closes the menu`() throws {
+    func `refresh row is custom and appears above settings`() throws {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -132,15 +136,23 @@ struct StatusMenuPersistentRefreshTests {
         controller.menuWillOpen(menu)
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        #expect(refreshItem.action != nil)
-        #expect(refreshItem.target === controller)
-        #expect(refreshItem.view == nil)
-        #expect(refreshItem.keyEquivalent == "r")
-        #expect(refreshItem.keyEquivalentModifierMask == [.command])
+        let settingsItem = try #require(menu.items.first { $0.title == "Settings..." })
+        let refreshIndex = try #require(menu.items.firstIndex(where: { $0 === refreshItem }))
+        let settingsIndex = try #require(menu.items.firstIndex(where: { $0 === settingsItem }))
+
+        #expect(refreshItem.action == nil)
+        #expect(refreshItem.target == nil)
+        #expect(refreshItem.view != nil)
+        #expect(controller.isPersistentRefreshItem(refreshItem))
+        #expect(refreshIndex < settingsIndex)
     }
 
     @Test
-    func `persistent action items are native and install update has an icon`() throws {
+    func `refresh row is custom while remaining persistent action items stay native`() throws {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -150,10 +162,14 @@ struct StatusMenuPersistentRefreshTests {
         controller.menuWillOpen(menu)
 
         let updateItem = try #require(menu.items.first { $0.title == "Update ready, restart now?" })
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
         #expect(MenuDescriptor.MenuAction.installUpdate.systemImageName == "arrow.down.circle")
         #expect(updateItem.image != nil)
+        #expect(refreshItem.view != nil)
+        #expect(refreshItem.action == nil)
+        #expect(controller.isPersistentRefreshItem(refreshItem))
 
-        for title in ["Update ready, restart now?", "Refresh", "Settings...", "About CodexBar", "Quit"] {
+        for title in ["Update ready, restart now?", "Settings...", "About CodexBar", "Quit"] {
             let item = try #require(menu.items.first { $0.title == title })
             #expect(item.view == nil, "'\(title)' should be a native NSMenuItem with no custom view")
             #expect(item.action != nil)
@@ -162,7 +178,11 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `native refresh item reflects scoped global and manual refresh state`() throws {
+    func `persistent refresh row reflects scoped global and manual refresh state`() throws {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -172,7 +192,8 @@ struct StatusMenuPersistentRefreshTests {
         controller.menuWillOpen(menu)
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        #expect(refreshItem.view == nil)
+        #expect(refreshItem.view != nil)
+        #expect(controller.isPersistentRefreshItem(refreshItem))
         #expect(controller.persistentRefreshItems.allObjects.contains { $0 === refreshItem })
         #expect(refreshItem.isEnabled)
 
@@ -200,7 +221,7 @@ struct StatusMenuPersistentRefreshTests {
         controller.updatePersistentRefreshItemsEnabled()
         #expect(refreshItem.isEnabled)
 
-        refreshItem.action = controller.selector(for: .settings).0
+        refreshItem.representedObject = "notRefresh"
         controller.manualRefreshTask = Task {}
         controller.updatePersistentRefreshItemsEnabled()
         #expect(refreshItem.isEnabled)
@@ -716,7 +737,7 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `provider menu mouse and command R refresh only that provider`() async throws {
+    func `provider menu persistent refresh row and command R refresh only that provider`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -739,15 +760,18 @@ struct StatusMenuPersistentRefreshTests {
             await mouseGate.wait()
         }
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        let refreshAction = try #require(refreshItem.action)
-        _ = controller.perform(refreshAction, with: refreshItem)
+        #expect(controller.isPersistentRefreshItem(refreshItem))
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+        for _ in 0..<20 where controller.manualRefreshTask == nil {
+            await Task.yield()
+        }
         let mouseTask = try #require(controller.manualRefreshTask)
         #expect(controller.manualRefreshProvider == .claude)
         #expect(controller.isRefreshActionInFlight(for: codexMenu))
         #expect(controller.isRefreshActionInFlight(for: NSMenu()))
         let codexRefreshItem = try #require(codexMenu.items.first { $0.title == "Refresh" })
-        let codexRefreshAction = try #require(codexRefreshItem.action)
-        _ = controller.perform(codexRefreshAction, with: codexRefreshItem)
+        #expect(controller.isPersistentRefreshItem(codexRefreshItem))
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(codexMenu))
         await Task.yield()
         #expect(requestCount == 1)
         mouseGate.resume()
@@ -782,8 +806,8 @@ struct StatusMenuPersistentRefreshTests {
         controller._test_manualRefreshOperation = { requestCount += 1 }
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        let refreshAction = try #require(refreshItem.action)
-        _ = controller.perform(refreshAction, with: refreshItem)
+        #expect(controller.isPersistentRefreshItem(refreshItem))
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(menu))
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
         for _ in 0..<20 {
             await Task.yield()
@@ -811,8 +835,11 @@ struct StatusMenuPersistentRefreshTests {
         let overviewGate = ManualRefreshGate()
         controller._test_manualRefreshOperation = { await overviewGate.wait() }
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        let refreshAction = try #require(refreshItem.action)
-        _ = controller.perform(refreshAction, with: refreshItem)
+        #expect(controller.isPersistentRefreshItem(refreshItem))
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+        for _ in 0..<20 where controller.manualRefreshTask == nil {
+            await Task.yield()
+        }
         let overviewTask = try #require(controller.manualRefreshTask)
         #expect(controller.manualRefreshProvider == nil)
         overviewGate.resume()

@@ -157,6 +157,22 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         }
     }
 
+    /// `NSMenu` tracking consumes keyboard events before they reach a menu item's custom view, so
+    /// the pointer `onClick` path has no native counterpart for assistive tech. Expose the row as an
+    /// accessibility button whose press mirrors a click, giving VoiceOver an activation path that runs
+    /// `onClick` (and therefore keeps the menu open) instead of regressing to mouse-only.
+    override func accessibilityRole() -> NSAccessibility.Role? {
+        self.onClick == nil ? super.accessibilityRole() : .button
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        guard let onClick = self.onClick else {
+            return super.accessibilityPerformPress()
+        }
+        onClick()
+        return true
+    }
+
     private func installClickRecognizer() {
         let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
         recognizer.buttonMask = 0x1

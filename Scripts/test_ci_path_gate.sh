@@ -31,10 +31,16 @@ assert_gate true agents-contract $'M\tAGENTS.md'
 assert_gate true rename-to-agents-contract $'R100\tdocs/old.md\tAGENTS.md'
 assert_gate true rename-from-agents-contract $'R100\tAGENTS.md\tdocs/new.md'
 assert_gate true source $'M\tSources/CodexBar/App.swift'
-assert_gate true docs-code $'M\tdocs/site.js'
+assert_gate false docs-site $'M\tdocs/index.html' $'M\tdocs/site.css' $'M\tdocs/site.js' \
+  $'M\tdocs/site-locales.mjs' $'M\tdocs/social.html' $'M\tdocs/social.png' \
+  $'M\tdocs/CNAME' $'M\tdocs/.nojekyll' $'M\tdocs/llms.txt'
+assert_gate false docs-site-assets $'M\tdocs/icon.png' $'M\tdocs/logos/provider-logo.svg'
+assert_gate true docs-unknown-code $'M\tdocs/custom-tool.js'
+assert_gate true docs-site-with-config $'M\tdocs/site.css' $'M\tdocs/configuration.md'
 assert_gate true empty
 assert_gate true source-to-docs $'R100\tSources/CodexBar/App.swift\tdocs/App.md'
 assert_gate true docs-to-source $'R100\tdocs/App.md\tSources/CodexBar/App.swift'
+assert_gate false docs-to-site $'R100\tdocs/old.md\tdocs/site.css'
 
 assert_gate_fails() {
   local name="$1"

@@ -1,8 +1,26 @@
 # Changelog
 
-## 0.37.1 — Unreleased
+## 0.37.3 — Unreleased
+
+## 0.37.2 — 2026-06-22
+
+### Added
+- Diagnostics: write redacted provider reports to a file with platform and app-version context. Thanks @Yuxin-Qiao!
+- CLI server: report the startup build version from `/health` so clients can detect stale helper processes after updates. Thanks @enieuwy!
 
 ### Fixed
+- Claude: pause background CLI usage probes briefly after rate limiting while keeping manual refresh available. Thanks @kiranmagic7!
+- Codex OAuth: publish refreshed `auth.json` credentials with private file permissions already applied. Thanks @Hinotoi-agent!
+- Provider endpoints: reject unsafe Deepgram, z.ai, and Xiaomi MiMo overrides before attaching credentials. Thanks @Hinotoi-agent!
+- Azure OpenAI: reject unsafe endpoint overrides before attaching API keys while keeping invalid configurations visible with an actionable error. Thanks @Hinotoi-agent!
+
+## 0.37.1 — 2026-06-21
+
+### Fixed
+- MiniMax: recover detailed token-plan windows from the remains API when the coding-plan page only exposes coarse usage. Thanks @Yuxin-Qiao!
+- Cost history: remove the redundant tooltip from submenu-backed Cost rows. Thanks @Zihao-Qi!
+- Menu refresh: keep the menu open and show in-place progress when Refresh is clicked. Thanks @elijahfriedman!
+- Menu: align provider usage-card spacing with the Overview layout. Thanks @Zihao-Qi!
 - Memory pressure: avoid actor-isolation crashes when system callbacks arrive on a utility queue. Thanks @Zihao-Qi!
 - Menu: remove extra separators and spacing around Storage, Cost, and Subscription Utilization rows. Thanks @elijahfriedman!
 - Antigravity: show limits as unavailable when OAuth identifies the account but quota endpoints deny access. Thanks @Yuxin-Qiao!

@@ -207,7 +207,7 @@ extension StatusItemController {
         if #available(macOS 14.4, *) {
             liveItem.subtitle = newItem.subtitle
         }
-        if liveItem.action == #selector(self.refreshMenuItem(_:)) {
+        if self.isPersistentRefreshItem(liveItem) {
             self.persistentRefreshItems.add(liveItem)
         }
     }

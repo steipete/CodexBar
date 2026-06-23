@@ -33,6 +33,7 @@ public struct ZaiSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
         try self.validateQuotaEndpointOverride(environment: environment)
+        try self.validateAPIHostEndpointOverride(environment: environment)
     }
 
     public static func validateQuotaEndpointOverride(

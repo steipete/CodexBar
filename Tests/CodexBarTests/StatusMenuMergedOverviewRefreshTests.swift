@@ -30,13 +30,12 @@ struct StatusMenuMergedOverviewRefreshTests {
         controller.updatePersistentRefreshItemsEnabled()
         #expect(controller.isRefreshActionInFlight(for: menu))
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        #expect(refreshItem.view == nil)
+        #expect(controller.isPersistentRefreshItem(refreshItem))
         #expect(!refreshItem.isEnabled)
 
         var requestCount = 0
         controller._test_manualRefreshOperation = { requestCount += 1 }
-        let refreshAction = try #require(refreshItem.action)
-        _ = controller.perform(refreshAction, with: refreshItem)
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(menu))
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)))
         for _ in 0..<20 {
             await Task.yield()

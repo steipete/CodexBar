@@ -57,6 +57,28 @@ struct AzureOpenAIUsageFetcherTests {
     }
 
     @Test
+    func `invalid endpoint returns precise provider error before fetch`() async {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .azureopenai)
+        let outcome = await descriptor.fetchPlan.fetchOutcome(
+            context: self.makeContext(environment: [
+                AzureOpenAISettingsReader.apiKeyEnvironmentKey: "AZURE_CANARY_KEY",
+                AzureOpenAISettingsReader.endpointEnvironmentKey: "http://127.0.0.1:31337",
+                AzureOpenAISettingsReader.deploymentNameEnvironmentKey: "canary-deployment",
+            ]),
+            provider: .azureopenai)
+
+        guard case let .failure(error) = outcome.result else {
+            Issue.record("Expected invalid endpoint override to fail")
+            return
+        }
+
+        #expect(error as? AzureOpenAISettingsError == .invalidEndpointOverride(
+            AzureOpenAISettingsReader.endpointEnvironmentKey))
+        #expect(error.localizedDescription.contains("HTTPS endpoint"))
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+    }
+
+    @Test
     func `fetcher validates deployment with chat completions request`() async throws {
         let endpoint = try #require(URL(string: "https://example-resource.openai.azure.com"))
         let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
@@ -177,6 +199,39 @@ struct AzureOpenAIUsageFetcherTests {
         #expect(
             url.absoluteString ==
                 "https://example-resource.openai.azure.com/openai/v1/chat/completions")
+    }
+}
+
+@MainActor
+struct AzureOpenAIProviderAvailabilityTests {
+    @Test
+    func `configured invalid endpoint remains visible for actionable error`() throws {
+        let suite = "AzureOpenAIProviderAvailabilityTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.azureOpenAIAPIKey = "AZURE_CANARY_KEY"
+        settings.azureOpenAIEndpoint = "http://127.0.0.1:31337"
+        settings.azureOpenAIDeploymentName = "canary-deployment"
+
+        let environment = ProviderRegistry.makeEnvironment(
+            base: [:],
+            provider: .azureopenai,
+            settings: settings,
+            tokenOverride: nil)
+        let context = ProviderAvailabilityContext(
+            provider: .azureopenai,
+            settings: settings,
+            environment: environment)
+
+        #expect(AzureOpenAISettingsReader.endpoint(environment: environment) == nil)
+        #expect(AzureOpenAIProviderImplementation().isAvailable(context: context))
     }
 }
 

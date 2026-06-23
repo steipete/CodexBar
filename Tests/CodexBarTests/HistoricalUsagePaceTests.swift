@@ -791,7 +791,7 @@ struct HistoricalUsagePaceTests {
     }
 
     @Test
-    func exhaustedActualReturnsZeroEta() throws {
+    func `exhausted actual returns zero eta`() throws {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
         let week = HistoricalWeekProfile(

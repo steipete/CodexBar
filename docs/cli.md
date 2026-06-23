@@ -55,6 +55,7 @@ See `docs/configuration.md` for the schema.
   - Transient refresh failures fall back to the last good response for up to ten refresh intervals (minimum five minutes) so polling clients do not flicker between data and errors; disabled when `--refresh-interval 0`.
   - v1 binds to `127.0.0.1` only and rejects non-loopback `Host` headers. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
   - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`.
+  - `GET /health` returns `{"status":"ok"}` plus a `version` field with the running build (e.g. `"0.37.2"`) when resolvable; clients can compare it against `codexbar --version` to detect a `serve` process still running an older binary after an update.
   - Codex usage responses include every visible Codex account, matching the menu bar switcher.
 - `codexbar cache clear` clears local CodexBar caches.
   - `--cookies` removes cached browser-cookie headers from the CodexBar Keychain cache.

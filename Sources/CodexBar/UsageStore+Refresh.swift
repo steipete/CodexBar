@@ -446,7 +446,10 @@ extension UsageStore {
             let hadPriorData = self.snapshots[provider] != nil
             let preservesPriorData = Self.shouldPreservePriorSnapshot(
                 after: error,
-                hadPriorData: hadPriorData)
+                hadPriorData: hadPriorData) ||
+                (provider == .claude &&
+                    hadPriorData &&
+                    Self.isClaudeCLIRateLimitFailure(error))
             let shouldSurface =
                 self.failureGates[provider]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
@@ -462,7 +465,7 @@ extension UsageStore {
             }
             if provider == .claude,
                preservesPriorData,
-               Self.isClaudeUsageProbeTimeout(error)
+               Self.isClaudeUsageProbeTimeout(error) || Self.isClaudeCLIRateLimitFailure(error)
             {
                 self.errors[provider] = nil
                 return
@@ -558,6 +561,10 @@ extension UsageStore {
     private static func isClaudeUsageProbeTimeout(_ error: Error) -> Bool {
         if case ClaudeStatusProbeError.timedOut = error { return true }
         return error.localizedDescription == ClaudeStatusProbeError.timedOut.localizedDescription
+    }
+
+    private static func isClaudeCLIRateLimitFailure(_ error: Error) -> Bool {
+        ClaudeUsageFetcher.isCLIRateLimitError(error)
     }
 
     private static func isClaudeWebSessionRefreshFailure(_ error: Error) -> Bool {

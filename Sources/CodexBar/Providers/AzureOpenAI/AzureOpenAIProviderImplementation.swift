@@ -20,12 +20,12 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         let environment = context.environment
         let hasEnvironmentConfig = AzureOpenAISettingsReader.apiKey(environment: environment) != nil &&
-            AzureOpenAISettingsReader.endpoint(environment: environment) != nil &&
+            AzureOpenAISettingsReader.rawEndpoint(environment: environment) != nil &&
             AzureOpenAISettingsReader.deploymentName(environment: environment) != nil
         if hasEnvironmentConfig { return true }
 
         return !context.settings.azureOpenAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            AzureOpenAISettingsReader.endpointURL(from: context.settings.azureOpenAIEndpoint) != nil &&
+            !context.settings.azureOpenAIEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
             !context.settings.azureOpenAIDeploymentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 

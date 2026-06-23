@@ -192,8 +192,10 @@ struct SpawnedProcessGroupTests {
 
         var childPID: pid_t?
         for _ in 0..<100 {
-            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
-                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let parsedPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                childPID = parsedPID
                 break
             }
             try await Task.sleep(for: .milliseconds(20))
@@ -259,8 +261,10 @@ struct SpawnedProcessGroupTests {
 
         var childPID: pid_t?
         for _ in 0..<100 {
-            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
-                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let parsedPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                childPID = parsedPID
                 break
             }
             try await Task.sleep(for: .milliseconds(20))
@@ -353,8 +357,10 @@ struct SpawnedProcessGroupTests {
 
         var childPID: pid_t?
         for _ in 0..<100 {
-            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
-                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let parsedPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                childPID = parsedPID
                 break
             }
             try await Task.sleep(for: .milliseconds(20))
@@ -403,8 +409,10 @@ struct SpawnedProcessGroupTests {
         }
         var childPID: pid_t?
         for _ in 0..<100 {
-            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
-                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let parsedPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                childPID = parsedPID
                 break
             }
             try await Task.sleep(for: .milliseconds(20))
@@ -467,8 +475,10 @@ struct SpawnedProcessGroupTests {
         }
         var childPID: pid_t?
         for _ in 0..<100 {
-            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
-                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let parsedPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                childPID = parsedPID
                 break
             }
             try await Task.sleep(for: .milliseconds(20))
@@ -576,8 +586,10 @@ struct SpawnedProcessGroupTests {
 
         var childPID: pid_t?
         for _ in 0..<100 {
-            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8) {
-                childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let parsedPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                childPID = parsedPID
                 break
             }
             try await Task.sleep(for: .milliseconds(20))

@@ -385,7 +385,7 @@ struct DeepSeekUsageFetcherTests {
 
         #expect(snapshot.totalBalance == 50.0)
         #expect(snapshot.usageSummary == nil)
-        #expect(await probe.wasCancelled())
+        #expect(await Self.waitForCancellation(probe))
     }
 
     @Test

@@ -741,6 +741,7 @@ extension ZaiUsageFetcher {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> ZaiUsageSnapshot
     {
+        try ZaiSettingsReader.validateEndpointOverrides(environment: environment)
         let snapshot = try await Self.fetchUsage(
             apiKey: apiKey,
             region: region,

@@ -19,6 +19,8 @@ public struct ProviderDiagnosticBatchExport: Codable, Sendable {
 public struct ProviderDiagnosticExport: Codable, Sendable {
     public let schemaVersion: String
     public let timestamp: Date
+    public let platform: String
+    public let appVersion: String?
     public let provider: String
     public let displayName: String
     public let source: String
@@ -30,9 +32,28 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
     public let settings: ProviderDiagnosticSettingsSummary
     public let details: ProviderDiagnosticDetails?
 
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case timestamp
+        case platform
+        case appVersion
+        case provider
+        case displayName
+        case source
+        case sourceMode
+        case auth
+        case usage
+        case fetchAttempts
+        case error
+        case settings
+        case details
+    }
+
     public init(
         schemaVersion: String = "1.0",
         timestamp: Date,
+        platform: String = ProviderDiagnosticPlatform.current,
+        appVersion: String? = nil,
         provider: String,
         displayName: String,
         source: String,
@@ -46,6 +67,8 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
     {
         self.schemaVersion = schemaVersion
         self.timestamp = timestamp
+        self.platform = platform
+        self.appVersion = appVersion
         self.provider = provider
         self.displayName = displayName
         self.source = source
@@ -56,6 +79,38 @@ public struct ProviderDiagnosticExport: Codable, Sendable {
         self.error = error
         self.settings = settings
         self.details = details
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            schemaVersion: container.decode(String.self, forKey: .schemaVersion),
+            timestamp: container.decode(Date.self, forKey: .timestamp),
+            platform: container.decodeIfPresent(String.self, forKey: .platform)
+                ?? ProviderDiagnosticPlatform.current,
+            appVersion: container.decodeIfPresent(String.self, forKey: .appVersion),
+            provider: container.decode(String.self, forKey: .provider),
+            displayName: container.decode(String.self, forKey: .displayName),
+            source: container.decode(String.self, forKey: .source),
+            sourceMode: container.decode(String.self, forKey: .sourceMode),
+            auth: container.decode(ProviderDiagnosticAuthSummary.self, forKey: .auth),
+            usage: container.decodeIfPresent(ProviderDiagnosticUsageSummary.self, forKey: .usage),
+            fetchAttempts: container.decode([ProviderDiagnosticFetchAttempt].self, forKey: .fetchAttempts),
+            error: container.decodeIfPresent(ProviderDiagnosticError.self, forKey: .error),
+            settings: container.decode(ProviderDiagnosticSettingsSummary.self, forKey: .settings),
+            details: container.decodeIfPresent(ProviderDiagnosticDetails.self, forKey: .details))
+    }
+}
+
+public enum ProviderDiagnosticPlatform {
+    public static var current: String {
+        #if os(macOS)
+        "macOS"
+        #elseif os(Linux)
+        "Linux"
+        #else
+        "unknown"
+        #endif
     }
 }
 
@@ -445,6 +500,7 @@ public enum ProviderDiagnosticExportBuilder {
         public let sourceMode: ProviderSourceMode
         public let settings: ProviderSettingsSnapshot?
         public let auth: ProviderDiagnosticAuthSummary
+        public let appVersion: String?
 
         public init(
             provider: UsageProvider,
@@ -452,7 +508,8 @@ public enum ProviderDiagnosticExportBuilder {
             outcome: ProviderFetchOutcome,
             sourceMode: ProviderSourceMode,
             settings: ProviderSettingsSnapshot?,
-            auth: ProviderDiagnosticAuthSummary)
+            auth: ProviderDiagnosticAuthSummary,
+            appVersion: String? = nil)
         {
             self.provider = provider
             self.descriptor = descriptor
@@ -460,6 +517,7 @@ public enum ProviderDiagnosticExportBuilder {
             self.sourceMode = sourceMode
             self.settings = settings
             self.auth = auth
+            self.appVersion = appVersion
         }
     }
 
@@ -474,6 +532,7 @@ public enum ProviderDiagnosticExportBuilder {
 
         return ProviderDiagnosticExport(
             timestamp: Date(),
+            appVersion: input.appVersion,
             provider: input.provider.rawValue,
             displayName: input.descriptor.metadata.displayName,
             source: input.outcome.sourceLabel,

@@ -48,8 +48,36 @@ public struct MiniMaxUsageFetcher: Sendable {
             environment: environment,
             transport: transport)
         do {
+            let htmlSnapshot = try await self.fetchCodingPlanHTML(context: context, now: now)
+            if htmlSnapshot.services?.isEmpty != false {
+                do {
+                    Self.log.debug("MiniMax coding plan HTML lacks service quota data, trying remains API")
+                    let remainsSnapshot = try await self.fetchCodingPlanRemains(
+                        context: context,
+                        remainsContext: RemainsContext(
+                            authorizationToken: authorizationToken,
+                            groupID: groupID),
+                        now: now)
+                        .withPlanNameIfMissing(htmlSnapshot.planName)
+                    let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
+                        to: remainsSnapshot,
+                        context: context,
+                        groupID: groupID)
+                    return try await self.attachingBillingIfAvailable(
+                        to: snapshot,
+                        context: context,
+                        includeBillingHistory: includeBillingHistory,
+                        now: now)
+                } catch {
+                    if self.shouldRethrowAfterHTMLFallback(error) {
+                        throw error
+                    }
+                    Self.log.debug(
+                        "MiniMax remains API enrichment failed after HTML fallback: \(error.localizedDescription)")
+                }
+            }
             let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
-                to: self.fetchCodingPlanHTML(context: context, now: now),
+                to: htmlSnapshot,
                 context: context,
                 groupID: groupID)
             return try await self.attachingBillingIfAvailable(
@@ -397,6 +425,16 @@ public struct MiniMaxUsageFetcher: Sendable {
             return MiniMaxUsageError.networkError(urlError.localizedDescription)
         }
         return error
+    }
+
+    private static func shouldRethrowAfterHTMLFallback(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        if let minimaxError = error as? MiniMaxUsageError {
+            if case .invalidCredentials = minimaxError { return true }
+        }
+        if error is ProviderEndpointOverrideError { return true }
+        return false
     }
 
     private static func attachingBillingIfAvailable(
@@ -1625,65 +1663,5 @@ enum MiniMaxUsageParser {
             unlimitedServices.contains(normalizedService) &&
             normalizedWindow == "weekly" &&
             (input.remainingPercent.map { $0 >= 100 } ?? false)
-    }
-
-    private static func mapModelNameToServiceType(modelName: String) -> String {
-        let lower = modelName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if lower == "general" || lower == "video" {
-            return lower
-        }
-
-        // Legacy text model names are separate from Token Plan's `general` bucket.
-        if self.isTextGenerationModelName(modelName) {
-            return "Text Generation"
-        }
-
-        // Text to Speech (语音合成): speech-hd, Speech 2.8, etc.
-        if lower.contains("speech") {
-            return "Text to Speech"
-        }
-
-        // Image to Video Fast (图生视频 Fast): Hailuo-2.3-Fast
-        if lower.contains("hailuo"), lower.contains("fast") {
-            return "Image to Video"
-        }
-
-        // Text to Video (文生视频): Hailuo-2.3 (non-Fast)
-        if lower.contains("hailuo") {
-            return "Text to Video"
-        }
-
-        // Image Generation (图像生成): image-01, image-02, etc.
-        if lower.hasPrefix("image-") {
-            return "Image Generation"
-        }
-
-        // Music Generation (音乐生成): music-2.5, etc.
-        if lower.contains("music") {
-            return "Music Generation"
-        }
-
-        // Default: use model name as-is
-        return modelName
-    }
-
-    private static func isTextGenerationModelName(_ modelName: String) -> Bool {
-        let lower = modelName.lowercased()
-        return lower == "general" || lower.contains("minimax-m") || lower.hasPrefix("m2.")
-    }
-
-    private static func shouldRenderWeeklyWindow(for modelName: String) -> Bool {
-        self.isTextGenerationModelName(modelName)
-    }
-
-    private static func formatMiniMaxDateTimeRange(startTime: Date?, endTime: Date?) -> String? {
-        guard let startTime, let endTime else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
-        formatter.dateFormat = "MM/dd HH:mm"
-        let start = formatter.string(from: startTime)
-        let end = formatter.string(from: endTime)
-        return "\(start) - \(end)(UTC+8)"
     }
 }

@@ -92,6 +92,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Azure OpenAI
 - API key, endpoint, and deployment from `~/.codexbar/config.json` or `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, and `AZURE_OPENAI_DEPLOYMENT_NAME`.
+- `AZURE_OPENAI_ENDPOINT` and configured endpoint overrides must be HTTPS URLs or bare hosts normalized to HTTPS; explicit `http://` URLs, user info, and encoded host-delimiter tricks fail closed before `api-key` headers are attached.
 - Validates the configured deployment with a minimal chat-completions request; it does not expose Azure spend or quota history.
 - Use `AZURE_OPENAI_API_VERSION` to override the API version. Set it to `v1` for Azure's OpenAI-compatible v1 API path.
 - Status: Azure status page link.
@@ -108,6 +109,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## z.ai
 - API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `Z_AI_API_KEY` env var.
 - Supports global and BigModel CN quota hosts; override with `Z_AI_API_HOST` or `Z_AI_QUOTA_URL`.
+- z.ai endpoint overrides must be HTTPS or bare hosts normalized to HTTPS. `Z_AI_QUOTA_URL` takes precedence for
+  quota resolution; combined usage validates both configured endpoints before sending bearer auth.
 - Status: none yet.
 - Details: `docs/zai.md`.
 
@@ -393,8 +396,16 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## Deepgram
 - API key from config or `DEEPGRAM_API_KEY`.
 - Optional project ID from provider settings or `DEEPGRAM_PROJECT_ID`; otherwise aggregates all visible projects.
+- Optional API base URL override via `DEEPGRAM_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS.
 - Reads Deepgram usage breakdowns for audio hours, agent hours, token totals, TTS characters, and requests.
 - Details: `docs/deepgram.md`.
+
+## Xiaomi MiMo
+- Browser cookies or manual Cookie header for `platform.xiaomimimo.com` balance and token-plan endpoints.
+- Optional testing override via `MIMO_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS, and invalid
+  overrides fail closed instead of falling back to local MiMo usage accounting.
+- Local MiMo token accounting is available only when the opt-in cache file exists.
+- Details: `docs/mimo.md`.
 
 ## LiteLLM
 - API key from config or `LITELLM_API_KEY`; base URL from config `enterpriseHost` or `LITELLM_BASE_URL`.

@@ -761,7 +761,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `overview tab omits contextual provider actions`() {
+    func `overview tab omits contextual provider actions`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -800,10 +800,9 @@ struct StatusMenuTests {
         #expect(titles.contains("About CodexBar"))
         #expect(titles.contains("Quit"))
 
-        let refreshItem = menu.items.first { $0.title == "Refresh" }
-        #expect(refreshItem != nil)
-        #expect(refreshItem?.keyEquivalent == "r")
-        #expect(refreshItem?.keyEquivalentModifierMask == [.command])
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        #expect(controller.isPersistentRefreshItem(refreshItem))
+        #expect(refreshItem.keyEquivalent.isEmpty)
 
         let settingsItem = menu.items.first { $0.title == "Settings..." }
         #expect(settingsItem != nil)

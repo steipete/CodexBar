@@ -1,15 +1,16 @@
 import AppKit
 
 extension StatusItemController {
-    /// Updates native Refresh rows in place while their menus are tracking.
+    /// Updates persistent Refresh rows in place while their menus are tracking.
     func updatePersistentRefreshItemsEnabled() {
         for item in self.persistentRefreshItems.allObjects {
-            guard item.action == #selector(self.refreshMenuItem(_:)) else {
+            guard self.isPersistentRefreshItem(item) else {
                 self.persistentRefreshItems.remove(item)
                 continue
             }
             guard let menu = item.menu else { continue }
-            item.isEnabled = !self.isRefreshActionInFlight(for: menu)
+            let enabled = !self.isRefreshActionInFlight(for: menu)
+            item.isEnabled = enabled
         }
     }
 

@@ -183,6 +183,7 @@ extension CodexBarCLI {
           codexbar diagnose --provider <name|all> --format json
                            [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                            [-v|--verbose]
+                           [--redact] [--output <path>]
                            [--pretty]
 
         Description:
@@ -191,6 +192,7 @@ extension CodexBarCLI {
           account IDs, org IDs, raw responses, and billing-history records.
 
         Examples:
+          codexbar diagnose --provider minimax --format json --redact --output diagnostic.json
           codexbar diagnose --provider minimax --format json --pretty
           codexbar diagnose --provider claude --format json --pretty
           codexbar diagnose --provider all --format json
@@ -230,7 +232,7 @@ extension CodexBarCLI {
           codexbar config set-api-key --provider zai --stdin --usage-scope team
                                    --organization-id <org> --workspace-id <project>
           codexbar cache clear <--cookies|--cost|--all> [--provider <name>]
-          codexbar diagnose --provider <name|all> --format json [--pretty]
+          codexbar diagnose --provider <name|all> --format json [--redact] [--output <path>] [--pretty]
 
         Global flags:
           -h, --help      Show help
@@ -251,6 +253,7 @@ extension CodexBarCLI {
           codexbar config enable --provider grok
           codexbar config set-api-key --provider elevenlabs --stdin
           codexbar cache clear --cookies
+          codexbar diagnose --provider minimax --format json --redact --output diagnostic.json
           codexbar diagnose --provider minimax --format json --pretty
           codexbar diagnose --provider all --format json
         """

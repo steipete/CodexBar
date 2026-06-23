@@ -22,7 +22,7 @@ case "${macos_tests_required}:${macos_test_result}" in
     printf 'Lint and macOS Swift test shards passed.\n'
     ;;
   false:skipped)
-    printf 'Lint passed; macOS Swift tests skipped for docs/Markdown-only changes.\n'
+    printf 'Lint passed; macOS Swift tests skipped for docs/site-only changes.\n'
     ;;
   *)
     printf 'macOS test gate/result mismatch: required=%s result=%s\n' \

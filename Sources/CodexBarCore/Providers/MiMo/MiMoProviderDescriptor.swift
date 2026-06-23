@@ -62,8 +62,15 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         try await self.fetchFromWeb(context)
     }
 
-    private static func shouldFallbackToLocal(error: Error) -> Bool {
-        if error is MiMoSettingsError { return true }
+    static func shouldFallbackToLocal(error: Error) -> Bool {
+        if let settingsError = error as? MiMoSettingsError {
+            switch settingsError {
+            case .missingCookie, .invalidCookie:
+                return true
+            case .invalidEndpointOverride:
+                return false
+            }
+        }
         guard let mimoError = error as? MiMoUsageError else { return false }
         switch mimoError {
         case .invalidCredentials, .loginRequired: return true

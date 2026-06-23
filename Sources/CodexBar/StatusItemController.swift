@@ -126,7 +126,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var menuSession = MenuSessionCoordinator<ObjectIdentifier>()
     var menuReadinessSignatures: [ObjectIdentifier: String] = [:]
     let hostedSubviewRenderSignatures = NSMapTable<NSMenu, NSString>.weakToStrongObjects()
-    /// Native Refresh items are weakly tracked so their enabled state can change during menu tracking.
+    /// Persistent Refresh rows are weakly tracked so their enabled state can change during menu tracking.
     let persistentRefreshItems = NSHashTable<NSMenuItem>.weakObjects()
     var menuCardHeightCache: [MenuCardHeightCacheKey: CGFloat] = [:]
     var measuredStandardMenuWidthCache: [String: CGFloat] = [:]

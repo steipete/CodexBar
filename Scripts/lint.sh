@@ -55,6 +55,10 @@ check_documentation_links() {
   node "${ROOT_DIR}/Scripts/check-documentation-links.mjs"
 }
 
+check_llms_index() {
+  node "${ROOT_DIR}/Scripts/generate-llms.mjs" --check
+}
+
 run_portable_checks() {
   check_codex_parser_hash
   check_package_product_paths
@@ -64,6 +68,7 @@ run_portable_checks() {
   check_swift_test_sharding
   check_ci_path_gate
   check_documentation_links
+  check_llms_index
   check_site_locales
 }
 
