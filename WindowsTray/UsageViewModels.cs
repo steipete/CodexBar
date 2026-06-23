@@ -155,7 +155,7 @@ public static class UsageViewModelBuilder
         var m => $"{m}m",
     };
 
-    private static string DisplayName(string id) =>
+    public static string DisplayName(string id) =>
         DisplayNames.TryGetValue(id, out var name)
             ? name
             : id.Length == 0 ? id : char.ToUpperInvariant(id[0]) + id[1..];

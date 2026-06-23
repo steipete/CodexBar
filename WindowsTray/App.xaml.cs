@@ -16,6 +16,7 @@ public partial class App : Application
     private readonly UsageViewModel _usageVm = new();
     private readonly ConfigService _config = new();
     private readonly UiSettings _ui = UiSettings.Load();
+    private readonly QuotaNotificationCoordinator _notifications = new();
     private SettingsWindow? _settingsWindow;
     private UsageWindow? _usageWindow;
     private bool _refreshing;
@@ -148,11 +149,17 @@ public partial class App : Application
                 .Select(w => w.UsedPercent)
                 .DefaultIfEmpty(0)
                 .Max();
+            var prefs = new NotificationPrefs(
+                _ui.SessionQuotaNotificationsEnabled,
+                _ui.QuotaWarningNotificationsEnabled,
+                _ui.QuotaWarningThresholds);
+            var notifications = _notifications.Evaluate(results, prefs);
             Dispatcher.Invoke(() =>
             {
                 _usageVm.Replace(tiles);
                 _usageVm.Status = $"Updated {DateTime.Now:HH:mm}";
                 UpdateTrayIcon(maxPercent / 100.0, connected: true);
+                foreach (var notification in notifications) ShowNotification(notification);
             });
             SetTooltip(tiles.Count == 0
                 ? "CodexBar — no providers enabled"
@@ -190,9 +197,19 @@ public partial class App : Application
             _settingsWindow.Activate();
             return;
         }
-        _settingsWindow = new SettingsWindow(_config, onChanged: () => _ = RefreshUsageAsync());
+        _settingsWindow = new SettingsWindow(_config, _ui, onChanged: () => _ = RefreshUsageAsync());
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    private void ShowNotification(NotificationItem item)
+    {
+        // Shell balloon notifications (routed through the Action Center on Win 10/11);
+        // no app packaging or extra dependency required.
+        _trayIcon?.ShowBalloonTip(
+            item.Title,
+            item.Body,
+            item.IsWarning ? BalloonIcon.Warning : BalloonIcon.Info);
     }
 
     private void UpdateTrayIcon(double fraction, bool connected)

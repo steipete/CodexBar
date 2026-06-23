@@ -64,7 +64,30 @@
 
     <DockPanel Margin="14">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-            <TextBlock Text="Providers" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="Notifications" FontSize="16" FontWeight="Bold" />
+            <Border Background="{StaticResource CardBg}" CornerRadius="8" Padding="10,8" Margin="0,6,0,0">
+                <StackPanel>
+                    <CheckBox x:Name="SessionNotifyCheck" Content="Session depleted / restored alerts"
+                              Foreground="{StaticResource TextDim}" Click="OnNotificationToggleChanged" />
+                    <CheckBox x:Name="WarningNotifyCheck" Content="Quota low warnings" Margin="0,6,0,0"
+                              Foreground="{StaticResource TextDim}" Click="OnNotificationToggleChanged" />
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Warn at (% left):" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextDim}" Margin="0,0,8,0" />
+                        <TextBox x:Name="ThresholdsBox" Grid.Column="1" Height="26" VerticalContentAlignment="Center"
+                                 Background="#FF0E0E12" Foreground="#FFF2F2F4" BorderBrush="#33FFFFFF"
+                                 Padding="6,0" LostFocus="OnThresholdsChanged" />
+                    </Grid>
+                    <TextBlock Foreground="{StaticResource TextDim}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Comma-separated percentages (e.g. 50, 20). You're warned once each time remaining quota drops past a threshold." />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Providers" FontSize="16" FontWeight="Bold" Margin="0,14,0,0" />
             <TextBlock Foreground="{StaticResource TextDim}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
                        Text="Toggle providers and set API keys. Providers marked OAuth/CLI sign in automatically; cookie-based providers aren't fully supported on Windows yet." />
         </StackPanel>

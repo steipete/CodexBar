@@ -15,6 +15,13 @@ public sealed class UiSettings
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
 
+    // Notification preferences. Defaults match the macOS app (notifications on,
+    // warning thresholds at 50% and 20% remaining). Absent keys in an existing
+    // settings file fall back to these initializers.
+    public bool SessionQuotaNotificationsEnabled { get; set; } = true;
+    public bool QuotaWarningNotificationsEnabled { get; set; } = true;
+    public List<int> QuotaWarningThresholds { get; set; } = new() { 50, 20 };
+
     private static string FilePath
     {
         get

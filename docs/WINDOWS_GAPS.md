@@ -131,8 +131,12 @@ the menu items **Refresh**, **Settings…**, **Always on screen**,
   rendering / remaining resolver, stacked & overview submenus.
 - **Preferences panes**: General, Display, Advanced, Debug, About, Providers
   detail / sidebar / error views, Codex Accounts section.
-- **Native notifications**: `AppNotifications`, `SessionQuotaNotifications`,
-  quota-warning markers — the tray has **no toast notifications**.
+- **Native notifications**: ✅ *Implemented* — the tray now fires Windows balloon
+  notifications for session depleted/restored and quota-low threshold crossings
+  (`WindowsTray/QuotaNotifications.cs` + `QuotaNotificationCoordinator.cs`), a
+  port of macOS `SessionQuotaNotifications`. Not yet ported: Antigravity
+  quota-summary windows, window-source tracking, and per-notification sound
+  control (Windows manages notification sound per-app).
 - **Cost view**: the CLI serves `/cost` but the tray consumes only `/usage`.
 - **Misc**: click-to-copy overlay, OpenAI credits purchase window, memory-pressure
   monitor/relief, main-thread hang watchdog. (Launch-at-login exists on Windows
@@ -159,4 +163,5 @@ the menu items **Refresh**, **Settings…**, **Always on screen**,
 3. **Interactive login** (PTY replacement) for Claude / Codex / Antigravity.
 4. **WebKit dashboard scraping** replacement (e.g. WebView2) for OpenAI / Claude /
    Codex web paths.
-5. **Tray UI parity** — charts, multi-account, notifications, cost view.
+5. **Tray UI parity** — charts, multi-account, cost view. (Native notifications
+   are now implemented.)

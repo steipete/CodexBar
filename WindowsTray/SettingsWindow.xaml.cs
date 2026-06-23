@@ -6,14 +6,48 @@ namespace CodexBarTray;
 public partial class SettingsWindow : Window
 {
     private readonly ConfigService _config;
+    private readonly UiSettings _ui;
     private readonly Action _onChanged;
+    private bool _loadingNotificationsUi;
 
-    public SettingsWindow(ConfigService config, Action onChanged)
+    public SettingsWindow(ConfigService config, UiSettings ui, Action onChanged)
     {
         _config = config;
+        _ui = ui;
         _onChanged = onChanged;
         InitializeComponent();
+        InitNotificationsUi();
         Loaded += async (_, _) => await LoadAsync();
+    }
+
+    private void InitNotificationsUi()
+    {
+        _loadingNotificationsUi = true;
+        SessionNotifyCheck.IsChecked = _ui.SessionQuotaNotificationsEnabled;
+        WarningNotifyCheck.IsChecked = _ui.QuotaWarningNotificationsEnabled;
+        ThresholdsBox.Text = string.Join(", ", _ui.QuotaWarningThresholds);
+        _loadingNotificationsUi = false;
+    }
+
+    private void OnNotificationToggleChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loadingNotificationsUi) return;
+        _ui.SessionQuotaNotificationsEnabled = SessionNotifyCheck.IsChecked == true;
+        _ui.QuotaWarningNotificationsEnabled = WarningNotifyCheck.IsChecked == true;
+        _ui.Save();
+    }
+
+    private void OnThresholdsChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loadingNotificationsUi) return;
+        var parsed = ThresholdsBox.Text
+            .Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s, out var value) ? value : -1)
+            .Where(value => value >= 0)
+            .ToList();
+        _ui.QuotaWarningThresholds = QuotaThresholds.Sanitized(parsed);
+        InitNotificationsUi(); // reflect the sanitized list back into the box
+        _ui.Save();
     }
 
     private async Task LoadAsync()
