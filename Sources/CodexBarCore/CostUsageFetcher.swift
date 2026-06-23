@@ -278,21 +278,8 @@ public struct CostUsageFetcher: Sendable {
         now: Date,
         historyDays: Int = 30) -> CostUsageTokenSnapshot
     {
-        // Pick the most recent day; break ties by cost/tokens to keep a stable "session" row.
-        let currentDay = daily.data.compactMap { entry -> (entry: CostUsageDailyReport.Entry, date: Date)? in
-            guard let date = CostUsageDateParser.parse(entry.date) else { return nil }
-            return (entry, date)
-        }
-        .max { lhs, rhs in
-            if lhs.date != rhs.date { return lhs.date < rhs.date }
-            let lCost = lhs.entry.costUSD ?? -1
-            let rCost = rhs.entry.costUSD ?? -1
-            if lCost != rCost { return lCost < rCost }
-            let lTokens = lhs.entry.totalTokens ?? -1
-            let rTokens = rhs.entry.totalTokens ?? -1
-            if lTokens != rTokens { return lTokens < rTokens }
-            return lhs.entry.date < rhs.entry.date
-        }?.entry
+        // "Today" must reflect the current local day only; no usage today => nil (not the latest bucket).
+        let currentDay = CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now)
         // Prefer summary totals when present; fall back to summing daily entries.
         let totalFromSummary = daily.summary?.totalCostUSD
         let totalFromEntries = daily.data.compactMap(\.costUSD).reduce(0, +)

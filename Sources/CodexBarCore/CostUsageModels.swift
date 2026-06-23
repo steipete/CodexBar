@@ -42,6 +42,50 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     }
 }
 
+extension CostUsageTokenSnapshot {
+    /// Stable key (`yyyy-MM-dd`) identifying the local calendar day that `date` falls in.
+    public static func localDayKey(from date: Date, calendar: Calendar = .current) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    }
+
+    /// Entry whose parsed date maps to the same local-day key as `date`; `nil` if none.
+    public static func entry(
+        in entries: [CostUsageDailyReport.Entry],
+        forLocalDayContaining date: Date,
+        calendar: Calendar = .current) -> CostUsageDailyReport.Entry?
+    {
+        let targetKey = self.localDayKey(from: date, calendar: calendar)
+        return entries.first { entry in
+            guard let entryDate = CostUsageDateParser.parse(entry.date) else { return false }
+            return self.localDayKey(from: entryDate, calendar: calendar) == targetKey
+        }
+    }
+
+    /// Newest-day entry, breaking ties by cost then tokens then date string for a stable pick.
+    public static func latestEntry(in entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Entry? {
+        entries.compactMap { entry -> (entry: CostUsageDailyReport.Entry, date: Date)? in
+            guard let date = CostUsageDateParser.parse(entry.date) else { return nil }
+            return (entry, date)
+        }
+        .max { lhs, rhs in
+            if lhs.date != rhs.date { return lhs.date < rhs.date }
+            let lCost = lhs.entry.costUSD ?? -1
+            let rCost = rhs.entry.costUSD ?? -1
+            if lCost != rCost { return lCost < rCost }
+            let lTokens = lhs.entry.totalTokens ?? -1
+            let rTokens = rhs.entry.totalTokens ?? -1
+            if lTokens != rTokens { return lTokens < rTokens }
+            return lhs.entry.date < rhs.entry.date
+        }?.entry
+    }
+
+    /// Entry for the local day containing `updatedAt`; `nil` when there is no usage today.
+    public func currentDayEntry(calendar: Calendar = .current) -> CostUsageDailyReport.Entry? {
+        Self.entry(in: self.daily, forLocalDayContaining: self.updatedAt, calendar: calendar)
+    }
+}
+
 public struct CostUsageDailyReport: Sendable, Decodable {
     public struct ModelBreakdown: Sendable, Decodable, Equatable {
         public let modelName: String
