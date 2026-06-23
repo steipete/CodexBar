@@ -419,6 +419,49 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `configured work days affect weekly text and JSON pace`() throws {
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 14)))
+        let now = resetsAt.addingTimeInterval(-72 * 60 * 60)
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(
+                usedPercent: 60,
+                windowMinutes: 10080,
+                resetsAt: resetsAt,
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown,
+                weeklyWorkDays: 5),
+            now: now)
+        #expect(output.contains("Pace: On pace | Expected 60% used | Lasts until reset"))
+
+        let pace = try #require(CLIRenderer.providerPacePayload(
+            provider: .codex,
+            snapshot: snap,
+            weeklyWorkDays: 5,
+            now: now)?.secondary)
+        #expect(pace.expectedUsedPercent == 60)
+        #expect(pace.summary == "On pace | Expected 60% used | Lasts until reset")
+    }
+
+    @Test
     func `renders Ollama weekly pace line when weekly window has reset`() {
         let now = Date()
         let snap = UsageSnapshot(

@@ -2,9 +2,6 @@
 
 ## 0.37.3 — Unreleased
 
-### Added
-- CLI: show a pace line for the Session window in `codexbar usage` (previously Weekly-only), and add a `pace` object to `--format json` output. Thanks @kmatsunami!
-
 ## 0.37.2 — 2026-06-22
 
 ### Added
