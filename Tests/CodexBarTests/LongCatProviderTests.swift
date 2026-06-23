@@ -22,6 +22,13 @@ struct LongCatProviderTests {
         #expect(LongCatSettingsReader.apiKey(environment: [:]) == nil)
     }
 
+    @Test
+    func `cookieHeader reads lowercase alias and trims quotes`() {
+        // The env path routes through this reader, so the lower-case alias and
+        // quote-trimming must apply (regression for the env-bypass fix).
+        #expect(LongCatSettingsReader.cookieHeader(environment: ["longcat_manual_cookie": "'a=b; c=d'"]) == "a=b; c=d")
+    }
+
     // MARK: - Cookie header override
 
     @Test
