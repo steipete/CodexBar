@@ -340,28 +340,44 @@ extension StorageBreakdownMenuView {
 struct StoragePathCopyButton: View {
     let path: String
 
+    private static let colorAnimation = Animation.easeInOut(duration: 0.15)
+
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
 
     var body: some View {
         Button {
             self.resetTask?.cancel()
-            MenuPasteboardCopy.perform(self.path, completion: {
-                self.didCopy = true
-                self.resetTask = Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(0.9))
-                    self.didCopy = false
-                }
-            })
+            MenuPasteboardCopy.perform(self.path, completion: self.handleCopyCompletion)
         } label: {
             Image(systemName: self.didCopy ? "checkmark" : "doc.on.doc")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(self.didCopy ? .green : .secondary)
                 .frame(width: 18, height: 18)
                 .contentShape(Rectangle())
+                .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
         .help(self.didCopy ? L("Copied") : L("Copy path"))
         .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy path"))
+        .animation(Self.colorAnimation, value: self.didCopy)
+    }
+
+    private func setCopied(_ copied: Bool) {
+        withAnimation(Self.colorAnimation) {
+            self.didCopy = copied
+        }
+    }
+
+    private func scheduleReset() {
+        self.resetTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.9))
+            self.setCopied(false)
+        }
+    }
+
+    private func handleCopyCompletion() {
+        self.setCopied(true)
+        self.scheduleReset()
     }
 }
