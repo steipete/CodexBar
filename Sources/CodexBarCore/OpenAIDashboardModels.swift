@@ -17,6 +17,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     /// `wham/usage` response's `additional_rate_limits` array.
     public let extraRateWindows: [NamedRateWindow]?
     public let creditsRemaining: Double?
+    public let codexCreditLimit: CodexCreditLimitSnapshot?
     public let accountPlan: String?
     public let updatedAt: Date
 
@@ -32,6 +33,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         secondaryLimit: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
         creditsRemaining: Double? = nil,
+        codexCreditLimit: CodexCreditLimitSnapshot? = nil,
         accountPlan: String? = nil,
         updatedAt: Date)
     {
@@ -46,6 +48,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         self.secondaryLimit = secondaryLimit
         self.extraRateWindows = extraRateWindows
         self.creditsRemaining = creditsRemaining
+        self.codexCreditLimit = codexCreditLimit
         self.accountPlan = accountPlan
         self.updatedAt = updatedAt
     }
@@ -62,6 +65,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         case secondaryLimit
         case extraRateWindows
         case creditsRemaining
+        case codexCreditLimit
         case accountPlan
         case updatedAt
     }
@@ -91,6 +95,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             [NamedRateWindow].self,
             forKey: .extraRateWindows)
         self.creditsRemaining = try container.decodeIfPresent(Double.self, forKey: .creditsRemaining)
+        self.codexCreditLimit = try container.decodeIfPresent(CodexCreditLimitSnapshot.self, forKey: .codexCreditLimit)
         self.accountPlan = try container.decodeIfPresent(String.self, forKey: .accountPlan)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -141,8 +146,12 @@ extension OpenAIDashboardSnapshot {
     }
 
     public func toCreditsSnapshot() -> CreditsSnapshot? {
-        guard let creditsRemaining else { return nil }
-        return CreditsSnapshot(remaining: creditsRemaining, events: self.creditEvents, updatedAt: self.updatedAt)
+        guard self.creditsRemaining != nil || self.codexCreditLimit != nil else { return nil }
+        return CreditsSnapshot(
+            remaining: self.creditsRemaining ?? 0,
+            events: self.creditEvents,
+            updatedAt: self.updatedAt,
+            codexCreditLimit: self.codexCreditLimit)
     }
 }
 

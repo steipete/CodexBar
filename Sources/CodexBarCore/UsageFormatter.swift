@@ -184,13 +184,16 @@ public enum UsageFormatter {
     }
 
     public static func creditsString(from value: Double) -> String {
+        self.localized("%@ left", self.creditsNumberString(from: value))
+    }
+
+    public static func creditsNumberString(from value: Double) -> String {
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
         // Use explicit locale for consistent formatting on all systems
         number.locale = Locale(identifier: "en_US_POSIX")
-        let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
-        return self.localized("%@ left", formatted)
+        return number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
     }
 
     public static func kiroCreditNumber(_ value: Double) -> String {

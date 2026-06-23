@@ -198,6 +198,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.sourceMode == .auto else { return false }
+        if error is CodexOAuthFallbackSignal {
+            return true
+        }
 
         // Auto mode may launch the CLI as the next strategy. Keep that fallback
         // limited to OAuth states the CLI can actually repair, otherwise
@@ -227,9 +230,19 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    private static func mapCredits(_ credits: CodexUsageResponse.CreditDetails?) -> CreditsSnapshot? {
-        guard let credits, let balance = credits.balance else { return nil }
-        return CreditsSnapshot(remaining: balance, events: [], updatedAt: Date())
+    private static func mapCredits(
+        response: CodexUsageResponse,
+        updatedAt: Date) -> CreditsSnapshot?
+    {
+        let balance = response.credits?.balance
+        let creditLimit = (response.individualLimit ?? response.rateLimit?.individualLimit)?
+            .codexCreditLimitSnapshot(updatedAt: updatedAt)
+        guard balance != nil || creditLimit != nil else { return nil }
+        return CreditsSnapshot(
+            remaining: balance ?? 0,
+            events: [],
+            updatedAt: updatedAt,
+            codexCreditLimit: creditLimit)
     }
 
     private static func makeResult(
@@ -239,7 +252,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         updatedAt: Date,
         sourceMode: ProviderSourceMode) throws -> ProviderFetchResult
     {
-        let credits = Self.mapCredits(usageResponse.credits)
+        let credits = Self.mapCredits(response: usageResponse, updatedAt: updatedAt)
         let reconciled = CodexReconciledState.fromOAuth(
             response: usageResponse,
             credentials: credentials,
@@ -261,6 +274,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         guard credits != nil || (resetCredits?.availableCount ?? 0) > 0 else {
             throw UsageError.noRateLimitsFound
         }
+        if sourceMode == .auto, Self.shouldFallbackToCLIForMonthlyLimit(credits: credits, resetCredits: resetCredits) {
+            throw CodexOAuthFallbackSignal.monthlyLimitUnavailable
+        }
 
         // Credit balances and manual resets remain useful when OAuth omits
         // rate-limit windows. Keep the partial result instead of discarding it.
@@ -276,6 +292,27 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                     credentials: credentials)),
             credits: credits,
             sourceLabel: "oauth")
+    }
+
+    private static func shouldFallbackToCLIForMonthlyLimit(
+        credits: CreditsSnapshot?,
+        resetCredits: CodexRateLimitResetCreditsSnapshot?) -> Bool
+    {
+        guard let credits else { return false }
+        return credits.remaining == 0
+            && credits.codexCreditLimit == nil
+            && (resetCredits?.availableCount ?? 0) == 0
+    }
+}
+
+private enum CodexOAuthFallbackSignal: LocalizedError {
+    case monthlyLimitUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .monthlyLimitUnavailable:
+            "OAuth did not include Codex monthly credit limit."
+        }
     }
 }
 

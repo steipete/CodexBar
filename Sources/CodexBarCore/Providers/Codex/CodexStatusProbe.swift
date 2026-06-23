@@ -8,6 +8,7 @@ public struct CodexStatusSnapshot: Sendable {
     public let weeklyResetDescription: String?
     public let fiveHourResetsAt: Date?
     public let weeklyResetsAt: Date?
+    public let codexCreditLimit: CodexCreditLimitSnapshot?
     public let rawText: String
 
     public init(
@@ -18,6 +19,7 @@ public struct CodexStatusSnapshot: Sendable {
         weeklyResetDescription: String?,
         fiveHourResetsAt: Date?,
         weeklyResetsAt: Date?,
+        codexCreditLimit: CodexCreditLimitSnapshot? = nil,
         rawText: String)
     {
         self.credits = credits
@@ -27,6 +29,7 @@ public struct CodexStatusSnapshot: Sendable {
         self.weeklyResetDescription = weeklyResetDescription
         self.fiveHourResetsAt = fiveHourResetsAt
         self.weeklyResetsAt = weeklyResetsAt
+        self.codexCreditLimit = codexCreditLimit
         self.rawText = rawText
     }
 }
@@ -127,7 +130,8 @@ public struct CodexStatusProbe {
         let weekPct = weekLine.flatMap(TextParsing.percentLeft(fromLine:))
         let fiveReset = fiveLine.flatMap(TextParsing.resetString(fromLine:))
         let weekReset = weekLine.flatMap(TextParsing.resetString(fromLine:))
-        if credits == nil, fivePct == nil, weekPct == nil {
+        let monthlyLimit = self.parseMonthlyCreditLimit(text: clean, now: now)
+        if credits == nil, fivePct == nil, weekPct == nil, monthlyLimit == nil {
             throw CodexStatusProbeError.parseFailed(clean.prefix(400).description)
         }
         return CodexStatusSnapshot(
@@ -138,7 +142,34 @@ public struct CodexStatusProbe {
             weeklyResetDescription: weekReset,
             fiveHourResetsAt: self.parseResetDate(from: fiveReset, now: now),
             weeklyResetsAt: self.parseResetDate(from: weekReset, now: now),
+            codexCreditLimit: monthlyLimit,
             rawText: clean)
+    }
+
+    private static func parseMonthlyCreditLimit(text: String, now: Date) -> CodexCreditLimitSnapshot? {
+        guard let monthlyLine = TextParsing.firstLine(matching: #"Monthly credit limit[^\n]*"#, text: text) else {
+            return nil
+        }
+        guard let limit = TextParsing.firstNumber(
+            pattern: #"of\s+([0-9][0-9., ]*)\s+credits used"#,
+            text: text),
+            limit > 0
+        else {
+            return nil
+        }
+        let used = TextParsing.firstNumber(
+            pattern: #"([0-9][0-9., ]*)\s+of\s+[0-9][0-9., ]*\s+credits used"#,
+            text: text) ?? 0
+        let remainingPercent = TextParsing.percentLeft(fromLine: monthlyLine)
+            .map(Double.init)
+            ?? max(0, min(100, 100 - (used / limit * 100)))
+        let resetText = TextParsing.resetString(fromLine: monthlyLine)
+        return CodexCreditLimitSnapshot(
+            used: used,
+            limit: limit,
+            remainingPercent: remainingPercent,
+            resetsAt: self.parseResetDate(from: resetText, now: now),
+            updatedAt: now)
     }
 
     private static func parseResetDate(from text: String?, now: Date) -> Date? {
