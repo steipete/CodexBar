@@ -174,7 +174,7 @@ struct DoubaoUsageFetcherTests {
         #expect(request?.authorization?.contains(
             "HMAC-SHA256 Credential=AKLTTEST/20260617/cn-beijing/ark/request") == true)
         #expect(request?.authorization?.contains(
-            "SignedHeaders=host;x-date;x-content-sha256;content-type") == true)
+            "SignedHeaders=content-type;host;x-content-sha256;x-date") == true)
     }
 
     @Test
@@ -302,7 +302,7 @@ private actor DoubaoScriptedTransport: ProviderHTTPTransport {
         case cancellation
     }
 
-    struct CapturedRequest: Sendable {
+    struct CapturedRequest {
         let url: String?
         let method: String?
         let host: String?

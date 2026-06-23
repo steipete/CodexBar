@@ -24,7 +24,10 @@ enum DoubaoVolcengineSigner {
     private static let algorithm = "HMAC-SHA256"
     private static let service = "ark"
     private static let terminator = "request"
-    private static let signedHeaders = "host;x-date;x-content-sha256;content-type"
+    /// Canonical/signed headers must be sorted alphabetically by lower-cased name
+    /// (Volcengine V4, like AWS SigV4); the server re-sorts and recomputes, so an
+    /// unsorted list yields a signature mismatch (HTTP 403).
+    private static let signedHeaders = "content-type;host;x-content-sha256;x-date"
 
     static func sign(
         request: inout URLRequest,
@@ -48,10 +51,10 @@ enum DoubaoVolcengineSigner {
             request.httpMethod ?? "POST",
             Self.canonicalURI(url),
             Self.canonicalQueryString(url),
-            "host:\(host)",
-            "x-date:\(timestamp)",
-            "x-content-sha256:\(payloadHash)",
             "content-type:\(contentType)",
+            "host:\(host)",
+            "x-content-sha256:\(payloadHash)",
+            "x-date:\(timestamp)",
             "",
             Self.signedHeaders,
             payloadHash,
