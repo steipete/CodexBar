@@ -51,7 +51,7 @@ struct LongCatWebFetchStrategy: ProviderFetchStrategy {
         }
 
         #if os(macOS)
-        if context.settings?.longcat?.cookieSource != .off {
+        if self.allowsBrowserImport(context) {
             return LongCatCookieImporter.hasSession()
         }
         #endif
@@ -82,7 +82,7 @@ struct LongCatWebFetchStrategy: ProviderFetchStrategy {
         }
 
         #if os(macOS)
-        if context.settings?.longcat?.cookieSource != .off {
+        if self.allowsBrowserImport(context) {
             if let session = try? LongCatCookieImporter.importSession(),
                let header = session.cookieHeader
             {
@@ -92,5 +92,13 @@ struct LongCatWebFetchStrategy: ProviderFetchStrategy {
         #endif
 
         return nil
+    }
+
+    /// Browser cookie/keychain import is only used for the Auto source (the
+    /// default). Manual must use the pasted header and Off disables web auth, so
+    /// neither should silently fall back to a browser session.
+    private func allowsBrowserImport(_ context: ProviderFetchContext) -> Bool {
+        let source = context.settings?.longcat?.cookieSource
+        return source == nil || source == .auto
     }
 }

@@ -129,4 +129,38 @@ struct LongCatProviderTests {
         let data = try LongCatEnvelope.unwrap(["code": 0, "data": ["x": 1]]) as? [String: Any]
         #expect(data?["x"] as? Int == 1)
     }
+
+    // MARK: - Cookie source semantics
+
+    private func context(
+        env: [String: String],
+        cookieSource: ProviderCookieSource) -> ProviderFetchContext
+    {
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        return ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .web,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: env,
+            settings: ProviderSettingsSnapshot.make(
+                longcat: .init(cookieSource: cookieSource, manualCookieHeader: nil)),
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+    }
+
+    @Test
+    func `off source disables env cookie override`() {
+        let ctx = self.context(env: ["LONGCAT_MANUAL_COOKIE": "a=b"], cookieSource: .off)
+        #expect(LongCatCookieHeader.resolveCookieOverride(context: ctx) == nil)
+    }
+
+    @Test
+    func `auto source allows env cookie override`() {
+        let ctx = self.context(env: ["LONGCAT_MANUAL_COOKIE": "a=b"], cookieSource: .auto)
+        #expect(LongCatCookieHeader.resolveCookieOverride(context: ctx)?.cookieHeader == "a=b")
+    }
 }
