@@ -21,7 +21,7 @@ jobs:
       macos-tests-reason: ${{ steps.macos-tests.outputs.macos-tests-reason }}
       changed-path-count: ${{ steps.macos-tests.outputs.changed-path-count }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install lint tools
         run: ./Scripts/install_lint_tools.sh swiftlint
@@ -94,7 +94,7 @@ jobs:
         shard-index: [0, 1, 2, 3]
         shard-count: [4]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Select Xcode 26.1.1 (if present) or fallback to default
         run: |
@@ -156,7 +156,7 @@ jobs:
       - swift-test-macos
     if: ${{ always() && !cancelled() }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify lint and macOS test jobs
         run: |
@@ -202,7 +202,7 @@ jobs:
             runs-on: ubuntu-24.04-arm
     runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Runner info
         run: |
@@ -212,7 +212,7 @@ jobs:
 
       - name: Restore Swift toolchain cache
         id: swift-toolchain-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6.0.0
         with:
           path: ~/.local/share/swiftly
           key: swift-${{ runner.os }}-${{ runner.arch }}-${{ env.SWIFT_VERSION }}-v2

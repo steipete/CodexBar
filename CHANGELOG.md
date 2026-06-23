@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.37.3 — Unreleased
+## 0.37.3 — 2026-06-23
+
+### Added
+- CLI: show session pace in text output, expose derived pace data in JSON, and honor the configured weekly work-day baseline. Thanks @kmatsunami!
 
 ### Fixed
 - Memory pressure: finish isolating utility-queue source reads from main-actor state to prevent the remaining callback crash. Thanks @Zihao-Qi!
