@@ -6,14 +6,15 @@ import Testing
 struct OpenAIAPIMenuCardModelTests {
     @Test
     func `admin usage model shows summaries and spend without fake quota bars`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
+        let bucketDay = try Self.localNoon(year: 2023, month: 11, day: 14)
         let metadata = try #require(ProviderDefaults.metadata[.openai])
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-14",
-                    startTime: now,
-                    endTime: now.addingTimeInterval(86400),
+                    startTime: bucketDay,
+                    endTime: bucketDay.addingTimeInterval(86400),
                     costUSD: 12.5,
                     requests: 40,
                     inputTokens: 1000,
@@ -57,13 +58,13 @@ struct OpenAIAPIMenuCardModelTests {
 
         #expect(model.metrics.isEmpty)
         #expect(model.openAIAPIUsage != nil)
-        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$12.50")
+        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.00")
         #expect(model.inlineUsageDashboard?.kpis.last?.title == "Requests")
         #expect(model.inlineUsageDashboard?.kpis.last?.value == "40")
         #expect(model.inlineUsageDashboard?.points.count == 1)
         #expect(model.inlineUsageDashboard?.detailLines.contains("30d requests: 40 requests") == true)
         #expect(model.providerCost == nil)
-        #expect(model.usageNotes.contains { $0.contains("Today: $12.50") })
+        #expect(model.usageNotes.contains { $0.contains("Today: $0.00") })
         #expect(model.usageNotes.contains("Top model: gpt-5.2"))
         #expect(model.creditsText == nil)
         #expect(model.planText == "Admin API")
@@ -119,14 +120,15 @@ struct OpenAIAPIMenuCardModelTests {
 
     @Test
     func `admin usage model can show cost card summary`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
+        let bucketDay = try Self.localNoon(year: 2023, month: 11, day: 14)
         let metadata = try #require(ProviderDefaults.metadata[.openai])
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-14",
-                    startTime: now,
-                    endTime: now.addingTimeInterval(86400),
+                    startTime: bucketDay,
+                    endTime: bucketDay.addingTimeInterval(86400),
                     costUSD: 12.5,
                     requests: 40,
                     inputTokens: 1000,
@@ -159,8 +161,12 @@ struct OpenAIAPIMenuCardModelTests {
             now: now))
 
         #expect(ProviderDescriptorRegistry.descriptor(for: .openai).tokenCost.supportsTokenCost)
-        #expect(model.tokenUsage?.sessionLine == "Today: $12.50 · 1.5K tokens")
+        #expect(model.tokenUsage?.sessionLine == "Today: $0.00 · 0 tokens")
         #expect(model.tokenUsage?.monthLine == "Last 30 days: $12.50 · 1.5K tokens")
         #expect(model.tokenUsage?.hintLine == "Reported by OpenAI Admin API organization usage.")
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }

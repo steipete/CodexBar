@@ -45,6 +45,10 @@ function formatKeyList(keys, limit = 12) {
   return remaining > 0 ? `${shown}, ... +${remaining} more` : shown;
 }
 
+function blankKeys(catalog, referenceKeys) {
+  return referenceKeys.filter((key) => Object.hasOwn(catalog, key) && !catalog[key]?.trim());
+}
+
 function swiftInterpolationTokens(value) {
   const tokens = [];
   for (let index = 0; index < value.length - 1; index += 1) {
@@ -82,6 +86,10 @@ if (isTest) {
     formatKeyList(["alpha", "beta", "gamma", "delta"], 2),
     "alpha, beta, ... +2 more",
     "truncated key list");
+  assertEqual(
+    blankKeys({ alpha: "", beta: "  ", gamma: "ok" }, ["alpha", "beta", "gamma", "delta"]),
+    ["alpha", "beta"],
+    "blank keys");
   console.log("app locale checker tests OK");
   process.exit(0);
 }
@@ -106,6 +114,7 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
 
   checkedCount++;
   const catalogKeys = Object.keys(catalog);
+  const emptyKeys = blankKeys(catalog, englishKeys);
 
   // 1. Missing keys
   const missingKeys = englishKeys.filter((key) => !catalogKeys.includes(key));
@@ -134,15 +143,17 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
     }
   }
 
+  if (emptyKeys.length > 0) {
+    console.error(
+      `\x1b[31m[${locale}] Error: Blank values for ${emptyKeys.length} keys: ${formatKeyList(emptyKeys)}.\x1b[0m`);
+    hasErrors = true;
+  }
+
   // 2. Identical values count
   let identicalCount = 0;
 
   for (const key of englishKeys) {
     if (!catalog[key]?.trim()) {
-      if (strictLocales.includes(locale) && catalogKeys.includes(key)) {
-        console.error(`\x1b[31m[${locale}] Error: Blank value for strict locale key "${key}".\x1b[0m`);
-        hasErrors = true;
-      }
       continue;
     }
 

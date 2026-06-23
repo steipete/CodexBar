@@ -64,12 +64,22 @@ final class MemoryPressureMonitor {
             eventMask: [.warning, .critical],
             queue: .global(qos: .utility))
         source.setEventHandler(handler: Self.makeEventHandler(
-            eventReader: { [weak source] in source?.data ?? [] },
+            source: source,
             handle: { [weak self] isWarning, isCritical in
                 self?.handleMemoryPressure(isWarning: isWarning, isCritical: isCritical)
             }))
         self.source = source
         source.resume()
+    }
+
+    nonisolated static func makeEventHandler(
+        source: DispatchSourceMemoryPressure,
+        handle: @escaping @MainActor @Sendable (_ isWarning: Bool, _ isCritical: Bool) -> Void)
+        -> @Sendable () -> Void
+    {
+        self.makeEventHandler(
+            eventReader: { [weak source] in source?.data ?? [] },
+            handle: handle)
     }
 
     nonisolated static func makeEventHandler(

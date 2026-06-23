@@ -3,8 +3,7 @@ import CodexBarCore
 enum IconRemainingResolver {
     private static let visibleZeroPercent = 0.0001
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
-    private static let antigravityGeminiQuotaBucketIDPrefix = "gemini-"
-    // Antigravity quota summaries currently expose exact 5-hour session and weekly buckets for the compact icon.
+    // Antigravity quota summaries expose exact 5-hour session and weekly buckets for the compact icon.
     private static let sessionWindowMinutes = 5 * 60
     private static let weeklyWindowMinutes = 7 * 24 * 60
 
@@ -38,13 +37,6 @@ enum IconRemainingResolver {
             } ?? []
         guard !quotaSummaryWindows.isEmpty else { return nil }
 
-        let geminiWindows = quotaSummaryWindows.filter(Self.isAntigravityGeminiQuotaSummaryWindow)
-        // The Antigravity menu-bar icon represents Gemini quotas. If any Gemini cadence is present,
-        // keep missing Gemini lanes empty instead of silently borrowing Claude + GPT quota.
-        if !geminiWindows.isEmpty {
-            return self.antigravityQuotaSummaryPair(in: geminiWindows.filter(\.usageKnown))
-                ?? (primary: nil, secondary: nil)
-        }
         return self.antigravityQuotaSummaryPair(in: quotaSummaryWindows.filter(\.usageKnown))
     }
 
@@ -56,15 +48,6 @@ enum IconRemainingResolver {
         let weekly = self.mostConstrainedWindow(in: windows, windowMinutes: Self.weeklyWindowMinutes)
         guard session != nil || weekly != nil else { return nil }
         return (primary: session, secondary: weekly)
-    }
-
-    private static func isAntigravityGeminiQuotaSummaryWindow(_ window: NamedRateWindow) -> Bool {
-        self.antigravityQuotaSummaryBucketID(for: window)?.hasPrefix(self.antigravityGeminiQuotaBucketIDPrefix) == true
-    }
-
-    private static func antigravityQuotaSummaryBucketID(for window: NamedRateWindow) -> String? {
-        guard window.id.hasPrefix(self.antigravityQuotaSummaryWindowIDPrefix) else { return nil }
-        return String(window.id.dropFirst(self.antigravityQuotaSummaryWindowIDPrefix.count))
     }
 
     /// Returns the highest-usage window for an exact Antigravity compact-icon cadence.
