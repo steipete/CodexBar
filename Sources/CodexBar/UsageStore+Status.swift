@@ -107,7 +107,15 @@ extension UsageStore {
             if let (data, _) = try? await transport.data(for: proxyRequest),
                let parsed = try? Self.parseIncidentIOSummary(data: data)
             {
-                return parsed
+                // The proxy feed derives the indicator from component leaves but carries no
+                // top-level description or timestamp; fetch the summary endpoint so callers
+                // get the full status banner.
+                let overlay = try? await Self.fetchStatus(from: baseURL, transport: transport)
+                let status = ProviderStatus(
+                    indicator: parsed.status.indicator,
+                    description: overlay?.description,
+                    updatedAt: overlay?.updatedAt)
+                return (status, parsed.components)
             }
         }
 
