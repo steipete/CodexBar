@@ -417,6 +417,10 @@
 "start_at_login_subtitle" = "Startet CodexBar automatisch, wenn dein Mac hochfährt.";
 "show_cost_summary" = "Kostenübersicht anzeigen";
 "show_cost_summary_subtitle" = "Liest lokale Nutzungsprotokolle. Zeigt heute + das gewählte Verlaufsfenster im Menü.";
+"cost_summary_style_title" = "Anzeigestil";
+"cost_summary_style_inline" = "Inline-Übersicht";
+"cost_summary_style_submenu" = "Kosten-Untermenü";
+"cost_summary_style_both" = "Beides";
 "cost_history_days_title" = "Verlaufsfenster: %d Tage";
 "cost_auto_refresh_info" = "Auto-Aktualisierung: stündlich · Timeout: 10 Min.";
 "refresh_cadence_title" = "Aktualisierungsintervall";

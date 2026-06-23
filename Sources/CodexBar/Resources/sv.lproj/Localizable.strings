@@ -417,6 +417,10 @@
 "start_at_login_subtitle" = "Öppnar CodexBar automatiskt när du startar din Mac.";
 "show_cost_summary" = "Visa kostnadssammanfattning";
 "show_cost_summary_subtitle" = "Läser lokala användningsloggar. Visar idag och valt historikfönster i menyn.";
+"cost_summary_style_title" = "Visningsstil";
+"cost_summary_style_inline" = "Inbäddad sammanfattning";
+"cost_summary_style_submenu" = "Kostnadsundermeny";
+"cost_summary_style_both" = "Båda";
 "cost_history_days_title" = "Historikfönster: %d dagar";
 "cost_auto_refresh_info" = "Automatisk uppdatering: varje timme · Timeout: 10 min";
 "refresh_cadence_title" = "Uppdateringsintervall";

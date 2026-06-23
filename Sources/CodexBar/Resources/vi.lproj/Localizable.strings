@@ -413,6 +413,10 @@
 "start_at_login_subtitle" = "Tự động mở CodexBar khi bạn khởi động máy Mac.";
 "show_cost_summary" = "Hiển thị tóm tắt chi phí";
 "show_cost_summary_subtitle" = "Đọc nhật ký Mức sử dụng cục bộ. Hiển thị hôm nay + cửa sổ lịch sử đã chọn trong menu.";
+"cost_summary_style_title" = "Kiểu hiển thị";
+"cost_summary_style_inline" = "Tóm tắt nội tuyến";
+"cost_summary_style_submenu" = "Menu con chi phí";
+"cost_summary_style_both" = "Cả hai";
 "cost_history_days_title" = "Cửa sổ lịch sử: %d ngày";
 "cost_auto_refresh_info" = "Tự động làm mới: hàng giờ · Thời gian chờ: 10 phút";
 "refresh_cadence_title" = "Nhịp làm mới";

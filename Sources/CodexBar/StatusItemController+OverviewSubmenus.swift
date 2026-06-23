@@ -17,7 +17,8 @@ extension StatusItemController {
         {
             return submenu
         }
-        if model.tokenUsage != nil,
+        if self.settings.costSummaryShowsSubmenu(for: provider),
+           model.tokenUsage != nil,
            let submenu = self.makeCostHistorySubmenu(provider: provider, width: width)
         {
             return submenu

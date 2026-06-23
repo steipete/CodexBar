@@ -802,6 +802,8 @@ extension UsageMenuCardView.Model {
         let usageBarsShowUsed: Bool
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
+        let tokenCostInlineDashboardEnabled: Bool
+        let tokenCostMenuSectionEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
         let copilotBudgetExtrasEnabled: Bool
         let sourceLabel: String?
@@ -830,6 +832,8 @@ extension UsageMenuCardView.Model {
             usageBarsShowUsed: Bool,
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
+            tokenCostInlineDashboardEnabled: Bool? = nil,
+            tokenCostMenuSectionEnabled: Bool? = nil,
             showOptionalCreditsAndExtraUsage: Bool,
             copilotBudgetExtrasEnabled: Bool = false,
             sourceLabel: String? = nil,
@@ -857,6 +861,8 @@ extension UsageMenuCardView.Model {
             self.usageBarsShowUsed = usageBarsShowUsed
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
+            self.tokenCostInlineDashboardEnabled = tokenCostInlineDashboardEnabled ?? tokenCostUsageEnabled
+            self.tokenCostMenuSectionEnabled = tokenCostMenuSectionEnabled ?? tokenCostUsageEnabled
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
             self.copilotBudgetExtrasEnabled = copilotBudgetExtrasEnabled
             self.sourceLabel = sourceLabel
@@ -915,7 +921,7 @@ extension UsageMenuCardView.Model {
         let tokenUsageSnapshot = Self.tokenUsageSnapshot(input: input)
         let tokenUsage = Self.tokenUsageSection(
             provider: input.provider,
-            enabled: input.tokenCostUsageEnabled,
+            enabled: input.tokenCostMenuSectionEnabled,
             snapshot: tokenUsageSnapshot,
             error: input.tokenError)
         let subtitle = Self.subtitle(

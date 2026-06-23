@@ -745,6 +745,8 @@ struct ProvidersPane: View {
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
+            tokenCostInlineDashboardEnabled: self.settings.costSummaryShowsInlineDashboard(for: provider),
+            tokenCostMenuSectionEnabled: self.settings.costSummaryShowsSubmenu(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             hidePersonalInfo: self.settings.hidePersonalInfo,

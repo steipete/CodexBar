@@ -417,6 +417,10 @@
 "start_at_login_subtitle" = "يفتح تلقائيا CodexBar عند تشغيل جهاز الماك.";
 "show_cost_summary" = "ملخص تكلفة العرض";
 "show_cost_summary_subtitle" = "يقرأ سجلات الاستخدام المحلية. يعرض اليوم + نافذة التاريخ المحددة في القائمة.";
+"cost_summary_style_title" = "نمط العرض";
+"cost_summary_style_inline" = "ملخص مضمن";
+"cost_summary_style_submenu" = "قائمة التكلفة الفرعية";
+"cost_summary_style_both" = "كلاهما";
 "cost_history_days_title" = "نافذة التاريخ: %d أيام";
 "cost_auto_refresh_info" = "تحديث تلقائي: كل ساعة · وقت الاستراحة: 10m";
 "refresh_cadence_title" = "وتيرة التحديث";

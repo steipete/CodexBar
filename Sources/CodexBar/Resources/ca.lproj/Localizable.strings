@@ -415,6 +415,10 @@
 "start_at_login_subtitle" = "Obre el CodexBar automàticament en iniciar el Mac.";
 "show_cost_summary" = "Mostreu el resum de cost";
 "show_cost_summary_subtitle" = "Llegeix els registres d'ús locals. Mostra el cost d'avui + la finestra d'historial seleccionada al menú.";
+"cost_summary_style_title" = "Estil de visualització";
+"cost_summary_style_inline" = "Resum integrat";
+"cost_summary_style_submenu" = "Submenú de cost";
+"cost_summary_style_both" = "Tots dos";
 "cost_history_days_title" = "Finestra d'historial: %d dies";
 "cost_auto_refresh_info" = "Actualització automàtica: cada hora · Temps d'espera: 10 min";
 "refresh_cadence_title" = "Freqüència d'actualització";

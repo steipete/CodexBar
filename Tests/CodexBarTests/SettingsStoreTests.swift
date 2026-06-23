@@ -1348,4 +1348,52 @@ struct SettingsStoreTests {
         let metadata = try #require(ProviderDescriptorRegistry.metadata[.alibaba])
         #expect(store.isProviderEnabled(provider: .alibaba, metadata: metadata))
     }
+
+    @Test
+    func `cost summary display style defaults to inline and persists`() throws {
+        let suite = "SettingsStoreTests-cost-summary-display-style"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.costSummaryDisplayStyle == .inlineSummary)
+
+        storeA.costSummaryDisplayStyle = .costSubmenu
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.costSummaryDisplayStyle == .costSubmenu)
+
+        storeB.costSummaryDisplayStyleRaw = "legacy-style"
+        #expect(storeB.costSummaryDisplayStyle == .inlineSummary)
+    }
+
+    @Test
+    func `missing cost summary display style preserves existing enabled cost summary`() throws {
+        let suite = "SettingsStoreTests-cost-summary-display-style-upgrade"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "tokenCostUsageEnabled")
+        defaults.removeObject(forKey: "costSummaryDisplayStyle")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.costSummaryDisplayStyle == .both)
+        #expect(defaults.string(forKey: "costSummaryDisplayStyle") == CostSummaryDisplayStyle.both.rawValue)
+    }
 }

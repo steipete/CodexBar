@@ -417,6 +417,10 @@
 "start_at_login_subtitle" = "Mac'inizi başlattığınızda CodexBar'ı otomatik olarak açar.";
 "show_cost_summary" = "Maliyet özetini göster";
 "show_cost_summary_subtitle" = "Yerel kullanım günlüklerini okur. Menüde bugün + seçilen geçmiş penceresini gösterir.";
+"cost_summary_style_title" = "Görüntüleme stili";
+"cost_summary_style_inline" = "Satır içi özet";
+"cost_summary_style_submenu" = "Maliyet alt menüsü";
+"cost_summary_style_both" = "İkisi de";
 "cost_history_days_title" = "Geçmiş penceresi: %d gün";
 "cost_auto_refresh_info" = "Otomatik yenileme: saatlik · Zaman aşımı: 10 dk";
 "refresh_cadence_title" = "Yenileme sıklığı";

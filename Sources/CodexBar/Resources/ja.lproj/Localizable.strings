@@ -414,6 +414,10 @@
 "start_at_login_subtitle" = "Mac の起動時に CodexBar を自動的に開きます。";
 "show_cost_summary" = "コスト概要を表示";
 "show_cost_summary_subtitle" = "ローカルの使用ログを読み取り、今日分と選択した履歴期間をメニューに表示します。";
+"cost_summary_style_title" = "表示スタイル";
+"cost_summary_style_inline" = "インライン概要";
+"cost_summary_style_submenu" = "コストサブメニュー";
+"cost_summary_style_both" = "両方";
 "cost_history_days_title" = "履歴期間: %d 日";
 "cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
 "refresh_cadence_title" = "更新間隔";

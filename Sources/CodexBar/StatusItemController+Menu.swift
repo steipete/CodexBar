@@ -465,7 +465,7 @@ extension StatusItemController {
             surface: .liveCard)
         let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
         let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
-        let hasCostHistory = self.settings.isCostUsageEffectivelyEnabled(for: currentProvider) &&
+        let hasCostHistory = self.settings.costSummaryShowsSubmenu(for: currentProvider) &&
             (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
         let canShowBuyCredits = self.settings.showOptionalCreditsAndExtraUsage &&
             codexProjection?.canShowBuyCredits == true
@@ -1528,6 +1528,7 @@ extension StatusItemController {
     }
 
     func makeOpenAIAPIUsageSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
+        guard self.settings.costSummaryShowsSubmenu(for: provider) else { return nil }
         guard self.hasOpenAIAPIUsageSubmenu(provider: provider) else { return nil }
         return self.makeCostHistorySubmenu(provider: provider, width: width)
     }

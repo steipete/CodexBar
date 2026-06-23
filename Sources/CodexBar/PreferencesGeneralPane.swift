@@ -142,14 +142,34 @@ struct GeneralPane: View {
                                 .fixedSize(horizontal: false, vertical: true)
 
                             if self.settings.costUsageEnabled {
-                                CostHistoryDaysEditor(settings: self.settings)
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(alignment: .center, spacing: 12) {
+                                        Text(L("cost_summary_style_title"))
+                                            .font(.body)
+                                        Spacer()
+                                        Picker(
+                                            L("cost_summary_style_title"),
+                                            selection: self.$settings.costSummaryDisplayStyle)
+                                        {
+                                            ForEach(CostSummaryDisplayStyle.allCases) { style in
+                                                Text(style.label).tag(style)
+                                            }
+                                        }
+                                        .labelsHidden()
+                                        .pickerStyle(.menu)
+                                        .frame(maxWidth: 180)
+                                    }
 
-                                Text(L("cost_auto_refresh_info"))
-                                    .font(.footnote)
-                                    .foregroundStyle(.tertiary)
+                                    CostHistoryDaysEditor(settings: self.settings)
 
-                                self.costStatusLine(provider: .claude)
-                                self.costStatusLine(provider: .codex)
+                                    Text(L("cost_auto_refresh_info"))
+                                        .font(.footnote)
+                                        .foregroundStyle(.tertiary)
+
+                                    self.costStatusLine(provider: .claude)
+                                    self.costStatusLine(provider: .codex)
+                                }
+                                .padding(.leading, 20)
                             }
                         }
                     }

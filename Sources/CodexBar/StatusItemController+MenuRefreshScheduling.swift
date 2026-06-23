@@ -111,6 +111,7 @@ extension StatusItemController {
             from: dashboard?.usageBreakdown ?? [])
         var parts = [
             "costEnabled=\(self.settings.costUsageEnabled ? "1" : "0")",
+            "costStyle=\(self.settings.costSummaryDisplayStyle.rawValue)",
             "openAIAttached=\(self.store.openAIDashboardAttachmentAuthorized ? "1" : "0")",
             "openAILogin=\(self.store.openAIDashboardRequiresLogin ? "1" : "0")",
             "openAIUpdated=\(Self.millisecondsSinceEpoch(dashboard?.updatedAt))",

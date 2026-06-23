@@ -421,6 +421,10 @@
 "start_at_login_subtitle" = "启动 Mac 时自动打开 CodexBar。";
 "show_cost_summary" = "显示费用摘要";
 "show_cost_summary_subtitle" = "读取本地用量日志。在菜单中显示今天及所选历史窗口的费用。";
+"cost_summary_style_title" = "显示样式";
+"cost_summary_style_inline" = "内联摘要";
+"cost_summary_style_submenu" = "费用子菜单";
+"cost_summary_style_both" = "两者";
 "cost_history_days_title" = "历史窗口：%d 天";
 "cost_auto_refresh_info" = "自动刷新：每小时 · 超时：10 分钟";
 "refresh_cadence_title" = "刷新频率";

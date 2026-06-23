@@ -50,6 +50,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         Self.enableOnlyClaude(settings)
 
         let fetcher = UsageFetcher()

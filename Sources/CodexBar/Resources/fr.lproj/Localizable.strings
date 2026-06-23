@@ -417,6 +417,10 @@
 "start_at_login_subtitle" = "Ouvre automatiquement CodexBar au démarrage de votre Mac.";
 "show_cost_summary" = "Afficher le récapitulatif des coûts";
 "show_cost_summary_subtitle" = "Lit les journaux d'utilisation locaux. Affiche le coût d'aujourd'hui et de la période sélectionnée dans le menu.";
+"cost_summary_style_title" = "Style d’affichage";
+"cost_summary_style_inline" = "Résumé intégré";
+"cost_summary_style_submenu" = "Sous-menu des coûts";
+"cost_summary_style_both" = "Les deux";
 "cost_history_days_title" = "Fenêtre d'historique : %d jours";
 "cost_auto_refresh_info" = "Actualisation automatique : toutes les heures · Délai d'expiration : 10 min";
 "refresh_cadence_title" = "Fréquence d'actualisation";

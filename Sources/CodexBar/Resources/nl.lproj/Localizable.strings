@@ -417,6 +417,10 @@
 "start_at_login_subtitle" = "Opent automatisch CodexBar wanneer u uw Mac start.";
 "show_cost_summary" = "Kostenoverzicht weergeven";
 "show_cost_summary_subtitle" = "Leest lokale gebruikslogboeken. Toont vandaag + het geselecteerde geschiedenisvenster in het menu.";
+"cost_summary_style_title" = "Weergavestijl";
+"cost_summary_style_inline" = "Inline-overzicht";
+"cost_summary_style_submenu" = "Kosten-submenu";
+"cost_summary_style_both" = "Beide";
 "cost_history_days_title" = "Geschiedenisvenster: %d dagen";
 "cost_auto_refresh_info" = "Automatisch vernieuwen: elk uur · Time-out: 10m";
 "refresh_cadence_title" = "Cadans vernieuwen";

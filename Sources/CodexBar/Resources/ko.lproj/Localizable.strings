@@ -414,6 +414,10 @@
 "start_at_login_subtitle" = "Mac을 시작할 때 CodexBar를 자동으로 엽니다.";
 "show_cost_summary" = "비용 요약 표시";
 "show_cost_summary_subtitle" = "로컬 사용량 로그를 읽습니다. 메뉴에 오늘 및 선택한 기록 범위를 표시합니다.";
+"cost_summary_style_title" = "표시 스타일";
+"cost_summary_style_inline" = "인라인 요약";
+"cost_summary_style_submenu" = "비용 하위 메뉴";
+"cost_summary_style_both" = "둘 다";
 "cost_history_days_title" = "기록 범위: %d일";
 "cost_auto_refresh_info" = "자동 새로 고침: 매시간 · 시간 초과: 10분";
 "refresh_cadence_title" = "새로 고침 주기";

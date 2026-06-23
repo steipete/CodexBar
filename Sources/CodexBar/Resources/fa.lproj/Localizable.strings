@@ -417,6 +417,10 @@
 "start_at_login_subtitle" = "وقتی مک را روشن می کنید، CodexBar به طور خودکار باز می شود.";
 "show_cost_summary" = "خلاصه هزینه نمایش";
 "show_cost_summary_subtitle" = "گزارش های استفاده محلی را می خواند. امروز نمایش داده می شود + پنجره تاریخچه انتخاب شده در منو.";
+"cost_summary_style_title" = "سبک نمایش";
+"cost_summary_style_inline" = "خلاصه درون‌خطی";
+"cost_summary_style_submenu" = "زیرمنوی هزینه";
+"cost_summary_style_both" = "هر دو";
 "cost_history_days_title" = "پنجره تاریخچه: %d روز";
 "cost_auto_refresh_info" = "تازه سازی خودکار: ساعتی · زمان استراحت: 10m";
 "refresh_cadence_title" = "کادانس تازه سازی";

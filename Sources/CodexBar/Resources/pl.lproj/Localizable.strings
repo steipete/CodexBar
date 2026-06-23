@@ -419,6 +419,10 @@
 "start_at_login_subtitle" = "Automatycznie uruchamia CodexBar podczas startu Maca.";
 "show_cost_summary" = "Pokaż podsumowanie kosztów";
 "show_cost_summary_subtitle" = "Odczytuje lokalne logi użycia. Pokazuje dziś + wybrany zakres historii w menu.";
+"cost_summary_style_title" = "Styl wyświetlania";
+"cost_summary_style_inline" = "Wbudowane podsumowanie";
+"cost_summary_style_submenu" = "Podmenu kosztów";
+"cost_summary_style_both" = "Oba";
 "cost_history_days_title" = "Zakres historii: %d dni";
 "cost_auto_refresh_info" = "Auto-odświeżanie: co godzinę · Limit czasu: 10 min";
 "refresh_cadence_title" = "Częstotliwość odświeżania";

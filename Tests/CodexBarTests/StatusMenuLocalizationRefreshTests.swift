@@ -31,6 +31,7 @@ struct StatusMenuLocalizationRefreshTests {
         settings.switcherShowsIcons = false
         settings.selectedMenuProvider = .codex
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
 
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {

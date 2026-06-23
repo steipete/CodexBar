@@ -5,6 +5,59 @@ import Testing
 
 extension StatusMenuTests {
     @Test
+    func `open AI API usage submenu follows cost summary display style`() throws {
+        self.disableMenuCardsForTesting()
+
+        for style in CostSummaryDisplayStyle.allCases {
+            let settings = self.makeSettings()
+            settings.statusChecksEnabled = false
+            settings.refreshFrequency = .manual
+            settings.selectedMenuProvider = .openai
+            settings.costUsageEnabled = true
+            settings.costSummaryDisplayStyle = style
+
+            let registry = ProviderRegistry.shared
+            let metadata = try #require(registry.metadata[.openai])
+            settings.setProviderEnabled(provider: .openai, metadata: metadata, enabled: true)
+
+            let fetcher = UsageFetcher()
+            let store = UsageStore(
+                fetcher: fetcher,
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings)
+            let now = Date(timeIntervalSince1970: 1_700_000_000)
+            let usage = OpenAIAPIUsageSnapshot(
+                daily: [
+                    OpenAIAPIUsageSnapshot.DailyBucket(
+                        day: "2023-11-14",
+                        startTime: now,
+                        endTime: now.addingTimeInterval(86400),
+                        costUSD: 9,
+                        requests: 12,
+                        inputTokens: 100,
+                        cachedInputTokens: 0,
+                        outputTokens: 50,
+                        totalTokens: 150,
+                        lineItems: [],
+                        models: []),
+                ],
+                updatedAt: now)
+            store._setSnapshotForTesting(usage.toUsageSnapshot(), provider: .openai)
+
+            let controller = StatusItemController(
+                store: store,
+                settings: settings,
+                account: fetcher.loadAccountInfo(),
+                updater: DisabledUpdaterController(),
+                preferencesSelection: PreferencesSelection(),
+                statusBar: self.makeStatusBarForTesting())
+            defer { controller.releaseStatusItemsForTesting() }
+
+            #expect((controller.makeOpenAIAPIUsageSubmenu(provider: .openai) != nil) == style.showsCostSubmenu)
+        }
+    }
+
+    @Test
     func `open AI API usage submenu ignores stale token snapshot without current admin usage`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()

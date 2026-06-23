@@ -1,6 +1,17 @@
+import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    func costSummaryShowsInlineDashboard(for provider: UsageProvider) -> Bool {
+        self.isCostUsageEffectivelyEnabled(for: provider) &&
+            self.costSummaryDisplayStyle.showsInlineSummary
+    }
+
+    func costSummaryShowsSubmenu(for provider: UsageProvider) -> Bool {
+        self.isCostUsageEffectivelyEnabled(for: provider) &&
+            self.costSummaryDisplayStyle.showsCostSubmenu
+    }
+
     func applyTokenCostDefaultIfNeeded() {
         // Settings are persisted in UserDefaults.standard.
         guard UserDefaults.standard.object(forKey: "tokenCostUsageEnabled") == nil else { return }

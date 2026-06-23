@@ -1230,6 +1230,8 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.selectedMenuProvider = .openai
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
 
         let registry = ProviderRegistry.shared
         let metadata = try #require(registry.metadata[.openai])
@@ -1284,17 +1286,13 @@ extension StatusMenuTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
 
         let registry = ProviderRegistry.shared
-        if let codexMeta = registry.metadata[.codex] {
-            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
-        }
-        if let claudeMeta = registry.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
-        }
-        if let geminiMeta = registry.metadata[.gemini] {
-            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
-        }
+        let metadata = registry.metadata
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
+        try settings.setProviderEnabled(provider: .gemini, metadata: #require(metadata[.gemini]), enabled: false)
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -1413,6 +1411,7 @@ extension StatusMenuTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         settings.claudeWebExtrasEnabled = true
 
         let registry = ProviderRegistry.shared
@@ -1488,6 +1487,7 @@ extension StatusMenuTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .vertexai
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
 
         let registry = ProviderRegistry.shared
         if let vertexMeta = registry.metadata[.vertexai] {

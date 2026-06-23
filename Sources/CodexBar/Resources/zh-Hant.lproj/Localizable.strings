@@ -421,6 +421,10 @@
 "start_at_login_subtitle" = "登入 Mac 時自動開啟 CodexBar。";
 "show_cost_summary" = "顯示費用摘要";
 "show_cost_summary_subtitle" = "讀取本機使用量記錄。在選單中顯示今天及所選歷史時段的費用。";
+"cost_summary_style_title" = "顯示樣式";
+"cost_summary_style_inline" = "內嵌摘要";
+"cost_summary_style_submenu" = "費用子選單";
+"cost_summary_style_both" = "兩者";
 "cost_history_days_title" = "歷史時段：%d 天";
 "cost_auto_refresh_info" = "自動重新整理：每小時 · 逾時：10 分鐘";
 "refresh_cadence_title" = "重新整理頻率";
