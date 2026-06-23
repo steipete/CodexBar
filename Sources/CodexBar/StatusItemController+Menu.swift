@@ -802,14 +802,13 @@ extension StatusItemController {
                     }
                     menu.addItem(item)
                 case let .action(title, action):
-                    if self.isPersistentMenuAction(action) {
-                        let item = self.makePersistentMenuActionItem(
+                    if action == .refresh {
+                        let item = self.makePersistentRefreshItem(
                             title: L(title),
-                            action: action,
                             menu: captureMenu ?? menu,
                             width: width)
                         menu.addItem(item)
-                        self.trackPersistentRefreshItemIfNeeded(item)
+                        self.persistentRefreshItems.add(item)
                         continue
                     }
                     let localizedTitle = L(title)

@@ -6,6 +6,7 @@
 - CLI: show session pace in text output, expose derived pace data in JSON, and honor the configured weekly work-day baseline. Thanks @kmatsunami!
 
 ### Fixed
+- Menu: match the persistent Refresh row to native menu styling without replacing keyboard-navigable Settings, About, and Quit actions. Thanks @Zihao-Qi!
 - Memory pressure: finish isolating utility-queue source reads from main-actor state to prevent the remaining callback crash. Thanks @Zihao-Qi!
 - Claude: stop installed-version checks from invoking a login shell and triggering unwanted Keychain prompts. Thanks @enieuwy!
 - Localization: reject blank translated values and restore the affected Vietnamese provider prompts. Thanks @kiranmagic7!

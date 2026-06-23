@@ -214,7 +214,7 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
 }
 
 @MainActor
-final class PersistentMenuActionView: NSView, MenuCardHighlighting {
+final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     private static let minimumShortcutColumnWidth: CGFloat = 44
     private static let titleShortcutGap: CGFloat = 8
     private static let shortcutReferenceText = "⌘ R"
@@ -225,7 +225,7 @@ final class PersistentMenuActionView: NSView, MenuCardHighlighting {
     private let shortcutField: NSTextField?
     private var isRowHighlighted = false
     private var isRowEnabled = true
-    private var rowHeight = PersistentMenuActionRowMetrics.defaults.rowHeight
+    private var rowHeight = PersistentRefreshRowMetrics.defaults.rowHeight
     private var onClick: (() -> Void)?
 
     override var allowsVibrancy: Bool {
@@ -307,7 +307,7 @@ final class PersistentMenuActionView: NSView, MenuCardHighlighting {
     override func layout() {
         super.layout()
 
-        let metrics = PersistentMenuActionRowMetrics.defaults
+        let metrics = PersistentRefreshRowMetrics.defaults
         self.selectionView.frame = self.bounds.insetBy(
             dx: metrics.selectionHorizontalInset,
             dy: metrics.selectionVerticalInset)
@@ -372,7 +372,7 @@ final class PersistentMenuActionView: NSView, MenuCardHighlighting {
 
         baseImage.isTemplate = true
         self.iconView.image = baseImage
-        self.iconView.symbolConfiguration = Self.iconConfiguration(for: PersistentMenuActionRowMetrics.defaults)
+        self.iconView.symbolConfiguration = Self.iconConfiguration(for: PersistentRefreshRowMetrics.defaults)
         self.iconView.imageScaling = .scaleProportionallyDown
         self.iconView.contentTintColor = .labelColor
         self.addSubview(self.iconView)
@@ -384,7 +384,7 @@ final class PersistentMenuActionView: NSView, MenuCardHighlighting {
         self.configureTitleField(self.titleField)
 
         if let shortcutField {
-            shortcutField.font = Self.shortcutFont(for: PersistentMenuActionRowMetrics.defaults)
+            shortcutField.font = Self.shortcutFont(for: PersistentRefreshRowMetrics.defaults)
             self.configureShortcutField(shortcutField)
         }
     }
@@ -432,15 +432,15 @@ final class PersistentMenuActionView: NSView, MenuCardHighlighting {
         self.iconView.contentTintColor = .labelColor
     }
 
-    private static func iconConfiguration(for metrics: PersistentMenuActionRowMetrics) -> NSImage.SymbolConfiguration {
+    private static func iconConfiguration(for metrics: PersistentRefreshRowMetrics) -> NSImage.SymbolConfiguration {
         NSImage.SymbolConfiguration(pointSize: metrics.iconSymbolPointSize, weight: .regular)
     }
 
-    private static func shortcutFont(for metrics: PersistentMenuActionRowMetrics) -> NSFont {
+    private static func shortcutFont(for metrics: PersistentRefreshRowMetrics) -> NSFont {
         NSFont.menuFont(ofSize: metrics.shortcutFontSize)
     }
 
-    private static func shortcutReferenceWidth(for metrics: PersistentMenuActionRowMetrics) -> CGFloat {
+    private static func shortcutReferenceWidth(for metrics: PersistentRefreshRowMetrics) -> CGFloat {
         (self.shortcutReferenceText as NSString).size(withAttributes: [
             .font: self.shortcutFont(for: metrics),
         ]).width

@@ -162,7 +162,7 @@ struct MenuActions {
     let copyError: (String) -> Void
 }
 
-struct PersistentMenuActionRowMetrics: Equatable {
+struct PersistentRefreshRowMetrics: Equatable {
     static let defaults = Self(
         rowHeight: 24,
         selectionHorizontalInset: 5,

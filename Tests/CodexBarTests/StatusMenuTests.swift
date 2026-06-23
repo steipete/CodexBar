@@ -796,7 +796,7 @@ struct StatusMenuTests {
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
         #expect(controller.isPersistentRefreshItem(refreshItem))
-        #expect(refreshItem.view is PersistentMenuActionView)
+        #expect(refreshItem.view is PersistentRefreshMenuView)
         #expect(refreshItem.keyEquivalent.isEmpty)
         #expect(refreshItem.keyEquivalentModifierMask.isEmpty)
 

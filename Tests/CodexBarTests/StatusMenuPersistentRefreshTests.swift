@@ -187,7 +187,7 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `bottom action rows share custom view while update item stays native`() throws {
+    func `only refresh uses a custom row while standard actions stay native`() throws {
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
         defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
@@ -214,13 +214,15 @@ struct StatusMenuPersistentRefreshTests {
         #expect(updateItem.action != nil)
         #expect(updateItem.target === controller)
 
-        for title in ["Settings...", "About CodexBar", "Quit"] {
+        for (title, key) in [("Settings...", ","), ("About CodexBar", ""), ("Quit", "q")] {
             let item = try #require(menu.items.first { $0.title == title })
-            #expect(item.view is PersistentMenuActionView, "'\(title)' should share the custom bottom action row")
+            #expect(item.view == nil)
             #expect(item.action != nil)
             #expect(item.target === controller)
-            #expect(item.keyEquivalent.isEmpty)
-            #expect(item.keyEquivalentModifierMask.isEmpty)
+            #expect(item.keyEquivalent == key)
+            if !key.isEmpty {
+                #expect(item.keyEquivalentModifierMask == [.command])
+            }
         }
     }
 
@@ -997,7 +999,7 @@ struct StatusMenuPersistentRefreshTests {
 extension StatusMenuPersistentRefreshTests {
     @Test
     func `refresh row metrics match tuned native-style values`() {
-        let metrics = PersistentMenuActionRowMetrics.defaults
+        let metrics = PersistentRefreshRowMetrics.defaults
         #expect(metrics.rowHeight == 24)
         #expect(metrics.selectionHorizontalInset == 5)
         #expect(metrics.selectionVerticalInset == 0)
@@ -1027,8 +1029,8 @@ extension StatusMenuPersistentRefreshTests {
         controller.menuWillOpen(menu)
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        let refreshView = try #require(refreshItem.view as? PersistentMenuActionView)
-        refreshView.applySize(width: 320, height: PersistentMenuActionRowMetrics.defaults.rowHeight)
+        let refreshView = try #require(refreshItem.view as? PersistentRefreshMenuView)
+        refreshView.applySize(width: 320, height: PersistentRefreshRowMetrics.defaults.rowHeight)
         refreshView.layoutSubtreeIfNeeded()
 
         let shortcutField = try #require(
@@ -1037,58 +1039,11 @@ extension StatusMenuPersistentRefreshTests {
         #expect(shortcutField.lineBreakMode == .byClipping)
         #expect(shortcutField.frame.width >= 40)
         let shortcutFont = try #require(shortcutField.font)
-        #expect(abs(shortcutFont.pointSize - PersistentMenuActionRowMetrics.defaults.shortcutFontSize) < 0.001)
+        #expect(abs(shortcutFont.pointSize - PersistentRefreshRowMetrics.defaults.shortcutFontSize) < 0.001)
 
         let iconView = try #require(refreshView.subviews.compactMap { $0 as? NSImageView }.first)
-        #expect(iconView.frame.width == PersistentMenuActionRowMetrics.defaults.iconWidth)
-        #expect(iconView.frame.height == PersistentMenuActionRowMetrics.defaults.iconWidth)
-    }
-
-    @Test
-    func `bottom action rows share leading geometry`() throws {
-        let previousRendering = StatusItemController.menuCardRenderingEnabled
-        StatusItemController.menuCardRenderingEnabled = true
-        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
-
-        let settings = self.makeSettings()
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = false
-
-        let controller = self.makeController(settings: settings)
-        let menu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(menu)
-
-        let titles = ["Refresh", "Settings...", "About CodexBar", "Quit"]
-        let rows = try titles.map { title -> (String, PersistentMenuActionView) in
-            let item = try #require(menu.items.first { $0.title == title })
-            let view = try #require(item.view as? PersistentMenuActionView)
-            view.applySize(width: 320, height: PersistentMenuActionRowMetrics.defaults.rowHeight)
-            view.layoutSubtreeIfNeeded()
-            return (title, view)
-        }
-
-        let iconOrigins = try rows.map { title, view -> CGFloat in
-            let iconView = try #require(view.subviews.compactMap { $0 as? NSImageView }.first, "\(title) icon")
-            return iconView.frame.minX
-        }
-        let titleOrigins = try rows.map { title, view -> CGFloat in
-            let titleField = try #require(
-                view.subviews.compactMap { $0 as? NSTextField }.first { $0.stringValue == title },
-                "\(title) label")
-            return titleField.frame.minX
-        }
-
-        #expect(iconOrigins.allSatisfy { abs($0 - iconOrigins[0]) <= 0.5 })
-        #expect(titleOrigins.allSatisfy { abs($0 - titleOrigins[0]) <= 0.5 })
-
-        let shortcutRows = try rows.filter { $0.0 != "About CodexBar" }.map { title, view -> CGFloat in
-            let field = try #require(
-                view.subviews.compactMap { $0 as? NSTextField }.first { $0.stringValue.hasPrefix("⌘") },
-                "\(title) shortcut")
-            #expect(field.alignment == .left)
-            return field.frame.minX
-        }
-        #expect(shortcutRows.allSatisfy { abs($0 - shortcutRows[0]) <= 0.5 })
+        #expect(iconView.frame.width == PersistentRefreshRowMetrics.defaults.iconWidth)
+        #expect(iconView.frame.height == PersistentRefreshRowMetrics.defaults.iconWidth)
     }
 
     @Test
@@ -1097,8 +1052,8 @@ extension StatusMenuPersistentRefreshTests {
         let controller = self.makeController(settings: settings)
         defer { controller.releaseStatusItemsForTesting() }
 
-        let metrics = PersistentMenuActionRowMetrics.defaults
-        let refreshView = PersistentMenuActionView(
+        let metrics = PersistentRefreshRowMetrics.defaults
+        let refreshView = PersistentRefreshMenuView(
             title: "Refresh",
             systemImageName: "arrow.clockwise",
             shortcutText: "⌘ R")
