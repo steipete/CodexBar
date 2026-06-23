@@ -237,7 +237,9 @@ extension StatusItemController {
 
         self.removeProviderSwitcherShortcutMonitor()
         self.resetOverviewScrollAccumulation()
-        let eventMask: NSEvent.EventTypeMask = hasProviderSwitcher ? [.keyDown, .keyUp, .scrollWheel] : [.keyDown]
+        let eventMask: NSEvent.EventTypeMask = hasProviderSwitcher
+            ? [.keyDown, .keyUp, .scrollWheel]
+            : [.keyDown, .keyUp]
         let monitor = ProviderSwitcherShortcutEventMonitor(
             events: eventMask)
         { [weak self, weak menu] event in
