@@ -64,6 +64,26 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies volcengine access key override for doubao coding plan`() {
+        let config = ProviderConfig(
+            id: .doubao,
+            apiKey: "AKLT-config",
+            secretKey: "sk-config",
+            region: "cn-shanghai")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == "AKLT-config")
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == "sk-config")
+        #expect(env[DoubaoSettingsReader.regionEnvironmentKeys[0]] == "cn-shanghai")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.accessKeyID == "AKLT-config")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.secretAccessKey == "sk-config")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.region == "cn-shanghai")
+    }
+
+    @Test
     func `applies API key override for moonshot`() {
         let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

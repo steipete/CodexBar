@@ -9,10 +9,10 @@ public enum DoubaoProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .doubao,
                 displayName: "Doubao",
-                sessionLabel: "Requests",
-                weeklyLabel: "Rate limit",
-                opusLabel: nil,
-                supportsOpus: false,
+                sessionLabel: "5-hour",
+                weeklyLabel: "Weekly",
+                opusLabel: "Monthly",
+                supportsOpus: true,
                 supportsCredits: false,
                 creditsHint: "",
                 toggleTitle: "Show Doubao usage",
@@ -30,16 +30,41 @@ public enum DoubaoProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Doubao cost summary is not available." }),
-            fetchPlan: .apiToken(
-                strategyID: "doubao.api",
-                resolveToken: { ProviderTokenResolver.doubaoToken(environment: $0) },
-                missingCredentialsError: { DoubaoUsageError.missingCredentials },
-                loadUsage: { apiKey, _ in
-                    try await DoubaoUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
-                }),
+            fetchPlan: ProviderFetchPlan(
+                sourceModes: [.auto, .api],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    [DoubaoAPIFetchStrategy()]
+                })),
             cli: ProviderCLIConfig(
                 name: "doubao",
                 aliases: ["volcengine", "ark", "bytedance"],
                 versionDetector: nil))
+    }
+}
+
+struct DoubaoAPIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "doubao.api"
+    let kind: ProviderFetchKind = .apiToken
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        DoubaoSettingsReader.codingPlanCredentials(environment: context.env) != nil ||
+            ProviderTokenResolver.doubaoToken(environment: context.env) != nil
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        if let credentials = DoubaoSettingsReader.codingPlanCredentials(environment: context.env) {
+            let usage = try await DoubaoUsageFetcher.fetchCodingPlanUsage(credentials: credentials)
+            return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "api")
+        }
+
+        guard let apiKey = ProviderTokenResolver.doubaoToken(environment: context.env) else {
+            throw DoubaoUsageError.missingCredentials
+        }
+        let usage = try await DoubaoUsageFetcher.fetchUsage(apiKey: apiKey)
+        return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "api")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
     }
 }

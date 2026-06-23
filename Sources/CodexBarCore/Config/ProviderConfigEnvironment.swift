@@ -95,6 +95,8 @@ public enum ProviderConfigEnvironment {
             self.applyAzureOpenAIOverrides(base: base, config: config)
         case .kimi:
             self.applyKimiOverrides(base: base, config: config)
+        case .doubao:
+            self.applyDoubaoOverrides(base: base, config: config)
         default:
             nil
         }
@@ -281,6 +283,33 @@ public enum ProviderConfigEnvironment {
         }
         if let baseURL = config.sanitizedEnterpriseHost {
             env[KimiSettingsReader.codeAPIBaseURLEnvironmentKey] = baseURL
+        }
+        return env
+    }
+
+    private static func applyDoubaoOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        let apiKey = config.sanitizedAPIKey
+        let secretKey = config.sanitizedSecretKey
+
+        if let apiKey, let secretKey {
+            env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] = apiKey
+            env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] = secretKey
+            if let region = config.sanitizedRegion {
+                env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+            }
+            return env
+        }
+
+        if let apiKey {
+            env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] = apiKey
+        }
+        if let region = config.sanitizedRegion {
+            env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
         }
         return env
     }

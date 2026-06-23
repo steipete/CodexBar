@@ -98,6 +98,86 @@ struct DoubaoUsageSnapshotTests {
 
 struct DoubaoUsageFetcherTests {
     @Test
+    func `coding plan response maps session weekly and monthly windows`() throws {
+        let data = Data(
+            """
+            {
+              "ResponseMetadata": {
+                "Action": "GetCodingPlanUsage",
+                "Version": "2024-01-01",
+                "Service": "ark",
+                "Region": "cn-beijing"
+              },
+              "Result": {
+                "Status": "Running",
+                "UpdateTimestamp": 1782226444,
+                "QuotaUsage": [
+                  {"Level":"session","Percent":0.116,"ResetTimestamp":1782226478},
+                  {"Level":"weekly","Percent":3.182143,"ResetTimestamp":1782662400},
+                  {"Level":"monthly","Percent":7.5730535,"ResetTimestamp":1782403199}
+                ]
+              }
+            }
+            """.utf8)
+
+        let usage = try DoubaoUsageFetcher.decodeCodingPlanUsage(from: data).toUsageSnapshot(
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        #expect(usage.primary?.usedPercent == 0.116)
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_782_226_478))
+        #expect(usage.primary?.resetDescription == "0.12% used")
+        #expect(usage.secondary?.usedPercent == 3.182143)
+        #expect(usage.secondary?.windowMinutes == 10080)
+        #expect(usage.tertiary?.usedPercent == 7.5730535)
+        #expect(usage.tertiary?.windowMinutes == 43200)
+        #expect(usage.identity?.providerID == .doubao)
+        #expect(usage.identity?.loginMethod == "Running")
+    }
+
+    @Test
+    func `coding plan fetch signs volcengine request`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .rawResponse(
+                statusCode: 200,
+                body: """
+                {
+                  "Result": {
+                    "Status": "Running",
+                    "UpdateTimestamp": 1782226444,
+                    "QuotaUsage": [
+                      {"Level":"session","Percent":12.5,"ResetTimestamp":1782226478}
+                    ]
+                  }
+                }
+                """),
+        ])
+        let credentials = DoubaoCodingPlanCredentials(
+            accessKeyID: "AKLTTEST",
+            secretAccessKey: "secret",
+            region: "cn-beijing")
+        let date = Date(timeIntervalSince1970: 1_781_654_400)
+
+        let snapshot = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
+            credentials: credentials,
+            session: transport,
+            date: date)
+        let request = await transport.lastCapturedRequest()
+
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 12.5)
+        #expect(request?.method == "POST")
+        #expect(request?.url == "https://open.volcengineapi.com/?Action=GetCodingPlanUsage&Version=2024-01-01")
+        #expect(request?.host == "open.volcengineapi.com")
+        #expect(request?.date == "20260617T000000Z")
+        #expect(request?.contentSHA256 ==
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        #expect(request?.authorization?.contains(
+            "HMAC-SHA256 Credential=AKLTTEST/20260617/cn-beijing/ark/request") == true)
+        #expect(request?.authorization?.contains(
+            "SignedHeaders=host;x-date;x-content-sha256;content-type") == true)
+    }
+
+    @Test
     func `repeated successful zero remaining responses omit unknown request limit`() async throws {
         let transport = DoubaoScriptedTransport(results: [
             .response(statusCode: 200, limit: 1000, remaining: 0),
@@ -217,12 +297,23 @@ struct DoubaoUsageFetcherTests {
 private actor DoubaoScriptedTransport: ProviderHTTPTransport {
     enum Result {
         case response(statusCode: Int, limit: Int?, remaining: Int?)
+        case rawResponse(statusCode: Int, body: String)
         case failure(URLError)
         case cancellation
     }
 
+    struct CapturedRequest: Sendable {
+        let url: String?
+        let method: String?
+        let host: String?
+        let date: String?
+        let contentSHA256: String?
+        let authorization: String?
+    }
+
     private var results: [Result]
     private var requests = 0
+    private var capturedRequest: CapturedRequest?
 
     init(results: [Result]) {
         self.results = results
@@ -232,8 +323,19 @@ private actor DoubaoScriptedTransport: ProviderHTTPTransport {
         self.requests
     }
 
+    func lastCapturedRequest() -> CapturedRequest? {
+        self.capturedRequest
+    }
+
     func data(for request: URLRequest) throws -> (Data, URLResponse) {
         self.requests += 1
+        self.capturedRequest = CapturedRequest(
+            url: request.url?.absoluteString,
+            method: request.httpMethod,
+            host: request.value(forHTTPHeaderField: "Host"),
+            date: request.value(forHTTPHeaderField: "X-Date"),
+            contentSHA256: request.value(forHTTPHeaderField: "X-Content-Sha256"),
+            authorization: request.value(forHTTPHeaderField: "Authorization"))
         let result = self.results.removeFirst()
         switch result {
         case let .response(statusCode, limit, remaining):
@@ -250,6 +352,13 @@ private actor DoubaoScriptedTransport: ProviderHTTPTransport {
                 httpVersion: "HTTP/1.1",
                 headerFields: headers)!
             return (Data(#"{"usage":{"total_tokens":1}}"#.utf8), response)
+        case let .rawResponse(statusCode, body):
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: [:])!
+            return (Data(body.utf8), response)
         case let .failure(error):
             throw error
         case .cancellation:
