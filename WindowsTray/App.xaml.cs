@@ -125,6 +125,8 @@ public partial class App : Application
         root.Items.Add(BuildAddSubmenu("Add usage widget", WidgetKind.Usage, _ => true));
         root.Items.Add(BuildAddSubmenu("Add cost widget", WidgetKind.Cost, CostProviderIds.Contains));
         root.Items.Add(BuildAddSubmenu("Add cost history", WidgetKind.CostHistory, CostProviderIds.Contains));
+        root.Items.Add(BuildAddSubmenu("Add burn-down (session)", WidgetKind.BurnDown, _ => true, QuotaWindowKind.Session));
+        root.Items.Add(BuildAddSubmenu("Add burn-down (weekly)", WidgetKind.BurnDown, _ => true, QuotaWindowKind.Weekly));
 
         root.Items.Add(new Separator());
         var removeAll = new MenuItem { Header = "Remove all widgets", IsEnabled = _widgets.Count > 0 };
@@ -132,7 +134,11 @@ public partial class App : Application
         root.Items.Add(removeAll);
     }
 
-    private MenuItem BuildAddSubmenu(string header, WidgetKind kind, Func<string, bool> providerFilter)
+    private MenuItem BuildAddSubmenu(
+        string header,
+        WidgetKind kind,
+        Func<string, bool> providerFilter,
+        QuotaWindowKind window = QuotaWindowKind.Session)
     {
         var menu = new MenuItem { Header = header };
         var providers = _latestTiles
@@ -149,15 +155,15 @@ public partial class App : Application
         {
             var id = tile.Id;
             var item = new MenuItem { Header = tile.Name };
-            item.Click += (_, _) => AddWidgetAndRefresh(id, kind);
+            item.Click += (_, _) => AddWidgetAndRefresh(id, kind, window);
             menu.Items.Add(item);
         }
         return menu;
     }
 
-    private void AddWidgetAndRefresh(string providerId, WidgetKind kind)
+    private void AddWidgetAndRefresh(string providerId, WidgetKind kind, QuotaWindowKind window)
     {
-        _widgets.AddWidget(providerId, kind);
+        _widgets.AddWidget(providerId, kind, window);
         // Refresh promptly so the new widget (especially cost) populates without waiting.
         _ = RefreshUsageAsync();
     }
@@ -224,7 +230,7 @@ public partial class App : Application
                 try { costs = CostJson.Parse(await _client.GetCostJsonAsync()); }
                 catch { /* cost is best-effort; leave empty on failure */ }
             }
-            var widgetData = new WidgetData(tiles, costs);
+            var widgetData = new WidgetData(tiles, results, costs);
 
             Dispatcher.Invoke(() =>
             {

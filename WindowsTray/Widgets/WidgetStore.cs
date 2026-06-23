@@ -12,6 +12,8 @@ public sealed class WidgetConfig
     public string ProviderId { get; set; } = "";
     // Default 0 == Usage, so widgets saved before kinds existed restore as usage.
     public WidgetKind Kind { get; set; } = WidgetKind.Usage;
+    // Window selection for burn-down widgets (ignored by other kinds).
+    public QuotaWindowKind Window { get; set; } = QuotaWindowKind.Session;
     public double? Left { get; set; }
     public double? Top { get; set; }
 }

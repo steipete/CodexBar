@@ -141,6 +141,26 @@
                            Visibility="{Binding NoData, Converter={StaticResource BoolToVis}}" />
             </StackPanel>
         </DataTemplate>
+
+        <!-- Body: Burn-down projection chart -->
+        <DataTemplate DataType="{x:Type local:BurnDownWidgetViewModel}">
+            <StackPanel>
+                <local:BurnDownChart Geom="{Binding Geom}" Height="64" Margin="0,6,0,0"
+                                     Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}" />
+                <Grid Margin="0,4,0,0" Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding RemainingText}" Foreground="{StaticResource TextPrimary}"
+                               FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextDim}"
+                               FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="{Binding ProjectionText}" Foreground="{StaticResource TextDim}"
+                           FontSize="10" Margin="0,2,0,0"
+                           Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource TextDim}"
+                           FontSize="11" Margin="0,4,0,0"
+                           Visibility="{Binding NoData, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <Window.ContextMenu>

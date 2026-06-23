@@ -8,15 +8,23 @@ public enum WidgetKind
     Usage = 0,       // a provider's rate-limit windows
     Cost = 1,        // compact session / today / 30-day cost
     CostHistory = 2, // mini bar chart of daily cost
+    BurnDown = 3,    // session/weekly burn-down projection chart
 }
 
-/// <summary>The latest data pushed into widgets on each refresh.</summary>
+/// <summary>
+/// The latest data pushed into widgets on each refresh. <see cref="Usage"/> holds
+/// the formatted tiles; <see cref="Raw"/> keeps the unformatted provider results
+/// (window minutes + reset times) that the burn-down chart needs.
+/// </summary>
 public sealed record WidgetData(
     IReadOnlyList<ProviderViewModel> Usage,
+    IReadOnlyList<ProviderResult> Raw,
     IReadOnlyList<CostResult> Cost)
 {
-    public static readonly WidgetData Empty =
-        new(Array.Empty<ProviderViewModel>(), Array.Empty<CostResult>());
+    public static readonly WidgetData Empty = new(
+        Array.Empty<ProviderViewModel>(),
+        Array.Empty<ProviderResult>(),
+        Array.Empty<CostResult>());
 }
 
 /// <summary>

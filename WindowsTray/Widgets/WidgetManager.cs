@@ -29,9 +29,9 @@ public sealed class WidgetManager
             CreateWindow(config);
     }
 
-    public DesktopWidget AddWidget(string providerId, WidgetKind kind)
+    public DesktopWidget AddWidget(string providerId, WidgetKind kind, QuotaWindowKind window = QuotaWindowKind.Session)
     {
-        var config = new WidgetConfig { ProviderId = providerId, Kind = kind };
+        var config = new WidgetConfig { ProviderId = providerId, Kind = kind, Window = window };
         _store.Widgets.Add(config);
         _store.Save();
         return CreateWindow(config);
@@ -87,6 +87,7 @@ public sealed class WidgetManager
         {
             WidgetKind.Cost => new CostWidgetViewModel(config.ProviderId, name),
             WidgetKind.CostHistory => new CostHistoryWidgetViewModel(config.ProviderId, name),
+            WidgetKind.BurnDown => new BurnDownWidgetViewModel(config.ProviderId, name, config.Window),
             _ => new UsageWidgetViewModel(config.ProviderId, name),
         };
     }
