@@ -62,7 +62,7 @@ struct OverviewMenuCardVisibilityTests {
 struct ProviderInlineDashboardModelTests {
     @Test
     func `claude admin api usage gets inline dashboard`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.claude])
         let usage = ClaudeAdminAPIUsageSnapshot(
             daily: [
@@ -122,7 +122,7 @@ struct ProviderInlineDashboardModelTests {
 
     @Test
     func `openrouter period usage gets inline dashboard`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.openrouter])
         let usage = OpenRouterUsageSnapshot(
             totalCredits: 100,
@@ -165,7 +165,7 @@ struct ProviderInlineDashboardModelTests {
 
     @Test
     func `local cost history gets inline dashboard`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.claude])
         let daily = [
             CostUsageDailyReport.Entry(
@@ -235,7 +235,7 @@ struct ProviderInlineDashboardModelTests {
 
     @Test
     func `mistral daily buckets get inline dashboard`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.mistral])
         let snapshot = MistralUsageSnapshot(
             totalCost: 1.5,
@@ -292,7 +292,7 @@ struct ProviderInlineDashboardModelTests {
 
     @Test
     func `mistral billing usage can show cost card summary`() throws {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = Date(timeIntervalSince1970: 1_699_963_200) // 2023-11-14 12:00 UTC, matches latest bucket (#1705)
         let metadata = try #require(ProviderDefaults.metadata[.mistral])
         let snapshot = MistralUsageSnapshot(
             totalCost: 1.5,

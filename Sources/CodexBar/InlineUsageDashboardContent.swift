@@ -89,7 +89,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func openAIAPIUsageNotes(_ usage: OpenAIAPIUsageSnapshot) -> [String] {
-        let today = usage.latestDay
+        let today = usage.currentDay()
         let seven = usage.last7Days
         let thirty = usage.last30Days
         let historyLabel = usage.historyWindowLabel
@@ -114,7 +114,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func poeUsageNotes(_ usage: PoeUsageHistorySnapshot) -> [String] {
-        let today = usage.latestDay
+        let today = usage.currentDay()
         let week = usage.last7Days
         let month = usage.last30Days
         let todayUSD = today.costUSD.map { " · \(UsageFormatter.usdString($0))" } ?? ""
@@ -230,7 +230,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func poeInlineDashboard(_ usage: PoeUsageHistorySnapshot) -> InlineUsageDashboardModel {
-        let today = usage.latestDay
+        let today = usage.currentDay()
         let week = usage.last7Days
         let month = usage.last30Days
         let points = usage.daily.suffix(30).map {
@@ -332,13 +332,18 @@ extension UsageMenuCardView.Model {
             details.append(L("cost_estimate_hint"))
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
+        let usesLatestLabel = provider == .bedrock || provider == .mistral
         return InlineUsageDashboardModel(
             accessibilityLabel: "\(providerName) \(periodLabel) cost trend",
             valueStyle: Self.costValueStyle(currencyCode: snapshot.currencyCode),
             kpis: [
                 .init(
-                    title: provider == .bedrock || provider == .mistral ? L("Latest") : L("Today"),
-                    value: latest?.costUSD.map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
+                    title: usesLatestLabel ? L("Latest") : L("Today"),
+                    // "Today" must show the current local day (snapshot.sessionCostUSD,
+                    // already zeroed when there's no usage today); only "Latest"
+                    // providers keep the newest historical bucket (#1705).
+                    value: (usesLatestLabel ? latest?.costUSD : snapshot.sessionCostUSD)
+                        .map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
                     emphasis: true),
                 .init(
                     title: historyTitle,
@@ -378,7 +383,7 @@ extension UsageMenuCardView.Model {
     fileprivate static func claudeAdminAPIInlineDashboard(_ usage: ClaudeAdminAPIUsageSnapshot)
         -> InlineUsageDashboardModel
     {
-        let today = usage.latestDay
+        let today = usage.currentDay()
         let last7 = usage.last7Days
         let last30 = usage.last30Days
         let points = usage.daily.suffix(30).map {
