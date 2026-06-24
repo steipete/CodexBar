@@ -124,15 +124,7 @@ public struct DoubaoCodingPlanUsage: Sendable, Equatable {
             usedPercent: percent,
             windowMinutes: minutes,
             resetsAt: quota.resetTime,
-            resetDescription: "\(Self.formatPercent(percent))% used")
-    }
-
-    private static func formatPercent(_ percent: Double) -> String {
-        let rounded = (percent * 100).rounded() / 100
-        if rounded.rounded() == rounded {
-            return String(Int(rounded))
-        }
-        return String(format: "%.2f", rounded)
+            resetDescription: nil)
     }
 }
 
@@ -267,12 +259,17 @@ public struct DoubaoUsageFetcher: Sendable {
             DoubaoCodingPlanUsage.Quota(
                 level: quota.level,
                 percent: quota.percent,
-                resetTime: quota.resetTimestamp.map(Date.init(timeIntervalSince1970:)))
+                resetTime: self.date(fromEpoch: quota.resetTimestamp))
         }
         return DoubaoCodingPlanUsage(
             status: usage.status,
-            updateTime: usage.updateTimestamp.map(Date.init(timeIntervalSince1970:)),
+            updateTime: self.date(fromEpoch: usage.updateTimestamp),
             quotas: quotas)
+    }
+
+    private static func date(fromEpoch timestamp: TimeInterval?) -> Date? {
+        guard let timestamp, timestamp > 0 else { return nil }
+        return Date(timeIntervalSince1970: timestamp)
     }
 
     private static func confirmAmbiguousZeroRemaining(

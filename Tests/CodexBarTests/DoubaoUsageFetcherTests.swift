@@ -126,13 +126,42 @@ struct DoubaoUsageFetcherTests {
         #expect(usage.primary?.usedPercent == 0.116)
         #expect(usage.primary?.windowMinutes == 300)
         #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_782_226_478))
-        #expect(usage.primary?.resetDescription == "0.12% used")
+        #expect(usage.primary?.resetDescription == nil)
         #expect(usage.secondary?.usedPercent == 3.182143)
         #expect(usage.secondary?.windowMinutes == 10080)
         #expect(usage.tertiary?.usedPercent == 7.5730535)
         #expect(usage.tertiary?.windowMinutes == 43200)
         #expect(usage.identity?.providerID == .doubao)
         #expect(usage.identity?.loginMethod == "Running")
+    }
+
+    @Test
+    func `coding plan response ignores missing reset sentinels`() throws {
+        let fallbackUpdatedAt = Date(timeIntervalSince1970: 42)
+        let data = Data(
+            """
+            {
+              "Result": {
+                "Status": "Running",
+                "UpdateTimestamp": 0,
+                "QuotaUsage": [
+                  {"Level":"session","Percent":12.5,"ResetTimestamp":0},
+                  {"Level":"weekly","Percent":24,"ResetTimestamp":-1}
+                ]
+              }
+            }
+            """.utf8)
+
+        let usage = try DoubaoUsageFetcher.decodeCodingPlanUsage(from: data).toUsageSnapshot(
+            updatedAt: fallbackUpdatedAt)
+
+        #expect(usage.updatedAt == fallbackUpdatedAt)
+        #expect(usage.primary?.usedPercent == 12.5)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetDescription == nil)
+        #expect(usage.secondary?.usedPercent == 24)
+        #expect(usage.secondary?.resetsAt == nil)
+        #expect(usage.secondary?.resetDescription == nil)
     }
 
     @Test
