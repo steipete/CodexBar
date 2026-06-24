@@ -42,11 +42,7 @@ extension LongCatUsageSnapshot {
 
     public func toUsageSnapshot() -> UsageSnapshot {
         // Primary: overall token quota consumption (总额度).
-        var primary = RateWindow(
-            usedPercent: 0,
-            windowMinutes: nil,
-            resetsAt: nil,
-            resetDescription: "No LongCat quota data")
+        var primary: RateWindow?
         if let total = totalQuota, total > 0 {
             let used = self.resolvedUsed(total: total)
             primary = RateWindow(

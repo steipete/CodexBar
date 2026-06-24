@@ -67,6 +67,13 @@ struct LongCatProviderTests {
     }
 
     @Test
+    func `missing quota data omits primary window`() {
+        let usage = LongCatUsageSnapshot(fuelPackTotal: 500, fuelPackRemaining: 200).toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.secondary != nil)
+    }
+
+    @Test
     func `fuel pack populates secondary window`() {
         let snapshot = LongCatUsageSnapshot(fuelPackTotal: 500, fuelPackRemaining: 200)
         let usage = snapshot.toUsageSnapshot()
@@ -113,6 +120,7 @@ struct LongCatProviderTests {
         #expect(snapshot.fuelPackTotal == 1000)
         #expect(snapshot.fuelPackRemaining == 750)
         #expect(snapshot.nearestFuelExpiry != nil)
+        #expect(snapshot.toUsageSnapshot().primary == nil)
     }
 
     // MARK: - Envelope
