@@ -295,11 +295,13 @@ public enum ProviderConfigEnvironment {
         var env = base
         let apiKey = config.sanitizedAPIKey
         let secretKey = config.sanitizedSecretKey
+        let accessKeyID = apiKey ?? DoubaoSettingsReader.accessKeyID(environment: base)
+        let secretAccessKey = secretKey ?? DoubaoSettingsReader.secretAccessKey(environment: base)
 
-        if let apiKey, let secretKey {
-            env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] = apiKey
-            env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] = secretKey
-            if let region = config.sanitizedRegion {
+        if let accessKeyID, let secretAccessKey {
+            env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] = accessKeyID
+            env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] = secretAccessKey
+            if let region = config.sanitizedRegion ?? self.firstDoubaoRegionValue(in: base) {
                 env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
             }
             return env
@@ -312,6 +314,14 @@ public enum ProviderConfigEnvironment {
             env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
         }
         return env
+    }
+
+    private static func firstDoubaoRegionValue(in environment: [String: String]) -> String? {
+        for key in DoubaoSettingsReader.regionEnvironmentKeys {
+            guard let value = DoubaoSettingsReader.cleaned(environment[key]) else { continue }
+            return value
+        }
+        return nil
     }
 
     private static func applyAzureOpenAIOverrides(
