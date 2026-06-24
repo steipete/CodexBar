@@ -19,6 +19,18 @@ private final class MistralRequestCapture: @unchecked Sendable {
 }
 
 struct MistralVibeUsageTests {
+    #if os(macOS)
+    @Test
+    func `cookie importer uses only accepted Mistral domains`() {
+        #expect(Set(MistralCookieImporter.cookieDomains) == [
+            "mistral.ai",
+            "admin.mistral.ai",
+            "auth.mistral.ai",
+            "console.mistral.ai",
+        ])
+    }
+    #endif
+
     @Test
     func `parses subscription percentage and reset`() throws {
         let data = Data(Self.responseJSON(usagePercentage: 2.8141356666666666).utf8)
