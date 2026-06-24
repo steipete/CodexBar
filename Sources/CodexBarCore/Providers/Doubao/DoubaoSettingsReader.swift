@@ -9,17 +9,20 @@ public struct DoubaoSettingsReader: Sendable {
     public static let accessKeyIDEnvironmentKeys = [
         "VOLCENGINE_ACCESS_KEY_ID",
         "VOLCENGINE_ACCESS_KEY",
+        "VOLC_ACCESSKEY",
         "DOUBAO_ACCESS_KEY_ID",
     ]
     public static let secretAccessKeyEnvironmentKeys = [
         "VOLCENGINE_SECRET_ACCESS_KEY",
         "VOLCENGINE_SECRET_KEY",
         "VOLCENGINE_ACCESS_KEY_SECRET",
+        "VOLC_SECRETKEY",
         "DOUBAO_SECRET_ACCESS_KEY",
     ]
     public static let regionEnvironmentKeys = [
         "VOLCENGINE_REGION",
         "VOLCENGINE_REGION_ID",
+        "VOLC_REGION",
         "DOUBAO_REGION",
     ]
     public static let defaultRegion = "cn-beijing"

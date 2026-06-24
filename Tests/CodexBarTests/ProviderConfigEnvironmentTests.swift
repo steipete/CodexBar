@@ -133,6 +133,22 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `reads doubao volc sdk credential aliases`() {
+        let env = [
+            "VOLC_ACCESSKEY": "AKLT-volc",
+            "VOLC_SECRETKEY": "sk-volc",
+            "VOLC_REGION": "cn-shanghai",
+        ]
+
+        #expect(DoubaoSettingsReader.accessKeyIDEnvironmentKeys.contains("VOLC_ACCESSKEY"))
+        #expect(DoubaoSettingsReader.secretAccessKeyEnvironmentKeys.contains("VOLC_SECRETKEY"))
+        #expect(DoubaoSettingsReader.regionEnvironmentKeys.contains("VOLC_REGION"))
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.accessKeyID == "AKLT-volc")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.secretAccessKey == "sk-volc")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.region == "cn-shanghai")
+    }
+
+    @Test
     func `does not project incomplete doubao access key as ark API key`() {
         let config = ProviderConfig(id: .doubao, apiKey: "AKLT-config")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
