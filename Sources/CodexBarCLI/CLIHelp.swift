@@ -122,6 +122,8 @@ extension CodexBarCLI {
           codexbar config enable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config disable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config set-api-key --provider <name> (--api-key <key>|--stdin)
+                                    [--label <label>] [--usage-scope team]
+                                    [--organization-id <org>] [--workspace-id <project>]
                                     [--no-enable]
                                     [--format text|json] [--json] [--json-only] [--pretty]
 
@@ -130,6 +132,8 @@ extension CodexBarCLI {
           providers lists persistent provider enablement.
           enable/disable updates the same provider toggle used by Settings.
           set-api-key stores a provider API key in the resolved config file and enables that provider by default.
+          For z.ai team usage, add --usage-scope team with BigModel organization and project IDs; this stores
+          the key as a token account instead of a provider-level personal key.
 
         Examples:
           codexbar config validate --format json --pretty
@@ -138,6 +142,8 @@ extension CodexBarCLI {
           codexbar config enable --provider grok
           codexbar config disable --provider cursor
           printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider elevenlabs --stdin
+          printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin \\
+            --label Team --usage-scope team --organization-id org_... --workspace-id proj_...
         """
     }
 
@@ -223,6 +229,8 @@ extension CodexBarCLI {
           codexbar config enable --provider <name>
           codexbar config disable --provider <name>
           codexbar config set-api-key --provider <name> (--api-key <key>|--stdin)
+          codexbar config set-api-key --provider zai --stdin --usage-scope team
+                                   --organization-id <org> --workspace-id <project>
           codexbar cache clear <--cookies|--cost|--all> [--provider <name>]
           codexbar diagnose --provider <name|all> --format json [--redact] [--output <path>] [--pretty]
 

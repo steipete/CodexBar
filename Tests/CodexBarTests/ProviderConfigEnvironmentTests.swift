@@ -23,6 +23,8 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[ZaiSettingsReader.apiTokenKey] == "z-token")
+        #expect(env[ZaiSettingsReader.bigModelOrganizationKey] == nil)
+        #expect(env[ZaiSettingsReader.bigModelProjectKey] == nil)
     }
 
     @Test

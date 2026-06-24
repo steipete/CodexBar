@@ -102,6 +102,28 @@ struct ConfigValidationTests {
     }
 
     @Test
+    func `warns when zai team token account is missing BigModel context`() {
+        let accounts = ProviderTokenAccountData(
+            version: 1,
+            accounts: [
+                ProviderTokenAccount(
+                    id: UUID(),
+                    label: "Team",
+                    token: "token",
+                    addedAt: 0,
+                    lastUsed: nil,
+                    usageScope: "team",
+                    organizationID: "org_abc"),
+            ],
+            activeIndex: 0)
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .zai, tokenAccounts: accounts))
+        let issues = CodexBarConfigValidator.validate(config)
+
+        #expect(issues.contains(where: { $0.provider == .zai && $0.code == "zai_team_context_missing" }))
+    }
+
+    @Test
     func `warns on unsupported workspace ID`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .gemini, workspaceID: "workspace-123"))

@@ -19,6 +19,18 @@ private final class MistralRequestCapture: @unchecked Sendable {
 }
 
 struct MistralVibeUsageTests {
+    #if os(macOS)
+    @Test
+    func `cookie importer uses only accepted Mistral domains`() {
+        #expect(Set(MistralCookieImporter.cookieDomains) == [
+            "mistral.ai",
+            "admin.mistral.ai",
+            "auth.mistral.ai",
+            "console.mistral.ai",
+        ])
+    }
+    #endif
+
     @Test
     func `parses subscription percentage and reset`() throws {
         let data = Data(Self.responseJSON(usagePercentage: 2.8141356666666666).utf8)
@@ -138,6 +150,40 @@ struct MistralVibeUsageTests {
 
         #expect(updated.extraRateWindows?.map(\.id) == ["existing", "mistral-monthly-plan"])
         #expect(updated.extraRateWindows?.last?.window.usedPercent == 25)
+    }
+
+    // MARK: - consoleCookieHeader allowlist
+
+    @Test
+    func `console cookie header contains only csrf when no admin header`() {
+        let cookie = MistralUsageFetcher.consoleCookieHeader(csrfToken: "tok", adminCookieHeader: nil)
+        #expect(cookie == "csrftoken=tok")
+    }
+
+    @Test
+    func `console cookie header forwards ory session alongside csrf`() {
+        let admin = "csrftoken=tok; ory_session_coolcurranf83m3srkfl=sess123; other_admin=secret"
+        let cookie = MistralUsageFetcher.consoleCookieHeader(csrfToken: "tok", adminCookieHeader: admin)
+        #expect(cookie == "csrftoken=tok; ory_session_coolcurranf83m3srkfl=sess123")
+    }
+
+    @Test
+    func `console cookie header excludes non-session admin cookies`() {
+        let admin = "csrftoken=tok; session_token=other; admin_secret=x"
+        let cookie = MistralUsageFetcher.consoleCookieHeader(csrfToken: "tok", adminCookieHeader: admin)
+        #expect(cookie == "csrftoken=tok")
+        #expect(!cookie.contains("admin_secret"))
+        #expect(!cookie.contains("session_token"))
+    }
+
+    @Test
+    func `console cookie header forwards multiple ory session cookies`() {
+        let admin = "ory_session_a=val1; ory_session_b=val2; unrelated=drop"
+        let cookie = MistralUsageFetcher.consoleCookieHeader(csrfToken: "tok", adminCookieHeader: admin)
+        #expect(cookie.contains("csrftoken=tok"))
+        #expect(cookie.contains("ory_session_a=val1"))
+        #expect(cookie.contains("ory_session_b=val2"))
+        #expect(!cookie.contains("unrelated"))
     }
 
     private static func responseJSON(usagePercentage: Double) -> String {

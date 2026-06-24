@@ -8,7 +8,7 @@ private let mistralCookieImportOrder: BrowserCookieImportOrder =
 
 public enum MistralCookieImporter {
     private static let cookieClient = BrowserCookieClient()
-    private static let cookieDomains = ["mistral.ai", "admin.mistral.ai", "auth.mistral.ai"]
+    static let cookieDomains = ["mistral.ai", "admin.mistral.ai", "auth.mistral.ai", "console.mistral.ai"]
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]

@@ -841,6 +841,7 @@
 "Plan utilization chart" = "Diagram över plananvändning";
 "The browser login did not complete in time. Try Antigravity login again." = "Webbläsarinloggningen blev inte klar i tid. Försök logga in i Antigravity igen.";
 "Organizations" = "Organisationer";
+"Organization ID" = "Organisations-ID";
 "Your StepFun platform password. Used to login and obtain a session token." = "Ditt lösenord för StepFun-plattformen. Används för att logga in och hämta en sessionstoken.";
 "Open this URL manually to continue login:\n\n%@" = "Öppna denna URL manuellt för att fortsätta inloggningen:\n\n%@";
 "CodexBar could not replace the live Codex auth on this Mac." = "CodexBar kunde inte ersätta aktiv Codex-autentisering på den här Mac-datorn.";
@@ -914,6 +915,7 @@
 "Extra usage spent" = "Extra användning förbrukad";
 "5 days" = "5 dagar";
 "T3 Chat cookie" = "T3 Chat-cookie";
+"Team mode" = "Teamläge";
 "Full in ~1 regen" = "Full om cirka 1 regenerering";
 "DeepSeek 30 day token usage trend" = "30-dagars tokenanvändningstrend för DeepSeek";
 "Reorder" = "Ändra ordning";

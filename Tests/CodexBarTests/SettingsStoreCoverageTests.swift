@@ -195,6 +195,31 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `zai token account update preserves team metadata`() throws {
+        let settings = Self.makeSettingsStore()
+
+        settings.addTokenAccount(
+            provider: .zai,
+            label: "Team",
+            token: "token-1",
+            usageScope: "team",
+            organizationID: "org-team",
+            workspaceID: "proj-team")
+
+        let original = try #require(settings.selectedTokenAccount(for: .zai))
+        settings.updateTokenAccount(
+            provider: .zai,
+            accountID: original.id,
+            label: "Team Updated",
+            token: "token-2")
+
+        let updated = try #require(settings.selectedTokenAccount(for: .zai))
+        #expect(updated.usageScope == "team")
+        #expect(updated.organizationID == "org-team")
+        #expect(updated.workspaceID == "proj-team")
+    }
+
+    @Test
     func `copilot token accounts clear legacy api key fallback`() throws {
         let settings = Self.makeSettingsStore()
         settings.copilotAPIToken = "legacy-token"

@@ -89,7 +89,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
 - [Copilot](docs/copilot.md) — GitHub device flow + Copilot internal usage API.
 - [Devin](docs/devin.md) — Chrome localStorage session or manual Bearer token for daily and weekly quotas.
-- [z.ai](docs/zai.md) — API token for quota + MCP windows.
+- [z.ai](docs/zai.md) — API token for personal/team quota, MCP, 5-hour, and hourly usage windows.
 - [Manus](docs/manus.md) — Browser `session_id` auth for credit balance, monthly credits, and daily refresh tracking.
 - [MiniMax](docs/minimax.md) — API token, cookie header, or browser cookies for coding-plan usage.
 - [T3 Chat](docs/providers.md#t3-chat) — Browser cookies capture for Base and Overage usage buckets.
