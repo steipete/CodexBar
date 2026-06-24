@@ -350,10 +350,18 @@ public struct KiroStatusProbe: Sendable {
             arguments: ["whoami"],
             timeout: self.accountProbeTimeout,
             idleTimeout: 1.5)
-        return try self.validateWhoAmIOutput(
+        let info = try self.validateWhoAmIOutput(
             stdout: output,
             stderr: "",
             terminationStatus: 0)
+        // The PTY runner cannot surface the child exit status, so a non-zero `whoami` that prints a
+        // non-login error (e.g. a config or network failure) would otherwise be parsed as a logged-in
+        // account with empty fields. Reject output that carries no account markers and let the
+        // best-effort account probe report the failure as unavailable instead.
+        guard info.email != nil || info.authMethod != nil else {
+            throw KiroStatusProbeError.cliFailed("Kiro CLI whoami returned no account details.")
+        }
+        return info
     }
 
     func validateWhoAmIOutput(stdout: String, stderr: String, terminationStatus: Int32) throws -> KiroAccountInfo {
