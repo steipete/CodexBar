@@ -188,20 +188,16 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             nil
         }
         let updatedAt = Date()
-        return try Self.makeResult(
+        let oauthResult = try Self.makeResult(
             usageResponse: usage,
             resetCredits: resetCredits,
             credentials: credentials,
-            updatedAt: updatedAt,
-            sourceMode: context.sourceMode)
+            updatedAt: updatedAt)
+        return try await Self.replacingWithCLIMonthlyLimitIfAvailable(oauthResult, context: context)
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.sourceMode == .auto else { return false }
-        if error is CodexOAuthFallbackSignal {
-            return true
-        }
-
         // Auto mode may launch the CLI as the next strategy. Keep that fallback
         // limited to OAuth states the CLI can actually repair, otherwise
         // transient API or decode failures can spawn `codex app-server`
@@ -249,8 +245,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         usageResponse: CodexUsageResponse,
         resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         credentials: CodexOAuthCredentials,
-        updatedAt: Date,
-        sourceMode: ProviderSourceMode) throws -> ProviderFetchResult
+        updatedAt: Date) throws -> ProviderFetchResult
     {
         let credits = Self.mapCredits(response: usageResponse, updatedAt: updatedAt)
         let reconciled = CodexReconciledState.fromOAuth(
@@ -274,9 +269,6 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         guard credits != nil || (resetCredits?.availableCount ?? 0) > 0 else {
             throw UsageError.noRateLimitsFound
         }
-        if sourceMode == .auto, Self.shouldFallbackToCLIForMonthlyLimit(credits: credits, resetCredits: resetCredits) {
-            throw CodexOAuthFallbackSignal.monthlyLimitUnavailable
-        }
 
         // Credit balances and manual resets remain useful when OAuth omits
         // rate-limit windows. Keep the partial result instead of discarding it.
@@ -294,25 +286,31 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "oauth")
     }
 
-    private static func shouldFallbackToCLIForMonthlyLimit(
-        credits: CreditsSnapshot?,
-        resetCredits: CodexRateLimitResetCreditsSnapshot?) -> Bool
+    private static func replacingWithCLIMonthlyLimitIfAvailable(
+        _ oauthResult: ProviderFetchResult,
+        context: ProviderFetchContext,
+        cliStrategy: any ProviderFetchStrategy = CodexCLIUsageStrategy()) async throws -> ProviderFetchResult
     {
-        guard let credits else { return false }
+        guard context.sourceMode == .auto,
+              self.shouldTryCLIForMonthlyLimit(oauthResult)
+        else { return oauthResult }
+        guard await cliStrategy.isAvailable(context) else { return oauthResult }
+        let cliResult: ProviderFetchResult
+        do {
+            cliResult = try await cliStrategy.fetch(context)
+        } catch {
+            if error is CancellationError { throw error }
+            return oauthResult
+        }
+        guard cliResult.credits?.codexCreditLimit != nil else { return oauthResult }
+        return cliResult
+    }
+
+    private static func shouldTryCLIForMonthlyLimit(_ result: ProviderFetchResult) -> Bool {
+        guard let credits = result.credits else { return false }
         return credits.remaining == 0
             && credits.codexCreditLimit == nil
-            && (resetCredits?.availableCount ?? 0) == 0
-    }
-}
-
-private enum CodexOAuthFallbackSignal: LocalizedError {
-    case monthlyLimitUnavailable
-
-    var errorDescription: String? {
-        switch self {
-        case .monthlyLimitUnavailable:
-            "OAuth did not include Codex monthly credit limit."
-        }
+            && (result.usage.codexResetCredits?.availableCount ?? 0) == 0
     }
 }
 
@@ -330,12 +328,27 @@ extension CodexOAuthFetchStrategy {
         sourceMode: ProviderSourceMode = .oauth) throws -> ProviderFetchResult
     {
         let usageResponse = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
+        _ = sourceMode
         return try Self.makeResult(
             usageResponse: usageResponse,
             resetCredits: resetCredits,
             credentials: credentials,
-            updatedAt: Date(),
-            sourceMode: sourceMode)
+            updatedAt: Date())
+    }
+
+    static func _replaceWithCLIMonthlyLimitForTesting(
+        oauthResult: ProviderFetchResult,
+        context: ProviderFetchContext,
+        cliStrategy: any ProviderFetchStrategy) async throws -> ProviderFetchResult
+    {
+        try await self.replacingWithCLIMonthlyLimitIfAvailable(
+            oauthResult,
+            context: context,
+            cliStrategy: cliStrategy)
+    }
+
+    static func _shouldTryCLIForMonthlyLimitForTesting(_ result: ProviderFetchResult) -> Bool {
+        self.shouldTryCLIForMonthlyLimit(result)
     }
 }
 

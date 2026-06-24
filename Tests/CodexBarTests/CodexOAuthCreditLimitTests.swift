@@ -3,6 +3,26 @@ import Testing
 @testable import CodexBarCore
 
 struct CodexOAuthCreditLimitTests {
+    private struct StubFetchStrategy: ProviderFetchStrategy {
+        let id = "stub.cli"
+        let kind: ProviderFetchKind = .cli
+        let available: Bool
+        let result: ProviderFetchResult?
+
+        func isAvailable(_: ProviderFetchContext) async -> Bool {
+            self.available
+        }
+
+        func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+            guard let result else { throw UsageError.noRateLimitsFound }
+            return result
+        }
+
+        func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+            false
+        }
+    }
+
     private func makeContext(sourceMode: ProviderSourceMode = .auto) -> ProviderFetchContext {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
@@ -26,6 +46,55 @@ struct CodexOAuthCreditLimitTests {
             idToken: nil,
             accountId: nil,
             lastRefresh: Date())
+    }
+
+    private func makeCLIResult(credits: CreditsSnapshot?) -> ProviderFetchResult {
+        ProviderFetchResult(
+            usage: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: Date(),
+                identity: nil),
+            credits: credits,
+            dashboard: nil,
+            sourceLabel: "codex-cli",
+            strategyID: "stub.cli",
+            strategyKind: .cli)
+    }
+
+    private func makeMonthlyLimitCredits() -> CreditsSnapshot {
+        let now = Date()
+        let limit = CodexCreditLimitSnapshot(
+            used: 250,
+            limit: 1000,
+            remainingPercent: 75,
+            resetsAt: nil,
+            updatedAt: now)
+        return CreditsSnapshot(
+            remaining: limit.remaining,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: limit)
+    }
+
+    private func oauthZeroCreditRateWindowJSON() -> String {
+        """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 12,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": null
+          },
+          "credits": {
+            "has_credits": true,
+            "unlimited": false,
+            "balance": "0"
+          }
+        }
+        """
     }
 
     @Test
@@ -114,30 +183,58 @@ struct CodexOAuthCreditLimitTests {
     }
 
     @Test
-    func `auto O auth zero credits without monthly limit falls back to CLI`() throws {
-        let json = """
-        {
-          "rate_limit": {
-            "primary_window": null,
-            "secondary_window": null
-          },
-          "credits": {
-            "has_credits": true,
-            "unlimited": false,
-            "balance": "0"
-          }
-        }
-        """
-        do {
-            _ = try CodexOAuthFetchStrategy._mapResultForTesting(
-                Data(json.utf8),
-                credentials: self.makeCredentials(),
-                sourceMode: .auto)
-            Issue.record("Expected auto OAuth zero-credit payload to request CLI fallback")
-        } catch {
-            let strategy = CodexOAuthFetchStrategy()
-            let context = self.makeContext(sourceMode: .auto)
-            #expect(strategy.shouldFallback(on: error, context: context))
-        }
+    func `auto O auth zero credits with rate windows uses CLI monthly limit`() async throws {
+        let oauthResult = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(self.oauthZeroCreditRateWindowJSON().utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .auto)
+        let cliResult = self.makeCLIResult(credits: self.makeMonthlyLimitCredits())
+
+        let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
+            oauthResult: oauthResult,
+            context: self.makeContext(sourceMode: .auto),
+            cliStrategy: StubFetchStrategy(available: true, result: cliResult))
+
+        #expect(oauthResult.usage.primary != nil)
+        #expect(CodexOAuthFetchStrategy._shouldTryCLIForMonthlyLimitForTesting(oauthResult))
+        #expect(result.sourceLabel == "codex-cli")
+        #expect(result.credits?.codexCreditLimit?.remaining == 750)
+    }
+
+    @Test
+    func `auto O auth zero credits keeps partial result when CLI is unavailable`() async throws {
+        let oauthResult = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(self.oauthZeroCreditRateWindowJSON().utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .auto)
+
+        let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
+            oauthResult: oauthResult,
+            context: self.makeContext(sourceMode: .auto),
+            cliStrategy: StubFetchStrategy(available: false, result: nil))
+
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.credits?.remaining == 0)
+        #expect(result.usage.primary != nil)
+    }
+
+    @Test
+    func `auto O auth zero credits keeps partial result when CLI lacks monthly limit`() async throws {
+        let oauthResult = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(self.oauthZeroCreditRateWindowJSON().utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .auto)
+        let cliResult = self.makeCLIResult(credits: CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: Date()))
+
+        let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
+            oauthResult: oauthResult,
+            context: self.makeContext(sourceMode: .auto),
+            cliStrategy: StubFetchStrategy(available: true, result: cliResult))
+
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.credits?.codexCreditLimit == nil)
     }
 }
