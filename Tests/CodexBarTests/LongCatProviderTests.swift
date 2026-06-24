@@ -134,11 +134,12 @@ struct LongCatProviderTests {
 
     private func context(
         env: [String: String],
-        cookieSource: ProviderCookieSource) -> ProviderFetchContext
+        cookieSource: ProviderCookieSource,
+        runtime: ProviderRuntime = .app) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
-            runtime: .app,
+            runtime: runtime,
             sourceMode: .web,
             includeCredits: false,
             webTimeout: 1,
@@ -162,5 +163,23 @@ struct LongCatProviderTests {
     func `auto source allows env cookie override`() {
         let ctx = self.context(env: ["LONGCAT_MANUAL_COOKIE": "a=b"], cookieSource: .auto)
         #expect(LongCatCookieHeader.resolveCookieOverride(context: ctx)?.cookieHeader == "a=b")
+    }
+
+    @Test
+    func `browser import is user initiated app auto only`() {
+        let appAuto = self.context(env: [:], cookieSource: .auto)
+        let cliAuto = self.context(env: [:], cookieSource: .auto, runtime: .cli)
+        let appManual = self.context(env: [:], cookieSource: .manual)
+        let appOff = self.context(env: [:], cookieSource: .off)
+
+        #expect(LongCatWebFetchStrategy.allowsBrowserImport(context: appAuto) == false)
+        #expect(LongCatWebFetchStrategy.allowsBrowserImport(context: cliAuto) == false)
+
+        ProviderInteractionContext.$current.withValue(.userInitiated) {
+            #expect(LongCatWebFetchStrategy.allowsBrowserImport(context: appAuto))
+            #expect(LongCatWebFetchStrategy.allowsBrowserImport(context: cliAuto) == false)
+            #expect(LongCatWebFetchStrategy.allowsBrowserImport(context: appManual) == false)
+            #expect(LongCatWebFetchStrategy.allowsBrowserImport(context: appOff) == false)
+        }
     }
 }
