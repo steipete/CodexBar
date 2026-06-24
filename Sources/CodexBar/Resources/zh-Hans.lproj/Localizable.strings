@@ -426,6 +426,8 @@
 "refresh_cadence_title" = "刷新频率";
 "refresh_cadence_subtitle" = "CodexBar 在后台轮询提供商的频率。";
 "manual_refresh_hint" = "自动刷新已关闭；请使用菜单中的“刷新”命令。";
+"refresh_on_open_title" = "打开菜单时刷新";
+"refresh_on_open_subtitle" = "每次打开菜单时获取每个提供商的最新用量。";
 "check_provider_status_title" = "检查提供商状态";
 "check_provider_status_subtitle" = "轮询 OpenAI/Claude 状态页面和 Google Workspace 的 Gemini/Antigravity，在图标和菜单中显示故障信息。";
 "session_quota_notifications_title" = "会话配额通知";

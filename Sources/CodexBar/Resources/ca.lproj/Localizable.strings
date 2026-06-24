@@ -420,6 +420,8 @@
 "refresh_cadence_title" = "Freqüència d'actualització";
 "refresh_cadence_subtitle" = "Amb quina freqüència el CodexBar consulta els proveïdors en segon pla.";
 "manual_refresh_hint" = "L'actualització automàtica està desactivada; feu servir l'ordre Actualitza del menú.";
+"refresh_on_open_title" = "Actualitza en obrir el menú";
+"refresh_on_open_subtitle" = "Obté l'ús més recent de cada proveïdor cada vegada que obres el menú.";
 "check_provider_status_title" = "Comproveu l'estat del proveïdor";
 "check_provider_status_subtitle" = "Consulta les pàgines d'estat d'OpenAI/Claude i Google Workspace per a Gemini/Antigravity, mostrant incidències a la icona i al menú.";
 "session_quota_notifications_title" = "Notificacions de quota de sessió";

@@ -424,6 +424,8 @@
 "refresh_cadence_title" = "Frekuensi penyegaran";
 "refresh_cadence_subtitle" = "Seberapa sering CodexBar memeriksa penyedia di latar belakang.";
 "manual_refresh_hint" = "Penyegaran otomatis nonaktif; gunakan perintah Segarkan di menu.";
+"refresh_on_open_title" = "Segarkan saat menu dibuka";
+"refresh_on_open_subtitle" = "Ambil penggunaan terbaru untuk setiap penyedia setiap kali Anda membuka menu.";
 "check_provider_status_title" = "Periksa status penyedia";
 "check_provider_status_subtitle" = "Memeriksa halaman status OpenAI/Claude dan Google Workspace untuk Gemini/Antigravity, menampilkan insiden di ikon dan menu.";
 "session_quota_notifications_title" = "Notifikasi kuota sesi";

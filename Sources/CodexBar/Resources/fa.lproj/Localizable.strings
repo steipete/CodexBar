@@ -422,6 +422,8 @@
 "refresh_cadence_title" = "کادانس تازه سازی";
 "refresh_cadence_subtitle" = "چند وقت یکبار CodexBar ارائه دهندگان نظرسنجی در پس زمینه انجام می دهند.";
 "manual_refresh_hint" = "تازه سازی خودکار خاموش است؛ از فرمان تازه سازی منو استفاده کنید.";
+"refresh_on_open_title" = "بازخوانی هنگام باز کردن منو";
+"refresh_on_open_subtitle" = "هر بار که منو را باز می‌کنید، آخرین میزان مصرف هر ارائه‌دهنده دریافت می‌شود.";
 "check_provider_status_title" = "وضعیت ارائه دهنده را بررسی کنید";
 "check_provider_status_subtitle" = "نظرسنجی ها OpenAI/Claude صفحات وضعیت و Google Workspace برای Gemini/Antigravity که حوادث را در آیکون و منو نمایش می دهد.";
 "session_quota_notifications_title" = "اعلان های سهمیه نشست";

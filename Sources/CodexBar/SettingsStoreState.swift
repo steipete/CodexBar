@@ -2,6 +2,7 @@ import Foundation
 
 struct SettingsDefaultsState {
     var refreshFrequency: RefreshFrequency
+    var refreshAllProvidersOnMenuOpen: Bool
     var launchAtLogin: Bool
     var debugMenuEnabled: Bool
     var debugDisableKeychainAccess: Bool

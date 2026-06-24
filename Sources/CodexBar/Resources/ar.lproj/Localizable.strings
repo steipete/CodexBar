@@ -422,6 +422,8 @@
 "refresh_cadence_title" = "وتيرة التحديث";
 "refresh_cadence_subtitle" = "كم مرة CodexBar استطلاعات في الخلفية.";
 "manual_refresh_hint" = "التحديث التلقائي مغلق؛ استخدم أمر التحديث في القائمة.";
+"refresh_on_open_title" = "التحديث عند فتح القائمة";
+"refresh_on_open_subtitle" = "جلب أحدث بيانات الاستخدام لكل مزوّد في كل مرة تفتح فيها القائمة.";
 "check_provider_status_title" = "تحقق من حالة المزود";
 "check_provider_status_subtitle" = "استطلاعات OpenAI/Claude صفحات الحالة و Google مساحة العمل Gemini/Antigravity، وتظهر الحوادث في الأيقونة والقائمة.";
 "session_quota_notifications_title" = "إشعارات حصص الجلسة";

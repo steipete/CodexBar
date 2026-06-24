@@ -422,6 +422,8 @@
 "refresh_cadence_title" = "Uppdateringsintervall";
 "refresh_cadence_subtitle" = "Hur ofta CodexBar kontrollerar leverantörer i bakgrunden.";
 "manual_refresh_hint" = "Automatisk uppdatering är avstängd. Använd Uppdatera i menyn.";
+"refresh_on_open_title" = "Uppdatera när menyn öppnas";
+"refresh_on_open_subtitle" = "Hämtar den senaste användningen för varje leverantör varje gång du öppnar menyn.";
 "check_provider_status_title" = "Kontrollera leverantörsstatus";
 "check_provider_status_subtitle" = "Kontrollerar OpenAI/Claude-statussidor och Google Workspace för Gemini/Antigravity och visar incidenter i ikonen och menyn.";
 "session_quota_notifications_title" = "Aviseringar för sessionskvot";

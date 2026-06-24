@@ -422,6 +422,8 @@
 "refresh_cadence_title" = "Cadans vernieuwen";
 "refresh_cadence_subtitle" = "Hoe vaak CodexBar providers op de achtergrond ondervraagt.";
 "manual_refresh_hint" = "Automatisch vernieuwen is uitgeschakeld; gebruik de opdracht Vernieuwen van het menu.";
+"refresh_on_open_title" = "Vernieuwen bij openen van menu";
+"refresh_on_open_subtitle" = "Haalt bij elke keer dat je het menu opent het meest recente gebruik van elke provider op.";
 "check_provider_status_title" = "Controleer de status van de provider";
 "check_provider_status_subtitle" = "Polls van OpenAI/Claude-statuspagina's en Google Workspace voor Gemini/Antigravity, waarbij incidenten in het pictogram en het menu worden weergegeven.";
 "session_quota_notifications_title" = "Meldingen over sessiequota";

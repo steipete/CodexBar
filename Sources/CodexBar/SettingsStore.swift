@@ -335,6 +335,8 @@ extension SettingsStore {
         if Self.isRunningTests, refreshDefault == nil {
             userDefaults.set(refreshFrequency.rawValue, forKey: "refreshFrequency")
         }
+        let refreshAllProvidersOnMenuOpen = userDefaults.object(
+            forKey: "refreshAllProvidersOnMenuOpen") as? Bool ?? false
         let launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false
         let debugMenuEnabled = userDefaults.object(forKey: "debugMenuEnabled") as? Bool ?? false
         let debugDisableKeychainAccess = Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
@@ -419,6 +421,7 @@ extension SettingsStore {
         let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
+            refreshAllProvidersOnMenuOpen: refreshAllProvidersOnMenuOpen,
             launchAtLogin: launchAtLogin,
             debugMenuEnabled: debugMenuEnabled,
             debugDisableKeychainAccess: debugDisableKeychainAccess,

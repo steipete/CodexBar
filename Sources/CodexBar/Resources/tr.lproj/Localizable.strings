@@ -422,6 +422,8 @@
 "refresh_cadence_title" = "Yenileme sıklığı";
 "refresh_cadence_subtitle" = "CodexBar'ın arka planda sağlayıcıları ne sıklıkla sorgulayacağı.";
 "manual_refresh_hint" = "Otomatik yenileme kapalı; menüdeki Yenile komutunu kullanın.";
+"refresh_on_open_title" = "Menü açıldığında yenile";
+"refresh_on_open_subtitle" = "Menüyü her açtığınızda her sağlayıcının en güncel kullanımını getirir.";
 "check_provider_status_title" = "Sağlayıcı durumunu denetle";
 "check_provider_status_subtitle" = "OpenAI/Claude durum sayfalarını ve Google Workspace'i (Gemini/Antigravity) sorgular, olayları simge ve menüde gösterir.";
 "session_quota_notifications_title" = "Oturum kota bildirimleri";

@@ -419,6 +419,8 @@
 "refresh_cadence_title" = "새로 고침 주기";
 "refresh_cadence_subtitle" = "CodexBar가 백그라운드에서 공급자를 폴링하는 빈도입니다.";
 "manual_refresh_hint" = "자동 새로 고침이 꺼져 있습니다. 메뉴의 새로 고침 명령을 사용하세요.";
+"refresh_on_open_title" = "메뉴를 열 때 새로 고침";
+"refresh_on_open_subtitle" = "메뉴를 열 때마다 모든 공급자의 최신 사용량을 가져옵니다.";
 "check_provider_status_title" = "공급자 상태 확인";
 "check_provider_status_subtitle" = "OpenAI/Claude 상태 페이지와 Gemini/Antigravity용 Google Workspace를 폴링하여 아이콘과 메뉴에 문제를 표시합니다.";
 "session_quota_notifications_title" = "세션 할당량 알림";

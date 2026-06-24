@@ -426,6 +426,8 @@
 "refresh_cadence_title" = "重新整理頻率";
 "refresh_cadence_subtitle" = "CodexBar 在背景輪詢提供者的頻率。";
 "manual_refresh_hint" = "自動重新整理已關閉；請使用選單中的「重新整理」指令。";
+"refresh_on_open_title" = "開啟選單時重新整理";
+"refresh_on_open_subtitle" = "每次開啟選單時擷取每個供應商的最新用量。";
 "check_provider_status_title" = "檢查提供者狀態";
 "check_provider_status_subtitle" = "輪詢 OpenAI/Claude 狀態頁面和 Google Workspace 的 Gemini/Antigravity，並在圖示和選單中顯示服務異常資訊。";
 "session_quota_notifications_title" = "工作階段配額通知";

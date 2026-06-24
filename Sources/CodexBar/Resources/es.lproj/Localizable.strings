@@ -420,6 +420,8 @@
 "refresh_cadence_title" = "Frecuencia de actualización";
 "refresh_cadence_subtitle" = "Con qué frecuencia CodexBar consulta a los proveedores en segundo plano.";
 "manual_refresh_hint" = "La actualización automática está desactivada; usa el comando Actualizar del menú.";
+"refresh_on_open_title" = "Actualizar al abrir el menú";
+"refresh_on_open_subtitle" = "Obtén el uso más reciente de cada proveedor cada vez que abres el menú.";
 "check_provider_status_title" = "Comprobar estado del proveedor";
 "check_provider_status_subtitle" = "Consulta las páginas de estado de OpenAI/Claude y Google Workspace para Gemini/Antigravity, mostrando incidencias en el icono y el menú.";
 "session_quota_notifications_title" = "Notificaciones de cuota de sesión";

@@ -422,6 +422,8 @@
 "refresh_cadence_title" = "Оновити каденцію";
 "refresh_cadence_subtitle" = "Як часто CodexBar опитує постачальників у фоновому режимі.";
 "manual_refresh_hint" = "Автооновлення вимкнено; скористайтеся командою меню «Оновити».";
+"refresh_on_open_title" = "Оновлювати при відкритті меню";
+"refresh_on_open_subtitle" = "Отримує найновіші дані про використання для кожного провайдера щоразу, коли ви відкриваєте меню.";
 "check_provider_status_title" = "Перевірте статус провайдера";
 "check_provider_status_subtitle" = "Опитує сторінки статусу OpenAI/Claude і Google Workspace для Gemini/Antigravity, виявляючи інциденти в значку та меню.";
 "session_quota_notifications_title" = "Сповіщення про квоту сеансу";

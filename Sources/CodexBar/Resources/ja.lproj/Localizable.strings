@@ -419,6 +419,8 @@
 "refresh_cadence_title" = "更新間隔";
 "refresh_cadence_subtitle" = "CodexBar がバックグラウンドでプロバイダをポーリングする頻度です。";
 "manual_refresh_hint" = "自動更新はオフです。メニューの「更新」コマンドを使用してください。";
+"refresh_on_open_title" = "メニューを開いたときに更新";
+"refresh_on_open_subtitle" = "メニューを開くたびに、すべてのプロバイダーの最新の使用状況を取得します。";
 "check_provider_status_title" = "プロバイダのステータスを確認";
 "check_provider_status_subtitle" = "OpenAI/Claude のステータスページと Gemini/Antigravity 用の Google Workspace をポーリングし、障害情報をアイコンとメニューに表示します。";
 "session_quota_notifications_title" = "セッションクォータ通知";

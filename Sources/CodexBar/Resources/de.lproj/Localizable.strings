@@ -422,6 +422,8 @@
 "refresh_cadence_title" = "Aktualisierungsintervall";
 "refresh_cadence_subtitle" = "Wie oft CodexBar Anbieter im Hintergrund abfragt.";
 "manual_refresh_hint" = "Auto-Aktualisierung ist aus; nutze im Menü den Befehl „Aktualisieren“.";
+"refresh_on_open_title" = "Beim Öffnen des Menüs aktualisieren";
+"refresh_on_open_subtitle" = "Bei jedem Öffnen des Menüs die aktuelle Nutzung aller Anbieter abrufen.";
 "check_provider_status_title" = "Anbieterstatus prüfen";
 "check_provider_status_subtitle" = "Prüft OpenAI/Claude-Statusseiten und Google Workspace für Gemini/Antigravity und zeigt Vorfälle in Icon und Menü.";
 "session_quota_notifications_title" = "Sitzungs-Quota-Benachrichtigungen";

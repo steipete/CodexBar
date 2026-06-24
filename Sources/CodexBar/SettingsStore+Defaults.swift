@@ -13,6 +13,16 @@ extension SettingsStore {
         }
     }
 
+    /// When enabled, opening the menu refreshes usage for every enabled provider (on top of the
+    /// periodic refresh clock, which is left untouched). See `scheduleOpenMenuRefresh`.
+    var refreshAllProvidersOnMenuOpen: Bool {
+        get { self.defaultsState.refreshAllProvidersOnMenuOpen }
+        set {
+            self.defaultsState.refreshAllProvidersOnMenuOpen = newValue
+            self.userDefaults.set(newValue, forKey: "refreshAllProvidersOnMenuOpen")
+        }
+    }
+
     var launchAtLogin: Bool {
         get { self.defaultsState.launchAtLogin }
         set {
