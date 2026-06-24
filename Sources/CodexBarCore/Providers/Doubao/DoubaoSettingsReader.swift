@@ -13,6 +13,7 @@ public struct DoubaoSettingsReader: Sendable {
     ]
     public static let secretAccessKeyEnvironmentKeys = [
         "VOLCENGINE_SECRET_ACCESS_KEY",
+        "VOLCENGINE_SECRET_KEY",
         "VOLCENGINE_ACCESS_KEY_SECRET",
         "DOUBAO_SECRET_ACCESS_KEY",
     ]

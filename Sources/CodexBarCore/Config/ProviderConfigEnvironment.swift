@@ -317,9 +317,6 @@ public enum ProviderConfigEnvironment {
             return env
         }
 
-        if let apiKey {
-            env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] = apiKey
-        }
         if let region = config.sanitizedRegion {
             env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
         }
