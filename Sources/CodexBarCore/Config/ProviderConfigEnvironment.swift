@@ -295,7 +295,17 @@ public enum ProviderConfigEnvironment {
         var env = base
         let apiKey = config.sanitizedAPIKey
         let secretKey = config.sanitizedSecretKey
-        let accessKeyID = apiKey ?? DoubaoSettingsReader.accessKeyID(environment: base)
+
+        if let apiKey, self.doubaoAccessKeyID(from: apiKey) == nil {
+            self.clearDoubaoCodingPlanCredentialKeys(in: &env)
+            env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] = apiKey
+            if let region = config.sanitizedRegion {
+                env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+            }
+            return env
+        }
+
+        let accessKeyID = self.doubaoAccessKeyID(from: apiKey) ?? DoubaoSettingsReader.accessKeyID(environment: base)
         let secretAccessKey = secretKey ?? DoubaoSettingsReader.secretAccessKey(environment: base)
 
         if let accessKeyID, let secretAccessKey {
@@ -314,6 +324,20 @@ public enum ProviderConfigEnvironment {
             env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
         }
         return env
+    }
+
+    private static func doubaoAccessKeyID(from apiKey: String?) -> String? {
+        guard let apiKey, apiKey.hasPrefix("AKLT") else { return nil }
+        return apiKey
+    }
+
+    private static func clearDoubaoCodingPlanCredentialKeys(in environment: inout [String: String]) {
+        for key in DoubaoSettingsReader.accessKeyIDEnvironmentKeys {
+            environment.removeValue(forKey: key)
+        }
+        for key in DoubaoSettingsReader.secretAccessKeyEnvironmentKeys {
+            environment.removeValue(forKey: key)
+        }
     }
 
     private static func firstDoubaoRegionValue(in environment: [String: String]) -> String? {

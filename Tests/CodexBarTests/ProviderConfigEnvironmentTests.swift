@@ -66,6 +66,60 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `preserves doubao ark API key when environment secret key is present`() {
+        let config = ProviderConfig(id: .doubao, apiKey: "ark-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]: "sk-env",
+            ],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "ark-config")
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.doubaoToken(environment: env) == "ark-config")
+    }
+
+    @Test
+    func `preserves doubao ark API key when config secret key is present`() {
+        let config = ProviderConfig(
+            id: .doubao,
+            apiKey: "ark-config",
+            secretKey: "sk-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "ark-config")
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.doubaoToken(environment: env) == "ark-config")
+    }
+
+    @Test
+    func `doubao ark API key config overrides environment coding plan credentials`() {
+        let config = ProviderConfig(id: .doubao, apiKey: "ark-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]: "AKLT-env",
+                DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]: "sk-env",
+                DoubaoSettingsReader.regionEnvironmentKeys[0]: "cn-shanghai",
+            ],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "ark-config")
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.doubaoToken(environment: env) == "ark-config")
+    }
+
+    @Test
     func `applies volcengine access key override for doubao coding plan`() {
         let config = ProviderConfig(
             id: .doubao,
