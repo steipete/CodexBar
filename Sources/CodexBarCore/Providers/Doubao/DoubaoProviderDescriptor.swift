@@ -3,6 +3,15 @@ import Foundation
 public enum DoubaoProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
+    public static func primaryLabel(window: RateWindow?) -> String? {
+        guard window?.windowMinutes == nil,
+              window?.resetDescription?.localizedCaseInsensitiveContains("request") == true
+        else {
+            return nil
+        }
+        return "Requests"
+    }
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .doubao,

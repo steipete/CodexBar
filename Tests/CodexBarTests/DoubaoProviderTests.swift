@@ -57,6 +57,29 @@ struct DoubaoProviderTests {
     }
 
     @Test
+    func `primary label preserves ark request windows`() {
+        let arkWindow = RateWindow(
+            usedPercent: 30,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "3/10 requests")
+        let codingPlanWindow = RateWindow(
+            usedPercent: 30,
+            windowMinutes: 5 * 60,
+            resetsAt: nil,
+            resetDescription: "30% used")
+        let unavailableWindow = RateWindow(
+            usedPercent: 0,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "No usage data")
+
+        #expect(DoubaoProviderDescriptor.primaryLabel(window: arkWindow) == "Requests")
+        #expect(DoubaoProviderDescriptor.primaryLabel(window: codingPlanWindow) == nil)
+        #expect(DoubaoProviderDescriptor.primaryLabel(window: unavailableWindow) == nil)
+    }
+
+    @Test
     func `signed credential failure falls back to ark API key`() async throws {
         let expectedDate = Date(timeIntervalSince1970: 42)
         let context = Self.makeContext(environment: [
@@ -86,6 +109,7 @@ struct DoubaoProviderTests {
         #expect(result.strategyID == "doubao.api")
         #expect(result.usage.updatedAt == expectedDate)
         #expect(result.usage.primary?.usedPercent == 30)
+        #expect(DoubaoProviderDescriptor.primaryLabel(window: result.usage.primary) == "Requests")
     }
 
     @Test

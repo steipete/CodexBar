@@ -707,9 +707,13 @@ struct MenuDescriptor {
         if provider == .factory, snapshot.tertiary != nil {
             return ("5-hour", L("Weekly"), L("Monthly"), true)
         }
-        let primaryLabel = provider == .grok
-            ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
-            : metadata.sessionLabel
+        let primaryLabel = if provider == .grok {
+            GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+        } else if provider == .doubao {
+            DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+        } else {
+            metadata.sessionLabel
+        }
         return (
             L(primaryLabel),
             L(metadata.weeklyLabel),
