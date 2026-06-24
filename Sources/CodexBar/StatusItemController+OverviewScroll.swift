@@ -6,16 +6,14 @@ enum OverviewScrollStep {
 }
 
 extension StatusItemController {
-    /// Pixel distance per highlight step for trackpads and other precise devices.
-    private static let preciseScrollStepThreshold: CGFloat = 24
     /// Line distance per highlight step for classic scroll wheels.
     private static let lineScrollStepThreshold: CGFloat = 0.9
     /// A single fast flick should not race the highlight through the whole list.
     private static let maxScrollStepsPerEvent = 3
 
-    /// Scrolling the wheel while the overview tab is open moves the row highlight up/down.
-    /// Steps are delivered as mouse-move events over the custom card views so AppKit's
-    /// native menu highlight and submenu behavior stay intact.
+    /// Classic scroll wheels keep row-to-row overview navigation. Precise trackpad scrolling is
+    /// left to AppKit's native menu scroller so the content follows the user's fingers instead
+    /// of waiting for a threshold and jumping the highlighted row.
     @discardableResult
     func handleOverviewScrollWheel(_ event: NSEvent, menu: NSMenu) -> Bool {
         guard self.menuHasOverviewRows(menu) else {
@@ -25,6 +23,10 @@ extension StatusItemController {
         // Leave the wheel alone while a row submenu is open (e.g. scrollable charts);
         // only the root overview list translates scrolling into highlight movement.
         guard self.openMenus.count <= 1 else {
+            self.overviewScrollAccumulatedDelta = 0
+            return false
+        }
+        guard !event.hasPreciseScrollingDeltas else {
             self.overviewScrollAccumulatedDelta = 0
             return false
         }
@@ -41,9 +43,7 @@ extension StatusItemController {
         }
         self.overviewScrollAccumulatedDelta += delta
 
-        let threshold = event.hasPreciseScrollingDeltas
-            ? Self.preciseScrollStepThreshold
-            : Self.lineScrollStepThreshold
+        let threshold = Self.lineScrollStepThreshold
         var steps = 0
         while abs(self.overviewScrollAccumulatedDelta) >= threshold, steps < Self.maxScrollStepsPerEvent {
             let movingUp = self.overviewScrollAccumulatedDelta > 0
