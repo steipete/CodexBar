@@ -20,7 +20,7 @@ public enum LongCatProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: nil,
+                browserCookieOrder: ProviderBrowserCookieDefaults.longcatCookieImportOrder,
                 dashboardURL: "https://longcat.chat/platform/",
                 statusPageURL: nil),
             branding: ProviderBranding(
