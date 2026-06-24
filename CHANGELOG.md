@@ -1,6 +1,24 @@
 # Changelog
 
-## 0.37.3 — Unreleased
+## 0.37.4 — Unreleased
+
+### Added
+- z.ai: support saved token-account team usage with account-scoped organization and project metadata. Thanks @zqbake!
+
+### Fixed
+- Mistral: restore Vibe monthly-plan usage by forwarding only required console session cookies. Thanks @lfmundim!
+
+## 0.37.3 — 2026-06-23
+
+### Added
+- CLI: show session pace in text output, expose derived pace data in JSON, and honor the configured weekly work-day baseline. Thanks @kmatsunami!
+
+### Fixed
+- Memory pressure: finish isolating utility-queue source reads from main-actor state to prevent the remaining callback crash. Thanks @Zihao-Qi!
+- Claude: stop installed-version checks from invoking a login shell and triggering unwanted Keychain prompts. Thanks @enieuwy!
+- Localization: reject blank translated values and restore the affected Vietnamese provider prompts. Thanks @kiranmagic7!
+- Usage totals: keep Today tied to the current local calendar day across cost, Admin API, and Poe surfaces instead of showing the latest historical bucket. Thanks @Zihao-Qi!
+- Antigravity: align compact icons and automatic highest-usage selection with grouped Gemini and Claude/GPT 5-hour and weekly lanes while ignoring non-renderable cadences. Thanks @Yuxin-Qiao!
 
 ## 0.37.2 — 2026-06-22
 

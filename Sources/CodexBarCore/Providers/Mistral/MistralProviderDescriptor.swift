@@ -92,6 +92,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         let vibeResult: MistralUsageFetcher.MistralVibeUsageResult? = if let csrfToken, remaining > 0 {
             try await Self.fetchOptionalVibeUsage(
                 csrfToken: csrfToken,
+                cookieHeader: cookieHeader,
                 timeout: min(remaining, 4))
         } else {
             nil
@@ -101,6 +102,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
 
     static func fetchOptionalVibeUsage(
         csrfToken: String,
+        cookieHeader: String? = nil,
         timeout: TimeInterval,
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> MistralUsageFetcher.MistralVibeUsageResult?
@@ -108,6 +110,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         do {
             return try await MistralUsageFetcher.fetchVibeUsage(
                 csrfToken: csrfToken,
+                cookieHeader: cookieHeader,
                 timeout: timeout,
                 transport: transport)
         } catch {

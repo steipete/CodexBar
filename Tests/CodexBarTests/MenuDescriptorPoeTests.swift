@@ -72,7 +72,7 @@ struct MenuDescriptorPoeTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
 
-        let now = Date(timeIntervalSince1970: 1_717_171_717)
+        let now = Date()
         let history = PoeUsageHistorySnapshot(
             entries: [
                 .init(

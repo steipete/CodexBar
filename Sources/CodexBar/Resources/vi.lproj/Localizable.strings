@@ -775,8 +775,8 @@
 "Quota" = "Hạn mức";
 "tokens" = "mã thông báo";
 "requests" = "yêu cầu";
-"Latest" = "";
-"Monthly" = "Mới nhất";
+"Latest" = "Mới nhất";
+"Monthly" = "Hàng tháng";
 "Sonnet" = "Sonnet";
 "Overages" = "Quá tải";
 "Activity" = "Hoạt động";
@@ -1004,6 +1004,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "Tùy chọn. Để trống để khám phá và tổng hợp các dự án hiển thị với khóa API.";
 "Org ID (optional)" = "ID tổ chức (tùy chọn)";
 "Organizations" = "Tổ chức";
+"Organization ID" = "ID tổ chức";
 "Password" = "Mật khẩu";
 "%@ authentication is disabled." = "%@ xác thực bị tắt. Cookie";
 "%@ cookies are disabled." = "%@ bị tắt. Quyền truy cập";
@@ -1057,6 +1058,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể cung cấp CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể cung cấp KILO_API_KEY hoặc ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Cookie trò chuyện T3";
+"Team mode" = "Chế độ nhóm";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "Tài khoản đó không còn khả dụng trong CodexBar . Hãy làm mới danh sách tài khoản và thử lại.";
 "The browser login did not complete in time. Try Antigravity login again." = "Quá trình đăng nhập trình duyệt không hoàn tất kịp thời. Hãy thử đăng nhập lại bằng AntiGravity.";
 "Timed out waiting for Cursor login. %@" = "Đã hết thời gian chờ đăng nhập Con trỏ. %@";

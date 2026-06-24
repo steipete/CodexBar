@@ -5,6 +5,87 @@ import Testing
 @testable import CodexBarCLI
 
 @Suite(.serialized)
+struct ZaiTokenAccountEnvironmentPrecedenceTests {
+    @Test
+    func `zai CLI settings snapshot defaults to personal without account scope`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .zai),
+        ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(
+            selection: selection,
+            config: config,
+            verbose: false,
+            baseEnvironment: [
+                ZaiSettingsReader.bigModelOrganizationKey: " org-env ",
+                ZaiSettingsReader.bigModelProjectKey: " proj-env ",
+            ])
+
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .zai, account: nil)?.zai)
+
+        #expect(snapshot.usageScope == .personal)
+        #expect(snapshot.teamContext == nil)
+    }
+
+    @Test
+    func `zai CLI settings snapshot uses selected team account scope`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Team",
+            token: "account-token",
+            addedAt: 0,
+            lastUsed: nil,
+            usageScope: " team ",
+            organizationID: " org-account ",
+            workspaceID: " proj-account ")
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .zai),
+        ])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false,
+            baseEnvironment: [
+                ZaiSettingsReader.bigModelOrganizationKey: "org-env",
+                ZaiSettingsReader.bigModelProjectKey: "proj-env",
+            ])
+
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .zai, account: account)?.zai)
+
+        #expect(snapshot.usageScope == .team)
+        #expect(snapshot.teamContext?.organizationID == "org-account")
+        #expect(snapshot.teamContext?.projectID == "proj-account")
+    }
+
+    @Test
+    func `zai CLI personal account scope clears inherited team context`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Personal",
+            token: "account-token",
+            addedAt: 0,
+            lastUsed: nil,
+            usageScope: "personal")
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .zai),
+        ])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false,
+            baseEnvironment: [
+                ZaiSettingsReader.bigModelOrganizationKey: "org-env",
+                ZaiSettingsReader.bigModelProjectKey: "proj-env",
+            ])
+
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .zai, account: account)?.zai)
+
+        #expect(snapshot.usageScope == .personal)
+        #expect(snapshot.teamContext == nil)
+    }
+}
+
+@Suite(.serialized)
 @MainActor
 struct TokenAccountEnvironmentPrecedenceTests {
     @Test

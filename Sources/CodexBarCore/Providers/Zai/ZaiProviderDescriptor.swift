@@ -34,10 +34,13 @@ public enum ZaiProviderDescriptor {
                 resolveToken: { ProviderTokenResolver.zaiToken(environment: $0) },
                 missingCredentialsError: { ZaiSettingsError.missingToken },
                 loadUsage: { apiKey, context in
-                    let region = context.settings?.zai?.apiRegion ?? .global
+                    let settings = context.settings?.zai
+                    let region = settings?.apiRegion ?? .global
                     return try await ZaiUsageFetcher.fetchUsageWithModelUsage(
                         apiKey: apiKey,
                         region: region,
+                        usageScope: settings?.usageScope,
+                        teamContext: settings?.teamContext,
                         environment: context.env).toUsageSnapshot()
                 }),
             cli: ProviderCLIConfig(

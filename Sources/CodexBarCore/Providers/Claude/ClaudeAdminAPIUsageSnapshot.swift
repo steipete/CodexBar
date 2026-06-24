@@ -129,8 +129,28 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
         self.summary(days: 7)
     }
 
+    public var currentDay: Summary {
+        self.summary(forLocalDayContaining: self.updatedAt)
+    }
+
     public var latestDay: Summary {
         self.summary(days: 1)
+    }
+
+    public func summary(forLocalDayContaining date: Date, calendar _: Calendar = .current) -> Summary {
+        let selected = self.daily.filter { bucket in
+            CostUsageBucketInterval.contains(
+                date,
+                startTime: bucket.startTime,
+                endTime: bucket.endTime)
+        }
+        return Summary(
+            costUSD: selected.reduce(0) { $0 + $1.costUSD },
+            inputTokens: selected.reduce(0) { $0 + $1.inputTokens },
+            cacheCreationInputTokens: selected.reduce(0) { $0 + $1.cacheCreationInputTokens },
+            cacheReadInputTokens: selected.reduce(0) { $0 + $1.cacheReadInputTokens },
+            outputTokens: selected.reduce(0) { $0 + $1.outputTokens },
+            totalTokens: selected.reduce(0) { $0 + $1.totalTokens })
     }
 
     public func summary(days: Int) -> Summary {

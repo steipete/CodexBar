@@ -59,6 +59,7 @@ public enum MistralUsageFetcher {
 
     public static func fetchVibeUsage(
         csrfToken: String,
+        cookieHeader: String? = nil,
         timeout: TimeInterval = 4,
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralVibeUsageResult
     {
@@ -68,11 +69,14 @@ public enum MistralUsageFetcher {
         }
 
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        // The observed console request sends only csrftoken; keep admin Ory cookies origin-bound.
         request.httpShouldHandleCookies = false
         let validatedCSRFToken = try Self.validatedVibeCSRFToken(csrfToken)
         request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue("csrftoken=\(validatedCSRFToken)", forHTTPHeaderField: "Cookie")
+        // Forward ory_session_* and csrftoken cookies — scoped to what console.mistral.ai needs.
+        let consoleCookie = Self.consoleCookieHeader(
+            csrfToken: validatedCSRFToken,
+            adminCookieHeader: cookieHeader)
+        request.setValue(consoleCookie, forHTTPHeaderField: "Cookie")
         request.setValue(validatedCSRFToken, forHTTPHeaderField: "X-CSRFToken")
 
         let response = try await transport.response(for: request)
@@ -111,6 +115,19 @@ public enum MistralUsageFetcher {
 
     static func vibeCookieHeader(csrfToken: String) throws -> String {
         try "csrftoken=\(self.validatedVibeCSRFToken(csrfToken))"
+    }
+
+    /// Builds a minimal Cookie header for console.mistral.ai.
+    /// Only csrftoken + ory_session_* pass through; all other admin.mistral.ai cookies stay origin-bound.
+    static func consoleCookieHeader(csrfToken: String, adminCookieHeader: String?) -> String {
+        var pairs = ["csrftoken=\(csrfToken)"]
+        if let adminCookies = adminCookieHeader {
+            let sessionPairs = CookieHeaderNormalizer.pairs(from: adminCookies)
+                .filter { $0.name.hasPrefix("ory_session_") }
+                .map { "\($0.name)=\($0.value)" }
+            pairs.append(contentsOf: sessionPairs)
+        }
+        return pairs.joined(separator: "; ")
     }
 
     private static func validatedVibeCSRFToken(_ csrfToken: String) throws -> String {

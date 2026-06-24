@@ -1011,6 +1011,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "Optional. Leave blank to discover and aggregate projects visible to the API key.";
 "Org ID (optional)" = "Org ID (optional)";
 "Organizations" = "Organizations";
+"Organization ID" = "Organization ID";
 "Password" = "Password";
 "%@ authentication is disabled." = "%@ authentication is disabled.";
 "%@ cookies are disabled." = "%@ cookies are disabled.";
@@ -1064,6 +1065,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "T3 Chat cookie";
+"Team mode" = "Team mode";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "That account is no longer available in CodexBar. Refresh the account list and try again.";
 "The browser login did not complete in time. Try Antigravity login again." = "The browser login did not complete in time. Try Antigravity login again.";
 "Timed out waiting for Cursor login. %@" = "Timed out waiting for Cursor login. %@";

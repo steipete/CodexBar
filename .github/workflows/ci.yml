@@ -18,8 +18,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       macos-tests: ${{ steps.macos-tests.outputs.macos-tests }}
+      macos-tests-reason: ${{ steps.macos-tests.outputs.macos-tests-reason }}
+      changed-path-count: ${{ steps.macos-tests.outputs.changed-path-count }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -49,11 +51,31 @@ jobs:
           sed 's/^/- /' "$changed_paths"
           ./Scripts/ci_macos_test_gate.sh "$changed_paths"
 
+      - name: Summarize macOS test gate
+        if: ${{ always() }}
+        shell: bash
+        env:
+          MACOS_TESTS: ${{ steps.macos-tests.outputs.macos-tests }}
+          MACOS_TESTS_REASON: ${{ steps.macos-tests.outputs.macos-tests-reason }}
+          CHANGED_PATH_COUNT: ${{ steps.macos-tests.outputs.changed-path-count }}
+        run: |
+          set -euo pipefail
+          reason="${MACOS_TESTS_REASON:-<unset>}"
+          reason="${reason//|/\\|}"
+          {
+            printf '### macOS test gate\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| macOS Swift tests required | `%s` |\n' "${MACOS_TESTS:-<unset>}"
+            printf '| Reason | %s |\n' "$reason"
+            printf '| Changed path entries | `%s` |\n' "${CHANGED_PATH_COUNT:-<unset>}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install lint tools
         run: ./Scripts/install_lint_tools.sh swiftlint
@@ -72,7 +94,7 @@ jobs:
         shard-index: [0, 1, 2, 3]
         shard-count: [4]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Select Xcode 26.1.1 (if present) or fallback to default
         run: |
@@ -105,6 +127,26 @@ jobs:
             CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
             ./Scripts/test.sh
 
+      - name: Summarize macOS shard
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SHARD_INDEX: ${{ matrix.shard-index }}
+          SHARD_COUNT: ${{ matrix.shard-count }}
+          RUNS_LINT_MACOS: ${{ matrix.shard-index == 0 }}
+        run: |
+          set -euo pipefail
+          xcode_version="$(/usr/bin/xcodebuild -version 2>/dev/null | tr '\n' ' ' || true)"
+          {
+            printf '### macOS Swift shard\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| Shard | `%s / %s` |\n' "$SHARD_INDEX" "$SHARD_COUNT"
+            printf '| Runner | `%s` |\n' "${RUNNER_NAME:-unknown}"
+            printf '| Xcode | `%s` |\n' "${xcode_version:-unknown}"
+            printf '| Runs lint-macos | `%s` |\n' "$RUNS_LINT_MACOS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   lint-build-test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -114,7 +156,7 @@ jobs:
       - swift-test-macos
     if: ${{ always() && !cancelled() }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify lint and macOS test jobs
         run: |
@@ -123,6 +165,30 @@ jobs:
             "${{ needs.changes.result }}" \
             "${{ needs.changes.outputs.macos-tests }}" \
             "${{ needs.swift-test-macos.result }}"
+
+      - name: Summarize aggregate CI gate
+        if: ${{ always() }}
+        shell: bash
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          MACOS_TESTS: ${{ needs.changes.outputs.macos-tests }}
+          MACOS_TESTS_REASON: ${{ needs.changes.outputs.macos-tests-reason }}
+          MACOS_RESULT: ${{ needs.swift-test-macos.result }}
+        run: |
+          set -euo pipefail
+          reason="${MACOS_TESTS_REASON:-<unset>}"
+          reason="${reason//|/\\|}"
+          {
+            printf '### Aggregate CI gate\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| lint result | `%s` |\n' "$LINT_RESULT"
+            printf '| changes result | `%s` |\n' "$CHANGES_RESULT"
+            printf '| macOS Swift tests required | `%s` |\n' "${MACOS_TESTS:-<unset>}"
+            printf '| macOS gate reason | %s |\n' "$reason"
+            printf '| swift-test-macos result | `%s` |\n' "$MACOS_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   build-linux-cli:
     timeout-minutes: 20
@@ -136,7 +202,7 @@ jobs:
             runs-on: ubuntu-24.04-arm
     runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Runner info
         run: |
@@ -146,7 +212,7 @@ jobs:
 
       - name: Restore Swift toolchain cache
         id: swift-toolchain-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6.0.0
         with:
           path: ~/.local/share/swiftly
           key: swift-${{ runner.os }}-${{ runner.arch }}-${{ env.SWIFT_VERSION }}-v2
@@ -212,3 +278,22 @@ jobs:
           fi
           "$BIN" usage --provider codex --web 2>&1 | tee /tmp/codexbarcli-stderr.txt >/dev/null || true
           grep -q "macOS" /tmp/codexbarcli-stderr.txt
+
+      - name: Summarize Linux CLI build
+        if: ${{ always() }}
+        shell: bash
+        env:
+          MATRIX_NAME: ${{ matrix.name }}
+          MATRIX_RUNS_ON: ${{ matrix.runs-on }}
+          SWIFT_CACHE_HIT: ${{ steps.swift-toolchain-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          {
+            printf '### Linux CLI build\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| Matrix | `%s` |\n' "$MATRIX_NAME"
+            printf '| Runner label | `%s` |\n' "$MATRIX_RUNS_ON"
+            printf '| Swift version | `%s` |\n' "$SWIFT_VERSION"
+            printf '| Swift toolchain cache hit | `%s` |\n' "${SWIFT_CACHE_HIT:-false}"
+          } >> "$GITHUB_STEP_SUMMARY"

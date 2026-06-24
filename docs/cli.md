@@ -153,6 +153,7 @@ codexbar cache clear --all --format json --pretty
 ```
 == Codex 0.6.0 (codex-cli) ==
 Session: 72% left [========----]
+Pace: 12% in deficit | Expected 16% used | Projected empty in 2h 30m
 Resets today at 2:15 PM
 Weekly: 41% left [====--------]
 Pace: 6% in reserve | Expected 47% used | Lasts until reset
@@ -161,6 +162,7 @@ Credits: 112.4 left
 
 == Claude Code 2.0.58 (web) ==
 Session: 88% left [==========--]
+Pace: On pace | Expected 13% used | Lasts until reset
 Resets tomorrow at 1:00 AM
 Weekly: 63% left [=======-----]
 Pace: On pace | Expected 37% used | Runs out in 4d
@@ -198,6 +200,10 @@ Note: Using CLI fallback
     "accountEmail": "user@example.com",
     "accountOrganization": null,
     "loginMethod": "plus"
+  },
+  "pace": {
+    "primary": { "stage": "ahead", "deltaPercent": 12, "expectedUsedPercent": 16, "willLastToReset": false, "etaSeconds": 9000, "summary": "12% in deficit | Expected 16% used | Projected empty in 2h 30m" },
+    "secondary": { "stage": "slightlyBehind", "deltaPercent": -6, "expectedUsedPercent": 47, "willLastToReset": true, "summary": "6% in reserve | Expected 47% used | Lasts until reset" }
   },
   "credits": { "remaining": 112.4, "updatedAt": "2025-12-04T18:10:21Z" },
   "antigravityPlanInfo": null,

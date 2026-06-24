@@ -979,6 +979,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "选填。留空会发现并汇总 API 密钥可见的项目。";
 "Org ID (optional)" = "组织 ID（选填）";
 "Organizations" = "组织";
+"Organization ID" = "组织 ID";
 "Password" = "密码";
 "%@ authentication is disabled." = "%@ 认证已禁用。";
 "%@ cookies are disabled." = "%@ Cookie 已禁用。";
@@ -1032,6 +1033,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "存储在 ~/.codexbar/config.json 中。你也可以提供 CROF_API_KEY。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "存储在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或 ~/.local/share/kilo/auth.json（kilo.access）。";
 "T3 Chat cookie" = "T3 Chat Cookie";
+"Team mode" = "团队模式";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "该账号已无法在 CodexBar 中使用。请刷新账号列表后再试。";
 "The browser login did not complete in time. Try Antigravity login again." = "浏览器登录未在时限内完成。请再次尝试 Antigravity 登录。";
 "Timed out waiting for Cursor login. %@" = "等待 Cursor 登录超时。%@";

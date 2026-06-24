@@ -381,7 +381,7 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func `token snapshot selects most recent day`() throws {
+    func `token snapshot selects current local day`() throws {
         let json = """
         {
           "type": "daily",
@@ -404,7 +404,7 @@ struct CostUsageDecodingTests {
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        let now = Date(timeIntervalSince1970: 1_766_275_200) // 2025-12-21
+        let now = try Self.localNoon(year: 2025, month: 12, day: 21)
         let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: now)
         #expect(snapshot.sessionTokens == 10)
         #expect(snapshot.sessionCostUSD == 4.56)
@@ -434,7 +434,10 @@ struct CostUsageDecodingTests {
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: Date())
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: report,
+            now: Date(),
+            useCurrentLocalDayForSession: false)
 
         #expect(snapshot.sessionTokens == 30)
         #expect(snapshot.sessionCostUSD == 23.45)
@@ -492,5 +495,9 @@ struct CostUsageDecodingTests {
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
         let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: Date())
         #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }

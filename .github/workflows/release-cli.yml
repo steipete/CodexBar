@@ -93,7 +93,7 @@ jobs:
       SQLITE_AMALGAMATION_VERSION: "3530200"
       SQLITE_AMALGAMATION_SHA3_256: 81142986038e18f96c4a54e1a72562ae17e502a916f2a7701eff43388cbf1a40
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Select Xcode 26.1.1 (if present) or fallback to default
         if: matrix.platform == 'macos'
@@ -393,7 +393,7 @@ jobs:
 
       - name: Upload workflow artifact (manual runs)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: codexbar-cli-${{ matrix.name }}
           path: |

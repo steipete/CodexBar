@@ -86,8 +86,16 @@ if [[ "$path_count" -eq 0 ]]; then
   require_macos_tests '<empty diff>' 'no changed paths were reported'
 fi
 
+if [[ "$macos_tests" == true ]]; then
+  summary_reason="$macos_tests_reason"
+else
+  summary_reason="docs/site-only changes covered by portable checks"
+fi
+
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   printf 'macos-tests=%s\n' "$macos_tests" >> "$GITHUB_OUTPUT"
+  printf 'macos-tests-reason=%s\n' "$summary_reason" >> "$GITHUB_OUTPUT"
+  printf 'changed-path-count=%s\n' "$path_count" >> "$GITHUB_OUTPUT"
 fi
 
 if [[ "$macos_tests" == true ]]; then

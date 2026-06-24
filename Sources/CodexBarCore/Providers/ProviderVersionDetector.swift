@@ -16,7 +16,13 @@ public enum ProviderVersionDetector {
                 send: "",
                 options: TTYCommandRunner.Options(
                     timeout: 5.0,
-                    extraArgs: ["--allowed-tools", "", "--version"],
+                    // `--version` alone makes Claude Code print and exit before it
+                    // initializes its credential subsystem. Passing `--allowed-tools`
+                    // (even empty) makes it treat the invocation as a real session and
+                    // read the OAuth token from the macOS keychain ("Claude Code-credentials"),
+                    // which spawns `/usr/bin/security` and triggers a keychain prompt on
+                    // every probe when no ~/.claude/.credentials.json / env token exists.
+                    extraArgs: ["--version"],
                     initialDelay: 0.0,
                     useClaudeProbeWorkingDirectory: true)).text
             let trimmed = TextParsing.stripANSICodes(out).trimmingCharacters(in: .whitespacesAndNewlines)
