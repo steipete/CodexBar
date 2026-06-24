@@ -108,7 +108,7 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     func setHighlighted(_ highlighted: Bool) {
         guard self.isRowHighlighted != highlighted else { return }
         self.isRowHighlighted = highlighted
-        // Whiten the content to the selected text color via a GPU color matrix; clearing the
+        // Tint the content to the selected text color via a GPU color matrix; clearing the
         // filter returns it to its normal palette. No SwiftUI invalidation happens here.
         if let tintFilter {
             self.hosting.layer?.filters = highlighted ? [tintFilter] : []
@@ -177,15 +177,21 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         self.onClick?()
     }
 
-    /// Maps every pixel's RGB to white while preserving alpha, reproducing the all-white selected
-    /// row appearance. Core Image runs this on the GPU (Metal), so it composites for free per frame.
+    /// Maps every pixel's RGB to the system selected-menu-item text color while preserving alpha,
+    /// reproducing the appearance the SwiftUI rows already adopt when highlighted. The bias is read
+    /// from `NSColor.selectedMenuItemTextColor` rather than hard-coded to white so graphite/
+    /// high-contrast/accessibility appearances tint correctly. Core Image runs this on the GPU
+    /// (Metal), so it composites for free per frame.
     private static func makeSelectedTextTintFilter() -> CIFilter? {
         guard let filter = CIFilter(name: "CIColorMatrix") else { return nil }
+        let tint = NSColor.selectedMenuItemTextColor.usingColorSpace(.deviceRGB) ?? .white
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputRVector")
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBVector")
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-        filter.setValue(CIVector(x: 1, y: 1, z: 1, w: 0), forKey: "inputBiasVector")
+        filter.setValue(
+            CIVector(x: tint.redComponent, y: tint.greenComponent, z: tint.blueComponent, w: 0),
+            forKey: "inputBiasVector")
         return filter
     }
 }

@@ -30,8 +30,9 @@ extension StatusItemController {
             self.overviewScrollAccumulatedDelta = 0
             return false
         }
-        // Momentum-phase events after a flick would keep moving the highlight long after
-        // the fingers left the trackpad; swallow them without stepping.
+        // Precise trackpad/Magic Mouse scrolling already returned above, so this only guards
+        // non-precise devices that still report a momentum phase: swallow that flick tail so the
+        // highlight does not keep stepping after the fingers lift.
         guard event.momentumPhase.isEmpty else { return true }
         let delta = event.scrollingDeltaY
         guard delta != 0 else { return false }
