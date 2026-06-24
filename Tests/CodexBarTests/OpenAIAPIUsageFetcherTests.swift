@@ -385,14 +385,16 @@ struct OpenAIAPIUsageFetcherTests {
     }
 
     @Test
-    func `maps project scoped admin usage to cost token snapshot`() {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+    func `maps project scoped admin usage to cost token snapshot`() throws {
+        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
+        let firstDay = try Self.localNoon(year: 2023, month: 11, day: 13)
+        let secondDay = try Self.localNoon(year: 2023, month: 11, day: 14)
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-13",
-                    startTime: now.addingTimeInterval(-86400),
-                    endTime: now,
+                    startTime: firstDay,
+                    endTime: firstDay.addingTimeInterval(86400),
                     costUSD: 2.25,
                     requests: 3,
                     inputTokens: 300,
@@ -411,8 +413,8 @@ struct OpenAIAPIUsageFetcherTests {
                     ]),
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-14",
-                    startTime: now,
-                    endTime: now.addingTimeInterval(86400),
+                    startTime: secondDay,
+                    endTime: secondDay.addingTimeInterval(86400),
                     costUSD: 8.5,
                     requests: 42,
                     inputTokens: 1000,
@@ -442,9 +444,11 @@ struct OpenAIAPIUsageFetcherTests {
         #expect(usage.identity?.accountOrganization == "Project: proj_abc")
         #expect(snapshot.historyDays == 7)
         #expect(snapshot.currencyCode == "USD")
-        #expect(snapshot.sessionCostUSD == 8.5)
-        #expect(snapshot.sessionTokens == 1250)
-        #expect(snapshot.sessionRequests == 42)
+        #expect(apiUsage.currentDay.costUSD == 0)
+        #expect(apiUsage.currentDay.totalTokens == 0)
+        #expect(snapshot.sessionCostUSD == 0)
+        #expect(snapshot.sessionTokens == 0)
+        #expect(snapshot.sessionRequests == 0)
         #expect(snapshot.last30DaysCostUSD == 10.75)
         #expect(snapshot.last30DaysTokens == 1750)
         #expect(snapshot.last30DaysRequests == 45)
@@ -460,6 +464,10 @@ struct OpenAIAPIUsageFetcherTests {
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         else { return nil }
         return components.queryItems?.first(where: { $0.name == name })?.value
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }
 

@@ -40,6 +40,41 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.daily = daily
         self.updatedAt = updatedAt
     }
+
+    public func currentDayEntry(calendar: Calendar = .current) -> CostUsageDailyReport.Entry? {
+        Self.entry(in: self.daily, forLocalDayContaining: self.updatedAt, calendar: calendar)
+    }
+
+    public static func latestEntry(in entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Entry? {
+        entries.compactMap { entry -> (entry: CostUsageDailyReport.Entry, date: Date)? in
+            guard let date = CostUsageDateParser.parse(entry.date) else { return nil }
+            return (entry, date)
+        }
+        .max { lhs, rhs in
+            if lhs.date != rhs.date { return lhs.date < rhs.date }
+            let lCost = lhs.entry.costUSD ?? -1
+            let rCost = rhs.entry.costUSD ?? -1
+            if lCost != rCost { return lCost < rCost }
+            let lTokens = lhs.entry.totalTokens ?? -1
+            let rTokens = rhs.entry.totalTokens ?? -1
+            if lTokens != rTokens { return lTokens < rTokens }
+            return lhs.entry.date < rhs.entry.date
+        }?.entry
+    }
+
+    public static func entry(
+        in entries: [CostUsageDailyReport.Entry],
+        forLocalDayContaining date: Date,
+        calendar: Calendar = .current) -> CostUsageDailyReport.Entry?
+    {
+        let dayKey = CostUsageLocalDay.key(from: date, calendar: calendar)
+        return entries.first { entry in
+            let rawDate = entry.date.trimmingCharacters(in: .whitespacesAndNewlines)
+            if rawDate == dayKey { return true }
+            guard let parsed = CostUsageDateParser.parse(rawDate) else { return false }
+            return CostUsageLocalDay.key(from: parsed, calendar: calendar) == dayKey
+        }
+    }
 }
 
 public struct CostUsageDailyReport: Sendable, Decodable {
@@ -806,7 +841,29 @@ enum CostUsageDateParser {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = timeZone
         formatter.dateFormat = format
+        formatter.isLenient = false
         threadDict[cacheKey] = formatter
         return formatter
+    }
+}
+
+enum CostUsageBucketInterval {
+    static func contains(
+        _ date: Date,
+        startTime: Date,
+        endTime: Date) -> Bool
+    {
+        guard startTime < endTime else { return false }
+        return startTime <= date && date < endTime
+    }
+}
+
+enum CostUsageLocalDay {
+    static func key(from date: Date, calendar: Calendar = .current) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 }

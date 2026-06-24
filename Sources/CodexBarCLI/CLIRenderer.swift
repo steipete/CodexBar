@@ -12,11 +12,11 @@ enum CLIRenderer {
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         credits: CreditsSnapshot?,
-        context: RenderContext) -> String
+        context: RenderContext,
+        now: Date = Date()) -> String
     {
         let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
         let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
-        let now = Date()
         var lines: [String] = []
         lines.append(self.headerLine(context.header, useColor: context.useColor))
         self.appendPrimaryLines(
@@ -63,6 +63,22 @@ enum CLIRenderer {
         return lines.joined(separator: "\n")
     }
 
+    static func providerPacePayload(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        weeklyWorkDays: Int? = nil,
+        now: Date = Date()) -> ProviderPacePayload?
+    {
+        let primary = snapshot.primary.flatMap {
+            self.pacePayload(provider: provider, window: $0, kind: .session, now: now)
+        }
+        let secondary = snapshot.secondary.flatMap {
+            self.pacePayload(provider: provider, window: $0, kind: .weekly, weeklyWorkDays: weeklyWorkDays, now: now)
+        }
+        guard primary != nil || secondary != nil else { return nil }
+        return ProviderPacePayload(primary: primary, secondary: secondary)
+    }
+
     static func rateLine(title: String, window: RateWindow, useColor: Bool) -> String {
         let text = UsageFormatter.usageLine(
             remaining: window.remainingPercent,
@@ -87,7 +103,7 @@ enum CLIRenderer {
                 provider: provider,
                 title: labels.primary,
                 window: primary,
-                includePace: false,
+                paceKind: .session,
                 context: context,
                 now: now,
                 lines: &lines)
@@ -115,7 +131,7 @@ enum CLIRenderer {
             provider: provider,
             title: labels.secondary,
             window: weekly,
-            includePace: true,
+            paceKind: .weekly,
             context: context,
             now: now,
             lines: &lines)
@@ -301,14 +317,20 @@ enum CLIRenderer {
         provider: UsageProvider,
         title: String,
         window: RateWindow,
-        includePace: Bool,
+        paceKind: PaceKind?,
         context: RenderContext,
         now: Date,
         lines: inout [String])
     {
         lines.append(self.rateLine(title: title, window: window, useColor: context.useColor))
-        if includePace,
-           let pace = self.paceLine(provider: provider, window: window, useColor: context.useColor, now: now)
+        if let paceKind,
+           let pace = self.paceLine(
+               provider: provider,
+               window: window,
+               kind: paceKind,
+               weeklyWorkDays: context.weeklyWorkDays,
+               useColor: context.useColor,
+               now: now)
         {
             lines.append(pace)
         }
@@ -424,29 +446,116 @@ enum CLIRenderer {
         return self.ansi(self.accentColor, bar)
     }
 
-    private static func paceLine(
+    /// .session mirrors the GUI's session pace (5h window, real session windows only); .weekly reads
+    /// weeklyProgressWorkDays from the GUI's UserDefaults (same key) and passes it to UsagePace.weekly,
+    /// so the baseline matches the menu bar when the setting is configured. Codex historical refinement
+    /// is not applied (fixed allowlist only), so it can still differ from the menu for Codex accounts.
+    private enum PaceKind {
+        case session
+        case weekly
+
+        var defaultWindowMinutes: Int {
+            switch self {
+            case .session: 300
+            case .weekly: 10080
+            }
+        }
+
+        func supports(provider: UsageProvider) -> Bool {
+            switch self {
+            case .session:
+                provider == .codex || provider == .claude || provider == .ollama
+            case .weekly:
+                provider == .codex || provider == .claude || provider == .opencode || provider == .ollama
+            }
+        }
+    }
+
+    private static func computePace(
         provider: UsageProvider,
         window: RateWindow,
-        useColor: Bool,
-        now: Date) -> String?
+        kind: PaceKind,
+        weeklyWorkDays: Int? = nil,
+        now: Date) -> UsagePace?
     {
-        guard provider == .codex || provider == .claude || provider == .opencode || provider == .ollama else {
-            return nil
-        }
+        guard kind.supports(provider: provider) else { return nil }
+        // Only pace a real session window here; Claude w/o 5-hour data falls a 7-day window into primary.
+        if case .session = kind, let minutes = window.windowMinutes, minutes > 300 { return nil }
         if provider == .ollama, window.windowMinutes == nil { return nil }
         guard window.remainingPercent > 0 else { return nil }
-        guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080) else { return nil }
+        // workDays applies only to the weekly (10 080-min) window; UsagePace.weekly ignores it for other durations.
+        let workDays = kind == .weekly ? weeklyWorkDays : nil
+        guard let pace = UsagePace.weekly(
+            window: window,
+            now: now,
+            defaultWindowMinutes: kind.defaultWindowMinutes,
+            workDays: workDays) else { return nil }
         guard pace.expectedUsedPercent >= Self.paceMinimumExpectedPercent else { return nil }
+        return pace
+    }
 
+    private static func paceSummary(for pace: UsagePace, kind: PaceKind, now: Date) -> String {
         let expected = Int(pace.expectedUsedPercent.rounded())
         var parts: [String] = []
         parts.append(Self.paceLeftLabel(for: pace))
         parts.append("Expected \(expected)% used")
-        if let rightLabel = Self.paceRightLabel(for: pace, now: now) {
+        if let rightLabel = Self.paceRightLabel(for: pace, kind: kind, now: now) {
             parts.append(rightLabel)
         }
+        return parts.joined(separator: " | ")
+    }
+
+    private static func paceLine(
+        provider: UsageProvider,
+        window: RateWindow,
+        kind: PaceKind,
+        weeklyWorkDays: Int? = nil,
+        useColor: Bool,
+        now: Date) -> String?
+    {
+        guard let pace = self.computePace(
+            provider: provider,
+            window: window,
+            kind: kind,
+            weeklyWorkDays: weeklyWorkDays,
+            now: now) else { return nil }
         let label = self.label("Pace", useColor: useColor)
-        return "\(label): \(parts.joined(separator: " | "))"
+        return "\(label): \(self.paceSummary(for: pace, kind: kind, now: now))"
+    }
+
+    private static func pacePayload(
+        provider: UsageProvider,
+        window: RateWindow,
+        kind: PaceKind,
+        weeklyWorkDays: Int? = nil,
+        now: Date) -> PacePayload?
+    {
+        guard let pace = self.computePace(
+            provider: provider,
+            window: window,
+            kind: kind,
+            weeklyWorkDays: weeklyWorkDays,
+            now: now) else { return nil }
+        return PacePayload(
+            stage: Self.stageString(pace.stage),
+            deltaPercent: pace.deltaPercent.rounded(),
+            expectedUsedPercent: pace.expectedUsedPercent.rounded(),
+            willLastToReset: pace.willLastToReset,
+            etaSeconds: pace.etaSeconds.map { $0.rounded() },
+            runOutProbability: pace.runOutProbability,
+            summary: self.paceSummary(for: pace, kind: kind, now: now))
+    }
+
+    private static func stageString(_ stage: UsagePace.Stage) -> String {
+        switch stage {
+        case .farAhead: "farAhead"
+        case .ahead: "ahead"
+        case .slightlyAhead: "slightlyAhead"
+        case .onTrack: "onTrack"
+        case .slightlyBehind: "slightlyBehind"
+        case .behind: "behind"
+        case .farBehind: "farBehind"
+        }
     }
 
     private static func paceLeftLabel(for pace: UsagePace) -> String {
@@ -461,12 +570,16 @@ enum CLIRenderer {
         }
     }
 
-    private static func paceRightLabel(for pace: UsagePace, now: Date) -> String? {
+    private static func paceRightLabel(for pace: UsagePace, kind: PaceKind, now: Date) -> String? {
         if pace.willLastToReset { return "Lasts until reset" }
         guard let etaSeconds = pace.etaSeconds else { return nil }
         let etaText = Self.paceDurationText(seconds: etaSeconds, now: now)
-        if etaText == "now" { return "Runs out now" }
-        return "Runs out in \(etaText)"
+        switch kind {
+        case .session:
+            return etaText == "now" ? "Projected empty now" : "Projected empty in \(etaText)"
+        case .weekly:
+            return etaText == "now" ? "Runs out now" : "Runs out in \(etaText)"
+        }
     }
 
     private static func paceDurationText(seconds: TimeInterval, now: Date) -> String {
@@ -518,6 +631,7 @@ struct RenderContext {
     let status: ProviderStatusPayload?
     let useColor: Bool
     let resetStyle: ResetTimeDisplayStyle
+    let weeklyWorkDays: Int?
     let notes: [String]
 
     init(
@@ -525,12 +639,14 @@ struct RenderContext {
         status: ProviderStatusPayload?,
         useColor: Bool,
         resetStyle: ResetTimeDisplayStyle,
+        weeklyWorkDays: Int? = nil,
         notes: [String] = [])
     {
         self.header = header
         self.status = status
         self.useColor = useColor
         self.resetStyle = resetStyle
+        self.weeklyWorkDays = weeklyWorkDays
         self.notes = notes
     }
 }

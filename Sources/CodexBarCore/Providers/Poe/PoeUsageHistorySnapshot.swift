@@ -71,6 +71,14 @@ public struct PoeUsageHistorySnapshot: Codable, Equatable, Sendable {
         self.summary(days: 1)
     }
 
+    public func currentDay(now: Date = Date(), calendar: Calendar = .current) -> Summary {
+        let selected = self.entries.filter { calendar.isDate($0.createdAt, inSameDayAs: now) }
+        let points = selected.reduce(0) { $0 + max(0, $1.points) }
+        let costValues = selected.compactMap(\.costUSD).map { max(0, $0) }
+        let cost: Double? = costValues.isEmpty ? nil : costValues.reduce(0, +)
+        return Summary(points: points, requests: selected.count, costUSD: cost)
+    }
+
     public var last7Days: Summary {
         self.summary(days: 7)
     }

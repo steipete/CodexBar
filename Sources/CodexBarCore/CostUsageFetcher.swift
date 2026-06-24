@@ -116,7 +116,11 @@ public struct CostUsageFetcher: Sendable {
                 environment: environment,
                 since: since,
                 until: until)
-            return Self.tokenSnapshot(from: daily, now: now, historyDays: clampedHistoryDays)
+            return Self.tokenSnapshot(
+                from: daily,
+                now: now,
+                historyDays: clampedHistoryDays,
+                useCurrentLocalDayForSession: false)
         }
 
         var options = overrideScannerOptions ?? CostUsageScanner.Options()
@@ -276,23 +280,27 @@ public struct CostUsageFetcher: Sendable {
     static func tokenSnapshot(
         from daily: CostUsageDailyReport,
         now: Date,
-        historyDays: Int = 30) -> CostUsageTokenSnapshot
+        historyDays: Int = 30,
+        useCurrentLocalDayForSession: Bool = true) -> CostUsageTokenSnapshot
     {
-        // Pick the most recent day; break ties by cost/tokens to keep a stable "session" row.
-        let currentDay = daily.data.compactMap { entry -> (entry: CostUsageDailyReport.Entry, date: Date)? in
-            guard let date = CostUsageDateParser.parse(entry.date) else { return nil }
-            return (entry, date)
+        let sessionEntry = useCurrentLocalDayForSession
+            ? CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now)
+            : CostUsageTokenSnapshot.latestEntry(in: daily.data)
+        let hasHistoricalRows = !daily.data.isEmpty
+        let sessionTokens: Int? = if let sessionEntry {
+            sessionEntry.totalTokens
+        } else if hasHistoricalRows {
+            0
+        } else {
+            nil
         }
-        .max { lhs, rhs in
-            if lhs.date != rhs.date { return lhs.date < rhs.date }
-            let lCost = lhs.entry.costUSD ?? -1
-            let rCost = rhs.entry.costUSD ?? -1
-            if lCost != rCost { return lCost < rCost }
-            let lTokens = lhs.entry.totalTokens ?? -1
-            let rTokens = rhs.entry.totalTokens ?? -1
-            if lTokens != rTokens { return lTokens < rTokens }
-            return lhs.entry.date < rhs.entry.date
-        }?.entry
+        let sessionCostUSD: Double? = if let sessionEntry {
+            sessionEntry.costUSD
+        } else if hasHistoricalRows {
+            0
+        } else {
+            nil
+        }
         // Prefer summary totals when present; fall back to summing daily entries.
         let totalFromSummary = daily.summary?.totalCostUSD
         let totalFromEntries = daily.data.compactMap(\.costUSD).reduce(0, +)
@@ -302,8 +310,8 @@ public struct CostUsageFetcher: Sendable {
         let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
 
         return CostUsageTokenSnapshot(
-            sessionTokens: currentDay?.totalTokens,
-            sessionCostUSD: currentDay?.costUSD,
+            sessionTokens: sessionTokens,
+            sessionCostUSD: sessionCostUSD,
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
             historyDays: historyDays,
