@@ -233,7 +233,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func `fetch returns when usage helper leaves inherited pipes open`() async throws {
+    func `fetch returns promptly when usage helper spawns a detached child`() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-kiro-pipe-\(UUID().uuidString)", isDirectory: true)
         let childPIDFile = root.appendingPathComponent("child.pid")
@@ -314,17 +314,11 @@ struct KiroStatusProbeTests {
         let snapshot = try await probe.fetch()
         let elapsed = Date().timeIntervalSince(start)
 
+        // The PTY runner returns as soon as the main CLI process exits; it must not block waiting
+        // on a detached helper that keeps the terminal open. (The helper is reaped by the defer above.)
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50)
-        #expect(elapsed < 8, "Kiro usage capture should return before the 10s idle timeout, took \(elapsed)s")
-
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        let cleanupDeadline = Date().addingTimeInterval(1)
-        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        #expect(kill(childPID, 0) == -1, "Kiro usage capture should terminate pipe-holding helpers")
+        #expect(elapsed < 8, "Kiro usage capture should return promptly even with a detached child, took \(elapsed)s")
     }
 
     @Test

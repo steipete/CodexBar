@@ -346,11 +346,14 @@ public struct KiroStatusProbe: Sendable {
     }
 
     private func ensureLoggedIn() async throws -> KiroAccountInfo {
-        let result = try await self.runCommand(arguments: ["whoami"], timeout: self.accountProbeTimeout)
+        let output = try self.runViaPTY(
+            arguments: ["whoami"],
+            timeout: self.accountProbeTimeout,
+            idleTimeout: 1.5)
         return try self.validateWhoAmIOutput(
-            stdout: result.stdout,
-            stderr: result.stderr,
-            terminationStatus: result.terminationStatus)
+            stdout: output,
+            stderr: "",
+            terminationStatus: 0)
     }
 
     func validateWhoAmIOutput(stdout: String, stderr: String, terminationStatus: Int32) throws -> KiroAccountInfo {
@@ -409,14 +412,11 @@ public struct KiroStatusProbe: Sendable {
     }
 
     private func runUsageCommand() async throws -> String {
-        let result = try await self.runCommand(
+        let output = try self.runViaPTY(
             arguments: ["chat", "--no-interactive", "/usage"],
             timeout: 20.0,
-            idleTimeout: 10.0)
-        let trimmedStdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedStderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        let combinedOutput = trimmedStderr.isEmpty ? trimmedStdout : trimmedStderr
-        let combinedStripped = Self.stripANSI(combinedOutput).lowercased()
+            idleTimeout: 4.0)
+        let combinedStripped = Self.stripANSI(output).lowercased()
 
         if combinedStripped.contains("not logged in")
             || combinedStripped.contains("login required")
@@ -427,37 +427,47 @@ public struct KiroStatusProbe: Sendable {
             throw KiroStatusProbeError.notLoggedIn
         }
 
-        if result.terminatedForIdle, !Self.isUsageOutputComplete(combinedOutput) {
-            throw KiroStatusProbeError.timeout
-        }
-
-        if !trimmedStdout.isEmpty {
-            return result.stdout
-        }
-
-        if !trimmedStderr.isEmpty {
-            return result.stderr
-        }
-
-        if result.terminationStatus != 0 {
-            let message = combinedOutput.isEmpty
-                ? "Kiro CLI failed with status \(result.terminationStatus)."
-                : combinedOutput
-            throw KiroStatusProbeError.cliFailed(message)
-        }
-
-        return result.stdout
+        return output
     }
 
     private func fetchContextUsage() async throws -> KiroContextUsageSnapshot? {
-        let result = try await self.runCommand(
+        let output = try self.runViaPTY(
             arguments: ["chat", "--no-interactive", "/context"],
             timeout: 8.0,
             idleTimeout: 3.0)
-        let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? result.stderr
-            : result.stdout
         return self.parseContextUsage(output: output)
+    }
+
+    /// Runs `kiro-cli` through a pseudo-terminal. The CLI (forked from Amazon Q Developer CLI)
+    /// performs terminal setup on startup and produces no output at all when launched without a
+    /// controlling terminal, so a plain pipe-backed launch hangs until it is killed. Routing every
+    /// invocation through a PTY (as the Codex/Claude probes do) is what makes it emit output.
+    private func runViaPTY(
+        arguments: [String],
+        timeout: TimeInterval,
+        idleTimeout: TimeInterval) throws -> String
+    {
+        guard let binary = self.cliBinaryResolver() else {
+            throw KiroStatusProbeError.cliNotFound
+        }
+        do {
+            let result = try TTYCommandRunner().run(
+                binary: binary,
+                send: "",
+                options: TTYCommandRunner.Options(
+                    rows: 50,
+                    cols: 200,
+                    timeout: timeout,
+                    idleTimeout: idleTimeout,
+                    extraArgs: arguments))
+            return result.text
+        } catch TTYCommandRunner.Error.binaryNotFound {
+            throw KiroStatusProbeError.cliNotFound
+        } catch TTYCommandRunner.Error.timedOut {
+            throw KiroStatusProbeError.timeout
+        } catch let TTYCommandRunner.Error.launchFailed(message) {
+            throw KiroStatusProbeError.cliFailed(message)
+        }
     }
 
     func runCommand(
@@ -887,15 +897,6 @@ public struct KiroStatusProbe: Sendable {
         self.stripANSI(text)
             .replacingOccurrences(of: #"\x1B|\[[0-9;?]*[A-Za-z]"#, with: "", options: [.regularExpression])
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func isUsageOutputComplete(_ output: String) -> Bool {
-        let stripped = self.stripANSI(output).lowercased()
-        return stripped.contains("covered in plan")
-            || stripped.contains("resets on")
-            || stripped.contains("bonus credits")
-            || stripped.contains("plan:")
-            || stripped.contains("managed by admin")
     }
 }
 
