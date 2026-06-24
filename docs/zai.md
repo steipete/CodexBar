@@ -59,8 +59,11 @@ Personal config can use `providers[].apiKey`. Team config uses `tokenAccounts`:
     "activeIndex": 0,
     "accounts": [
       {
+        "id": "00000000-0000-0000-0000-000000000001",
         "label": "Team",
         "token": "<z.ai API key>",
+        "addedAt": 0,
+        "lastUsed": null,
         "usageScope": "team",
         "organizationId": "org_...",
         "workspaceID": "proj_..."
