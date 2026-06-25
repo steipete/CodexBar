@@ -433,7 +433,7 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     }
 
     private static func iconConfiguration(for metrics: PersistentRefreshRowMetrics) -> NSImage.SymbolConfiguration {
-        NSImage.SymbolConfiguration(pointSize: metrics.iconSymbolPointSize, weight: .regular)
+        NSImage.SymbolConfiguration(pointSize: metrics.iconSymbolPointSize, weight: metrics.iconSymbolWeight)
     }
 
     private static func shortcutFont(for metrics: PersistentRefreshRowMetrics) -> NSFont {

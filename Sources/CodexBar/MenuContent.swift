@@ -169,13 +169,14 @@ struct PersistentRefreshRowMetrics: Equatable {
         selectionVerticalInset: 0,
         selectionCornerRadius: 7,
         // Align the custom row's image/title frames with native NSMenuItem columns.
-        leadingPadding: 13,
+        leadingPadding: 17,
         trailingPadding: 8,
-        iconWidth: 17,
-        iconSymbolPointSize: 11,
+        iconWidth: 14,
+        iconSymbolPointSize: 12,
+        iconSymbolWeight: .semibold,
         iconTitleSpacing: 4.5,
         shortcutFontSize: 13,
-        shortcutXOffset: -12,
+        shortcutXOffset: -9.5,
         shortcutYOffset: 0)
 
     let rowHeight: CGFloat
@@ -186,6 +187,7 @@ struct PersistentRefreshRowMetrics: Equatable {
     let trailingPadding: CGFloat
     let iconWidth: CGFloat
     let iconSymbolPointSize: CGFloat
+    let iconSymbolWeight: NSFont.Weight
     let iconTitleSpacing: CGFloat
     let shortcutFontSize: CGFloat
     let shortcutXOffset: CGFloat

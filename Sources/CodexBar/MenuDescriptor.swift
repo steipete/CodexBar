@@ -31,7 +31,7 @@ struct MenuDescriptor {
     enum MenuActionSystemImage: String {
         case installUpdate = "arrow.down.circle"
         case refresh = "arrow.clockwise"
-        case dashboard = "chart.bar"
+        case dashboard = "chart.xyaxis.line"
         case statusPage = "waveform.path.ecg"
         case changelog = "list.bullet.rectangle"
         case addAccount = "plus"
