@@ -12,6 +12,7 @@
 - Codex: show enterprise monthly credit limits across OAuth, CLI, menu, and widget surfaces. Thanks @ChenZiHong-Gavin!
 - Codex: avoid launching monthly-credit CLI enrichment during usage-only OAuth refreshes.
 - Usage display: keep positive values below one percent visible instead of rounding them to zero. Thanks @Max0633!
+- Menu bar: show pace as `0%` instead of a signed `+0%`/`-0%` when the pace delta rounds to zero. Thanks @devYRPauli!
 - Menu: match the persistent Refresh row to native menu styling without replacing keyboard-navigable Settings, About, and Quit actions. Thanks @Zihao-Qi!
 - Claude: stop installed-version checks from invoking a login shell and triggering unwanted Keychain prompts. Thanks @enieuwy!
 - Localization: reject blank translated values and restore the affected Vietnamese provider prompts. Thanks @kiranmagic7!
