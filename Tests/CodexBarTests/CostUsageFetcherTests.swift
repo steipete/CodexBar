@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+// swiftlint:disable:next type_body_length
 struct CostUsageFetcherTests {
     @Test
     func `fetcher scopes codex history to selected codex home`() async throws {
@@ -818,6 +819,109 @@ struct CostUsageFetcherTests {
             piScannerOptions: piOptions)
 
         #expect(refreshed.daily.first?.totalTokens == 176)
+    }
+
+    @Test
+    func `fetcher reads Kimi Code session usage when source is enabled`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let kimiHome = env.root.appendingPathComponent("kimi-home", isDirectory: true)
+        let wireURL = kimiHome
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("project", isDirectory: true)
+            .appendingPathComponent("session-1", isDirectory: true)
+            .appendingPathComponent("agents", isDirectory: true)
+            .appendingPathComponent("main", isDirectory: true)
+            .appendingPathComponent("wire.jsonl", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: wireURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try env.jsonl([
+            [
+                "type": "usage.record",
+                "time": Int(day.timeIntervalSince1970 * 1000),
+                "model": "kimi-k2-turbo-preview",
+                "usage": [
+                    "inputOther": 100,
+                    "inputCacheRead": 25,
+                    "inputCacheCreation": 5,
+                    "output": 40,
+                ],
+            ],
+        ]).write(to: wireURL, atomically: true, encoding: .utf8)
+
+        let enabled = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .kimi,
+            environment: [KimiSettingsReader.codeHomeEnvironmentKey: kimiHome.path],
+            now: day,
+            historyDays: 7,
+            scannerOptions: CostUsageScanner.Options(cacheRoot: env.cacheRoot),
+            piScannerOptions: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot),
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: false, kimiCodeSessionsEnabled: true))
+        let disabled = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .kimi,
+            environment: [KimiSettingsReader.codeHomeEnvironmentKey: kimiHome.path],
+            now: day,
+            historyDays: 7,
+            scannerOptions: CostUsageScanner.Options(cacheRoot: env.cacheRoot),
+            piScannerOptions: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot),
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: false, kimiCodeSessionsEnabled: false))
+
+        #expect(enabled.sessionTokens == 170)
+        #expect(enabled.last30DaysTokens == 170)
+        #expect(enabled.daily.first?.requestCount == 1)
+        #expect(enabled.daily.first?.modelBreakdowns?.first?.modelName == "kimi-k2-turbo-preview")
+        #expect(enabled.last30DaysCostUSD == nil)
+        #expect(disabled.daily.isEmpty)
+    }
+
+    @Test
+    func `fetcher maps Pi Kimi sessions into Kimi usage when Pi source is enabled`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        _ = try env.writePiSessionFile(relativePath: "2026/04/08/session.jsonl", contents: env.jsonl([
+            [
+                "type": "model_change",
+                "provider": "kimi-coding",
+                "modelId": "kimi-k2-turbo-preview",
+            ],
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "usage": [
+                        "input": 20,
+                        "cacheRead": 3,
+                        "cacheWrite": 2,
+                        "output": 10,
+                    ],
+                ],
+            ],
+        ]))
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .kimi,
+            environment: [:],
+            now: day,
+            historyDays: 7,
+            scannerOptions: CostUsageScanner.Options(cacheRoot: env.cacheRoot),
+            piScannerOptions: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot),
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: false))
+
+        #expect(snapshot.sessionTokens == 35)
+        #expect(snapshot.last30DaysTokens == 35)
+        #expect(snapshot.daily.first?.modelsUsed == ["kimi-k2-turbo-preview"])
     }
 
     private static func writeCodexSessionFile(

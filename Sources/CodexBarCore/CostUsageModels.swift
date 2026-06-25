@@ -341,6 +341,8 @@ extension CostUsageDailyReport {
         var sawStandardTokens = false
         var priorityTokens: Int = 0
         var sawPriorityTokens = false
+        var requestCount: Int = 0
+        var sawRequestCount = false
 
         mutating func add(_ breakdown: ModelBreakdown) {
             if let totalTokens = breakdown.totalTokens {
@@ -367,6 +369,10 @@ extension CostUsageDailyReport {
                 self.priorityTokens += priorityTokens
                 self.sawPriorityTokens = true
             }
+            if let requestCount = breakdown.requestCount {
+                self.requestCount += requestCount
+                self.sawRequestCount = true
+            }
         }
 
         func build(modelName: String) -> ModelBreakdown {
@@ -374,6 +380,7 @@ extension CostUsageDailyReport {
                 modelName: modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
+                requestCount: self.sawRequestCount ? self.requestCount : nil,
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
                 standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
@@ -395,6 +402,8 @@ extension CostUsageDailyReport {
         var derivedTotalTokensWithoutExplicitTotal: Int = 0
         var costUSD: Double = 0
         var sawCost = false
+        var requestCount: Int = 0
+        var sawRequestCount = false
         var modelsUsed: Set<String> = []
         var breakdowns: [String: BreakdownAccumulator] = [:]
 
@@ -428,6 +437,10 @@ extension CostUsageDailyReport {
             if let costUSD = entry.costUSD {
                 self.costUSD += costUSD
                 self.sawCost = true
+            }
+            if let requestCount = entry.requestCount {
+                self.requestCount += requestCount
+                self.sawRequestCount = true
             }
             if let modelsUsed = entry.modelsUsed {
                 self.modelsUsed.formUnion(modelsUsed)
@@ -470,6 +483,7 @@ extension CostUsageDailyReport {
                 cacheReadTokens: self.sawCacheReadTokens ? self.cacheReadTokens : nil,
                 cacheCreationTokens: self.sawCacheCreationTokens ? self.cacheCreationTokens : nil,
                 totalTokens: totalTokens,
+                requestCount: self.sawRequestCount ? self.requestCount : nil,
                 costUSD: self.sawCost ? self.costUSD : nil,
                 modelsUsed: modelsUsed,
                 modelBreakdowns: modelBreakdowns)

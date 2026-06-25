@@ -22,13 +22,15 @@ extension UsageStore {
 
         let scope = self.tokenCostScope(for: .codex)
         let historyDays = self.settings.costUsageHistoryDays
+        let sourceOptions = self.settings.costUsageSourceOptions
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.tokenSnapshots[.codex] == nil else { return }
             guard let snapshot = await self.costUsageFetcher.loadCachedCodexTokenSnapshot(
                 now: now,
                 codexHomePath: scope.codexHomePath,
-                historyDays: historyDays)
+                historyDays: historyDays,
+                sourceOptions: sourceOptions)
             else {
                 return
             }

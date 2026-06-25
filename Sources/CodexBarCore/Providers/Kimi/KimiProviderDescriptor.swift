@@ -28,8 +28,8 @@ public enum KimiProviderDescriptor {
                 iconResourceName: "ProviderIcon-kimi",
                 color: ProviderColor(red: 254 / 255, green: 96 / 255, blue: 60 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Kimi cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No local Kimi Code session usage found." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

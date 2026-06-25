@@ -170,12 +170,31 @@ struct GeneralPane: View {
 
                                     CostHistoryDaysEditor(settings: self.settings)
 
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Toggle(isOn: self.$settings.costUsagePiSessionsEnabled) {
+                                            Text("Analyze Pi sessions")
+                                                .font(.footnote)
+                                        }
+                                        .toggleStyle(.checkbox)
+
+                                        Toggle(isOn: self.$settings.costUsageKimiCodeSessionsEnabled) {
+                                            Text("Analyze Kimi Code sessions")
+                                                .font(.footnote)
+                                        }
+                                        .toggleStyle(.checkbox)
+
+                                        Text("Session files are scanned locally; raw prompts are not shown in CodexBar.")
+                                            .font(.footnote)
+                                            .foregroundStyle(.tertiary)
+                                    }
+
                                     Text(L("cost_auto_refresh_info"))
                                         .font(.footnote)
                                         .foregroundStyle(.tertiary)
 
                                     self.costStatusLine(provider: .claude)
                                     self.costStatusLine(provider: .codex)
+                                    self.costStatusLine(provider: .kimi)
                                 }
                                 .padding(.leading, 20)
                             }
@@ -252,7 +271,7 @@ struct GeneralPane: View {
     private func costStatusLine(provider: UsageProvider) -> some View {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
-        guard provider == .claude || provider == .codex else {
+        guard provider == .claude || provider == .codex || provider == .kimi else {
             return Text(String(format: L("cost_status_unsupported"), name))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
@@ -274,7 +293,9 @@ struct GeneralPane: View {
         if let snapshot = self.store.tokenSnapshot(for: provider) {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
             let cost = snapshot.last30DaysCostUSD
-                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) }
+                ?? snapshot.last30DaysTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" }
+                ?? "—"
             let window = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d")
             return Text(String(format: L("cost_status_snapshot"), name, updated, window, cost))
                 .font(.footnote)

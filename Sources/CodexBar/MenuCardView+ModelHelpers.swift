@@ -252,7 +252,7 @@ extension UsageMenuCardView.Model {
         }
 
         if input.snapshot == nil, !input.isRefreshing, input.lastError == nil {
-            return self.hasLocalCodexTokenUsage(input) ? nil : L("No usage yet")
+            return self.hasLocalTokenUsage(input) ? nil : L("No usage yet")
         }
 
         return nil
@@ -319,10 +319,8 @@ extension UsageMenuCardView.Model {
         return StatusItemController.poeBalanceDisplayText(snapshot: input.snapshot)
     }
 
-    private static func hasLocalCodexTokenUsage(_ input: Input) -> Bool {
-        input.provider == .codex &&
-            input.tokenCostUsageEnabled &&
-            self.tokenUsageSnapshot(input: input) != nil
+    private static func hasLocalTokenUsage(_ input: Input) -> Bool {
+        input.tokenCostUsageEnabled && self.tokenUsageSnapshot(input: input) != nil
     }
 
     private static func shouldShowRateLimitsUnavailablePlaceholder(input: Input, lastError: String? = nil) -> Bool {

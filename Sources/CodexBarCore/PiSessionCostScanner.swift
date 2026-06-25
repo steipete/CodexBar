@@ -90,7 +90,7 @@ enum PiSessionCostScanner {
         options: Options = Options(),
         checkCancellation: CostUsageScanner.CancellationCheck?) throws -> CostUsageDailyReport
     {
-        guard provider == .codex || provider == .claude else {
+        guard provider == .codex || provider == .claude || provider == .kimi else {
             return CostUsageDailyReport(data: [], summary: nil)
         }
 
@@ -158,7 +158,7 @@ enum PiSessionCostScanner {
         now: Date = Date(),
         cacheRoot: URL? = nil) -> CostUsageDailyReport?
     {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || provider == .kimi else { return nil }
 
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
         let cache = PiSessionCostCacheIO.load(cacheRoot: cacheRoot)
@@ -669,6 +669,8 @@ extension PiSessionCostScanner {
             .codex
         case "anthropic":
             .claude
+        case "kimi-coding", "kimi-code", "kimi", "kimi-openai-completions", "kimi-anthropic-messages":
+            .kimi
         default:
             nil
         }
@@ -858,12 +860,12 @@ extension PiSessionCostScanner {
             ?? self.isoFormatterBox.plain.date(from: text)
     }
 
-    private static func localMidnight(_ date: Date) -> Date {
+    fileprivate static func localMidnight(_ date: Date) -> Date {
         let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
         return Calendar.current.date(from: components) ?? date
     }
 
-    private static func dateFromDayKey(_ key: String) -> Date? {
+    fileprivate static func dateFromDayKey(_ key: String) -> Date? {
         let parts = key.split(separator: "-")
         guard parts.count == 3,
               let year = Int(parts[0]),
@@ -897,6 +899,481 @@ extension PiSessionCostScanner {
             }
 
             return lhs.modelName > rhs.modelName
+        }
+    }
+}
+
+enum KimiCodeSessionCostScanner {
+    struct Options {
+        var kimiCodeSessionsRoot: URL?
+        var cacheRoot: URL?
+        var refreshMinIntervalSeconds: TimeInterval = 60
+        var forceRescan: Bool = false
+
+        init(
+            kimiCodeSessionsRoot: URL? = nil,
+            cacheRoot: URL? = nil,
+            refreshMinIntervalSeconds: TimeInterval = 60,
+            forceRescan: Bool = false)
+        {
+            self.kimiCodeSessionsRoot = kimiCodeSessionsRoot
+            self.cacheRoot = cacheRoot
+            self.refreshMinIntervalSeconds = refreshMinIntervalSeconds
+            self.forceRescan = forceRescan
+        }
+    }
+
+    private struct Cache: Codable {
+        var version: Int
+        var lastScanUnixMs: Int64 = 0
+        var scanSinceKey: String?
+        var scanUntilKey: String?
+        var days: [String: [String: PiPackedUsage]] = [:]
+        var files: [String: FileUsage] = [:]
+    }
+
+    private struct FileUsage: Codable {
+        var mtimeUnixMs: Int64
+        var size: Int64
+        var parsedBytes: Int64
+        var contributions: [String: [String: PiPackedUsage]]
+    }
+
+    private struct ParseResult {
+        let contributions: [String: [String: PiPackedUsage]]
+        let parsedBytes: Int64
+    }
+
+    private struct ScanContext {
+        let range: CostUsageScanner.CostUsageDayRange
+        let forceRescan: Bool
+        let checkCancellation: CostUsageScanner.CancellationCheck?
+    }
+
+    private static let artifactVersion = 1
+    private static let maxLineBytes = 16 * 1024 * 1024
+    private static let maxSafeRoundedInt = Double(Int.max) - 1
+
+    static func loadDailyReportCancellable(
+        provider: UsageProvider,
+        since: Date,
+        until: Date,
+        now: Date = Date(),
+        options: Options = Options(),
+        checkCancellation: CostUsageScanner.CancellationCheck?) throws -> CostUsageDailyReport
+    {
+        guard provider == .kimi else { return CostUsageDailyReport(data: [], summary: nil) }
+
+        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+        var cache = self.loadCache(cacheRoot: options.cacheRoot)
+        let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+        let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
+        let windowExpanded = self.requestedWindowExpandsCache(range: range, cache: cache)
+        let shouldRefresh = options.forceRescan
+            || windowExpanded
+            || refreshMs == 0
+            || cache.lastScanUnixMs == 0
+            || nowMs - cache.lastScanUnixMs > refreshMs
+
+        if shouldRefresh {
+            try checkCancellation?()
+            let root = self.defaultSessionsRoot(options: options)
+            let startCutoff = self.dateFromDayKey(range.scanSinceKey) ?? since
+            let files = self.listWireFiles(root: root, startCutoffLocal: startCutoff)
+            let filePathsInScan = Set(files.map(\.path))
+
+            for fileURL in files {
+                try self.scanFile(
+                    fileURL: fileURL,
+                    cache: &cache,
+                    context: ScanContext(
+                        range: range,
+                        forceRescan: options.forceRescan || windowExpanded,
+                        checkCancellation: checkCancellation))
+            }
+            try checkCancellation?()
+
+            for key in cache.files.keys where !filePathsInScan.contains(key) {
+                if let old = cache.files[key] {
+                    self.applyContributions(days: &cache.days, contributions: old.contributions, sign: -1)
+                }
+                cache.files.removeValue(forKey: key)
+            }
+
+            cache.scanSinceKey = range.scanSinceKey
+            cache.scanUntilKey = range.scanUntilKey
+            cache.lastScanUnixMs = nowMs
+            try checkCancellation?()
+            self.saveCache(cache, cacheRoot: options.cacheRoot)
+        }
+
+        return self.buildReport(cache: cache, range: range)
+    }
+
+    private static func defaultSessionsRoot(options: Options) -> URL {
+        if let override = options.kimiCodeSessionsRoot { return override }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".kimi-code", isDirectory: true)
+            .appendingPathComponent("sessions", isDirectory: true)
+    }
+
+    private static func listWireFiles(root: URL, startCutoffLocal: Date) -> [URL] {
+        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles])
+        else {
+            return []
+        }
+
+        var output: [URL] = []
+        while let item = enumerator.nextObject() as? URL {
+            guard item.lastPathComponent == "wire.jsonl" else { continue }
+            let values = try? item.resourceValues(forKeys: keys)
+            guard values?.isRegularFile == true else { continue }
+            if let modifiedAt = values?.contentModificationDate,
+               PiSessionCostScanner.localMidnight(modifiedAt) < startCutoffLocal
+            {
+                continue
+            }
+            output.append(item)
+        }
+        return output.sorted(by: { $0.path < $1.path })
+    }
+
+    private static func scanFile(fileURL: URL, cache: inout Cache, context: ScanContext) throws {
+        try context.checkCancellation?()
+        let path = fileURL.path
+        let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
+        let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        let mtimeMs = Int64(mtime * 1000)
+
+        if !context.forceRescan,
+           let cached = cache.files[path],
+           cached.mtimeUnixMs == mtimeMs,
+           cached.size == size
+        {
+            return
+        }
+
+        if !context.forceRescan,
+           let cached = cache.files[path],
+           size > cached.size,
+           cached.parsedBytes > 0,
+           cached.parsedBytes <= size
+        {
+            let delta = try self.parseFile(
+                fileURL: fileURL,
+                range: context.range,
+                startOffset: cached.parsedBytes,
+                checkCancellation: context.checkCancellation)
+            if !delta.contributions.isEmpty {
+                self.applyContributions(days: &cache.days, contributions: delta.contributions, sign: 1)
+            }
+            cache.files[path] = FileUsage(
+                mtimeUnixMs: mtimeMs,
+                size: size,
+                parsedBytes: delta.parsedBytes,
+                contributions: self.mergedContributions(existing: cached.contributions, delta: delta.contributions))
+            return
+        }
+
+        if let cached = cache.files[path] {
+            self.applyContributions(days: &cache.days, contributions: cached.contributions, sign: -1)
+        }
+
+        let parsed = try self.parseFile(
+            fileURL: fileURL,
+            range: context.range,
+            checkCancellation: context.checkCancellation)
+        if !parsed.contributions.isEmpty {
+            self.applyContributions(days: &cache.days, contributions: parsed.contributions, sign: 1)
+        }
+        cache.files[path] = FileUsage(
+            mtimeUnixMs: mtimeMs,
+            size: size,
+            parsedBytes: parsed.parsedBytes,
+            contributions: parsed.contributions)
+    }
+
+    private static func parseFile(
+        fileURL: URL,
+        range: CostUsageScanner.CostUsageDayRange,
+        startOffset: Int64 = 0,
+        checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> ParseResult
+    {
+        var contributions: [String: [String: PiPackedUsage]] = [:]
+
+        func add(dayKey: String, modelName: String, usage: PiPackedUsage) {
+            guard !usage.isZero else { return }
+            guard CostUsageScanner.CostUsageDayRange.isInRange(
+                dayKey: dayKey,
+                since: range.scanSinceKey,
+                until: range.scanUntilKey)
+            else {
+                return
+            }
+            var dayModels = contributions[dayKey] ?? [:]
+            let merged = self.addPacked(a: dayModels[modelName] ?? PiPackedUsage(), b: usage, sign: 1)
+            if merged.isZero {
+                dayModels.removeValue(forKey: modelName)
+            } else {
+                dayModels[modelName] = merged
+            }
+            contributions[dayKey] = dayModels
+        }
+
+        let parsedBytes: Int64
+        do {
+            parsedBytes = try CostUsageJsonl.scan(
+                fileURL: fileURL,
+                offset: startOffset,
+                maxLineBytes: Self.maxLineBytes,
+                prefixBytes: Self.maxLineBytes,
+                checkCancellation: checkCancellation,
+                onLine: { line in
+                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    autoreleasepool {
+                        guard let object = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
+                              (object["type"] as? String) == "usage.record",
+                              let modelName = self.normalizeModelName(object["model"]),
+                              let usageObject = object["usage"] as? [String: Any],
+                              let date = self.timestampDate(object["time"])
+                        else {
+                            return
+                        }
+                        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
+                        add(dayKey: dayKey, modelName: modelName, usage: self.extractUsage(usageObject))
+                    }
+                })
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            parsedBytes = startOffset
+        }
+
+        return ParseResult(contributions: contributions, parsedBytes: parsedBytes)
+    }
+
+    private static func extractUsage(_ usage: [String: Any]) -> PiPackedUsage {
+        let input = self.readNonNegativeInt(
+            usage["inputOther"] ?? usage["input"] ?? usage["input_tokens"] ?? usage["prompt_tokens"])
+        let cacheRead = self.readNonNegativeInt(
+            usage["inputCacheRead"] ?? usage["cacheRead"] ?? usage["cache_read_input_tokens"])
+        let cacheWrite = self.readNonNegativeInt(
+            usage["inputCacheCreation"] ?? usage["cacheWrite"] ?? usage["cache_creation_input_tokens"])
+        let output = self.readNonNegativeInt(usage["output"] ?? usage["output_tokens"] ?? usage["completion_tokens"])
+        let total = input + cacheRead + cacheWrite + output
+        return PiPackedUsage(
+            inputTokens: input,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite,
+            outputTokens: output,
+            totalTokens: total,
+            costNanos: 0,
+            costSampleCount: 0,
+            usageSampleCount: total > 0 ? 1 : 0)
+    }
+
+    private static func normalizeModelName(_ value: Any?) -> String? {
+        guard let model = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else {
+            return nil
+        }
+        return model
+    }
+
+    private static func timestampDate(_ value: Any?) -> Date? {
+        if let number = value as? NSNumber {
+            let raw = number.doubleValue
+            guard raw.isFinite else { return nil }
+            return Date(timeIntervalSince1970: raw > 1_000_000_000_000 ? raw / 1000 : raw)
+        }
+        if let string = value as? String,
+           let numeric = Double(string),
+           numeric.isFinite
+        {
+            return Date(timeIntervalSince1970: numeric > 1_000_000_000_000 ? numeric / 1000 : numeric)
+        }
+        return nil
+    }
+
+    private static func buildReport(cache: Cache, range: CostUsageScanner.CostUsageDayRange) -> CostUsageDailyReport {
+        let dayKeys = cache.days.keys.sorted().filter {
+            CostUsageScanner.CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
+        }
+
+        var entries: [CostUsageDailyReport.Entry] = []
+        var totalInput = 0
+        var totalOutput = 0
+        var totalCacheRead = 0
+        var totalCacheWrite = 0
+        var totalTokens = 0
+
+        for dayKey in dayKeys {
+            guard let models = cache.days[dayKey] else { continue }
+            var dayInput = 0
+            var dayOutput = 0
+            var dayCacheRead = 0
+            var dayCacheWrite = 0
+            var dayTotalTokens = 0
+            var requestCount = 0
+            var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
+
+            for modelName in models.keys.sorted() {
+                let packed = models[modelName] ?? PiPackedUsage()
+                let modelTotalTokens = max(
+                    packed.totalTokens,
+                    packed.inputTokens + packed.cacheReadTokens + packed.cacheWriteTokens + packed.outputTokens)
+                let modelRequests = packed.usageSampleCount ?? 0
+                breakdown.append(CostUsageDailyReport.ModelBreakdown(
+                    modelName: modelName,
+                    costUSD: nil,
+                    totalTokens: modelTotalTokens > 0 ? modelTotalTokens : nil,
+                    requestCount: modelRequests > 0 ? modelRequests : nil))
+                dayInput += packed.inputTokens
+                dayOutput += packed.outputTokens
+                dayCacheRead += packed.cacheReadTokens
+                dayCacheWrite += packed.cacheWriteTokens
+                dayTotalTokens += modelTotalTokens
+                requestCount += modelRequests
+            }
+
+            entries.append(CostUsageDailyReport.Entry(
+                date: dayKey,
+                inputTokens: dayInput > 0 ? dayInput : nil,
+                outputTokens: dayOutput > 0 ? dayOutput : nil,
+                cacheReadTokens: dayCacheRead > 0 ? dayCacheRead : nil,
+                cacheCreationTokens: dayCacheWrite > 0 ? dayCacheWrite : nil,
+                totalTokens: dayTotalTokens > 0 ? dayTotalTokens : nil,
+                requestCount: requestCount > 0 ? requestCount : nil,
+                costUSD: nil,
+                modelsUsed: breakdown.map(\.modelName),
+                modelBreakdowns: breakdown.isEmpty ? nil : breakdown))
+            totalInput += dayInput
+            totalOutput += dayOutput
+            totalCacheRead += dayCacheRead
+            totalCacheWrite += dayCacheWrite
+            totalTokens += dayTotalTokens
+        }
+
+        let summary = entries.isEmpty ? nil : CostUsageDailyReport.Summary(
+            totalInputTokens: totalInput > 0 ? totalInput : nil,
+            totalOutputTokens: totalOutput > 0 ? totalOutput : nil,
+            cacheReadTokens: totalCacheRead > 0 ? totalCacheRead : nil,
+            cacheCreationTokens: totalCacheWrite > 0 ? totalCacheWrite : nil,
+            totalTokens: totalTokens > 0 ? totalTokens : nil,
+            totalCostUSD: nil)
+        return CostUsageDailyReport(data: entries, summary: summary)
+    }
+
+    private static func requestedWindowExpandsCache(range: CostUsageScanner.CostUsageDayRange, cache: Cache) -> Bool {
+        guard let cachedSince = cache.scanSinceKey, let cachedUntil = cache.scanUntilKey else { return true }
+        return range.scanSinceKey < cachedSince || range.scanUntilKey > cachedUntil
+    }
+
+    private static func applyContributions(
+        days: inout [String: [String: PiPackedUsage]],
+        contributions: [String: [String: PiPackedUsage]],
+        sign: Int)
+    {
+        for (dayKey, dayModels) in contributions {
+            var mergedDayModels = days[dayKey] ?? [:]
+            for (modelName, packed) in dayModels {
+                let merged = self.addPacked(a: mergedDayModels[modelName] ?? PiPackedUsage(), b: packed, sign: sign)
+                if merged.isZero {
+                    mergedDayModels.removeValue(forKey: modelName)
+                } else {
+                    mergedDayModels[modelName] = merged
+                }
+            }
+            if mergedDayModels.isEmpty {
+                days.removeValue(forKey: dayKey)
+            } else {
+                days[dayKey] = mergedDayModels
+            }
+        }
+    }
+
+    private static func mergedContributions(
+        existing: [String: [String: PiPackedUsage]],
+        delta: [String: [String: PiPackedUsage]]) -> [String: [String: PiPackedUsage]]
+    {
+        var merged = existing
+        self.applyContributions(days: &merged, contributions: delta, sign: 1)
+        return merged
+    }
+
+    private static func addPacked(a: PiPackedUsage, b: PiPackedUsage, sign: Int) -> PiPackedUsage {
+        let multiplier = sign >= 0 ? 1 : -1
+        return PiPackedUsage(
+            inputTokens: a.inputTokens + multiplier * b.inputTokens,
+            cacheReadTokens: a.cacheReadTokens + multiplier * b.cacheReadTokens,
+            cacheWriteTokens: a.cacheWriteTokens + multiplier * b.cacheWriteTokens,
+            outputTokens: a.outputTokens + multiplier * b.outputTokens,
+            totalTokens: a.totalTokens + multiplier * b.totalTokens,
+            costNanos: a.costNanos + Int64(multiplier) * b.costNanos,
+            costSampleCount: a.costSampleCount + multiplier * b.costSampleCount,
+            usageSampleCount: (a.usageSampleCount ?? 0) + multiplier * (b.usageSampleCount ?? 0))
+    }
+
+    private static func readNonNegativeInt(_ value: Any?) -> Int {
+        if let number = value as? NSNumber {
+            let numeric = number.doubleValue
+            guard numeric.isFinite, numeric >= 0, numeric <= self.maxSafeRoundedInt else { return 0 }
+            return Int(numeric.rounded())
+        }
+        if let string = value as? String,
+           let numeric = Double(string),
+           numeric.isFinite,
+           numeric >= 0,
+           numeric <= self.maxSafeRoundedInt
+        {
+            return Int(numeric.rounded())
+        }
+        return 0
+    }
+
+    private static func dateFromDayKey(_ key: String) -> Date? {
+        PiSessionCostScanner.dateFromDayKey(key)
+    }
+
+    private static func cacheFileURL(cacheRoot: URL? = nil) -> URL {
+        let root = cacheRoot ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("CodexBar", isDirectory: true)
+        return root
+            .appendingPathComponent("cost-usage", isDirectory: true)
+            .appendingPathComponent("kimi-code-sessions-v\(Self.artifactVersion).json", isDirectory: false)
+    }
+
+    private static func loadCache(cacheRoot: URL? = nil) -> Cache {
+        let url = self.cacheFileURL(cacheRoot: cacheRoot)
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode(Cache.self, from: data),
+              decoded.version == Self.artifactVersion
+        else {
+            return Cache(version: Self.artifactVersion)
+        }
+        return decoded
+    }
+
+    private static func saveCache(_ cache: Cache, cacheRoot: URL? = nil) {
+        let url = self.cacheFileURL(cacheRoot: cacheRoot)
+        let dir = url.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
+        let data = (try? JSONEncoder().encode(cache)) ?? Data()
+        do {
+            try data.write(to: tmp, options: [.atomic])
+            if FileManager.default.fileExists(atPath: url.path) {
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
+            } else {
+                try FileManager.default.moveItem(at: tmp, to: url)
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: tmp)
         }
     }
 }

@@ -414,6 +414,9 @@ extension SettingsStore {
         let costSummaryDisplayStyleRaw = Self.loadCostSummaryDisplayStyleRaw(
             userDefaults: userDefaults,
             costUsageEnabled: costUsageEnabled)
+        let costUsagePiSessionsEnabled = userDefaults.object(forKey: "tokenCostPiSessionsEnabled") as? Bool ?? true
+        let costUsageKimiCodeSessionsEnabled = userDefaults.object(
+            forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool ?? true
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnWeeklyLimitResetsEnabled = userDefaults.object(
@@ -489,6 +492,8 @@ extension SettingsStore {
             costUsageEnabled: costUsageEnabled,
             costUsageHistoryDays: costUsageHistoryDays,
             costSummaryDisplayStyleRaw: costSummaryDisplayStyleRaw,
+            costUsagePiSessionsEnabled: costUsagePiSessionsEnabled,
+            costUsageKimiCodeSessionsEnabled: costUsageKimiCodeSessionsEnabled,
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,
             confettiOnWeeklyLimitResetsEnabled: confettiOnWeeklyLimitResetsEnabled,

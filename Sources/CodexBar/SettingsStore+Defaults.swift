@@ -334,6 +334,22 @@ extension SettingsStore {
         set { self.costSummaryDisplayStyleRaw = newValue.rawValue }
     }
 
+    var costUsagePiSessionsEnabled: Bool {
+        get { self.defaultsState.costUsagePiSessionsEnabled }
+        set {
+            self.defaultsState.costUsagePiSessionsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "tokenCostPiSessionsEnabled")
+        }
+    }
+
+    var costUsageKimiCodeSessionsEnabled: Bool {
+        get { self.defaultsState.costUsageKimiCodeSessionsEnabled }
+        set {
+            self.defaultsState.costUsageKimiCodeSessionsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "tokenCostKimiCodeSessionsEnabled")
+        }
+    }
+
     var hidePersonalInfo: Bool {
         get { self.defaultsState.hidePersonalInfo }
         set {
