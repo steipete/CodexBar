@@ -349,6 +349,7 @@ private struct ProviderSwitchChip: View {
         case .chutes: "Chutes"
         case .longcat: "LongCat"
         case .zed: "Zed"
+        case .neuralwatt: "Neuralwatt"
         case .zenmux: "ZenMux"
         }
     }
@@ -1096,6 +1097,8 @@ enum WidgetColors {
             Color(red: 255 / 255, green: 209 / 255, blue: 0 / 255)
         case .zed:
             Color(red: 64 / 255, green: 156 / 255, blue: 255 / 255)
+        case .neuralwatt:
+            Color(red: 56 / 255, green: 217 / 255, blue: 140 / 255)
         case .zenmux:
             Color(red: 108 / 255, green: 92 / 255, blue: 231 / 255)
         }

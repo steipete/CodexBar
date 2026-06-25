@@ -313,6 +313,19 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for NeuralWatt`() {
+        let config = ProviderConfig(id: .neuralwatt, apiKey: "sk-neuralwatt-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .neuralwatt,
+            config: config)
+
+        #expect(env[NeuralWattSettingsReader.apiKeyEnvironmentKey] == "sk-neuralwatt-config")
+        #expect(ProviderTokenResolver.neuralWattToken(environment: env) == "sk-neuralwatt-config")
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .neuralwatt))
+    }
+
+    @Test
     func `applies API key override for groq`() {
         let config = ProviderConfig(id: .groq, apiKey: "gsk-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

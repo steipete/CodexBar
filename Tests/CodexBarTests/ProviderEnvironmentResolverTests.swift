@@ -16,6 +16,18 @@ struct ProviderEnvironmentResolverTests {
     }
 
     @Test
+    func `NeuralWatt selected API account overrides saved and ambient credentials`() {
+        let account = Self.account(token: "sk-neuralwatt-account")
+        let environment = ProviderEnvironmentResolver.resolve(
+            base: [NeuralWattSettingsReader.apiKeyEnvironmentKey: "ambient-token"],
+            provider: .neuralwatt,
+            config: ProviderConfig(id: .neuralwatt, apiKey: "saved-token"),
+            selectedAccount: account)
+
+        #expect(environment[NeuralWattSettingsReader.apiKeyEnvironmentKey] == "sk-neuralwatt-account")
+    }
+
+    @Test
     func `OpenAI account removes project scoping from saved config`() {
         let account = Self.account(token: "sk-admin-account")
         let environment = ProviderEnvironmentResolver.resolve(

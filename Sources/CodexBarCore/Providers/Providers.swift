@@ -59,6 +59,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case deepgram
     case poe
     case chutes
+    case neuralwatt
     case longcat
     case crossmodel
     case clawrouter
@@ -125,6 +126,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case deepgram
     case poe
     case chutes
+    case neuralwatt
     case longcat
     case crossmodel
     case clawrouter

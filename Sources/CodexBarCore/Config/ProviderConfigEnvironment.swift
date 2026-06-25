@@ -173,6 +173,8 @@ public enum ProviderConfigEnvironment {
             AnyRouterSettingsReader.apiKeyEnvironmentKey
         case .elevenlabs:
             ElevenLabsSettingsReader.apiKeyEnvironmentKey
+        case .neuralwatt:
+            NeuralWattSettingsReader.apiKeyEnvironmentKey
         case .moonshot:
             MoonshotSettingsReader.apiKeyEnvironmentKeys.first
         case .kimi:
