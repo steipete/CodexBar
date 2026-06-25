@@ -62,16 +62,16 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
+        guard let resolution = Self.resolveToken(environment: context.env) else {
             throw KimiAPIError.missingAPIKey
         }
         let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
         let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
-            apiKey: apiKey,
+            apiKey: resolution.token,
             baseURL: baseURL)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "api")
+            sourceLabel: resolution.source == .authFile ? "kimi-code" : "api")
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -87,8 +87,8 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
         return false
     }
 
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.kimiAPIToken(environment: environment)
+    private static func resolveToken(environment: [String: String]) -> ProviderTokenResolution? {
+        ProviderTokenResolver.kimiAPIResolution(environment: environment)
     }
 }
 

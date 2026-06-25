@@ -16,8 +16,16 @@ private struct KimiStubClaudeFetcher: ClaudeUsageFetching {
     }
 }
 
-private func makeKimiFetchContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
-    let env: [String: String] = [:]
+private func makeKimiFetchContext(
+    sourceMode: ProviderSourceMode,
+    environment: [String: String]? = nil) -> ProviderFetchContext
+{
+    let env = environment ?? [
+        "KIMI_CODE_HOME": URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("CodexBarMissingKimiCode-")
+            .appendingPathComponent(UUID().uuidString)
+            .path,
+    ]
     return ProviderFetchContext(
         runtime: .app,
         sourceMode: sourceMode,
@@ -30,6 +38,29 @@ private func makeKimiFetchContext(sourceMode: ProviderSourceMode) -> ProviderFet
         fetcher: UsageFetcher(environment: env),
         claudeFetcher: KimiStubClaudeFetcher(),
         browserDetection: BrowserDetection(cacheTTL: 0))
+}
+
+private func makeTemporaryKimiCodeHome() throws -> URL {
+    let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("CodexBarKimiCodeTests-")
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+private func writeKimiCodeCredential(home: URL, accessToken: String, expiresAt: Date) throws {
+    let credentials = home.appendingPathComponent("credentials", isDirectory: true)
+    try FileManager.default.createDirectory(at: credentials, withIntermediateDirectories: true)
+    let payload: [String: Any] = [
+        "access_token": accessToken,
+        "refresh_token": "refresh-token",
+        "expires_at": expiresAt.timeIntervalSince1970,
+        "expires_in": 3600,
+        "scope": "",
+        "token_type": "Bearer",
+    ]
+    let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+    try data.write(to: credentials.appendingPathComponent("kimi-code.json"))
 }
 
 struct KimiSettingsReaderTests {
@@ -62,6 +93,69 @@ struct KimiSettingsReaderTests {
         ]
         let token = KimiSettingsReader.apiKey(environment: env)
         #expect(token == "kimi-code-token")
+    }
+
+    @Test
+    func `reads fresh Kimi Code OAuth credential from official home`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: now.addingTimeInterval(3600))
+
+        let token = KimiSettingsReader.kimiCodeAccessToken(
+            environment: ["KIMI_CODE_HOME": home.path],
+            now: now)
+
+        #expect(token == "oauth-access-token")
+    }
+
+    @Test
+    func `ignores expired Kimi Code OAuth credential`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "expired-access-token",
+            expiresAt: now.addingTimeInterval(30))
+
+        let token = KimiSettingsReader.kimiCodeAccessToken(
+            environment: ["KIMI_CODE_HOME": home.path],
+            now: now)
+
+        #expect(token == nil)
+    }
+
+    @Test
+    func `resolves Kimi API token from Kimi Code OAuth credential`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+
+        let resolution = ProviderTokenResolver.kimiAPIResolution(environment: ["KIMI_CODE_HOME": home.path])
+
+        #expect(resolution?.token == "oauth-access-token")
+        #expect(resolution?.source == .authFile)
+    }
+
+    @Test
+    func `prefers explicit Kimi Code API key over Kimi Code OAuth credential`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+
+        let resolution = ProviderTokenResolver.kimiAPIResolution(environment: [
+            "KIMI_CODE_API_KEY": "explicit-api-key",
+            "KIMI_CODE_HOME": home.path,
+        ])
+
+        #expect(resolution?.token == "explicit-api-key")
+        #expect(resolution?.source == .environment)
     }
 
     @Test
@@ -140,6 +234,21 @@ struct KimiSettingsReaderTests {
 }
 
 struct KimiAPIFetchStrategyTests {
+    @Test
+    func `auto mode is available with Kimi Code OAuth credential`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(
+            sourceMode: .auto,
+            environment: ["KIMI_CODE_HOME": home.path])
+
+        #expect(await strategy.isAvailable(context))
+    }
+
     @Test
     func `auto mode falls back from invalid API key to web cookies`() {
         let strategy = KimiAPIFetchStrategy()
