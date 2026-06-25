@@ -481,7 +481,11 @@ struct AntigravityCLISessionTests {
         let firstReplacement = Task {
             try await fixture.session.beginProbe(binary: "/new/agy")
         }
-        await fixture.sleeper?.waitForSleeps(1)
+        // Two sleeps register here: the lingering idle-timer sleep (armed by the prior finishProbe;
+        // the fake sleeper does not honor cancellation) and the teardown grace-period sleep. Wait for
+        // both before resuming — waiting for only one lets resumeAll() fire before the grace sleep
+        // parks, stranding it so teardown never completes and the suite hangs to the 120s timeout.
+        await fixture.sleeper?.waitForSleeps(2)
 
         let secondReplacement = Task {
             try await fixture.session.beginProbe(binary: "/new/agy")
