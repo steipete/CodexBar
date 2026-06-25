@@ -67,6 +67,7 @@ enum ProviderImplementationRegistry {
         case .deepgram: DeepgramProviderImplementation()
         case .poe: PoeProviderImplementation()
         case .chutes: ChutesProviderImplementation()
+        case .neuralwatt: NeuralWattProviderImplementation()
         }
     }
 

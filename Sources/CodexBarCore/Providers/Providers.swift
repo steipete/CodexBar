@@ -57,6 +57,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case deepgram
     case poe
     case chutes
+    case neuralwatt
 }
 
 // swiftformat:enable sortDeclarations
@@ -114,6 +115,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case deepgram
     case poe
     case chutes
+    case neuralwatt
     case combined
 }
 

@@ -102,6 +102,7 @@ public enum ProviderConfigEnvironment {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private static func directAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
         switch provider {
         case .amp:
@@ -126,6 +127,8 @@ public enum ProviderConfigEnvironment {
             OpenRouterSettingsReader.envKey
         case .elevenlabs:
             ElevenLabsSettingsReader.apiKeyEnvironmentKey
+        case .neuralwatt:
+            NeuralWattSettingsReader.apiKeyEnvironmentKey
         case .moonshot:
             MoonshotSettingsReader.apiKeyEnvironmentKeys.first
         case .kimi:

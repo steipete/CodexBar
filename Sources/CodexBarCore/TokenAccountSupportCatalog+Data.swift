@@ -129,6 +129,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: ElevenLabsSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .neuralwatt: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple Neuralwatt API keys.",
+            placeholder: "sk-...",
+            injection: .environment(key: NeuralWattSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .groq: TokenAccountSupport(
             title: "API keys",
             subtitle: "Store multiple Groq API keys.",
