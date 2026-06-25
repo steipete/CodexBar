@@ -113,7 +113,7 @@ public struct KimiUsageFetcher: Sendable {
 
         return KimiUsageSnapshot(
             weekly: codingUsage.detail,
-            rateLimit: codingUsage.limits?.first?.detail,
+            rateLimits: codingUsage.limits ?? [],
             updatedAt: now)
     }
 
@@ -121,7 +121,7 @@ public struct KimiUsageFetcher: Sendable {
         let response = try JSONDecoder().decode(KimiCodeAPIUsageResponse.self, from: data)
         return KimiUsageSnapshot(
             weekly: response.usage,
-            rateLimit: response.limits?.first?.detail,
+            rateLimits: response.limits ?? [],
             updatedAt: now)
     }
 

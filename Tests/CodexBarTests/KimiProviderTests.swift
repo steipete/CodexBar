@@ -16,8 +16,16 @@ private struct KimiStubClaudeFetcher: ClaudeUsageFetching {
     }
 }
 
-private func makeKimiFetchContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
-    let env: [String: String] = [:]
+private func makeKimiFetchContext(
+    sourceMode: ProviderSourceMode,
+    environment: [String: String]? = nil) -> ProviderFetchContext
+{
+    let env = environment ?? [
+        "KIMI_CODE_HOME": URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("CodexBarMissingKimiCode-")
+            .appendingPathComponent(UUID().uuidString)
+            .path,
+    ]
     return ProviderFetchContext(
         runtime: .app,
         sourceMode: sourceMode,
@@ -30,6 +38,34 @@ private func makeKimiFetchContext(sourceMode: ProviderSourceMode) -> ProviderFet
         fetcher: UsageFetcher(environment: env),
         claudeFetcher: KimiStubClaudeFetcher(),
         browserDetection: BrowserDetection(cacheTTL: 0))
+}
+
+private func makeTemporaryKimiCodeHome() throws -> URL {
+    let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("CodexBarKimiCodeTests-")
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+private func writeKimiCodeCredential(
+    home: URL,
+    accessToken: String,
+    refreshToken: String = "refresh-token",
+    expiresAt: Date) throws
+{
+    let credentials = home.appendingPathComponent("credentials", isDirectory: true)
+    try FileManager.default.createDirectory(at: credentials, withIntermediateDirectories: true)
+    let payload: [String: Any] = [
+        "access_token": accessToken,
+        "refresh_token": refreshToken,
+        "expires_at": expiresAt.timeIntervalSince1970,
+        "expires_in": 3600,
+        "scope": "",
+        "token_type": "Bearer",
+    ]
+    let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+    try data.write(to: credentials.appendingPathComponent("kimi-code.json"))
 }
 
 struct KimiSettingsReaderTests {
@@ -62,6 +98,115 @@ struct KimiSettingsReaderTests {
         ]
         let token = KimiSettingsReader.apiKey(environment: env)
         #expect(token == "kimi-code-token")
+    }
+
+    @Test
+    func `reads fresh Kimi Code OAuth credential from official home`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: now.addingTimeInterval(3600))
+
+        let token = KimiSettingsReader.kimiCodeAccessToken(
+            environment: ["KIMI_CODE_HOME": home.path],
+            now: now)
+
+        #expect(token == "oauth-access-token")
+    }
+
+    @Test
+    func `ignores expired Kimi Code OAuth credential`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "expired-access-token",
+            expiresAt: now.addingTimeInterval(30))
+
+        let token = KimiSettingsReader.kimiCodeAccessToken(
+            environment: ["KIMI_CODE_HOME": home.path],
+            now: now)
+
+        #expect(token == nil)
+    }
+
+    @Test
+    func `resolves Kimi API token from Kimi Code OAuth credential`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+
+        let resolution = ProviderTokenResolver.kimiAPIResolution(environment: ["KIMI_CODE_HOME": home.path])
+
+        #expect(resolution?.token == "oauth-access-token")
+        #expect(resolution?.source == .authFile)
+    }
+
+    @Test
+    func `prefers explicit Kimi Code API key over Kimi Code OAuth credential`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+
+        let resolution = ProviderTokenResolver.kimiAPIResolution(environment: [
+            "KIMI_CODE_API_KEY": "explicit-api-key",
+            "KIMI_CODE_HOME": home.path,
+        ])
+
+        #expect(resolution?.token == "explicit-api-key")
+        #expect(resolution?.source == .environment)
+    }
+
+    @Test
+    func `refreshes expired Kimi Code OAuth credential before resolving`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "expired-access-token",
+            refreshToken: "refresh-token",
+            expiresAt: now.addingTimeInterval(-60))
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.url?.absoluteString == "https://auth.kimi.com/api/oauth/token")
+            #expect(request.httpMethod == "POST")
+            let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            #expect(body.contains("grant_type=refresh_token"))
+            #expect(body.contains("refresh_token=refresh-token"))
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            let data = Data("""
+            {
+              "access_token": "refreshed-access-token",
+              "refresh_token": "rotated-refresh-token",
+              "expires_in": 7200,
+              "scope": "",
+              "token_type": "Bearer"
+            }
+            """.utf8)
+            return (data, response)
+        }
+
+        let resolution = await ProviderTokenResolver.kimiAPIResolutionRefreshing(
+            environment: ["KIMI_CODE_HOME": home.path],
+            now: now,
+            transport: transport)
+        let persistedToken = KimiSettingsReader.kimiCodeAccessToken(
+            environment: ["KIMI_CODE_HOME": home.path],
+            now: now)
+
+        #expect(resolution?.token == "refreshed-access-token")
+        #expect(resolution?.source == .authFile)
+        #expect(persistedToken == "refreshed-access-token")
     }
 
     @Test
@@ -140,6 +285,29 @@ struct KimiSettingsReaderTests {
 }
 
 struct KimiAPIFetchStrategyTests {
+    @Test
+    func `labels session before weekly quota`() {
+        let metadata = KimiProviderDescriptor.descriptor.metadata
+
+        #expect(metadata.sessionLabel == "Session")
+        #expect(metadata.weeklyLabel == "Weekly")
+    }
+
+    @Test
+    func `auto mode is available with Kimi Code OAuth credential`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(
+            sourceMode: .auto,
+            environment: ["KIMI_CODE_HOME": home.path])
+
+        #expect(await strategy.isAvailable(context))
+    }
+
     @Test
     func `auto mode falls back from invalid API key to web cookies`() {
         let strategy = KimiAPIFetchStrategy()
@@ -314,6 +482,18 @@ struct KimiUsageResponseParsingTests {
                 "remaining": "181",
                 "resetTime": "2026-01-06T15:05:24.374187075Z"
               }
+            },
+            {
+              "window": {
+                "duration": 1,
+                "timeUnit": "TIME_UNIT_DAY"
+              },
+              "detail": {
+                "limit": "500",
+                "used": "50",
+                "remaining": "450",
+                "resetTime": "2026-01-07T15:05:24.374187075Z"
+              }
             }
           ]
         }
@@ -324,6 +504,7 @@ struct KimiUsageResponseParsingTests {
         #expect(snapshot.weekly.used == "375")
         #expect(snapshot.rateLimit?.limit == "200")
         #expect(snapshot.rateLimit?.used == "19")
+        #expect(snapshot.rateLimits.count == 2)
     }
 
     @Test
@@ -465,33 +646,72 @@ struct KimiUsageSnapshotConversionTests {
             used: "375",
             remaining: "1673",
             resetTime: "2026-01-09T15:23:13.373329235Z")
-        let rateLimitDetail = KimiUsageDetail(
-            limit: "200",
-            used: "200",
-            remaining: "0",
-            resetTime: "2026-01-06T15:05:24.374187075Z")
+        let rateLimit = KimiRateLimit(
+            window: KimiWindow(duration: 300, timeUnit: "TIME_UNIT_MINUTE"),
+            detail: KimiUsageDetail(
+                limit: "200",
+                used: "200",
+                remaining: "0",
+                resetTime: "2026-01-06T15:05:24.374187075Z"))
 
         let snapshot = KimiUsageSnapshot(
             weekly: weeklyDetail,
-            rateLimit: rateLimitDetail,
+            rateLimits: [rateLimit],
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
         #expect(usageSnapshot.primary != nil)
-        let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.primary?.resetDescription == "375/2048 requests")
-        #expect(usageSnapshot.primary?.windowMinutes == nil)
+        let rateExpected = 200.0 / 200.0 * 100.0
+        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
+        #expect(usageSnapshot.primary?.windowMinutes == 300)
+        #expect(usageSnapshot.primary?.resetDescription == "200/200 requests per 5 hours")
 
         #expect(usageSnapshot.secondary != nil)
-        let rateExpected = 200.0 / 200.0 * 100.0
-        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
-        #expect(usageSnapshot.secondary?.windowMinutes == 300) // 5 hours
-        #expect(usageSnapshot.secondary?.resetDescription == "Rate: 200/200 per 5 hours")
+        let weeklyExpected = 375.0 / 2048.0 * 100.0
+        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
+        #expect(usageSnapshot.secondary?.resetDescription == "375/2048 requests")
+        #expect(usageSnapshot.secondary?.windowMinutes == nil)
 
         #expect(usageSnapshot.tertiary == nil)
         #expect(usageSnapshot.updatedAt == now)
+    }
+
+    @Test
+    func `converts additional Kimi rate limits to extra windows`() {
+        let now = Date()
+        let weeklyDetail = KimiUsageDetail(
+            limit: "2048",
+            used: "375",
+            remaining: "1673",
+            resetTime: "2026-01-09T15:23:13.373329235Z")
+        let rateLimits = [
+            KimiRateLimit(
+                window: KimiWindow(duration: 300, timeUnit: "TIME_UNIT_MINUTE"),
+                detail: KimiUsageDetail(
+                    limit: "200",
+                    used: "20",
+                    remaining: "180",
+                    resetTime: "2026-01-06T15:05:24.374187075Z")),
+            KimiRateLimit(
+                window: KimiWindow(duration: 1, timeUnit: "TIME_UNIT_DAY"),
+                detail: KimiUsageDetail(
+                    limit: "500",
+                    used: "50",
+                    remaining: "450",
+                    resetTime: "2026-01-07T15:05:24.374187075Z")),
+        ]
+
+        let usageSnapshot = KimiUsageSnapshot(
+            weekly: weeklyDetail,
+            rateLimits: rateLimits,
+            updatedAt: now).toUsageSnapshot()
+
+        #expect(usageSnapshot.extraRateWindows?.count == 1)
+        #expect(usageSnapshot.extraRateWindows?.first?.id == "kimi-session-2")
+        #expect(usageSnapshot.extraRateWindows?.first?.title == "Session (1 day)")
+        #expect(usageSnapshot.extraRateWindows?.first?.window.windowMinutes == 1440)
+        #expect(usageSnapshot.extraRateWindows?.first?.window.resetDescription == "50/500 requests per 1 day")
     }
 
     @Test

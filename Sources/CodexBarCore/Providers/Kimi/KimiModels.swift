@@ -89,12 +89,12 @@ public struct KimiUsageDetail: Codable, Sendable {
     }
 }
 
-struct KimiRateLimit: Codable {
+struct KimiRateLimit: Codable, Sendable {
     let window: KimiWindow
     let detail: KimiUsageDetail
 }
 
-struct KimiWindow: Codable {
+struct KimiWindow: Codable, Sendable {
     let duration: Int
     let timeUnit: String
 }

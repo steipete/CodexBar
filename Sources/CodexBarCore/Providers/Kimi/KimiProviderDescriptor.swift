@@ -9,8 +9,8 @@ public enum KimiProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .kimi,
                 displayName: "Kimi",
-                sessionLabel: "Weekly",
-                weeklyLabel: "Rate Limit",
+                sessionLabel: "Session",
+                weeklyLabel: "Weekly",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
@@ -58,20 +58,21 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiToken
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        context.sourceMode == .api || Self.resolveToken(environment: context.env) != nil
+        if context.sourceMode == .api { return true }
+        return await Self.resolveToken(environment: context.env) != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
+        guard let resolution = await Self.resolveToken(environment: context.env) else {
             throw KimiAPIError.missingAPIKey
         }
         let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
         let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
-            apiKey: apiKey,
+            apiKey: resolution.token,
             baseURL: baseURL)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "api")
+            sourceLabel: resolution.source == .authFile ? "kimi-code" : "api")
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -87,8 +88,8 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
         return false
     }
 
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.kimiAPIToken(environment: environment)
+    private static func resolveToken(environment: [String: String]) async -> ProviderTokenResolution? {
+        await ProviderTokenResolver.kimiAPIResolutionRefreshing(environment: environment)
     }
 }
 

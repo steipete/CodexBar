@@ -12,14 +12,14 @@ Tracks usage for [Kimi For Coding](https://www.kimi.com/code) in CodexBar.
 
 ## Features
 
+- Shows current session/rate-limit usage first
 - Displays weekly request quota (from membership tier)
-- Shows current 5-hour rate limit usage
-- API-key, automatic cookie, and manual cookie authentication methods
+- API-key, Kimi Code OAuth credential, automatic cookie, and manual cookie authentication methods
 - Automatic refresh countdown
 
 ## Setup
 
-Choose one of three authentication methods:
+Choose one of four authentication methods:
 
 ### Method 1: Kimi Code API Key (Recommended)
 
@@ -38,7 +38,26 @@ export KIMI_CODE_API_KEY="kimi-code-api-key-here"
 CodexBar calls `GET https://api.kimi.com/coding/v1/usages` with the API key. Set
 `KIMI_CODE_BASE_URL` only when testing a compatible HTTPS proxy or alternate host.
 
-### Method 2: Automatic Browser Import
+### Method 2: Kimi Code OAuth Credential
+
+If you have signed in with the official Kimi Code CLI, CodexBar can reuse its OAuth credential file:
+
+```text
+~/.kimi-code/credentials/kimi-code.json
+```
+
+Set `KIMI_CODE_HOME` only when the official CLI uses a non-default home directory:
+
+```bash
+export KIMI_CODE_HOME="/path/to/kimi-code-home"
+```
+
+CodexBar uses the stored `access_token` for the same `GET https://api.kimi.com/coding/v1/usages`
+endpoint. If the access token is expired and the file has a `refresh_token`, CodexBar refreshes the
+credential through `https://auth.kimi.com/api/oauth/token` before giving up. For compatible test
+OAuth hosts, set `KIMI_CODE_OAUTH_HOST` or `KIMI_OAUTH_HOST` to an HTTPS URL.
+
+### Method 3: Automatic Browser Import
 
 **No setup needed!** If you're already logged in to Kimi in Arc, Chrome, Safari, Edge, Brave, or Chromium:
 
@@ -49,7 +68,7 @@ CodexBar calls `GET https://api.kimi.com/coding/v1/usages` with the API key. Set
 
 **Note**: Requires Full Disk Access to read browser cookies (System Settings → Privacy & Security → Full Disk Access → CodexBar).
 
-### Method 3: Manual Token Entry
+### Method 4: Manual Token Entry
 
 For advanced users or when automatic import fails:
 
@@ -74,19 +93,31 @@ export KIMI_AUTH_TOKEN="jwt-token-here"
 When multiple sources are available, CodexBar uses this order:
 
 1. API key (`providers[].apiKey` or `KIMI_CODE_API_KEY`) in Auto mode
-2. Manual cookie/token (from Settings UI) when web fallback is used
-3. Cookie environment variable (`KIMI_AUTH_TOKEN`)
-4. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
+2. Kimi Code OAuth credential (`~/.kimi-code/credentials/kimi-code.json`, or `KIMI_CODE_HOME`)
+3. Manual cookie/token (from Settings UI) when web fallback is used
+4. Cookie environment variable (`KIMI_AUTH_TOKEN`)
+5. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
 
 **Note**: Browser cookie import requires Full Disk Access permission.
 
 ## API Details
 
+## Display Semantics
+
+CodexBar maps Kimi's short-window rate limit to **Session** and shows it before the account-wide
+**Weekly** quota. The Kimi API can return more than one `limits[]` window; CodexBar keeps additional
+windows as extra session limits instead of flattening everything into the first 5-hour bucket.
+
+Model usage is best-effort when it becomes available. Kimi quotas are account-wide, so activity from
+Kimi Code CLI, browser sessions, CodexBar, or pi-provider-kimi-code can share the same quota without a
+stable per-tool attribution trail. CodexBar treats Kimi-reported quota and plan context as the source
+of truth, and avoids presenting inferred model cost as authoritative.
+
 ### Kimi Code API key
 
 **Endpoint**: `GET https://api.kimi.com/coding/v1/usages`
 
-**Authentication**: Bearer token (from `providers[].apiKey` or `KIMI_CODE_API_KEY`)
+**Authentication**: Bearer token (from `providers[].apiKey`, `KIMI_CODE_API_KEY`, or the Kimi Code OAuth credential file)
 
 **Response**:
 ```json
