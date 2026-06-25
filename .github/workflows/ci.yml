@@ -86,7 +86,7 @@ jobs:
   swift-test-macos:
     needs: changes
     if: ${{ needs.changes.outputs.macos-tests == 'true' }}
-    runs-on: macos-15-intel
+    runs-on: macos-15
     timeout-minutes: 40
     strategy:
       fail-fast: false
