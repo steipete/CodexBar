@@ -5,19 +5,40 @@ public struct KimiUsageSnapshot: Sendable {
     public let rateLimit: KimiUsageDetail?
     let rateLimits: [KimiRateLimit]
     public let updatedAt: Date
+    let modelDisplayName: String?
 
-    public init(weekly: KimiUsageDetail, rateLimit: KimiUsageDetail?, updatedAt: Date) {
+    public init(
+        weekly: KimiUsageDetail,
+        rateLimit: KimiUsageDetail?,
+        updatedAt: Date,
+        modelDisplayName: String? = nil)
+    {
         self.weekly = weekly
         self.rateLimit = rateLimit
         self.rateLimits = []
         self.updatedAt = updatedAt
+        self.modelDisplayName = modelDisplayName
     }
 
-    init(weekly: KimiUsageDetail, rateLimits: [KimiRateLimit], updatedAt: Date) {
+    init(
+        weekly: KimiUsageDetail,
+        rateLimits: [KimiRateLimit],
+        updatedAt: Date,
+        modelDisplayName: String? = nil)
+    {
         self.weekly = weekly
         self.rateLimit = rateLimits.first?.detail
         self.rateLimits = rateLimits
         self.updatedAt = updatedAt
+        self.modelDisplayName = modelDisplayName
+    }
+
+    func withModelDisplayName(_ modelDisplayName: String?) -> KimiUsageSnapshot {
+        KimiUsageSnapshot(
+            weekly: self.weekly,
+            rateLimits: self.rateLimits,
+            updatedAt: self.updatedAt,
+            modelDisplayName: modelDisplayName)
     }
 
     private static func parseDate(_ dateString: String?) -> Date? {
@@ -112,7 +133,7 @@ extension KimiUsageSnapshot {
             providerID: .kimi,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: nil)
+            loginMethod: KimiCodePricing.modeLabel(displayName: self.modelDisplayName))
 
         return UsageSnapshot(
             primary: sessionWindow ?? weeklyWindow,

@@ -639,6 +639,13 @@ enum PiSessionCostScanner {
                 pricingDate: pricingDate,
                 modelsDevCatalog: pricingContext?.catalog,
                 modelsDevCacheRoot: pricingContext?.cacheRoot)
+        case .kimi:
+            KimiCodePricing.costUSD(
+                modelName: modelName,
+                inputTokens: usage.inputTokens,
+                cacheReadTokens: usage.cacheReadTokens,
+                cacheWriteTokens: usage.cacheWriteTokens,
+                outputTokens: usage.outputTokens)
         default:
             nil
         }
@@ -950,7 +957,8 @@ enum KimiCodeSessionCostScanner {
         let checkCancellation: CostUsageScanner.CancellationCheck?
     }
 
-    private static let artifactVersion = 1
+    private static let artifactVersion = 2
+    private static let costScale = 1_000_000_000.0
     private static let maxLineBytes = 16 * 1024 * 1024
     private static let maxSafeRoundedInt = Double(Int.max) - 1
 
@@ -1146,7 +1154,9 @@ enum KimiCodeSessionCostScanner {
                             return
                         }
                         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
-                        add(dayKey: dayKey, modelName: modelName, usage: self.extractUsage(usageObject))
+                        add(dayKey: dayKey, modelName: modelName, usage: self.extractUsage(
+                            usageObject,
+                            modelName: modelName))
                     }
                 })
         } catch is CancellationError {
@@ -1158,7 +1168,7 @@ enum KimiCodeSessionCostScanner {
         return ParseResult(contributions: contributions, parsedBytes: parsedBytes)
     }
 
-    private static func extractUsage(_ usage: [String: Any]) -> PiPackedUsage {
+    private static func extractUsage(_ usage: [String: Any], modelName: String) -> PiPackedUsage {
         let input = self.readNonNegativeInt(
             usage["inputOther"] ?? usage["input"] ?? usage["input_tokens"] ?? usage["prompt_tokens"])
         let cacheRead = self.readNonNegativeInt(
@@ -1167,14 +1177,20 @@ enum KimiCodeSessionCostScanner {
             usage["inputCacheCreation"] ?? usage["cacheWrite"] ?? usage["cache_creation_input_tokens"])
         let output = self.readNonNegativeInt(usage["output"] ?? usage["output_tokens"] ?? usage["completion_tokens"])
         let total = input + cacheRead + cacheWrite + output
+        let costUSD = KimiCodePricing.costUSD(
+            modelName: modelName,
+            inputTokens: input,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite,
+            outputTokens: output)
         return PiPackedUsage(
             inputTokens: input,
             cacheReadTokens: cacheRead,
             cacheWriteTokens: cacheWrite,
             outputTokens: output,
             totalTokens: total,
-            costNanos: 0,
-            costSampleCount: 0,
+            costNanos: Int64((costUSD * self.costScale).rounded()),
+            costSampleCount: total > 0 ? 1 : 0,
             usageSampleCount: total > 0 ? 1 : 0)
     }
 
@@ -1211,6 +1227,8 @@ enum KimiCodeSessionCostScanner {
         var totalCacheRead = 0
         var totalCacheWrite = 0
         var totalTokens = 0
+        var totalCostNanos: Int64 = 0
+        var totalCostSamples = 0
 
         for dayKey in dayKeys {
             guard let models = cache.days[dayKey] else { continue }
@@ -1219,6 +1237,8 @@ enum KimiCodeSessionCostScanner {
             var dayCacheRead = 0
             var dayCacheWrite = 0
             var dayTotalTokens = 0
+            var dayCostNanos: Int64 = 0
+            var dayCostSamples = 0
             var requestCount = 0
             var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
 
@@ -1228,9 +1248,10 @@ enum KimiCodeSessionCostScanner {
                     packed.totalTokens,
                     packed.inputTokens + packed.cacheReadTokens + packed.cacheWriteTokens + packed.outputTokens)
                 let modelRequests = packed.usageSampleCount ?? 0
+                let modelCostNanos = packed.costSampleCount > 0 ? packed.costNanos : nil
                 breakdown.append(CostUsageDailyReport.ModelBreakdown(
                     modelName: modelName,
-                    costUSD: nil,
+                    costUSD: modelCostNanos.map { Double($0) / Self.costScale },
                     totalTokens: modelTotalTokens > 0 ? modelTotalTokens : nil,
                     requestCount: modelRequests > 0 ? modelRequests : nil))
                 dayInput += packed.inputTokens
@@ -1238,6 +1259,10 @@ enum KimiCodeSessionCostScanner {
                 dayCacheRead += packed.cacheReadTokens
                 dayCacheWrite += packed.cacheWriteTokens
                 dayTotalTokens += modelTotalTokens
+                if let modelCostNanos {
+                    dayCostNanos += modelCostNanos
+                    dayCostSamples += packed.costSampleCount
+                }
                 requestCount += modelRequests
             }
 
@@ -1249,7 +1274,7 @@ enum KimiCodeSessionCostScanner {
                 cacheCreationTokens: dayCacheWrite > 0 ? dayCacheWrite : nil,
                 totalTokens: dayTotalTokens > 0 ? dayTotalTokens : nil,
                 requestCount: requestCount > 0 ? requestCount : nil,
-                costUSD: nil,
+                costUSD: dayCostSamples > 0 ? Double(dayCostNanos) / Self.costScale : nil,
                 modelsUsed: breakdown.map(\.modelName),
                 modelBreakdowns: breakdown.isEmpty ? nil : breakdown))
             totalInput += dayInput
@@ -1257,6 +1282,8 @@ enum KimiCodeSessionCostScanner {
             totalCacheRead += dayCacheRead
             totalCacheWrite += dayCacheWrite
             totalTokens += dayTotalTokens
+            totalCostNanos += dayCostNanos
+            totalCostSamples += dayCostSamples
         }
 
         let summary = entries.isEmpty ? nil : CostUsageDailyReport.Summary(
@@ -1265,7 +1292,7 @@ enum KimiCodeSessionCostScanner {
             cacheReadTokens: totalCacheRead > 0 ? totalCacheRead : nil,
             cacheCreationTokens: totalCacheWrite > 0 ? totalCacheWrite : nil,
             totalTokens: totalTokens > 0 ? totalTokens : nil,
-            totalCostUSD: nil)
+            totalCostUSD: totalCostSamples > 0 ? Double(totalCostNanos) / Self.costScale : nil)
         return CostUsageDailyReport(data: entries, summary: summary)
     }
 

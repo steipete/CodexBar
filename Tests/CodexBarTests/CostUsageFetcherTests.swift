@@ -877,7 +877,7 @@ struct CostUsageFetcherTests {
         #expect(enabled.last30DaysTokens == 170)
         #expect(enabled.daily.first?.requestCount == 1)
         #expect(enabled.daily.first?.modelBreakdowns?.first?.modelName == "kimi-k2-turbo-preview")
-        #expect(enabled.last30DaysCostUSD == nil)
+        #expect(abs((enabled.last30DaysCostUSD ?? 0) - 0.00024762) < 0.00000001)
         #expect(disabled.daily.isEmpty)
     }
 
@@ -922,6 +922,7 @@ struct CostUsageFetcherTests {
         #expect(snapshot.sessionTokens == 35)
         #expect(snapshot.last30DaysTokens == 35)
         #expect(snapshot.daily.first?.modelsUsed == ["kimi-k2-turbo-preview"])
+        #expect(abs((snapshot.last30DaysCostUSD ?? 0) - 0.000057511) < 0.000000001)
     }
 
     private static func writeCodexSessionFile(

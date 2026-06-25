@@ -9,6 +9,62 @@ struct KimiCodeAPIUsageResponse: Codable {
     let limits: [KimiRateLimit]?
 }
 
+struct KimiCodeAPIModelsResponse: Codable {
+    let data: [KimiCodeAPIModel]
+}
+
+struct KimiCodeAPIModel: Codable, Sendable {
+    let id: String
+    let displayName: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+    }
+}
+
+enum KimiCodePricing {
+    // Pricing per million tokens in USD, matching pi-provider-kimi-code.
+    // Source: https://platform.kimi.com/docs/pricing/chat-k27-code
+    private static let standard = Rates(input: 0.897, output: 3.724, cacheRead: 0.179, cacheWrite: 0.897)
+    private static let highSpeed = Rates(input: 1.793, output: 7.448, cacheRead: 0.359, cacheWrite: 1.793)
+
+    private struct Rates {
+        let input: Double
+        let output: Double
+        let cacheRead: Double
+        let cacheWrite: Double
+    }
+
+    static func isHighSpeed(_ text: String?) -> Bool {
+        guard let text else { return false }
+        return text.range(of: #"high\s*[- ]?\s*speed|fast"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    static func modeLabel(displayName: String?) -> String? {
+        guard let displayName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !displayName.isEmpty
+        else {
+            return nil
+        }
+        return self.isHighSpeed(displayName) ? "High Speed" : "Standard"
+    }
+
+    static func costUSD(
+        modelName: String,
+        inputTokens: Int,
+        cacheReadTokens: Int,
+        cacheWriteTokens: Int,
+        outputTokens: Int) -> Double
+    {
+        let rates = self.isHighSpeed(modelName) ? self.highSpeed : self.standard
+        return (Double(inputTokens) * rates.input
+            + Double(cacheReadTokens) * rates.cacheRead
+            + Double(cacheWriteTokens) * rates.cacheWrite
+            + Double(outputTokens) * rates.output) / 1_000_000
+    }
+}
+
 struct KimiUsage: Codable {
     let scope: String
     let detail: KimiUsageDetail

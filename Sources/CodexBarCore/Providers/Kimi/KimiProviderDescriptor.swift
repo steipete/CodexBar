@@ -67,12 +67,18 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
             throw KimiAPIError.missingAPIKey
         }
         let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
-        let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
+        var snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
             apiKey: resolution.token,
             baseURL: baseURL)
+        if let modelDisplayName = try? await KimiUsageFetcher.fetchCodeAPIModelDisplayName(
+            apiKey: resolution.token,
+            baseURL: baseURL)
+        {
+            snapshot = snapshot.withModelDisplayName(modelDisplayName)
+        }
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: resolution.source == .authFile ? "kimi-code" : "api")
+            sourceLabel: resolution.source == .authFile ? "Kimi Code credential" : "Kimi Code API key")
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -117,14 +123,14 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let token = self.resolveToken(context: context) else {
+        guard let resolution = self.resolveToken(context: context) else {
             throw KimiAPIError.missingToken
         }
 
-        let snapshot = try await KimiUsageFetcher.fetchUsage(authToken: token)
+        let snapshot = try await KimiUsageFetcher.fetchUsage(authToken: resolution.token)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "web")
+            sourceLabel: resolution.sourceLabel)
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -133,10 +139,10 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
         return true
     }
 
-    private func resolveToken(context: ProviderFetchContext) -> String? {
+    private func resolveToken(context: ProviderFetchContext) -> (token: String, sourceLabel: String)? {
         // Check manual cookie first (highest priority when set)
         if let override = KimiCookieHeader.resolveCookieOverride(context: context) {
-            return override.token
+            return (override.token, "Kimi web cookie")
         }
 
         // Try browser cookie import when auto mode is enabled
@@ -145,7 +151,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
             do {
                 let session = try KimiCookieImporter.importSession()
                 if let token = session.authToken {
-                    return token
+                    return (token, "Kimi web cookie")
                 }
             } catch {
                 // No browser cookies found
@@ -155,7 +161,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
 
         // Fall back to environment
         if let override = Self.resolveToken(environment: context.env) {
-            return override
+            return (override, "Kimi web cookie")
         }
         return nil
     }

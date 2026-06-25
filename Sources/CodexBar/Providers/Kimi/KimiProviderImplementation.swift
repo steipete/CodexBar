@@ -28,7 +28,27 @@ struct KimiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
-        context.settings.kimiUsageDataSource.rawValue
+        switch context.settings.kimiUsageDataSource {
+        case .api:
+            return "Kimi Code API key"
+        case .web:
+            return "Kimi web cookie"
+        case .auto:
+            if !context.settings.kimiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Kimi Code API key"
+            }
+            if KimiSettingsReader.kimiCodeAccessToken() != nil {
+                return "Kimi Code credential"
+            }
+            if context.settings.kimiCookieSource != .off,
+               !context.settings.kimiManualCookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return "Kimi web cookie"
+            }
+            return "Auto"
+        case .cli, .oauth:
+            return "Auto"
+        }
     }
 
     @MainActor
@@ -41,6 +61,34 @@ struct KimiProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        [
+            ProviderSettingsToggleDescriptor(
+                id: "kimi-cost-pi-sessions",
+                title: "Analyze Pi sessions",
+                subtitle: "Use local Pi session token records for Kimi daily usage and cost.",
+                binding: context.boolBinding(\.costUsagePiSessionsEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: { context.settings.costUsageEnabled },
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "kimi-cost-kimi-code-sessions",
+                title: "Analyze Kimi Code sessions",
+                subtitle: "Use local Kimi Code wire.jsonl token records; raw prompts are not shown.",
+                binding: context.boolBinding(\.costUsageKimiCodeSessionsEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: { context.settings.costUsageEnabled },
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+        ]
+    }
+
+    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let usageBinding = Binding(
             get: { context.settings.kimiUsageDataSource.rawValue },
@@ -49,8 +97,8 @@ struct KimiProviderImplementation: ProviderImplementation {
             })
         let usageOptions = [
             ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
-            ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "API key"),
-            ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
+            ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "Kimi Code API key"),
+            ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Kimi web cookie"),
         ]
 
         let cookieBinding = Binding(
@@ -75,7 +123,7 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "kimi-usage-source",
                 title: "Usage source",
-                subtitle: "Auto uses the Kimi Code API key first, then falls back to browser cookies.",
+                subtitle: "Auto uses the Kimi Code API key or credential first, then falls back to Kimi web cookies.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,

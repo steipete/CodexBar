@@ -586,6 +586,62 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
+    func `builds code API models endpoint`() throws {
+        let baseURL = try #require(URL(string: "https://api.kimi.com"))
+        let endpoint = KimiUsageFetcher._codeAPIModelsEndpointForTesting(baseURL: baseURL)
+
+        #expect(endpoint.absoluteString == "https://api.kimi.com/coding/v1/models")
+    }
+
+    @Test
+    func `marks high speed model display as login method`() {
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
+            rateLimit: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            modelDisplayName: "Kimi for Coding High Speed")
+            .toUsageSnapshot()
+
+        #expect(snapshot.loginMethod(for: .kimi) == "High Speed")
+    }
+
+    @Test
+    func `marks standard model display as login method`() {
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
+            rateLimit: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            modelDisplayName: "Kimi for Coding")
+            .toUsageSnapshot()
+
+        #expect(snapshot.loginMethod(for: .kimi) == "Standard")
+    }
+
+    @Test
+    func `uses pi provider Kimi standard pricing`() {
+        let cost = KimiCodePricing.costUSD(
+            modelName: "kimi-for-coding",
+            inputTokens: 100,
+            cacheReadTokens: 25,
+            cacheWriteTokens: 5,
+            outputTokens: 40)
+
+        #expect(abs(cost - 0.00024762) < 0.00000001)
+    }
+
+    @Test
+    func `uses pi provider Kimi high speed pricing`() {
+        let cost = KimiCodePricing.costUSD(
+            modelName: "Kimi for Coding High Speed",
+            inputTokens: 100,
+            cacheReadTokens: 25,
+            cacheWriteTokens: 5,
+            outputTokens: 40)
+
+        #expect(abs(cost - 0.00049516) < 0.00000001)
+    }
+
+    @Test
     func `rejects insecure code API base URL before sending bearer token`() async throws {
         let baseURL = try #require(URL(string: "http://proxy.example.com/kimi"))
 
