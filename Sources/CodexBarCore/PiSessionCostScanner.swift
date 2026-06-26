@@ -717,6 +717,7 @@ extension PiSessionCostScanner {
             var dayTotalTokens = 0
             var dayCostNanos: Int64 = 0
             var dayCostSamples = 0
+            var dayRequests = 0
             var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
 
             for modelName in modelNames {
@@ -730,7 +731,8 @@ extension PiSessionCostScanner {
                     usage: packed,
                     pricingContext: pricingContext)
                 let usageSampleCount = packed.usageSampleCount
-                let hasCompleteCachedCost = (usageSampleCount ?? 0) > 0
+                let modelRequests = usageSampleCount ?? 0
+                let hasCompleteCachedCost = modelRequests > 0
                     && packed.costSampleCount == usageSampleCount
                 // Cached costs are accumulated per message, which preserves Claude long-context threshold boundaries.
                 let costNanos = hasCompleteCachedCost
@@ -739,12 +741,14 @@ extension PiSessionCostScanner {
                 breakdown.append(CostUsageDailyReport.ModelBreakdown(
                     modelName: modelName,
                     costUSD: costNanos.map { Double($0) / Self.costScale },
-                    totalTokens: modelTotalTokens > 0 ? modelTotalTokens : nil))
+                    totalTokens: modelTotalTokens > 0 ? modelTotalTokens : nil,
+                    requestCount: modelRequests > 0 ? modelRequests : nil))
                 dayInput += packed.inputTokens
                 dayOutput += packed.outputTokens
                 dayCacheRead += packed.cacheReadTokens
                 dayCacheWrite += packed.cacheWriteTokens
                 dayTotalTokens += modelTotalTokens
+                dayRequests += modelRequests
                 if let costNanos {
                     dayCostNanos += costNanos
                     dayCostSamples += 1
@@ -759,6 +763,7 @@ extension PiSessionCostScanner {
                 cacheReadTokens: dayCacheRead > 0 ? dayCacheRead : nil,
                 cacheCreationTokens: dayCacheWrite > 0 ? dayCacheWrite : nil,
                 totalTokens: dayTotalTokens > 0 ? dayTotalTokens : nil,
+                requestCount: dayRequests > 0 ? dayRequests : nil,
                 costUSD: dayCostSamples > 0 ? Double(dayCostNanos) / Self.costScale : nil,
                 modelsUsed: modelNames,
                 modelBreakdowns: sortedBreakdown))
