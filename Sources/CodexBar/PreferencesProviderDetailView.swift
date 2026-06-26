@@ -83,6 +83,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         else {
             return nil
         }
+        if provider == .kimi {
+            return (label: "Tier", value: rawPlan)
+        }
         guard provider == .openrouter || provider == .mimo || provider == .moonshot || provider == .poe else {
             return (label: L("Plan"), value: rawPlan)
         }

@@ -522,6 +522,11 @@ struct MenuDescriptor {
                 let value = balanceValue.isEmpty ? loginMethodText : balanceValue
                 entries.append(
                     .text("\(L("Balance")): \(AccountFormatter.plan(value, provider: provider))", .secondary))
+            } else if provider == .kimi {
+                entries.append(
+                    .text(
+                        "Tier: \(AccountFormatter.plan(loginMethodText, provider: provider))",
+                        .secondary))
             } else {
                 entries.append(
                     .text(
