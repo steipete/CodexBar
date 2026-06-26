@@ -415,11 +415,17 @@ struct KiroStatusProbeTests {
         let snapshot = try await probe.fetch()
         let elapsed = Date().timeIntervalSince(start)
 
-        // The PTY runner returns as soon as the main CLI process exits; it must not block waiting
-        // on a detached helper that keeps the terminal open. (The helper is reaped by the defer above.)
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        for _ in 0..<50 where kill(childPID, 0) == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        // The PTY runner must return promptly and reap a detached helper that keeps the terminal open.
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50)
         #expect(elapsed < 8, "Kiro usage capture should return promptly even with a detached child, took \(elapsed)s")
+        #expect(kill(childPID, 0) == -1)
     }
 
     @Test

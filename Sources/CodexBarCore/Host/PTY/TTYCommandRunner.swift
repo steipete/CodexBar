@@ -599,11 +599,14 @@ public struct TTYCommandRunner {
                 try? writeAllToPrimary(exitData)
             }
 
-            try? primaryHandle.close()
             try? secondaryHandle.close()
 
-            guard let launchedProcess else { return }
+            guard let launchedProcess else {
+                try? primaryHandle.close()
+                return
+            }
             launchedProcess.terminateSynchronously()
+            try? primaryHandle.close()
             TTYCommandRunnerActiveProcessRegistry.unregister(pid: launchedProcess.pid)
         }
 
