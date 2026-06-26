@@ -316,6 +316,100 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         return SpawnedProcessGroup(pid: pid, outputPipes: outputPipes)
     }
 
+    package static func launchPTY(
+        binary: String,
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: URL?,
+        fileDescriptors: (primary: Int32, secondary: Int32)) throws -> SpawnedProcessGroup
+    {
+        let primaryFD = fileDescriptors.primary
+        let secondaryFD = fileDescriptors.secondary
+        #if canImport(Darwin)
+        var fileActions: posix_spawn_file_actions_t?
+        #else
+        var fileActions = posix_spawn_file_actions_t()
+        #endif
+        guard posix_spawn_file_actions_init(&fileActions) == 0 else {
+            throw LaunchError.setupFailed("posix_spawn_file_actions_init")
+        }
+        defer { posix_spawn_file_actions_destroy(&fileActions) }
+
+        var fileActionResults = [
+            posix_spawn_file_actions_adddup2(&fileActions, secondaryFD, STDIN_FILENO),
+            posix_spawn_file_actions_adddup2(&fileActions, secondaryFD, STDOUT_FILENO),
+            posix_spawn_file_actions_adddup2(&fileActions, secondaryFD, STDERR_FILENO),
+        ]
+        for descriptor in Self.pipeDescriptorsToClose([primaryFD, secondaryFD]) {
+            fileActionResults.append(posix_spawn_file_actions_addclose(&fileActions, descriptor))
+        }
+        if let workingDirectory {
+            fileActionResults.append(workingDirectory.path.withCString { path in
+                posix_spawn_file_actions_addchdir_np(&fileActions, path)
+            })
+        }
+        #if canImport(Glibc) || canImport(Musl)
+        do {
+            try PosixSpawnFileActionsCloseFrom.addCloseFrom(
+                &fileActions,
+                startingAt: STDERR_FILENO + 1)
+        } catch {
+            throw LaunchError.setupFailed(error.localizedDescription)
+        }
+        #endif
+        guard fileActionResults.allSatisfy({ $0 == 0 }) else {
+            throw LaunchError.setupFailed("posix_spawn PTY file actions")
+        }
+
+        #if canImport(Darwin)
+        var attributes: posix_spawnattr_t?
+        #else
+        var attributes = posix_spawnattr_t()
+        #endif
+        guard posix_spawnattr_init(&attributes) == 0 else {
+            throw LaunchError.setupFailed("posix_spawnattr_init")
+        }
+        defer { posix_spawnattr_destroy(&attributes) }
+
+        #if canImport(Darwin)
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT
+        #else
+        let flags = POSIX_SPAWN_SETPGROUP
+        #endif
+        guard posix_spawnattr_setflags(&attributes, Int16(flags)) == 0,
+              posix_spawnattr_setpgroup(&attributes, 0) == 0
+        else {
+            throw LaunchError.setupFailed("posix_spawn PTY process group")
+        }
+
+        var cArguments: [UnsafeMutablePointer<CChar>?] = ([binary] + arguments).map { strdup($0) }
+        cArguments.append(nil)
+        defer {
+            for argument in cArguments {
+                free(argument)
+            }
+        }
+
+        var cEnvironment: [UnsafeMutablePointer<CChar>?] = environment.map { key, value in
+            strdup("\(key)=\(value)")
+        }
+        cEnvironment.append(nil)
+        defer {
+            for entry in cEnvironment {
+                free(entry)
+            }
+        }
+
+        var pid: pid_t = 0
+        let spawnResult = binary.withCString { path in
+            posix_spawn(&pid, path, &fileActions, &attributes, cArguments, cEnvironment)
+        }
+        guard spawnResult == 0 else {
+            throw LaunchError.spawnFailed(String(cString: strerror(spawnResult)))
+        }
+        return SpawnedProcessGroup(pid: pid, outputPipes: [])
+    }
+
     package var isRunning: Bool {
         !self.termination.hasObservedExit
     }
@@ -326,6 +420,48 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
 
     package var hasResidualProcessGroup: Bool {
         Self.processGroupExists(self.processGroup)
+    }
+
+    @discardableResult
+    package func terminateSynchronously(grace: TimeInterval = 0.4) -> Int32? {
+        let deadline = Date().addingTimeInterval(max(0, grace))
+        var processIdentities = self.currentResidualProcessIdentities(includeDescendants: true)
+        processIdentities.formUnion(self.currentProcessGroupMemberIdentities())
+        if let rootIdentity = self.rootIdentity {
+            processIdentities.insert(rootIdentity)
+        }
+        Self.signal(processIdentities: processIdentities, signal: SIGTERM)
+
+        while processIdentities.contains(where: TTYProcessTreeTerminator.isCurrent(_:)),
+              Date() < deadline
+        {
+            usleep(20000)
+        }
+
+        processIdentities.formUnion(self.currentResidualProcessIdentities(includeDescendants: self.isRunning))
+        processIdentities.formUnion(self.currentProcessGroupMemberIdentities())
+        if self.isRunning, let rootIdentity = self.rootIdentity {
+            processIdentities.insert(rootIdentity)
+        }
+        Self.signal(processIdentities: processIdentities, signal: SIGKILL)
+
+        let killDeadline = Date().addingTimeInterval(max(0, grace))
+        while processIdentities.contains(where: TTYProcessTreeTerminator.isCurrent(_:)),
+              Date() < killDeadline
+        {
+            usleep(20000)
+        }
+        return self.finishSynchronously()
+    }
+
+    @discardableResult
+    package func finishSynchronously(timeout: TimeInterval = 1) -> Int32? {
+        self.termination.requestReap()
+        let deadline = Date().addingTimeInterval(max(0, timeout))
+        while self.terminationStatus == nil, Date() < deadline {
+            usleep(10000)
+        }
+        return self.terminationStatus
     }
 
     @discardableResult
