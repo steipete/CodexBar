@@ -80,11 +80,16 @@ public enum UsageFormatter {
 
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
-        let clamped = min(100, max(0, percent))
         let suffix = showUsed
             ? self.localized("usage_percent_suffix_used")
             : self.localized("usage_percent_suffix_left")
-        return String(format: "%.0f%% %@", clamped, suffix)
+        return "\(self.percentString(percent)) \(suffix)"
+    }
+
+    public static func percentString(_ percent: Double) -> String {
+        let clamped = min(100, max(0, percent))
+        if clamped > 0, clamped < 1 { return "<1%" }
+        return String(format: "%.0f%%", clamped)
     }
 
     public static func resetCountdownDescription(from date: Date, now: Date = .init()) -> String {

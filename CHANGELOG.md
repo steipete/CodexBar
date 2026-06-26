@@ -7,6 +7,7 @@
 
 ### Fixed
 - Mistral: restore Vibe monthly-plan usage by forwarding only required console session cookies. Thanks @lfmundim!
+- Usage display: keep positive values below one percent visible instead of rounding them to zero. Thanks @Max0633!
 
 ## 0.37.3 — 2026-06-23
 
