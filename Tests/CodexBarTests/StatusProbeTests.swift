@@ -77,7 +77,7 @@ struct StatusProbeTests {
                 hour: 12,
                 minute: 0)))
         let sample = """
-        Model: gpt-5.5
+        Model: codex-status-fixture
         Monthly credit limit: [██████████████████░░] 92% left (resets 08:00 on 1 Jul)
                             7,761 of 100,000 credits used
         """
