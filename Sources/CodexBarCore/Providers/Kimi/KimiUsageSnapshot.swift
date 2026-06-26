@@ -127,7 +127,11 @@ public struct KimiUsageSnapshot: Sendable {
 extension KimiUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
         let weeklyWindow = Self.usageWindow(from: self.weekly)
-        let sessionWindow = self.rateLimits.first.map { Self.usageWindow(from: $0.detail, window: $0.window) }
+        let sessionWindow = if let firstRateLimit = self.rateLimits.first {
+            Self.usageWindow(from: firstRateLimit.detail, window: firstRateLimit.window)
+        } else {
+            self.rateLimit.map { Self.usageWindow(from: $0) }
+        }
         let extraWindows = self.rateLimits.dropFirst().enumerated().map { offset, rateLimit in
             NamedRateWindow(
                 id: "kimi-session-\(offset + 2)",

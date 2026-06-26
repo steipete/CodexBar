@@ -874,7 +874,9 @@ struct CostUsageFetcherTests {
             sourceOptions: CostUsageSourceOptions(piSessionsEnabled: false, kimiCodeSessionsEnabled: false))
 
         #expect(enabled.sessionTokens == 170)
+        #expect(enabled.sessionRequests == 1)
         #expect(enabled.last30DaysTokens == 170)
+        #expect(enabled.last30DaysRequests == 1)
         #expect(enabled.daily.first?.requestCount == 1)
         #expect(enabled.daily.first?.modelBreakdowns?.first?.modelName == "kimi-k2-turbo-preview")
         #expect(abs((enabled.last30DaysCostUSD ?? 0) - 0.00024762) < 0.00000001)

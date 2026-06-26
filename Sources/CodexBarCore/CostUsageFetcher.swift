@@ -393,12 +393,17 @@ public struct CostUsageFetcher: Sendable {
         let totalTokensFromSummary = daily.summary?.totalTokens
         let totalTokensFromEntries = daily.data.compactMap(\.totalTokens).reduce(0, +)
         let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
+        let sessionRequests = sessionEntry?.requestCount
+        let totalRequestsFromEntries = daily.data.compactMap(\.requestCount).reduce(0, +)
+        let last30DaysRequests = totalRequestsFromEntries > 0 ? totalRequestsFromEntries : nil
 
         return CostUsageTokenSnapshot(
             sessionTokens: sessionTokens,
             sessionCostUSD: sessionCostUSD,
+            sessionRequests: sessionRequests,
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
+            last30DaysRequests: last30DaysRequests,
             historyDays: historyDays,
             daily: daily.data,
             updatedAt: now)

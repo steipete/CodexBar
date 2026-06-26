@@ -155,15 +155,38 @@ public enum KimiSettingsReader {
         _ credential: KimiCodeOAuthCredential,
         credentialsURL: URL) throws
     {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(credential)
+        var payload = self.existingKimiCodeCredentialPayload(credentialsURL: credentialsURL)
+        payload["access_token"] = credential.accessToken
+        payload["refresh_token"] = credential.refreshToken
+        if let expiresAt = credential.expiresAt {
+            payload["expires_at"] = expiresAt
+        } else {
+            payload.removeValue(forKey: "expires_at")
+        }
+        if let expiresIn = credential.expiresIn {
+            payload["expires_in"] = expiresIn
+        } else {
+            payload.removeValue(forKey: "expires_in")
+        }
+        payload["scope"] = credential.scope
+        payload["token_type"] = credential.tokenType
+
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
         try FileManager.default.createDirectory(
             at: credentialsURL.deletingLastPathComponent(),
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700])
         try data.write(to: credentialsURL, options: .atomic)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: credentialsURL.path)
+    }
+
+    private static func existingKimiCodeCredentialPayload(credentialsURL: URL) -> [String: Any] {
+        guard let data = try? Data(contentsOf: credentialsURL),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return [:]
+        }
+        return payload
     }
 
     private static func cleaned(_ raw: String?) -> String? {

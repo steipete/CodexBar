@@ -172,6 +172,14 @@ struct KimiSettingsReaderTests {
             accessToken: "expired-access-token",
             refreshToken: "refresh-token",
             expiresAt: now.addingTimeInterval(-60))
+        let credentialsURL = home
+            .appendingPathComponent("credentials", isDirectory: true)
+            .appendingPathComponent("kimi-code.json")
+        var payload = try #require(JSONSerialization
+            .jsonObject(with: Data(contentsOf: credentialsURL)) as? [String: Any])
+        payload["cli_metadata"] = ["kept": true]
+        try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+            .write(to: credentialsURL)
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.url?.absoluteString == "https://auth.kimi.com/api/oauth/token")
             #expect(request.httpMethod == "POST")
@@ -204,9 +212,14 @@ struct KimiSettingsReaderTests {
             environment: ["KIMI_CODE_HOME": home.path],
             now: now)
 
+        let refreshedPayload = try #require(JSONSerialization.jsonObject(
+            with: Data(contentsOf: credentialsURL)) as? [String: Any])
+        let metadata = try #require(refreshedPayload["cli_metadata"] as? [String: Bool])
+
         #expect(resolution?.token == "refreshed-access-token")
         #expect(resolution?.source == .authFile)
         #expect(persistedToken == "refreshed-access-token")
+        #expect(metadata["kept"] == true)
     }
 
     @Test
@@ -328,6 +341,23 @@ struct KimiAPIFetchStrategyTests {
     func `explicit API mode reports API key remediation when key is missing`() async {
         let strategy = KimiAPIFetchStrategy()
         let context = makeKimiFetchContext(sourceMode: .api)
+
+        await #expect(throws: KimiAPIError.missingAPIKey) {
+            try await strategy.fetch(context)
+        }
+    }
+
+    @Test
+    func `explicit API mode does not use Kimi Code OAuth credential`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(
+            sourceMode: .api,
+            environment: ["KIMI_CODE_HOME": home.path])
 
         await #expect(throws: KimiAPIError.missingAPIKey) {
             try await strategy.fetch(context)
@@ -800,6 +830,29 @@ struct KimiUsageSnapshotConversionTests {
         #expect(usageSnapshot.extraRateWindows?.first?.title == "Session (1 day)")
         #expect(usageSnapshot.extraRateWindows?.first?.window.windowMinutes == 1440)
         #expect(usageSnapshot.extraRateWindows?.first?.window.resetDescription == "50/500 requests per 1 day")
+    }
+
+    @Test
+    func `legacy rate limit initializer preserves session window`() {
+        let now = Date()
+        let weeklyDetail = KimiUsageDetail(
+            limit: "2048",
+            used: "375",
+            remaining: "1673",
+            resetTime: "2026-01-09T15:23:13.373329235Z")
+        let rateLimit = KimiUsageDetail(
+            limit: "200",
+            used: "20",
+            remaining: "180",
+            resetTime: "2026-01-06T15:05:24.374187075Z")
+
+        let usageSnapshot = KimiUsageSnapshot(
+            weekly: weeklyDetail,
+            rateLimit: rateLimit,
+            updatedAt: now).toUsageSnapshot()
+
+        #expect(usageSnapshot.primary?.resetDescription == "20/200 requests")
+        #expect(usageSnapshot.secondary?.resetDescription == "375/2048 requests")
     }
 
     @Test
