@@ -347,6 +347,69 @@ struct BrowserDetectionTests {
     }
 
     @Test
+    func `registered browser outside Applications is a candidate`() throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cookies = temp
+            .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network/Cookies")
+        try FileManager.default.createDirectory(
+            at: cookies.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: cookies.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let appURL = URL(fileURLWithPath: "/Volumes/Tools/Google Chrome.app")
+        let detection = BrowserDetection(
+            homeDirectory: temp.path,
+            cacheTTL: 0,
+            now: Date.init,
+            fileExists: { path in
+                path == appURL.path || FileManager.default.fileExists(atPath: path)
+            },
+            directoryContents: { path in
+                try? FileManager.default.contentsOfDirectory(atPath: path)
+            },
+            applicationURLs: { appName in
+                appName == Browser.chrome.appBundleName ? [appURL] : []
+            },
+            profileAccessIssue: { _ in nil })
+
+        #expect(detection.isCookieSourceAvailable(.chrome))
+    }
+
+    @Test
+    func `stale registered browser outside Applications is not a candidate`() throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cookies = temp
+            .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network/Cookies")
+        try FileManager.default.createDirectory(
+            at: cookies.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: cookies.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let staleAppURL = URL(fileURLWithPath: "/Volumes/Removed/Google Chrome.app")
+        let detection = BrowserDetection(
+            homeDirectory: temp.path,
+            cacheTTL: 0,
+            now: Date.init,
+            fileExists: { path in
+                if path.hasSuffix("/Google Chrome.app") {
+                    return false
+                }
+                return FileManager.default.fileExists(atPath: path)
+            },
+            directoryContents: { path in
+                try? FileManager.default.contentsOfDirectory(atPath: path)
+            },
+            applicationURLs: { appName in
+                appName == Browser.chrome.appBundleName ? [staleAppURL] : []
+            },
+            profileAccessIssue: { _ in nil })
+
+        #expect(!detection.isCookieSourceAvailable(.chrome))
+    }
+
+    @Test
     func `installed browser reports denied profile access`() {
         let home = "/tmp/codexbar-denied-browser-profile"
         let profileRoot = "\(home)/Library/Application Support/Google/Chrome"
@@ -358,6 +421,7 @@ struct BrowserDetectionTests {
                 path == "/Applications/Google Chrome.app" || path == profileRoot
             },
             directoryContents: { _ in nil },
+            applicationURLs: { _ in [] },
             profileAccessIssue: { _ in .accessDenied })
 
         #expect(detection.cookieSourceProfileAccessIssue(.chrome) == .accessDenied)

@@ -1,5 +1,6 @@
 import Foundation
 #if os(macOS)
+@preconcurrency import AppKit
 import Darwin
 import os.lock
 import SweetCookieKit
@@ -22,6 +23,7 @@ public final class BrowserDetection: Sendable {
     private let now: @Sendable () -> Date
     private let fileExists: @Sendable (String) -> Bool
     private let directoryContents: @Sendable (String) -> [String]?
+    private let applicationURLs: @Sendable (String) -> [URL]
     private let profileAccessIssue: @Sendable (String) -> BrowserProfileAccessIssue?
 
     private struct CachedResult {
@@ -55,6 +57,7 @@ public final class BrowserDetection: Sendable {
             now: now,
             fileExists: fileExists,
             directoryContents: directoryContents,
+            applicationURLs: Self.registeredApplicationURLs,
             profileAccessIssue: Self.probeProfileAccessIssue)
     }
 
@@ -64,6 +67,7 @@ public final class BrowserDetection: Sendable {
         now: @escaping @Sendable () -> Date,
         fileExists: @escaping @Sendable (String) -> Bool,
         directoryContents: @escaping @Sendable (String) -> [String]?,
+        applicationURLs: @escaping @Sendable (String) -> [URL],
         profileAccessIssue: @escaping @Sendable (String) -> BrowserProfileAccessIssue?)
     {
         self.homeDirectory = homeDirectory
@@ -71,6 +75,7 @@ public final class BrowserDetection: Sendable {
         self.now = now
         self.fileExists = fileExists
         self.directoryContents = directoryContents
+        self.applicationURLs = applicationURLs
         self.profileAccessIssue = profileAccessIssue
     }
 
@@ -165,7 +170,9 @@ public final class BrowserDetection: Sendable {
         for path in appPaths where self.fileExists(path) {
             return true
         }
-        return false
+
+        guard let appName = self.applicationName(for: browser) else { return false }
+        return self.applicationURLs(appName).contains { self.fileExists($0.path) }
     }
 
     private func detectUsableProfileData(for browser: Browser) -> Bool {
@@ -208,6 +215,13 @@ public final class BrowserDetection: Sendable {
 
     private func applicationName(for browser: Browser) -> String? {
         browser.appBundleName
+    }
+
+    private static func registeredApplicationURLs(named appName: String) -> [URL] {
+        let probeURL = URL(string: "https://chatgpt.com")!
+        let bundleName = "\(appName).app"
+        return NSWorkspace.shared.urlsForApplications(toOpen: probeURL)
+            .filter { $0.lastPathComponent == bundleName }
     }
 
     private func profilePath(for browser: Browser, homeDirectory: String) -> String? {
