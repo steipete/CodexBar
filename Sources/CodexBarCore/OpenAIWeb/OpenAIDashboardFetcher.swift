@@ -55,6 +55,7 @@ public struct OpenAIDashboardFetcher {
         let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
         let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
+        let codexCreditLimit: CodexCreditLimitSnapshot?
         let accountPlan: String?
     }
 
@@ -68,6 +69,7 @@ public struct OpenAIDashboardFetcher {
         let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
         let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
+        let codexCreditLimit: CodexCreditLimitSnapshot?
         let accountPlan: String?
         let hasDashboardPageSignal: Bool
         let hasReturnableData: Bool
@@ -88,6 +90,7 @@ public struct OpenAIDashboardFetcher {
             secondaryLimit: components.rateLimits.secondary,
             extraRateWindows: components.extraRateWindows.isEmpty ? nil : components.extraRateWindows,
             creditsRemaining: components.creditsRemaining,
+            codexCreditLimit: components.codexCreditLimit,
             accountPlan: components.accountPlan,
             updatedAt: Date())
     }
@@ -109,21 +112,24 @@ public struct OpenAIDashboardFetcher {
         let codeReviewLimit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: bodyText)
         let parsedCreditsRemaining = OpenAIDashboardParser.parseCreditsRemaining(bodyText: bodyText)
         let creditsRemaining = apiData?.creditsRemaining ?? parsedCreditsRemaining
+        let codexCreditLimit = apiData?.codexCreditLimit
         let accountPlan = scrape.accountPlan ?? apiData?.accountPlan
         let hasParsedUsageLimits = parsedRateLimits.primary != nil || parsedRateLimits.secondary != nil
         let hasUsageLimits = rateLimits.primary != nil || rateLimits.secondary != nil
-        let hasDashboardPageData = self.hasReturnableDashboardData(
+        let hasDashboardPageData = self.hasReturnableDashboardData(.init(
             codeReview: codeReview,
             events: events,
             usageBreakdown: usageBreakdown,
             hasUsageLimits: hasParsedUsageLimits,
-            creditsRemaining: parsedCreditsRemaining)
-        let hasReturnableData = self.hasReturnableDashboardData(
+            creditsRemaining: parsedCreditsRemaining,
+            codexCreditLimit: nil))
+        let hasReturnableData = self.hasReturnableDashboardData(.init(
             codeReview: codeReview,
             events: events,
             usageBreakdown: usageBreakdown,
             hasUsageLimits: hasUsageLimits,
-            creditsRemaining: creditsRemaining)
+            creditsRemaining: creditsRemaining,
+            codexCreditLimit: codexCreditLimit))
 
         // Codex `additional_rate_limits` (e.g. Codex Spark) only ship over the JSON usage API, so the
         // dashboard HTML scrape never contributes here; we just forward what the apiData decoded.
@@ -138,6 +144,7 @@ public struct OpenAIDashboardFetcher {
             rateLimits: rateLimits,
             extraRateWindows: extraRateWindows,
             creditsRemaining: creditsRemaining,
+            codexCreditLimit: codexCreditLimit,
             accountPlan: accountPlan,
             hasDashboardPageSignal: self.hasAnyDashboardSignal(
                 hasReturnableData: hasDashboardPageData,
@@ -150,10 +157,14 @@ public struct OpenAIDashboardFetcher {
         let secondaryLimit: RateWindow?
         let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
+        let codexCreditLimit: CodexCreditLimitSnapshot?
         let accountPlan: String?
 
         var hasUsageData: Bool {
-            self.primaryLimit != nil || self.secondaryLimit != nil || self.creditsRemaining != nil
+            self.primaryLimit != nil
+                || self.secondaryLimit != nil
+                || self.creditsRemaining != nil
+                || self.codexCreditLimit != nil
         }
     }
 
@@ -302,9 +313,7 @@ public struct OpenAIDashboardFetcher {
             let hasReturnableData = dashboardData.hasReturnableData
 
             if codeReview != nil, codeReviewFirstSeenAt == nil { codeReviewFirstSeenAt = Date() }
-            if anyDashboardSignalAt == nil, hasDashboardPageSignal {
-                anyDashboardSignalAt = Date()
-            }
+            if anyDashboardSignalAt == nil, hasDashboardPageSignal { anyDashboardSignalAt = Date() }
             if codeReview != nil, usageBreakdown.isEmpty,
                let debug = scrape.usageBreakdownDebug, !debug.isEmpty,
                debug != lastUsageBreakdownDebug
@@ -385,6 +394,7 @@ public struct OpenAIDashboardFetcher {
                     rateLimits: dashboardData.rateLimits,
                     extraRateWindows: dashboardData.extraRateWindows,
                     creditsRemaining: dashboardData.creditsRemaining,
+                    codexCreditLimit: dashboardData.codexCreditLimit,
                     accountPlan: dashboardData.accountPlan))
             }
 
@@ -395,23 +405,6 @@ public struct OpenAIDashboardFetcher {
             Self.writeDebugArtifacts(html: html, bodyText: lastBody, logger: log)
         }
         throw FetchError.noDashboardData(body: lastUsageBreakdownError ?? lastBody ?? "")
-    }
-
-    nonisolated static func hasReturnableDashboardData(
-        codeReview: Double?,
-        events: [CreditEvent],
-        usageBreakdown: [OpenAIDashboardDailyBreakdown],
-        hasUsageLimits: Bool,
-        creditsRemaining: Double?) -> Bool
-    {
-        codeReview != nil || !events.isEmpty || !usageBreakdown.isEmpty || hasUsageLimits || creditsRemaining != nil
-    }
-
-    nonisolated static func hasAnyDashboardSignal(
-        hasReturnableData: Bool,
-        creditsHeaderPresent: Bool) -> Bool
-    {
-        hasReturnableData || creditsHeaderPresent
     }
 
     public func clearSessionData(
@@ -726,6 +719,8 @@ public struct OpenAIDashboardFetcher {
             extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
                 from: response.additionalRateLimits),
             creditsRemaining: response.credits?.balance,
+            codexCreditLimit: (response.individualLimit ?? response.rateLimit?.individualLimit)?
+                .codexCreditLimitSnapshot(updatedAt: Date()),
             accountPlan: response.planType?.rawValue)
     }
 

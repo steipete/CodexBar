@@ -45,12 +45,35 @@ extension UsageMenuCardView.Model {
             return ampCredits
         }
         if let credits {
+            if let creditLimit = credits.codexCreditLimit {
+                return UsageFormatter.creditsString(from: creditLimit.remaining)
+            }
             return UsageFormatter.creditsString(from: credits.remaining)
         }
         if let error, !error.isEmpty {
             return error.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return L(metadata.creditsHint)
+    }
+
+    static func creditsProgressPercent(credits: CreditsSnapshot?) -> Double? {
+        credits?.codexCreditLimit?.remainingPercent
+    }
+
+    static func creditsScaleText(credits: CreditsSnapshot?) -> String? {
+        guard let limit = credits?.codexCreditLimit else { return nil }
+        return L("of %@", UsageFormatter.creditsNumberString(from: limit.limit))
+    }
+
+    static func codexCreditLimitDetail(credits: CreditsSnapshot?, now: Date) -> String? {
+        guard let limit = credits?.codexCreditLimit else { return nil }
+        var parts = [
+            L("%@ used", UsageFormatter.creditsNumberString(from: limit.used)),
+        ]
+        if let resetsAt = limit.resetsAt {
+            parts.append(L("resets %@", UsageFormatter.resetDescription(from: resetsAt, now: now)))
+        }
+        return parts.joined(separator: " · ")
     }
 
     private static func ampCreditsLine(_ usage: AmpUsageDetails) -> String? {

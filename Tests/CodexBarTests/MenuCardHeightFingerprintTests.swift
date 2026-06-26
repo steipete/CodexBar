@@ -63,6 +63,8 @@ struct MenuCardHeightFingerprintTests {
             inlineUsageDashboard: nil,
             creditsText: nil,
             creditsRemaining: nil,
+            creditsProgressPercent: nil,
+            creditsScaleText: nil,
             creditsHintText: nil,
             creditsHintCopyText: nil,
             providerCost: nil,
