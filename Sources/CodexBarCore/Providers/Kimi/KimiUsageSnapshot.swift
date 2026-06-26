@@ -6,31 +6,36 @@ public struct KimiUsageSnapshot: Sendable {
     let rateLimits: [KimiRateLimit]
     public let updatedAt: Date
     let modelDisplayName: String?
+    let membershipLevel: String?
 
     public init(
         weekly: KimiUsageDetail,
         rateLimit: KimiUsageDetail?,
         updatedAt: Date,
-        modelDisplayName: String? = nil)
+        modelDisplayName: String? = nil,
+        membershipLevel: String? = nil)
     {
         self.weekly = weekly
         self.rateLimit = rateLimit
         self.rateLimits = []
         self.updatedAt = updatedAt
         self.modelDisplayName = modelDisplayName
+        self.membershipLevel = membershipLevel
     }
 
     init(
         weekly: KimiUsageDetail,
         rateLimits: [KimiRateLimit],
         updatedAt: Date,
-        modelDisplayName: String? = nil)
+        modelDisplayName: String? = nil,
+        membershipLevel: String? = nil)
     {
         self.weekly = weekly
         self.rateLimit = rateLimits.first?.detail
         self.rateLimits = rateLimits
         self.updatedAt = updatedAt
         self.modelDisplayName = modelDisplayName
+        self.membershipLevel = membershipLevel
     }
 
     func withModelDisplayName(_ modelDisplayName: String?) -> KimiUsageSnapshot {
@@ -38,7 +43,8 @@ public struct KimiUsageSnapshot: Sendable {
             weekly: self.weekly,
             rateLimits: self.rateLimits,
             updatedAt: self.updatedAt,
-            modelDisplayName: modelDisplayName)
+            modelDisplayName: modelDisplayName,
+            membershipLevel: self.membershipLevel)
     }
 
     private static func parseDate(_ dateString: String?) -> Date? {
@@ -129,11 +135,22 @@ extension KimiUsageSnapshot {
                 window: Self.usageWindow(from: rateLimit.detail, window: rateLimit.window))
         }
 
+        let tier = KimiMembershipLevel.displayName(self.membershipLevel)
+        let mode = KimiCodePricing.modeLabel(displayName: self.modelDisplayName)
+        let loginMethod: String? = if let tier, let mode {
+            "\(tier) · Mode: \(mode)"
+        } else if let tier {
+            tier
+        } else if let mode {
+            "Mode: \(mode)"
+        } else {
+            nil
+        }
         let identity = ProviderIdentitySnapshot(
             providerID: .kimi,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: KimiCodePricing.modeLabel(displayName: self.modelDisplayName))
+            loginMethod: loginMethod)
 
         return UsageSnapshot(
             primary: sessionWindow ?? weeklyWindow,

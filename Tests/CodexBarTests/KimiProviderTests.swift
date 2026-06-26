@@ -495,7 +495,12 @@ struct KimiUsageResponseParsingTests {
                 "resetTime": "2026-01-07T15:05:24.374187075Z"
               }
             }
-          ]
+          ],
+          "user": {
+            "membership": {
+              "level": "LEVEL_ADVANCED"
+            }
+          }
         }
         """
 
@@ -505,6 +510,7 @@ struct KimiUsageResponseParsingTests {
         #expect(snapshot.rateLimit?.limit == "200")
         #expect(snapshot.rateLimit?.used == "19")
         #expect(snapshot.rateLimits.count == 2)
+        #expect(snapshot.toUsageSnapshot().loginMethod(for: .kimi) == "Allegro")
     }
 
     @Test
@@ -602,7 +608,7 @@ struct KimiUsageResponseParsingTests {
             modelDisplayName: "Kimi for Coding High Speed")
             .toUsageSnapshot()
 
-        #expect(snapshot.loginMethod(for: .kimi) == "High Speed")
+        #expect(snapshot.loginMethod(for: .kimi) == "Mode: High Speed")
     }
 
     @Test
@@ -614,7 +620,20 @@ struct KimiUsageResponseParsingTests {
             modelDisplayName: "Kimi for Coding")
             .toUsageSnapshot()
 
-        #expect(snapshot.loginMethod(for: .kimi) == "Standard")
+        #expect(snapshot.loginMethod(for: .kimi) == "Mode: Standard")
+    }
+
+    @Test
+    func `combines membership tier and speed mode`() {
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
+            rateLimit: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            modelDisplayName: "Kimi for Coding High Speed",
+            membershipLevel: "LEVEL_INTERMEDIATE")
+            .toUsageSnapshot()
+
+        #expect(snapshot.loginMethod(for: .kimi) == "Allegretto · Mode: High Speed")
     }
 
     @Test

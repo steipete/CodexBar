@@ -145,7 +145,8 @@ public struct KimiUsageFetcher: Sendable {
         return KimiUsageSnapshot(
             weekly: codingUsage.detail,
             rateLimits: codingUsage.limits ?? [],
-            updatedAt: now)
+            updatedAt: now,
+            membershipLevel: usageResponse.user?.membership?.level)
     }
 
     private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {
@@ -153,7 +154,8 @@ public struct KimiUsageFetcher: Sendable {
         return KimiUsageSnapshot(
             weekly: response.usage,
             rateLimits: response.limits ?? [],
-            updatedAt: now)
+            updatedAt: now,
+            membershipLevel: response.user?.membership?.level)
     }
 
     private static func codeAPIUsageEndpoint(baseURL: URL) -> URL {

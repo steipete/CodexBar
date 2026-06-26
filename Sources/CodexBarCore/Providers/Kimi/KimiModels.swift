@@ -2,11 +2,39 @@ import Foundation
 
 struct KimiUsageResponse: Codable {
     let usages: [KimiUsage]
+    let user: KimiUser?
 }
 
 struct KimiCodeAPIUsageResponse: Codable {
     let usage: KimiUsageDetail
     let limits: [KimiRateLimit]?
+    let user: KimiUser?
+}
+
+struct KimiUser: Codable, Sendable {
+    let membership: KimiMembership?
+}
+
+struct KimiMembership: Codable, Sendable {
+    let level: String?
+}
+
+enum KimiMembershipLevel {
+    private static let names: [String: String] = [
+        "LEVEL_FREE": "Free",
+        "LEVEL_BASIC": "Andante",
+        "LEVEL_STANDARD": "Moderato",
+        "LEVEL_INTERMEDIATE": "Allegretto",
+        "LEVEL_ADVANCED": "Allegro",
+        "LEVEL_PREMIUM": "Vivace",
+    ]
+
+    static func displayName(_ rawLevel: String?) -> String? {
+        guard let rawLevel = rawLevel?.trimmingCharacters(in: .whitespacesAndNewlines), !rawLevel.isEmpty else {
+            return nil
+        }
+        return self.names[rawLevel] ?? rawLevel
+    }
 }
 
 struct KimiCodeAPIModelsResponse: Codable {

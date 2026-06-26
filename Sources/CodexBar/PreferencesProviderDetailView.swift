@@ -84,6 +84,10 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
             return nil
         }
         if provider == .kimi {
+            if rawPlan.hasPrefix("Mode:") {
+                let value = rawPlan.dropFirst("Mode:".count).trimmingCharacters(in: .whitespacesAndNewlines)
+                return (label: "Mode", value: value)
+            }
             let prefix = "Tier:"
             let value = rawPlan.hasPrefix(prefix)
                 ? rawPlan.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)

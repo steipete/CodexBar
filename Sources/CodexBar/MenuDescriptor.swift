@@ -523,10 +523,9 @@ struct MenuDescriptor {
                 entries.append(
                     .text("\(L("Balance")): \(AccountFormatter.plan(value, provider: provider))", .secondary))
             } else if provider == .kimi {
-                entries.append(
-                    .text(
-                        "Tier: \(AccountFormatter.plan(loginMethodText, provider: provider))",
-                        .secondary))
+                let display = AccountFormatter.plan(loginMethodText, provider: provider)
+                let line = display.hasPrefix("Mode:") ? display : "Tier: \(display)"
+                entries.append(.text(line, .secondary))
             } else {
                 entries.append(
                     .text(
