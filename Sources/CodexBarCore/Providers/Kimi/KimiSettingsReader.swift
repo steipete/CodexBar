@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public enum KimiSettingsReader {
     public static let apiKeyEnvironmentKeys = ["KIMI_CODE_API_KEY"]

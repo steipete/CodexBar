@@ -239,7 +239,7 @@ struct ProviderSettingsDescriptorTests {
             .presentation(context: context)
             .detailLine(context)
 
-        #expect(detailLine == "api")
+        #expect(detailLine == "Kimi Code API key")
     }
 
     @Test
