@@ -344,6 +344,9 @@ public struct KiroStatusProbe: Sendable {
             timeout: self.accountProbeTimeout,
             idleTimeout: 1.5)
         guard case let .processExited(status) = result.completion else {
+            if Self.isWhoAmILoginRequired(result.text) {
+                throw KiroStatusProbeError.notLoggedIn
+            }
             throw KiroStatusProbeError.timeout
         }
         return try self.validateWhoAmIOutput(
@@ -356,9 +359,8 @@ public struct KiroStatusProbe: Sendable {
         let trimmedStdout = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedStderr = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         let combined = trimmedStderr.isEmpty ? trimmedStdout : trimmedStderr
-        let lowered = combined.lowercased()
 
-        if lowered.contains("not logged in") || lowered.contains("login required") {
+        if Self.isWhoAmILoginRequired(combined) {
             throw KiroStatusProbeError.notLoggedIn
         }
 
@@ -374,6 +376,11 @@ public struct KiroStatusProbe: Sendable {
         }
 
         return self.parseWhoAmIOutput(combined)
+    }
+
+    private static func isWhoAmILoginRequired(_ output: String) -> Bool {
+        let lowered = Self.stripANSI(output).lowercased()
+        return lowered.contains("not logged in") || lowered.contains("login required")
     }
 
     func parseWhoAmIOutput(_ output: String) -> KiroAccountInfo {

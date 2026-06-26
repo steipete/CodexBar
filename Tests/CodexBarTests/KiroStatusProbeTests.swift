@@ -180,6 +180,38 @@ struct KiroStatusProbeTests {
     }
 
     @Test
+    func `fetch preserves not logged in when whoami idles after login marker`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Not logged in\n'
+              sleep 5
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 2)
+        await #expect {
+            _ = try await probe.fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
     func `fetch preserves not logged in when usage output cannot be parsed`() async throws {
         let cliURL = try self.makeCLI(
             """
