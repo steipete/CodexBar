@@ -731,8 +731,8 @@ extension PiSessionCostScanner {
                     usage: packed,
                     pricingContext: pricingContext)
                 let usageSampleCount = packed.usageSampleCount
-                let modelRequests = usageSampleCount ?? 0
-                let hasCompleteCachedCost = modelRequests > 0
+                let modelRequests = provider == .kimi ? usageSampleCount ?? 0 : 0
+                let hasCompleteCachedCost = (usageSampleCount ?? 0) > 0
                     && packed.costSampleCount == usageSampleCount
                 // Cached costs are accumulated per message, which preserves Claude long-context threshold boundaries.
                 let costNanos = hasCompleteCachedCost
