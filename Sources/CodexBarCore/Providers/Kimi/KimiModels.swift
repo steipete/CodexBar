@@ -69,15 +69,6 @@ enum KimiCodePricing {
         return text.range(of: #"high\s*[- ]?\s*speed|fast"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
-    static func modeLabel(displayName: String?) -> String? {
-        guard let displayName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !displayName.isEmpty
-        else {
-            return nil
-        }
-        return self.isHighSpeed(displayName) ? "High Speed" : "Standard"
-    }
-
     static func costUSD(
         modelName: String,
         inputTokens: Int,
