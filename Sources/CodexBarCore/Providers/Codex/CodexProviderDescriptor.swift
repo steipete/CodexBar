@@ -124,7 +124,7 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
                     primary: nil,
                     secondary: nil,
                     updatedAt: credits.updatedAt,
-                    identity: nil),
+                    identity: snapshot.identity),
                 credits: credits,
                 sourceLabel: "codex-cli")
         }
@@ -302,8 +302,38 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             if error is CancellationError { throw error }
             return oauthResult
         }
-        guard cliResult.credits?.codexCreditLimit != nil else { return oauthResult }
-        return cliResult
+        guard let cliLimit = cliResult.credits?.codexCreditLimit,
+              self.identitiesAreCompatible(oauth: oauthResult.usage.identity, cli: cliResult.usage.identity),
+              let oauthCredits = oauthResult.credits
+        else { return oauthResult }
+        return ProviderFetchResult(
+            usage: oauthResult.usage,
+            credits: CreditsSnapshot(
+                remaining: oauthCredits.remaining,
+                events: oauthCredits.events,
+                updatedAt: oauthCredits.updatedAt,
+                codexCreditLimit: cliLimit),
+            dashboard: oauthResult.dashboard,
+            sourceLabel: oauthResult.sourceLabel,
+            strategyID: oauthResult.strategyID,
+            strategyKind: oauthResult.strategyKind)
+    }
+
+    private static func identitiesAreCompatible(
+        oauth: ProviderIdentitySnapshot?,
+        cli: ProviderIdentitySnapshot?) -> Bool
+    {
+        guard let cliEmail = self.normalizedEmail(cli?.accountEmail),
+              let oauthEmail = self.normalizedEmail(oauth?.accountEmail)
+        else { return false }
+        return cliEmail == oauthEmail
+    }
+
+    private static func normalizedEmail(_ email: String?) -> String? {
+        guard let normalized = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !normalized.isEmpty
+        else { return nil }
+        return normalized
     }
 
     private static func shouldTryCLIForMonthlyLimit(_ result: ProviderFetchResult) -> Bool {

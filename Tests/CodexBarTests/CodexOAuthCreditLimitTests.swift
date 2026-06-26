@@ -48,18 +48,44 @@ struct CodexOAuthCreditLimitTests {
             lastRefresh: Date())
     }
 
-    private func makeCLIResult(credits: CreditsSnapshot?) -> ProviderFetchResult {
+    private func makeCLIResult(
+        credits: CreditsSnapshot?,
+        email: String? = nil) -> ProviderFetchResult
+    {
         ProviderFetchResult(
             usage: UsageSnapshot(
                 primary: nil,
                 secondary: nil,
                 updatedAt: Date(),
-                identity: nil),
+                identity: email.map {
+                    ProviderIdentitySnapshot(
+                        providerID: .codex,
+                        accountEmail: $0,
+                        accountOrganization: nil,
+                        loginMethod: "enterprise")
+                }),
             credits: credits,
             dashboard: nil,
             sourceLabel: "codex-cli",
             strategyID: "stub.cli",
             strategyKind: .cli)
+    }
+
+    private func replacingIdentity(
+        _ result: ProviderFetchResult,
+        email: String) -> ProviderFetchResult
+    {
+        ProviderFetchResult(
+            usage: result.usage.withIdentity(ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: email,
+                accountOrganization: nil,
+                loginMethod: "enterprise")),
+            credits: result.credits,
+            dashboard: result.dashboard,
+            sourceLabel: result.sourceLabel,
+            strategyID: result.strategyID,
+            strategyKind: result.strategyKind)
     }
 
     private func makeMonthlyLimitCredits() -> CreditsSnapshot {
@@ -183,12 +209,15 @@ struct CodexOAuthCreditLimitTests {
     }
 
     @Test
-    func `auto O auth zero credits with rate windows uses CLI monthly limit`() async throws {
-        let oauthResult = try CodexOAuthFetchStrategy._mapResultForTesting(
+    func `auto O auth zero credits preserves O auth usage while adding CLI monthly limit`() async throws {
+        let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
             credentials: self.makeCredentials(),
             sourceMode: .auto)
-        let cliResult = self.makeCLIResult(credits: self.makeMonthlyLimitCredits())
+        let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
+        let cliResult = self.makeCLIResult(
+            credits: self.makeMonthlyLimitCredits(),
+            email: "owner@example.com")
 
         let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
             oauthResult: oauthResult,
@@ -197,7 +226,71 @@ struct CodexOAuthCreditLimitTests {
 
         #expect(oauthResult.usage.primary != nil)
         #expect(CodexOAuthFetchStrategy._shouldTryCLIForMonthlyLimitForTesting(oauthResult))
-        #expect(result.sourceLabel == "codex-cli")
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.strategyKind == .oauth)
+        #expect(result.usage.primary == oauthResult.usage.primary)
+        #expect(result.credits?.remaining == oauthResult.credits?.remaining)
+        #expect(result.credits?.codexCreditLimit?.remaining == 750)
+    }
+
+    @Test
+    func `auto O auth zero credits rejects CLI monthly limit without verified identity`() async throws {
+        let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(self.oauthZeroCreditRateWindowJSON().utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .auto)
+        let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
+        let cliResult = self.makeCLIResult(credits: self.makeMonthlyLimitCredits())
+
+        let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
+            oauthResult: oauthResult,
+            context: self.makeContext(sourceMode: .auto),
+            cliStrategy: StubFetchStrategy(available: true, result: cliResult))
+
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.usage.identity?.accountEmail == "owner@example.com")
+        #expect(result.credits?.codexCreditLimit == nil)
+    }
+
+    @Test
+    func `auto O auth zero credits rejects CLI monthly limit from another account`() async throws {
+        let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(self.oauthZeroCreditRateWindowJSON().utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .auto)
+        let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
+        let cliResult = self.makeCLIResult(
+            credits: self.makeMonthlyLimitCredits(),
+            email: "other@example.com")
+
+        let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
+            oauthResult: oauthResult,
+            context: self.makeContext(sourceMode: .auto),
+            cliStrategy: StubFetchStrategy(available: true, result: cliResult))
+
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.usage.identity?.accountEmail == "owner@example.com")
+        #expect(result.credits?.codexCreditLimit == nil)
+    }
+
+    @Test
+    func `auto O auth zero credits accepts matching CLI account case insensitively`() async throws {
+        let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(self.oauthZeroCreditRateWindowJSON().utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .auto)
+        let oauthResult = self.replacingIdentity(mappedOAuth, email: "Owner@Example.com")
+        let cliResult = self.makeCLIResult(
+            credits: self.makeMonthlyLimitCredits(),
+            email: " owner@example.COM ")
+
+        let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
+            oauthResult: oauthResult,
+            context: self.makeContext(sourceMode: .auto),
+            cliStrategy: StubFetchStrategy(available: true, result: cliResult))
+
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.usage.identity?.accountEmail == "Owner@Example.com")
         #expect(result.credits?.codexCreditLimit?.remaining == 750)
     }
 

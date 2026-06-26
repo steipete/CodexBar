@@ -289,6 +289,7 @@ struct CodexBaselineCharacterizationTests {
             #expect(result.sourceLabel == "codex-cli")
             #expect(result.usage.primary == nil)
             #expect(result.usage.secondary == nil)
+            #expect(result.usage.accountEmail(for: .codex) == "stub@example.com")
             #expect(result.credits?.remaining == 7)
         case let .failure(error):
             Issue.record("Unexpected failure: \(error)")

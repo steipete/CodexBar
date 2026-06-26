@@ -534,10 +534,16 @@ public struct AccountInfo: Equatable, Sendable {
 public struct CodexCLIAccountSnapshot: Sendable {
     public let usage: UsageSnapshot?
     public let credits: CreditsSnapshot?
+    public let identity: ProviderIdentitySnapshot?
 
-    public init(usage: UsageSnapshot?, credits: CreditsSnapshot?) {
+    public init(
+        usage: UsageSnapshot?,
+        credits: CreditsSnapshot?,
+        identity: ProviderIdentitySnapshot? = nil)
+    {
         self.usage = usage
         self.credits = credits
+        self.identity = identity
     }
 }
 
@@ -1189,14 +1195,16 @@ public struct UsageFetcher: Sendable {
             }
             return CodexCLIAccountSnapshot(
                 usage: usage,
-                credits: credits)
+                credits: credits,
+                identity: identity)
         } catch {
             let usage = Self.recoverUsageFromRPCError(error)
             let credits = Self.recoverCreditsFromRPCError(error)
             if usage != nil || credits != nil {
                 return CodexCLIAccountSnapshot(
                     usage: usage,
-                    credits: credits)
+                    credits: credits,
+                    identity: usage?.identity)
             }
             throw error
         }
