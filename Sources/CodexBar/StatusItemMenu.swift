@@ -43,6 +43,10 @@ final class StatusItemMenu: NSMenu {
         case quit
     }
 
+    nonisolated static func isPersistentRefreshShortcut(for event: NSEvent) -> Bool {
+        self.persistentAction(for: event) == .refresh
+    }
+
     private nonisolated static func persistentAction(for event: NSEvent) -> PersistentAction? {
         guard event.type == .keyDown else { return nil }
 

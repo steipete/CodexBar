@@ -13,6 +13,7 @@ struct UsageCommandContext {
     let verbose: Bool
     let useColor: Bool
     let resetStyle: ResetTimeDisplayStyle
+    let weeklyWorkDays: Int?
     let jsonOnly: Bool
     let includeAllCodexAccounts: Bool
     let fetcher: UsageFetcher
@@ -66,6 +67,7 @@ extension CodexBarCLI {
         let noColor = values.flags.contains("noColor")
         let useColor = Self.shouldUseColor(noColor: noColor, format: format)
         let resetStyle = Self.resetTimeDisplayStyleFromDefaults()
+        let weeklyWorkDays = Self.weeklyProgressWorkDaysFromDefaults()
         let providerList = provider.asList
 
         let tokenSelection: TokenAccountCLISelection
@@ -131,6 +133,7 @@ extension CodexBarCLI {
             verbose: verbose,
             useColor: useColor,
             resetStyle: resetStyle,
+            weeklyWorkDays: weeklyWorkDays,
             jsonOnly: output.jsonOnly,
             includeAllCodexAccounts: tokenSelection.allAccounts && providerList == [.codex],
             fetcher: fetcher,
@@ -241,6 +244,35 @@ extension CodexBarCLI {
         return output
     }
 
+    // swiftlint:disable:next function_parameter_count
+    private static func makeUsagePayload(
+        provider: UsageProvider,
+        accountLabel: String?,
+        cacheAccountKey: String?,
+        version: String?,
+        source: String,
+        status: ProviderStatusPayload?,
+        usage: UsageSnapshot,
+        credits: CreditsSnapshot?,
+        antigravityPlanInfo: AntigravityPlanInfoSummary?,
+        dashboard: OpenAIDashboardSnapshot?,
+        weeklyWorkDays: Int?) -> ProviderPayload
+    {
+        ProviderPayload(
+            provider: provider,
+            account: accountLabel,
+            cacheAccountKey: cacheAccountKey,
+            version: version,
+            source: source,
+            status: status,
+            usage: usage,
+            credits: credits,
+            antigravityPlanInfo: antigravityPlanInfo,
+            openaiDashboard: dashboard,
+            error: nil,
+            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage, weeklyWorkDays: weeklyWorkDays))
+    }
+
     private static func fetchUsageOutput(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -305,9 +337,7 @@ extension CodexBarCLI {
             providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
             persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),
             persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow)
-        let outcome = await Self.fetchProviderUsage(
-            provider: provider,
-            context: fetchContext)
+        let outcome = await Self.fetchProviderUsage(provider: provider, context: fetchContext)
         if command.verbose, !command.jsonOnly {
             Self.printFetchAttempts(provider: provider, attempts: outcome.attempts)
         }
@@ -359,15 +389,16 @@ extension CodexBarCLI {
                         status: status,
                         useColor: command.useColor,
                         resetStyle: command.resetStyle,
+                        weeklyWorkDays: command.weeklyWorkDays,
                         notes: notes))
                 if let dashboard, provider == .codex, effectiveSourceMode.usesWeb {
                     text += "\n" + Self.renderOpenAIWebDashboardText(dashboard)
                 }
                 output.sections.append(text)
             case .json:
-                output.payload.append(ProviderPayload(
+                output.payload.append(Self.makeUsagePayload(
                     provider: provider,
-                    account: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                    accountLabel: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheAccountKey: cacheAccountKey,
                     version: version,
                     source: source,
@@ -375,8 +406,8 @@ extension CodexBarCLI {
                     usage: usage,
                     credits: result.credits,
                     antigravityPlanInfo: antigravityPlanInfo,
-                    openaiDashboard: dashboard,
-                    error: nil))
+                    dashboard: dashboard,
+                    weeklyWorkDays: command.weeklyWorkDays))
             }
         case let .failure(error):
             output.exitCode = Self.mapError(error)

@@ -162,30 +162,34 @@ struct MenuActions {
     let copyError: (String) -> Void
 }
 
-struct PersistentMenuActionRowView: View {
-    let title: String
-    let systemImageName: String?
-    @Environment(\.menuItemHighlighted) private var isHighlighted
+struct PersistentRefreshRowMetrics: Equatable {
+    static let defaults = Self(
+        rowHeight: 24,
+        selectionHorizontalInset: 5,
+        selectionVerticalInset: 0,
+        selectionCornerRadius: 7,
+        // Align the custom row's image/title frames with native NSMenuItem columns.
+        leadingPadding: 13,
+        trailingPadding: 8,
+        iconWidth: 17,
+        iconSymbolPointSize: 11,
+        iconTitleSpacing: 4.5,
+        shortcutFontSize: 13,
+        shortcutXOffset: -12,
+        shortcutYOffset: 0)
 
-    var body: some View {
-        HStack(spacing: 8) {
-            if let systemImageName {
-                Image(systemName: systemImageName)
-                    .imageScale(.medium)
-                    .frame(width: 18, alignment: .center)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-            }
-            Text(self.title)
-                .font(.body)
-                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(self.title)
-    }
+    let rowHeight: CGFloat
+    let selectionHorizontalInset: CGFloat
+    let selectionVerticalInset: CGFloat
+    let selectionCornerRadius: CGFloat
+    let leadingPadding: CGFloat
+    let trailingPadding: CGFloat
+    let iconWidth: CGFloat
+    let iconSymbolPointSize: CGFloat
+    let iconTitleSpacing: CGFloat
+    let shortcutFontSize: CGFloat
+    let shortcutXOffset: CGFloat
+    let shortcutYOffset: CGFloat
 }
 
 @MainActor

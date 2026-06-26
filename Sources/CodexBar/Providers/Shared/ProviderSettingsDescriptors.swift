@@ -164,7 +164,18 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let activeIndex: () -> Int
     let setActiveIndex: (Int) -> Void
     let showsOrganizationField: Bool
-    let addAccount: (_ label: String, _ token: String, _ organizationID: String?) -> Void
+    let showsTeamModeControls: Bool
+    let addAccount: (
+        _ label: String,
+        _ token: String,
+        _ usageScope: String?,
+        _ organizationID: String?,
+        _ workspaceID: String?) -> Void
+    let updateAccount: (
+        _ accountID: UUID,
+        _ usageScope: String?,
+        _ organizationID: String?,
+        _ workspaceID: String?) -> Void
     let removeAccount: (_ accountID: UUID) -> Void
     let primaryAddActionTitle: String?
     let primaryAddAction: (() async -> Void)?

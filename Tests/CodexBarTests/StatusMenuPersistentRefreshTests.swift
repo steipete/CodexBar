@@ -142,13 +142,52 @@ struct StatusMenuPersistentRefreshTests {
 
         #expect(refreshItem.action == nil)
         #expect(refreshItem.target == nil)
-        #expect(refreshItem.view != nil)
+        let refreshView = try #require(refreshItem.view)
+        #expect(refreshView is any MenuCardHighlighting)
+        #expect(refreshView.fittingSize.height > 0)
         #expect(controller.isPersistentRefreshItem(refreshItem))
+        #expect(refreshItem.keyEquivalent.isEmpty)
+        #expect(refreshItem.keyEquivalentModifierMask.isEmpty)
         #expect(refreshIndex < settingsIndex)
     }
 
     @Test
-    func `refresh row is custom while remaining persistent action items stay native`() throws {
+    func `persistent refresh installs tracking monitor and handles command R without native shortcut`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        #expect(controller.isPersistentRefreshItem(refreshItem))
+        #expect(controller.providerSwitcherShortcutEventMonitor != nil)
+        #expect(controller.providerSwitcherShortcutMenuID == ObjectIdentifier(menu))
+        #expect(refreshItem.keyEquivalent.isEmpty)
+
+        let gate = ManualRefreshGate()
+        controller._test_manualRefreshOperation = { await gate.wait() }
+        #expect(try controller.handleMenuTrackingShortcutEvent(self.keyEvent("r", keyCode: 15), menu: menu))
+        for _ in 0..<20 where controller.manualRefreshTask == nil {
+            await Task.yield()
+        }
+
+        let task = try #require(controller.manualRefreshTask)
+        #expect(!refreshItem.isEnabled)
+
+        gate.resume()
+        await task.value
+
+        #expect(controller.manualRefreshTask == nil)
+        #expect(refreshItem.isEnabled)
+    }
+
+    @Test
+    func `only refresh uses a custom row while standard actions stay native`() throws {
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
         defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
@@ -165,15 +204,25 @@ struct StatusMenuPersistentRefreshTests {
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
         #expect(MenuDescriptor.MenuAction.installUpdate.systemImageName == "arrow.down.circle")
         #expect(updateItem.image != nil)
-        #expect(refreshItem.view != nil)
+        #expect(refreshItem.view is any MenuCardHighlighting)
         #expect(refreshItem.action == nil)
         #expect(controller.isPersistentRefreshItem(refreshItem))
+        #expect(refreshItem.keyEquivalent.isEmpty)
+        #expect(refreshItem.keyEquivalentModifierMask.isEmpty)
 
-        for title in ["Update ready, restart now?", "Settings...", "About CodexBar", "Quit"] {
+        #expect(updateItem.view == nil)
+        #expect(updateItem.action != nil)
+        #expect(updateItem.target === controller)
+
+        for (title, key) in [("Settings...", ","), ("About CodexBar", ""), ("Quit", "q")] {
             let item = try #require(menu.items.first { $0.title == title })
-            #expect(item.view == nil, "'\(title)' should be a native NSMenuItem with no custom view")
+            #expect(item.view == nil)
             #expect(item.action != nil)
             #expect(item.target === controller)
+            #expect(item.keyEquivalent == key)
+            if !key.isEmpty {
+                #expect(item.keyEquivalentModifierMask == [.command])
+            }
         }
     }
 
@@ -192,7 +241,6 @@ struct StatusMenuPersistentRefreshTests {
         controller.menuWillOpen(menu)
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
-        #expect(refreshItem.view != nil)
         #expect(controller.isPersistentRefreshItem(refreshItem))
         #expect(controller.persistentRefreshItems.allObjects.contains { $0 === refreshItem })
         #expect(refreshItem.isEnabled)
@@ -888,7 +936,7 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `failed manual refresh returns native item to enabled and surfaces error`() async throws {
+    func `failed manual refresh returns persistent item to enabled and surfaces error`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
@@ -945,5 +993,98 @@ struct StatusMenuPersistentRefreshTests {
             charactersIgnoringModifiers: characters,
             isARepeat: false,
             keyCode: keyCode))
+    }
+}
+
+extension StatusMenuPersistentRefreshTests {
+    @Test
+    func `refresh row metrics match tuned native-style values`() {
+        let metrics = PersistentRefreshRowMetrics.defaults
+        #expect(metrics.rowHeight == 24)
+        #expect(metrics.selectionHorizontalInset == 5)
+        #expect(metrics.selectionVerticalInset == 0)
+        #expect(metrics.selectionCornerRadius == 7)
+        #expect(metrics.leadingPadding == 13)
+        #expect(metrics.trailingPadding == 8)
+        #expect(metrics.iconWidth == 17)
+        #expect(metrics.iconSymbolPointSize == 11)
+        #expect(metrics.iconTitleSpacing == 4.5)
+        #expect(metrics.shortcutFontSize == 13)
+        #expect(metrics.shortcutXOffset == -12)
+        #expect(metrics.shortcutYOffset == 0)
+    }
+
+    @Test
+    func `refresh shortcut display has stable native-style column`() throws {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        let refreshView = try #require(refreshItem.view as? PersistentRefreshMenuView)
+        refreshView.applySize(width: 320, height: PersistentRefreshRowMetrics.defaults.rowHeight)
+        refreshView.layoutSubtreeIfNeeded()
+
+        let shortcutField = try #require(
+            refreshView.subviews.compactMap { $0 as? NSTextField }.first { $0.stringValue == "⌘ R" })
+        #expect(shortcutField.alignment == .left)
+        #expect(shortcutField.lineBreakMode == .byClipping)
+        #expect(shortcutField.frame.width >= 40)
+        let shortcutFont = try #require(shortcutField.font)
+        #expect(abs(shortcutFont.pointSize - PersistentRefreshRowMetrics.defaults.shortcutFontSize) < 0.001)
+
+        let iconView = try #require(refreshView.subviews.compactMap { $0 as? NSImageView }.first)
+        let titleField = try #require(
+            refreshView.subviews.compactMap { $0 as? NSTextField }.first { $0.stringValue == "Refresh" })
+        #expect(iconView.frame.minX == PersistentRefreshRowMetrics.defaults.leadingPadding)
+        #expect(titleField.frame.minX == PersistentRefreshRowMetrics.defaults.leadingPadding
+            + PersistentRefreshRowMetrics.defaults.iconWidth
+            + PersistentRefreshRowMetrics.defaults.iconTitleSpacing)
+        #expect(iconView.frame.width == PersistentRefreshRowMetrics.defaults.iconWidth)
+        #expect(iconView.frame.height == PersistentRefreshRowMetrics.defaults.iconWidth)
+    }
+
+    @Test
+    func `refresh row width follows final rendered menu width`() {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let metrics = PersistentRefreshRowMetrics.defaults
+        let refreshView = PersistentRefreshMenuView(
+            title: "Refresh",
+            systemImageName: "arrow.clockwise",
+            shortcutText: "⌘ R")
+        refreshView.applySize(width: StatusItemController.menuCardBaseWidth, height: metrics.rowHeight)
+        refreshView.frame.origin.x = 4
+
+        let refreshItem = NSMenuItem()
+        refreshItem.title = "Refresh"
+        refreshItem.view = refreshView
+
+        let wideNativeItem = NSMenuItem(
+            title: String(repeating: "W", count: 60),
+            action: nil,
+            keyEquivalent: "")
+        let menu = NSMenu()
+        menu.addItem(refreshItem)
+        menu.addItem(wideNativeItem)
+
+        let expectedWidth = controller.renderedMenuWidth(for: menu)
+        #expect(expectedWidth > StatusItemController.menuCardBaseWidth)
+
+        controller.refreshMenuCardHeights(in: menu)
+
+        #expect(abs(refreshView.frame.width - expectedWidth) <= 0.5)
+        #expect(refreshView.frame.origin == .zero)
+        #expect(refreshView.frame.height == metrics.rowHeight)
     }
 }

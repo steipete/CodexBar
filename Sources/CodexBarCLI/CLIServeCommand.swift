@@ -722,6 +722,7 @@ extension CodexBarCLI {
             verbose: false,
             useColor: false,
             resetStyle: Self.resetTimeDisplayStyleFromDefaults(),
+            weeklyWorkDays: Self.weeklyProgressWorkDaysFromDefaults(),
             jsonOnly: true,
             includeAllCodexAccounts: true,
             fetcher: UsageFetcher(),

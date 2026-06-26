@@ -874,6 +874,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "選填。留空會探索並彙總 API 金鑰可見的專案。";
 "Org ID (optional)" = "組織 ID（選填）";
 "Organizations" = "組織";
+"Organization ID" = "組織 ID";
 "Password" = "密碼";
 "%@ authentication is disabled." = "%@ 認證已停用。";
 "%@ cookies are disabled." = "%@ Cookie 已停用。";
@@ -927,6 +928,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "儲存在 ~/.codexbar/config.json 中。你也可以提供 CROF_API_KEY。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "儲存在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或 ~/.local/share/kilo/auth.json（kilo.access）。";
 "T3 Chat cookie" = "T3 Chat Cookie";
+"Team mode" = "團隊模式";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "該帳號已無法在 CodexBar 中使用。請重新整理帳號列表後再試。";
 "The browser login did not complete in time. Try Antigravity login again." = "瀏覽器登入未在時限內完成。請再次嘗試 Antigravity 登入。";
 "Timed out waiting for Cursor login. %@" = "等待 Cursor 登入逾時。%@";

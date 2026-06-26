@@ -975,6 +975,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "선택 사항입니다. API 키에 표시되는 프로젝트를 검색하고 집계하려면 비워 두세요.";
 "Org ID (optional)" = "조직 ID(선택 사항)";
 "Organizations" = "조직";
+"Organization ID" = "조직 ID";
 "Password" = "암호";
 "%@ authentication is disabled." = "%@ 인증이 사용 안 함으로 설정되어 있습니다.";
 "%@ cookies are disabled." = "%@ 쿠키가 사용 안 함으로 설정되어 있습니다.";
@@ -1028,6 +1029,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "~/.codexbar/config.json에 저장됩니다. CROF_API_KEY를 제공할 수도 있습니다.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "~/.codexbar/config.json에 저장됩니다. KILO_API_KEY 또는 ~/.local/share/kilo/auth.json(kilo.access)을 제공할 수도 있습니다.";
 "T3 Chat cookie" = "T3 Chat 쿠키";
+"Team mode" = "팀 모드";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "해당 계정은 더 이상 CodexBar에서 사용할 수 없습니다. 계정 목록을 새로 고침한 후 다시 시도하세요.";
 "The browser login did not complete in time. Try Antigravity login again." = "브라우저 로그인이 제때 완료되지 않았습니다. Antigravity 로그인을 다시 시도하세요.";
 "Timed out waiting for Cursor login. %@" = "Cursor 로그인을 기다리는 중 시간이 초과되었습니다. %@";

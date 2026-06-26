@@ -11,6 +11,7 @@ extension StatusItemController {
             guard let menu = item.menu else { continue }
             let enabled = !self.isRefreshActionInFlight(for: menu)
             item.isEnabled = enabled
+            (item.view as? PersistentRefreshMenuView)?.setEnabled(enabled)
         }
     }
 

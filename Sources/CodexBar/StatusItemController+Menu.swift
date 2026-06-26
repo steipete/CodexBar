@@ -37,8 +37,10 @@ extension StatusItemController {
     static let usageHistoryChartID = "usageHistoryChart"
     static let storageBreakdownID = "storageBreakdown"
 
-    private func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
+    func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
         switch action {
+        case .refresh:
+            ("r", [.command])
         case .settings:
             (",", [.command])
         case .quit:
@@ -803,7 +805,6 @@ extension StatusItemController {
                     if action == .refresh {
                         let item = self.makePersistentRefreshItem(
                             title: L(title),
-                            action: action,
                             menu: captureMenu ?? menu,
                             width: width)
                         menu.addItem(item)
@@ -871,28 +872,6 @@ extension StatusItemController {
                 menu.addItem(.separator())
             }
         }
-    }
-
-    private func makePersistentRefreshItem(
-        title: String,
-        action: MenuDescriptor.MenuAction,
-        menu: NSMenu,
-        width: CGFloat) -> NSMenuItem
-    {
-        let item = self.makeMenuCardItem(
-            PersistentMenuActionRowView(
-                title: title,
-                systemImageName: action.systemImageName),
-            id: Self.persistentRefreshMenuItemID,
-            width: width,
-            heightCacheFingerprint: "persistentRefreshAction:\(action.systemImageName ?? "")|\(title)",
-            onClick: { [weak self, weak menu] in
-                guard let self, let menu else { return }
-                self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
-            })
-        item.title = title
-        item.isEnabled = !self.isRefreshActionInFlight(for: menu)
-        return item
     }
 
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {

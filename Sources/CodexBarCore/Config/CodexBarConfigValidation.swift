@@ -138,6 +138,8 @@ public enum CodexBarConfigValidator {
 
         self.validateRegion(entry, issues: &issues)
 
+        self.validateZaiTeamContext(entry, issues: &issues)
+
         if let workspaceID = entry.workspaceID,
            !workspaceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            !self.providerSupportsWorkspaceID(provider)
@@ -189,6 +191,29 @@ public enum CodexBarConfigValidator {
             field: "secretKey",
             code: "secret_key_unused",
             message: "secretKey is set but only bedrock uses secretKey."))
+    }
+
+    private static func validateZaiTeamContext(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
+        guard entry.id == .zai else { return }
+
+        guard let tokenAccounts = entry.tokenAccounts else { return }
+        for account in tokenAccounts.accounts
+            where account.sanitizedUsageScope?.lowercased() == ZaiUsageScope.team.rawValue
+        {
+            if account.sanitizedOrganizationID == nil || account.sanitizedWorkspaceID == nil {
+                issues.append(self.zaiMissingTeamContextIssue(field: "tokenAccounts"))
+                return
+            }
+        }
+    }
+
+    private static func zaiMissingTeamContextIssue(field: String) -> CodexBarConfigIssue {
+        CodexBarConfigIssue(
+            severity: .warning,
+            provider: .zai,
+            field: field,
+            code: "zai_team_context_missing",
+            message: "z.ai Team mode requires both organizationID and workspaceID.")
     }
 
     private static func providerSupportsWorkspaceID(_ provider: UsageProvider) -> Bool {

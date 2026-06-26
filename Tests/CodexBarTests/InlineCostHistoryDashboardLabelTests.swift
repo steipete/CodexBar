@@ -5,6 +5,55 @@ import Testing
 
 struct InlineCostHistoryDashboardLabelTests {
     @Test
+    func `local cost history Today KPI uses current day session value`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 0,
+            sessionCostUSD: 0,
+            last30DaysTokens: 275,
+            last30DaysCostUSD: 0.25,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2023-11-15",
+                    inputTokens: 200,
+                    outputTokens: 75,
+                    totalTokens: 275,
+                    costUSD: 0.25,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard?.kpis.first?.title == "Today")
+        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.00")
+        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-15: $0.25")
+    }
+
+    @Test
     func `local cost history KPI titles preserve one day and dynamic windows`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.claude])

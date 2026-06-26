@@ -1005,6 +1005,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "オプション。空欄のままにすると、API キーから参照できるプロジェクトを検出して集計します。";
 "Org ID (optional)" = "組織 ID(オプション)";
 "Organizations" = "組織";
+"Organization ID" = "組織 ID";
 "Password" = "パスワード";
 "%@ authentication is disabled." = "%@ の認証は無効になっています。";
 "%@ cookies are disabled." = "%@ の Cookie は無効になっています。";
@@ -1058,6 +1059,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "~/.codexbar/config.json に保存されます。CROF_API_KEY を指定することもできます。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "~/.codexbar/config.json に保存されます。KILO_API_KEY または ~/.local/share/kilo/auth.json(kilo.access)を指定することもできます。";
 "T3 Chat cookie" = "T3 Chat Cookie";
+"Team mode" = "チームモード";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "そのアカウントは CodexBar で利用できなくなっています。アカウントリストを更新してからやり直してください。";
 "The browser login did not complete in time. Try Antigravity login again." = "ブラウザでのログインが時間内に完了しませんでした。Antigravity のログインをもう一度お試しください。";
 "Timed out waiting for Cursor login. %@" = "Cursor のログイン待機がタイムアウトしました。%@";

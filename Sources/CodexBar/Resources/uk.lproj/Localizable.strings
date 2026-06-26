@@ -1008,6 +1008,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "Додатково. Залиште поле порожнім, щоб виявити та об’єднати проекти, видимі для ключа API.";
 "Org ID (optional)" = "Ідентифікатор організації (необов’язково)";
 "Organizations" = "організації";
+"Organization ID" = "ID організації";
 "Password" = "Пароль";
 "%@ authentication is disabled." = "Автентифікацію %@ вимкнено.";
 "%@ cookies are disabled." = "Файли cookie %@ вимкнено.";
@@ -1061,6 +1062,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Зберігається в ~/.codexbar/config.json. Ви також можете надати CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Зберігається в ~/.codexbar/config.json. Ви також можете надати KILO_API_KEY або ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "T3 Чат cookie";
+"Team mode" = "Командний режим";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "Цей обліковий запис більше не доступний у CodexBar. Оновіть список облікових записів і повторіть спробу.";
 "The browser login did not complete in time. Try Antigravity login again." = "Вхід у браузер не завершено вчасно. Спробуйте ще раз увійти в Antigravity.";
 "Timed out waiting for Cursor login. %@" = "Минув час очікування входу курсору. %@";

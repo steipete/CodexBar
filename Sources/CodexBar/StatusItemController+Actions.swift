@@ -259,7 +259,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         if provider == .zai {
             return ZaiUsageFetcher.resolveDashboardURL(
                 region: self.settings.zaiAPIRegion,
-                environment: environment)
+                environment: environment,
+                usageScope: self.settings.zaiEffectiveUsageScope())
         }
 
         let meta = self.store.metadata(for: provider)

@@ -1011,6 +1011,7 @@
 "Optional. Leave blank to discover and aggregate projects visible to the API key." = "اختیاری. برای کشف و تجمیع پروژه هایی که با کلید API قابل مشاهده هستند، صفحه خالی بگذارید.";
 "Org ID (optional)" = "شناسه سازمان (اختیاری)";
 "Organizations" = "سازمان ها";
+"Organization ID" = "شناسه سازمان";
 "Password" = "رمز عبور";
 "%@ authentication is disabled." = "%@ احراز هویت غیرفعال است.";
 "%@ cookies are disabled." = "%@ کوکی ها غیرفعال هستند.";
@@ -1064,6 +1065,7 @@
 "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "ذخیره شده در ~/.codexbar/config.json. همچنین می توانید CROF_API_KEY ارائه دهید.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "ذخیره شده در ~/.codexbar/config.json. همچنین می توانید KILO_API_KEY یا ~/.local/share/kilo/auth.json (kilo.access) ارائه دهید.";
 "T3 Chat cookie" = "T3 Chat کوکی";
+"Team mode" = "حالت تیم";
 "That account is no longer available in CodexBar. Refresh the account list and try again." = "آن حساب دیگر در CodexBar در دسترس نیست. لیست حساب ها را تازه کنید و دوباره تلاش کنید.";
 "The browser login did not complete in time. Try Antigravity login again." = "ورود به مرورگر به موقع کامل نشد. دوباره Antigravity حساب کاربری امتحان کن.";
 "Timed out waiting for Cursor login. %@" = "زمان خروج منتظر ورود Cursor هستم. %@";

@@ -464,12 +464,28 @@ struct ProvidersPane: View {
                 }
             },
             showsOrganizationField: provider == .claude,
-            addAccount: { label, token, organizationID in
+            showsTeamModeControls: provider == .zai,
+            addAccount: { label, token, usageScope, organizationID, workspaceID in
                 self.settings.addTokenAccount(
                     provider: provider,
                     label: label,
                     token: token,
-                    organizationID: organizationID)
+                    usageScope: usageScope,
+                    organizationID: organizationID,
+                    workspaceID: workspaceID)
+                Task { @MainActor in
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await self.store.refreshProvider(provider, allowDisabled: true)
+                    }
+                }
+            },
+            updateAccount: { accountID, usageScope, organizationID, workspaceID in
+                self.settings.updateTokenAccount(
+                    provider: provider,
+                    accountID: accountID,
+                    usageScope: usageScope,
+                    organizationID: organizationID,
+                    workspaceID: workspaceID)
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
                         await self.store.refreshProvider(provider, allowDisabled: true)

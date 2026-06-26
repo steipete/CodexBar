@@ -134,6 +134,12 @@ struct StatusMenuTests {
         settings.zaiAPIRegion = .bigmodelCN
         #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.bigmodelCN.dashboardURL)
         #expect(controller.dashboardURL(for: .zai)?.absoluteString == "https://bigmodel.cn/coding-plan/personal/usage")
+
+        settings.addTokenAccount(provider: .zai, label: "Team", token: "team-token", usageScope: "team")
+        #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.bigmodelCN.teamDashboardURL)
+        #expect(
+            controller.dashboardURL(for: .zai)?.absoluteString ==
+                "https://bigmodel.cn/coding-plan/team/usage-stats")
     }
 
     @Test
@@ -796,7 +802,9 @@ struct StatusMenuTests {
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
         #expect(controller.isPersistentRefreshItem(refreshItem))
+        #expect(refreshItem.view is PersistentRefreshMenuView)
         #expect(refreshItem.keyEquivalent.isEmpty)
+        #expect(refreshItem.keyEquivalentModifierMask.isEmpty)
 
         let settingsItem = menu.items.first { $0.title == "Settings..." }
         #expect(settingsItem != nil)

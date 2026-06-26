@@ -41,4 +41,13 @@ public enum ZaiAPIRegion: String, CaseIterable, Sendable {
             URL(string: "https://bigmodel.cn/coding-plan/personal/usage")!
         }
     }
+
+    public var teamDashboardURL: URL {
+        switch self {
+        case .global:
+            self.dashboardURL
+        case .bigmodelCN:
+            URL(string: "https://bigmodel.cn/coding-plan/team/usage-stats")!
+        }
+    }
 }

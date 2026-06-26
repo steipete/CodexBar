@@ -21,6 +21,26 @@ assert_gate() {
     printf '%s: expected macos-tests=%s, got %s\n' "$name" "$expected" "${actual:-<empty>}" >&2
     exit 1
   fi
+
+  local reason
+  reason="$(sed -n 's/^macos-tests-reason=//p' "$output_file")"
+  if [[ -z "$reason" ]]; then
+    printf '%s: expected macos-tests-reason output\n' "$name" >&2
+    exit 1
+  fi
+
+  local path_count
+  path_count="$(sed -n 's/^changed-path-count=//p' "$output_file")"
+  if ! [[ "$path_count" =~ ^[0-9]+$ ]]; then
+    printf '%s: expected numeric changed-path-count output, got %s\n' \
+      "$name" "${path_count:-<empty>}" >&2
+    exit 1
+  fi
+
+  if [[ "$expected" == false && "$reason" != "docs/site-only changes covered by portable checks" ]]; then
+    printf '%s: expected docs/site skip reason, got %s\n' "$name" "$reason" >&2
+    exit 1
+  fi
 }
 
 assert_gate false docs-only $'M\tdocs/providers.md' $'M\tREADME.md'

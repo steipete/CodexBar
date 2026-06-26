@@ -182,6 +182,33 @@ struct ClaudeAdminAPIUsageTests {
     }
 
     @Test
+    func `current day summary is zero when Claude admin history is stale`() throws {
+        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
+        let bucketDay = try Self.localNoon(year: 2023, month: 11, day: 14)
+        let apiUsage = ClaudeAdminAPIUsageSnapshot(
+            daily: [
+                ClaudeAdminAPIUsageSnapshot.DailyBucket(
+                    day: "2023-11-14",
+                    startTime: bucketDay,
+                    endTime: bucketDay.addingTimeInterval(86400),
+                    costUSD: 8.5,
+                    inputTokens: 1000,
+                    cacheCreationInputTokens: 400,
+                    cacheReadInputTokens: 300,
+                    outputTokens: 250,
+                    totalTokens: 1950,
+                    costItems: [],
+                    models: []),
+            ],
+            updatedAt: now)
+
+        #expect(apiUsage.currentDay.costUSD == 0)
+        #expect(apiUsage.currentDay.totalTokens == 0)
+        #expect(apiUsage.latestDay.costUSD == 8.5)
+        #expect(apiUsage.latestDay.totalTokens == 1950)
+    }
+
+    @Test
     func `fetch strategy reports admin api source label`() async throws {
         let strategy = ClaudeAdminAPIFetchStrategy(usageFetcher: { apiKey in
             #expect(apiKey == "sk-ant-admin-test")
@@ -192,5 +219,9 @@ struct ClaudeAdminAPIUsageTests {
 
         #expect(result.sourceLabel == "admin-api")
         #expect(result.usage.identity?.loginMethod == "Admin API")
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }

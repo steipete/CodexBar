@@ -226,27 +226,31 @@ enum ProviderSwitcherTrackingRunLoopScheduler {
 
 extension StatusItemController {
     func installProviderSwitcherShortcutMonitorIfNeeded(for menu: NSMenu) {
-        guard self.isMenuRefreshEnabled,
-              self.shouldMergeIcons,
-              menu.items.first?.view is ProviderSwitcherView
-        else {
+        guard self.isMenuRefreshEnabled else {
+            return
+        }
+        let hasProviderSwitcher = self.shouldMergeIcons && menu.items.first?.view is ProviderSwitcherView
+        let hasPersistentRefresh = menu.items.contains { self.isPersistentRefreshItem($0) }
+        guard hasProviderSwitcher || hasPersistentRefresh else {
             return
         }
 
         self.removeProviderSwitcherShortcutMonitor()
         self.resetOverviewScrollAccumulation()
+        let eventMask: NSEvent.EventTypeMask = hasProviderSwitcher
+            ? [.keyDown, .keyUp, .scrollWheel]
+            : [.keyDown, .keyUp]
         let monitor = ProviderSwitcherShortcutEventMonitor(
-            events: [.keyDown, .keyUp, .scrollWheel])
+            events: eventMask)
         { [weak self, weak menu] event in
             guard let self,
                   let menu,
-                  self.openMenus[ObjectIdentifier(menu)] != nil,
-                  menu.items.first?.view is ProviderSwitcherView
+                  self.openMenus[ObjectIdentifier(menu)] != nil
             else {
                 return false
             }
 
-            return self.handleProviderSwitcherTrackingEvent(event, menu: menu)
+            return self.handleMenuTrackingShortcutEvent(event, menu: menu)
         }
         monitor.start()
         self.providerSwitcherShortcutEventMonitor = monitor
@@ -258,6 +262,18 @@ extension StatusItemController {
         self.providerSwitcherShortcutEventMonitor = nil
         self.providerSwitcherShortcutMenuID = nil
         self.clearProviderSwitcherPointerInteraction()
+    }
+
+    @discardableResult
+    func handleMenuTrackingShortcutEvent(_ event: NSEvent, menu: NSMenu) -> Bool {
+        if StatusItemMenu.isPersistentRefreshShortcut(for: event),
+           menu.items.contains(where: self.isPersistentRefreshItem)
+        {
+            self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+            return true
+        }
+        guard menu.items.first?.view is ProviderSwitcherView else { return false }
+        return self.handleProviderSwitcherTrackingEvent(event, menu: menu)
     }
 
     func providerSwitcherContentStartIndex(in menu: NSMenu) -> Int {

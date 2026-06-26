@@ -21,6 +21,25 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key parses zai team account options`() throws {
+        let parser = CommandParser(signature: CodexBarCLI._configSetAPIKeySignatureForTesting())
+        let parsed = try parser.parse(arguments: [
+            "--provider", "zai",
+            "--stdin",
+            "--label", "Team",
+            "--usage-scope", "team",
+            "--organization-id", "org-team",
+            "--workspace-id", "proj-team",
+        ])
+
+        #expect(parsed.options["provider"] == ["zai"])
+        #expect(parsed.options["label"] == ["Team"])
+        #expect(parsed.options["usageScope"] == ["team"])
+        #expect(parsed.options["organizationId"] == ["org-team"])
+        #expect(parsed.options["workspaceId"] == ["proj-team"])
+    }
+
+    @Test
     func `config set api key stores key and enables provider`() {
         let config = CodexBarConfig.makeDefault()
         let updated = CodexBarCLI.configSettingAPIKey(
@@ -32,6 +51,46 @@ struct CLIConfigCommandTests {
 
         #expect(provider?.sanitizedAPIKey == "xi-test-token")
         #expect(provider?.enabled == true)
+    }
+
+    @Test
+    func `config set api key stores zai team token account`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let options = try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .zai,
+            label: "Team",
+            usageScope: "team",
+            organizationID: " org-team ",
+            workspaceID: " proj-team ")
+        let updated = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .zai,
+            apiKey: "z-token",
+            enableProvider: true,
+            accountOptions: options)
+        let provider = try #require(updated.providerConfig(for: .zai))
+        let account = try #require(provider.tokenAccounts?.accounts.first)
+
+        #expect(provider.enabled == true)
+        #expect(provider.apiKey == nil)
+        #expect(provider.tokenAccounts?.activeIndex == 0)
+        #expect(account.label == "Team")
+        #expect(account.token == "z-token")
+        #expect(account.usageScope == "team")
+        #expect(account.organizationID == "org-team")
+        #expect(account.workspaceID == "proj-team")
+    }
+
+    @Test
+    func `config set api key rejects incomplete zai team account options`() {
+        #expect(throws: CLIArgumentError.self) {
+            _ = try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+                provider: .zai,
+                label: "Team",
+                usageScope: "team",
+                organizationID: "org-team",
+                workspaceID: nil)
+        }
     }
 
     @Test
@@ -118,6 +177,7 @@ struct CLIConfigCommandTests {
         #expect(help.contains("config enable --provider <name>"))
         #expect(help.contains("config disable --provider <name>"))
         #expect(help.contains("--stdin"))
+        #expect(help.contains("--usage-scope team"))
         #expect(help.contains("enables that provider by default"))
     }
 }
