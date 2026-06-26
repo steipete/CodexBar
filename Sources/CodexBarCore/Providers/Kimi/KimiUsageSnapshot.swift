@@ -136,13 +136,13 @@ extension KimiUsageSnapshot {
         }
 
         let tier = KimiMembershipLevel.displayName(self.membershipLevel)
-        let mode = KimiCodePricing.modeLabel(displayName: self.modelDisplayName)
-        let loginMethod: String? = if let tier, let mode {
-            "\(tier) · Mode: \(mode)"
+        let fastMode = KimiCodePricing.isHighSpeed(self.modelDisplayName)
+        let loginMethod: String? = if let tier, fastMode {
+            "\(tier) / Fast"
         } else if let tier {
             tier
-        } else if let mode {
-            "Mode: \(mode)"
+        } else if fastMode {
+            "Fast"
         } else {
             nil
         }

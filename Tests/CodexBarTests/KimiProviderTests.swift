@@ -600,7 +600,7 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
-    func `marks high speed model display as login method`() {
+    func `marks high speed model display as fast mode`() {
         let snapshot = KimiUsageSnapshot(
             weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
             rateLimit: nil,
@@ -608,11 +608,11 @@ struct KimiUsageResponseParsingTests {
             modelDisplayName: "Kimi for Coding High Speed")
             .toUsageSnapshot()
 
-        #expect(snapshot.loginMethod(for: .kimi) == "Mode: High Speed")
+        #expect(snapshot.loginMethod(for: .kimi) == "Fast")
     }
 
     @Test
-    func `marks standard model display as login method`() {
+    func `omits standard model display without membership tier`() {
         let snapshot = KimiUsageSnapshot(
             weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
             rateLimit: nil,
@@ -620,11 +620,11 @@ struct KimiUsageResponseParsingTests {
             modelDisplayName: "Kimi for Coding")
             .toUsageSnapshot()
 
-        #expect(snapshot.loginMethod(for: .kimi) == "Mode: Standard")
+        #expect(snapshot.loginMethod(for: .kimi) == nil)
     }
 
     @Test
-    func `combines membership tier and speed mode`() {
+    func `combines membership tier and fast mode`() {
         let snapshot = KimiUsageSnapshot(
             weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
             rateLimit: nil,
@@ -633,7 +633,20 @@ struct KimiUsageResponseParsingTests {
             membershipLevel: "LEVEL_INTERMEDIATE")
             .toUsageSnapshot()
 
-        #expect(snapshot.loginMethod(for: .kimi) == "Allegretto · Mode: High Speed")
+        #expect(snapshot.loginMethod(for: .kimi) == "Allegretto / Fast")
+    }
+
+    @Test
+    func `shows membership tier without standard mode suffix`() {
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
+            rateLimit: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            modelDisplayName: "Kimi for Coding",
+            membershipLevel: "LEVEL_INTERMEDIATE")
+            .toUsageSnapshot()
+
+        #expect(snapshot.loginMethod(for: .kimi) == "Allegretto")
     }
 
     @Test

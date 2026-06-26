@@ -964,10 +964,7 @@ extension UsageMenuCardView.Model {
         }
         if let plan = snapshot?.loginMethod(for: provider), !plan.isEmpty {
             let display = self.planDisplay(plan, for: provider)
-            if provider == .kimi {
-                return display.hasPrefix("Mode:") ? display : "Tier: \(display)"
-            }
-            return display
+            return provider == .kimi ? "Tier: \(display)" : display
         }
         if metadata.usesAccountFallback,
            let plan = account.plan, !plan.isEmpty
