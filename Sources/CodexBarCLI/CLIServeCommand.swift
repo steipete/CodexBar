@@ -530,7 +530,7 @@ extension CodexBarCLI {
         } else {
             parsed = Self.defaultServeRequestTimeout
         }
-        guard parsed >= 0 else { return nil }
+        guard parsed.isFinite, parsed >= 0 else { return nil }
         return parsed
     }
 
@@ -720,10 +720,10 @@ extension CodexBarCLI {
             return Self.serveError(status: .internalServerError, message: error.localizedDescription)
         }
 
-        // Bound each provider strictly below the outer request deadline so a
-        // single slow/hung provider degrades to its own error row while every
-        // other provider still returns fresh data, instead of stalling the whole
-        // response and being discarded by the deadline's empty 504.
+        // For finite request deadlines, bound each provider early enough to
+        // return the healthy rows before the outer deadline discards them all.
+        // A disabled request deadline adds no serve-level provider bound; the
+        // providers' existing internal timeouts still apply.
         let providerTimeout = Self.serveProviderTimeout(requestTimeout: requestTimeout)
 
         let browserDetection = BrowserDetection()
@@ -734,7 +734,7 @@ extension CodexBarCLI {
             antigravityPlanDebug: false,
             augmentDebug: false,
             webDebugDumpHTML: false,
-            webTimeout: providerTimeout,
+            webTimeout: providerTimeout ?? 60,
             verbose: false,
             useColor: false,
             resetStyle: Self.resetTimeDisplayStyleFromDefaults(),
@@ -765,24 +765,22 @@ extension CodexBarCLI {
             usageCacheKeys: output.payload.map(\.cacheAccountKey))
     }
 
-    /// Per-provider fetch budget for `/usage`. Each provider is bounded strictly
-    /// below the outer request deadline so the deadline (which yields an empty
-    /// 504 and discards every collected provider) stays a last resort, never the
-    /// primary cutoff. When the outer deadline is disabled (`requestTimeout == 0`)
-    /// each provider is still bounded so `/usage` cannot hang indefinitely.
-    static func serveProviderTimeout(requestTimeout: TimeInterval) -> TimeInterval {
-        let disabledDeadlineBudget: TimeInterval = 25
-        guard requestTimeout > 0, requestTimeout.isFinite else { return disabledDeadlineBudget }
+    /// Per-provider fetch budget for `/usage`. Finite provider work is bounded
+    /// below the outer request deadline so the empty 504 stays a last resort.
+    /// `nil` preserves the documented disabled serve deadline without changing
+    /// provider-specific internal timeouts.
+    static func serveProviderTimeout(requestTimeout: TimeInterval) -> TimeInterval? {
+        guard requestTimeout > 0, requestTimeout.isFinite else { return nil }
         // 0.8x keeps the budget strictly below the finite deadline at every
         // value (including sub-second timeouts), so the empty-504 deadline can
         // never preempt a provider's own bound.
         return requestTimeout * 0.8
     }
 
-    /// Collects usage for each provider concurrently, bounding every provider by
-    /// `providerTimeout`. A provider that exceeds its budget contributes a
-    /// provider error row instead of blocking the others, so the overall response
-    /// still renders every healthy provider. (Per-account error rows that carry a
+    /// Collects usage for each provider concurrently. When `providerTimeout` is
+    /// non-nil, a provider that exceeds its budget contributes a provider error
+    /// row instead of blocking the others, so the overall response still renders
+    /// every healthy provider. (Per-account error rows that carry a
     /// cache key are merged with last-known-good by `CLIServeResponseCache`; a
     /// timeout row is account-agnostic and is not reconstructed, matching the
     /// existing "a timeout cannot prove the active account" cache rule.) Each
@@ -791,13 +789,17 @@ extension CodexBarCLI {
     /// caller's provider order regardless of completion order.
     static func serveCollectUsageOutputs(
         providers: [UsageProvider],
-        providerTimeout: TimeInterval,
+        providerTimeout: TimeInterval?,
         fetch: @Sendable @escaping (UsageProvider) async -> UsageCommandOutput) async -> UsageCommandOutput
     {
-        let grace = Duration.seconds(max(0, providerTimeout))
+        let grace = providerTimeout.map { Duration.seconds(max(0, $0)) }
         let indexed = await withTaskGroup(of: (Int, UsageCommandOutput).self) { group in
             for (index, provider) in providers.enumerated() {
                 group.addTask {
+                    guard let grace else {
+                        let output = await fetch(provider)
+                        return (index, output)
+                    }
                     let task = Task<UsageCommandOutput, Error> { await fetch(provider) }
                     let join = BoundedTaskJoin(sourceTask: task)
                     switch await join.value(joinGrace: grace) {

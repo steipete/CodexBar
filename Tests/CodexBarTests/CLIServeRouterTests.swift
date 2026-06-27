@@ -159,6 +159,10 @@ struct CLIServeRouterTests {
             flags: [])) == nil)
         #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
             positional: [],
+            options: ["requestTimeout": ["inf"]],
+            flags: [])) == nil)
+        #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
+            positional: [],
             options: ["requestTimeout": ["0"]],
             flags: [])) == 0)
         #expect(CodexBarCLI.decodeServeRequestTimeout(from: ParsedValues(
@@ -222,16 +226,20 @@ struct CLIServeRouterTests {
     }
 
     @Test
-    func `serve provider timeout stays below the request deadline`() {
-        #expect(abs(CodexBarCLI.serveProviderTimeout(requestTimeout: 30) - 24) < 1e-9)
-        #expect(abs(CodexBarCLI.serveProviderTimeout(requestTimeout: 10) - 8) < 1e-9)
-        // Outer deadline disabled (0) or non-finite: still bound each provider.
-        #expect(CodexBarCLI.serveProviderTimeout(requestTimeout: 0) == 25)
-        #expect(CodexBarCLI.serveProviderTimeout(requestTimeout: .infinity) == 25)
+    func `serve provider timeout stays below the request deadline`() throws {
+        let thirtySecondTimeout = try #require(CodexBarCLI.serveProviderTimeout(requestTimeout: 30))
+        let tenSecondTimeout = try #require(CodexBarCLI.serveProviderTimeout(requestTimeout: 10))
+        #expect(abs(thirtySecondTimeout - 24) < 1e-9)
+        #expect(abs(tenSecondTimeout - 8) < 1e-9)
+        // Outer deadline disabled (0) or non-finite: add no serve-level provider bound.
+        #expect(CodexBarCLI.serveProviderTimeout(requestTimeout: 0) == nil)
+        #expect(CodexBarCLI.serveProviderTimeout(requestTimeout: .infinity) == nil)
         // Finite deadlines stay strictly below the request timeout at every
         // value, including sub-second ones.
-        #expect(CodexBarCLI.serveProviderTimeout(requestTimeout: 1) < 1)
-        #expect(abs(CodexBarCLI.serveProviderTimeout(requestTimeout: 0.5) - 0.4) < 1e-9)
+        let oneSecondTimeout = try #require(CodexBarCLI.serveProviderTimeout(requestTimeout: 1))
+        let halfSecondTimeout = try #require(CodexBarCLI.serveProviderTimeout(requestTimeout: 0.5))
+        #expect(oneSecondTimeout < 1)
+        #expect(abs(halfSecondTimeout - 0.4) < 1e-9)
     }
 
     @Test
@@ -265,6 +273,23 @@ struct CLIServeRouterTests {
         #expect(output.payload.first?.cacheAccountKey == nil)
         #expect(output.payload.first?.account == nil)
         #expect(output.exitCode == .failure)
+    }
+
+    @Test
+    func `serve usage collection adds no join bound when request deadline is disabled`() async {
+        let output = await CodexBarCLI.serveCollectUsageOutputs(
+            providers: [.codex, .claude],
+            providerTimeout: nil)
+        { provider in
+            if provider == .codex {
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+            return UsageCommandOutput(sections: ["ok:\(provider.rawValue)"])
+        }
+
+        #expect(output.sections == ["ok:codex", "ok:claude"])
+        #expect(output.payload.isEmpty)
+        #expect(output.exitCode == .success)
     }
 
     @Test
