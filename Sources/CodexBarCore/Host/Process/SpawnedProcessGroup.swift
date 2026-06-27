@@ -179,10 +179,17 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         static func resolve(fileDescriptor: Int32) -> OutputTTYIdentity? {
             var info = stat()
             guard fstat(fileDescriptor, &info) == 0 else { return nil }
+            #if canImport(Darwin)
+            let device = SpawnedProcessGroup.darwinDeviceIdentifier(info.st_dev)
+            let rawDevice = SpawnedProcessGroup.darwinDeviceIdentifier(info.st_rdev)
+            #else
+            let device = UInt64(info.st_dev)
+            let rawDevice = UInt64(info.st_rdev)
+            #endif
             return OutputTTYIdentity(
-                device: UInt64(info.st_dev),
+                device: device,
                 inode: UInt64(info.st_ino),
-                rawDevice: UInt64(info.st_rdev))
+                rawDevice: rawDevice)
         }
 
         static func holderPIDs(for terminals: Set<OutputTTYIdentity>) -> Set<pid_t> {
@@ -260,6 +267,13 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         return entries.compactMap(pid_t.init)
         #endif
     }
+
+    #if canImport(Darwin)
+    /// Darwin exposes `stat` device IDs as signed values while vnode inspection uses the same bits unsigned.
+    package static func darwinDeviceIdentifier(_ value: Int32) -> UInt64 {
+        UInt64(UInt32(bitPattern: value))
+    }
+    #endif
 
     private static func processIDs(inProcessGroup processGroup: pid_t) -> [pid_t] {
         #if canImport(Darwin)
