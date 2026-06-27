@@ -11,6 +11,7 @@ enum MenuBarDisplayText {
     static func paceText(pace: UsagePace?) -> String? {
         guard let pace else { return nil }
         let deltaValue = Int(abs(pace.deltaPercent).rounded())
+        if deltaValue == 0 { return "0%" }
         let sign = pace.deltaPercent >= 0 ? "+" : "-"
         return "\(sign)\(deltaValue)%"
     }
