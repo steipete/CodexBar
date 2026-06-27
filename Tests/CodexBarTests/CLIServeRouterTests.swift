@@ -240,6 +240,12 @@ struct CLIServeRouterTests {
         let halfSecondTimeout = try #require(CodexBarCLI.serveProviderTimeout(requestTimeout: 0.5))
         #expect(oneSecondTimeout < 1)
         #expect(abs(halfSecondTimeout - 0.4) < 1e-9)
+        // Oversized finite deadlines share the outer 24-hour cap and cannot
+        // overflow Duration conversion.
+        let oversizedTimeout = try #require(CodexBarCLI.serveProviderTimeout(
+            requestTimeout: .greatestFiniteMagnitude))
+        #expect(abs(oversizedTimeout - 69120) < 1e-9)
+        #expect(oversizedTimeout < 86400)
     }
 
     @Test

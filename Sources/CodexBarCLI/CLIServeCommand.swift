@@ -429,6 +429,7 @@ private struct CLIServeProviderTimeoutError: LocalizedError {
 
 extension CodexBarCLI {
     static let defaultServeRequestTimeout: TimeInterval = 30
+    private static let maximumServeRequestTimeout: TimeInterval = 86400
 
     static func runServe(_ values: ParsedValues) async {
         let output = CLIOutputPreferences(format: .json, jsonOnly: true, pretty: false)
@@ -644,7 +645,7 @@ extension CodexBarCLI {
         seconds timeout: TimeInterval,
         makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> CLILocalHTTPResponse
     {
-        let clampedTimeout = min(max(timeout, 0), 86400)
+        let clampedTimeout = min(max(timeout, 0), Self.maximumServeRequestTimeout)
         guard clampedTimeout > 0 else {
             return await makeResponse()
         }
@@ -771,10 +772,11 @@ extension CodexBarCLI {
     /// provider-specific internal timeouts.
     static func serveProviderTimeout(requestTimeout: TimeInterval) -> TimeInterval? {
         guard requestTimeout > 0, requestTimeout.isFinite else { return nil }
+        let clampedTimeout = min(requestTimeout, Self.maximumServeRequestTimeout)
         // 0.8x keeps the budget strictly below the finite deadline at every
-        // value (including sub-second timeouts), so the empty-504 deadline can
-        // never preempt a provider's own bound.
-        return requestTimeout * 0.8
+        // value (including sub-second and capped timeouts), so the empty-504
+        // deadline can never preempt a provider's own bound.
+        return clampedTimeout * 0.8
     }
 
     /// Collects usage for each provider concurrently. When `providerTimeout` is
