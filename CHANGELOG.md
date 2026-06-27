@@ -8,6 +8,7 @@
 
 ### Fixed
 - Memory pressure: finish isolating utility-queue source reads from main-actor state to prevent the remaining callback crash. Thanks @Zihao-Qi!
+- Kiro: run account, usage, and context commands through a PTY so current CLI versions return usage without timing out. Thanks @sf-jin-ku!
 - Mistral: restore Vibe monthly-plan usage by forwarding only required console session cookies. Thanks @lfmundim!
 - Codex: show enterprise monthly credit limits across OAuth, CLI, menu, and widget surfaces. Thanks @ChenZiHong-Gavin!
 - Codex: avoid launching monthly-credit CLI enrichment during usage-only OAuth refreshes.
