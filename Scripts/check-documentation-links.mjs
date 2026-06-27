@@ -87,7 +87,8 @@ function inlineCodeDocLinks(markdown) {
 }
 
 function validateLocalDocLink(rawLink, baseDirectory, sourceLabel) {
-  const { absolutePath, fragment } = localDocPath(rawLink, baseDirectory);
+  const sourcePath = path.join(repoRoot, sourceLabel);
+  const { absolutePath, fragment } = localDocPath(rawLink, baseDirectory, sourcePath);
   assert(fs.existsSync(absolutePath), `${sourceLabel}: missing documentation target: ${rawLink}`);
 
   if (path.extname(absolutePath).toLowerCase() !== ".md" || !fragment) return;
@@ -105,17 +106,20 @@ function isRepositoryDocReference(rawLink) {
 
 function isLocalDocumentationReference(rawLink) {
   const parsed = parseRelativeURL(rawLink);
-  if (!parsed || parsed.protocol || parsed.host || !parsed.pathname) return false;
-  return !parsed.pathname.startsWith("#");
+  if (!parsed || parsed.protocol || parsed.host) return false;
+  return Boolean(parsed.pathname || parsed.hash);
 }
 
-function localDocPath(rawLink, baseDirectory) {
+function localDocPath(rawLink, baseDirectory, sourcePath) {
   const parsed = parseRelativeURL(rawLink);
-  assert(parsed && !parsed.protocol && !parsed.host && parsed.pathname, `invalid documentation URL: ${rawLink}`);
+  assert(
+    parsed && !parsed.protocol && !parsed.host && (parsed.pathname || parsed.hash),
+    `invalid documentation URL: ${rawLink}`,
+  );
 
   const rawPath = rawLink.split("#", 1)[0].split("?", 1)[0];
   const decodedPath = decodeURIComponent(rawPath);
-  const absolutePath = path.resolve(baseDirectory, decodedPath);
+  const absolutePath = decodedPath ? path.resolve(baseDirectory, decodedPath) : sourcePath;
   const docsRoot = path.resolve(repoRoot, "docs");
   const isInDocsTree = absolutePath === docsRoot || absolutePath.startsWith(`${docsRoot}${path.sep}`);
   assert(
