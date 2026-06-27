@@ -70,7 +70,7 @@ struct UsageMenuCardView: View {
             }
 
             var percentLabel: String {
-                String(format: "%.0f%% %@", self.percent, self.percentStyle.labelSuffix)
+                "\(UsageFormatter.percentString(self.percent)) \(self.percentStyle.labelSuffix)"
             }
         }
 
@@ -109,6 +109,7 @@ struct UsageMenuCardView: View {
         let inlineUsageDashboard: InlineUsageDashboardModel?
         let creditsText: String?
         let creditsRemaining: Double?
+        var creditsProgressPercent: Double?, creditsScaleText: String?
         let creditsHintText: String?
         let creditsHintCopyText: String?
         var codexResetCreditsText: String?
@@ -171,6 +172,8 @@ struct UsageMenuCardView: View {
                         CreditsBarContent(
                             creditsText: credits,
                             creditsRemaining: liveModel.creditsRemaining,
+                            progressPercent: liveModel.creditsProgressPercent,
+                            scaleText: liveModel.creditsScaleText,
                             hintText: liveModel.creditsHintText,
                             hintCopyText: liveModel.creditsHintCopyText,
                             progressColor: liveModel.progressColor)
@@ -609,6 +612,8 @@ struct UsageMenuCardCreditsSectionView: View {
                 CreditsBarContent(
                     creditsText: credits,
                     creditsRemaining: liveModel.creditsRemaining,
+                    progressPercent: liveModel.creditsProgressPercent,
+                    scaleText: liveModel.creditsScaleText,
                     hintText: liveModel.creditsHintText,
                     hintCopyText: liveModel.creditsHintCopyText,
                     progressColor: liveModel.progressColor)
@@ -634,18 +639,21 @@ private struct CreditsBarContent: View {
 
     let creditsText: String
     let creditsRemaining: Double?
+    var progressPercent: Double?, scaleText: String?
     let hintText: String?
     let hintCopyText: String?
     let progressColor: Color
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     private var percentLeft: Double? {
+        if let progressPercent { return min(100, max(0, progressPercent)) }
         guard let creditsRemaining else { return nil }
         let percent = (creditsRemaining / Self.fullScaleTokens) * 100
         return min(100, max(0, percent))
     }
 
-    private var scaleText: String {
+    private var effectiveScaleText: String {
+        if let scaleText { return scaleText }
         let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
         return "\(scale) \(L("tokens"))"
     }
@@ -665,7 +673,7 @@ private struct CreditsBarContent: View {
                         .font(.caption)
                         .lineLimit(1)
                     Spacer()
-                    Text(self.scaleText)
+                    Text(self.effectiveScaleText)
                         .font(.caption)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                 }
@@ -887,6 +895,9 @@ extension UsageMenuCardView.Model {
                 error: input.creditsError)
         }
         let creditsText = PersonalInfoRedactor.redactEmails(in: rawCreditsText, isEnabled: input.hidePersonalInfo)
+        let creditsProgressPercent = Self.creditsProgressPercent(credits: input.credits)
+        let creditsScaleText = Self.creditsScaleText(credits: input.credits)
+        let codexCreditLimitDetail = Self.codexCreditLimitDetail(credits: input.credits, now: input.now)
         let isClaudeAdminAPI = input.provider == .claude &&
             input.snapshot?.identity?.loginMethod == "Admin API"
         let isRequiredOpenCodeZenBalance = Self.isRequiredOpenCodeZenBalance(input.snapshot)
@@ -928,9 +939,11 @@ extension UsageMenuCardView.Model {
             openAIAPIUsage: openAIAPIUsage,
             inlineUsageDashboard: inlineUsageDashboard,
             creditsText: creditsText,
-            creditsRemaining: input.credits?.remaining,
-            creditsHintText: redacted.creditsHintText,
-            creditsHintCopyText: redacted.creditsHintCopyText,
+            creditsRemaining: input.credits?.codexCreditLimit?.remaining ?? input.credits?.remaining,
+            creditsProgressPercent: creditsProgressPercent,
+            creditsScaleText: creditsScaleText,
+            creditsHintText: codexCreditLimitDetail ?? redacted.creditsHintText,
+            creditsHintCopyText: codexCreditLimitDetail ?? redacted.creditsHintCopyText,
             codexResetCreditsText: Self.codexResetCreditsText(input: input),
             codexResetCreditsDetailText: Self.codexResetCreditsDetailText(input: input),
             providerCost: providerCost,

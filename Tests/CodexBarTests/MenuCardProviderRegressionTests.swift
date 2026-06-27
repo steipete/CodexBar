@@ -6,6 +6,23 @@ import Testing
 
 struct MenuCardProviderRegressionTests {
     @Test
+    func `menu card keeps positive sub percent usage visible`() {
+        let metric = UsageMenuCardView.Model.Metric(
+            id: "sub-percent",
+            title: "Monthly",
+            percent: 0.1,
+            percentStyle: .used,
+            resetText: nil,
+            detailText: nil,
+            detailLeftText: nil,
+            detailRightText: nil,
+            pacePercent: nil,
+            paceOnTop: false)
+
+        #expect(metric.percentLabel == "<1% used")
+    }
+
+    @Test
     func `elevenlabs progress color stays visible in light menus`() {
         #expect(UsageMenuCardView.Model.progressColor(for: .elevenlabs) == Color(nsColor: .labelColor))
     }
