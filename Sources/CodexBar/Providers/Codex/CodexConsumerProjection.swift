@@ -168,7 +168,7 @@ struct CodexConsumerProjection {
         let userFacingError: String?
 
         var remaining: Double? {
-            self.snapshot?.remaining
+            self.snapshot?.codexCreditLimit?.remaining ?? self.snapshot?.remaining
         }
     }
 

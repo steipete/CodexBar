@@ -1,21 +1,19 @@
 # Changelog
 
-## 0.37.4 — Unreleased
+## 0.37.3 — 2026-06-26
 
 ### Added
 - z.ai: support saved token-account team usage with account-scoped organization and project metadata. Thanks @zqbake!
-
-### Fixed
-- Mistral: restore Vibe monthly-plan usage by forwarding only required console session cookies. Thanks @lfmundim!
-
-## 0.37.3 — 2026-06-23
-
-### Added
 - CLI: show session pace in text output, expose derived pace data in JSON, and honor the configured weekly work-day baseline. Thanks @kmatsunami!
 
 ### Fixed
-- Menu: match the persistent Refresh row to native menu styling without replacing keyboard-navigable Settings, About, and Quit actions. Thanks @Zihao-Qi!
 - Memory pressure: finish isolating utility-queue source reads from main-actor state to prevent the remaining callback crash. Thanks @Zihao-Qi!
+- Kiro: run account, usage, and context commands through a PTY so current CLI versions return usage without timing out. Thanks @sf-jin-ku!
+- Mistral: restore Vibe monthly-plan usage by forwarding only required console session cookies. Thanks @lfmundim!
+- Codex: show enterprise monthly credit limits across OAuth, CLI, menu, and widget surfaces. Thanks @ChenZiHong-Gavin!
+- Codex: avoid launching monthly-credit CLI enrichment during usage-only OAuth refreshes.
+- Usage display: keep positive values below one percent visible instead of rounding them to zero. Thanks @Max0633!
+- Menu: match the persistent Refresh row to native menu styling without replacing keyboard-navigable Settings, About, and Quit actions. Thanks @Zihao-Qi!
 - Claude: stop installed-version checks from invoking a login shell and triggering unwanted Keychain prompts. Thanks @enieuwy!
 - Localization: reject blank translated values and restore the affected Vietnamese provider prompts. Thanks @kiranmagic7!
 - Usage totals: keep Today tied to the current local calendar day across cost, Admin API, and Poe surfaces instead of showing the latest historical bucket. Thanks @Zihao-Qi!

@@ -209,6 +209,28 @@ struct CodexConsumerProjectionTests {
         #expect(!projection.hasExhaustedRateLane)
     }
 
+    @Test
+    func `projection prefers monthly credit limit remaining over zero balance`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-monthly-credit-limit")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        store._setSnapshotForTesting(nil, provider: .codex)
+        store.credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 7761,
+                limit: 100_000,
+                remainingPercent: 92.239,
+                resetsAt: nil,
+                updatedAt: now))
+
+        let projection = store.codexConsumerProjection(surface: .widget, now: now)
+
+        #expect(projection.credits?.remaining == 92239)
+    }
+
     private func makeStore(suite: String) -> UsageStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

@@ -104,6 +104,8 @@ struct UsageMenuCardLayoutTests {
             inlineUsageDashboard: nil,
             creditsText: creditsText,
             creditsRemaining: nil,
+            creditsProgressPercent: nil,
+            creditsScaleText: nil,
             creditsHintText: nil,
             creditsHintCopyText: nil,
             providerCost: nil,

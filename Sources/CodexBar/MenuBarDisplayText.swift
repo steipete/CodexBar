@@ -5,8 +5,7 @@ enum MenuBarDisplayText {
     static func percentText(window: RateWindow?, showUsed: Bool) -> String? {
         guard let window else { return nil }
         let percent = showUsed ? window.usedPercent : window.remainingPercent
-        let clamped = min(100, max(0, percent))
-        return String(format: "%.0f%%", clamped)
+        return UsageFormatter.percentString(percent)
     }
 
     static func paceText(pace: UsagePace?) -> String? {

@@ -80,11 +80,16 @@ public enum UsageFormatter {
 
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
-        let clamped = min(100, max(0, percent))
         let suffix = showUsed
             ? self.localized("usage_percent_suffix_used")
             : self.localized("usage_percent_suffix_left")
-        return String(format: "%.0f%% %@", clamped, suffix)
+        return "\(self.percentString(percent)) \(suffix)"
+    }
+
+    public static func percentString(_ percent: Double) -> String {
+        let clamped = min(100, max(0, percent))
+        if clamped > 0, clamped < 1 { return "<1%" }
+        return String(format: "%.0f%%", clamped)
     }
 
     public static func resetCountdownDescription(from date: Date, now: Date = .init()) -> String {
@@ -184,13 +189,16 @@ public enum UsageFormatter {
     }
 
     public static func creditsString(from value: Double) -> String {
+        self.localized("%@ left", self.creditsNumberString(from: value))
+    }
+
+    public static func creditsNumberString(from value: Double) -> String {
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
         // Use explicit locale for consistent formatting on all systems
         number.locale = Locale(identifier: "en_US_POSIX")
-        let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
-        return self.localized("%@ left", formatted)
+        return number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
     }
 
     public static func kiroCreditNumber(_ value: Double) -> String {

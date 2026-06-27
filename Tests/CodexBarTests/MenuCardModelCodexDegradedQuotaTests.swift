@@ -198,6 +198,8 @@ struct MenuCardModelCodexDegradedQuotaTests {
             inlineUsageDashboard: nil,
             creditsText: "$12.34 remaining",
             creditsRemaining: 12.34,
+            creditsProgressPercent: nil,
+            creditsScaleText: nil,
             creditsHintText: nil,
             creditsHintCopyText: nil,
             providerCost: nil,
