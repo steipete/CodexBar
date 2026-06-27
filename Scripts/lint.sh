@@ -43,13 +43,12 @@ check_ci_path_gate() {
 
 check_shell_scripts() {
   local count=0
-  while IFS= read -r script; do
+  local script
+  for script in "${ROOT_DIR}"/Scripts/*.sh "${ROOT_DIR}"/Scripts/mac-release; do
+    [[ -f "$script" ]] || continue
     bash -n "$script"
     count=$((count + 1))
-  done < <(
-    find "${ROOT_DIR}/Scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "mac-release" \) -print |
-      LC_ALL=C sort
-  )
+  done
   printf 'shell scripts OK: %d files\n' "$count"
 }
 
