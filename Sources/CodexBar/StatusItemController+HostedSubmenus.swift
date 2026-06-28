@@ -547,14 +547,15 @@ extension StatusItemController {
 
         let linkItem = NSMenuItem(
             title: L("Open Status Page"),
-            action: #selector(self.openStatusPage),
+            action: #selector(self.openStatusPageFromMenuItem(_:)),
             keyEquivalent: "")
         linkItem.target = self
         // Tag the link with the chart identity so the menu is still recognized as a status
         // submenu (and re-hydrates) when the component list hasn't loaded yet and the link is the
-        // only row. openStatusPage resolves the provider via lastMenuProvider, not this object.
+        // only row. The identifier also scopes the action to this submenu's provider so a later
+        // menu selection change cannot open another provider's status page.
         linkItem.representedObject = Self.statusComponentsID
-        linkItem.toolTip = provider.rawValue
+        linkItem.identifier = NSUserInterfaceItemIdentifier(provider.rawValue)
         if let image = NSImage(systemSymbolName: "arrow.up.right.square", accessibilityDescription: nil) {
             image.isTemplate = true
             image.size = NSSize(width: 16, height: 16)

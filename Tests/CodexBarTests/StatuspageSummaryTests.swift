@@ -76,6 +76,22 @@ struct StatuspageSummaryTests {
     }
 
     @Test
+    func `parse statuspage components drops blank names`() throws {
+        let data = Data(#"""
+        {
+          "components": [
+            {"id": "blank", "name": "   ", "status": "operational", "position": 1},
+            {"id": "api", "name": " API ", "status": "operational", "position": 2}
+          ]
+        }
+        """#.utf8)
+
+        let components = try UsageStore.parseStatuspageComponents(data: data)
+
+        #expect(components.map(\.name) == ["API"])
+    }
+
+    @Test
     func `fetchStatusSummary returns status with empty components when component feed fails`() async throws {
         let summaryJSON = Data(#"""
         {
@@ -98,7 +114,7 @@ struct StatuspageSummaryTests {
 
         #expect(result.status.indicator == .minor)
         #expect(result.status.description == "Partial Outage")
-        #expect(result.components.isEmpty)
+        #expect(result.components == nil)
     }
 
     @Test
@@ -135,7 +151,7 @@ struct StatuspageSummaryTests {
         #expect(result.status.indicator == .minor)
         #expect(result.status.description == "Elevated error rates")
         #expect(result.status.updatedAt != nil)
-        #expect(result.components.map(\.name) == ["API"])
+        #expect(result.components?.map(\.name) == ["API"])
     }
 
     @Test

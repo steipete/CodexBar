@@ -881,7 +881,7 @@ final class UsageStore {
 
         do {
             let status: ProviderStatus
-            var components: [ProviderStatusComponent] = []
+            var components: [ProviderStatusComponent]?
             if let override = self._test_providerStatusFetchOverride {
                 status = try await override(provider)
             } else if let urlString = meta.statusPageURL, let baseURL = URL(string: urlString) {
@@ -895,7 +895,11 @@ final class UsageStore {
             }
             await MainActor.run {
                 self.statuses[provider] = status
-                self.statusComponents[provider] = components
+                // A component endpoint is best-effort. Preserve the last good list when the
+                // overall status succeeds but the component request or decoding fails.
+                if let components {
+                    self.statusComponents[provider] = components
+                }
             }
         } catch {
             self.recordStartupConnectivityRetryableFailure(error)

@@ -96,7 +96,7 @@ extension UsageStore {
     nonisolated static func fetchStatusSummary(
         from baseURL: URL,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
-        async throws -> (status: ProviderStatus, components: [ProviderStatusComponent])
+        async throws -> (status: ProviderStatus, components: [ProviderStatusComponent]?)
     {
         // incident.io native feed (grouped): https://<host>/proxy/<host>
         if let host = baseURL.host,
@@ -127,12 +127,12 @@ extension UsageStore {
 
         let (summaryData, _) = try await transport.data(for: summaryRequest)
         let status = try Self.parseStatuspageStatus(data: summaryData)
-        let components: [ProviderStatusComponent] = if let (componentsData, _) = try? await transport
+        let components: [ProviderStatusComponent]? = if let (componentsData, _) = try? await transport
             .data(for: componentsRequest)
         {
-            (try? Self.parseStatuspageComponents(data: componentsData)) ?? []
+            try? Self.parseStatuspageComponents(data: componentsData)
         } else {
-            []
+            nil
         }
         return (status, components)
     }
@@ -229,17 +229,24 @@ extension UsageStore {
             if let group = item.group, group.hidden != true {
                 let children = (group.components ?? [])
                     .filter { $0.hidden != true }
-                    .map { leaf(id: $0.componentID, name: $0.name ?? "") }
+                    .compactMap { child -> ProviderStatusComponent? in
+                        guard let name = Self.normalizedStatusComponentName(child.name) else { return nil }
+                        return leaf(id: child.componentID, name: name)
+                    }
+                guard let groupName = Self.normalizedStatusComponentName(group.name) else { continue }
                 let worst = children.max { Self.indicatorRank($0.indicator) < Self.indicatorRank($1.indicator) }
                 topLevel.append(ProviderStatusComponent(
                     id: group.id,
-                    name: group.name ?? "",
+                    name: groupName,
                     indicator: worst?.indicator ?? .none,
                     statusLabel: worst?.statusLabel ?? ProviderStatusComponent
                         .label(forStatuspageStatus: "operational"),
                     children: children))
-            } else if let component = item.component, component.hidden != true {
-                topLevel.append(leaf(id: component.id, name: component.name ?? ""))
+            } else if let component = item.component,
+                      component.hidden != true,
+                      let name = Self.normalizedStatusComponentName(component.name)
+            {
+                topLevel.append(leaf(id: component.id, name: name))
             }
         }
 
@@ -302,6 +309,7 @@ extension UsageStore {
 
         let response = try JSONDecoder().decode(Response.self, from: data)
         let raw = (response.components ?? [])
+            .filter { Self.normalizedStatusComponentName($0.name) != nil }
             .sorted { ($0.position ?? 0) < ($1.position ?? 0) }
 
         func makeRow(
@@ -310,7 +318,7 @@ extension UsageStore {
         {
             ProviderStatusComponent(
                 id: component.id,
-                name: component.name,
+                name: Self.normalizedStatusComponentName(component.name) ?? component.name,
                 indicator: ProviderStatusComponent.indicator(forStatuspageStatus: component.status),
                 statusLabel: ProviderStatusComponent.label(forStatuspageStatus: component.status),
                 children: children)
@@ -332,6 +340,11 @@ extension UsageStore {
             if component.groupID != nil { return nil }
             return makeRow(component, children: [])
         }
+    }
+
+    private nonisolated static func normalizedStatusComponentName(_ name: String?) -> String? {
+        guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+        return name
     }
 
     @concurrent

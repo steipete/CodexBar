@@ -1,5 +1,17 @@
 import SwiftUI
 
+extension ProviderStatusIndicator {
+    /// Traffic-light color used for the per-component dot in the status submenu.
+    fileprivate var dotColor: Color {
+        switch self {
+        case .none: Color(red: 0.20, green: 0.78, blue: 0.35)
+        case .minor, .maintenance: Color(red: 0.96, green: 0.77, blue: 0.13)
+        case .major, .critical: Color(red: 0.91, green: 0.30, blue: 0.24)
+        case .unknown: Color.secondary
+        }
+    }
+}
+
 /// Renders the list of statuspage.io component rows inside the provider's status submenu.
 /// Each leaf row is: colored dot (far left) · service name · right-aligned status text.
 /// A component group renders as an expandable dropdown: the parent shows the group's own

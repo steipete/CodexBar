@@ -1,6 +1,5 @@
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 enum ProviderStatusIndicator: String {
     case none
@@ -25,16 +24,6 @@ enum ProviderStatusIndicator: String {
         case .critical: L("status_critical_issue")
         case .maintenance: L("status_maintenance")
         case .unknown: L("status_unknown")
-        }
-    }
-
-    /// Traffic-light color used for the per-component dot in the status submenu.
-    var dotColor: Color {
-        switch self {
-        case .none: Color(red: 0.20, green: 0.78, blue: 0.35) // green
-        case .minor, .maintenance: Color(red: 0.96, green: 0.77, blue: 0.13) // yellow
-        case .major, .critical: Color(red: 0.91, green: 0.30, blue: 0.24) // red
-        case .unknown: Color.secondary
         }
     }
 }

@@ -7,6 +7,33 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuHostedSubmenuRefreshTests {
     @Test
+    func `status submenu link stays scoped to its provider`() throws {
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = true
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let submenu = NSMenu()
+        #expect(controller.appendStatusComponentsItem(
+            to: submenu,
+            provider: .claude,
+            width: StatusItemController.menuCardBaseWidth))
+
+        let link = try #require(submenu.items.last)
+        #expect(link.action == #selector(StatusItemController.openStatusPageFromMenuItem(_:)))
+        #expect(link.identifier?.rawValue == UsageProvider.claude.rawValue)
+        #expect(link.target === controller)
+    }
+
+    @Test
     func `storage native row preserves its plain menu title`() throws {
         let settings = Self.makeSettings()
         settings.providerStorageFootprintsEnabled = true
