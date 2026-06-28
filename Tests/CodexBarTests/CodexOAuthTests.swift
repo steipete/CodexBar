@@ -3,12 +3,17 @@ import Testing
 @testable import CodexBarCore
 
 struct CodexOAuthTests {
-    private func makeContext(sourceMode: ProviderSourceMode = .auto) -> ProviderFetchContext {
+    private func makeContext(
+        sourceMode: ProviderSourceMode = .auto,
+        includeCredits: Bool = true,
+        includeOptionalUsage: Bool = true) -> ProviderFetchContext
+    {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
-            includeCredits: true,
+            includeCredits: includeCredits,
+            includeOptionalUsage: includeOptionalUsage,
             webTimeout: 60,
             webDebugDumpHTML: false,
             verbose: false,
@@ -769,6 +774,13 @@ struct CodexOAuthTests {
         #expect(!strategy.shouldFallback(
             on: CodexTokenRefresher.RefreshError.networkError(URLError(.timedOut)),
             context: context))
+    }
+
+    @Test
+    func `reset credits fetch is independent from optional usage display setting`() {
+        let context = self.makeContext(includeCredits: false, includeOptionalUsage: false)
+
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(context))
     }
 
     @Test
