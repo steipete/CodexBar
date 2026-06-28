@@ -15,9 +15,9 @@ Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and
 
 <img src="codexbar.png" alt="CodexBar menu popover with provider tiles, usage bars, and reset countdowns" width="520" />
 
-## Srimi1 fork: Sakana AI support
+## Sakana AI support
 
-This fork adds first-class **Sakana AI** usage tracking to CodexBar while keeping provider secrets out of the repository.
+Adds first-class **Sakana AI** usage tracking to CodexBar while keeping provider secrets out of the repository.
 The Sakana provider validates model access with the public API and reads remaining quota from the authenticated Sakana
 console when browser cookies are available.
 
