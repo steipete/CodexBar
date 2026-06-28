@@ -1111,6 +1111,20 @@ extension UsageMenuCardView.Model {
         let zaiSessionDetail = Self.zaiLimitDetailText(limit: zaiUsage?.sessionTokenLimit)
         let openRouterQuotaDetail = Self.openRouterQuotaDetail(provider: input.provider, snapshot: snapshot)
         let labels = Self.rateWindowLabels(input: input, snapshot: snapshot)
+        if input.provider == .mistral, let credits = snapshot.mistralUsage?.credits {
+            metrics.append(Metric(
+                id: "mistral-balance",
+                title: L("Balance"),
+                percent: 0,
+                percentStyle: percentStyle,
+                statusText: credits.formattedAvailableAmount,
+                resetText: nil,
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true))
+        }
         if input.provider == .codex, let codexProjection = input.codexProjection {
             metrics.append(contentsOf: Self.codexRateMetrics(
                 input: input,
@@ -1248,7 +1262,7 @@ extension UsageMenuCardView.Model {
             primaryDetailLeft = detail
         }
         if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek
-            || input.provider == .litellm,
+            || input.provider == .mistral || input.provider == .litellm,
             let detail = primary.resetDescription,
             !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1265,15 +1279,14 @@ extension UsageMenuCardView.Model {
             let total = UsageFormatter.kiroCreditNumber(kiroUsage.creditsTotal)
             primaryDetailLeft = String(format: L("%@ of %@ credits left"), remaining, total)
         }
-        if input.provider == .alibaba || input.provider == .alibabatokenplan || input.provider == .mistral || input
-            .provider == .manus,
-            let detail = primary.resetDescription,
-            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if input.provider == .alibaba || input.provider == .alibabatokenplan || input.provider == .manus,
+           let detail = primary.resetDescription,
+           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
             if input.provider == .manus { primaryResetText = nil }
         }
-        if [.warp, .kilo, .mimo, .deepseek, .litellm].contains(input.provider), primary.resetsAt == nil {
+        if [.warp, .kilo, .mimo, .deepseek, .mistral, .litellm].contains(input.provider), primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window
@@ -1339,8 +1352,9 @@ extension UsageMenuCardView.Model {
             primaryPacePercent = regen.pace.pacePercent
             primaryPaceOnTop = regen.pace.paceOnTop
         }
-        let primaryStatusText = input.provider == .deepseek ? primaryDetailText : nil
-        if input.provider == .deepseek {
+        let usesBalanceStatusText = input.provider == .deepseek
+        let primaryStatusText = usesBalanceStatusText ? primaryDetailText : nil
+        if usesBalanceStatusText {
             primaryDetailText = nil
         }
         return Metric(
