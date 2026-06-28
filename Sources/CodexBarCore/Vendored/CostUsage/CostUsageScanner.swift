@@ -1772,13 +1772,12 @@ enum CostUsageScanner {
             }
 
             if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-            let cachedClamp = min(deltaCached, deltaInput)
             let normModel = CostUsagePricing.normalizeCodexModel(model)
             add(
                 dayKey: dayKey,
                 model: normModel,
                 input: deltaInput,
-                cached: cachedClamp,
+                cached: deltaCached,
                 output: deltaOutput)
             if CostUsageDayRange.isInRange(
                 dayKey: dayKey,
@@ -1790,7 +1789,7 @@ enum CostUsageScanner {
                     model: normModel,
                     turnID: record.turnID ?? currentTurnID,
                     input: deltaInput,
-                    cached: cachedClamp,
+                    cached: deltaCached,
                     output: deltaOutput))
             }
         }
@@ -2109,13 +2108,12 @@ enum CostUsageScanner {
                         }
 
                         if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-                        let cachedClamp = min(deltaCached, deltaInput)
                         let normModel = CostUsagePricing.normalizeCodexModel(model)
                         add(
                             dayKey: dayKey,
                             model: normModel,
                             input: deltaInput,
-                            cached: cachedClamp,
+                            cached: deltaCached,
                             output: deltaOutput)
                         if CostUsageDayRange.isInRange(
                             dayKey: dayKey,
@@ -2127,7 +2125,7 @@ enum CostUsageScanner {
                                 model: normModel,
                                 turnID: Self.codexTurnID(from: payload) ?? currentTurnID,
                                 input: deltaInput,
-                                cached: cachedClamp,
+                                cached: deltaCached,
                                 output: deltaOutput))
                         }
                     }

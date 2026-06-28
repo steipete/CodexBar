@@ -1376,6 +1376,12 @@ struct CostUsageScannerBreakdownTests {
         #expect(report.data[0].totalTokens == 25)
         #expect(report.data[0].modelBreakdowns?.first?.totalTokens == 25)
         #expect(abs((report.data[0].costUSD ?? 0) - (expectedCost ?? 0)) < 0.000001)
+
+        let cachedRows = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+            .files
+            .values
+            .flatMap { $0.codexRawRows ?? [] }
+        #expect(cachedRows.map(\.cached) == [500])
     }
 
     @Test
