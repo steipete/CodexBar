@@ -737,6 +737,23 @@ extension StatusItemController {
             surface: .menuBar,
             snapshotOverride: snapshot,
             now: now)
+
+        // The combined "Session + Weekly" metric (Codex and Claude) shows both lanes in percent mode
+        // ("5h 12% · W 45%") and, in pace/both modes, pairs the session usage with the weekly pace.
+        // Codex resolves its lanes through the consumer projection; Claude has none, so it classifies by
+        // window cadence — a 7-day window the OAuth mapper parked in `primary` (the five_hour fallback)
+        // must not be mislabeled as a 5-hour session lane.
+        let isCombinedSessionWeekly = (provider == .codex || provider == .claude)
+            && self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .primaryAndSecondary
+        let combinedSessionLane = isCombinedSessionWeekly
+            ? (codexProjection?.rateWindow(for: .session)
+                ?? Self.rateWindow(in: snapshot, matchingCadenceMinutes: Self.sessionWindowMinutes))
+            : nil
+        let combinedWeeklyLane = isCombinedSessionWeekly
+            ? (codexProjection?.rateWindow(for: .weekly)
+                ?? Self.rateWindow(in: snapshot, matchingCadenceMinutes: Self.weeklyWindowMinutes))
+            : nil
+
         let pace: UsagePace?
         switch mode {
         case .percent:
@@ -747,12 +764,9 @@ extension StatusItemController {
             } else if provider == .abacus {
                 // Abacus has no secondary window; pace is computed on primary monthly credits
                 snapshot?.primary
-            } else if provider == .claude,
-                      self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .primaryAndSecondary
-            {
-                // Combined Session + Weekly metric paces on the weekly lane, matching Codex. Select by
-                // cadence so a five_hour-fallback snapshot (7-day window in `primary`) still paces weekly.
-                Self.rateWindow(in: snapshot, matchingCadenceMinutes: Self.weeklyWindowMinutes)
+            } else if isCombinedSessionWeekly {
+                // Combined Session + Weekly metric paces on the weekly lane, matching Codex.
+                combinedWeeklyLane
             } else {
                 percentWindow
             }
@@ -778,28 +792,34 @@ extension StatusItemController {
                     .creditsString(from: creditsRemaining)
                     .replacingOccurrences(of: " left", with: "")
         }
-        if provider == .codex || provider == .claude,
-           mode == .percent,
-           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .primaryAndSecondary
-        {
-            // Codex resolves its lanes through the consumer projection. Providers without one (Claude)
-            // classify by window cadence so a 7-day window that the OAuth mapper parked in `primary`
-            // (the five_hour fallback) is not mislabeled as a 5-hour session lane.
-            let sessionLane = codexProjection?.rateWindow(for: .session)
-                ?? Self.rateWindow(in: snapshot, matchingCadenceMinutes: Self.sessionWindowMinutes)
-            let weeklyLane = codexProjection?.rateWindow(for: .weekly)
-                ?? Self.rateWindow(in: snapshot, matchingCadenceMinutes: Self.weeklyWindowMinutes)
+        if isCombinedSessionWeekly, mode == .percent {
             if let combinedText = MenuBarDisplayText.combinedSessionWeeklyPercentText(
-                sessionWindow: sessionLane,
-                weeklyWindow: weeklyLane,
+                sessionWindow: combinedSessionLane,
+                weeklyWindow: combinedWeeklyLane,
                 showUsed: self.settings.usageBarsShowUsed)
             {
                 return combinedText
             }
         }
+
+        // In pace/both modes the combined metric pairs the SESSION usage with the WEEKLY pace, so the
+        // usage component normally comes from the session lane — not the most-constrained lane that drives
+        // the icon/bar. Two exceptions: fall back to the weekly lane when the session lane is absent (the
+        // five_hour OAuth fallback), and surface the weekly lane when it is exhausted — it is then the
+        // binding cap with no pace to show, and a roomy session number would hide the spent weekly limit.
+        let displayPercentWindow: RateWindow?
+        if isCombinedSessionWeekly {
+            if let combinedWeeklyLane, combinedWeeklyLane.remainingPercent <= 0 {
+                displayPercentWindow = combinedWeeklyLane
+            } else {
+                displayPercentWindow = combinedSessionLane ?? combinedWeeklyLane ?? percentWindow
+            }
+        } else {
+            displayPercentWindow = percentWindow
+        }
         return MenuBarDisplayText.displayText(
             mode: mode,
-            percentWindow: percentWindow,
+            percentWindow: displayPercentWindow,
             pace: pace,
             showUsed: self.settings.usageBarsShowUsed)
     }

@@ -25,6 +25,7 @@
 - Overview: render row selection on the GPU to keep trackpad scrolling smooth. Thanks @hhh2210!
 - Codex cost history: count cache reads separately, deduplicate active and archived sessions at row level, and preserve cached days across narrow refreshes. Thanks @kiranmagic7!
 - Pi cost history: price Codex cache reads once using their true context size. Thanks @kiranmagic7!
+- Menu bar: in the combined "Session + Weekly" metric (Codex and Claude), pair the 5-hour session usage with the weekly pace in pace and both display modes instead of showing the busier (most-constrained) lane's usage, which mislabeled the readout as weekly usage + weekly pace.
 - Memory pressure: finish isolating utility-queue source reads from main-actor state to prevent the remaining callback crash. Thanks @Zihao-Qi!
 - Kiro: run account, usage, and context commands through a PTY so current CLI versions return usage without timing out. Thanks @sf-jin-ku!
 - OpenAI web: ignore stale profiles from removed browsers, discover registered installs outside standard app folders, and surface browser-profile access and cookie-load timeout diagnostics.
