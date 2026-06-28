@@ -536,6 +536,9 @@
 "no_writable_bin_dirs" = "쓰기 가능한 bin 디렉터리를 찾을 수 없습니다.";
 "show_debug_settings_title" = "디버그 설정 표시";
 "show_debug_settings_subtitle" = "디버그 탭에 문제 해결 도구를 표시합니다.";
+"historical_pace_weeks_title" = "Historical pace weeks";
+"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
+"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "깜짝 놀래주기";
 "surprise_me_subtitle" = "에이전트가 저 위에서 조금 즐기는 모습이 마음에 드는지 확인해 보세요.";
 "weekly_limit_confetti_title" = "주간 한도 색종이";
@@ -697,6 +700,7 @@
 "Resets now" = "지금 재설정";
 "reset_tomorrow_format" = "내일 %@";
 "Lasts until reset" = "재설정까지 유지";
+"Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "%@에 업데이트됨";
 "Updated %@h ago" = "%@시간 전 업데이트됨";
 "Updated %@m ago" = "%@분 전 업데이트됨";

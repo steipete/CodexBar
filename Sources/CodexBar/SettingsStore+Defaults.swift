@@ -288,6 +288,15 @@ extension SettingsStore {
         }
     }
 
+    var historicalPaceMinimumWeeks: Int {
+        get { self.defaultsState.historicalPaceMinimumWeeks }
+        set {
+            let clamped = max(2, min(8, newValue))
+            self.defaultsState.historicalPaceMinimumWeeks = clamped
+            self.userDefaults.set(clamped, forKey: "historicalPaceMinimumWeeks")
+        }
+    }
+
     var menuBarMetricPreferencesRaw: [String: String] {
         get { self.defaultsState.menuBarMetricPreferencesRaw }
         set {

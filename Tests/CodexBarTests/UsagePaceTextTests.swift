@@ -15,6 +15,7 @@ struct UsagePaceTextTests {
         "Projected empty in %@",
         "Runs out now",
         "Runs out in %@",
+        "Try 1.5x!",
         "≈ %d%% run-out risk",
         "%@ · %@",
     ]
@@ -48,7 +49,7 @@ struct UsagePaceTextTests {
         let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
 
         #expect(detail.leftLabel == "33% in reserve")
-        #expect(detail.rightLabel == "Lasts until reset")
+        #expect(detail.rightLabel == "Lasts until reset · Try 1.5x!")
     }
 
     @Test
@@ -64,6 +65,22 @@ struct UsagePaceTextTests {
         let summary = UsagePaceText.weeklySummary(pace: pace, now: now)
 
         #expect(summary == "Pace: 7% in deficit · Runs out in 3d")
+    }
+
+    @Test
+    func `weekly pace detail reports capped speed headroom when under pace`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 20,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(3 * 24 * 3600),
+            resetDescription: nil)
+        let pace = try #require(UsagePace.weekly(window: window, now: now))
+
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+
+        #expect(detail.leftLabel == "37% in reserve")
+        #expect(detail.rightLabel == "Lasts until reset · Try 1.5x!")
     }
 
     @Test
@@ -132,7 +149,7 @@ struct UsagePaceTextTests {
 
         let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
 
-        #expect(detail.rightLabel == "Lasts until reset · ≈ 0% run-out risk")
+        #expect(detail.rightLabel == "Lasts until reset · Try 1.5x! · ≈ 0% run-out risk")
     }
 
     @Test
@@ -188,7 +205,7 @@ struct UsagePaceTextTests {
 
         #expect(detail != nil)
         #expect(detail?.leftLabel == "50% in reserve")
-        #expect(detail?.rightLabel == "Lasts until reset")
+        #expect(detail?.rightLabel == "Lasts until reset · Try 1.5x!")
     }
 
     @Test

@@ -42,6 +42,7 @@ struct UsagePaceTests {
         #expect(pace.etaSeconds == nil)
         #expect(pace.runOutProbability == nil)
         #expect(pace.stage == .farBehind)
+        #expect(abs((pace.speedMultiplierToReset ?? 0) - 8.571) < 0.01)
     }
 
     @Test

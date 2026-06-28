@@ -28,6 +28,7 @@ struct SettingsDefaultsState {
     var menuBarDisplayModeRaw: String?
     var kiroMenuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
+    var historicalPaceMinimumWeeks: Int
     var multiAccountMenuLayoutRaw: String
     var menuBarMetricPreferencesRaw: [String: String]
     var copilotBudgetExtrasEnabled: Bool

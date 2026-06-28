@@ -404,6 +404,8 @@ extension SettingsStore {
         let kiroMenuBarDisplayModeRaw = userDefaults.string(forKey: "kiroMenuBarDisplayMode")
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
+        let rawHistoricalPaceMinimumWeeks = userDefaults.object(forKey: "historicalPaceMinimumWeeks") as? Int ?? 3
+        let historicalPaceMinimumWeeks = max(2, min(8, rawHistoricalPaceMinimumWeeks))
         let multiAccountMenuLayoutRaw = Self.loadMultiAccountMenuLayoutRaw(userDefaults: userDefaults)
         let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
         let copilotBudgetExtrasEnabled = userDefaults.object(forKey: "copilotBudgetExtrasEnabled") as? Bool ?? false
@@ -482,6 +484,7 @@ extension SettingsStore {
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
+            historicalPaceMinimumWeeks: historicalPaceMinimumWeeks,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             copilotBudgetExtrasEnabled: copilotBudgetExtrasEnabled,

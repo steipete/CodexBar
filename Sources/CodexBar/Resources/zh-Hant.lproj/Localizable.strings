@@ -543,6 +543,9 @@
 "no_writable_bin_dirs" = "找不到可寫的 bin 目錄。";
 "show_debug_settings_title" = "顯示除錯設定";
 "show_debug_settings_subtitle" = "在「除錯」標籤中顯示疑難排解工具。";
+"historical_pace_weeks_title" = "Historical pace weeks";
+"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
+"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "給我驚喜";
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
 "weekly_limit_confetti_title" = "每週重置慶祝動畫";

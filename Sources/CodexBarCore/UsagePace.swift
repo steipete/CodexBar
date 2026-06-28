@@ -19,6 +19,14 @@ public struct UsagePace: Sendable {
     public let willLastToReset: Bool
     public let runOutProbability: Double?
 
+    public var speedMultiplierToReset: Double? {
+        guard self.actualUsedPercent > 0,
+              self.expectedUsedPercent > self.actualUsedPercent
+        else { return nil }
+        let multiplier = self.expectedUsedPercent / self.actualUsedPercent
+        return multiplier.isFinite ? multiplier : nil
+    }
+
     public init(
         stage: Stage,
         deltaPercent: Double,

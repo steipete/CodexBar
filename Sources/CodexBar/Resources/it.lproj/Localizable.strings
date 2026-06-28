@@ -549,6 +549,9 @@
 "no_writable_bin_dirs" = "Nessuna directory bin scrivibile trovata.";
 "show_debug_settings_title" = "Mostra impostazioni debug";
 "show_debug_settings_subtitle" = "Espone strumenti di diagnosi nella scheda Debug.";
+"historical_pace_weeks_title" = "Historical pace weeks";
+"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
+"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Sorprendimi";
 "surprise_me_subtitle" = "Per chi apprezza un po' di personalità dagli agenti.";
 "weekly_limit_confetti_title" = "Coriandoli limite settimanale";
@@ -726,6 +729,7 @@
 "Resets now" = "Si resetta ora";
 "reset_tomorrow_format" = "domani, %@";
 "Lasts until reset" = "Valido fino al reset";
+"Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "Aggiornato %@";
 "Updated %@h ago" = "Aggiornato %@ h fa";
 "Updated %@m ago" = "Aggiornato %@ min fa";

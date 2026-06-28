@@ -543,6 +543,9 @@
 "no_writable_bin_dirs" = "Không tìm thấy thư mục bin có thể ghi.";
 "show_debug_settings_title" = "Hiển thị gỡ lỗi Cài đặt";
 "show_debug_settings_subtitle" = "Hiển thị các công cụ khắc phục sự cố trong tab Gỡ lỗi.";
+"historical_pace_weeks_title" = "Historical pace weeks";
+"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
+"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Làm tôi ngạc nhiên";
 "surprise_me_subtitle" = "Kiểm tra xem bạn có thích các đại lý của mình vui vẻ ở đó không.";
 "weekly_limit_confetti_title" = "Hoa giấy giới hạn hàng tuần";
@@ -720,6 +723,7 @@
 "Resets now" = "Đặt lại ngay";
 "reset_tomorrow_format" = "ngày mai, %@";
 "Lasts until reset" = "Kéo dài cho đến Đặt lại";
+"Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "Đã cập nhật %@";
 "Updated %@h ago" = "Đã cập nhật %@ h trước";
 "Updated %@m ago" = "Đã cập nhật %@ tháng trước";
