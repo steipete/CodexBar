@@ -61,12 +61,15 @@ extension StatusMenuTests {
             defer { controller.releaseStatusItemsForTesting() }
 
             let model = try #require(controller.menuCardModel(for: .codex))
+            let providerDetailModel = ProvidersPane(settings: settings, store: store)
+                ._test_menuCardModel(for: .codex)
             let menu = controller.makeMenu()
             controller.menuWillOpen(menu)
 
             let ids = menu.items.compactMap { $0.representedObject as? String }
             #expect((model.inlineUsageDashboard != nil) == style.showsInlineSummary)
             #expect((model.tokenUsage != nil) == style.showsCostSubmenu)
+            #expect(providerDetailModel.tokenUsage != nil)
             #expect(ids.contains("menuCardCost") == style.showsCostSubmenu)
         }
     }

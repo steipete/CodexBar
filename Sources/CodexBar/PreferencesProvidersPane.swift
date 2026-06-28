@@ -746,7 +746,9 @@ struct ProvidersPane: View {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             tokenCostInlineDashboardEnabled: self.settings.costSummaryShowsInlineDashboard(for: provider),
-            tokenCostMenuSectionEnabled: self.settings.costSummaryShowsSubmenu(for: provider),
+            // Display style only controls the main menu. Provider details always expose
+            // available cost data in their Usage section.
+            tokenCostMenuSectionEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             hidePersonalInfo: self.settings.hidePersonalInfo,
