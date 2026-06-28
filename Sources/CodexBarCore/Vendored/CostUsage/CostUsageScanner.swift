@@ -60,7 +60,7 @@ enum CostUsageScanner {
         let rows: [CodexUsageRow]
     }
 
-    struct CodexUsageRow: Codable, Equatable {
+    struct CodexUsageRow: Codable, Equatable, Hashable {
         let day: String
         let model: String
         let turnID: String?
@@ -70,8 +70,50 @@ enum CostUsageScanner {
     }
 
     struct CodexScanState {
-        var seenSessionIds: Set<String> = []
+        var seenUsageKeys: Set<CodexUsageKey> = []
         var seenFileIds: Set<String> = []
+    }
+
+    struct CodexUsageKey: Hashable {
+        let sessionId: String?
+        let day: String
+        let model: String
+        let turnID: String?
+        let input: Int
+        let cached: Int
+        let output: Int
+
+        init(sessionId: String?, row: CodexUsageRow) {
+            self.sessionId = sessionId
+            self.day = row.day
+            self.model = row.model
+            self.turnID = row.turnID
+            self.input = row.input
+            self.cached = row.cached
+            self.output = row.output
+        }
+
+        init(sessionId: String?, day: String, model: String, packed: [Int]) {
+            self.sessionId = sessionId
+            self.day = day
+            self.model = model
+            self.turnID = nil
+            self.input = packed[safe: 0] ?? 0
+            self.cached = packed[safe: 1] ?? 0
+            self.output = packed[safe: 2] ?? 0
+        }
+    }
+
+    struct CodexScannedSession {
+        let id: String?
+        let days: [String: [String: [Int]]]
+        let contributedUsage: Bool
+
+        init(id: String?, days: [String: [String: [Int]]]) {
+            self.id = id
+            self.days = days
+            self.contributedUsage = !days.isEmpty
+        }
     }
 
     private struct CodexTimestampedTotals {
@@ -247,7 +289,9 @@ enum CostUsageScanner {
                 else {
                     continue
                 }
-                self.fileURLBySessionId[indexedSessionId] = fileURL
+                if self.fileURLBySessionId[indexedSessionId] == nil {
+                    self.fileURLBySessionId[indexedSessionId] = fileURL
+                }
                 if indexedSessionId == sessionId {
                     return fileURL
                 }
@@ -285,7 +329,9 @@ enum CostUsageScanner {
                     else {
                         continue
                     }
-                    self.fileURLBySessionId[indexedSessionId] = fileURL
+                    if self.fileURLBySessionId[indexedSessionId] == nil {
+                        self.fileURLBySessionId[indexedSessionId] = fileURL
+                    }
                 }
             }
         }
@@ -2138,11 +2184,6 @@ enum CostUsageScanner {
         }
 
         let cached = cache.files[metadata.path]
-        if let cachedSessionId = cached?.sessionId, state.seenSessionIds.contains(cachedSessionId) {
-            Self.dropCachedCodexFile(path: metadata.path, cached: cached, cache: &cache)
-            return
-        }
-
         let input = CodexFileScanInput(fileURL: fileURL, metadata: metadata, cached: cached)
         if Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
             return

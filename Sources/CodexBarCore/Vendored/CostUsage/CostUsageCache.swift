@@ -144,6 +144,7 @@ struct CostUsageFileUsage: Codable {
     var codexPriorityTokens: [String: [String: Int]]?
     var codexTurnIDs: [String]?
     var codexRows: [CostUsageScanner.CodexUsageRow]?
+    var codexRawRows: [CostUsageScanner.CodexUsageRow]?
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
 }
 
