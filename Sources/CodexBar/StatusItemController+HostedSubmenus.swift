@@ -95,7 +95,7 @@ extension StatusItemController {
                 false
             }
         case Self.statusComponentsID:
-            if let providerRawValue = placeholder.toolTip,
+            if let providerRawValue = self.hostedSubviewProviderRawValue(for: placeholder),
                let provider = UsageProvider(rawValue: providerRawValue)
             {
                 self.appendStatusComponentsItem(to: menu, provider: provider, width: width)
@@ -196,13 +196,21 @@ extension StatusItemController {
     -> HostedSubviewIdentity? {
         for item in menu.items {
             guard let chartID = item.representedObject as? String else { continue }
-            let providerRawValue = item.toolTip
+            let providerRawValue = self.hostedSubviewProviderRawValue(for: item)
             return HostedSubviewIdentity(
                 chartID: chartID,
                 provider: providerRawValue.flatMap(UsageProvider.init(rawValue:)),
                 providerRawValue: providerRawValue)
         }
         return nil
+    }
+
+    private func hostedSubviewProviderRawValue(for item: NSMenuItem) -> String? {
+        if let providerRawValue = item.toolTip {
+            return providerRawValue
+        }
+        guard item.representedObject as? String == Self.statusComponentsID else { return nil }
+        return item.identifier?.rawValue
     }
 
     private func recordHostedSubviewRenderSignature(

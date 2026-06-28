@@ -26,6 +26,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
             to: submenu,
             provider: .claude,
             width: StatusItemController.menuCardBaseWidth))
+        #expect(controller.hydrateHostedSubviewMenuIfNeeded(submenu))
 
         let link = try #require(submenu.items.last)
         #expect(link.action == #selector(StatusItemController.openStatusPageFromMenuItem(_:)))
