@@ -156,7 +156,9 @@ extension StatusMenuTests {
 
     @Test
     func `mistral native billing submenus ignore optional local cost preferences`() throws {
-        self.disableMenuCardsForTesting()
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        defer { self.disableMenuCardsForTesting() }
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
@@ -208,5 +210,16 @@ extension StatusMenuTests {
         #expect(model.inlineUsageDashboard != nil)
         #expect(model.tokenUsage == nil)
         #expect(controller.makeOverviewRowSubmenu(provider: .mistral, model: model, width: 320) != nil)
+
+        let menu = controller.makeMenu(for: .mistral)
+        controller.menuWillOpen(menu)
+        let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
+        #expect(usageItem?.submenu != nil)
+
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
+        let costsEnabledModel = try #require(controller.menuCardModel(for: .mistral))
+        #expect(costsEnabledModel.inlineUsageDashboard != nil)
+        #expect(costsEnabledModel.tokenUsage == nil)
     }
 }
