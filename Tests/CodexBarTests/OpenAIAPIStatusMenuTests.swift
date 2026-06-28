@@ -55,7 +55,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `open AI API usage submenu follows cost summary display style`() throws {
+    func `open AI API usage submenu ignores optional local cost preferences`() throws {
         self.disableMenuCardsForTesting()
 
         for style in CostSummaryDisplayStyle.allCases {
@@ -63,7 +63,7 @@ extension StatusMenuTests {
             settings.statusChecksEnabled = false
             settings.refreshFrequency = .manual
             settings.selectedMenuProvider = .openai
-            settings.costUsageEnabled = true
+            settings.costUsageEnabled = false
             settings.costSummaryDisplayStyle = style
 
             let registry = ProviderRegistry.shared
@@ -103,7 +103,7 @@ extension StatusMenuTests {
                 statusBar: self.makeStatusBarForTesting())
             defer { controller.releaseStatusItemsForTesting() }
 
-            #expect((controller.makeOpenAIAPIUsageSubmenu(provider: .openai) != nil) == style.showsCostSubmenu)
+            #expect(controller.makeOpenAIAPIUsageSubmenu(provider: .openai) != nil)
         }
     }
 

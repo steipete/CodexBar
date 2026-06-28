@@ -1528,7 +1528,6 @@ extension StatusItemController {
     }
 
     func makeOpenAIAPIUsageSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
-        guard self.settings.costSummaryShowsSubmenu(for: provider) else { return nil }
         guard self.hasOpenAIAPIUsageSubmenu(provider: provider) else { return nil }
         return self.makeCostHistorySubmenu(provider: provider, width: width)
     }
