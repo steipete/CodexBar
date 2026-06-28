@@ -124,7 +124,7 @@ struct StatuspageSummaryTests {
           "summary": {
             "affected_components": [{"component_id": "c-api", "status": "degraded_performance"}],
             "structure": {"items": [
-              {"component": {"id": "c-api", "name": "API", "hidden": false}}
+              {"component": {"component_id": "c-api", "name": "API", "hidden": false}}
             ]}
           }
         }
@@ -161,7 +161,8 @@ struct StatuspageSummaryTests {
         {
           "summary": {
             "affected_components": [
-              {"component_id": "c-fed", "status": "degraded_performance"}
+              {"component_id": "c-fed", "status": "degraded_performance"},
+              {"component_id": "c-top", "status": "full_outage"}
             ],
             "structure": {
               "items": [
@@ -173,7 +174,7 @@ struct StatuspageSummaryTests {
                 {"group": {"id": "g-fed", "name": "FedRAMP", "hidden": false, "components": [
                   {"component_id": "c-fed", "name": "FedRAMP", "hidden": false}
                 ]}},
-                {"component": {"id": "c-top", "name": "Standalone", "hidden": false}}
+                {"component": {"component_id": "c-top", "name": "Standalone", "hidden": false}}
               ]
             }
           }
@@ -195,8 +196,10 @@ struct StatuspageSummaryTests {
         #expect(fedramp.statusLabel == L("status_degraded"))
 
         #expect(result.components[2].isGroup == false) // standalone component
+        #expect(result.components[2].indicator == .critical)
+        #expect(result.components[2].statusLabel == L("status_major_outage"))
 
-        // Overall page status reflects the worst leaf (FedRAMP degraded).
-        #expect(result.status.indicator == .minor)
+        // Overall page status reflects the worst leaf (standalone full outage).
+        #expect(result.status.indicator == .critical)
     }
 }

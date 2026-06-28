@@ -178,9 +178,13 @@ extension UsageStore {
                         }
 
                         struct Component: Decodable {
-                            let id: String
+                            let componentID: String
                             let name: String?
                             let hidden: Bool?
+                            private enum CodingKeys: String, CodingKey {
+                                case componentID = "component_id"
+                                case name, hidden
+                            }
                         }
 
                         let group: Group?
@@ -246,7 +250,7 @@ extension UsageStore {
                       component.hidden != true,
                       let name = Self.normalizedStatusComponentName(component.name)
             {
-                topLevel.append(leaf(id: component.id, name: name))
+                topLevel.append(leaf(id: component.componentID, name: name))
             }
         }
 

@@ -56,7 +56,7 @@ struct ProviderStatusComponent: Identifiable, Equatable {
         case "operational": .none
         case "degraded_performance": .minor
         case "partial_outage": .major
-        case "major_outage": .critical
+        case "major_outage", "full_outage": .critical
         case "under_maintenance": .maintenance
         default: .unknown
         }
@@ -67,7 +67,7 @@ struct ProviderStatusComponent: Identifiable, Equatable {
         case "operational": L("status_operational")
         case "degraded_performance": L("status_degraded")
         case "partial_outage": L("status_partial_outage")
-        case "major_outage": L("status_major_outage")
+        case "major_outage", "full_outage": L("status_major_outage")
         case "under_maintenance": L("status_maintenance")
         default: L("status_unknown")
         }
