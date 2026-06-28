@@ -162,7 +162,6 @@ extension UsageMenuCardView.Model {
 
     private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
         if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider),
-           input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
         {
