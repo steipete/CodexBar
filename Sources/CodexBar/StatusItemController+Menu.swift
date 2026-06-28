@@ -1442,6 +1442,9 @@ extension StatusItemController {
         if provider == .openai {
             return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         }
+        if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+            return self.makeCostHistorySubmenu(provider: provider, width: width)
+        }
         if provider == .zai {
             return self.makeZaiUsageDetailsSubmenu(snapshot: snapshot)
         }

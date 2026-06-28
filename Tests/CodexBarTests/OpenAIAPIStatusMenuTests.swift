@@ -153,4 +153,60 @@ extension StatusMenuTests {
 
         #expect(controller.makeOpenAIAPIUsageSubmenu(provider: .openai) == nil)
     }
+
+    @Test
+    func `mistral native billing submenus ignore optional local cost preferences`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.selectedMenuProvider = .mistral
+        settings.costUsageEnabled = false
+        settings.costSummaryDisplayStyle = .inlineSummary
+
+        let metadata = try #require(ProviderRegistry.shared.metadata[.mistral])
+        settings.setProviderEnabled(provider: .mistral, metadata: metadata, enabled: true)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let usage = MistralUsageSnapshot(
+            totalCost: 1.5,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 100,
+            totalOutputTokens: 50,
+            totalCachedTokens: 0,
+            modelCount: 1,
+            daily: [
+                MistralDailyUsageBucket(
+                    day: "2023-11-14",
+                    cost: 1.5,
+                    inputTokens: 100,
+                    cachedTokens: 0,
+                    outputTokens: 50,
+                    models: []),
+            ],
+            startDate: nil,
+            endDate: nil,
+            updatedAt: now)
+        store._setSnapshotForTesting(usage.toUsageSnapshot(), provider: .mistral)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let model = try #require(controller.menuCardModel(for: .mistral))
+        #expect(model.inlineUsageDashboard != nil)
+        #expect(model.tokenUsage == nil)
+        #expect(controller.makeOverviewRowSubmenu(provider: .mistral, model: model, width: 320) != nil)
+    }
 }
