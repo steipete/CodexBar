@@ -21,7 +21,7 @@ import SwiftUI
 final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting, MenuCardMeasuring {
     private let hosting: NSHostingView<MenuCardSectionContainerView<Content>>
     private let selectionView = NSVisualEffectView()
-    private let tintFilter: CIFilter?
+    private var tintFilter: CIFilter?
     private var isRowHighlighted = false
     private var onClick: (() -> Void)?
 
@@ -56,9 +56,10 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         self.hosting = NSHostingView(rootView: rootView)
         self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
-        self.tintFilter = Self.makeSelectedTextTintFilter()
+        self.tintFilter = nil
         super.init(frame: .zero)
         self.wantsLayer = true
+        self.refreshTintFilter()
         self.setupSelectionView()
         self.setupHosting()
         if onClick != nil {
@@ -81,6 +82,11 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
 
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
         true
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        self.refreshTintFilter()
     }
 
     /// Forward accessibility activation to the click handler, mirroring `MenuCardItemHostingView`.
@@ -182,9 +188,19 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     /// from `NSColor.selectedMenuItemTextColor` rather than hard-coded to white so graphite/
     /// high-contrast/accessibility appearances tint correctly. Core Image runs this on the GPU
     /// (Metal), so it composites for free per frame.
-    private static func makeSelectedTextTintFilter() -> CIFilter? {
+    private func refreshTintFilter() {
+        self.tintFilter = Self.makeSelectedTextTintFilter(appearance: self.effectiveAppearance)
+        if self.isRowHighlighted {
+            self.hosting.layer?.filters = self.tintFilter.map { [$0] } ?? []
+        }
+    }
+
+    private static func makeSelectedTextTintFilter(appearance: NSAppearance) -> CIFilter? {
         guard let filter = CIFilter(name: "CIColorMatrix") else { return nil }
-        let tint = NSColor.selectedMenuItemTextColor.usingColorSpace(.deviceRGB) ?? .white
+        var tint: NSColor = .white
+        appearance.performAsCurrentDrawingAppearance {
+            tint = NSColor.selectedMenuItemTextColor.usingColorSpace(.deviceRGB) ?? .white
+        }
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputRVector")
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBVector")
