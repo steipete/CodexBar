@@ -14,7 +14,8 @@ public enum MistralUsageFetcher {
     public static func fetchUsage(
         cookieHeader: String,
         csrfToken: String?,
-        timeout: TimeInterval = 15) async throws -> MistralUsageSnapshot
+        timeout: TimeInterval = 15,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralUsageSnapshot
     {
         let now = Date()
         var calendar = Calendar(identifier: .gregorian)
@@ -41,7 +42,7 @@ public enum MistralUsageFetcher {
             request.setValue(csrfToken, forHTTPHeaderField: "X-CSRFTOKEN")
         }
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
 
         switch response.statusCode {
@@ -95,6 +96,38 @@ public enum MistralUsageFetcher {
         return try Self.parseVibeUsage(data: data)
     }
 
+    public static func fetchCredits(
+        cookieHeader: String,
+        csrfToken: String?,
+        timeout: TimeInterval = 4,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralCreditsSnapshot
+    {
+        let url = self.baseURL.appendingPathComponent("/api/billing/credits")
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("https://admin.mistral.ai/organization/billing", forHTTPHeaderField: "Referer")
+        request.setValue("https://admin.mistral.ai", forHTTPHeaderField: "Origin")
+        if let csrfToken {
+            request.setValue(csrfToken, forHTTPHeaderField: "X-CSRFTOKEN")
+        }
+
+        let response = try await transport.response(for: request)
+        let data = response.data
+
+        switch response.statusCode {
+        case 200:
+            break
+        case 401, 403:
+            throw MistralUsageError.invalidCredentials
+        default:
+            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
+            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
+        }
+
+        return try Self.parseCredits(data: data)
+    }
+
     static func parseVibeUsage(data: Data) throws -> MistralVibeUsageResult {
         let responses: [VibeUsageResponse]
         do {
@@ -111,6 +144,21 @@ public enum MistralUsageFetcher {
         return MistralVibeUsageResult(
             usagePercentage: json.usagePercentage,
             resetAt: json.resetAt.flatMap(Self.parseISO8601Date))
+    }
+
+    static func parseCredits(data: Data) throws -> MistralCreditsSnapshot {
+        let response: MistralCreditsResponse
+        do {
+            response = try JSONDecoder().decode(MistralCreditsResponse.self, from: data)
+        } catch {
+            throw MistralUsageError.parseFailed(error.localizedDescription)
+        }
+
+        return MistralCreditsSnapshot(
+            walletAmount: response.walletAmount,
+            creditNotesAmount: response.creditNotesAmount ?? 0,
+            ongoingUsageBalance: response.ongoingUsageBalance ?? 0,
+            currency: response.currency)
     }
 
     static func vibeCookieHeader(csrfToken: String) throws -> String {
@@ -498,5 +546,19 @@ private struct VibeUsageResponse: Decodable {
                 }
             }
         }
+    }
+}
+
+private struct MistralCreditsResponse: Decodable {
+    let walletAmount: Double
+    let creditNotesAmount: Double?
+    let ongoingUsageBalance: Double?
+    let currency: String
+
+    enum CodingKeys: String, CodingKey {
+        case currency
+        case walletAmount = "wallet_amount"
+        case creditNotesAmount = "credit_notes_amount"
+        case ongoingUsageBalance = "ongoing_usage_balance"
     }
 }

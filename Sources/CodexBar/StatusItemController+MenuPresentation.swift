@@ -5,10 +5,12 @@ import SwiftUI
 
 extension StatusItemController {
     func switcherWeeklyRemaining(for provider: UsageProvider) -> Double? {
-        Self.switcherWeeklyMetricPercent(
+        let snapshot = self.store.snapshot(for: provider)
+        return Self.switcherWeeklyMetricPercent(
             for: provider,
-            snapshot: self.store.snapshot(for: provider),
-            showUsed: self.settings.usageBarsShowUsed)
+            snapshot: snapshot,
+            showUsed: self.settings.usageBarsShowUsed,
+            preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot))
     }
 
     func applySubtitle(_ subtitle: String, to item: NSMenuItem, title: String) {
