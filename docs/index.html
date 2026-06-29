@@ -91,13 +91,30 @@
         --primary-text: #09090b;
         --primary-hover: #e4e4e7;
         --apple-filter: none;
-        --header-height: 5rem;
-        --mockup-x: -540px;
+        --header-height: 4rem;
+        --hero-bg: #000;
+        --hero-fade-end: var(--hero-bg);
         --mockup-y: 10px;
         --mockup-scale: 1.15;
         --mockup-tune-width: 1920;
         --mockup-fluid-max: 1.22;
         --mockup-screen-margin-right: 50px;
+        --mockup-artboard-ratio: 1.18;
+        /* Menubar: Figma 130/150px + scale 0.94, × visual correction (top ×1.308, right ×1.548, scale ×1.55) */
+        --menubar-scale: 1.457;
+        --menubar-icon-scale: 1.28;
+        --menubar-gap: 0.9cqw;
+        --popover-scale: 0.85;
+        --hud-anchor-top: 5.25%;
+        --hud-margin-right: 3.8%;
+        /* Panel: Figma formula × visual correction (top ×1.104, right ×1.322, scale ×0.934) */
+        --hud-panel-top: 8.5%;
+        --hud-panel-margin-right: 3.7%;
+        --hud-panel-width: 18.22%;
+        --hud-menu-nudge-x: 0px;
+        --hud-menu-nudge-y: 0px;
+        --hud-panel-nudge-x: 0px;
+        --hud-panel-nudge-y: 0px;
         --glow-x: 331px;
         --glow-y: -260px;
         --glow-scale: 2.4;
@@ -105,38 +122,34 @@
         --glow-blur: 72px;
         --glow-color-a: #003c61;
         --glow-color-b: #8000ff;
-        --menubar-scale: 0.94;
-        --menubar-gap: 22px;
-        --menubar-icon-scale: 1.28;
-        --popover-scale: 0.91;
-        /* Converted from prior screen-hud tune (8.59% top, 20.7% right of inner display) */
-        --hud-anchor-top: 12.1%;
-        --hud-margin-right: 22.05%;
-        --hud-menu-nudge-x: 0px;
-        --hud-menu-nudge-y: 0px;
-        --hud-panel-gap: 1.55rem;
-        --hud-panel-nudge-x: 0px;
-        --hud-panel-nudge-y: 0px;
-        --hud-panel-width: 19.1%;
         --mobile-mockup-stage-height: 33.5rem;
+        --mobile-mockup-stage-max-width: 26rem;
+        --mobile-stage-inline-gutter: 1.25rem;
         --mobile-mockup-width: 251%;
-        --mobile-mockup-offset-x: 11px;
+        --mobile-mockup-offset-x: -32px;
         --mobile-mockup-offset-y: 18px;
         --mobile-mockup-scale: 0.99;
-        --mobile-hud-anchor-top: 12%;
-        --mobile-hud-margin-right: 22%;
-        --mobile-hud-menu-nudge-x: 28px;
+        --mobile-hud-anchor-top: 5.25%;
+        --mobile-hud-margin-right: 3.8%;
+        --mobile-hud-panel-top: 9.15%;
+        --mobile-hud-panel-margin-right: 6%;
+        --mobile-hud-panel-width: 20%;
+        --mobile-hud-menu-nudge-x: 0px;
         --mobile-hud-menu-nudge-y: 0px;
-        --mobile-menubar-scale: 0.82;
-        --mobile-menubar-gap: 0.92rem;
-        --mobile-hud-panel-gap: 0.45rem;
-        --mobile-hud-panel-width: 20.45rem;
-        --mobile-popover-scale: 1.01;
+        --mobile-menubar-scale: 1.271;
+        --mobile-menubar-gap: 0.9cqw;
+        --mobile-popover-scale: 1.39;
         --tablet-mockup-x: -80px;
         --tablet-mockup-y: 13px;
         --tablet-mockup-scale: 0.92;
         --tablet-mockup-tune-width: 1022;
         --tablet-mockup-fluid-max: 1.18;
+        --tablet-mockup-stage-height: 42rem;
+        /* Panel tablet tune @ 1020 → top 9.5%, scale 1.35 */
+        --tablet-hud-panel-top: 9.5%;
+        --tablet-hud-panel-margin-right: 3.7%;
+        --tablet-hud-panel-width: 18.22%;
+        --tablet-popover-scale: 1.35;
       }
 
       :root[data-theme="light"] {
@@ -188,7 +201,7 @@
         width: 118%;
         aspect-ratio: 6111 / 3239;
         transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y))
-          scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
+          scale(var(--mockup-layout-scale, calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max)))));
         transform-origin: top center;
         will-change: transform;
       }
@@ -202,7 +215,7 @@
         left: 0;
         height: 32%;
         pointer-events: none;
-        background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.58) 58%, #000 100%);
+        background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.58) 50%, #000 68%, #000 100%);
       }
 
       .mockup-glow {
@@ -237,7 +250,7 @@
         width: 118%;
         aspect-ratio: 6111 / 3239;
         transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y))
-          scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
+          scale(var(--mockup-layout-scale, calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max)))));
         transform-origin: top center;
         pointer-events: none;
         will-change: transform;
@@ -253,22 +266,13 @@
       }
 
       .mockup-hud-anchor {
-        position: absolute;
-        top: var(--hud-anchor-top);
-        right: var(--hud-margin-right);
-        left: auto;
-        transform-origin: top right;
-        pointer-events: none;
-      }
-
-      .mockup-hud-anchor > * {
-        pointer-events: auto;
+        display: contents;
       }
 
       .system-menubar {
-        position: relative;
-        top: auto;
-        right: auto;
+        position: absolute;
+        top: var(--hud-anchor-top);
+        right: var(--hud-margin-right);
         left: auto;
         z-index: 3;
         display: flex;
@@ -284,6 +288,7 @@
         letter-spacing: -0.045em;
         text-shadow: 0 0.08em 0.28em rgba(0, 0, 0, 0.74);
         will-change: transform;
+        pointer-events: auto;
       }
 
       .menu-bar-mark {
@@ -403,11 +408,10 @@
 
       .codex-popover {
         position: absolute;
-        top: calc(100% + var(--hud-panel-gap));
-        right: 0;
+        top: var(--hud-panel-top);
+        right: var(--hud-panel-margin-right);
         left: auto;
         z-index: 4;
-        margin-top: 0;
         width: var(--hud-panel-width);
         box-sizing: border-box;
         padding: 0.78rem 0.82rem 0.9rem;
@@ -422,7 +426,7 @@
           inset 0 -1px 0 rgba(255, 255, 255, 0.08),
           0 1.5rem 2.5rem rgba(0, 0, 0, 0.56);
         color: rgba(244, 244, 245, 0.92);
-        font-size: clamp(0.55rem, 0.52vw, 0.8rem);
+        font-size: clamp(0.45rem, 0.48cqw, 0.68rem);
         letter-spacing: -0.035em;
         line-height: 1.15;
         backdrop-filter: blur(18px);
@@ -430,6 +434,7 @@
         user-select: text;
         -webkit-user-select: text;
         opacity: 0;
+        pointer-events: auto;
         transition: opacity 480ms cubic-bezier(0.23, 1, 0.32, 1);
       }
 
@@ -631,7 +636,40 @@
 
       .buy-row svg { width: 1em; height: 1em; color: rgba(244, 244, 245, 0.78); }
 
-      .tuner-panel { backdrop-filter: blur(18px); }
+      .tuner-panel {
+        backdrop-filter: blur(18px);
+        max-height: calc(100dvh - 2rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .tuner-panel:not(.is-positioned) {
+        right: 1rem;
+        bottom: 4rem;
+      }
+
+      .tuner-panel.is-positioned {
+        right: auto !important;
+        bottom: auto !important;
+      }
+
+      .tuner-panel-handle {
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      .tuner-panel.is-dragging .tuner-panel-handle {
+        cursor: grabbing;
+      }
+
+      .tuner-panel-grip {
+        flex: none;
+        letter-spacing: -0.2em;
+        line-height: 1;
+      }
       .tuner-range { accent-color: #f4f4f5; }
 
       .tuner-tab[aria-selected="true"],
@@ -653,6 +691,29 @@
         pointer-events: none;
       }
 
+      .hero-section {
+        position: relative;
+        min-height: 100vh;
+        padding-top: var(--header-height);
+      }
+
+      .hero-section::after {
+        content: "";
+        position: absolute;
+        inset-inline: 0;
+        bottom: 0;
+        z-index: 9;
+        height: clamp(7rem, 18vh, 13rem);
+        pointer-events: none;
+        background: linear-gradient(
+          180deg,
+          transparent 0%,
+          rgba(0, 0, 0, 0.55) 40%,
+          #000 65%,
+          #000 100%
+        );
+      }
+
       .hero-copy {
         position: relative;
         pointer-events: auto;
@@ -662,6 +723,21 @@
         text-align: left;
       }
 
+      .hero-cta-row {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+
+      @media (min-width: 1185px) {
+        .hero-cta-row {
+          flex-direction: row;
+          flex-wrap: nowrap;
+          align-items: center;
+        }
+      }
+
       .hero-title-line {
         display: block;
         text-wrap: balance;
@@ -669,7 +745,7 @@
 
       @media (min-width: 1800px) {
         .hero-copy h1 {
-          font-size: 5.15rem !important;
+          font-size: 60px !important;
         }
       }
 
@@ -1083,10 +1159,6 @@
         .codex-popover { opacity: 1; transition: none; }
       }
 
-      @media (min-width: 640px) {
-        :root { --header-height: 6rem; }
-      }
-
       .features-section {
         position: relative;
         border-top: 1px solid var(--page-line);
@@ -1166,6 +1238,8 @@
         border-radius: 0.8rem;
         background: var(--page-bg);
         line-height: 0;
+        container-type: size;
+        container-name: feature-visual;
       }
 
       .feature-card-visual img {
@@ -1178,10 +1252,7 @@
 
       .feature-card-overlay {
         position: absolute;
-        top: 0;
-        right: clamp(1.5rem, 14%, 2.5rem);
-        left: clamp(1.5rem, 14%, 2.5rem);
-        bottom: clamp(1.75rem, 18%, 3rem);
+        inset: 0 14% 18% 14%;
         border-bottom-left-radius: 0.8rem;
         border-bottom-right-radius: 0.8rem;
         background: rgba(14, 14, 16, 0.56);
@@ -1193,13 +1264,6 @@
       }
 
       .feature-card-overlay.is-usage-menu {
-        top: 0;
-        right: clamp(1.5rem, 14%, 2.5rem);
-        bottom: clamp(1.75rem, 18%, 3rem);
-        left: clamp(1.5rem, 14%, 2.5rem);
-        border-bottom-left-radius: 0.8rem;
-        border-bottom-right-radius: 0.8rem;
-        background: rgba(14, 14, 16, 0.56);
         box-shadow: none;
       }
 
@@ -1207,19 +1271,19 @@
       .feature-cost-panel,
       .feature-status-panel {
         height: 100%;
-        padding: clamp(0.72rem, 2.4vw, 0.95rem) clamp(0.82rem, 2.6vw, 1.05rem);
+        padding: 5% 6%;
         border-bottom-left-radius: inherit;
         border-bottom-right-radius: inherit;
         background: transparent;
         color: rgba(244, 244, 245, 0.96);
-        font-size: clamp(0.66rem, 1.55vw, 0.76rem);
+        font-size: clamp(0.55rem, 3.8cqw, 0.76rem);
         letter-spacing: -0.02em;
       }
 
       .feature-cost-stats {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.5rem 0.85rem;
+        gap: 0.45em 0.75em;
         margin: 0;
       }
 
@@ -1227,9 +1291,9 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        gap: 0.9rem;
-        margin-bottom: 0.52rem;
-        padding-bottom: 0.5rem;
+        gap: 0.85em;
+        margin-bottom: 0.5em;
+        padding-bottom: 0.5em;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
 
@@ -1291,8 +1355,8 @@
         display: flex;
         align-items: flex-end;
         gap: 1.5px;
-        height: clamp(2rem, 5.5vw, 2.55rem);
-        margin-top: 0.58rem;
+        height: clamp(1.25rem, 16cqh, 2.55rem);
+        margin-top: 0.5em;
       }
 
       .feature-cost-chart > i {
@@ -1317,8 +1381,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 0.7rem;
-        margin: 0 0 1.2rem;
+        gap: 0.65em;
+        margin: 0 0 0.85em;
         color: #fff;
         font-size: 1.02em;
         font-weight: 650;
@@ -1338,23 +1402,23 @@
         margin: 0;
         padding: 0;
         display: grid;
-        gap: 0.26rem;
+        gap: 0.22em;
       }
 
       .feature-status-list li {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
-        gap: 0.4rem;
-        min-height: 1.38rem;
-        padding: 0.18rem 0.3rem;
+        gap: 0.35em;
+        min-height: 1.35em;
+        padding: 0.15em 0.28em;
         border-radius: 0.34rem;
         background: rgba(255, 255, 255, 0.055);
       }
 
       .feature-status-dot {
-        width: 0.44rem;
-        height: 0.44rem;
+        width: 0.42em;
+        height: 0.42em;
         border-radius: 999px;
         background: #33c759;
       }
@@ -1384,7 +1448,7 @@
       }
 
       .feature-usage-block + .feature-usage-block {
-        margin-top: clamp(0.7rem, 2vw, 0.95rem);
+        margin-top: 0.75em;
       }
 
       .feature-usage-panel {
@@ -1402,9 +1466,9 @@
       .feature-usage-header {
         display: grid;
         grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
-        gap: 0.55rem;
-        margin-bottom: 0.48rem;
-        padding-bottom: clamp(0.34rem, 1.05vw, 0.48rem);
+        gap: 0.5em;
+        margin-bottom: 0.5em;
+        padding-bottom: 0.35em;
         border-bottom: 1px solid rgba(255, 255, 255, 0.13);
       }
 
@@ -1457,8 +1521,8 @@
 
       .feature-usage-track {
         position: relative;
-        height: clamp(0.28rem, 0.85vw, 0.38rem);
-        margin-top: 0.34rem;
+        height: 0.42em;
+        margin-top: 0.38em;
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.12);
         overflow: hidden;
@@ -1514,8 +1578,8 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         align-items: start;
-        gap: 0.55rem;
-        margin-top: 0.3rem;
+        gap: 0.45em;
+        margin-top: 0.28em;
         color: rgba(244, 244, 245, 0.5);
         font-size: 0.9em;
         font-weight: 500;
@@ -1587,7 +1651,7 @@
         .mockup-wrap,
         .mockup-hud-layer {
           width: calc(var(--mockup-tune-width) * 1.18px);
-          transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y)) scale(var(--mockup-scale));
+          transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y)) scale(var(--mockup-layout-scale, var(--mockup-scale)));
         }
       }
 
@@ -1615,7 +1679,58 @@
       }
 
       @media (min-width: 769px) and (max-width: 1023px) {
+        .hero-section {
+          position: relative;
+          min-height: auto;
+          height: auto;
+          padding: 0;
+          overflow: hidden;
+          isolation: isolate;
+        }
+
+        .mockup-stage {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          height: var(--tablet-mockup-stage-height);
+          aspect-ratio: auto;
+          overflow: hidden;
+        }
+
+        .mockup-wrap::after {
+          height: 42%;
+        }
+
+        .mockup-glow {
+          top: 18%;
+        }
+
+        .mockup-wrap,
+        .mockup-hud-layer {
+          top: var(--header-height);
+          transform: translate(calc(-50% + var(--tablet-mockup-x)), var(--tablet-mockup-y))
+            scale(calc(var(--tablet-mockup-scale) * clamp(1, calc(var(--tablet-mockup-tune-width) * 1px / 100vw), var(--tablet-mockup-fluid-max))));
+        }
+
+        .hero-section::after {
+          z-index: 8;
+          height: clamp(8rem, 22vh, 14rem);
+        }
+
+        .hero-content {
+          position: absolute;
+          inset: var(--header-height) 0 0;
+          z-index: 10;
+        }
+
+        .hero-copy {
+          max-width: min(42rem, 58vw);
+          padding-top: clamp(3.5rem, 9vh, 5rem);
+          padding-bottom: 1rem;
+        }
+
         .hero-copy h1 {
+          margin-top: 1rem;
           font-size: clamp(3rem, 6.25vw, 3.55rem) !important;
           letter-spacing: 0 !important;
           line-height: 1.01 !important;
@@ -1624,13 +1739,23 @@
 
         .hero-copy p {
           max-width: min(32rem, 58vw);
+          margin-top: 1rem;
           letter-spacing: 0 !important;
         }
 
-        .mockup-wrap,
-        .mockup-hud-layer {
-          transform: translate(calc(-50% + var(--tablet-mockup-x)), var(--tablet-mockup-y))
-            scale(calc(var(--tablet-mockup-scale) * clamp(1, calc(var(--tablet-mockup-tune-width) * 1px / 100vw), var(--tablet-mockup-fluid-max))));
+        .hero-cta-row {
+          margin-top: 1.25rem;
+        }
+
+        .hero-copy > p:last-child {
+          margin-top: 0.85rem;
+        }
+
+        .codex-popover {
+          top: var(--tablet-hud-panel-top);
+          right: var(--tablet-hud-panel-margin-right);
+          width: var(--tablet-hud-panel-width);
+          transform: translate(var(--hud-panel-nudge-x), var(--hud-panel-nudge-y)) scale(var(--tablet-popover-scale));
         }
       }
 
@@ -2163,6 +2288,7 @@
       @media (max-width: 768px) {
         .cli-section .split-layout .split-copy {
           order: 1;
+          text-align: left;
         }
 
         .cli-section .split-layout .split-visual-wrap {
@@ -2269,17 +2395,19 @@
           min-height: auto;
           flex-direction: column;
           overflow: hidden;
-          padding-top: 5rem;
-          background: #000;
+          padding-top: var(--header-height);
+          background: var(--page-bg);
         }
 
         .hero-content {
           order: 1;
+          width: 100%;
         }
 
         .hero-copy {
-          max-width: 27rem;
-          margin-inline: auto;
+          width: 100%;
+          max-width: none;
+          margin-inline: 0;
           padding: 2.25rem 0 0;
           text-align: left;
         }
@@ -2306,15 +2434,19 @@
 
         .hero-copy p {
           margin-top: 1.1rem;
-          max-width: 21rem;
+          max-width: none;
           letter-spacing: 0 !important;
+        }
+
+        .hero-copy > p:last-child {
+          text-align: center;
         }
 
         .hero-copy br {
           display: none !important;
         }
 
-        .hero-copy .reveal-3.mt-8 {
+        .hero-cta-row {
           justify-content: flex-start;
           gap: 0.75rem;
           margin-top: 1.55rem;
@@ -2327,72 +2459,116 @@
         }
 
         .brew-pill {
+          height: auto;
+          min-height: 2.75rem;
+          padding: 0.7rem 1rem;
           overflow: hidden;
+          border: 1px solid var(--control-border);
+          border-radius: 0.85rem;
+          background: var(--control-bg);
+          box-shadow: none;
+          backdrop-filter: none;
+          color: var(--page-text);
         }
 
-        .brew-pill code {
+        .brew-pill [data-brew-label],
+        .brew-pill .text-zinc-100 {
+          color: var(--page-text) !important;
+        }
+
+        .brew-pill .text-zinc-400,
+        .brew-pill [data-brew-icon] {
+          color: var(--page-muted) !important;
+        }
+
+        .brew-pill [data-brew-label] {
+          min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          font-size: 0.76rem;
+          letter-spacing: -0.02em;
+        }
+
+        :root[data-theme="light"] .hero-copy .brew-pill {
+          background: var(--control-bg);
+          border-color: var(--control-border);
+          box-shadow: none;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+          .brew-pill:hover {
+            background: var(--control-hover) !important;
+          }
+        }
+
+        .brew-pill:active {
+          background: var(--control-active) !important;
         }
 
         .mockup-stage {
           position: relative;
           order: 2;
+          width: 100%;
           height: var(--mobile-mockup-stage-height);
           margin-top: 1.35rem;
           overflow: hidden;
+          background: var(--hero-bg);
+        }
+
+        :root[data-theme="light"] .hero-copy .text-zinc-100 {
+          color: var(--page-text) !important;
+        }
+
+        :root[data-theme="light"] .hero-copy .text-zinc-400 {
+          color: var(--page-muted) !important;
+        }
+
+        :root[data-theme="light"] .hero-copy .text-zinc-600 {
+          color: var(--page-faint) !important;
         }
 
         .mockup-glow {
           display: none;
         }
 
-        .mockup-wrap {
+        /* MacBook + HUD: right-anchored in full-bleed stage — crops notch, shows menu-bar side */
+        .mockup-wrap,
+        .mockup-hud-layer {
           top: 0;
           left: auto;
-          right: var(--mockup-screen-margin-right);
+          right: 0;
           width: var(--mobile-mockup-width);
-          transform: translate(var(--mobile-mockup-offset-x), var(--mobile-mockup-offset-y)) scale(var(--mobile-mockup-scale));
+          aspect-ratio: 6111 / 3239;
+          transform: translate(var(--mobile-mockup-offset-x), var(--mobile-mockup-offset-y))
+            scale(var(--mobile-mockup-scale));
           transform-origin: top right;
+        }
+
+        .mockup-hud-layer {
+          bottom: auto;
+          height: auto;
+          z-index: 5;
         }
 
         .mockup-wrap::after {
           height: 42%;
         }
 
-        .mockup-hud-layer {
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          width: auto;
-          aspect-ratio: auto;
-          transform: none;
-          z-index: 5;
-        }
-
-        .mockup-hud-anchor {
+        .system-menubar {
           top: var(--mobile-hud-anchor-top);
           right: var(--mobile-hud-margin-right);
-          transform: translate(var(--mobile-hud-menu-nudge-x), var(--mobile-hud-menu-nudge-y));
-        }
-
-        .system-menubar {
-          gap: var(--mobile-menubar-gap);
-          transform: scale(var(--mobile-menubar-scale));
+          gap: calc(var(--mobile-menubar-gap) / var(--mobile-menubar-scale));
+          transform: translate(var(--mobile-hud-menu-nudge-x), var(--mobile-hud-menu-nudge-y)) scale(var(--mobile-menubar-scale));
           transform-origin: top right;
-          font-size: 1.18rem;
+          font-size: clamp(0.48rem, 0.52cqw, 0.75rem);
         }
 
         .codex-popover {
-          position: absolute;
-          top: calc(100% + var(--mobile-hud-panel-gap));
-          right: 0;
-          left: auto;
-          margin-top: 0;
+          top: var(--mobile-hud-panel-top);
+          right: var(--mobile-hud-panel-margin-right);
           width: var(--mobile-hud-panel-width);
-          transform: translate(var(--hud-panel-nudge-x, 0px), var(--hud-panel-nudge-y, 0px)) scale(var(--mobile-popover-scale));
+          transform: translate(var(--hud-panel-nudge-x), var(--hud-panel-nudge-y)) scale(var(--mobile-popover-scale));
           transform-origin: top right;
           border-radius: 0.65rem;
         }
@@ -2495,53 +2671,6 @@
           border-radius: 0.72rem;
         }
 
-        .feature-card-overlay,
-        .feature-card-overlay.is-usage-menu {
-          right: 7%;
-          bottom: 10%;
-          left: 7%;
-        }
-
-        .feature-usage-panel,
-        .feature-cost-panel,
-        .feature-status-panel {
-          padding: 0.58rem 0.68rem;
-          font-size: clamp(0.5rem, 2.25vw, 0.64rem);
-        }
-
-        .feature-usage-header {
-          margin-bottom: 0.36rem;
-          padding-bottom: 0.32rem;
-        }
-
-        .feature-usage-block + .feature-usage-block {
-          margin-top: 0.52rem;
-        }
-
-        .feature-credit-head {
-          gap: 0.45rem;
-          margin-bottom: 0.42rem;
-          padding-bottom: 0.42rem;
-        }
-
-        .feature-cost-stats {
-          gap: 0.36rem 0.62rem;
-        }
-
-        .feature-cost-chart {
-          height: 2.2rem;
-          margin-top: 0.45rem;
-        }
-
-        .feature-status-list {
-          gap: 0.2rem;
-        }
-
-        .feature-status-list li {
-          min-height: 1.22rem;
-          padding: 0.14rem 0.25rem;
-        }
-
         .inline-code {
           white-space: normal;
           overflow-wrap: anywhere;
@@ -2551,13 +2680,13 @@
   </head>
 
   <body class="min-h-screen overflow-x-hidden text-zinc-100">
-    <header class="absolute inset-x-0 top-0 z-20 grid h-20 grid-cols-[1fr_auto_1fr] items-center bg-transparent px-5 sm:h-24 sm:px-8 lg:px-12">
+    <header class="absolute inset-x-0 top-0 z-20 flex h-[var(--header-height)] items-center justify-between bg-transparent px-5 sm:px-8 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-12">
       <a href="#top" class="button-press flex w-fit items-center gap-2.5 text-sm font-semibold tracking-[-0.03em] text-white sm:text-base" aria-label="CodexBar home" data-i18n-aria-label="nav.home">
         <img src="./icon.png" alt="" class="h-7 w-7 rounded-[7px] sm:h-8 sm:w-8 sm:rounded-lg" />
         <span>CodexBar</span>
       </a>
 
-      <nav class="flex items-center justify-center gap-3" aria-label="Project links" data-i18n-aria-label="nav.projectLinks">
+      <nav class="hidden items-center justify-center gap-3 md:flex" aria-label="Project links" data-i18n-aria-label="nav.projectLinks">
         <a
           href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md"
           class="button-press hidden text-[14px] text-zinc-400 hover:text-white sm:block"
@@ -2577,8 +2706,8 @@
         </a>
       </nav>
 
-      <nav class="flex items-center justify-end gap-3" aria-label="Display and download" data-i18n-aria-label="nav.displayDownload">
-        <button class="theme-option hidden lg:grid" id="theme-toggle" type="button" data-theme-value="system" aria-label="Theme: system. Switch to light" title="System theme">
+      <nav class="flex items-center justify-end gap-2 sm:gap-3" aria-label="Display and download" data-i18n-aria-label="nav.displayDownload">
+        <button class="theme-option grid" id="theme-toggle" type="button" data-theme-value="system" aria-label="Theme: system. Switch to light" title="System theme">
               <svg data-theme-icon="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect width="20" height="14" x="2" y="3" rx="2" />
                 <line x1="8" x2="16" y1="21" y2="21" />
@@ -2593,7 +2722,7 @@
               </svg>
         </button>
 
-        <div class="language-picker hidden lg:block" id="language-picker">
+        <div class="language-picker" id="language-picker">
           <button
             class="language-picker-trigger button-press"
             id="language-picker-trigger"
@@ -2614,7 +2743,7 @@
           </div>
         </div>
 
-        <span class="header-divider hidden lg:block" aria-hidden="true"></span>
+        <span class="header-divider hidden sm:block" aria-hidden="true"></span>
         <a
           href="https://github.com/steipete/CodexBar/releases/latest"
           class="download-button button-press inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium sm:h-10 sm:px-5"
@@ -2628,7 +2757,7 @@
     </header>
 
     <main id="top">
-      <section class="relative min-h-screen overflow-hidden pt-20 sm:pt-24">
+      <section class="hero-section relative overflow-hidden">
           <div class="mockup-stage" id="mockup-stage" aria-label="CodexBar open in the macOS menu bar" data-i18n-aria-label="mockup.openPanelAria">
           <div class="mockup-glow" aria-hidden="true"></div>
           <div class="mockup-wrap" id="mockup-wrap">
@@ -2722,7 +2851,7 @@
             <span data-i18n="hero.badgeEnd">for macOS</span>
           </div>
 
-          <h1 class="reveal reveal-2 mt-5 text-[clamp(3rem,5.7vw,6.4rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-zinc-100">
+          <h1 class="reveal reveal-2 mt-5 text-[clamp(3rem,5.7vw,60px)] font-semibold leading-[0.98] tracking-[-0.06em] text-zinc-100">
             <span class="hero-title-line" data-i18n="hero.prefix">Every AI coding limit,</span>
             <span class="hero-title-line" data-i18n="hero.accent">in your menu bar.</span>
           </h1>
@@ -2731,7 +2860,7 @@
             <span data-i18n-rich="hero.descriptionShort">Track usage windows, credit balances, and reset countdowns{break}across the AI tools you actually pay for.</span>
           </p>
 
-          <div class="reveal reveal-3 mt-8 flex flex-wrap items-center justify-center gap-4 sm:mt-10 sm:justify-start">
+          <div class="hero-cta-row reveal reveal-3 mt-8 sm:mt-10">
             <a
               href="https://github.com/steipete/CodexBar/releases/latest"
               class="download-button hero-download button-press inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium"
@@ -2773,7 +2902,7 @@
         <div class="section-inner">
         <header class="relative z-10 grid gap-5 tablet:grid-cols-[1fr_0.86fr] tablet:items-center">
           <h2 class="provider-reveal max-w-3xl text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
-            <span data-i18n-rich="providers.title">53 providers,{break}one menu bar</span>
+            <span data-i18n-rich="providers.title">53 providers,{mobileBreak}one menu bar</span>
           </h2>
           <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.35vw,1.28rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
             <span data-i18n="providers.description">Popular providers become status items with their own usage windows, reset countdowns, charts, and provider menus.</span>
@@ -3258,9 +3387,12 @@
       hidden
     >tune</button>
 
-    <aside id="tuner-panel" hidden class="tuner-panel fixed bottom-16 right-4 z-50 hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/90 p-4 text-left shadow-2xl">
-      <div class="mb-3 flex items-center justify-between">
-        <p id="tuner-mode-label" class="font-mono text-xs text-zinc-300">desktop tuner</p>
+    <aside id="tuner-panel" hidden class="tuner-panel fixed z-50 hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/90 p-4 text-left shadow-2xl">
+      <div class="tuner-panel-handle mb-3 flex items-center justify-between gap-2">
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="tuner-panel-grip" aria-hidden="true">⋮⋮</span>
+          <p id="tuner-mode-label" class="truncate font-mono text-xs text-zinc-300">desktop tuner</p>
+        </div>
         <div class="flex items-center gap-3">
           <button id="tuner-copy" type="button" class="button-press text-xs text-zinc-300 hover:text-white">copy CSS</button>
           <button id="tuner-reset" type="button" class="button-press text-xs text-zinc-500 hover:text-white">reset</button>
@@ -3312,50 +3444,286 @@
       const HERO_TABLET_MAX = 1023;
       const HERO_DESKTOP_MIN = 1024;
       const MOCKUP_SCREEN_MARGIN_RIGHT = 50;
+      const MOCKUP_SCREEN_MARGIN_RIGHT_TABLET = 15;
+      const MOCKUP_ARTBOARD_RATIO = 1.18;
+      /* Mobile MacBook X tune @ 490px, right-anchored full-bleed stage */
+      const HERO_MOBILE_MOCKUP_X_CORRECTION = -32;
+      const HERO_MOBILE_MOCKUP_TUNE_SCALE = 0.99;
+
+      const HERO_ARTBOARD = { width: 6111, height: 3239 };
+
+      /* Figma @ 6111×3239 — menubar anchor 130 top / 150 right; scale 0.94 (desktop) / 0.82 (mobile) */
+      const HERO_MENUBAR_BASE = {
+        figmaTop: 130,
+        figmaRight: 150,
+        scale: 0.94,
+        mobileScale: 0.82,
+        iconScale: 1.28,
+      };
+
+      /* Visual correction vs computed base (tune @ 1920 → 5.25%, 3.8%, scale ×1.55) */
+      const HERO_MENUBAR_CORRECTION = {
+        top: 5.25 / ((HERO_MENUBAR_BASE.figmaTop / HERO_ARTBOARD.height) * 100),
+        right: 3.8 / ((HERO_MENUBAR_BASE.figmaRight / HERO_ARTBOARD.width) * 100),
+        scale: 1.55,
+      };
+
+      function getMenubarComputed() {
+        const topPx = HERO_MENUBAR_BASE.figmaTop * HERO_MENUBAR_CORRECTION.top;
+        const rightPx = HERO_MENUBAR_BASE.figmaRight * HERO_MENUBAR_CORRECTION.right;
+        const scale = HERO_MENUBAR_BASE.scale * HERO_MENUBAR_CORRECTION.scale;
+        const mobileScale = HERO_MENUBAR_BASE.mobileScale * HERO_MENUBAR_CORRECTION.scale;
+        return {
+          topPx,
+          rightPx,
+          anchorTop: `${artboardPxToTopPercent(topPx).toFixed(2)}%`,
+          marginRight: `${artboardPxToRightPercent(rightPx).toFixed(2)}%`,
+          scale: Math.round(scale * 1000) / 1000,
+          mobileScale: Math.round(mobileScale * 1000) / 1000,
+        };
+      }
+
+      const HERO_FIGMA_SCREEN = { paddingTop: 125, paddingRight: 141 };
+
+      const HERO_FIGMA_PANEL = { gapBelowMenubar: 20, insetBeyondPaddingRight: 30 };
+
+      const HERO_PANEL_WIDTH_ON_SCREEN = 0.191;
+
+      function getMenubarRenderedHeightPx() {
+        const emPx = 0.52 * (HERO_ARTBOARD.width / 100);
+        return emPx * HERO_MENUBAR_BASE.iconScale * getMenubarComputed().scale;
+      }
+
+      function getPanelBasePx() {
+        const menubar = getMenubarComputed();
+        const menubarHeight = (menubar.topPx - HERO_FIGMA_SCREEN.paddingTop) + getMenubarRenderedHeightPx();
+        return {
+          topPx: HERO_FIGMA_SCREEN.paddingTop + menubarHeight + HERO_FIGMA_PANEL.gapBelowMenubar,
+          rightPx: HERO_FIGMA_SCREEN.paddingRight + HERO_FIGMA_PANEL.insetBeyondPaddingRight,
+        };
+      }
+
+      /* SVG inner-screen geometry (panel width still % of inner screen) */
+      const HERO_SCREEN_GEOMETRY = {
+        top: 124.92 / 3239,
+        width: (5970.48 - 140.89) / 6111,
+        height: (3239 - 124.92) / 3239,
+        rightInset: (6111 - 5970.48) / 6111,
+      };
+
+      function artboardPxToTopPercent(px) {
+        return (px / HERO_ARTBOARD.height) * 100;
+      }
+
+      function artboardPxToRightPercent(px) {
+        return (px / HERO_ARTBOARD.width) * 100;
+      }
+
+      const HERO_PANEL_BASE = { popoverScale: 0.91, mobilePopoverScale: 1.01 };
+
+      /* Visual correction vs computed base (tune @ 1920 → 8.5%, 3.7%, scale 0.85) */
+      const HERO_PANEL_CORRECTION = (() => {
+        const base = getPanelBasePx();
+        return {
+          top: 8.5 / artboardPxToTopPercent(base.topPx),
+          right: 3.7 / artboardPxToRightPercent(base.rightPx),
+          scale: 0.85 / HERO_PANEL_BASE.popoverScale,
+        };
+      })();
+
+      /* Tablet-only correction (tune @ 1020 → top 9.5%, scale 1.35) */
+      const HERO_PANEL_TABLET_CORRECTION = (() => {
+        const base = getPanelBasePx();
+        return {
+          top: 9.5 / artboardPxToTopPercent(base.topPx),
+          scale: 1.35,
+        };
+      })();
+
+      function getPanelComputed() {
+        const base = getPanelBasePx();
+        const topPx = base.topPx * HERO_PANEL_CORRECTION.top;
+        const rightPx = base.rightPx * HERO_PANEL_CORRECTION.right;
+        const scale = Math.round(HERO_PANEL_BASE.popoverScale * HERO_PANEL_CORRECTION.scale * 1000) / 1000;
+        const mobileScale = Math.round(HERO_PANEL_BASE.mobilePopoverScale * HERO_PANEL_CORRECTION.scale * 1000) / 1000;
+        return {
+          topPx,
+          rightPx,
+          panelTop: `${artboardPxToTopPercent(topPx).toFixed(2)}%`,
+          panelMarginRight: `${artboardPxToRightPercent(rightPx).toFixed(2)}%`,
+          panelWidth: `${(HERO_PANEL_WIDTH_ON_SCREEN * HERO_SCREEN_GEOMETRY.width * 100).toFixed(2)}%`,
+          scale,
+          mobileScale,
+        };
+      }
+
+      /* Mobile-only correction (tune @ 490 → top/right/scale; @ 444 → width 20%) */
+      const HERO_PANEL_MOBILE_CORRECTION = (() => {
+        const panel = getPanelComputed();
+        return {
+          top: 9.15 / parseFloat(panel.panelTop),
+          right: 6 / parseFloat(panel.panelMarginRight),
+          width: 20 / parseFloat(panel.panelWidth),
+          scale: 1.39 / panel.mobileScale,
+        };
+      })();
+
+      function getMobilePanelComputed() {
+        const base = getPanelBasePx();
+        const panel = getPanelComputed();
+        const topPx = base.topPx * HERO_PANEL_MOBILE_CORRECTION.top;
+        return {
+          panelTop: `${artboardPxToTopPercent(topPx).toFixed(2)}%`,
+          panelMarginRight: `${(parseFloat(panel.panelMarginRight) * HERO_PANEL_MOBILE_CORRECTION.right).toFixed(2)}%`,
+          panelWidth: `${(parseFloat(panel.panelWidth) * HERO_PANEL_MOBILE_CORRECTION.width).toFixed(2)}%`,
+          scale: Math.round(panel.mobileScale * HERO_PANEL_MOBILE_CORRECTION.scale * 1000) / 1000,
+        };
+      }
+
+      function getTabletPanelComputed() {
+        const base = getPanelBasePx();
+        const panel = getPanelComputed();
+        const topPx = base.topPx * HERO_PANEL_TABLET_CORRECTION.top;
+        return {
+          panelTop: `${artboardPxToTopPercent(topPx).toFixed(2)}%`,
+          panelMarginRight: panel.panelMarginRight,
+          panelWidth: panel.panelWidth,
+          scale: HERO_PANEL_TABLET_CORRECTION.scale,
+        };
+      }
+
+      function getHudDefaultsFromGeometry() {
+        const menubar = getMenubarComputed();
+        const panel = getPanelComputed();
+        const tabletPanel = getTabletPanelComputed();
+        const mobilePanel = getMobilePanelComputed();
+        return {
+          '--hud-anchor-top': menubar.anchorTop,
+          '--hud-margin-right': menubar.marginRight,
+          '--menubar-scale': String(menubar.scale),
+          '--mobile-hud-anchor-top': menubar.anchorTop,
+          '--mobile-hud-margin-right': menubar.marginRight,
+          '--mobile-menubar-scale': String(menubar.mobileScale),
+          '--hud-panel-top': panel.panelTop,
+          '--hud-panel-margin-right': panel.panelMarginRight,
+          '--hud-panel-width': panel.panelWidth,
+          '--popover-scale': String(panel.scale),
+          '--tablet-hud-panel-top': tabletPanel.panelTop,
+          '--tablet-hud-panel-margin-right': tabletPanel.panelMarginRight,
+          '--tablet-hud-panel-width': tabletPanel.panelWidth,
+          '--tablet-popover-scale': String(tabletPanel.scale),
+          '--mobile-hud-panel-top': mobilePanel.panelTop,
+          '--mobile-hud-panel-margin-right': mobilePanel.panelMarginRight,
+          '--mobile-hud-panel-width': mobilePanel.panelWidth,
+          '--mobile-popover-scale': String(mobilePanel.scale),
+        };
+      }
 
       const HERO_DESKTOP_ANCHOR = {
         width: 1920,
         fluidMax: 1.22,
         tabletTuneWidth: 1022,
         tabletFluidMax: 1.18,
-        px: {
-          '--mockup-x': -540,
-          '--mockup-y': 10,
-        },
+        mockupY: 10,
+        mockupScale: 1.15,
+        tabletMockupScale: 0.92,
       };
 
-      const HERO_TABLET_ANCHOR = {
-        tuneWidth: 1022,
-        fluidMax: 1.18,
-        px: {
-          '--tablet-mockup-x': -80,
-        },
-      };
+      const HERO_LAYOUT_VARS = ['--mockup-x', '--mockup-y', '--tablet-mockup-x', '--tablet-mockup-stage-height'];
 
-      const HERO_LAYOUT_VARS = [
-        ...Object.keys(HERO_DESKTOP_ANCHOR.px),
-        '--tablet-mockup-x',
-      ];
-
-      function getHeroFluidFactor(width) {
-        const tuneWidth = HERO_DESKTOP_ANCHOR.width;
-        return Math.min(Math.max(1, tuneWidth / width), HERO_DESKTOP_ANCHOR.fluidMax);
+      function readRootPx(name, fallback) {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        if (!raw) return fallback;
+        if (raw.endsWith('rem')) {
+          const rootFont = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+          const rem = Number.parseFloat(raw);
+          return Number.isFinite(rem) && Number.isFinite(rootFont) ? rem * rootFont : fallback;
+        }
+        const value = Number.parseFloat(raw);
+        return Number.isFinite(value) ? value : fallback;
       }
 
-      function getTabletFluidFactor(width) {
+      function computeTabletStageHeight(width) {
+        const headerPx = readRootPx('--header-height', 64);
         const tuneWidth = HERO_DESKTOP_ANCHOR.tabletTuneWidth;
-        return Math.min(Math.max(1, tuneWidth / width), HERO_DESKTOP_ANCHOR.tabletFluidMax);
+        const baseWidth = getMockupBaseWidth(width, tuneWidth);
+        const artboardHeight = baseWidth * (3239 / 6111);
+        const scale = getMockupEffectiveScale(width, { tablet: true });
+        const scaledHeight = artboardHeight * scale;
+        const mockupY = readRootNumber('--tablet-mockup-y', 13);
+        const mockupBottom = headerPx + mockupY + scaledHeight;
+        const panelTop = readRootPercent('--tablet-hud-panel-top', 9.5);
+        const panelScale = readRootNumber('--tablet-popover-scale', 1.35);
+        const panelApproxHeight = scaledHeight * 0.36 * panelScale;
+        const panelBottom = headerPx + mockupY + scaledHeight * panelTop + panelApproxHeight;
+
+        return Math.ceil(Math.max(mockupBottom, panelBottom) + 12);
       }
 
-      function getTabletDesktopPxRatio(width) {
-        if (width >= HERO_TABLET_ANCHOR.tuneWidth) return 1;
-        return (width / HERO_TABLET_ANCHOR.tuneWidth) / getTabletFluidFactor(width);
+      function getHeroFluidFactor(width, tuneWidth = HERO_DESKTOP_ANCHOR.width, fluidMax = HERO_DESKTOP_ANCHOR.fluidMax) {
+        return Math.min(Math.max(1, tuneWidth / width), fluidMax);
       }
 
-      function getHeroDesktopPxRatio(width) {
-        if (width >= HERO_DESKTOP_ANCHOR.width) return 1;
-        if (width < HERO_DESKTOP_MIN) return null;
-        return (width / HERO_DESKTOP_ANCHOR.width) / getHeroFluidFactor(width);
+      function getMockupBaseWidth(width, tuneWidth = HERO_DESKTOP_ANCHOR.width) {
+        const layoutWidth = width >= tuneWidth ? tuneWidth : width;
+        return layoutWidth * MOCKUP_ARTBOARD_RATIO;
+      }
+
+      function readRootNumber(name, fallback) {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        const value = Number.parseFloat(raw);
+        return Number.isFinite(value) ? value : fallback;
+      }
+
+      function readRootPercent(name, fallbackPercent) {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        if (!raw) return fallbackPercent / 100;
+        if (raw.endsWith('%')) {
+          const value = Number.parseFloat(raw);
+          return Number.isFinite(value) ? value / 100 : fallbackPercent / 100;
+        }
+        const value = Number.parseFloat(raw);
+        return Number.isFinite(value) ? value / 100 : fallbackPercent / 100;
+      }
+
+      function getMockupEffectiveScale(width, { tablet = false } = {}) {
+        const tuneWidth = tablet ? HERO_DESKTOP_ANCHOR.tabletTuneWidth : HERO_DESKTOP_ANCHOR.width;
+        const fluidMax = tablet ? HERO_DESKTOP_ANCHOR.tabletFluidMax : HERO_DESKTOP_ANCHOR.fluidMax;
+        const scale = tablet
+          ? readRootNumber('--tablet-mockup-scale', HERO_DESKTOP_ANCHOR.tabletMockupScale)
+          : readRootNumber('--mockup-scale', HERO_DESKTOP_ANCHOR.mockupScale);
+        if (width >= tuneWidth) return scale;
+        return scale * getHeroFluidFactor(width, tuneWidth, fluidMax);
+      }
+
+      function computeMockupX(width, { tablet = false } = {}) {
+        const tuneWidth = tablet ? HERO_DESKTOP_ANCHOR.tabletTuneWidth : HERO_DESKTOP_ANCHOR.width;
+        const scaledWidth = getMockupBaseWidth(width, tuneWidth) * getMockupEffectiveScale(width, { tablet });
+        const marginRight = tablet ? MOCKUP_SCREEN_MARGIN_RIGHT_TABLET : MOCKUP_SCREEN_MARGIN_RIGHT;
+        return (width / 2) - marginRight - (scaledWidth / 2);
+      }
+
+      function getMobileStageWidth(viewportWidth) {
+        return viewportWidth;
+      }
+
+      function computeMobileMockupOffsetX(viewportWidth) {
+        const stageWidth = getMobileStageWidth(viewportWidth);
+        const scale = readRootNumber('--mobile-mockup-scale', HERO_MOBILE_MOCKUP_TUNE_SCALE);
+        const widthPct = readRootNumber('--mobile-mockup-width', 251) / 100;
+        const scaledWidth = stageWidth * widthPct * scale;
+        const scaleNudge = (HERO_MOBILE_MOCKUP_TUNE_SCALE - scale) * scaledWidth * 0.5;
+        return Math.round((HERO_MOBILE_MOCKUP_X_CORRECTION + scaleNudge) * 100) / 100;
+      }
+
+      function applyHudGeometryDefaults() {
+        const defaults = getHudDefaultsFromGeometry();
+        const root = document.documentElement;
+        Object.entries(defaults).forEach(([name, value]) => {
+          if (!root.style.getPropertyValue(name)) {
+            root.style.setProperty(name, value);
+          }
+        });
       }
 
       function clearHeroDesktopLayout() {
@@ -3375,78 +3743,83 @@
 
         const width = window.innerWidth;
         const root = document.documentElement;
-        root.style.setProperty('--mockup-screen-margin-right', `${MOCKUP_SCREEN_MARGIN_RIGHT}px`);
+        const isTablet = width > HERO_MOBILE_MAX && width <= HERO_TABLET_MAX;
+        const marginRight = isTablet ? MOCKUP_SCREEN_MARGIN_RIGHT_TABLET : MOCKUP_SCREEN_MARGIN_RIGHT;
+        root.style.setProperty('--mockup-screen-margin-right', `${marginRight}px`);
 
         if (width <= HERO_MOBILE_MAX) {
           clearHeroDesktopLayout();
-          root.style.removeProperty('--mockup-x');
-          root.style.removeProperty('--tablet-mockup-x');
+          root.style.setProperty('--mobile-mockup-offset-x', `${computeMobileMockupOffsetX(width)}px`);
           return;
         }
 
-        // At/above tune width (1920): :root + tuner values are the source of truth.
-        // Do not override mockup-x or HUD vars — the 50px margin rule needs a retune pass.
-        if (width >= HERO_DESKTOP_ANCHOR.width) {
-          clearHeroDesktopLayout();
-          root.style.removeProperty('--mockup-x');
-          root.style.removeProperty('--tablet-mockup-x');
-          return;
-        }
+        root.style.removeProperty('--mobile-mockup-offset-x');
+
+        const mockupX = Math.round(computeMockupX(width, { tablet: isTablet }) * 100) / 100;
 
         if (width <= HERO_TABLET_MAX) {
+          root.style.setProperty('--tablet-mockup-x', `${mockupX}px`);
+          root.style.setProperty('--tablet-mockup-y', `${readRootNumber('--tablet-mockup-y', 13)}px`);
+          root.style.setProperty('--tablet-mockup-stage-height', `${computeTabletStageHeight(width)}px`);
           root.style.removeProperty('--mockup-x');
-          clearHeroDesktopLayout();
-          const tabletRatio = getTabletDesktopPxRatio(width);
-          Object.entries(HERO_TABLET_ANCHOR.px).forEach(([name, anchor]) => {
-            const value = anchor * tabletRatio;
-            root.style.setProperty(name, `${Math.round(value * 100) / 100}px`);
-          });
+          root.style.removeProperty('--mockup-y');
           return;
         }
 
+        root.style.setProperty('--mockup-x', `${mockupX}px`);
+        root.style.setProperty('--mockup-y', `${HERO_DESKTOP_ANCHOR.mockupY}px`);
         root.style.removeProperty('--tablet-mockup-x');
-        const pxRatio = getHeroDesktopPxRatio(width);
-
-        Object.entries(HERO_DESKTOP_ANCHOR.px).forEach(([name, anchor]) => {
-          const value = anchor * pxRatio;
-          root.style.setProperty(name, `${Math.round(value * 100) / 100}px`);
-        });
+        root.style.removeProperty('--tablet-mockup-y');
+        root.style.removeProperty('--tablet-mockup-stage-height');
       }
+
+      applyHudGeometryDefaults();
+      applyHeroDesktopLayout();
 
       window.addEventListener('resize', applyHeroDesktopLayout);
       window.visualViewport?.addEventListener('resize', applyHeroDesktopLayout);
 
       const tabletTunerGroups = {
         panel: [
-          ['Panel gap', '--hud-panel-gap', 0, 2, 0.05, 'rem'],
-          ['Panel nudge X', '--hud-panel-nudge-x', -200, 200, 1, 'px'],
-          ['Panel nudge Y', '--hud-panel-nudge-y', -200, 200, 1, 'px'],
-          ['Panel width', '--hud-panel-width', 10, 45, 0.05, '%'],
-          ['Panel scale', '--popover-scale', 0.5, 2, 0.01, ''],
+          ['Panel top', '--tablet-hud-panel-top', 6, 14, 0.05, '%'],
+          ['Panel margin right', '--tablet-hud-panel-margin-right', 2, 6, 0.05, '%'],
+          ['Panel width', '--tablet-hud-panel-width', 12, 28, 0.05, '%'],
+          ['Panel scale', '--tablet-popover-scale', 0.5, 2, 0.01, ''],
+        ],
+      };
+
+      const mobileTunerGroups = {
+        panel: [
+          ['Panel top', '--mobile-hud-panel-top', 6, 12, 0.05, '%'],
+          ['Panel margin right', '--mobile-hud-panel-margin-right', 2, 6, 0.05, '%'],
+          ['Panel width', '--mobile-hud-panel-width', 12, 28, 0.05, '%'],
+          ['Panel nudge X', '--hud-panel-nudge-x', -80, 80, 1, 'px'],
+          ['Panel nudge Y', '--hud-panel-nudge-y', -80, 80, 1, 'px'],
+          ['Panel scale', '--mobile-popover-scale', 0.5, 1.5, 0.01, ''],
         ],
       };
 
       const desktopTunerGroups = {
         mockup: [
-          ['Mockup X', '--mockup-x', -1200, 800, 1, 'px'],
           ['Mockup Y', '--mockup-y', -400, 400, 1, 'px'],
           ['Mockup scale', '--mockup-scale', 0.5, 1.5, 0.01, ''],
         ],
         menubar: [
-          ['Anchor top', '--hud-anchor-top', 0, 25, 0.05, '%'],
-          ['Margin right', '--hud-margin-right', 0, 15, 0.1, '%'],
-          ['Menu nudge X', '--hud-menu-nudge-x', -200, 200, 1, 'px'],
-          ['Menu nudge Y', '--hud-menu-nudge-y', -120, 120, 1, 'px'],
-          ['Menu scale', '--menubar-scale', 0.5, 2, 0.01, ''],
+          ['Anchor top', '--hud-anchor-top', 3, 8, 0.05, '%'],
+          ['Margin right', '--hud-margin-right', 2, 6, 0.05, '%'],
+          ['Menu nudge X', '--hud-menu-nudge-x', -80, 80, 1, 'px'],
+          ['Menu nudge Y', '--hud-menu-nudge-y', -40, 40, 1, 'px'],
+          ['Menu scale', '--menubar-scale', 0.8, 2.2, 0.01, ''],
           ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
-          ['Menu gap', '--menubar-gap', 8, 40, 1, 'px'],
+          ['Menu gap', '--menubar-gap', 0.4, 1.6, 0.05, 'cqw'],
         ],
         panel: [
-          ['Panel gap', '--hud-panel-gap', 0, 2, 0.05, 'rem'],
-          ['Panel nudge X', '--hud-panel-nudge-x', -200, 200, 1, 'px'],
-          ['Panel nudge Y', '--hud-panel-nudge-y', -200, 200, 1, 'px'],
-          ['Panel width', '--hud-panel-width', 10, 45, 0.05, '%'],
-          ['Panel scale', '--popover-scale', 0.5, 2, 0.01, ''],
+          ['Panel top', '--hud-panel-top', 6, 12, 0.05, '%'],
+          ['Panel margin right', '--hud-panel-margin-right', 2, 6, 0.05, '%'],
+          ['Panel width', '--hud-panel-width', 12, 28, 0.05, '%'],
+          ['Panel nudge X', '--hud-panel-nudge-x', -80, 80, 1, 'px'],
+          ['Panel nudge Y', '--hud-panel-nudge-y', -80, 80, 1, 'px'],
+          ['Panel scale', '--popover-scale', 0.5, 1.5, 0.01, ''],
         ],
       };
 
@@ -3484,18 +3857,14 @@
               ['Mockup width', '--mobile-mockup-width', 180, 320, 1, '%'],
             ],
             menubar: [
-              ['Anchor top', '--mobile-hud-anchor-top', 0, 20, 0.1, '%'],
-              ['Margin right', '--mobile-hud-margin-right', 0, 15, 0.1, '%'],
+              ['Anchor top', '--mobile-hud-anchor-top', 2, 8, 0.05, '%'],
+              ['Margin right', '--mobile-hud-margin-right', 1, 6, 0.05, '%'],
               ['Menu nudge X', '--mobile-hud-menu-nudge-x', -120, 120, 1, 'px'],
               ['Menu nudge Y', '--mobile-hud-menu-nudge-y', -80, 120, 1, 'px'],
               ['Menu scale', '--mobile-menubar-scale', 0.4, 1.2, 0.01, ''],
               ['Menu gap', '--mobile-menubar-gap', 0.4, 1.5, 0.02, 'rem'],
             ],
-            panel: [
-              ['Panel gap', '--mobile-hud-panel-gap', 0, 1.5, 0.05, 'rem'],
-              ['Panel width', '--mobile-hud-panel-width', 14, 24, 0.05, 'rem'],
-              ['Panel scale', '--mobile-popover-scale', 0.5, 1.2, 0.01, ''],
-            ],
+            panel: [...mobileTunerGroups.panel],
           },
         },
       };
@@ -3592,6 +3961,90 @@
       const auditLogList = document.querySelector('#tuner-audit-log');
       const auditCount = document.querySelector('#tuner-audit-count');
       const auditStorageKey = 'codexbar-tuner-audit-v2';
+      const tunerPositionStorageKey = 'codexbar-tuner-panel-pos';
+      const tunerHandle = panel.querySelector('.tuner-panel-handle');
+      let tunerDragState = null;
+
+      function clampTunerPanelPosition(left, top) {
+        const margin = 8;
+        const width = panel.offsetWidth || Math.min(352, window.innerWidth - margin * 2);
+        const height = panel.offsetHeight || 320;
+        const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+        const maxTop = Math.max(margin, window.innerHeight - height - margin);
+        return {
+          left: Math.min(Math.max(margin, left), maxLeft),
+          top: Math.min(Math.max(margin, top), maxTop),
+        };
+      }
+
+      function setTunerPanelPosition(left, top, { persist = true } = {}) {
+        const clamped = clampTunerPanelPosition(left, top);
+        panel.style.left = `${clamped.left}px`;
+        panel.style.top = `${clamped.top}px`;
+        panel.classList.add('is-positioned');
+        if (persist) {
+          sessionStorage.setItem(tunerPositionStorageKey, JSON.stringify(clamped));
+        }
+        return clamped;
+      }
+
+      function restoreTunerPanelPosition() {
+        try {
+          const saved = JSON.parse(sessionStorage.getItem(tunerPositionStorageKey) || 'null');
+          if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+            requestAnimationFrame(() => setTunerPanelPosition(saved.left, saved.top, { persist: false }));
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+
+        if (window.innerWidth <= HERO_MOBILE_MAX) {
+          requestAnimationFrame(() => setTunerPanelPosition(12, 12, { persist: false }));
+        }
+      }
+
+      function onTunerPanelPointerDown(event) {
+        if (event.target.closest('button')) return;
+        const rect = panel.getBoundingClientRect();
+        tunerDragState = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          originLeft: rect.left,
+          originTop: rect.top,
+        };
+        panel.classList.add('is-dragging');
+        tunerHandle.setPointerCapture(event.pointerId);
+        event.preventDefault();
+      }
+
+      function onTunerPanelPointerMove(event) {
+        if (!tunerDragState || event.pointerId !== tunerDragState.pointerId) return;
+        const dx = event.clientX - tunerDragState.startX;
+        const dy = event.clientY - tunerDragState.startY;
+        setTunerPanelPosition(tunerDragState.originLeft + dx, tunerDragState.originTop + dy);
+      }
+
+      function endTunerPanelDrag(event) {
+        if (!tunerDragState || event.pointerId !== tunerDragState.pointerId) return;
+        tunerDragState = null;
+        panel.classList.remove('is-dragging');
+        if (tunerHandle.hasPointerCapture(event.pointerId)) {
+          tunerHandle.releasePointerCapture(event.pointerId);
+        }
+      }
+
+      tunerHandle.addEventListener('pointerdown', onTunerPanelPointerDown);
+      tunerHandle.addEventListener('pointermove', onTunerPanelPointerMove);
+      tunerHandle.addEventListener('pointerup', endTunerPanelDrag);
+      tunerHandle.addEventListener('pointercancel', endTunerPanelDrag);
+
+      window.addEventListener('resize', () => {
+        if (!panel.classList.contains('is-positioned')) return;
+        const rect = panel.getBoundingClientRect();
+        setTunerPanelPosition(rect.left, rect.top);
+      });
 
       const HERO_META_VARS = [
         ['--mockup-tune-width', ''],
@@ -4327,6 +4780,11 @@
           span.textContent = '(15.5k stars)';
           return span;
         }
+        if (name === 'mobileBreak') {
+          const br = document.createElement('br');
+          br.className = 'sm:hidden';
+          return br;
+        }
         if (name === 'break') {
           const wrapper = document.createDocumentFragment();
           const space = document.createElement('span');
@@ -4504,6 +4962,7 @@
         toggle.setAttribute('aria-expanded', String(open));
         toggle.textContent = open ? 'close tuner' : 'tune';
         if (open) {
+          restoreTunerPanelPosition();
           scheduleViewportUpdate();
         } else {
           applyHeroDesktopLayout();
