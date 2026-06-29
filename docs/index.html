@@ -1031,6 +1031,12 @@
         .features-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       }
 
+      .feature-card {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
       .feature-card h3 {
         margin: 0;
         color: var(--page-text);
@@ -1049,7 +1055,9 @@
       }
 
       .feature-card-visual {
-        margin-top: 1.35rem;
+        margin-top: auto;
+        padding-top: 1.35rem;
+        width: 100%;
         aspect-ratio: 4 / 3;
         border: 1px solid var(--page-line);
         border-radius: 0.8rem;
