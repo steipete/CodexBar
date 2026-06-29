@@ -92,9 +92,9 @@
         --primary-hover: #e4e4e7;
         --apple-filter: none;
         --header-height: 5rem;
-        --mockup-x: -87px;
-        --mockup-y: 6px;
-        --mockup-scale: 0.77;
+        --mockup-x: -540px;
+        --mockup-y: 10px;
+        --mockup-scale: 1.15;
         --mockup-tune-width: 1920;
         --mockup-fluid-max: 1.22;
         --glow-x: 331px;
@@ -104,14 +104,14 @@
         --glow-blur: 72px;
         --glow-color-a: #003c61;
         --glow-color-b: #8000ff;
-        --menubar-x: 183px;
-        --menubar-y: 16px;
-        --menubar-scale: 1.47;
+        --menubar-x: 416px;
+        --menubar-y: -41px;
+        --menubar-scale: 0.94;
         --menubar-gap: 22px;
         --menubar-icon-scale: 1.28;
-        --popover-x: 355px;
-        --popover-y: -3px;
-        --popover-scale: 1.51;
+        --popover-x: 738px;
+        --popover-y: -124px;
+        --popover-scale: 0.91;
         --narrow-menubar-x: 148px;
         --narrow-menubar-y: 16px;
         --narrow-menubar-scale: 1.27;
@@ -122,11 +122,11 @@
         --mockup-screen-left: 2.31%;
         --mockup-screen-right-inset: 2.3%;
         --mockup-screen-bottom-inset: 0%;
-        --mockup-hud-menubar-top: 9.04%;
+        --mockup-hud-menubar-top: 8.59%;
         --mockup-hud-menubar-right: 20.7%;
-        --mockup-hud-popover-top: 20%;
+        --mockup-hud-popover-top: 19.71%;
         --mockup-hud-popover-right: 35.4%;
-        --mockup-hud-popover-width: 23.95%;
+        --mockup-hud-popover-width: 19.1%;
         --mobile-mockup-stage-height: 33.5rem;
         --mobile-mockup-width: 251%;
         --mobile-mockup-offset-x: 11px;
@@ -428,6 +428,8 @@
         line-height: 1.15;
         backdrop-filter: blur(18px);
         will-change: transform, opacity;
+        user-select: text;
+        -webkit-user-select: text;
         opacity: 0;
         transition: opacity 480ms cubic-bezier(0.23, 1, 0.32, 1);
       }
@@ -649,10 +651,12 @@
       .hero-content {
         position: relative;
         z-index: 10;
+        pointer-events: none;
       }
 
       .hero-copy {
         position: relative;
+        pointer-events: auto;
         width: 100%;
         max-width: 42rem;
         padding-top: clamp(9rem, 21vh, 13rem);
@@ -1603,34 +1607,11 @@
         .hero-copy h1 {
           font-size: clamp(2.65rem, 4.8vw, 3.35rem) !important;
         }
-
-        .mockup-wrap,
-        .mockup-hud-layer {
-          transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y))
-            scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
-        }
-
-        .system-menubar {
-          transform: translate(var(--narrow-menubar-x), var(--narrow-menubar-y)) scale(var(--narrow-menubar-scale));
-        }
-
-        .codex-popover {
-          transform: translate(var(--narrow-popover-x), var(--narrow-popover-y)) scale(var(--narrow-popover-scale));
-        }
       }
 
       @media (min-width: 1024px) and (max-height: 820px) {
         .hero-copy {
           padding-top: clamp(8rem, 20vh, 10.4rem);
-        }
-
-        .mockup-wrap,
-        .mockup-hud-layer {
-          transform: translate(calc(-50% + min(var(--mockup-x), 7.25vw)), -18px) scale(0.98);
-        }
-
-        .codex-popover {
-          transform: translate(var(--popover-x), 6px) scale(0.94);
         }
       }
 
@@ -3341,6 +3322,94 @@
 
       const HERO_MOBILE_MAX = 768;
       const HERO_TABLET_MAX = 1023;
+      const HERO_DESKTOP_MIN = 1024;
+
+      const HERO_DESKTOP_ANCHOR = {
+        width: 1920,
+        fluidMax: 1.22,
+        px: {
+          '--mockup-x': -540,
+          '--mockup-y': 10,
+          '--menubar-x': 416,
+          '--menubar-y': -41,
+          '--popover-x': 738,
+          '--popover-y': -124,
+        },
+        unitless: {
+          '--mockup-scale': 1.15,
+          '--menubar-scale': 0.94,
+          '--menubar-icon-scale': 1.28,
+          '--menubar-gap': 22,
+          '--popover-scale': 0.91,
+        },
+        percent: {
+          '--mockup-hud-menubar-top': 8.59,
+          '--mockup-hud-menubar-right': 20.7,
+          '--mockup-hud-popover-top': 19.71,
+          '--mockup-hud-popover-right': 35.4,
+          '--mockup-hud-popover-width': 19.1,
+        },
+      };
+
+      const HERO_LAYOUT_VARS = [
+        ...Object.keys(HERO_DESKTOP_ANCHOR.px),
+        ...Object.keys(HERO_DESKTOP_ANCHOR.unitless),
+        ...Object.keys(HERO_DESKTOP_ANCHOR.percent),
+      ];
+
+      function getHeroFluidFactor(width) {
+        const tuneWidth = HERO_DESKTOP_ANCHOR.width;
+        return Math.min(Math.max(1, tuneWidth / width), HERO_DESKTOP_ANCHOR.fluidMax);
+      }
+
+      function getHeroDesktopPxRatio(width) {
+        if (width >= HERO_DESKTOP_ANCHOR.width) return 1;
+        if (width < HERO_DESKTOP_MIN) return null;
+        return (width / HERO_DESKTOP_ANCHOR.width) / getHeroFluidFactor(width);
+      }
+
+      function clearHeroDesktopLayout() {
+        HERO_LAYOUT_VARS.forEach((name) => document.documentElement.style.removeProperty(name));
+      }
+
+      function shouldRunHeroLayoutApplicator() {
+        if (window.innerWidth < HERO_DESKTOP_MIN) return false;
+        const tunerPanel = document.getElementById('tuner-panel');
+        const tunerOpen = tunerPanel && !tunerPanel.hidden;
+        const tunerEnabled = ['localhost', '127.0.0.1'].includes(location.hostname)
+          || new URLSearchParams(location.search).has('tuner');
+        return !(tunerEnabled && tunerOpen);
+      }
+
+      function applyHeroDesktopLayout() {
+        if (!shouldRunHeroLayoutApplicator()) return;
+
+        const width = window.innerWidth;
+        const pxRatio = getHeroDesktopPxRatio(width);
+
+        if (pxRatio === null) {
+          clearHeroDesktopLayout();
+          return;
+        }
+
+        const root = document.documentElement;
+
+        Object.entries(HERO_DESKTOP_ANCHOR.px).forEach(([name, anchor]) => {
+          const value = anchor * pxRatio;
+          root.style.setProperty(name, `${Math.round(value * 100) / 100}px`);
+        });
+
+        Object.entries(HERO_DESKTOP_ANCHOR.unitless).forEach(([name, value]) => {
+          root.style.setProperty(name, String(value));
+        });
+
+        Object.entries(HERO_DESKTOP_ANCHOR.percent).forEach(([name, value]) => {
+          root.style.setProperty(name, `${value}%`);
+        });
+      }
+
+      window.addEventListener('resize', applyHeroDesktopLayout);
+      window.visualViewport?.addEventListener('resize', applyHeroDesktopLayout);
 
       const tabletTunerGroups = {
         panel: [
@@ -4100,6 +4169,7 @@
       }
 
       getAllTunerFields().forEach(([, name, , , , unit]) => applyValue(name, values[name], unit));
+      applyHeroDesktopLayout();
       syncViewportState();
       renderTunerGroup('mockup');
 
@@ -4450,7 +4520,11 @@
         panel.classList.toggle('hidden', !open);
         toggle.setAttribute('aria-expanded', String(open));
         toggle.textContent = open ? 'close tuner' : 'tune';
-        if (open) scheduleViewportUpdate();
+        if (open) {
+          scheduleViewportUpdate();
+        } else {
+          applyHeroDesktopLayout();
+        }
       }
 
       const tunerEnabled = ['localhost', '127.0.0.1'].includes(location.hostname)
