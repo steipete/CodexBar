@@ -123,11 +123,6 @@ function richToken(name) {
     link.textContent = "issue #12";
     return link;
   }
-  if (name === "break") {
-    const br = document.createElement("br");
-    br.className = "hidden sm:block";
-    return br;
-  }
 
   return document.createTextNode(`{${name}}`);
 }

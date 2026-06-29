@@ -122,6 +122,19 @@
         --glow-blur: 72px;
         --glow-color-a: #003c61;
         --glow-color-b: #8000ff;
+        /* Hero entrance choreography (copy + mockup HUD) */
+        --hero-ease: cubic-bezier(0.23, 1, 0.32, 1);
+        --hero-reveal-duration: 480ms;
+        --hero-reveal-step: 60ms;
+        --hero-reveal-1: 0ms;
+        --hero-reveal-2: 60ms;
+        --hero-reveal-3: 120ms;
+        --hero-reveal-4: 200ms;
+        --hero-reveal-5: 280ms;
+        --hero-menubar-start: 300ms;
+        --hero-menubar-wave: 58ms;
+        --hero-mark-after-menubar: 140ms;
+        --hero-popover-after-mark: 500ms;
         --mobile-mockup-stage-height: 33.5rem;
         --mobile-mockup-stage-max-width: 26rem;
         --mobile-stage-inline-gutter: 1.25rem;
@@ -139,9 +152,9 @@
         --mobile-menubar-scale: 1.271;
         --mobile-menubar-gap: 0.9cqw;
         --mobile-popover-scale: 1.39;
-        --tablet-mockup-x: -80px;
+        --tablet-mockup-x: -247px;
         --tablet-mockup-y: 13px;
-        --tablet-mockup-scale: 0.92;
+        --tablet-mockup-scale: 1.2;
         --tablet-mockup-tune-width: 1022;
         --tablet-mockup-fluid-max: 1.18;
         --tablet-mockup-stage-height: 42rem;
@@ -415,7 +428,8 @@
         width: var(--hud-panel-width);
         box-sizing: border-box;
         padding: 0.78rem 0.82rem 0.9rem;
-        transform: translate(var(--hud-panel-nudge-x), var(--hud-panel-nudge-y)) scale(var(--popover-scale));
+        transform: translate(var(--hud-panel-nudge-x), calc(var(--hud-panel-nudge-y) + 8px))
+          scale(calc(var(--popover-scale) * 0.985));
         transform-origin: top right;
         overflow: hidden;
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -430,16 +444,19 @@
         letter-spacing: -0.035em;
         line-height: 1.15;
         backdrop-filter: blur(18px);
-        will-change: transform, opacity;
         user-select: text;
         -webkit-user-select: text;
         opacity: 0;
         pointer-events: auto;
-        transition: opacity 480ms cubic-bezier(0.23, 1, 0.32, 1);
+        transition:
+          opacity 460ms var(--hero-ease),
+          transform 520ms var(--hero-ease);
+        will-change: transform, opacity;
       }
 
       .mockup-stage.is-animated .codex-popover {
         opacity: 1;
+        transform: translate(var(--hud-panel-nudge-x), var(--hud-panel-nudge-y)) scale(var(--popover-scale));
       }
 
       .popover-top,
@@ -635,55 +652,6 @@
       }
 
       .buy-row svg { width: 1em; height: 1em; color: rgba(244, 244, 245, 0.78); }
-
-      .tuner-panel {
-        backdrop-filter: blur(18px);
-        max-height: calc(100dvh - 2rem);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-      }
-
-      .tuner-panel:not(.is-positioned) {
-        right: 1rem;
-        bottom: 4rem;
-      }
-
-      .tuner-panel.is-positioned {
-        right: auto !important;
-        bottom: auto !important;
-      }
-
-      .tuner-panel-handle {
-        cursor: grab;
-        touch-action: none;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-
-      .tuner-panel.is-dragging .tuner-panel-handle {
-        cursor: grabbing;
-      }
-
-      .tuner-panel-grip {
-        flex: none;
-        letter-spacing: -0.2em;
-        line-height: 1;
-      }
-      .tuner-range { accent-color: #f4f4f5; }
-
-      .tuner-tab[aria-selected="true"],
-      .tuner-mode[aria-selected="true"] {
-        background: rgba(255, 255, 255, 0.11);
-        color: #fff;
-      }
-
-      .tuner-viewport-regime--mobile { color: #7dd3fc; border-color: rgba(125, 211, 252, 0.35); }
-      .tuner-viewport-regime--tablet { color: #fcd34d; border-color: rgba(252, 211, 77, 0.35); }
-      .tuner-viewport-regime--desktop { color: #86efac; border-color: rgba(134, 239, 172, 0.35); }
-      .tuner-viewport-warning { color: #fcd34d; }
-      .tuner-audit-item--perfeito { color: #86efac; }
-      .tuner-audit-item--ruim { color: #fca5a5; }
 
       .hero-content {
         position: relative;
@@ -1118,11 +1086,14 @@
       .reveal {
         opacity: 0;
         transform: translateY(10px);
-        animation: reveal 560ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        animation: reveal var(--hero-reveal-duration) var(--hero-ease) forwards;
+        animation-delay: var(--hero-reveal-delay, var(--hero-reveal-1));
       }
 
-      .reveal-2 { animation-delay: 70ms; }
-      .reveal-3 { animation-delay: 140ms; }
+      .reveal-2 { --hero-reveal-delay: var(--hero-reveal-2); }
+      .reveal-3 { --hero-reveal-delay: var(--hero-reveal-3); }
+      .reveal-4 { --hero-reveal-delay: var(--hero-reveal-4); }
+      .reveal-5 { --hero-reveal-delay: var(--hero-reveal-5); }
 
       @keyframes reveal {
         to { opacity: 1; transform: translateY(0); }
@@ -1156,7 +1127,7 @@
           transform: scaleX(var(--mark-fill));
           transition: none;
         }
-        .codex-popover { opacity: 1; transition: none; }
+        .codex-popover { opacity: 1; transition: none; transform: translate(var(--hud-panel-nudge-x), var(--hud-panel-nudge-y)) scale(var(--popover-scale)); }
       }
 
       .features-section {
@@ -1729,7 +1700,7 @@
 
         .hero-copy {
           max-width: min(42rem, 58vw);
-          padding-top: clamp(3.5rem, 9vh, 5rem);
+          padding-top: clamp(5rem, 12vh, 6.75rem);
           padding-bottom: 1rem;
         }
 
@@ -2864,7 +2835,7 @@
             <span data-i18n="hero.descriptionShort">Track usage windows, credit balances, and reset countdowns across the AI tools you actually pay for.</span>
           </p>
 
-          <div class="hero-cta-row reveal reveal-3 mt-8 sm:mt-10">
+          <div class="hero-cta-row reveal reveal-4 mt-8 sm:mt-10">
             <a
               href="https://github.com/steipete/CodexBar/releases/latest"
               class="download-button hero-download button-press inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium"
@@ -2894,7 +2865,7 @@
             </button>
           </div>
 
-          <p class="reveal reveal-3 mt-5 text-sm tracking-[-0.02em] text-zinc-600">
+          <p class="reveal reveal-5 mt-5 text-sm tracking-[-0.02em] text-zinc-600">
             <span data-i18n="hero.fineprintShort">Free &amp; open source · macOS 14+</span>
           </p>
         </div>
@@ -2905,7 +2876,7 @@
       <section class="provider-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-provider-section>
         <div class="section-inner">
         <header class="relative z-10 grid gap-5 tablet:grid-cols-[1fr_0.86fr] tablet:items-center">
-          <h2 class="provider-reveal max-w-3xl text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
+          <h2 class="provider-reveal max-w-3xl text-balance text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
             <span data-i18n-rich="providers.title">53 providers,{mobileBreak}one menu bar</span>
           </h2>
           <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.35vw,1.28rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
@@ -2957,7 +2928,7 @@
 
       <section class="features-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
         <div class="section-inner">
-          <h2 class="features-heading provider-reveal" data-i18n="features.title">Limits, spend, and status</h2>
+          <h2 class="features-heading provider-reveal text-balance" data-i18n="features.title">Limits, spend, and status</h2>
 
           <div class="features-grid relative z-10">
             <article class="feature-card provider-reveal" style="--reveal-delay: 80ms">
@@ -3382,65 +3353,6 @@
       <a href="https://trimmy.app">trimmy.app</a>
     </footer>
 
-    <button
-      id="tuner-toggle"
-      type="button"
-      class="button-press fixed bottom-4 right-4 z-50 rounded-full border border-white/15 bg-zinc-950/85 px-4 py-2 font-mono text-xs text-zinc-300 shadow-2xl backdrop-blur-xl hover:bg-zinc-900 hover:text-white"
-      aria-expanded="false"
-      aria-controls="tuner-panel"
-      hidden
-    >tune</button>
-
-    <aside id="tuner-panel" hidden class="tuner-panel fixed z-50 hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/90 p-4 text-left shadow-2xl">
-      <div class="tuner-panel-handle mb-3 flex items-center justify-between gap-2">
-        <div class="flex min-w-0 items-center gap-2">
-          <span class="tuner-panel-grip" aria-hidden="true">⋮⋮</span>
-          <p id="tuner-mode-label" class="truncate font-mono text-xs text-zinc-300">desktop tuner</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <button id="tuner-copy" type="button" class="button-press text-xs text-zinc-300 hover:text-white">copy CSS</button>
-          <button id="tuner-reset" type="button" class="button-press text-xs text-zinc-500 hover:text-white">reset</button>
-        </div>
-      </div>
-      <div id="tuner-viewport" class="mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] leading-relaxed text-zinc-500">
-        <div class="flex items-center justify-between gap-2">
-          <span id="tuner-viewport-size" class="text-zinc-300">—</span>
-          <span id="tuner-viewport-regime" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px]">—</span>
-        </div>
-        <p id="tuner-viewport-layout" class="mt-2">—</p>
-        <p id="tuner-viewport-sync" class="mt-1 text-zinc-600">—</p>
-        <ul id="tuner-viewport-warnings" class="tuner-viewport-warning mt-2 hidden list-none space-y-1"></ul>
-        <button id="tuner-sync-mode" type="button" class="button-press mt-2 hidden text-[10px] text-zinc-400 hover:text-white">sync tuner to layout</button>
-      </div>
-      <div id="tuner-audit" class="mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] leading-relaxed text-zinc-500">
-        <p class="text-zinc-400">Redimensione devagar. Marque <strong class="text-emerald-300">perfeito</strong> quando o hero estiver certo, <strong class="text-rose-300">ruim</strong> quando quebrar.</p>
-        <p class="mt-1 text-zinc-600">Cada mark salva todas as vars. Cole o JSON no chat quando terminar.</p>
-        <div class="mt-2 grid grid-cols-2 gap-2">
-          <button id="tuner-mark-perfect" type="button" class="button-press rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20">perfeito</button>
-          <button id="tuner-mark-bad" type="button" class="button-press rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300 hover:bg-rose-500/20">ruim</button>
-        </div>
-        <div class="mt-2 flex flex-wrap items-center gap-3">
-          <button id="tuner-copy-audit-json" type="button" class="button-press text-[10px] text-zinc-300 hover:text-white">copy JSON</button>
-          <button id="tuner-copy-audit" type="button" class="button-press text-[10px] text-zinc-400 hover:text-white">copy log</button>
-          <button id="tuner-clear-audit" type="button" class="button-press text-[10px] text-zinc-600 hover:text-white">clear</button>
-          <span id="tuner-audit-count" class="text-zinc-600">0 marks</span>
-        </div>
-        <ol id="tuner-audit-log" class="mt-2 max-h-32 list-decimal space-y-1 overflow-y-auto pl-4 text-[10px] text-zinc-500"></ol>
-      </div>
-      <div id="tuner-mode" class="mb-3 grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
-        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="mobile" aria-selected="false">mobile</button>
-        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="tablet" aria-selected="false">tablet</button>
-        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="desktop" aria-selected="true">desktop</button>
-      </div>
-      <div id="tuner-tabs" class="mb-4 grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
-        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="mockup" aria-selected="true">mockup</button>
-        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="menubar" aria-selected="false">menu</button>
-        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="panel" aria-selected="false">panel</button>
-      </div>
-      <div id="tuner-controls" class="space-y-3"></div>
-      <p id="tuner-hint" class="mt-3 font-mono text-[10px] leading-relaxed text-zinc-600">≥769px hero · copy CSS into :root</p>
-    </aside>
-
     <script type="module">
       import { localeCatalog, localeMessages } from './site-locales.mjs';
 
@@ -3450,9 +3362,12 @@
       const MOCKUP_SCREEN_MARGIN_RIGHT = 50;
       const MOCKUP_SCREEN_MARGIN_RIGHT_TABLET = 15;
       const MOCKUP_ARTBOARD_RATIO = 1.18;
+      /* Tablet MacBook X tune @ 1001px, scale 1.2 */
+      const HERO_TABLET_MOCKUP_X_CORRECTION = -9;
+
+      const HERO_MOBILE_MOCKUP_TUNE_SCALE = 0.99;
       /* Mobile MacBook X tune @ 490px, right-anchored full-bleed stage */
       const HERO_MOBILE_MOCKUP_X_CORRECTION = -32;
-      const HERO_MOBILE_MOCKUP_TUNE_SCALE = 0.99;
 
       const HERO_ARTBOARD = { width: 6111, height: 3239 };
 
@@ -3630,7 +3545,7 @@
         tabletFluidMax: 1.18,
         mockupY: 10,
         mockupScale: 1.15,
-        tabletMockupScale: 0.92,
+        tabletMockupScale: 1.2,
       };
 
       const HERO_LAYOUT_VARS = ['--mockup-x', '--mockup-y', '--tablet-mockup-x', '--tablet-mockup-stage-height'];
@@ -3704,7 +3619,8 @@
         const tuneWidth = tablet ? HERO_DESKTOP_ANCHOR.tabletTuneWidth : HERO_DESKTOP_ANCHOR.width;
         const scaledWidth = getMockupBaseWidth(width, tuneWidth) * getMockupEffectiveScale(width, { tablet });
         const marginRight = tablet ? MOCKUP_SCREEN_MARGIN_RIGHT_TABLET : MOCKUP_SCREEN_MARGIN_RIGHT;
-        return (width / 2) - marginRight - (scaledWidth / 2);
+        const baseX = (width / 2) - marginRight - (scaledWidth / 2);
+        return tablet ? baseX + HERO_TABLET_MOCKUP_X_CORRECTION : baseX;
       }
 
       function getMobileStageWidth(viewportWidth) {
@@ -3734,17 +3650,7 @@
         HERO_LAYOUT_VARS.forEach((name) => document.documentElement.style.removeProperty(name));
       }
 
-      function shouldRunHeroLayoutApplicator() {
-        const tunerPanel = document.getElementById('tuner-panel');
-        const tunerOpen = tunerPanel && !tunerPanel.hidden;
-        const tunerEnabled = ['localhost', '127.0.0.1'].includes(location.hostname)
-          || new URLSearchParams(location.search).has('tuner');
-        return !(tunerEnabled && tunerOpen);
-      }
-
       function applyHeroDesktopLayout() {
-        if (!shouldRunHeroLayoutApplicator()) return;
-
         const width = window.innerWidth;
         const root = document.documentElement;
         const isTablet = width > HERO_MOBILE_MAX && width <= HERO_TABLET_MAX;
@@ -3782,858 +3688,6 @@
 
       window.addEventListener('resize', applyHeroDesktopLayout);
       window.visualViewport?.addEventListener('resize', applyHeroDesktopLayout);
-
-      const tabletTunerGroups = {
-        panel: [
-          ['Panel top', '--tablet-hud-panel-top', 6, 14, 0.05, '%'],
-          ['Panel margin right', '--tablet-hud-panel-margin-right', 2, 6, 0.05, '%'],
-          ['Panel width', '--tablet-hud-panel-width', 12, 28, 0.05, '%'],
-          ['Panel scale', '--tablet-popover-scale', 0.5, 2, 0.01, ''],
-        ],
-      };
-
-      const mobileTunerGroups = {
-        panel: [
-          ['Panel top', '--mobile-hud-panel-top', 6, 12, 0.05, '%'],
-          ['Panel margin right', '--mobile-hud-panel-margin-right', 2, 6, 0.05, '%'],
-          ['Panel width', '--mobile-hud-panel-width', 12, 28, 0.05, '%'],
-          ['Panel nudge X', '--hud-panel-nudge-x', -80, 80, 1, 'px'],
-          ['Panel nudge Y', '--hud-panel-nudge-y', -80, 80, 1, 'px'],
-          ['Panel scale', '--mobile-popover-scale', 0.5, 1.5, 0.01, ''],
-        ],
-      };
-
-      const desktopTunerGroups = {
-        mockup: [
-          ['Mockup Y', '--mockup-y', -400, 400, 1, 'px'],
-          ['Mockup scale', '--mockup-scale', 0.5, 1.5, 0.01, ''],
-        ],
-        menubar: [
-          ['Anchor top', '--hud-anchor-top', 3, 8, 0.05, '%'],
-          ['Margin right', '--hud-margin-right', 2, 6, 0.05, '%'],
-          ['Menu nudge X', '--hud-menu-nudge-x', -80, 80, 1, 'px'],
-          ['Menu nudge Y', '--hud-menu-nudge-y', -40, 40, 1, 'px'],
-          ['Menu scale', '--menubar-scale', 0.8, 2.2, 0.01, ''],
-          ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
-          ['Menu gap', '--menubar-gap', 0.4, 1.6, 0.05, 'cqw'],
-        ],
-        panel: [
-          ['Panel top', '--hud-panel-top', 6, 12, 0.05, '%'],
-          ['Panel margin right', '--hud-panel-margin-right', 2, 6, 0.05, '%'],
-          ['Panel width', '--hud-panel-width', 12, 28, 0.05, '%'],
-          ['Panel nudge X', '--hud-panel-nudge-x', -80, 80, 1, 'px'],
-          ['Panel nudge Y', '--hud-panel-nudge-y', -80, 80, 1, 'px'],
-          ['Panel scale', '--popover-scale', 0.5, 1.5, 0.01, ''],
-        ],
-      };
-
-      const tunerModes = {
-        desktop: {
-          label: 'desktop tuner',
-          hint: '≥1024px · copy CSS into :root',
-          storageKey: 'codexbar-tuner-desktop-v2',
-          groups: desktopTunerGroups,
-        },
-        tablet: {
-          label: 'tablet tuner',
-          hint: '769–1023px · tablet mockup + HUD panel vars',
-          storageKey: 'codexbar-tuner-tablet-v2',
-          groups: {
-            mockup: [
-              ['Mockup X', '--tablet-mockup-x', -1200, 800, 1, 'px'],
-              ['Mockup Y', '--tablet-mockup-y', -400, 400, 1, 'px'],
-              ['Mockup scale', '--tablet-mockup-scale', 0.35, 1.2, 0.01, ''],
-            ],
-            menubar: [...desktopTunerGroups.menubar],
-            panel: [...tabletTunerGroups.panel],
-          },
-        },
-        mobile: {
-          label: 'mobile tuner',
-          hint: '≤768px · stacked hero on stage',
-          storageKey: 'codexbar-tuner-mobile-v2',
-          groups: {
-            mockup: [
-              ['Mockup X', '--mobile-mockup-offset-x', -280, 80, 1, 'px'],
-              ['Mockup Y', '--mobile-mockup-offset-y', -80, 120, 1, 'px'],
-              ['Mockup scale', '--mobile-mockup-scale', 0.6, 1.4, 0.01, ''],
-              ['Stage height', '--mobile-mockup-stage-height', 16, 40, 0.25, 'rem'],
-              ['Mockup width', '--mobile-mockup-width', 180, 320, 1, '%'],
-            ],
-            menubar: [
-              ['Anchor top', '--mobile-hud-anchor-top', 2, 8, 0.05, '%'],
-              ['Margin right', '--mobile-hud-margin-right', 1, 6, 0.05, '%'],
-              ['Menu nudge X', '--mobile-hud-menu-nudge-x', -120, 120, 1, 'px'],
-              ['Menu nudge Y', '--mobile-hud-menu-nudge-y', -80, 120, 1, 'px'],
-              ['Menu scale', '--mobile-menubar-scale', 0.4, 1.2, 0.01, ''],
-              ['Menu gap', '--mobile-menubar-gap', 0.4, 1.5, 0.02, 'rem'],
-            ],
-            panel: [...mobileTunerGroups.panel],
-          },
-        },
-      };
-
-      const regimeLabels = {
-        mobile: 'mobile',
-        tablet: 'tablet',
-        desktop: 'desktop',
-      };
-
-      const layoutDescriptions = {
-        mobile: 'stacked hero · HUD anchored to mockup top-right',
-        tablet: 'desktop overlay · HUD anchored to mockup top-right',
-        desktop: 'desktop overlay · HUD anchored to mockup top-right',
-      };
-
-      const tunerModeStorageKey = 'codexbar-tuner-active-mode';
-
-      function getViewportMetrics() {
-        const layoutWidth = window.innerWidth;
-        const layoutHeight = window.innerHeight;
-        const visual = window.visualViewport;
-        const visualWidth = visual ? Math.round(visual.width) : layoutWidth;
-        const visualHeight = visual ? Math.round(visual.height) : layoutHeight;
-        const chromeDelta = visual ? Math.max(0, layoutHeight - visualHeight) : 0;
-
-        return {
-          layoutWidth,
-          layoutHeight,
-          visualWidth,
-          visualHeight,
-          chromeDelta,
-          scrollWidth: document.documentElement.scrollWidth,
-        };
-      }
-
-      function getHeroRegime(width = window.innerWidth) {
-        if (width <= HERO_MOBILE_MAX) return 'mobile';
-        if (width <= HERO_TABLET_MAX) return 'tablet';
-        return 'desktop';
-      }
-
-      function getRecommendedMode(regime = getHeroRegime()) {
-        return regime;
-      }
-
-      function getModeFields(modeName) {
-        return Object.values(tunerModes[modeName].groups).flat();
-      }
-
-      function getAllTunerFields() {
-        return Object.keys(tunerModes).flatMap((modeName) => getModeFields(modeName));
-      }
-
-      function readTunerDefaults() {
-        const styles = getComputedStyle(document.documentElement);
-        const defaults = {};
-
-        getAllTunerFields().forEach(([, name, , , , unit]) => {
-          const raw = styles.getPropertyValue(name).trim();
-          if (unit === 'color') {
-            defaults[name] = raw;
-            return;
-          }
-
-          const value = Number.parseFloat(raw);
-          defaults[name] = Number.isFinite(value) ? value : 0;
-        });
-
-        return defaults;
-      }
-
-      const cssDefaults = readTunerDefaults();
-
-      const root = document.documentElement;
-      const controls = document.querySelector('#tuner-controls');
-      const panel = document.querySelector('#tuner-panel');
-      const toggle = document.querySelector('#tuner-toggle');
-      const tabButtons = document.querySelectorAll('[data-tuner-tab]');
-      const modeButtons = document.querySelectorAll('[data-tuner-mode]');
-      const modeLabel = document.querySelector('#tuner-mode-label');
-      const modeHint = document.querySelector('#tuner-hint');
-      const viewportSize = document.querySelector('#tuner-viewport-size');
-      const viewportRegime = document.querySelector('#tuner-viewport-regime');
-      const viewportLayout = document.querySelector('#tuner-viewport-layout');
-      const viewportSync = document.querySelector('#tuner-viewport-sync');
-      const viewportWarnings = document.querySelector('#tuner-viewport-warnings');
-      const syncModeButton = document.querySelector('#tuner-sync-mode');
-      const markPerfectButton = document.querySelector('#tuner-mark-perfect');
-      const markBadButton = document.querySelector('#tuner-mark-bad');
-      const copyAuditButton = document.querySelector('#tuner-copy-audit');
-      const copyAuditJsonButton = document.querySelector('#tuner-copy-audit-json');
-      const clearAuditButton = document.querySelector('#tuner-clear-audit');
-      const auditLogList = document.querySelector('#tuner-audit-log');
-      const auditCount = document.querySelector('#tuner-audit-count');
-      const auditStorageKey = 'codexbar-tuner-audit-v2';
-      const tunerPositionStorageKey = 'codexbar-tuner-panel-pos';
-      const tunerHandle = panel.querySelector('.tuner-panel-handle');
-      let tunerDragState = null;
-
-      function clampTunerPanelPosition(left, top) {
-        const margin = 8;
-        const width = panel.offsetWidth || Math.min(352, window.innerWidth - margin * 2);
-        const height = panel.offsetHeight || 320;
-        const maxLeft = Math.max(margin, window.innerWidth - width - margin);
-        const maxTop = Math.max(margin, window.innerHeight - height - margin);
-        return {
-          left: Math.min(Math.max(margin, left), maxLeft),
-          top: Math.min(Math.max(margin, top), maxTop),
-        };
-      }
-
-      function setTunerPanelPosition(left, top, { persist = true } = {}) {
-        const clamped = clampTunerPanelPosition(left, top);
-        panel.style.left = `${clamped.left}px`;
-        panel.style.top = `${clamped.top}px`;
-        panel.classList.add('is-positioned');
-        if (persist) {
-          sessionStorage.setItem(tunerPositionStorageKey, JSON.stringify(clamped));
-        }
-        return clamped;
-      }
-
-      function restoreTunerPanelPosition() {
-        try {
-          const saved = JSON.parse(sessionStorage.getItem(tunerPositionStorageKey) || 'null');
-          if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
-            requestAnimationFrame(() => setTunerPanelPosition(saved.left, saved.top, { persist: false }));
-            return;
-          }
-        } catch {
-          /* ignore */
-        }
-
-        if (window.innerWidth <= HERO_MOBILE_MAX) {
-          requestAnimationFrame(() => setTunerPanelPosition(12, 12, { persist: false }));
-        }
-      }
-
-      function onTunerPanelPointerDown(event) {
-        if (event.target.closest('button')) return;
-        const rect = panel.getBoundingClientRect();
-        tunerDragState = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startY: event.clientY,
-          originLeft: rect.left,
-          originTop: rect.top,
-        };
-        panel.classList.add('is-dragging');
-        tunerHandle.setPointerCapture(event.pointerId);
-        event.preventDefault();
-      }
-
-      function onTunerPanelPointerMove(event) {
-        if (!tunerDragState || event.pointerId !== tunerDragState.pointerId) return;
-        const dx = event.clientX - tunerDragState.startX;
-        const dy = event.clientY - tunerDragState.startY;
-        setTunerPanelPosition(tunerDragState.originLeft + dx, tunerDragState.originTop + dy);
-      }
-
-      function endTunerPanelDrag(event) {
-        if (!tunerDragState || event.pointerId !== tunerDragState.pointerId) return;
-        tunerDragState = null;
-        panel.classList.remove('is-dragging');
-        if (tunerHandle.hasPointerCapture(event.pointerId)) {
-          tunerHandle.releasePointerCapture(event.pointerId);
-        }
-      }
-
-      tunerHandle.addEventListener('pointerdown', onTunerPanelPointerDown);
-      tunerHandle.addEventListener('pointermove', onTunerPanelPointerMove);
-      tunerHandle.addEventListener('pointerup', endTunerPanelDrag);
-      tunerHandle.addEventListener('pointercancel', endTunerPanelDrag);
-
-      window.addEventListener('resize', () => {
-        if (!panel.classList.contains('is-positioned')) return;
-        const rect = panel.getBoundingClientRect();
-        setTunerPanelPosition(rect.left, rect.top);
-      });
-
-      const HERO_META_VARS = [
-        ['--mockup-tune-width', ''],
-        ['--mockup-fluid-max', ''],
-        ['--tablet-mockup-tune-width', ''],
-        ['--tablet-mockup-fluid-max', ''],
-      ];
-
-      const tunerFieldUnits = new Map();
-      getAllTunerFields().forEach(([, name, , , , unit]) => {
-        tunerFieldUnits.set(name, unit);
-      });
-      HERO_META_VARS.forEach(([name, unit]) => {
-        if (!tunerFieldUnits.has(name)) tunerFieldUnits.set(name, unit);
-      });
-
-      let tunerModePinned = false;
-      let activeMode = getRecommendedMode();
-      let lastTrackedRegime = null;
-      let viewportRaf = 0;
-      let viewportAuditLog = [];
-
-      try {
-        viewportAuditLog = JSON.parse(sessionStorage.getItem(auditStorageKey) || '[]');
-      } catch {
-        viewportAuditLog = [];
-      }
-
-      const values = { ...cssDefaults };
-
-      Object.entries(tunerModes).forEach(([, mode]) => {
-        const saved = JSON.parse(localStorage.getItem(mode.storageKey) || '{}');
-        Object.assign(values, saved);
-      });
-
-      const hexColorPattern = /^#[0-9a-f]{6}$/i;
-
-      getAllTunerFields().forEach(([, name, , , , unit]) => {
-        if (unit === 'color') {
-          if (typeof values[name] !== 'string' || !hexColorPattern.test(values[name])) {
-            values[name] = cssDefaults[name];
-          }
-        } else if (!Number.isFinite(Number(values[name]))) {
-          values[name] = cssDefaults[name];
-        }
-      });
-
-      function applyValue(name, value, unit) {
-        values[name] = unit === 'color' ? value : Number(value);
-        root.style.setProperty(name, unit === 'color' ? value : `${value}${unit}`);
-      }
-
-      function getActiveFields() {
-        return getModeFields(activeMode);
-      }
-
-      function updateModeUI() {
-        const mode = tunerModes[activeMode];
-        modeLabel.textContent = mode.label;
-        modeHint.textContent = mode.hint;
-        modeButtons.forEach((button) => {
-          button.setAttribute('aria-selected', String(button.dataset.tunerMode === activeMode));
-        });
-      }
-
-      function setActiveMode(modeName, { auto = false } = {}) {
-        if (!tunerModes[modeName]) return;
-        if (!auto) {
-          tunerModePinned = true;
-        }
-        if (modeName === activeMode) {
-          updateViewportStatus();
-          return;
-        }
-        activeMode = modeName;
-        localStorage.setItem(tunerModeStorageKey, activeMode);
-        updateModeUI();
-        const activeTab = document.querySelector('[data-tuner-tab][aria-selected="true"]')?.dataset.tunerTab || 'mockup';
-        renderTunerGroup(activeTab);
-        updateViewportStatus();
-      }
-
-      function syncTunerToLayout() {
-        tunerModePinned = false;
-        setActiveMode(getRecommendedMode(), { auto: true });
-      }
-
-      function collectLayoutWarnings(regime, metrics) {
-        const warnings = [];
-        const recommended = getRecommendedMode(regime);
-
-        if (metrics.scrollWidth > metrics.layoutWidth + 1) {
-          warnings.push(`overflow-x: +${metrics.scrollWidth - metrics.layoutWidth}px`);
-        }
-
-        if (tunerModePinned && activeMode !== recommended) {
-          warnings.push(`pinned ${activeMode} tuner · layout is ${regime}`);
-        }
-
-        const stage = document.getElementById('mockup-stage');
-        const menubar = document.querySelector('.system-menubar');
-        const popover = document.querySelector('.codex-popover');
-
-        if (stage && menubar) {
-          const stageRect = stage.getBoundingClientRect();
-          const menubarRect = menubar.getBoundingClientRect();
-          if (menubarRect.right > stageRect.right + 2) {
-            warnings.push(`menubar +${Math.round(menubarRect.right - stageRect.right)}px past stage`);
-          }
-          if (menubarRect.left < stageRect.left - 2) {
-            warnings.push(`menubar ${Math.round(stageRect.left - menubarRect.left)}px past stage left`);
-          }
-          if (menubarRect.top < stageRect.top - 2) {
-            warnings.push(`menubar ${Math.round(stageRect.top - menubarRect.top)}px above stage`);
-          }
-        }
-
-        if (stage && popover) {
-          const stageRect = stage.getBoundingClientRect();
-          const popoverRect = popover.getBoundingClientRect();
-          if (popoverRect.right > stageRect.right + 2) {
-            warnings.push(`popover +${Math.round(popoverRect.right - stageRect.right)}px past stage`);
-          }
-          if (popoverRect.left < stageRect.left - 2) {
-            warnings.push(`popover ${Math.round(stageRect.left - popoverRect.left)}px past stage left`);
-          }
-        }
-
-        if (regime === 'mobile' && activeMode !== 'mobile') {
-          warnings.push('mobile layout · mobile vars only affect HUD here');
-        }
-
-        if (regime === 'tablet' && activeMode === 'desktop') {
-          warnings.push('tablet layout · mockup uses --tablet-mockup-* — switch to tablet mode');
-        }
-
-        if (regime === 'tablet' && activeMode === 'mobile') {
-          warnings.push('tablet layout · mobile vars have no effect');
-        }
-
-        if (regime === 'desktop' && activeMode === 'mobile') {
-          warnings.push('desktop layout · mobile vars have no effect');
-        }
-
-        return warnings;
-      }
-
-      function updateViewportStatus() {
-        const metrics = getViewportMetrics();
-        const regime = getHeroRegime(metrics.layoutWidth);
-        const recommended = getRecommendedMode(regime);
-        const warnings = collectLayoutWarnings(regime, metrics);
-
-        const sizeParts = [`${metrics.layoutWidth}×${metrics.layoutHeight}`];
-        if (metrics.visualWidth !== metrics.layoutWidth || metrics.visualHeight !== metrics.layoutHeight) {
-          sizeParts.push(`visual ${metrics.visualWidth}×${metrics.visualHeight}`);
-        }
-        if (metrics.chromeDelta > 0) {
-          sizeParts.push(`chrome −${metrics.chromeDelta}px`);
-        }
-
-        viewportSize.textContent = sizeParts.join(' · ');
-        viewportRegime.textContent = regimeLabels[regime];
-        viewportRegime.className = `rounded-full border px-2 py-0.5 text-[10px] tuner-viewport-regime--${regime}`;
-        viewportLayout.textContent = layoutDescriptions[regime];
-
-        if (tunerModePinned) {
-          viewportSync.textContent = activeMode === recommended
-            ? `pinned · matches ${regime} layout`
-            : `pinned ${activeMode} tuner · layout is ${regime}`;
-        } else {
-          viewportSync.textContent = `auto-sync · tuning ${activeMode} (${regime} layout)`;
-        }
-
-        const showSync = tunerModePinned && activeMode !== recommended;
-        syncModeButton.classList.toggle('hidden', !showSync);
-
-        if (warnings.length) {
-          viewportWarnings.classList.remove('hidden');
-          viewportWarnings.replaceChildren(...warnings.map((warning) => {
-            const item = document.createElement('li');
-            item.textContent = `⚠ ${warning}`;
-            return item;
-          }));
-        } else {
-          viewportWarnings.classList.add('hidden');
-          viewportWarnings.replaceChildren();
-        }
-      }
-
-      function syncViewportState() {
-        const regime = getHeroRegime();
-        const regimeChanged = lastTrackedRegime !== null && regime !== lastTrackedRegime;
-
-        if (regimeChanged) {
-          tunerModePinned = false;
-        }
-
-        if (lastTrackedRegime === null || regimeChanged || !tunerModePinned) {
-          setActiveMode(getRecommendedMode(regime), { auto: true });
-        } else {
-          updateViewportStatus();
-        }
-
-        lastTrackedRegime = regime;
-      }
-
-      function scheduleViewportUpdate() {
-        if (viewportRaf) return;
-        viewportRaf = window.requestAnimationFrame(() => {
-          viewportRaf = 0;
-          syncViewportState();
-        });
-      }
-
-      function formatVarValue(name, unit = tunerFieldUnits.get(name) ?? '') {
-        if (unit === 'color') {
-          return String(values[name] ?? getComputedStyle(root).getPropertyValue(name).trim());
-        }
-
-        const numeric = values[name];
-        if (Number.isFinite(numeric)) {
-          return unit ? `${numeric}${unit}` : String(numeric);
-        }
-
-        const computed = getComputedStyle(root).getPropertyValue(name).trim();
-        return computed || null;
-      }
-
-      function collectFlatHeroVars() {
-        const vars = {};
-        tunerFieldUnits.forEach((unit, name) => {
-          vars[name] = formatVarValue(name, unit);
-        });
-        return vars;
-      }
-
-      function collectHeroVarsByMode() {
-        const byMode = {};
-
-        Object.entries(tunerModes).forEach(([modeName, mode]) => {
-          byMode[modeName] = {};
-          Object.entries(mode.groups).forEach(([groupName, fields]) => {
-            byMode[modeName][groupName] = {};
-            fields.forEach(([, name, , , , unit]) => {
-              byMode[modeName][groupName][name] = formatVarValue(name, unit);
-            });
-          });
-        });
-
-        return byMode;
-      }
-
-      function getRegimeEffectiveVars(regime) {
-        const groups = collectHeroVarsByMode();
-
-        if (regime === 'mobile') {
-          return { mode: 'mobile', groups: groups.mobile };
-        }
-
-        if (regime === 'tablet') {
-          return { mode: 'tablet', groups: groups.tablet };
-        }
-
-        return { mode: 'desktop', groups: groups.desktop };
-      }
-
-      function buildAuditAnalysis() {
-        const perfeito = viewportAuditLog.filter((entry) => entry.rating === 'perfeito');
-        const ruim = viewportAuditLog.filter((entry) => entry.rating === 'ruim');
-        const transitions = [];
-        const breakZones = [];
-        const envelopes = {};
-
-        for (let i = 1; i < viewportAuditLog.length; i += 1) {
-          const prev = viewportAuditLog[i - 1];
-          const curr = viewportAuditLog[i];
-          const fromW = prev.metrics.layoutWidth;
-          const toW = curr.metrics.layoutWidth;
-          const dir = toW < fromW ? 'shrinking' : toW > fromW ? 'growing' : 'same width';
-
-          if (prev.rating === 'perfeito' && curr.rating === 'ruim') {
-            breakZones.push({
-              fromW,
-              toW,
-              direction: dir,
-              fromRegime: prev.regime,
-              toRegime: curr.regime,
-            });
-            transitions.push(`ficou ruim entre ${fromW}px e ${toW}px (${dir})`);
-          } else if (prev.rating === 'ruim' && curr.rating === 'perfeito') {
-            transitions.push(`voltou a perfeito entre ${fromW}px e ${toW}px (${dir})`);
-          }
-        }
-
-        perfeito.forEach((entry) => {
-          const source = entry.effective?.groups ?? entry.byMode?.[entry.regime] ?? entry.vars ?? {};
-          const flat = typeof source === 'object' && !Array.isArray(source)
-            ? Object.values(source).flatMap((group) => (typeof group === 'object' ? Object.entries(group) : []))
-            : Object.entries(source);
-
-          flat.forEach(([name, raw]) => {
-            if (typeof name !== 'string' || raw == null) return;
-            const num = Number.parseFloat(String(raw));
-            if (!Number.isFinite(num)) return;
-
-            if (!envelopes[name]) {
-              envelopes[name] = { min: num, max: num, samples: [] };
-            }
-
-            envelopes[name].min = Math.min(envelopes[name].min, num);
-            envelopes[name].max = Math.max(envelopes[name].max, num);
-            envelopes[name].samples.push({
-              w: entry.metrics.layoutWidth,
-              h: entry.metrics.layoutHeight,
-              regime: entry.regime,
-              value: num,
-              raw: String(raw),
-            });
-          });
-        });
-
-        return {
-          markCount: viewportAuditLog.length,
-          perfeitoCount: perfeito.length,
-          ruimCount: ruim.length,
-          breakZones,
-          transitions,
-          envelopes,
-        };
-      }
-
-      function formatAuditPayload() {
-        return {
-          schema: 'codexbar-hero-audit-v2',
-          exportedAt: new Date().toISOString(),
-          analysis: buildAuditAnalysis(),
-          marks: viewportAuditLog,
-        };
-      }
-
-      function persistViewportAudit() {
-        sessionStorage.setItem(auditStorageKey, JSON.stringify(viewportAuditLog));
-      }
-
-      function formatEffectiveVarsForLog(effective) {
-        if (!effective?.groups) return [];
-        return Object.entries(effective.groups).flatMap(([groupName, groupVars]) => {
-          if (groupName === 'narrow') {
-            return Object.entries(groupVars).map(([name, raw]) => `    narrow ${name}: ${raw}`);
-          }
-          return Object.entries(groupVars).map(([name, raw]) => `    ${groupName} ${name}: ${raw}`);
-        });
-      }
-
-      function renderViewportAuditLog() {
-        const perfectCount = viewportAuditLog.filter((entry) => entry.rating === 'perfeito').length;
-        auditCount.textContent = `${viewportAuditLog.length} mark${viewportAuditLog.length === 1 ? '' : 's'} · ${perfectCount} perfeito`;
-        auditLogList.replaceChildren(...viewportAuditLog.map((entry, index) => {
-          const item = document.createElement('li');
-          item.className = `tuner-audit-item--${entry.rating === 'perfeito' ? 'perfeito' : 'ruim'}`;
-          const warn = entry.warnings?.length ? ` · ${entry.warnings[0]}` : '';
-          const version = entry.version === 2 ? '' : ' · legacy';
-          item.textContent = `#${index + 1} ${entry.rating} · ${entry.metrics.layoutWidth}×${entry.metrics.layoutHeight} · ${entry.regime}${version}${warn}`;
-          return item;
-        }));
-      }
-
-      function markViewportAudit(rating) {
-        const metrics = getViewportMetrics();
-        const regime = getHeroRegime(metrics.layoutWidth);
-        viewportAuditLog.push({
-          version: 2,
-          timestamp: new Date().toISOString(),
-          rating,
-          metrics: {
-            layoutWidth: metrics.layoutWidth,
-            layoutHeight: metrics.layoutHeight,
-            visualWidth: metrics.visualWidth,
-            visualHeight: metrics.visualHeight,
-            chromeDelta: metrics.chromeDelta,
-            scrollWidth: metrics.scrollWidth,
-          },
-          regime,
-          activeMode,
-          tunerModePinned,
-          warnings: collectLayoutWarnings(regime, metrics),
-          vars: collectFlatHeroVars(),
-          byMode: collectHeroVarsByMode(),
-          effective: getRegimeEffectiveVars(regime),
-        });
-        persistViewportAudit();
-        renderViewportAuditLog();
-      }
-
-      function formatAuditLogForCopy() {
-        const analysis = buildAuditAnalysis();
-        const lines = [
-          'CodexBar hero audit v2',
-          'Use copy JSON para análise completa. Este log é um resumo legível.',
-          '',
-        ];
-
-        viewportAuditLog.forEach((entry, index) => {
-          const { layoutWidth, layoutHeight, visualWidth, visualHeight } = entry.metrics;
-          const visualNote = visualWidth !== layoutWidth || visualHeight !== layoutHeight
-            ? ` · visual ${visualWidth}×${visualHeight}`
-            : '';
-          const warn = entry.warnings?.length ? ` · ${entry.warnings.join('; ')}` : '';
-          lines.push(`#${index + 1} ${entry.rating} · ${layoutWidth}×${layoutHeight}${visualNote} · layout ${entry.regime} · tuner ${entry.activeMode}${warn}`);
-
-          if (entry.effective?.groups) {
-            lines.push(...formatEffectiveVarsForLog(entry.effective));
-          } else {
-            lines.push('    (legacy mark — sem snapshot de vars; marque de novo)');
-          }
-          lines.push('');
-        });
-
-        if (analysis.transitions.length) {
-          lines.push('Transições:');
-          analysis.transitions.forEach((line) => lines.push(`- ${line}`));
-          lines.push('');
-        }
-
-        if (Object.keys(analysis.envelopes).length) {
-          lines.push('Envelope (só perfeito):');
-          Object.entries(analysis.envelopes).forEach(([name, envelope]) => {
-            lines.push(`- ${name}: ${envelope.min} → ${envelope.max} (${envelope.samples.length} sample${envelope.samples.length === 1 ? '' : 's'})`);
-          });
-        }
-
-        return lines.join('\n');
-      }
-
-      async function copyViewportAudit() {
-        if (!viewportAuditLog.length) return;
-        await copyText(formatAuditLogForCopy());
-        copyAuditButton.textContent = 'copied';
-        window.setTimeout(() => { copyAuditButton.textContent = 'copy log'; }, 1200);
-      }
-
-      async function copyViewportAuditJson() {
-        if (!viewportAuditLog.length) return;
-        await copyText(JSON.stringify(formatAuditPayload(), null, 2));
-        copyAuditJsonButton.textContent = 'copied';
-        window.setTimeout(() => { copyAuditJsonButton.textContent = 'copy JSON'; }, 1200);
-      }
-
-      function clearViewportAudit() {
-        viewportAuditLog = [];
-        sessionStorage.removeItem(auditStorageKey);
-        renderViewportAuditLog();
-      }
-
-      function resetTunerValues() {
-        const mode = tunerModes[activeMode];
-        localStorage.removeItem(mode.storageKey);
-
-        getActiveFields().forEach(([, name]) => {
-          root.style.removeProperty(name);
-          values[name] = cssDefaults[name];
-        });
-
-        const activeTab = document.querySelector('[data-tuner-tab][aria-selected="true"]')?.dataset.tunerTab || 'mockup';
-        renderTunerGroup(activeTab);
-        updateViewportStatus();
-      }
-
-      function saveValues() {
-        const mode = tunerModes[activeMode];
-        const payload = {};
-        getActiveFields().forEach(([, name]) => {
-          payload[name] = values[name];
-        });
-        localStorage.setItem(mode.storageKey, JSON.stringify(payload));
-      }
-
-      async function copyText(text) {
-        try {
-          await navigator.clipboard.writeText(text);
-        } catch {
-          const textarea = document.createElement('textarea');
-          textarea.value = text;
-          textarea.style.position = 'fixed';
-          textarea.style.opacity = '0';
-          document.body.append(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          textarea.remove();
-        }
-      }
-
-      function getTunerPayload() {
-        const mode = tunerModes[activeMode];
-        const formatValue = ([, name, , , , unit]) => {
-          const value = values[name];
-          return `  ${name}: ${unit === 'color' ? value : `${value}${unit}`};`;
-        };
-
-        const metrics = getViewportMetrics();
-        const regime = getHeroRegime(metrics.layoutWidth);
-
-        return [
-          `/* CodexBar ${activeMode} tuner — paste into :root in docs/index.html */`,
-          `/* viewport ${metrics.layoutWidth}×${metrics.layoutHeight} · ${regime} layout */`,
-          '',
-          `/* ${activeMode} mockup */`,
-          ...mode.groups.mockup.map(formatValue),
-          '',
-          `/* ${activeMode} menubar */`,
-          ...mode.groups.menubar.map(formatValue),
-          '',
-          `/* ${activeMode} panel */`,
-          ...mode.groups.panel.map(formatValue),
-        ].join('\n');
-      }
-
-      async function copyTunerValues() {
-        const payload = getTunerPayload();
-        const copyButton = document.querySelector('#tuner-copy');
-        copyButton.dataset.payload = payload;
-        await copyText(payload);
-
-        copyButton.textContent = 'copied';
-        window.setTimeout(() => { copyButton.textContent = 'copy CSS'; }, 1200);
-      }
-
-      async function copyBrewCommand() {
-        const command = 'brew install --cask steipete/tap/codexbar';
-        const icon = document.querySelector('[data-brew-icon]');
-        await copyText(command);
-        icon.dataset.copied = 'true';
-        window.setTimeout(() => { delete icon.dataset.copied; }, 1200);
-      }
-
-      function renderTunerGroup(groupName) {
-        const mode = tunerModes[activeMode];
-        controls.replaceChildren();
-        mode.groups[groupName].forEach(([label, name, min, max, step, unit]) => {
-          const row = document.createElement('label');
-          row.className = 'grid grid-cols-[6.5rem_1fr_3.5rem] items-center gap-2 text-[11px] text-zinc-500';
-          if (unit === 'color') {
-            row.innerHTML = `<span>${label}</span><input class="h-7 w-full cursor-pointer rounded-md border border-white/10 bg-transparent" type="color" value="${values[name]}"><output class="text-right font-mono text-zinc-300">${values[name]}</output>`;
-          } else {
-            row.innerHTML = `<span>${label}</span><input class="tuner-range w-full" type="range" min="${min}" max="${max}" step="${step}" value="${values[name]}"><output class="text-right font-mono text-zinc-300">${values[name]}${unit}</output>`;
-          }
-          const input = row.querySelector('input');
-          const output = row.querySelector('output');
-          input.addEventListener('input', () => {
-            applyValue(name, input.value, unit);
-            output.value = unit === 'color' ? input.value : `${input.value}${unit}`;
-            saveValues();
-            updateViewportStatus();
-          });
-          controls.append(row);
-        });
-      }
-
-      getAllTunerFields().forEach(([, name, , , , unit]) => applyValue(name, values[name], unit));
-      applyHeroDesktopLayout();
-      syncViewportState();
-      renderTunerGroup('mockup');
-
-      modeButtons.forEach((button) => {
-        button.addEventListener('click', () => setActiveMode(button.dataset.tunerMode));
-      });
-
-      syncModeButton.addEventListener('click', syncTunerToLayout);
-      markPerfectButton.addEventListener('click', () => markViewportAudit('perfeito'));
-      markBadButton.addEventListener('click', () => markViewportAudit('ruim'));
-      copyAuditButton.addEventListener('click', copyViewportAudit);
-      copyAuditJsonButton.addEventListener('click', copyViewportAuditJson);
-      clearAuditButton.addEventListener('click', clearViewportAudit);
-      renderViewportAuditLog();
-      window.addEventListener('resize', scheduleViewportUpdate);
-      window.visualViewport?.addEventListener('resize', scheduleViewportUpdate);
-      window.visualViewport?.addEventListener('scroll', scheduleViewportUpdate);
-
-      tabButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          tabButtons.forEach((tab) => tab.setAttribute('aria-selected', String(tab === button)));
-          renderTunerGroup(button.dataset.tunerTab);
-        });
-      });
 
       const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
       const themeToggle = document.querySelector('#theme-toggle');
@@ -4785,9 +3839,7 @@
           return span;
         }
         if (name === 'mobileBreak') {
-          const br = document.createElement('br');
-          br.className = 'sm:hidden';
-          return br;
+          return document.createElement('br');
         }
         if (name === 'break') {
           const wrapper = document.createDocumentFragment();
@@ -4939,10 +3991,12 @@
 
       const mockupStage = document.querySelector('#mockup-stage');
       const menubarItems = mockupStage.querySelectorAll('.system-menubar > *');
-      const menubarWaveGap = 72;
-      const menubarStartDelay = 320;
-      const markStartDelay = menubarStartDelay + menubarItems.length * menubarWaveGap + 180;
-      const popoverStartDelay = markStartDelay + 680;
+      const heroRootStyles = getComputedStyle(document.documentElement);
+      const readHeroMs = (name) => Number.parseFloat(heroRootStyles.getPropertyValue(name)) || 0;
+      const menubarStartDelay = readHeroMs('--hero-menubar-start');
+      const menubarWaveGap = readHeroMs('--hero-menubar-wave');
+      const markStartDelay = menubarStartDelay + menubarItems.length * menubarWaveGap + readHeroMs('--hero-mark-after-menubar');
+      const popoverStartDelay = markStartDelay + readHeroMs('--hero-popover-after-mark');
 
       menubarItems.forEach((item, index) => {
         item.style.setProperty('--menubar-enter-delay', `${index * menubarWaveGap}ms`);
@@ -4960,30 +4014,7 @@
         });
       }, popoverStartDelay);
 
-      function setTunerOpen(open) {
-        panel.hidden = !open;
-        panel.classList.toggle('hidden', !open);
-        toggle.setAttribute('aria-expanded', String(open));
-        toggle.textContent = open ? 'close tuner' : 'tune';
-        if (open) {
-          restoreTunerPanelPosition();
-          scheduleViewportUpdate();
-        } else {
-          applyHeroDesktopLayout();
-        }
-      }
-
-      const tunerEnabled = ['localhost', '127.0.0.1'].includes(location.hostname)
-        || new URLSearchParams(location.search).has('tuner');
-
-      if (tunerEnabled) {
-        toggle.hidden = false;
-      }
-
-      toggle.addEventListener('click', () => setTunerOpen(panel.hidden));
       document.querySelector('#brew-copy').addEventListener('click', copyBrewCommand);
-      document.querySelector('#tuner-copy').addEventListener('click', copyTunerValues);
-      document.querySelector('#tuner-reset').addEventListener('click', resetTunerValues);
     </script>
   </body>
 </html>
