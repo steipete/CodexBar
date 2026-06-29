@@ -338,7 +338,7 @@
         left: auto;
         display: flex;
         align-items: center;
-        gap: var(--menubar-gap);
+        gap: calc(var(--menubar-gap) / var(--menubar-scale));
         overflow: visible;
         transform: translate(var(--menubar-x), var(--menubar-y)) scale(var(--menubar-scale));
         transform-origin: top right;
@@ -380,7 +380,7 @@
       }
 
       .system-menubar .time {
-        margin-left: calc(var(--menubar-gap) * -0.08);
+        margin-left: calc(var(--menubar-gap) * -0.08 / var(--menubar-scale));
         white-space: nowrap;
         font-size: 0.8em;
       }
@@ -3336,6 +3336,7 @@
           '--mockup-y': 10,
           '--menubar-x': 416,
           '--menubar-y': -41,
+          '--menubar-gap': 22,
           '--popover-x': 738,
           '--popover-y': -124,
         },
@@ -3343,7 +3344,6 @@
           '--mockup-scale': 1.15,
           '--menubar-scale': 0.94,
           '--menubar-icon-scale': 1.28,
-          '--menubar-gap': 22,
           '--popover-scale': 0.91,
         },
         percent: {
