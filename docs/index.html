@@ -573,6 +573,7 @@
 
       .hero-title-line {
         display: block;
+        text-wrap: balance;
       }
 
       @media (min-width: 1280px) {
@@ -581,12 +582,6 @@
 
       @media (min-width: 1536px) {
         .hero-copy { width: min(64vw, 76rem); }
-
-        .hero-title-line { white-space: nowrap; }
-
-        :root[data-locale="pt-BR"] .hero-title-line:first-child {
-          white-space: normal;
-        }
       }
 
       @media (min-width: 1800px) {
@@ -2139,6 +2134,7 @@
           font-size: clamp(2.75rem, 13vw, 4rem) !important;
           letter-spacing: 0 !important;
           line-height: 1.02 !important;
+          text-wrap: balance;
         }
 
         .hero-copy p {
@@ -2149,10 +2145,6 @@
 
         .hero-copy br {
           display: none !important;
-        }
-
-        .hero-title-line br {
-          display: block !important;
         }
 
         .hero-copy .reveal-3.mt-8 {
@@ -2523,7 +2515,7 @@
           </div>
 
           <h1 class="reveal reveal-2 mt-5 text-[clamp(3rem,5.7vw,6.4rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-zinc-100">
-            <span class="hero-title-line" data-i18n-rich="hero.prefix">Every AI coding limit,</span>
+            <span class="hero-title-line" data-i18n="hero.prefix">Every AI coding limit,</span>
             <span class="hero-title-line" data-i18n="hero.accent">in your menu bar.</span>
           </h1>
 
@@ -3379,9 +3371,6 @@
           const br = document.createElement('br');
           br.className = 'hidden sm:block';
           return br;
-        }
-        if (name === 'heroBreak') {
-          return document.createElement('br');
         }
         return document.createTextNode(`{${name}}`);
       }

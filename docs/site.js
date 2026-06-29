@@ -128,9 +128,6 @@ function richToken(name) {
     br.className = "hidden sm:block";
     return br;
   }
-  if (name === "heroBreak") {
-    return document.createElement("br");
-  }
 
   return document.createTextNode(`{${name}}`);
 }
