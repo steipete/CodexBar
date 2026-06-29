@@ -1046,6 +1046,11 @@
         line-height: 1.15;
       }
 
+      .feature-card-copy {
+        margin-top: auto;
+        margin-bottom: 1.35rem;
+      }
+
       .feature-card p {
         margin: 0.7rem 0 0;
         color: var(--page-muted);
@@ -1055,8 +1060,7 @@
       }
 
       .feature-card-visual {
-        margin-top: auto;
-        padding-top: 1.35rem;
+        flex: none;
         width: 100%;
         aspect-ratio: 4 / 3;
         border: 1px solid var(--page-line);
@@ -1864,18 +1868,24 @@
 
           <div class="features-grid relative z-10">
             <article class="feature-card provider-reveal" style="--reveal-delay: 80ms">
-              <h3>Resets you can plan around</h3>
-              <p>Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
+              <div class="feature-card-copy">
+                <h3>Resets you can plan around</h3>
+                <p>Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
+              </div>
               <div class="feature-card-visual" aria-hidden="true"></div>
             </article>
             <article class="feature-card provider-reveal" style="--reveal-delay: 140ms">
-              <h3>Credits, spend, and cost scans</h3>
-              <p>Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
+              <div class="feature-card-copy">
+                <h3>Credits, spend, and cost scans</h3>
+                <p>Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
+              </div>
               <div class="feature-card-visual" aria-hidden="true"></div>
             </article>
             <article class="feature-card provider-reveal" style="--reveal-delay: 200ms">
-              <h3>Status &amp; incidents</h3>
-              <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
+              <div class="feature-card-copy">
+                <h3>Status &amp; incidents</h3>
+                <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
+              </div>
               <div class="feature-card-visual" aria-hidden="true"></div>
             </article>
           </div>
