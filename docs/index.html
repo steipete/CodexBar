@@ -3328,7 +3328,6 @@
       const HERO_MOBILE_MAX = 768;
       const HERO_TABLET_MAX = 1023;
       const HERO_DESKTOP_MIN = 1024;
-      const MOCKUP_WIDTH_RATIO = 1.18;
       const MOCKUP_SCREEN_MARGIN_RIGHT = 50;
 
       const HERO_DESKTOP_ANCHOR = {
@@ -3337,6 +3336,7 @@
         tabletTuneWidth: 1022,
         tabletFluidMax: 1.18,
         px: {
+          '--mockup-x': -540,
           '--mockup-y': 10,
           '--menubar-x': 416,
           '--menubar-y': -41,
@@ -3359,6 +3359,14 @@
         },
       };
 
+      const HERO_TABLET_ANCHOR = {
+        tuneWidth: 1022,
+        fluidMax: 1.18,
+        px: {
+          '--tablet-mockup-x': -80,
+        },
+      };
+
       const HERO_LAYOUT_VARS = [
         ...Object.keys(HERO_DESKTOP_ANCHOR.px),
         ...Object.keys(HERO_DESKTOP_ANCHOR.unitless),
@@ -3375,36 +3383,9 @@
         return Math.min(Math.max(1, tuneWidth / width), HERO_DESKTOP_ANCHOR.tabletFluidMax);
       }
 
-      function getMockupBaseWidth(width) {
-        const tuneWidth = HERO_DESKTOP_ANCHOR.width;
-        const layoutWidth = width >= tuneWidth ? tuneWidth : width;
-        return layoutWidth * MOCKUP_WIDTH_RATIO;
-      }
-
-      function readHeroVarNumber(name, fallback) {
-        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        const value = Number.parseFloat(raw);
-        return Number.isFinite(value) ? value : fallback;
-      }
-
-      function getMockupEffectiveScale(width) {
-        const scale = readHeroVarNumber('--mockup-scale', HERO_DESKTOP_ANCHOR.unitless['--mockup-scale']);
-        if (width >= HERO_DESKTOP_ANCHOR.width) return scale;
-        return scale * getHeroFluidFactor(width);
-      }
-
-      function getTabletMockupEffectiveScale(width) {
-        const scale = readHeroVarNumber('--tablet-mockup-scale', 0.92);
-        if (width >= HERO_DESKTOP_ANCHOR.tabletTuneWidth) return scale;
-        return scale * getTabletFluidFactor(width);
-      }
-
-      function computeMockupX(width, { tablet = false } = {}) {
-        const effectiveScale = tablet
-          ? getTabletMockupEffectiveScale(width)
-          : getMockupEffectiveScale(width);
-        const scaledWidth = getMockupBaseWidth(width) * effectiveScale;
-        return (width / 2) - MOCKUP_SCREEN_MARGIN_RIGHT - (scaledWidth / 2);
+      function getTabletDesktopPxRatio(width) {
+        if (width >= HERO_TABLET_ANCHOR.tuneWidth) return 1;
+        return (width / HERO_TABLET_ANCHOR.tuneWidth) / getTabletFluidFactor(width);
       }
 
       function getHeroDesktopPxRatio(width) {
@@ -3439,12 +3420,23 @@
           return;
         }
 
-        const mockupX = Math.round(computeMockupX(width, { tablet: width <= HERO_TABLET_MAX }) * 100) / 100;
+        // At/above tune width (1920): :root + tuner values are the source of truth.
+        // Do not override mockup-x or HUD vars — the 50px margin rule needs a retune pass.
+        if (width >= HERO_DESKTOP_ANCHOR.width) {
+          clearHeroDesktopLayout();
+          root.style.removeProperty('--mockup-x');
+          root.style.removeProperty('--tablet-mockup-x');
+          return;
+        }
 
         if (width <= HERO_TABLET_MAX) {
           root.style.removeProperty('--mockup-x');
-          root.style.setProperty('--tablet-mockup-x', `${mockupX}px`);
           clearHeroDesktopLayout();
+          const tabletRatio = getTabletDesktopPxRatio(width);
+          Object.entries(HERO_TABLET_ANCHOR.px).forEach(([name, anchor]) => {
+            const value = anchor * tabletRatio;
+            root.style.setProperty(name, `${Math.round(value * 100) / 100}px`);
+          });
           return;
         }
 
@@ -3463,8 +3455,6 @@
         Object.entries(HERO_DESKTOP_ANCHOR.percent).forEach(([name, value]) => {
           root.style.setProperty(name, `${value}%`);
         });
-
-        root.style.setProperty('--mockup-x', `${mockupX}px`);
       }
 
       window.addEventListener('resize', applyHeroDesktopLayout);
