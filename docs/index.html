@@ -987,39 +987,69 @@
         .provider-card::before { top: 1rem; width: 3.1rem; height: 3.1rem; }
       }
 
-      .features-section,
+      .features-section {
+        position: relative;
+        border-top: 1px solid var(--page-line);
+        background: var(--page-bg);
+        color: var(--page-text);
+      }
+
       .technical-section {
         position: relative;
         border-top: 1px solid var(--page-line);
         background: var(--page-bg);
       }
 
-      .feature-list {
+      .features-heading {
+        margin: 0 0 clamp(2.5rem, 5vw, 3.75rem);
+        max-width: 16ch;
+        color: var(--page-text);
+        font-size: clamp(2.2rem, 4vw, 4.5rem);
+        font-weight: 600;
+        letter-spacing: -0.07em;
+        line-height: 0.98;
+      }
+
+      .section-title-line {
+        display: block;
+      }
+
+      @media (min-width: 1280px) {
+        .section-title-line { white-space: nowrap; }
+      }
+
+      .features-grid {
         display: grid;
-        gap: clamp(2.25rem, 4.5vw, 3.25rem);
+        gap: clamp(2rem, 3vw, 2.75rem);
       }
 
-      .feature-item {
-        padding-left: 1.15rem;
-        border-left: 2px solid color-mix(in srgb, var(--page-text) 14%, transparent);
+      @media (min-width: 900px) {
+        .features-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       }
 
-      .feature-item h3 {
+      .feature-card h3 {
         margin: 0;
         color: var(--page-text);
-        font-size: clamp(1.35rem, 2.1vw, 1.85rem);
+        font-size: clamp(1.12rem, 1.35vw, 1.32rem);
         font-weight: 650;
-        letter-spacing: -0.05em;
-        line-height: 1.08;
+        letter-spacing: -0.035em;
+        line-height: 1.15;
       }
 
-      .feature-item p {
-        margin: 0.75rem 0 0;
-        max-width: 40rem;
+      .feature-card p {
+        margin: 0.7rem 0 0;
         color: var(--page-muted);
-        font-size: clamp(1rem, 1.1vw, 1.12rem);
-        line-height: 1.48;
-        letter-spacing: -0.03em;
+        font-size: clamp(0.94rem, 1vw, 1rem);
+        line-height: 1.52;
+        letter-spacing: -0.02em;
+      }
+
+      .feature-card-visual {
+        margin-top: 1.35rem;
+        aspect-ratio: 4 / 3;
+        border: 1px solid var(--page-line);
+        border-radius: 0.8rem;
+        background: #dc2626;
       }
 
       .section-eyebrow {
@@ -1371,32 +1401,29 @@
       </section>
 
       <section class="features-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
-        <header class="relative z-10 mb-12 grid gap-5 lg:mb-16 lg:grid-cols-[1fr_0.86fr] lg:items-end">
-          <h2 class="provider-reveal max-w-3xl text-[clamp(2.2rem,4vw,4.5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
-            Know before<br />you commit
+        <div class="section-inner">
+          <h2 class="features-heading provider-reveal">
+            <span class="section-title-line">Know before</span>
+            <span class="section-title-line">you commit</span>
           </h2>
-          <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.25vw,1.2rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
-            Resets, credits, status, and widgets — the signal you need between sessions.
-          </p>
-        </header>
 
-        <div class="feature-list relative z-10">
-          <article class="feature-item provider-reveal" style="--reveal-delay: 80ms">
-            <h3>Resets you can plan around</h3>
-            <p>Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
-          </article>
-          <article class="feature-item provider-reveal" style="--reveal-delay: 140ms">
-            <h3>Credits, spend, and cost scans</h3>
-            <p>Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
-          </article>
-          <article class="feature-item provider-reveal" style="--reveal-delay: 200ms">
-            <h3>Status &amp; incidents</h3>
-            <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
-          </article>
-          <article class="feature-item provider-reveal" style="--reveal-delay: 260ms">
-            <h3>CLI &amp; widgets</h3>
-            <p>WidgetKit widgets for supported providers and a bundled codexbar CLI for scripts and CI — macOS and Linux builds on every release.</p>
-          </article>
+          <div class="features-grid relative z-10">
+            <article class="feature-card provider-reveal" style="--reveal-delay: 80ms">
+              <h3>Resets you can plan around</h3>
+              <p>Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
+              <div class="feature-card-visual" aria-hidden="true"></div>
+            </article>
+            <article class="feature-card provider-reveal" style="--reveal-delay: 140ms">
+              <h3>Credits, spend, and cost scans</h3>
+              <p>Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
+              <div class="feature-card-visual" aria-hidden="true"></div>
+            </article>
+            <article class="feature-card provider-reveal" style="--reveal-delay: 200ms">
+              <h3>Status &amp; incidents</h3>
+              <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
+              <div class="feature-card-visual" aria-hidden="true"></div>
+            </article>
+          </div>
         </div>
       </section>
 
