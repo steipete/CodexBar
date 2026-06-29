@@ -1296,16 +1296,18 @@
         flex: 1 1 0;
         flex-direction: column;
         align-items: center;
-        gap: 0.3rem;
+        gap: 0.15rem;
         min-width: 0;
         text-align: center;
       }
 
       .widget-preview {
         width: 100%;
+        margin-bottom: 0.45rem;
         overflow: hidden;
         border-radius: 1rem;
         background: transparent;
+        line-height: 0;
       }
 
       .widget-preview img {
@@ -1315,16 +1317,7 @@
       }
 
       .widget-tile.is-small .widget-preview {
-        aspect-ratio: 1;
-        max-width: 5.4rem;
-      }
-
-      .widget-tile.is-medium .widget-preview {
-        aspect-ratio: 329 / 155;
-      }
-
-      .widget-tile.is-large .widget-preview {
-        aspect-ratio: 1;
+        width: min(100%, 5.4rem);
       }
 
       .widget-tile h4 {
