@@ -2209,17 +2209,18 @@
           padding-bottom: 4rem;
         }
 
-        .provider-section ul {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 1.35rem 0.85rem;
+        .provider-section .section-inner > ul {
+          display: grid !important;
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          gap: 1.35rem 0.85rem !important;
         }
 
         .provider-card {
-          min-height: auto;
-          grid-template-columns: 1fr;
+          min-height: auto !important;
+          grid-template-columns: 1fr !important;
           justify-items: center;
           gap: 0.45rem;
-          padding: 0.2rem 0;
+          padding: 0.2rem 0 !important;
           text-align: center;
         }
 
