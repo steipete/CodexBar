@@ -1137,6 +1137,7 @@
 
       .mac-widget-sheet__body {
         display: flex;
+        align-items: stretch;
         min-height: clamp(16rem, 28vw, 22rem);
       }
 
@@ -1221,18 +1222,39 @@
 
       .mac-widget-main__title {
         margin: 0 0 0.7rem;
+        flex: none;
         color: rgba(255, 255, 255, 0.42);
         font-size: 0.95em;
         font-weight: 500;
       }
 
+      .mac-widget-gallery-wrap {
+        position: relative;
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .mac-widget-gallery-wrap::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1;
+        height: 2.75rem;
+        pointer-events: none;
+        background: linear-gradient(180deg, rgba(30, 30, 32, 0), rgba(26, 26, 28, 0.94) 68%, rgba(24, 24, 26, 1));
+      }
+
       .mac-widget-gallery {
         flex: 1;
         min-height: 0;
-        max-height: 14.2rem;
         overflow-y: auto;
         overscroll-behavior: contain;
         padding-right: 0.2rem;
+        padding-bottom: 0.15rem;
       }
 
       .mac-widget-gallery::-webkit-scrollbar {
@@ -2001,6 +2023,7 @@
 
                   <div class="mac-widget-main">
                     <p class="mac-widget-main__title">CodexBar</p>
+                    <div class="mac-widget-gallery-wrap">
                     <div class="mac-widget-gallery">
                       <div class="mac-widget-row">
                         <article class="widget-tile is-small">
@@ -2090,6 +2113,7 @@
                           <p>Combined burn-down across windows.</p>
                         </article>
                       </div>
+                    </div>
                     </div>
                   </div>
                 </div>
