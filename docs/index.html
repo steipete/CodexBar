@@ -815,6 +815,7 @@
 
       .provider-section.is-revealed .provider-reveal,
       .features-section.is-revealed .provider-reveal,
+      .cli-section.is-revealed .provider-reveal,
       .technical-section.is-revealed .provider-reveal {
         opacity: 1;
         transform: translateY(0);
@@ -947,6 +948,7 @@
         .reveal { animation: none; opacity: 1; transform: none; }
         .provider-reveal,
         .features-section .provider-reveal,
+        .cli-section .provider-reveal,
         .technical-section .provider-reveal {
           transform: none;
           transition: opacity 160ms ease;
@@ -1050,6 +1052,203 @@
         border: 1px solid var(--page-line);
         border-radius: 0.8rem;
         background: #dc2626;
+      }
+
+      .cli-section {
+        position: relative;
+        border-top: 1px solid var(--page-line);
+        background: var(--page-bg);
+        color: var(--page-text);
+      }
+
+      .split-layout {
+        display: grid;
+        gap: clamp(2.5rem, 5vw, 4rem);
+        align-items: center;
+      }
+
+      @media (min-width: 1024px) {
+        .split-layout {
+          grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.82fr);
+        }
+      }
+
+      .split-copy-heading {
+        margin: 0 0 clamp(1.1rem, 2vw, 1.5rem);
+        max-width: 12ch;
+        color: var(--page-text);
+        font-size: clamp(2.2rem, 4vw, 4.5rem);
+        font-weight: 600;
+        letter-spacing: -0.07em;
+        line-height: 0.98;
+      }
+
+      .split-copy-lead {
+        margin: 0 0 1rem;
+        max-width: 34ch;
+        color: var(--page-muted);
+        font-size: clamp(1rem, 1.35vw, 1.22rem);
+        letter-spacing: -0.035em;
+        line-height: 1.45;
+      }
+
+      .split-copy-note {
+        margin: 0;
+        max-width: 32ch;
+        color: var(--page-subtle);
+        font-size: 0.88rem;
+        letter-spacing: -0.02em;
+        line-height: 1.45;
+      }
+
+      .split-visual-wrap {
+        min-width: 0;
+      }
+
+      .cli-terminal {
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        background: linear-gradient(180deg, rgba(24, 24, 26, 0.96), rgba(12, 12, 13, 0.98));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.08),
+          0 1.5rem 3.5rem rgba(0, 0, 0, 0.45);
+        font-family: 'SFMono-Regular', 'SF Mono', Menlo, monospace;
+        font-size: clamp(0.68rem, 0.82vw, 0.8rem);
+        letter-spacing: -0.02em;
+        line-height: 1.45;
+      }
+
+      .cli-terminal-chrome {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.7rem 0.95rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(244, 244, 245, 0.72);
+      }
+
+      .cli-terminal-dots {
+        display: flex;
+        align-items: center;
+        gap: 0.38rem;
+      }
+
+      .cli-terminal-dots span {
+        width: 0.58rem;
+        height: 0.58rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      .cli-terminal-dots span:nth-child(1) { background: #ff5f57; }
+      .cli-terminal-dots span:nth-child(2) { background: #febc2e; }
+      .cli-terminal-dots span:nth-child(3) { background: #28c840; }
+
+      .cli-terminal-title {
+        flex: 1;
+        text-align: center;
+        color: rgba(244, 244, 245, 0.58);
+      }
+
+      .cli-terminal-version {
+        color: rgba(244, 244, 245, 0.42);
+      }
+
+      .cli-terminal-body {
+        padding: 1rem 1rem 0.35rem;
+      }
+
+      .cli-provider-block + .cli-provider-block {
+        margin-top: 1.15rem;
+        padding-top: 1.05rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .cli-provider-label {
+        margin-bottom: 0.75rem;
+        color: rgba(244, 244, 245, 0.88);
+        font-weight: 600;
+      }
+
+      .cli-row {
+        display: grid;
+        grid-template-columns: minmax(4.5rem, 5.5rem) minmax(4.5rem, 6rem) 1fr auto;
+        gap: 0.55rem 0.75rem;
+        align-items: center;
+        margin-bottom: 0.42rem;
+      }
+
+      .cli-row.is-meta {
+        grid-template-columns: minmax(4.5rem, 5.5rem) 1fr;
+      }
+
+      .cli-row-label {
+        color: rgba(244, 244, 245, 0.58);
+      }
+
+      .cli-row-value {
+        color: rgba(244, 244, 245, 0.92);
+      }
+
+      .cli-meter {
+        display: flex;
+        gap: 0.12rem;
+        min-width: 0;
+      }
+
+      .cli-meter i {
+        flex: 1;
+        min-width: 0.28rem;
+        max-width: 0.55rem;
+        height: 0.62rem;
+        border-radius: 0.1rem;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .cli-meter i.is-filled {
+        background: linear-gradient(180deg, #d8c4a0 0%, #b99867 100%);
+      }
+
+      .cli-row-note {
+        color: rgba(244, 244, 245, 0.48);
+        white-space: nowrap;
+      }
+
+      .cli-terminal-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 0.85rem;
+        padding: 0.8rem 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(244, 244, 245, 0.72);
+      }
+
+      .cli-terminal-foot strong {
+        color: rgba(244, 244, 245, 0.92);
+        font-weight: 600;
+      }
+
+      .cli-footnote {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.55rem;
+        margin-top: clamp(1.5rem, 3vw, 2rem);
+        color: var(--page-subtle);
+        font-size: 0.82rem;
+        letter-spacing: -0.02em;
+        line-height: 1.45;
+      }
+
+      .cli-footnote svg {
+        width: 0.95rem;
+        height: 0.95rem;
+        flex: none;
+        opacity: 0.72;
       }
 
       .section-eyebrow {
@@ -1423,6 +1622,95 @@
               <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
               <div class="feature-card-visual" aria-hidden="true"></div>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="cli-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
+        <div class="section-inner relative z-10">
+          <div class="split-layout">
+            <div class="split-visual-wrap provider-reveal" aria-label="CodexBar CLI output preview">
+              <div class="cli-terminal">
+                <div class="cli-terminal-chrome">
+                  <div class="cli-terminal-dots" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <p class="cli-terminal-title">codexbar · terminal</p>
+                  <p class="cli-terminal-version">bundled</p>
+                </div>
+
+                <div class="cli-terminal-body">
+                  <section class="cli-provider-block">
+                    <p class="cli-provider-label">== Codex (oauth) ==</p>
+                    <div class="cli-row">
+                      <span class="cli-row-label">Session</span>
+                      <span class="cli-row-value">99% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i></div>
+                      <span class="cli-row-note">Resets in 5h</span>
+                    </div>
+                    <div class="cli-row">
+                      <span class="cli-row-label">Weekly</span>
+                      <span class="cli-row-value">100% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i></div>
+                      <span class="cli-row-note">Resets in 7d</span>
+                    </div>
+                    <div class="cli-row is-meta"><span class="cli-row-label">Credits</span><span class="cli-row-value">0 left</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label">Limit Reset Credits</span><span class="cli-row-value">1 available</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label">Next reset credit</span><span class="cli-row-value">expires in 27d 22h</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label">Account</span><span class="cli-row-value">peter@steipete.me</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label">Plan</span><span class="cli-row-value">Plus</span></div>
+                  </section>
+
+                  <section class="cli-provider-block">
+                    <p class="cli-provider-label">== Cursor (web) ==</p>
+                    <div class="cli-row">
+                      <span class="cli-row-label">Total</span>
+                      <span class="cli-row-value">79% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i><i></i><i></i></div>
+                      <span class="cli-row-note">Resets in 23d 18h</span>
+                    </div>
+                    <div class="cli-row">
+                      <span class="cli-row-label">Auto</span>
+                      <span class="cli-row-value">74% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i><i></i><i></i><i></i></div>
+                      <span class="cli-row-note">Resets in 23d 18h</span>
+                    </div>
+                    <div class="cli-row">
+                      <span class="cli-row-label">API</span>
+                      <span class="cli-row-value">99% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i></div>
+                      <span class="cli-row-note">Resets in 23d 18h</span>
+                    </div>
+                    <div class="cli-row is-meta"><span class="cli-row-label">Account</span><span class="cli-row-value">peter@steipete.me</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label">Plan</span><span class="cli-row-value">Cursor Pro_Plus</span></div>
+                  </section>
+                </div>
+
+                <div class="cli-terminal-foot">
+                  <p><strong>&gt;</strong> codexbar</p>
+                  <p>macOS &amp; Linux builds on every release</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="split-copy">
+              <h2 class="split-copy-heading provider-reveal" style="--reveal-delay: 70ms">
+                <span class="section-title-line">CodexBar</span>
+                <span class="section-title-line">on CLI</span>
+              </h2>
+              <p class="split-copy-lead provider-reveal" style="--reveal-delay: 110ms">
+                A bundled <code class="inline-code">codexbar</code> binary with the same usage output as the menu bar — scripts, CI, and quick terminal checks.
+              </p>
+              <p class="split-copy-note provider-reveal" style="--reveal-delay: 150ms">
+                Standalone tarballs for macOS and Linux on every release.
+              </p>
+              <p class="cli-footnote provider-reveal" style="--reveal-delay: 190ms">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3 4 7v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V7l-8-4Z" />
+                </svg>
+                CodexBar reuses existing provider sessions — no passwords stored on disk.
+              </p>
+            </div>
           </div>
         </div>
       </section>
