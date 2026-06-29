@@ -89,9 +89,9 @@
         --primary-hover: #fff;
         --apple-filter: none;
         --header-height: 5rem;
-        --mockup-x: 140px;
-        --mockup-y: -6px;
-        --mockup-scale: 1.03;
+        --mockup-x: -87px;
+        --mockup-y: 6px;
+        --mockup-scale: 0.77;
         --glow-x: 331px;
         --glow-y: -260px;
         --glow-scale: 2.4;
@@ -99,14 +99,14 @@
         --glow-blur: 72px;
         --glow-color-a: #003c61;
         --glow-color-b: #8000ff;
-        --menubar-x: -67px;
+        --menubar-x: 170px;
         --menubar-y: 16px;
-        --menubar-scale: 1;
+        --menubar-scale: 1.37;
         --menubar-gap: 22px;
         --menubar-icon-scale: 1.28;
-        --popover-x: -96px;
-        --popover-y: 27px;
-        --popover-scale: 1.14;
+        --popover-x: 240px;
+        --popover-y: 35px;
+        --popover-scale: 1.51;
       }
 
       :root[data-theme="light"] {
@@ -156,8 +156,8 @@
         top: var(--header-height);
         left: 50%;
         width: 118%;
-        aspect-ratio: 3437 / 1905;
-        transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y)) scale(var(--mockup-scale));
+        aspect-ratio: 6390 / 4480;
+        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y)) scale(var(--mockup-scale));
         transform-origin: top center;
         will-change: transform;
       }
@@ -992,8 +992,6 @@
         }
         .mockup-wrap { top: 20rem; width: 190%; }
         .codex-popover { border-radius: 0.65rem; }
-        .provider-card { min-height: 5.2rem; padding: 1rem 0 1rem 4.6rem; }
-        .provider-card::before { top: 1rem; width: 3.1rem; height: 3.1rem; }
       }
 
       .features-section {
@@ -1488,6 +1486,46 @@
         .split-layout--copy-left .split-copy-lead,
         .split-layout--copy-left .split-copy-note {
           margin-left: auto;
+        }
+      }
+
+      @media (min-width: 1024px) and (max-height: 820px) {
+        .hero-copy {
+          padding-top: clamp(8rem, 20vh, 10.4rem);
+        }
+
+        .mockup-wrap {
+          transform: translate(calc(-50% + min(var(--mockup-x), 7.25vw)), -18px) scale(0.98);
+        }
+
+        .codex-popover {
+          transform: translate(var(--popover-x), 6px) scale(0.94);
+        }
+      }
+
+      @media (min-width: 641px) and (max-width: 1023px) {
+        .hero-copy {
+          width: min(64vw, 34rem);
+          padding-left: clamp(2rem, 6vw, 4rem);
+        }
+
+        .hero-copy h1 {
+          font-size: clamp(3rem, 6.25vw, 3.55rem) !important;
+          letter-spacing: 0 !important;
+          line-height: 1.01 !important;
+          text-wrap: balance;
+        }
+
+        .hero-copy p {
+          max-width: min(32rem, 58vw);
+          letter-spacing: 0 !important;
+        }
+
+        .codex-popover {
+          right: 26%;
+          width: 18.5rem;
+          transform: translate(0, 0.5rem) scale(0.92);
+          transform-origin: top right;
         }
       }
 
@@ -2050,7 +2088,7 @@
 
         .cli-terminal {
           border-radius: 0.85rem;
-          font-size: 0.66rem;
+          font-size: 0.62rem;
           letter-spacing: 0;
         }
 
@@ -2059,7 +2097,7 @@
         }
 
         .cli-terminal-body {
-          padding: 0.86rem 0.82rem 0.3rem;
+          padding: 0.95rem 0.88rem 0.35rem;
         }
 
         .cli-provider-block + .cli-provider-block {
@@ -2072,15 +2110,15 @@
         }
 
         .cli-row:not(.is-meta) {
-          grid-template-columns: 4.35rem 4.7rem minmax(0, 1fr);
-          gap: 0.22rem 0.45rem;
-          margin-bottom: 0.38rem;
+          grid-template-columns: 4.35rem 5.55rem minmax(0, 1fr);
+          gap: 0.22rem 0.48rem;
+          margin-bottom: 0.48rem;
         }
 
         .cli-row.is-meta {
-          grid-template-columns: 7rem minmax(0, 1fr);
-          gap: 0.22rem 0.45rem;
-          margin-bottom: 0.38rem;
+          grid-template-columns: 7.65rem minmax(0, 1fr);
+          gap: 0.22rem 0.48rem;
+          margin-bottom: 0.42rem;
         }
 
         .cli-row.is-meta .cli-row-value {
@@ -2091,7 +2129,7 @@
         }
 
         .cli-row-note {
-          grid-column: 2 / 4;
+          grid-column: 3;
           justify-self: end;
           white-space: nowrap;
         }
@@ -2103,6 +2141,10 @@
 
         .cli-terminal-foot {
           padding: 0.68rem 0.82rem;
+        }
+
+        .cli-footnote {
+          align-items: center;
         }
       }
 
@@ -2131,10 +2173,18 @@
 
         .hero-copy h1 {
           margin-top: 1.05rem;
-          font-size: clamp(2.75rem, 13vw, 4rem) !important;
+          font-size: clamp(2.45rem, 11vw, 3.35rem) !important;
           letter-spacing: 0 !important;
           line-height: 1.02 !important;
           text-wrap: balance;
+        }
+
+        .hero-title-line {
+          display: inline;
+        }
+
+        .hero-title-line + .hero-title-line::before {
+          content: " ";
         }
 
         .hero-copy p {
@@ -2172,7 +2222,7 @@
         .mockup-stage {
           position: relative;
           order: 2;
-          height: 22rem;
+          height: 25rem;
           margin-top: 1.35rem;
           overflow: hidden;
         }
@@ -2192,15 +2242,23 @@
         }
 
         .system-menubar {
-          display: none;
+          top: 5.2%;
+          right: 28%;
+          left: auto;
+          display: flex;
+          gap: 0.78rem;
+          transform: translate(0, 0) scale(0.58);
+          transform-origin: top right;
+          font-size: 1.18rem;
         }
 
         .codex-popover {
-          right: auto;
-          left: 50%;
-          width: 15.25rem;
-          transform: translate(-50%, 0.55rem) scale(0.82);
-          transform-origin: top center;
+          top: 11.4%;
+          right: 33%;
+          left: auto;
+          width: 16.45rem;
+          transform: translate(0, 0) scale(0.74);
+          transform-origin: top right;
         }
 
         .provider-section,
@@ -2440,7 +2498,7 @@
           <div class="mockup-wrap" id="mockup-wrap">
             <picture>
               <source srcset="./hero-mockup.webp" type="image/webp" />
-              <img src="./hero-mockup.png" alt="MacBook menu bar" data-i18n-alt="mockup.macbookAlt" class="block h-full w-full select-none object-contain" draggable="false" width="10458" height="5797" />
+              <img src="./hero-mockup.png" alt="MacBook menu bar" data-i18n-alt="mockup.macbookAlt" class="block h-full w-full select-none object-contain" draggable="false" width="6390" height="4480" />
             </picture>
             <div class="system-menubar" aria-label="macOS menu bar status items" data-i18n-aria-label="mockup.menuBarAria">
               <img class="sf-symbol" src="https://raw.githubusercontent.com/cameronshemilt/MoreSFSymbols/main/preview-images/logos/logo.github.circle.fill.png" alt="" aria-hidden="true" />
@@ -3042,18 +3100,18 @@
 
     <button
       id="tuner-toggle"
-      hidden
       type="button"
       class="button-press fixed bottom-4 right-4 z-50 rounded-full border border-white/15 bg-zinc-950/85 px-4 py-2 font-mono text-xs text-zinc-300 shadow-2xl backdrop-blur-xl hover:bg-zinc-900 hover:text-white"
       aria-expanded="false"
       aria-controls="tuner-panel"
+      hidden
     >tune</button>
 
     <aside id="tuner-panel" hidden class="tuner-panel fixed bottom-16 right-4 z-50 hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/90 p-4 text-left shadow-2xl">
       <div class="mb-3 flex items-center justify-between">
         <p class="font-mono text-xs text-zinc-300">tuner</p>
         <div class="flex items-center gap-3">
-          <button id="tuner-copy" type="button" class="button-press text-xs text-zinc-300 hover:text-white">copy values</button>
+          <button id="tuner-copy" type="button" class="button-press text-xs text-zinc-300 hover:text-white">copy CSS</button>
           <button id="tuner-reset" type="button" class="button-press text-xs text-zinc-500 hover:text-white">reset</button>
         </div>
       </div>
@@ -3068,27 +3126,6 @@
 
     <script type="module">
       import { localeCatalog, localeMessages } from './site-locales.mjs';
-
-      const tunerDefaults = {
-        '--mockup-x': 140,
-        '--mockup-y': -6,
-        '--mockup-scale': 1.03,
-        '--glow-x': 331,
-        '--glow-y': -260,
-        '--glow-scale': 2.4,
-        '--glow-opacity': 0.55,
-        '--glow-blur': 72,
-        '--glow-color-a': '#003c61',
-        '--glow-color-b': '#8000ff',
-        '--menubar-x': -67,
-        '--menubar-y': 16,
-        '--menubar-scale': 1,
-        '--menubar-gap': 22,
-        '--menubar-icon-scale': 1.28,
-        '--popover-x': -96,
-        '--popover-y': 27,
-        '--popover-scale': 1.14,
-      };
 
       const tunerGroups = {
         mockup: [
@@ -3121,29 +3158,64 @@
 
       const tunerFields = Object.values(tunerGroups).flat();
 
+      function readTunerDefaults() {
+        const styles = getComputedStyle(document.documentElement);
+        const defaults = {};
+
+        tunerFields.forEach(([, name, , , , unit]) => {
+          const raw = styles.getPropertyValue(name).trim();
+          if (unit === 'color') {
+            defaults[name] = raw;
+            return;
+          }
+
+          const value = Number.parseFloat(raw);
+          defaults[name] = Number.isFinite(value) ? value : 0;
+        });
+
+        return defaults;
+      }
+
+      const cssDefaults = readTunerDefaults();
+
       const root = document.documentElement;
       const controls = document.querySelector('#tuner-controls');
       const panel = document.querySelector('#tuner-panel');
       const toggle = document.querySelector('#tuner-toggle');
       const tabButtons = document.querySelectorAll('[data-tuner-tab]');
-      const tunerStorageKey = 'codexbar-tuner-v3';
+      const tunerStorageKey = 'codexbar-tuner-v4';
       const savedValues = JSON.parse(localStorage.getItem(tunerStorageKey) || '{}');
-      const values = { ...tunerDefaults, ...savedValues };
+      const values = { ...cssDefaults, ...savedValues };
       const hexColorPattern = /^#[0-9a-f]{6}$/i;
 
       tunerFields.forEach(([, name, , , , unit]) => {
         if (unit === 'color') {
           if (typeof values[name] !== 'string' || !hexColorPattern.test(values[name])) {
-            values[name] = tunerDefaults[name];
+            values[name] = cssDefaults[name];
           }
         } else if (!Number.isFinite(Number(values[name]))) {
-          values[name] = tunerDefaults[name];
+          values[name] = cssDefaults[name];
         }
       });
 
       function applyValue(name, value, unit) {
         values[name] = unit === 'color' ? value : Number(value);
         root.style.setProperty(name, unit === 'color' ? value : `${value}${unit}`);
+      }
+
+      function resetTunerValues() {
+        localStorage.removeItem(tunerStorageKey);
+
+        tunerFields.forEach(([, name]) => {
+          root.style.removeProperty(name);
+        });
+
+        tunerFields.forEach(([, name, , , , unit]) => {
+          values[name] = cssDefaults[name];
+        });
+
+        const activeTab = document.querySelector('[data-tuner-tab][aria-selected="true"]')?.dataset.tunerTab || 'mockup';
+        renderTunerGroup(activeTab);
       }
 
       function saveValues() {
@@ -3166,9 +3238,25 @@
       }
 
       function getTunerPayload() {
+        const formatValue = ([, name, , , , unit]) => {
+          const value = values[name];
+          return `  ${name}: ${unit === 'color' ? value : `${value}${unit}`};`;
+        };
+
         return [
-          'CodexBar tuner v3',
-          ...tunerFields.map(([label, name, , , , unit]) => `${label}: ${values[name]}${unit === 'color' ? '' : unit}`),
+          '/* CodexBar landing tuner — paste into :root in docs/index.html */',
+          '',
+          '/* mockup */',
+          ...tunerGroups.mockup.map(formatValue),
+          '',
+          '/* glow */',
+          ...tunerGroups.glow.map(formatValue),
+          '',
+          '/* menubar */',
+          ...tunerGroups.menubar.map(formatValue),
+          '',
+          '/* panel */',
+          ...tunerGroups.panel.map(formatValue),
         ].join('\n');
       }
 
@@ -3179,7 +3267,7 @@
         await copyText(payload);
 
         copyButton.textContent = 'copied';
-        window.setTimeout(() => { copyButton.textContent = 'copy values'; }, 1200);
+        window.setTimeout(() => { copyButton.textContent = 'copy CSS'; }, 1200);
       }
 
       async function copyBrewCommand() {
@@ -3311,6 +3399,8 @@
 
       function selectedLocale() {
         try {
+          const queryLocale = normalizeLocale(new URLSearchParams(location.search).get('lang'));
+          if (queryLocale) return queryLocale;
           const storedLocale = normalizeLocale(localStorage.getItem(languageStorageKey));
           if (storedLocale) return storedLocale;
         } catch (_) {}
@@ -3535,24 +3625,16 @@
       }, popoverStartDelay);
 
       function setTunerOpen(open) {
+        panel.hidden = !open;
         panel.classList.toggle('hidden', !open);
         toggle.setAttribute('aria-expanded', String(open));
         toggle.textContent = open ? 'close tuner' : 'tune';
       }
 
-      toggle.addEventListener('click', () => setTunerOpen(panel.classList.contains('hidden')));
+      toggle.addEventListener('click', () => setTunerOpen(panel.hidden));
       document.querySelector('#brew-copy').addEventListener('click', copyBrewCommand);
       document.querySelector('#tuner-copy').addEventListener('click', copyTunerValues);
-      document.querySelector('#tuner-reset').addEventListener('click', () => {
-        localStorage.removeItem(tunerStorageKey);
-        window.location.reload();
-      });
-
-      document.addEventListener('keydown', (event) => {
-        if (event.key.toLowerCase() === 't' && !event.metaKey && !event.ctrlKey && !/INPUT|TEXTAREA/.test(event.target.tagName)) {
-          setTunerOpen(panel.classList.contains('hidden'));
-        }
-      });
+      document.querySelector('#tuner-reset').addEventListener('click', resetTunerValues);
     </script>
   </body>
 </html>
