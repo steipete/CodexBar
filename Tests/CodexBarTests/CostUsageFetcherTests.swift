@@ -57,7 +57,8 @@ struct CostUsageFetcherTests {
             now: day,
             codexHomePath: env.codexHomeRoot.path,
             scannerOptions: options,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
         #expect(ambient.sessionTokens == 100)
 
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
@@ -69,7 +70,8 @@ struct CostUsageFetcherTests {
             now: day.addingTimeInterval(1),
             codexHomePath: managedHome.path,
             scannerOptions: options,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         #expect(managed.sessionTokens == 10)
     }
@@ -555,7 +557,8 @@ struct CostUsageFetcherTests {
             provider: .codex,
             now: day,
             scannerOptions: nativeOptions,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         let nativeCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
@@ -653,7 +656,8 @@ struct CostUsageFetcherTests {
             provider: .claude,
             now: day,
             scannerOptions: nativeOptions,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         let nativeCost = CostUsagePricing.claudeCostUSD(
             model: "claude-sonnet-4-6",
@@ -729,7 +733,8 @@ struct CostUsageFetcherTests {
             provider: .codex,
             now: day,
             scannerOptions: nativeOptions,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
         let cost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
             inputTokens: 100,
@@ -790,7 +795,8 @@ struct CostUsageFetcherTests {
             provider: .codex,
             now: day,
             scannerOptions: nativeOptions,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
         #expect(first.daily.first?.totalTokens == 110)
 
         let appendedTokenCount: [String: Any] = [
@@ -816,7 +822,8 @@ struct CostUsageFetcherTests {
             now: day,
             forceRefresh: true,
             scannerOptions: nativeOptions,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         #expect(refreshed.daily.first?.totalTokens == 176)
     }

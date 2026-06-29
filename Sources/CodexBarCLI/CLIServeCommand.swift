@@ -859,7 +859,8 @@ extension CodexBarCLI {
             do {
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
-                    forceRefresh: false)
+                    forceRefresh: false,
+                    sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
                 payload.append(Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil))
             } catch {
                 payload.append(Self.makeCostPayload(provider: provider, snapshot: nil, error: error))

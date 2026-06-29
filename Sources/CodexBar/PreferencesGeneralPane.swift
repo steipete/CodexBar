@@ -183,7 +183,8 @@ struct GeneralPane: View {
                                         }
                                         .toggleStyle(.checkbox)
 
-                                        Text("Session files are scanned locally; raw prompts are not shown in CodexBar.")
+                                        Text(
+                                            "Session files are scanned locally; raw prompts are not shown in CodexBar.")
                                             .font(.footnote)
                                             .foregroundStyle(.tertiary)
                                     }

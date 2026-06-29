@@ -414,9 +414,7 @@ extension SettingsStore {
         let costSummaryDisplayStyleRaw = Self.loadCostSummaryDisplayStyleRaw(
             userDefaults: userDefaults,
             costUsageEnabled: costUsageEnabled)
-        let costUsagePiSessionsEnabled = userDefaults.object(forKey: "tokenCostPiSessionsEnabled") as? Bool ?? true
-        let costUsageKimiCodeSessionsEnabled = userDefaults.object(
-            forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool ?? true
+        let costUsageSourceDefaults = Self.loadCostUsageSourceDefaults(userDefaults: userDefaults)
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnWeeklyLimitResetsEnabled = userDefaults.object(
@@ -492,8 +490,8 @@ extension SettingsStore {
             costUsageEnabled: costUsageEnabled,
             costUsageHistoryDays: costUsageHistoryDays,
             costSummaryDisplayStyleRaw: costSummaryDisplayStyleRaw,
-            costUsagePiSessionsEnabled: costUsagePiSessionsEnabled,
-            costUsageKimiCodeSessionsEnabled: costUsageKimiCodeSessionsEnabled,
+            costUsagePiSessionsEnabled: costUsageSourceDefaults.piSessionsEnabled,
+            costUsageKimiCodeSessionsEnabled: costUsageSourceDefaults.kimiCodeSessionsEnabled,
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,
             confettiOnWeeklyLimitResetsEnabled: confettiOnWeeklyLimitResetsEnabled,
@@ -515,6 +513,14 @@ extension SettingsStore {
             providersSortedAlphabetically: providersSortedAlphabetically,
             appLanguageRaw: appLanguageRaw,
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"))
+    }
+
+    private static func loadCostUsageSourceDefaults(userDefaults: UserDefaults)
+        -> (piSessionsEnabled: Bool, kimiCodeSessionsEnabled: Bool)
+    {
+        (
+            userDefaults.object(forKey: "tokenCostPiSessionsEnabled") as? Bool ?? true,
+            userDefaults.object(forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool ?? true)
     }
 
     private static func loadCostSummaryDisplayStyleRaw(

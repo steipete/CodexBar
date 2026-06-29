@@ -45,7 +45,8 @@ extension CodexBarCLI {
                     provider: provider,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,
-                    refreshPricingInBackground: false)
+                    refreshPricingInBackground: false,
+                    sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
                 switch format {
                 case .text:
                     sections.append(Self.renderCostText(provider: provider, snapshot: snapshot, useColor: useColor))

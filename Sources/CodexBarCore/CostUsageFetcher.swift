@@ -22,8 +22,8 @@ public struct CostUsageSourceOptions: Sendable, Equatable {
     public var kimiCodeSessionsEnabled: Bool
 
     public init(
-        piSessionsEnabled: Bool = true,
-        kimiCodeSessionsEnabled: Bool = true)
+        piSessionsEnabled: Bool = false,
+        kimiCodeSessionsEnabled: Bool = false)
     {
         self.piSessionsEnabled = piSessionsEnabled
         self.kimiCodeSessionsEnabled = kimiCodeSessionsEnabled
