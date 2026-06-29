@@ -1036,16 +1036,6 @@
         :root { --header-height: 6rem; }
       }
 
-      @media (max-width: 640px) {
-        .hero-copy {
-          width: 100%;
-          padding: 3.5rem 1.25rem 0;
-          text-align: center;
-        }
-        .mockup-wrap { top: 20rem; width: 190%; }
-        .codex-popover { border-radius: 0.65rem; }
-      }
-
       .features-section {
         position: relative;
         border-top: 1px solid var(--page-line);
@@ -1556,7 +1546,7 @@
         }
       }
 
-      @media (min-width: 641px) and (max-width: 1023px) {
+      @media (min-width: 769px) and (max-width: 1023px) {
         .hero-copy {
           width: min(64vw, 34rem);
           padding-left: clamp(2rem, 6vw, 4rem);
@@ -2211,7 +2201,7 @@
         }
       }
 
-      @media (max-width: 640px) {
+      @media (max-width: 768px) {
         main#top > section:first-child {
           display: flex;
           min-height: auto;
@@ -2343,6 +2333,7 @@
           width: var(--mobile-popover-width);
           transform: translate(-50%, 0) scale(var(--mobile-popover-scale));
           transform-origin: top center;
+          border-radius: 0.65rem;
         }
 
         .provider-section,
@@ -2568,7 +2559,7 @@
           class="download-button button-press inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium sm:h-10 sm:px-5"
         >
           <span class="grid h-4 w-4 place-items-center" aria-hidden="true">
-            <img src="https://cdn.simpleicons.org/apple" alt="" class="apple-icon" />
+            <img src="./images/apple.svg" alt="" class="apple-icon" />
           </span>
           <span data-i18n="nav.download">download</span>
         </a>
@@ -2588,14 +2579,14 @@
           <div class="mockup-hud-layer">
             <div class="mockup-screen-hud">
             <div class="system-menubar" aria-label="macOS menu bar status items" data-i18n-aria-label="mockup.menuBarAria">
-              <img class="sf-symbol" src="https://raw.githubusercontent.com/cameronshemilt/MoreSFSymbols/main/preview-images/logos/logo.github.circle.fill.png" alt="" aria-hidden="true" />
+              <img class="sf-symbol" src="./images/menubar/github-circle-fill.png" alt="" aria-hidden="true" />
               <div class="menu-bar-mark" aria-label="CodexBar menu bar icon" data-i18n-aria-label="mockup.menuIconAria">
                 <span></span>
                 <span></span>
               </div>
-              <img class="sf-symbol" src="https://raw.githubusercontent.com/andrewtavis/sf-symbols-online/master/glyphs/wifi.png" alt="" aria-hidden="true" />
-              <img class="sf-symbol" src="https://raw.githubusercontent.com/andrewtavis/sf-symbols-online/master/glyphs/personalhotspot.png" alt="" aria-hidden="true" />
-              <img class="sf-symbol" src="https://raw.githubusercontent.com/andrewtavis/sf-symbols-online/refs/heads/master/glyphs/person.circle.png" alt="" aria-hidden="true" />
+              <img class="sf-symbol" src="./images/menubar/wifi.png" alt="" aria-hidden="true" />
+              <img class="sf-symbol" src="./images/menubar/personalhotspot.png" alt="" aria-hidden="true" />
+              <img class="sf-symbol" src="./images/menubar/person-circle.png" alt="" aria-hidden="true" />
               <span class="time" id="menu-time">Sun Jun 28&nbsp;&nbsp;9:41 AM</span>
             </div>
             <aside class="codex-popover" aria-label="Open CodexBar usage panel" data-i18n-aria-label="mockup.usagePanelAria">
@@ -2676,7 +2667,7 @@
               class="download-button hero-download button-press inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium"
             >
               <span class="grid h-4 w-4 place-items-center" aria-hidden="true">
-                <img src="https://cdn.simpleicons.org/apple" alt="" class="apple-icon" />
+                <img src="./images/apple.svg" alt="" class="apple-icon" />
               </span>
               <span data-i18n="hero.download">Download for macOS</span>
             </a>
@@ -3213,7 +3204,7 @@
         <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="panel" aria-selected="false">panel</button>
       </div>
       <div id="tuner-controls" class="space-y-3"></div>
-      <p id="tuner-hint" class="mt-3 font-mono text-[10px] leading-relaxed text-zinc-600">≥721px hero · copy CSS into :root</p>
+      <p id="tuner-hint" class="mt-3 font-mono text-[10px] leading-relaxed text-zinc-600">≥769px hero · copy CSS into :root</p>
     </aside>
 
     <script type="module">
@@ -3222,7 +3213,7 @@
       const tunerModes = {
         desktop: {
           label: 'desktop tuner',
-          hint: '≥721px hero · copy CSS into :root',
+          hint: '≥769px hero · copy CSS into :root',
           storageKey: 'codexbar-tuner-desktop-v1',
           groups: {
             mockup: [
@@ -3251,7 +3242,7 @@
         },
         mobile: {
           label: 'mobile tuner',
-          hint: '≤720px only · copy CSS into :root',
+          hint: '≤768px only · copy CSS into :root',
           storageKey: 'codexbar-tuner-mobile-v1',
           groups: {
             mockup: [
@@ -3277,7 +3268,7 @@
       };
 
       const tunerModeStorageKey = 'codexbar-tuner-active-mode';
-      const mobileTunerMedia = window.matchMedia('(max-width: 720px)');
+      const mobileTunerMedia = window.matchMedia('(max-width: 768px)');
 
       function getModeFields(modeName) {
         return Object.values(tunerModes[modeName].groups).flat();
