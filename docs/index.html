@@ -107,6 +107,27 @@
         --popover-x: 240px;
         --popover-y: 35px;
         --popover-scale: 1.51;
+        /* hero-mockup.png artboard 6390×4480 — inner display rect + top-right HUD padding */
+        --mockup-screen-left: 25.853%;
+        --mockup-screen-right-inset: 0.11%;
+        --mockup-screen-bottom-inset: 44.22%;
+        --mockup-hud-menubar-top: 9.04%;
+        --mockup-hud-menubar-right: 20.7%;
+        --mockup-hud-popover-top: 15%;
+        --mockup-hud-popover-right: 28%;
+        --mockup-hud-popover-width: 23.95%;
+        --mobile-mockup-stage-height: 33.5rem;
+        --mobile-mockup-width: 251%;
+        --mobile-mockup-offset-x: 11px;
+        --mobile-mockup-offset-y: 18px;
+        --mobile-mockup-scale: 0.99;
+        --mobile-menubar-top: 12%;
+        --mobile-menubar-x: 28px;
+        --mobile-menubar-scale: 0.82;
+        --mobile-menubar-gap: 0.92rem;
+        --mobile-popover-top: 20%;
+        --mobile-popover-width: 20.45rem;
+        --mobile-popover-scale: 1.01;
       }
 
       :root[data-theme="light"] {
@@ -197,6 +218,35 @@
         z-index: 1;
       }
 
+      /* Desktop: tracks the mockup image transform; mobile: fills the clipped stage */
+      .mockup-hud-layer {
+        position: absolute;
+        z-index: 2;
+        top: var(--header-height);
+        left: 50%;
+        width: 118%;
+        aspect-ratio: 6390 / 4480;
+        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y)) scale(var(--mockup-scale));
+        transform-origin: top center;
+        pointer-events: none;
+        will-change: transform;
+      }
+
+      /* HUD layer: percentages are relative to the inner display, not the full PNG bezel */
+      .mockup-screen-hud {
+        position: absolute;
+        z-index: 2;
+        top: 0;
+        right: var(--mockup-screen-right-inset);
+        bottom: var(--mockup-screen-bottom-inset);
+        left: var(--mockup-screen-left);
+        pointer-events: none;
+      }
+
+      .mockup-screen-hud > * {
+        pointer-events: auto;
+      }
+
       .menu-bar-mark {
         position: relative;
         flex: none;
@@ -251,21 +301,22 @@
         --mark-bar-delay: 150ms;
       }
 
-      .mockup-wrap.is-mark-animated .menu-bar-mark span::before {
+      .mockup-stage.is-mark-animated .menu-bar-mark span::before {
         transform: scaleX(var(--mark-fill));
       }
 
       .system-menubar {
         position: absolute;
         z-index: 3;
-        top: 5.8%;
-        left: 59.2%;
+        top: var(--mockup-hud-menubar-top);
+        right: var(--mockup-hud-menubar-right);
+        left: auto;
         display: flex;
         align-items: center;
         gap: var(--menubar-gap);
         overflow: visible;
         transform: translate(var(--menubar-x), var(--menubar-y)) scale(var(--menubar-scale));
-        transform-origin: left center;
+        transform-origin: top right;
         color: rgba(245, 245, 245, 0.94);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
         font-size: clamp(0.95rem, 1.08vw, 1.48rem);
@@ -319,21 +370,21 @@
         transform: translateY(calc(0.01em - 0.42em));
       }
 
-      .mockup-wrap.is-menubar-entered .system-menubar > * {
+      .mockup-stage.is-menubar-entered .system-menubar > * {
         opacity: 1;
         transform: translateY(0);
       }
 
-      .mockup-wrap.is-menubar-entered .system-menubar > .menu-bar-mark {
+      .mockup-stage.is-menubar-entered .system-menubar > .menu-bar-mark {
         transform: translateY(0.01em);
       }
 
       .codex-popover {
         position: absolute;
         z-index: 4;
-        top: 9.15%;
-        right: 22.35%;
-        width: calc(18.2% - 30px);
+        top: var(--mockup-hud-popover-top);
+        right: var(--mockup-hud-popover-right);
+        width: var(--mockup-hud-popover-width);
         box-sizing: border-box;
         padding: 0.78rem 0.82rem 0.9rem;
         transform: translate(var(--popover-x), var(--popover-y)) scale(var(--popover-scale));
@@ -356,7 +407,7 @@
         transition: opacity 480ms cubic-bezier(0.23, 1, 0.32, 1);
       }
 
-      .mockup-wrap.is-animated .codex-popover {
+      .mockup-stage.is-animated .codex-popover {
         opacity: 1;
       }
 
@@ -441,9 +492,9 @@
         transition: opacity 180ms ease calc(var(--meter-delay, 420ms) + 420ms);
       }
 
-      .mockup-wrap.is-animated .usage-meter::before { transform: scaleX(1); }
-      .mockup-wrap.is-animated .usage-meter::after,
-      .mockup-wrap.is-animated .usage-meter i { opacity: 1; }
+      .mockup-stage.is-animated .usage-meter::before { transform: scaleX(1); }
+      .mockup-stage.is-animated .usage-meter::after,
+      .mockup-stage.is-animated .usage-meter i { opacity: 1; }
 
       .usage-row {
         display: grid;
@@ -512,7 +563,7 @@
           opacity 220ms ease var(--bar-delay, 760ms);
       }
 
-      .mockup-wrap.is-animated .usage-chart i {
+      .mockup-stage.is-animated .usage-chart i {
         opacity: 1;
         transform: scaleY(1);
       }
@@ -557,7 +608,8 @@
       .tuner-panel { backdrop-filter: blur(18px); }
       .tuner-range { accent-color: #f4f4f5; }
 
-      .tuner-tab[aria-selected="true"] {
+      .tuner-tab[aria-selected="true"],
+      .tuner-mode[aria-selected="true"] {
         background: rgba(255, 255, 255, 0.11);
         color: #fff;
       }
@@ -1225,7 +1277,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 0.7rem;
-        margin: 0 0 0.9rem;
+        margin: 0 0 1.2rem;
         color: #fff;
         font-size: 1.02em;
         font-weight: 650;
@@ -1494,7 +1546,8 @@
           padding-top: clamp(8rem, 20vh, 10.4rem);
         }
 
-        .mockup-wrap {
+        .mockup-wrap,
+        .mockup-hud-layer {
           transform: translate(calc(-50% + min(var(--mockup-x), 7.25vw)), -18px) scale(0.98);
         }
 
@@ -2055,6 +2108,16 @@
         .site-footer a:hover { color: var(--page-text); }
       }
 
+      @media (max-width: 1023px) {
+        .cli-section .split-layout .split-copy {
+          order: 1;
+        }
+
+        .cli-section .split-layout .split-visual-wrap {
+          order: 2;
+        }
+      }
+
       @media (max-width: 720px) {
         .cli-section,
         .widgets-section,
@@ -2222,7 +2285,7 @@
         .mockup-stage {
           position: relative;
           order: 2;
-          height: 25rem;
+          height: var(--mobile-mockup-stage-height);
           margin-top: 1.35rem;
           overflow: hidden;
         }
@@ -2233,32 +2296,53 @@
 
         .mockup-wrap {
           top: 0;
-          width: 235%;
-          transform: translate(-50%, 0) scale(1);
+          left: auto;
+          right: 0;
+          width: var(--mobile-mockup-width);
+          transform: translate(var(--mobile-mockup-offset-x), var(--mobile-mockup-offset-y)) scale(var(--mobile-mockup-scale));
+          transform-origin: top right;
         }
 
         .mockup-wrap::after {
           height: 42%;
         }
 
+        .mockup-hud-layer {
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: auto;
+          aspect-ratio: auto;
+          transform: none;
+          z-index: 5;
+        }
+
+        .mockup-screen-hud {
+          top: 0;
+          right: 0;
+          bottom: 0;
+          left: 0;
+        }
+
         .system-menubar {
-          top: 5.2%;
-          right: 28%;
-          left: auto;
+          top: var(--mobile-menubar-top);
+          right: auto;
+          left: 50%;
           display: flex;
-          gap: 0.78rem;
-          transform: translate(0, 0) scale(0.58);
-          transform-origin: top right;
+          gap: var(--mobile-menubar-gap);
+          transform: translate(calc(-50% + var(--mobile-menubar-x)), 0) scale(var(--mobile-menubar-scale));
+          transform-origin: top center;
           font-size: 1.18rem;
         }
 
         .codex-popover {
-          top: 11.4%;
-          right: 33%;
-          left: auto;
-          width: 16.45rem;
-          transform: translate(0, 0) scale(0.74);
-          transform-origin: top right;
+          top: var(--mobile-popover-top);
+          right: auto;
+          left: 50%;
+          width: var(--mobile-popover-width);
+          transform: translate(-50%, 0) scale(var(--mobile-popover-scale));
+          transform-origin: top center;
         }
 
         .provider-section,
@@ -2493,13 +2577,16 @@
 
     <main id="top">
       <section class="relative min-h-screen overflow-hidden pt-20 sm:pt-24">
-          <div class="mockup-stage" aria-label="CodexBar open in the macOS menu bar" data-i18n-aria-label="mockup.openPanelAria">
+          <div class="mockup-stage" id="mockup-stage" aria-label="CodexBar open in the macOS menu bar" data-i18n-aria-label="mockup.openPanelAria">
           <div class="mockup-glow" aria-hidden="true"></div>
           <div class="mockup-wrap" id="mockup-wrap">
             <picture>
               <source srcset="./hero-mockup.webp" type="image/webp" />
               <img src="./hero-mockup.png" alt="MacBook menu bar" data-i18n-alt="mockup.macbookAlt" class="block h-full w-full select-none object-contain" draggable="false" width="6390" height="4480" />
             </picture>
+          </div>
+          <div class="mockup-hud-layer">
+            <div class="mockup-screen-hud">
             <div class="system-menubar" aria-label="macOS menu bar status items" data-i18n-aria-label="mockup.menuBarAria">
               <img class="sf-symbol" src="https://raw.githubusercontent.com/cameronshemilt/MoreSFSymbols/main/preview-images/logos/logo.github.circle.fill.png" alt="" aria-hidden="true" />
               <div class="menu-bar-mark" aria-label="CodexBar menu bar icon" data-i18n-aria-label="mockup.menuIconAria">
@@ -2537,7 +2624,7 @@
 
               <section class="reset-credit">
                 <p><strong data-i18n="mockup.limitResetCredits">Limit Reset Credits</strong><span data-i18n="mockup.nextExpires28d2h">Next expires in 28d 2h</span></p>
-                <p><strong data-i18n="mockup.manualResetAvailable">1 manual reset available</strong></p>
+                <p><strong data-i18n="mockup.manualResetAvailable">1 reset available</strong></p>
               </section>
 
               <section class="number-grid" aria-label="Recent Codex usage" data-i18n-aria-label="mockup.recentUsageAria">
@@ -2563,6 +2650,7 @@
                 </p>
               </section>
             </aside>
+            </div>
           </div>
         </div>
 
@@ -2741,7 +2829,7 @@
                   <div class="feature-cost-panel">
                     <div class="feature-credit-head">
                       <p><strong data-i18n="mockup.limitResetCredits">Limit Reset Credits</strong><span data-i18n="mockup.nextExpires27d21h">Next expires in 27d 21h</span></p>
-                      <p><strong data-i18n="mockup.manualResetAvailable">1 manual reset available</strong></p>
+                      <p><strong data-i18n="mockup.manualResetAvailable">1 reset available</strong></p>
                     </div>
                     <dl class="feature-cost-stats">
                       <div>
@@ -3109,60 +3197,101 @@
 
     <aside id="tuner-panel" hidden class="tuner-panel fixed bottom-16 right-4 z-50 hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/90 p-4 text-left shadow-2xl">
       <div class="mb-3 flex items-center justify-between">
-        <p class="font-mono text-xs text-zinc-300">tuner</p>
+        <p id="tuner-mode-label" class="font-mono text-xs text-zinc-300">desktop tuner</p>
         <div class="flex items-center gap-3">
           <button id="tuner-copy" type="button" class="button-press text-xs text-zinc-300 hover:text-white">copy CSS</button>
           <button id="tuner-reset" type="button" class="button-press text-xs text-zinc-500 hover:text-white">reset</button>
         </div>
       </div>
-      <div id="tuner-tabs" class="mb-4 grid grid-cols-4 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
+      <div id="tuner-mode" class="mb-3 grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
+        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="desktop" aria-selected="true">desktop</button>
+        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="mobile" aria-selected="false">mobile</button>
+      </div>
+      <div id="tuner-tabs" class="mb-4 grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
         <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="mockup" aria-selected="true">mockup</button>
-        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="glow" aria-selected="false">glow</button>
         <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="menubar" aria-selected="false">menu</button>
         <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="panel" aria-selected="false">panel</button>
       </div>
       <div id="tuner-controls" class="space-y-3"></div>
+      <p id="tuner-hint" class="mt-3 font-mono text-[10px] leading-relaxed text-zinc-600">≥721px hero · copy CSS into :root</p>
     </aside>
 
     <script type="module">
       import { localeCatalog, localeMessages } from './site-locales.mjs';
 
-      const tunerGroups = {
-        mockup: [
-          ['Mockup X', '--mockup-x', -400, 400, 1, 'px'],
-          ['Mockup Y', '--mockup-y', -220, 220, 1, 'px'],
-          ['Mockup scale', '--mockup-scale', 0.7, 1.45, 0.01, ''],
-        ],
-        glow: [
-          ['Glow X', '--glow-x', -500, 500, 1, 'px'],
-          ['Glow Y', '--glow-y', -260, 520, 1, 'px'],
-          ['Glow scale', '--glow-scale', 0.2, 2.4, 0.01, ''],
-          ['Glow opacity', '--glow-opacity', 0, 1, 0.01, ''],
-          ['Glow blur', '--glow-blur', 0, 160, 1, 'px'],
-          ['Glow color A', '--glow-color-a', null, null, null, 'color'],
-          ['Glow color B', '--glow-color-b', null, null, null, 'color'],
-        ],
-        menubar: [
-          ['Menu X', '--menubar-x', -260, 260, 1, 'px'],
-          ['Menu Y', '--menubar-y', -160, 160, 1, 'px'],
-          ['Menu scale', '--menubar-scale', 0.5, 1.8, 0.01, ''],
-          ['Menu gap', '--menubar-gap', 0, 54, 1, 'px'],
-          ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
-        ],
-        panel: [
-          ['Panel X', '--popover-x', -360, 360, 1, 'px'],
-          ['Panel Y', '--popover-y', -220, 300, 1, 'px'],
-          ['Panel scale', '--popover-scale', 0.5, 1.6, 0.01, ''],
-        ],
+      const tunerModes = {
+        desktop: {
+          label: 'desktop tuner',
+          hint: '≥721px hero · copy CSS into :root',
+          storageKey: 'codexbar-tuner-desktop-v1',
+          groups: {
+            mockup: [
+              ['Mockup X', '--mockup-x', -400, 400, 1, 'px'],
+              ['Mockup Y', '--mockup-y', -220, 220, 1, 'px'],
+              ['Mockup scale', '--mockup-scale', 0.5, 1.5, 0.01, ''],
+            ],
+            menubar: [
+              ['HUD top', '--mockup-hud-menubar-top', 0, 12, 0.01, '%'],
+              ['HUD right', '--mockup-hud-menubar-right', 20, 55, 0.1, '%'],
+              ['Menu X', '--menubar-x', -200, 400, 1, 'px'],
+              ['Menu Y', '--menubar-y', -80, 120, 1, 'px'],
+              ['Menu scale', '--menubar-scale', 0.5, 2, 0.01, ''],
+              ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
+              ['Menu gap', '--menubar-gap', 8, 40, 1, 'px'],
+            ],
+            panel: [
+              ['HUD top', '--mockup-hud-popover-top', 5, 20, 0.01, '%'],
+              ['HUD right', '--mockup-hud-popover-right', 15, 45, 0.1, '%'],
+              ['HUD width', '--mockup-hud-popover-width', 15, 35, 0.05, '%'],
+              ['Panel X', '--popover-x', -360, 360, 1, 'px'],
+              ['Panel Y', '--popover-y', -220, 300, 1, 'px'],
+              ['Panel scale', '--popover-scale', 0.5, 2, 0.01, ''],
+            ],
+          },
+        },
+        mobile: {
+          label: 'mobile tuner',
+          hint: '≤720px only · copy CSS into :root',
+          storageKey: 'codexbar-tuner-mobile-v1',
+          groups: {
+            mockup: [
+              ['Stage height', '--mobile-mockup-stage-height', 16, 40, 0.25, 'rem'],
+              ['Mockup width', '--mobile-mockup-width', 180, 320, 1, '%'],
+              ['Shift X', '--mobile-mockup-offset-x', -280, 80, 1, 'px'],
+              ['Shift Y', '--mobile-mockup-offset-y', -80, 120, 1, 'px'],
+              ['Mockup scale', '--mobile-mockup-scale', 0.6, 1.4, 0.01, ''],
+            ],
+            menubar: [
+              ['Menu top', '--mobile-menubar-top', 0, 20, 0.1, '%'],
+              ['Menu X', '--mobile-menubar-x', -120, 120, 1, 'px'],
+              ['Menu scale', '--mobile-menubar-scale', 0.4, 1.2, 0.01, ''],
+              ['Menu gap', '--mobile-menubar-gap', 0.4, 1.5, 0.02, 'rem'],
+            ],
+            panel: [
+              ['Panel top', '--mobile-popover-top', 5, 30, 0.1, '%'],
+              ['Panel width', '--mobile-popover-width', 14, 24, 0.05, 'rem'],
+              ['Panel scale', '--mobile-popover-scale', 0.5, 1.2, 0.01, ''],
+            ],
+          },
+        },
       };
 
-      const tunerFields = Object.values(tunerGroups).flat();
+      const tunerModeStorageKey = 'codexbar-tuner-active-mode';
+      const mobileTunerMedia = window.matchMedia('(max-width: 720px)');
+
+      function getModeFields(modeName) {
+        return Object.values(tunerModes[modeName].groups).flat();
+      }
+
+      function getAllTunerFields() {
+        return Object.keys(tunerModes).flatMap(getModeFields);
+      }
 
       function readTunerDefaults() {
         const styles = getComputedStyle(document.documentElement);
         const defaults = {};
 
-        tunerFields.forEach(([, name, , , , unit]) => {
+        getAllTunerFields().forEach(([, name, , , , unit]) => {
           const raw = styles.getPropertyValue(name).trim();
           if (unit === 'color') {
             defaults[name] = raw;
@@ -3183,12 +3312,24 @@
       const panel = document.querySelector('#tuner-panel');
       const toggle = document.querySelector('#tuner-toggle');
       const tabButtons = document.querySelectorAll('[data-tuner-tab]');
-      const tunerStorageKey = 'codexbar-tuner-v4';
-      const savedValues = JSON.parse(localStorage.getItem(tunerStorageKey) || '{}');
-      const values = { ...cssDefaults, ...savedValues };
+      const modeButtons = document.querySelectorAll('[data-tuner-mode]');
+      const modeLabel = document.querySelector('#tuner-mode-label');
+      const modeHint = document.querySelector('#tuner-hint');
+      const storedMode = localStorage.getItem(tunerModeStorageKey);
+      let activeMode = storedMode === 'mobile' || storedMode === 'desktop'
+        ? storedMode
+        : (mobileTunerMedia.matches ? 'mobile' : 'desktop');
+
+      const values = { ...cssDefaults };
+
+      Object.entries(tunerModes).forEach(([, mode]) => {
+        const saved = JSON.parse(localStorage.getItem(mode.storageKey) || '{}');
+        Object.assign(values, saved);
+      });
+
       const hexColorPattern = /^#[0-9a-f]{6}$/i;
 
-      tunerFields.forEach(([, name, , , , unit]) => {
+      getAllTunerFields().forEach(([, name, , , , unit]) => {
         if (unit === 'color') {
           if (typeof values[name] !== 'string' || !hexColorPattern.test(values[name])) {
             values[name] = cssDefaults[name];
@@ -3203,14 +3344,34 @@
         root.style.setProperty(name, unit === 'color' ? value : `${value}${unit}`);
       }
 
-      function resetTunerValues() {
-        localStorage.removeItem(tunerStorageKey);
+      function getActiveFields() {
+        return getModeFields(activeMode);
+      }
 
-        tunerFields.forEach(([, name]) => {
-          root.style.removeProperty(name);
+      function updateModeUI() {
+        const mode = tunerModes[activeMode];
+        modeLabel.textContent = mode.label;
+        modeHint.textContent = mode.hint;
+        modeButtons.forEach((button) => {
+          button.setAttribute('aria-selected', String(button.dataset.tunerMode === activeMode));
         });
+      }
 
-        tunerFields.forEach(([, name, , , , unit]) => {
+      function setActiveMode(modeName) {
+        if (!tunerModes[modeName] || modeName === activeMode) return;
+        activeMode = modeName;
+        localStorage.setItem(tunerModeStorageKey, activeMode);
+        updateModeUI();
+        const activeTab = document.querySelector('[data-tuner-tab][aria-selected="true"]')?.dataset.tunerTab || 'mockup';
+        renderTunerGroup(activeTab);
+      }
+
+      function resetTunerValues() {
+        const mode = tunerModes[activeMode];
+        localStorage.removeItem(mode.storageKey);
+
+        getActiveFields().forEach(([, name]) => {
+          root.style.removeProperty(name);
           values[name] = cssDefaults[name];
         });
 
@@ -3219,7 +3380,12 @@
       }
 
       function saveValues() {
-        localStorage.setItem(tunerStorageKey, JSON.stringify(values));
+        const mode = tunerModes[activeMode];
+        const payload = {};
+        getActiveFields().forEach(([, name]) => {
+          payload[name] = values[name];
+        });
+        localStorage.setItem(mode.storageKey, JSON.stringify(payload));
       }
 
       async function copyText(text) {
@@ -3238,25 +3404,23 @@
       }
 
       function getTunerPayload() {
+        const mode = tunerModes[activeMode];
         const formatValue = ([, name, , , , unit]) => {
           const value = values[name];
           return `  ${name}: ${unit === 'color' ? value : `${value}${unit}`};`;
         };
 
         return [
-          '/* CodexBar landing tuner — paste into :root in docs/index.html */',
+          `/* CodexBar ${activeMode} tuner — paste into :root in docs/index.html */`,
           '',
-          '/* mockup */',
-          ...tunerGroups.mockup.map(formatValue),
+          `/* ${activeMode} mockup */`,
+          ...mode.groups.mockup.map(formatValue),
           '',
-          '/* glow */',
-          ...tunerGroups.glow.map(formatValue),
+          `/* ${activeMode} menubar */`,
+          ...mode.groups.menubar.map(formatValue),
           '',
-          '/* menubar */',
-          ...tunerGroups.menubar.map(formatValue),
-          '',
-          '/* panel */',
-          ...tunerGroups.panel.map(formatValue),
+          `/* ${activeMode} panel */`,
+          ...mode.groups.panel.map(formatValue),
         ].join('\n');
       }
 
@@ -3279,8 +3443,9 @@
       }
 
       function renderTunerGroup(groupName) {
+        const mode = tunerModes[activeMode];
         controls.replaceChildren();
-        tunerGroups[groupName].forEach(([label, name, min, max, step, unit]) => {
+        mode.groups[groupName].forEach(([label, name, min, max, step, unit]) => {
           const row = document.createElement('label');
           row.className = 'grid grid-cols-[6.5rem_1fr_3.5rem] items-center gap-2 text-[11px] text-zinc-500';
           if (unit === 'color') {
@@ -3299,8 +3464,13 @@
         });
       }
 
-      tunerFields.forEach(([, name, , , , unit]) => applyValue(name, values[name], unit));
+      getAllTunerFields().forEach(([, name, , , , unit]) => applyValue(name, values[name], unit));
+      updateModeUI();
       renderTunerGroup('mockup');
+
+      modeButtons.forEach((button) => {
+        button.addEventListener('click', () => setActiveMode(button.dataset.tunerMode));
+      });
 
       tabButtons.forEach((button) => {
         button.addEventListener('click', () => {
@@ -3459,9 +3629,14 @@
           return span;
         }
         if (name === 'break') {
+          const wrapper = document.createDocumentFragment();
+          const space = document.createElement('span');
+          space.className = 'inline sm:hidden';
+          space.textContent = ' ';
           const br = document.createElement('br');
           br.className = 'hidden sm:block';
-          return br;
+          wrapper.append(space, br);
+          return wrapper;
         }
         return document.createTextNode(`{${name}}`);
       }
@@ -3601,8 +3776,8 @@
         syncScrollFade();
       });
 
-      const mockupWrap = document.querySelector('#mockup-wrap');
-      const menubarItems = mockupWrap.querySelectorAll('.system-menubar > *');
+      const mockupStage = document.querySelector('#mockup-stage');
+      const menubarItems = mockupStage.querySelectorAll('.system-menubar > *');
       const menubarWaveGap = 72;
       const menubarStartDelay = 320;
       const markStartDelay = menubarStartDelay + menubarItems.length * menubarWaveGap + 180;
@@ -3612,14 +3787,14 @@
         item.style.setProperty('--menubar-enter-delay', `${index * menubarWaveGap}ms`);
       });
 
-      window.setTimeout(() => mockupWrap.classList.add('is-menubar-entered'), menubarStartDelay);
-      window.setTimeout(() => mockupWrap.classList.add('is-mark-animated'), markStartDelay);
+      window.setTimeout(() => mockupStage.classList.add('is-menubar-entered'), menubarStartDelay);
+      window.setTimeout(() => mockupStage.classList.add('is-mark-animated'), markStartDelay);
       window.setTimeout(() => {
-        mockupWrap.classList.add('is-animated');
-        mockupWrap.querySelectorAll('.usage-meter').forEach((meter, index) => {
+        mockupStage.classList.add('is-animated');
+        mockupStage.querySelectorAll('.usage-meter').forEach((meter, index) => {
           meter.style.setProperty('--meter-delay', `${index * 150}ms`);
         });
-        mockupWrap.querySelectorAll('.usage-chart i').forEach((bar, index) => {
+        mockupStage.querySelectorAll('.usage-chart i').forEach((bar, index) => {
           bar.style.setProperty('--bar-delay', `${280 + index * 14}ms`);
         });
       }, popoverStartDelay);
@@ -3629,6 +3804,13 @@
         panel.classList.toggle('hidden', !open);
         toggle.setAttribute('aria-expanded', String(open));
         toggle.textContent = open ? 'close tuner' : 'tune';
+      }
+
+      const tunerEnabled = ['localhost', '127.0.0.1'].includes(location.hostname)
+        || new URLSearchParams(location.search).has('tuner');
+
+      if (tunerEnabled) {
+        toggle.hidden = false;
       }
 
       toggle.addEventListener('click', () => setTunerOpen(panel.hidden));
