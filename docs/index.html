@@ -55,6 +55,9 @@
       tailwind.config = {
         theme: {
           extend: {
+            screens: {
+              tablet: '769px',
+            },
             fontFamily: {
               sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
               mono: ['SFMono-Regular', 'SF Mono', 'Menlo', 'monospace'],
@@ -86,12 +89,14 @@
         --control-active-text: #fff;
         --primary-bg: #f4f4f5;
         --primary-text: #09090b;
-        --primary-hover: #fff;
+        --primary-hover: #e4e4e7;
         --apple-filter: none;
         --header-height: 5rem;
         --mockup-x: -87px;
         --mockup-y: 6px;
         --mockup-scale: 0.77;
+        --mockup-tune-width: 1920;
+        --mockup-fluid-max: 1.22;
         --glow-x: 331px;
         --glow-y: -260px;
         --glow-scale: 2.4;
@@ -99,22 +104,28 @@
         --glow-blur: 72px;
         --glow-color-a: #003c61;
         --glow-color-b: #8000ff;
-        --menubar-x: 170px;
+        --menubar-x: 183px;
         --menubar-y: 16px;
-        --menubar-scale: 1.37;
+        --menubar-scale: 1.47;
         --menubar-gap: 22px;
         --menubar-icon-scale: 1.28;
-        --popover-x: 240px;
-        --popover-y: 35px;
+        --popover-x: 355px;
+        --popover-y: -3px;
         --popover-scale: 1.51;
-        /* hero-mockup.png artboard 6390×4480 — inner display rect + top-right HUD padding */
-        --mockup-screen-left: 25.853%;
-        --mockup-screen-right-inset: 0.11%;
-        --mockup-screen-bottom-inset: 44.22%;
+        --narrow-menubar-x: 148px;
+        --narrow-menubar-y: 16px;
+        --narrow-menubar-scale: 1.27;
+        --narrow-popover-x: 305px;
+        --narrow-popover-y: -3px;
+        --narrow-popover-scale: 1.35;
+        /* hero-mockup.svg artboard 6111×3239 — inner display rect + HUD padding */
+        --mockup-screen-left: 2.31%;
+        --mockup-screen-right-inset: 2.3%;
+        --mockup-screen-bottom-inset: 0%;
         --mockup-hud-menubar-top: 9.04%;
         --mockup-hud-menubar-right: 20.7%;
-        --mockup-hud-popover-top: 15%;
-        --mockup-hud-popover-right: 28%;
+        --mockup-hud-popover-top: 20%;
+        --mockup-hud-popover-right: 35.4%;
         --mockup-hud-popover-width: 23.95%;
         --mobile-mockup-stage-height: 33.5rem;
         --mobile-mockup-width: 251%;
@@ -123,11 +134,23 @@
         --mobile-mockup-scale: 0.99;
         --mobile-menubar-top: 12%;
         --mobile-menubar-x: 28px;
+        --mobile-menubar-y: 0px;
         --mobile-menubar-scale: 0.82;
         --mobile-menubar-gap: 0.92rem;
         --mobile-popover-top: 20%;
+        --mobile-popover-x: 0px;
+        --mobile-popover-y: 0px;
         --mobile-popover-width: 20.45rem;
         --mobile-popover-scale: 1.01;
+        --tablet-popover-width: 18.5rem;
+        --tablet-popover-x: 252px;
+        --tablet-popover-y: 0.5rem;
+        --tablet-popover-scale: 1.18;
+        --tablet-mockup-x: -80px;
+        --tablet-mockup-y: 13px;
+        --tablet-mockup-scale: 0.92;
+        --tablet-mockup-tune-width: 1022;
+        --tablet-mockup-fluid-max: 1.18;
       }
 
       :root[data-theme="light"] {
@@ -147,7 +170,7 @@
         --control-active-text: #18181b;
         --primary-bg: #18181b;
         --primary-text: #fff;
-        --primary-hover: #09090b;
+        --primary-hover: #3f3f46;
         --apple-filter: brightness(0) invert(1);
       }
 
@@ -177,8 +200,9 @@
         top: var(--header-height);
         left: 50%;
         width: 118%;
-        aspect-ratio: 6390 / 4480;
-        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y)) scale(var(--mockup-scale));
+        aspect-ratio: 6111 / 3239;
+        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y))
+          scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
         transform-origin: top center;
         will-change: transform;
       }
@@ -225,8 +249,9 @@
         top: var(--header-height);
         left: 50%;
         width: 118%;
-        aspect-ratio: 6390 / 4480;
-        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y)) scale(var(--mockup-scale));
+        aspect-ratio: 6111 / 3239;
+        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y))
+          scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
         transform-origin: top center;
         pointer-events: none;
         will-change: transform;
@@ -614,26 +639,29 @@
         color: #fff;
       }
 
-      .hero-copy {
+      .tuner-viewport-regime--mobile { color: #7dd3fc; border-color: rgba(125, 211, 252, 0.35); }
+      .tuner-viewport-regime--tablet { color: #fcd34d; border-color: rgba(252, 211, 77, 0.35); }
+      .tuner-viewport-regime--desktop { color: #86efac; border-color: rgba(134, 239, 172, 0.35); }
+      .tuner-viewport-warning { color: #fcd34d; }
+      .tuner-audit-item--perfeito { color: #86efac; }
+      .tuner-audit-item--ruim { color: #fca5a5; }
+
+      .hero-content {
         position: relative;
         z-index: 10;
-        width: min(56vw, 58rem);
+      }
+
+      .hero-copy {
+        position: relative;
+        width: 100%;
+        max-width: 42rem;
         padding-top: clamp(9rem, 21vh, 13rem);
-        padding-left: clamp(2rem, 7vw, 8rem);
         text-align: left;
       }
 
       .hero-title-line {
         display: block;
         text-wrap: balance;
-      }
-
-      @media (min-width: 1280px) {
-        .hero-copy { width: min(60vw, 68rem); }
-      }
-
-      @media (min-width: 1536px) {
-        .hero-copy { width: min(64vw, 76rem); }
       }
 
       @media (min-width: 1800px) {
@@ -809,9 +837,19 @@
       .download-button {
         background: var(--primary-bg) !important;
         color: var(--primary-text) !important;
+        box-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.34);
       }
 
-      .download-button:hover { background: var(--primary-hover) !important; }
+      @media (hover: hover) and (pointer: fine) {
+        .download-button:hover {
+          background: var(--primary-hover) !important;
+          box-shadow:
+            0 10px 24px rgba(0, 0, 0, 0.24),
+            inset 0 1px 0 rgba(255, 255, 255, 0.42);
+        }
+      }
 
       :root[data-theme="light"] .text-white,
       :root[data-theme="light"] .text-zinc-100 { color: var(--page-text) !important; }
@@ -837,9 +875,19 @@
       :root[data-theme="light"] .hero-download {
         background: #fff !important;
         color: #09090b !important;
+        box-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.08),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9);
       }
 
-      :root[data-theme="light"] .hero-download:hover { background: #e4e4e7 !important; }
+      @media (hover: hover) and (pointer: fine) {
+        :root[data-theme="light"] .hero-download:hover {
+          background: #e4e4e7 !important;
+          box-shadow:
+            0 10px 24px rgba(0, 0, 0, 0.12),
+            inset 0 1px 0 rgba(255, 255, 255, 0.72);
+        }
+      }
       :root[data-theme="light"] .hero-download .apple-icon { filter: none; }
 
       :root[data-theme="light"] .provider-card p > strong { color: var(--page-text); }
@@ -985,7 +1033,7 @@
         flex: none;
       }
 
-      .button-press { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease, color 160ms ease; }
+      .button-press { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
       .button-press:active { transform: scale(0.97); }
 
       .reveal {
@@ -1511,13 +1559,14 @@
         align-items: center;
       }
 
-      @media (min-width: 1024px) {
+      @media (min-width: 769px) {
         .split-layout {
-          grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.82fr);
+          grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.68fr);
+          gap: clamp(1.75rem, 4vw, 2.75rem);
         }
 
         .split-layout--copy-left {
-          grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+          grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.08fr);
         }
 
         .split-layout--copy-left .split-copy {
@@ -1528,6 +1577,45 @@
         .split-layout--copy-left .split-copy-lead,
         .split-layout--copy-left .split-copy-note {
           margin-left: auto;
+        }
+      }
+
+      @media (min-width: 1920px) {
+        .mockup-wrap,
+        .mockup-hud-layer {
+          width: calc(var(--mockup-tune-width) * 1.18px);
+          transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y)) scale(var(--mockup-scale));
+        }
+      }
+
+      @media (min-width: 1024px) {
+        .split-layout {
+          grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.82fr);
+          gap: clamp(2.5rem, 5vw, 4rem);
+        }
+
+        .split-layout--copy-left {
+          grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+        }
+      }
+
+      @media (min-width: 1024px) and (max-width: 1279px) {
+        .hero-copy h1 {
+          font-size: clamp(2.65rem, 4.8vw, 3.35rem) !important;
+        }
+
+        .mockup-wrap,
+        .mockup-hud-layer {
+          transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y))
+            scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
+        }
+
+        .system-menubar {
+          transform: translate(var(--narrow-menubar-x), var(--narrow-menubar-y)) scale(var(--narrow-menubar-scale));
+        }
+
+        .codex-popover {
+          transform: translate(var(--narrow-popover-x), var(--narrow-popover-y)) scale(var(--narrow-popover-scale));
         }
       }
 
@@ -1547,11 +1635,6 @@
       }
 
       @media (min-width: 769px) and (max-width: 1023px) {
-        .hero-copy {
-          width: min(64vw, 34rem);
-          padding-left: clamp(2rem, 6vw, 4rem);
-        }
-
         .hero-copy h1 {
           font-size: clamp(3rem, 6.25vw, 3.55rem) !important;
           letter-spacing: 0 !important;
@@ -1564,10 +1647,19 @@
           letter-spacing: 0 !important;
         }
 
+        .mockup-wrap,
+        .mockup-hud-layer {
+          transform: translate(calc(-50% + var(--tablet-mockup-x)), var(--tablet-mockup-y))
+            scale(calc(var(--tablet-mockup-scale) * clamp(1, calc(var(--tablet-mockup-tune-width) * 1px / 100vw), var(--tablet-mockup-fluid-max))));
+        }
+
+        .system-menubar {
+          transform: translate(var(--menubar-x), var(--menubar-y)) scale(var(--menubar-scale));
+        }
+
         .codex-popover {
-          right: 26%;
-          width: 18.5rem;
-          transform: translate(0, 0.5rem) scale(0.92);
+          width: var(--tablet-popover-width);
+          transform: translate(var(--tablet-popover-x), var(--tablet-popover-y)) scale(var(--tablet-popover-scale));
           transform-origin: top right;
         }
       }
@@ -2098,7 +2190,7 @@
         .site-footer a:hover { color: var(--page-text); }
       }
 
-      @media (max-width: 1023px) {
+      @media (max-width: 768px) {
         .cli-section .split-layout .split-copy {
           order: 1;
         }
@@ -2211,12 +2303,14 @@
           background: #000;
         }
 
-        .hero-copy {
+        .hero-content {
           order: 1;
-          width: 100%;
+        }
+
+        .hero-copy {
           max-width: 27rem;
           margin-inline: auto;
-          padding: 2.25rem 1.25rem 0;
+          padding: 2.25rem 0 0;
           text-align: left;
         }
 
@@ -2321,7 +2415,7 @@
           left: 50%;
           display: flex;
           gap: var(--mobile-menubar-gap);
-          transform: translate(calc(-50% + var(--mobile-menubar-x)), 0) scale(var(--mobile-menubar-scale));
+          transform: translate(calc(-50% + var(--mobile-menubar-x)), var(--mobile-menubar-y)) scale(var(--mobile-menubar-scale));
           transform-origin: top center;
           font-size: 1.18rem;
         }
@@ -2331,7 +2425,7 @@
           right: auto;
           left: 50%;
           width: var(--mobile-popover-width);
-          transform: translate(-50%, 0) scale(var(--mobile-popover-scale));
+          transform: translate(calc(-50% + var(--mobile-popover-x)), var(--mobile-popover-y)) scale(var(--mobile-popover-scale));
           transform-origin: top center;
           border-radius: 0.65rem;
         }
@@ -2571,10 +2665,15 @@
           <div class="mockup-stage" id="mockup-stage" aria-label="CodexBar open in the macOS menu bar" data-i18n-aria-label="mockup.openPanelAria">
           <div class="mockup-glow" aria-hidden="true"></div>
           <div class="mockup-wrap" id="mockup-wrap">
-            <picture>
-              <source srcset="./hero-mockup.webp" type="image/webp" />
-              <img src="./hero-mockup.png" alt="MacBook menu bar" data-i18n-alt="mockup.macbookAlt" class="block h-full w-full select-none object-contain" draggable="false" width="6390" height="4480" />
-            </picture>
+            <img
+              src="./hero-mockup.svg"
+              alt="MacBook menu bar"
+              data-i18n-alt="mockup.macbookAlt"
+              class="block h-full w-full select-none object-contain"
+              draggable="false"
+              width="6111"
+              height="3239"
+            />
           </div>
           <div class="mockup-hud-layer">
             <div class="mockup-screen-hud">
@@ -2645,6 +2744,8 @@
           </div>
         </div>
 
+        <div class="hero-content px-5 sm:px-8 lg:px-12">
+          <div class="section-inner">
         <div class="hero-copy">
           <div class="reveal flex items-center justify-center gap-2.5 text-[15px] tracking-[-0.025em] text-zinc-400 sm:justify-start sm:text-lg">
             <span data-i18n="hero.badgeStart">AI usage limits</span>
@@ -2695,11 +2796,13 @@
             <span data-i18n="hero.fineprintShort">Free &amp; open source · macOS 14+</span>
           </p>
         </div>
+          </div>
+        </div>
       </section>
 
       <section class="provider-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-provider-section>
         <div class="section-inner">
-        <header class="relative z-10 grid gap-5 lg:grid-cols-[1fr_0.86fr] lg:items-center">
+        <header class="relative z-10 grid gap-5 tablet:grid-cols-[1fr_0.86fr] tablet:items-center">
           <h2 class="provider-reveal max-w-3xl text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
             <span data-i18n-rich="providers.title">53 providers,{break}one menu bar</span>
           </h2>
@@ -2708,7 +2811,7 @@
           </p>
         </header>
 
-        <ul class="relative z-10 mt-12 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <ul class="relative z-10 mt-12 grid list-none gap-3 p-0 tablet:grid-cols-3 xl:grid-cols-5">
           <li class="provider-card"><span class="provider-logo" data-icon="◎" style="--brand:#49A3B0;--icon:url('./logos/codex-dark.svg')"><img src="./logos/codex-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Codex</strong><span>OAuth</span></p></li>
           <li class="provider-card"><span class="provider-logo" data-icon="✳" style="--brand:#CC7C5E;--icon:url('./logos/claude.svg')"><img src="./logos/claude.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Claude</strong><span>OAuth</span></p></li>
           <li class="provider-card"><span class="provider-logo" data-icon="◆" style="--brand:#1A1A1A;--icon:url('./logos/cursor.svg')"><img src="./logos/cursor.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Cursor</strong><span>Cookies</span></p></li>
@@ -3194,9 +3297,35 @@
           <button id="tuner-reset" type="button" class="button-press text-xs text-zinc-500 hover:text-white">reset</button>
         </div>
       </div>
-      <div id="tuner-mode" class="mb-3 grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
-        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="desktop" aria-selected="true">desktop</button>
+      <div id="tuner-viewport" class="mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] leading-relaxed text-zinc-500">
+        <div class="flex items-center justify-between gap-2">
+          <span id="tuner-viewport-size" class="text-zinc-300">—</span>
+          <span id="tuner-viewport-regime" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px]">—</span>
+        </div>
+        <p id="tuner-viewport-layout" class="mt-2">—</p>
+        <p id="tuner-viewport-sync" class="mt-1 text-zinc-600">—</p>
+        <ul id="tuner-viewport-warnings" class="tuner-viewport-warning mt-2 hidden list-none space-y-1"></ul>
+        <button id="tuner-sync-mode" type="button" class="button-press mt-2 hidden text-[10px] text-zinc-400 hover:text-white">sync tuner to layout</button>
+      </div>
+      <div id="tuner-audit" class="mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 font-mono text-[10px] leading-relaxed text-zinc-500">
+        <p class="text-zinc-400">Redimensione devagar. Marque <strong class="text-emerald-300">perfeito</strong> quando o hero estiver certo, <strong class="text-rose-300">ruim</strong> quando quebrar.</p>
+        <p class="mt-1 text-zinc-600">Cada mark salva todas as vars. Cole o JSON no chat quando terminar.</p>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <button id="tuner-mark-perfect" type="button" class="button-press rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20">perfeito</button>
+          <button id="tuner-mark-bad" type="button" class="button-press rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300 hover:bg-rose-500/20">ruim</button>
+        </div>
+        <div class="mt-2 flex flex-wrap items-center gap-3">
+          <button id="tuner-copy-audit-json" type="button" class="button-press text-[10px] text-zinc-300 hover:text-white">copy JSON</button>
+          <button id="tuner-copy-audit" type="button" class="button-press text-[10px] text-zinc-400 hover:text-white">copy log</button>
+          <button id="tuner-clear-audit" type="button" class="button-press text-[10px] text-zinc-600 hover:text-white">clear</button>
+          <span id="tuner-audit-count" class="text-zinc-600">0 marks</span>
+        </div>
+        <ol id="tuner-audit-log" class="mt-2 max-h-32 list-decimal space-y-1 overflow-y-auto pl-4 text-[10px] text-zinc-500"></ol>
+      </div>
+      <div id="tuner-mode" class="mb-3 grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
         <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="mobile" aria-selected="false">mobile</button>
+        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="tablet" aria-selected="false">tablet</button>
+        <button class="tuner-mode rounded-full px-2 py-1.5" type="button" data-tuner-mode="desktop" aria-selected="true">desktop</button>
       </div>
       <div id="tuner-tabs" class="mb-4 grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
         <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="mockup" aria-selected="true">mockup</button>
@@ -3210,72 +3339,144 @@
     <script type="module">
       import { localeCatalog, localeMessages } from './site-locales.mjs';
 
+      const HERO_MOBILE_MAX = 768;
+      const HERO_TABLET_MAX = 1023;
+
+      const tabletTunerGroups = {
+        panel: [
+          ['Panel X', '--tablet-popover-x', -200, 400, 1, 'px'],
+          ['Panel Y', '--tablet-popover-y', -2, 8, 0.05, 'rem'],
+          ['Panel scale', '--tablet-popover-scale', 0.5, 2, 0.01, ''],
+          ['HUD top', '--mockup-hud-popover-top', 0, 30, 0.01, '%'],
+          ['HUD right', '--mockup-hud-popover-right', 10, 55, 0.1, '%'],
+          ['Panel width', '--tablet-popover-width', 12, 32, 0.05, 'rem'],
+        ],
+      };
+
+      const desktopTunerGroups = {
+        mockup: [
+          ['Mockup X', '--mockup-x', -1200, 800, 1, 'px'],
+          ['Mockup Y', '--mockup-y', -400, 400, 1, 'px'],
+          ['Mockup scale', '--mockup-scale', 0.5, 1.5, 0.01, ''],
+        ],
+        menubar: [
+          ['Menu X', '--menubar-x', -200, 400, 1, 'px'],
+          ['Menu Y', '--menubar-y', -80, 120, 1, 'px'],
+          ['Menu scale', '--menubar-scale', 0.5, 2, 0.01, ''],
+          ['HUD top', '--mockup-hud-menubar-top', 0, 12, 0.01, '%'],
+          ['HUD right', '--mockup-hud-menubar-right', 20, 55, 0.1, '%'],
+          ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
+          ['Menu gap', '--menubar-gap', 8, 40, 1, 'px'],
+        ],
+        panel: [
+          ['Panel X', '--popover-x', -360, 360, 1, 'px'],
+          ['Panel Y', '--popover-y', -220, 300, 1, 'px'],
+          ['Panel scale', '--popover-scale', 0.5, 2, 0.01, ''],
+          ['HUD top', '--mockup-hud-popover-top', 5, 20, 0.01, '%'],
+          ['HUD right', '--mockup-hud-popover-right', 15, 45, 0.1, '%'],
+          ['HUD width', '--mockup-hud-popover-width', 15, 35, 0.05, '%'],
+        ],
+      };
+
       const tunerModes = {
         desktop: {
           label: 'desktop tuner',
-          hint: '≥769px hero · copy CSS into :root',
+          hint: '≥1024px · copy CSS into :root',
           storageKey: 'codexbar-tuner-desktop-v1',
+          groups: desktopTunerGroups,
+        },
+        tablet: {
+          label: 'tablet tuner',
+          hint: '769–1023px · tablet mockup + HUD panel vars',
+          storageKey: 'codexbar-tuner-tablet-v1',
           groups: {
             mockup: [
-              ['Mockup X', '--mockup-x', -400, 400, 1, 'px'],
-              ['Mockup Y', '--mockup-y', -220, 220, 1, 'px'],
-              ['Mockup scale', '--mockup-scale', 0.5, 1.5, 0.01, ''],
+              ['Mockup X', '--tablet-mockup-x', -1200, 800, 1, 'px'],
+              ['Mockup Y', '--tablet-mockup-y', -400, 400, 1, 'px'],
+              ['Mockup scale', '--tablet-mockup-scale', 0.35, 1.2, 0.01, ''],
             ],
-            menubar: [
-              ['HUD top', '--mockup-hud-menubar-top', 0, 12, 0.01, '%'],
-              ['HUD right', '--mockup-hud-menubar-right', 20, 55, 0.1, '%'],
-              ['Menu X', '--menubar-x', -200, 400, 1, 'px'],
-              ['Menu Y', '--menubar-y', -80, 120, 1, 'px'],
-              ['Menu scale', '--menubar-scale', 0.5, 2, 0.01, ''],
-              ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
-              ['Menu gap', '--menubar-gap', 8, 40, 1, 'px'],
-            ],
-            panel: [
-              ['HUD top', '--mockup-hud-popover-top', 5, 20, 0.01, '%'],
-              ['HUD right', '--mockup-hud-popover-right', 15, 45, 0.1, '%'],
-              ['HUD width', '--mockup-hud-popover-width', 15, 35, 0.05, '%'],
-              ['Panel X', '--popover-x', -360, 360, 1, 'px'],
-              ['Panel Y', '--popover-y', -220, 300, 1, 'px'],
-              ['Panel scale', '--popover-scale', 0.5, 2, 0.01, ''],
-            ],
+            menubar: [...desktopTunerGroups.menubar],
+            panel: [...tabletTunerGroups.panel],
           },
         },
         mobile: {
           label: 'mobile tuner',
-          hint: '≤768px only · copy CSS into :root',
+          hint: '≤768px · stacked hero on stage',
           storageKey: 'codexbar-tuner-mobile-v1',
           groups: {
             mockup: [
+              ['Mockup X', '--mobile-mockup-offset-x', -280, 80, 1, 'px'],
+              ['Mockup Y', '--mobile-mockup-offset-y', -80, 120, 1, 'px'],
+              ['Mockup scale', '--mobile-mockup-scale', 0.6, 1.4, 0.01, ''],
               ['Stage height', '--mobile-mockup-stage-height', 16, 40, 0.25, 'rem'],
               ['Mockup width', '--mobile-mockup-width', 180, 320, 1, '%'],
-              ['Shift X', '--mobile-mockup-offset-x', -280, 80, 1, 'px'],
-              ['Shift Y', '--mobile-mockup-offset-y', -80, 120, 1, 'px'],
-              ['Mockup scale', '--mobile-mockup-scale', 0.6, 1.4, 0.01, ''],
             ],
             menubar: [
-              ['Menu top', '--mobile-menubar-top', 0, 20, 0.1, '%'],
               ['Menu X', '--mobile-menubar-x', -120, 120, 1, 'px'],
+              ['Menu Y', '--mobile-menubar-y', -80, 120, 1, 'px'],
               ['Menu scale', '--mobile-menubar-scale', 0.4, 1.2, 0.01, ''],
+              ['Menu top', '--mobile-menubar-top', 0, 20, 0.1, '%'],
               ['Menu gap', '--mobile-menubar-gap', 0.4, 1.5, 0.02, 'rem'],
             ],
             panel: [
+              ['Panel X', '--mobile-popover-x', -120, 120, 1, 'px'],
+              ['Panel Y', '--mobile-popover-y', -80, 120, 1, 'px'],
+              ['Panel scale', '--mobile-popover-scale', 0.5, 1.2, 0.01, ''],
               ['Panel top', '--mobile-popover-top', 5, 30, 0.1, '%'],
               ['Panel width', '--mobile-popover-width', 14, 24, 0.05, 'rem'],
-              ['Panel scale', '--mobile-popover-scale', 0.5, 1.2, 0.01, ''],
             ],
           },
         },
       };
 
+      const regimeLabels = {
+        mobile: 'mobile',
+        tablet: 'tablet',
+        desktop: 'desktop',
+      };
+
+      const layoutDescriptions = {
+        mobile: 'stacked hero · HUD centered on stage',
+        tablet: 'desktop overlay · tablet popover patch active',
+        desktop: 'desktop overlay · HUD on PNG screen',
+      };
+
       const tunerModeStorageKey = 'codexbar-tuner-active-mode';
-      const mobileTunerMedia = window.matchMedia('(max-width: 768px)');
+
+      function getViewportMetrics() {
+        const layoutWidth = window.innerWidth;
+        const layoutHeight = window.innerHeight;
+        const visual = window.visualViewport;
+        const visualWidth = visual ? Math.round(visual.width) : layoutWidth;
+        const visualHeight = visual ? Math.round(visual.height) : layoutHeight;
+        const chromeDelta = visual ? Math.max(0, layoutHeight - visualHeight) : 0;
+
+        return {
+          layoutWidth,
+          layoutHeight,
+          visualWidth,
+          visualHeight,
+          chromeDelta,
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      }
+
+      function getHeroRegime(width = window.innerWidth) {
+        if (width <= HERO_MOBILE_MAX) return 'mobile';
+        if (width <= HERO_TABLET_MAX) return 'tablet';
+        return 'desktop';
+      }
+
+      function getRecommendedMode(regime = getHeroRegime()) {
+        return regime;
+      }
 
       function getModeFields(modeName) {
         return Object.values(tunerModes[modeName].groups).flat();
       }
 
       function getAllTunerFields() {
-        return Object.keys(tunerModes).flatMap(getModeFields);
+        return Object.keys(tunerModes).flatMap((modeName) => getModeFields(modeName));
       }
 
       function readTunerDefaults() {
@@ -3306,10 +3507,53 @@
       const modeButtons = document.querySelectorAll('[data-tuner-mode]');
       const modeLabel = document.querySelector('#tuner-mode-label');
       const modeHint = document.querySelector('#tuner-hint');
-      const storedMode = localStorage.getItem(tunerModeStorageKey);
-      let activeMode = storedMode === 'mobile' || storedMode === 'desktop'
-        ? storedMode
-        : (mobileTunerMedia.matches ? 'mobile' : 'desktop');
+      const viewportSize = document.querySelector('#tuner-viewport-size');
+      const viewportRegime = document.querySelector('#tuner-viewport-regime');
+      const viewportLayout = document.querySelector('#tuner-viewport-layout');
+      const viewportSync = document.querySelector('#tuner-viewport-sync');
+      const viewportWarnings = document.querySelector('#tuner-viewport-warnings');
+      const syncModeButton = document.querySelector('#tuner-sync-mode');
+      const markPerfectButton = document.querySelector('#tuner-mark-perfect');
+      const markBadButton = document.querySelector('#tuner-mark-bad');
+      const copyAuditButton = document.querySelector('#tuner-copy-audit');
+      const copyAuditJsonButton = document.querySelector('#tuner-copy-audit-json');
+      const clearAuditButton = document.querySelector('#tuner-clear-audit');
+      const auditLogList = document.querySelector('#tuner-audit-log');
+      const auditCount = document.querySelector('#tuner-audit-count');
+      const auditStorageKey = 'codexbar-tuner-audit-v2';
+
+      const HERO_META_VARS = [
+        ['--mockup-tune-width', ''],
+        ['--mockup-fluid-max', ''],
+        ['--tablet-mockup-tune-width', ''],
+        ['--tablet-mockup-fluid-max', ''],
+        ['--narrow-menubar-x', 'px'],
+        ['--narrow-menubar-y', 'px'],
+        ['--narrow-menubar-scale', ''],
+        ['--narrow-popover-x', 'px'],
+        ['--narrow-popover-y', 'px'],
+        ['--narrow-popover-scale', ''],
+      ];
+
+      const tunerFieldUnits = new Map();
+      getAllTunerFields().forEach(([, name, , , , unit]) => {
+        tunerFieldUnits.set(name, unit);
+      });
+      HERO_META_VARS.forEach(([name, unit]) => {
+        if (!tunerFieldUnits.has(name)) tunerFieldUnits.set(name, unit);
+      });
+
+      let tunerModePinned = false;
+      let activeMode = getRecommendedMode();
+      let lastTrackedRegime = null;
+      let viewportRaf = 0;
+      let viewportAuditLog = [];
+
+      try {
+        viewportAuditLog = JSON.parse(sessionStorage.getItem(auditStorageKey) || '[]');
+      } catch {
+        viewportAuditLog = [];
+      }
 
       const values = { ...cssDefaults };
 
@@ -3348,13 +3592,407 @@
         });
       }
 
-      function setActiveMode(modeName) {
-        if (!tunerModes[modeName] || modeName === activeMode) return;
+      function setActiveMode(modeName, { auto = false } = {}) {
+        if (!tunerModes[modeName]) return;
+        if (!auto) {
+          tunerModePinned = true;
+        }
+        if (modeName === activeMode) {
+          updateViewportStatus();
+          return;
+        }
         activeMode = modeName;
         localStorage.setItem(tunerModeStorageKey, activeMode);
         updateModeUI();
         const activeTab = document.querySelector('[data-tuner-tab][aria-selected="true"]')?.dataset.tunerTab || 'mockup';
         renderTunerGroup(activeTab);
+        updateViewportStatus();
+      }
+
+      function syncTunerToLayout() {
+        tunerModePinned = false;
+        setActiveMode(getRecommendedMode(), { auto: true });
+      }
+
+      function collectLayoutWarnings(regime, metrics) {
+        const warnings = [];
+        const recommended = getRecommendedMode(regime);
+
+        if (metrics.scrollWidth > metrics.layoutWidth + 1) {
+          warnings.push(`overflow-x: +${metrics.scrollWidth - metrics.layoutWidth}px`);
+        }
+
+        if (tunerModePinned && activeMode !== recommended) {
+          warnings.push(`pinned ${activeMode} tuner · layout is ${regime}`);
+        }
+
+        const stage = document.getElementById('mockup-stage');
+        const menubar = document.querySelector('.system-menubar');
+        const popover = document.querySelector('.codex-popover');
+
+        if (stage && menubar) {
+          const stageRect = stage.getBoundingClientRect();
+          const menubarRect = menubar.getBoundingClientRect();
+          if (menubarRect.right > stageRect.right + 2) {
+            warnings.push(`menubar +${Math.round(menubarRect.right - stageRect.right)}px past stage`);
+          }
+          if (menubarRect.left < stageRect.left - 2) {
+            warnings.push(`menubar ${Math.round(stageRect.left - menubarRect.left)}px past stage left`);
+          }
+          if (menubarRect.top < stageRect.top - 2) {
+            warnings.push(`menubar ${Math.round(stageRect.top - menubarRect.top)}px above stage`);
+          }
+        }
+
+        if (stage && popover) {
+          const stageRect = stage.getBoundingClientRect();
+          const popoverRect = popover.getBoundingClientRect();
+          if (popoverRect.right > stageRect.right + 2) {
+            warnings.push(`popover +${Math.round(popoverRect.right - stageRect.right)}px past stage`);
+          }
+          if (popoverRect.left < stageRect.left - 2) {
+            warnings.push(`popover ${Math.round(stageRect.left - popoverRect.left)}px past stage left`);
+          }
+        }
+
+        if (regime === 'mobile' && activeMode !== 'mobile') {
+          warnings.push('mobile layout · mobile vars only affect HUD here');
+        }
+
+        if (regime === 'tablet' && activeMode === 'desktop') {
+          warnings.push('tablet layout · mockup uses --tablet-mockup-* — switch to tablet mode');
+        }
+
+        if (regime === 'tablet' && activeMode === 'mobile') {
+          warnings.push('tablet layout · mobile vars have no effect');
+        }
+
+        if (regime === 'desktop' && activeMode === 'mobile') {
+          warnings.push('desktop layout · mobile vars have no effect');
+        }
+
+        return warnings;
+      }
+
+      function updateViewportStatus() {
+        const metrics = getViewportMetrics();
+        const regime = getHeroRegime(metrics.layoutWidth);
+        const recommended = getRecommendedMode(regime);
+        const warnings = collectLayoutWarnings(regime, metrics);
+
+        const sizeParts = [`${metrics.layoutWidth}×${metrics.layoutHeight}`];
+        if (metrics.visualWidth !== metrics.layoutWidth || metrics.visualHeight !== metrics.layoutHeight) {
+          sizeParts.push(`visual ${metrics.visualWidth}×${metrics.visualHeight}`);
+        }
+        if (metrics.chromeDelta > 0) {
+          sizeParts.push(`chrome −${metrics.chromeDelta}px`);
+        }
+
+        viewportSize.textContent = sizeParts.join(' · ');
+        viewportRegime.textContent = regimeLabels[regime];
+        viewportRegime.className = `rounded-full border px-2 py-0.5 text-[10px] tuner-viewport-regime--${regime}`;
+        viewportLayout.textContent = layoutDescriptions[regime];
+
+        if (tunerModePinned) {
+          viewportSync.textContent = activeMode === recommended
+            ? `pinned · matches ${regime} layout`
+            : `pinned ${activeMode} tuner · layout is ${regime}`;
+        } else {
+          viewportSync.textContent = `auto-sync · tuning ${activeMode} (${regime} layout)`;
+        }
+
+        const showSync = tunerModePinned && activeMode !== recommended;
+        syncModeButton.classList.toggle('hidden', !showSync);
+
+        if (warnings.length) {
+          viewportWarnings.classList.remove('hidden');
+          viewportWarnings.replaceChildren(...warnings.map((warning) => {
+            const item = document.createElement('li');
+            item.textContent = `⚠ ${warning}`;
+            return item;
+          }));
+        } else {
+          viewportWarnings.classList.add('hidden');
+          viewportWarnings.replaceChildren();
+        }
+      }
+
+      function syncViewportState() {
+        const regime = getHeroRegime();
+        const regimeChanged = lastTrackedRegime !== null && regime !== lastTrackedRegime;
+
+        if (regimeChanged) {
+          tunerModePinned = false;
+        }
+
+        if (lastTrackedRegime === null || regimeChanged || !tunerModePinned) {
+          setActiveMode(getRecommendedMode(regime), { auto: true });
+        } else {
+          updateViewportStatus();
+        }
+
+        lastTrackedRegime = regime;
+      }
+
+      function scheduleViewportUpdate() {
+        if (viewportRaf) return;
+        viewportRaf = window.requestAnimationFrame(() => {
+          viewportRaf = 0;
+          syncViewportState();
+        });
+      }
+
+      function formatVarValue(name, unit = tunerFieldUnits.get(name) ?? '') {
+        if (unit === 'color') {
+          return String(values[name] ?? getComputedStyle(root).getPropertyValue(name).trim());
+        }
+
+        const numeric = values[name];
+        if (Number.isFinite(numeric)) {
+          return unit ? `${numeric}${unit}` : String(numeric);
+        }
+
+        const computed = getComputedStyle(root).getPropertyValue(name).trim();
+        return computed || null;
+      }
+
+      function collectFlatHeroVars() {
+        const vars = {};
+        tunerFieldUnits.forEach((unit, name) => {
+          vars[name] = formatVarValue(name, unit);
+        });
+        return vars;
+      }
+
+      function collectHeroVarsByMode() {
+        const byMode = {};
+
+        Object.entries(tunerModes).forEach(([modeName, mode]) => {
+          byMode[modeName] = {};
+          Object.entries(mode.groups).forEach(([groupName, fields]) => {
+            byMode[modeName][groupName] = {};
+            fields.forEach(([, name, , , , unit]) => {
+              byMode[modeName][groupName][name] = formatVarValue(name, unit);
+            });
+          });
+        });
+
+        return byMode;
+      }
+
+      function getRegimeEffectiveVars(regime, layoutWidth) {
+        const narrowDesktop = layoutWidth >= 1024 && layoutWidth <= 1279;
+        const groups = collectHeroVarsByMode();
+
+        if (regime === 'mobile') {
+          return { mode: 'mobile', narrowDesktop: false, groups: groups.mobile };
+        }
+
+        if (regime === 'tablet') {
+          return { mode: 'tablet', narrowDesktop: false, groups: groups.tablet };
+        }
+
+        const desktopGroups = { ...groups.desktop };
+        if (narrowDesktop) {
+          desktopGroups.narrow = {
+            '--narrow-menubar-x': formatVarValue('--narrow-menubar-x', 'px'),
+            '--narrow-menubar-y': formatVarValue('--narrow-menubar-y', 'px'),
+            '--narrow-menubar-scale': formatVarValue('--narrow-menubar-scale', ''),
+            '--narrow-popover-x': formatVarValue('--narrow-popover-x', 'px'),
+            '--narrow-popover-y': formatVarValue('--narrow-popover-y', 'px'),
+            '--narrow-popover-scale': formatVarValue('--narrow-popover-scale', ''),
+          };
+        }
+
+        return { mode: 'desktop', narrowDesktop, groups: desktopGroups };
+      }
+
+      function buildAuditAnalysis() {
+        const perfeito = viewportAuditLog.filter((entry) => entry.rating === 'perfeito');
+        const ruim = viewportAuditLog.filter((entry) => entry.rating === 'ruim');
+        const transitions = [];
+        const breakZones = [];
+        const envelopes = {};
+
+        for (let i = 1; i < viewportAuditLog.length; i += 1) {
+          const prev = viewportAuditLog[i - 1];
+          const curr = viewportAuditLog[i];
+          const fromW = prev.metrics.layoutWidth;
+          const toW = curr.metrics.layoutWidth;
+          const dir = toW < fromW ? 'shrinking' : toW > fromW ? 'growing' : 'same width';
+
+          if (prev.rating === 'perfeito' && curr.rating === 'ruim') {
+            breakZones.push({
+              fromW,
+              toW,
+              direction: dir,
+              fromRegime: prev.regime,
+              toRegime: curr.regime,
+            });
+            transitions.push(`ficou ruim entre ${fromW}px e ${toW}px (${dir})`);
+          } else if (prev.rating === 'ruim' && curr.rating === 'perfeito') {
+            transitions.push(`voltou a perfeito entre ${fromW}px e ${toW}px (${dir})`);
+          }
+        }
+
+        perfeito.forEach((entry) => {
+          const source = entry.effective?.groups ?? entry.byMode?.[entry.regime] ?? entry.vars ?? {};
+          const flat = typeof source === 'object' && !Array.isArray(source)
+            ? Object.values(source).flatMap((group) => (typeof group === 'object' ? Object.entries(group) : []))
+            : Object.entries(source);
+
+          flat.forEach(([name, raw]) => {
+            if (typeof name !== 'string' || raw == null) return;
+            const num = Number.parseFloat(String(raw));
+            if (!Number.isFinite(num)) return;
+
+            if (!envelopes[name]) {
+              envelopes[name] = { min: num, max: num, samples: [] };
+            }
+
+            envelopes[name].min = Math.min(envelopes[name].min, num);
+            envelopes[name].max = Math.max(envelopes[name].max, num);
+            envelopes[name].samples.push({
+              w: entry.metrics.layoutWidth,
+              h: entry.metrics.layoutHeight,
+              regime: entry.regime,
+              value: num,
+              raw: String(raw),
+            });
+          });
+        });
+
+        return {
+          markCount: viewportAuditLog.length,
+          perfeitoCount: perfeito.length,
+          ruimCount: ruim.length,
+          breakZones,
+          transitions,
+          envelopes,
+        };
+      }
+
+      function formatAuditPayload() {
+        return {
+          schema: 'codexbar-hero-audit-v2',
+          exportedAt: new Date().toISOString(),
+          analysis: buildAuditAnalysis(),
+          marks: viewportAuditLog,
+        };
+      }
+
+      function persistViewportAudit() {
+        sessionStorage.setItem(auditStorageKey, JSON.stringify(viewportAuditLog));
+      }
+
+      function formatEffectiveVarsForLog(effective) {
+        if (!effective?.groups) return [];
+        return Object.entries(effective.groups).flatMap(([groupName, groupVars]) => {
+          if (groupName === 'narrow') {
+            return Object.entries(groupVars).map(([name, raw]) => `    narrow ${name}: ${raw}`);
+          }
+          return Object.entries(groupVars).map(([name, raw]) => `    ${groupName} ${name}: ${raw}`);
+        });
+      }
+
+      function renderViewportAuditLog() {
+        const perfectCount = viewportAuditLog.filter((entry) => entry.rating === 'perfeito').length;
+        auditCount.textContent = `${viewportAuditLog.length} mark${viewportAuditLog.length === 1 ? '' : 's'} · ${perfectCount} perfeito`;
+        auditLogList.replaceChildren(...viewportAuditLog.map((entry, index) => {
+          const item = document.createElement('li');
+          item.className = `tuner-audit-item--${entry.rating === 'perfeito' ? 'perfeito' : 'ruim'}`;
+          const warn = entry.warnings?.length ? ` · ${entry.warnings[0]}` : '';
+          const version = entry.version === 2 ? '' : ' · legacy';
+          item.textContent = `#${index + 1} ${entry.rating} · ${entry.metrics.layoutWidth}×${entry.metrics.layoutHeight} · ${entry.regime}${version}${warn}`;
+          return item;
+        }));
+      }
+
+      function markViewportAudit(rating) {
+        const metrics = getViewportMetrics();
+        const regime = getHeroRegime(metrics.layoutWidth);
+        viewportAuditLog.push({
+          version: 2,
+          timestamp: new Date().toISOString(),
+          rating,
+          metrics: {
+            layoutWidth: metrics.layoutWidth,
+            layoutHeight: metrics.layoutHeight,
+            visualWidth: metrics.visualWidth,
+            visualHeight: metrics.visualHeight,
+            chromeDelta: metrics.chromeDelta,
+            scrollWidth: metrics.scrollWidth,
+          },
+          regime,
+          activeMode,
+          tunerModePinned,
+          warnings: collectLayoutWarnings(regime, metrics),
+          vars: collectFlatHeroVars(),
+          byMode: collectHeroVarsByMode(),
+          effective: getRegimeEffectiveVars(regime, metrics.layoutWidth),
+        });
+        persistViewportAudit();
+        renderViewportAuditLog();
+      }
+
+      function formatAuditLogForCopy() {
+        const analysis = buildAuditAnalysis();
+        const lines = [
+          'CodexBar hero audit v2',
+          'Use copy JSON para análise completa. Este log é um resumo legível.',
+          '',
+        ];
+
+        viewportAuditLog.forEach((entry, index) => {
+          const { layoutWidth, layoutHeight, visualWidth, visualHeight } = entry.metrics;
+          const visualNote = visualWidth !== layoutWidth || visualHeight !== layoutHeight
+            ? ` · visual ${visualWidth}×${visualHeight}`
+            : '';
+          const warn = entry.warnings?.length ? ` · ${entry.warnings.join('; ')}` : '';
+          lines.push(`#${index + 1} ${entry.rating} · ${layoutWidth}×${layoutHeight}${visualNote} · layout ${entry.regime} · tuner ${entry.activeMode}${warn}`);
+
+          if (entry.effective?.groups) {
+            lines.push(...formatEffectiveVarsForLog(entry.effective));
+          } else {
+            lines.push('    (legacy mark — sem snapshot de vars; marque de novo)');
+          }
+          lines.push('');
+        });
+
+        if (analysis.transitions.length) {
+          lines.push('Transições:');
+          analysis.transitions.forEach((line) => lines.push(`- ${line}`));
+          lines.push('');
+        }
+
+        if (Object.keys(analysis.envelopes).length) {
+          lines.push('Envelope (só perfeito):');
+          Object.entries(analysis.envelopes).forEach(([name, envelope]) => {
+            lines.push(`- ${name}: ${envelope.min} → ${envelope.max} (${envelope.samples.length} sample${envelope.samples.length === 1 ? '' : 's'})`);
+          });
+        }
+
+        return lines.join('\n');
+      }
+
+      async function copyViewportAudit() {
+        if (!viewportAuditLog.length) return;
+        await copyText(formatAuditLogForCopy());
+        copyAuditButton.textContent = 'copied';
+        window.setTimeout(() => { copyAuditButton.textContent = 'copy log'; }, 1200);
+      }
+
+      async function copyViewportAuditJson() {
+        if (!viewportAuditLog.length) return;
+        await copyText(JSON.stringify(formatAuditPayload(), null, 2));
+        copyAuditJsonButton.textContent = 'copied';
+        window.setTimeout(() => { copyAuditJsonButton.textContent = 'copy JSON'; }, 1200);
+      }
+
+      function clearViewportAudit() {
+        viewportAuditLog = [];
+        sessionStorage.removeItem(auditStorageKey);
+        renderViewportAuditLog();
       }
 
       function resetTunerValues() {
@@ -3368,6 +4006,7 @@
 
         const activeTab = document.querySelector('[data-tuner-tab][aria-selected="true"]')?.dataset.tunerTab || 'mockup';
         renderTunerGroup(activeTab);
+        updateViewportStatus();
       }
 
       function saveValues() {
@@ -3401,8 +4040,12 @@
           return `  ${name}: ${unit === 'color' ? value : `${value}${unit}`};`;
         };
 
+        const metrics = getViewportMetrics();
+        const regime = getHeroRegime(metrics.layoutWidth);
+
         return [
           `/* CodexBar ${activeMode} tuner — paste into :root in docs/index.html */`,
+          `/* viewport ${metrics.layoutWidth}×${metrics.layoutHeight} · ${regime} layout */`,
           '',
           `/* ${activeMode} mockup */`,
           ...mode.groups.mockup.map(formatValue),
@@ -3450,18 +4093,30 @@
             applyValue(name, input.value, unit);
             output.value = unit === 'color' ? input.value : `${input.value}${unit}`;
             saveValues();
+            updateViewportStatus();
           });
           controls.append(row);
         });
       }
 
       getAllTunerFields().forEach(([, name, , , , unit]) => applyValue(name, values[name], unit));
-      updateModeUI();
+      syncViewportState();
       renderTunerGroup('mockup');
 
       modeButtons.forEach((button) => {
         button.addEventListener('click', () => setActiveMode(button.dataset.tunerMode));
       });
+
+      syncModeButton.addEventListener('click', syncTunerToLayout);
+      markPerfectButton.addEventListener('click', () => markViewportAudit('perfeito'));
+      markBadButton.addEventListener('click', () => markViewportAudit('ruim'));
+      copyAuditButton.addEventListener('click', copyViewportAudit);
+      copyAuditJsonButton.addEventListener('click', copyViewportAuditJson);
+      clearAuditButton.addEventListener('click', clearViewportAudit);
+      renderViewportAuditLog();
+      window.addEventListener('resize', scheduleViewportUpdate);
+      window.visualViewport?.addEventListener('resize', scheduleViewportUpdate);
+      window.visualViewport?.addEventListener('scroll', scheduleViewportUpdate);
 
       tabButtons.forEach((button) => {
         button.addEventListener('click', () => {
@@ -3795,6 +4450,7 @@
         panel.classList.toggle('hidden', !open);
         toggle.setAttribute('aria-expanded', String(open));
         toggle.textContent = open ? 'close tuner' : 'tune';
+        if (open) scheduleViewportUpdate();
       }
 
       const tunerEnabled = ['localhost', '127.0.0.1'].includes(location.hostname)
