@@ -1262,6 +1262,12 @@
         height: 2.75rem;
         pointer-events: none;
         background: linear-gradient(180deg, rgba(30, 30, 32, 0), rgba(26, 26, 28, 0.94) 68%, rgba(24, 24, 26, 1));
+        opacity: 0;
+        transition: opacity 180ms ease;
+      }
+
+      .mac-widget-gallery-wrap.has-scroll-fade::after {
+        opacity: 1;
       }
 
       .mac-widget-gallery {
@@ -2521,6 +2527,24 @@
         revealSection(providerSection);
         document.querySelectorAll('[data-scroll-section]').forEach(revealSection);
       }
+
+      document.querySelectorAll('.mac-widget-gallery-wrap').forEach((wrap) => {
+        const gallery = wrap.querySelector('.mac-widget-gallery');
+        if (!gallery) return;
+
+        const syncScrollFade = () => {
+          const overflows = gallery.scrollHeight > gallery.clientHeight + 1;
+          const atBottom = gallery.scrollTop + gallery.clientHeight >= gallery.scrollHeight - 2;
+          wrap.classList.toggle('has-scroll-fade', overflows && !atBottom);
+        };
+
+        gallery.addEventListener('scroll', syncScrollFade, { passive: true });
+        window.addEventListener('resize', syncScrollFade);
+        if ('ResizeObserver' in window) {
+          new ResizeObserver(syncScrollFade).observe(gallery);
+        }
+        syncScrollFade();
+      });
 
       const mockupWrap = document.querySelector('#mockup-wrap');
       const menubarItems = mockupWrap.querySelectorAll('.system-menubar > *');
