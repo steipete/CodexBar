@@ -1,5 +1,7 @@
 import { localeCatalog, localeMessages } from './site-locales.mjs';
 
+const root = document.documentElement;
+
 const HERO_MOBILE_MAX = 768;
 const HERO_TABLET_MAX = 1023;
 const HERO_DESKTOP_MIN = 1024;
