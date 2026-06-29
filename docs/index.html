@@ -1203,8 +1203,11 @@
       }
 
       .mac-widget-main {
+        display: flex;
         flex: 1;
+        flex-direction: column;
         min-width: 0;
+        min-height: 0;
         padding: 0.8rem 0.85rem 0.45rem;
       }
 
@@ -1215,10 +1218,32 @@
         font-weight: 500;
       }
 
+      .mac-widget-gallery {
+        flex: 1;
+        min-height: 0;
+        max-height: 14.2rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 0.2rem;
+      }
+
+      .mac-widget-gallery::-webkit-scrollbar {
+        width: 5px;
+      }
+
+      .mac-widget-gallery::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.22);
+      }
+
       .mac-widget-row {
         display: flex;
         align-items: flex-start;
         gap: clamp(0.45rem, 1.2vw, 0.8rem);
+      }
+
+      .mac-widget-row + .mac-widget-row {
+        margin-top: 0.9rem;
       }
 
       .widget-tile {
@@ -1233,9 +1258,15 @@
 
       .widget-preview {
         width: 100%;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        overflow: hidden;
         border-radius: 1rem;
-        background: #dc2626;
+        background: transparent;
+      }
+
+      .widget-preview img {
+        display: block;
+        width: 100%;
+        height: auto;
       }
 
       .widget-tile.is-small .widget-preview {
@@ -1960,22 +1991,95 @@
 
                   <div class="mac-widget-main">
                     <p class="mac-widget-main__title">CodexBar</p>
-                    <div class="mac-widget-row">
-                      <article class="widget-tile is-small">
-                        <div class="widget-preview" aria-hidden="true"></div>
-                        <h4>CodexBar Switcher</h4>
-                        <p>Usage widget with a provider switcher.</p>
-                      </article>
-                      <article class="widget-tile is-medium">
-                        <div class="widget-preview" aria-hidden="true"></div>
-                        <h4>CodexBar Switcher</h4>
-                        <p>Usage widget with a provider switcher.</p>
-                      </article>
-                      <article class="widget-tile is-large">
-                        <div class="widget-preview" aria-hidden="true"></div>
-                        <h4>CodexBar Switcher</h4>
-                        <p>Usage widget with a provider switcher.</p>
-                      </article>
+                    <div class="mac-widget-gallery">
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-small">
+                          <div class="widget-preview">
+                            <img src="./widgets/03-codexbar-metric-compact.png" alt="" width="204" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Metric</h4>
+                          <p>Compact metric readout.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/01-codexbar-history-small.png" alt="" width="428" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar History</h4>
+                          <p>Usage history at a glance.</p>
+                        </article>
+                        <article class="widget-tile is-large">
+                          <div class="widget-preview">
+                            <img src="./widgets/02-codexbar-history-large.png" alt="" width="388" height="370" loading="lazy" />
+                          </div>
+                          <h4>CodexBar History</h4>
+                          <p>Usage history with more detail.</p>
+                        </article>
+                      </div>
+
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-small">
+                          <div class="widget-preview">
+                            <img src="./widgets/06-codexbar-usage-compact.png" alt="" width="204" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Usage</h4>
+                          <p>Session and weekly usage.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/07-codexbar-usage-wide.png" alt="" width="428" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Usage</h4>
+                          <p>Session, weekly, and today spend.</p>
+                        </article>
+                        <article class="widget-tile is-large">
+                          <div class="widget-preview">
+                            <img src="./widgets/08-codexbar-usage-large.png" alt="" width="388" height="388" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Usage</h4>
+                          <p>Usage with chart and token totals.</p>
+                        </article>
+                      </div>
+
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-small">
+                          <div class="widget-preview">
+                            <img src="./widgets/09-codexbar-switcher-compact.png" alt="" width="204" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Switcher</h4>
+                          <p>Usage widget with a provider switcher.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/10-codexbar-switcher-wide.png" alt="" width="428" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Switcher</h4>
+                          <p>Usage widget with a provider switcher.</p>
+                        </article>
+                        <article class="widget-tile is-large">
+                          <div class="widget-preview">
+                            <img src="./widgets/11-codexbar-switcher-large.png" alt="" width="388" height="388" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Switcher</h4>
+                          <p>Usage widget with a provider switcher.</p>
+                        </article>
+                      </div>
+
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/04-codexbar-burndown.png" alt="" width="427" height="203" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Burn Down</h4>
+                          <p>Track remaining quota over time.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/05-codexbar-burndown-combined.png" alt="" width="427" height="203" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Burn Down Combined</h4>
+                          <p>Combined burn-down across windows.</p>
+                        </article>
+                      </div>
                     </div>
                   </div>
                 </div>
