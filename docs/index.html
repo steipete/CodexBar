@@ -109,12 +109,12 @@
         --menubar-gap: 22px;
         --menubar-icon-scale: 1.28;
         --popover-scale: 0.91;
-        /* HUD anchor: full SVG artboard (6111×3239) — top-right of mockup image */
+        /* Converted from prior screen-hud tune (8.59% top, 20.7% right of inner display) */
         --hud-anchor-top: 12.1%;
-        --hud-margin-right: 2.3%;
+        --hud-margin-right: 22.05%;
         --hud-menu-nudge-x: 0px;
         --hud-menu-nudge-y: 0px;
-        --hud-panel-gap: 0.55rem;
+        --hud-panel-gap: 1.55rem;
         --hud-panel-nudge-x: 0px;
         --hud-panel-nudge-y: 0px;
         --hud-panel-width: 19.1%;
@@ -124,7 +124,7 @@
         --mobile-mockup-offset-y: 18px;
         --mobile-mockup-scale: 0.99;
         --mobile-hud-anchor-top: 12%;
-        --mobile-hud-margin-right: 2.3%;
+        --mobile-hud-margin-right: 22%;
         --mobile-hud-menu-nudge-x: 28px;
         --mobile-hud-menu-nudge-y: 0px;
         --mobile-menubar-scale: 0.82;
@@ -247,6 +247,8 @@
       .mockup-artboard {
         position: absolute;
         inset: 0;
+        container-type: size;
+        container-name: mockup-artboard;
         pointer-events: none;
       }
 
@@ -255,9 +257,6 @@
         top: var(--hud-anchor-top);
         right: var(--hud-margin-right);
         left: auto;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
         transform-origin: top right;
         pointer-events: none;
       }
@@ -280,7 +279,7 @@
         transform-origin: top right;
         color: rgba(245, 245, 245, 0.94);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-        font-size: clamp(0.95rem, 1.08vw, 1.48rem);
+        font-size: clamp(0.48rem, 0.52cqw, 0.75rem);
         font-weight: 650;
         letter-spacing: -0.045em;
         text-shadow: 0 0.08em 0.28em rgba(0, 0, 0, 0.74);
@@ -403,12 +402,12 @@
       }
 
       .codex-popover {
-        position: relative;
-        top: auto;
-        right: auto;
+        position: absolute;
+        top: calc(100% + var(--hud-panel-gap));
+        right: 0;
         left: auto;
         z-index: 4;
-        margin-top: var(--hud-panel-gap);
+        margin-top: 0;
         width: var(--hud-panel-width);
         box-sizing: border-box;
         padding: 0.78rem 0.82rem 0.9rem;
@@ -2387,9 +2386,13 @@
         }
 
         .codex-popover {
-          margin-top: var(--mobile-hud-panel-gap);
+          position: absolute;
+          top: calc(100% + var(--mobile-hud-panel-gap));
+          right: 0;
+          left: auto;
+          margin-top: 0;
           width: var(--mobile-hud-panel-width);
-          transform: scale(var(--mobile-popover-scale));
+          transform: translate(var(--hud-panel-nudge-x, 0px), var(--hud-panel-nudge-y, 0px)) scale(var(--mobile-popover-scale));
           transform-origin: top right;
           border-radius: 0.65rem;
         }
