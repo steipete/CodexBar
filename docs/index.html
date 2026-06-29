@@ -1006,12 +1006,13 @@
 
       .features-heading {
         margin: 0 0 clamp(2.5rem, 5vw, 3.75rem);
-        max-width: 16ch;
+        max-width: none;
         color: var(--page-text);
         font-size: clamp(2.2rem, 4vw, 4.5rem);
         font-weight: 600;
         letter-spacing: -0.07em;
         line-height: 0.98;
+        white-space: nowrap;
       }
 
       .section-title-line {
@@ -1884,10 +1885,7 @@
 
       <section class="features-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
         <div class="section-inner">
-          <h2 class="features-heading provider-reveal">
-            <span class="section-title-line">Know before</span>
-            <span class="section-title-line">you commit</span>
-          </h2>
+          <h2 class="features-heading provider-reveal">Know before you commit</h2>
 
           <div class="features-grid relative z-10">
             <article class="feature-card provider-reveal" style="--reveal-delay: 80ms">
