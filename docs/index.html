@@ -1061,9 +1061,10 @@
       }
 
       .feature-card-visual {
+        position: relative;
         flex: none;
         width: 100%;
-        aspect-ratio: 4 / 3;
+        aspect-ratio: 27 / 17;
         overflow: hidden;
         border: 1px solid var(--page-line);
         border-radius: 0.8rem;
@@ -1077,6 +1078,376 @@
         height: 100%;
         object-fit: cover;
         object-position: top center;
+      }
+
+      .feature-card-overlay {
+        position: absolute;
+        top: 0;
+        right: clamp(1.5rem, 14%, 2.5rem);
+        left: clamp(1.5rem, 14%, 2.5rem);
+        bottom: clamp(1.75rem, 18%, 3rem);
+        border-bottom-left-radius: 0.8rem;
+        border-bottom-right-radius: 0.8rem;
+        background: rgba(14, 14, 16, 0.56);
+        backdrop-filter: blur(24px) saturate(1.4);
+        -webkit-backdrop-filter: blur(24px) saturate(1.4);
+        line-height: normal;
+        overflow: hidden;
+        isolation: isolate;
+      }
+
+      .feature-card-overlay.is-usage-menu {
+        top: 0;
+        right: clamp(1.5rem, 14%, 2.5rem);
+        bottom: clamp(1.75rem, 18%, 3rem);
+        left: clamp(1.5rem, 14%, 2.5rem);
+        border-bottom-left-radius: 0.8rem;
+        border-bottom-right-radius: 0.8rem;
+        background: rgba(14, 14, 16, 0.56);
+        box-shadow: none;
+      }
+
+      .feature-usage-panel,
+      .feature-cost-panel,
+      .feature-status-panel {
+        height: 100%;
+        padding: clamp(0.72rem, 2.4vw, 0.95rem) clamp(0.82rem, 2.6vw, 1.05rem);
+        border-bottom-left-radius: inherit;
+        border-bottom-right-radius: inherit;
+        background: transparent;
+        color: rgba(244, 244, 245, 0.96);
+        font-size: clamp(0.66rem, 1.55vw, 0.76rem);
+        letter-spacing: -0.02em;
+      }
+
+      .feature-cost-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem 0.85rem;
+        margin: 0;
+      }
+
+      .feature-credit-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.9rem;
+        margin-bottom: 0.52rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .feature-credit-head p {
+        margin: 0;
+      }
+
+      .feature-credit-head strong,
+      .feature-credit-head span {
+        display: block;
+        white-space: nowrap;
+      }
+
+      .feature-credit-head strong {
+        color: rgba(244, 244, 245, 0.9);
+        font-size: 1em;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+      }
+
+      .feature-credit-head span {
+        margin-top: 0.18rem;
+        color: rgba(244, 244, 245, 0.52);
+        font-size: 0.9em;
+        font-weight: 500;
+        line-height: 1.2;
+      }
+
+      .feature-credit-head p:last-child {
+        color: rgba(244, 244, 245, 0.64);
+        font-size: 0.94em;
+        text-align: right;
+      }
+
+      .feature-cost-stats > div {
+        min-width: 0;
+      }
+
+      .feature-cost-stats dt {
+        margin: 0;
+        color: rgba(244, 244, 245, 0.5);
+        font-size: 0.9em;
+        font-weight: 500;
+        line-height: 1.2;
+      }
+
+      .feature-cost-stats dd {
+        margin: 0.1rem 0 0;
+        font-size: 1.08em;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        white-space: nowrap;
+      }
+
+      .feature-cost-chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 1.5px;
+        height: clamp(2rem, 5.5vw, 2.55rem);
+        margin-top: 0.58rem;
+      }
+
+      .feature-cost-chart > i {
+        flex: 1;
+        min-width: 0;
+        height: var(--h);
+        border-radius: 2px 2px 1px 1px;
+        background: #3584a3;
+      }
+
+      .feature-card-overlay.is-status-menu {
+        background: rgba(14, 14, 16, 0.62);
+      }
+
+      .feature-status-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .feature-status-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.7rem;
+        margin: 0 0 0.62rem;
+        color: #fff;
+        font-size: 1.02em;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+      }
+
+      .feature-status-summary span {
+        flex: none;
+        color: rgba(255, 255, 255, 0.86);
+        font-size: 0.8em;
+        font-weight: 600;
+      }
+
+      .feature-status-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.26rem;
+      }
+
+      .feature-status-list li {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.4rem;
+        min-height: 1.38rem;
+        padding: 0.18rem 0.3rem;
+        border-radius: 0.34rem;
+        background: rgba(255, 255, 255, 0.055);
+      }
+
+      .feature-status-dot {
+        width: 0.44rem;
+        height: 0.44rem;
+        border-radius: 999px;
+        background: #33c759;
+      }
+
+      .feature-status-list li.is-minor .feature-status-dot {
+        background: #f5c518;
+      }
+
+      .feature-status-list li.is-critical .feature-status-dot {
+        background: #e84d3f;
+      }
+
+      .feature-status-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: rgba(244, 244, 245, 0.82);
+        font-weight: 600;
+      }
+
+      .feature-status-label {
+        color: rgba(244, 244, 245, 0.62);
+        font-size: 0.92em;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .feature-usage-block + .feature-usage-block {
+        margin-top: clamp(0.7rem, 2vw, 0.95rem);
+      }
+
+      .feature-usage-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .feature-cost-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .feature-usage-header {
+        display: grid;
+        grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
+        gap: 0.55rem;
+        margin-bottom: 0.48rem;
+        padding-bottom: clamp(0.34rem, 1.05vw, 0.48rem);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+      }
+
+      .feature-usage-header p,
+      .feature-usage-meta p {
+        margin: 0;
+      }
+
+      .feature-usage-header strong,
+      .feature-usage-header span,
+      .feature-usage-meta strong,
+      .feature-usage-meta span {
+        display: block;
+      }
+
+      .feature-usage-header strong {
+        color: rgba(244, 244, 245, 0.95);
+        font-size: 1.08em;
+        font-weight: 650;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+      }
+
+      .feature-usage-header span {
+        margin-top: 0.14rem;
+        color: rgba(244, 244, 245, 0.5);
+        font-size: 0.9em;
+        font-weight: 500;
+        line-height: 1.2;
+      }
+
+      .feature-usage-account {
+        text-align: right;
+      }
+
+      .feature-usage-account strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .feature-usage-title {
+        margin: 0;
+        color: rgba(244, 244, 245, 0.96);
+        font-size: 1.08em;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+
+      .feature-usage-track {
+        position: relative;
+        height: clamp(0.28rem, 0.85vw, 0.38rem);
+        margin-top: 0.34rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+      }
+
+      .feature-usage-fill {
+        position: relative;
+        display: flex;
+        height: 100%;
+        width: var(--amount, 100%);
+        border-radius: inherit;
+      }
+
+      .feature-usage-fill > i {
+        flex: var(--flex);
+        min-width: 0;
+        background: #3584a3;
+      }
+
+      .feature-usage-fill > i.is-reserve {
+        background: #3584a3;
+      }
+
+      .feature-usage-fill > i.is-spent {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .feature-usage-fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          90deg,
+          rgba(0, 0, 0, 0.16) 0,
+          rgba(0, 0, 0, 0.16) 1px,
+          transparent 1px,
+          transparent 25%
+        );
+        pointer-events: none;
+      }
+
+      .feature-usage-track::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, transparent 19.8%, rgba(255, 255, 255, 0.5) 19.8% 20.2%, transparent 20.2%),
+          linear-gradient(90deg, transparent 49.8%, rgba(255, 255, 255, 0.4) 49.8% 50.2%, transparent 50.2%);
+        pointer-events: none;
+      }
+
+      .feature-usage-meta {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: start;
+        gap: 0.55rem;
+        margin-top: 0.3rem;
+        color: rgba(244, 244, 245, 0.5);
+        font-size: 0.9em;
+        font-weight: 500;
+        letter-spacing: -0.035em;
+        line-height: 1.18;
+      }
+
+      .feature-usage-panel p,
+      .feature-usage-panel strong,
+      .feature-usage-panel span {
+        color: inherit;
+        font-size: inherit;
+        line-height: inherit;
+      }
+
+      .feature-usage-meta strong,
+      .feature-usage-meta span {
+        white-space: nowrap;
+      }
+
+      .feature-usage-meta span {
+        margin-top: 0.12rem;
+      }
+
+      .feature-usage-meta .is-subtle {
+        color: rgba(244, 244, 245, 0.5);
+      }
+
+      .feature-usage-meta > :last-child {
+        text-align: right;
       }
 
       .cli-section,
@@ -1287,6 +1658,7 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         padding-inline: 0.85rem;
+        padding-bottom: 1.25rem;
       }
 
       .mac-widget-gallery::-webkit-scrollbar {
@@ -1427,8 +1799,9 @@
         color: rgba(244, 244, 245, 0.58);
       }
 
-      .cli-terminal-version {
-        color: rgba(244, 244, 245, 0.42);
+      .cli-terminal-chrome-spacer {
+        flex: none;
+        width: calc(0.58rem * 3 + 0.38rem * 2);
       }
 
       .cli-terminal-body {
@@ -1494,7 +1867,7 @@
       .cli-terminal-foot {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-start;
         gap: 1rem;
         margin-top: 0.85rem;
         padding: 0.8rem 1rem;
@@ -1505,6 +1878,15 @@
       .cli-terminal-foot strong {
         color: rgba(244, 244, 245, 0.92);
         font-weight: 600;
+      }
+
+      .cli-terminal-cursor {
+        color: rgba(244, 244, 245, 0.55);
+        animation: cli-cursor-blink 1.1s step-end infinite;
+      }
+
+      @keyframes cli-cursor-blink {
+        50% { opacity: 0; }
       }
 
       .cli-footnote {
@@ -1885,7 +2267,7 @@
 
       <section class="features-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
         <div class="section-inner">
-          <h2 class="features-heading provider-reveal">Know before you commit</h2>
+          <h2 class="features-heading provider-reveal">Limits, spend, and status</h2>
 
           <div class="features-grid relative z-10">
             <article class="feature-card provider-reveal" style="--reveal-delay: 80ms">
@@ -1895,6 +2277,51 @@
               </div>
               <div class="feature-card-visual" aria-hidden="true">
                 <img src="./features/feature-resets.png" alt="" width="2700" height="1700" loading="lazy" />
+                <div class="feature-card-overlay is-usage-menu">
+                  <div class="feature-usage-panel">
+                    <header class="feature-usage-header">
+                      <p><strong>Codex</strong><span>Updated just now</span></p>
+                      <p class="feature-usage-account"><strong>steipete@codexbar.app</strong><span>Plus</span></p>
+                    </header>
+
+                    <section class="feature-usage-block">
+                      <h4 class="feature-usage-title">Session</h4>
+                      <div class="feature-usage-track" aria-hidden="true">
+                        <div class="feature-usage-fill" style="--amount: 100%">
+                          <i style="--flex: 89"></i>
+                          <i class="is-reserve" style="--flex: 5"></i>
+                          <i class="is-spent" style="--flex: 6"></i>
+                        </div>
+                      </div>
+                      <div class="feature-usage-meta">
+                        <div>
+                          <p><strong>89% left</strong><span class="is-subtle">5% in reserve</span></p>
+                        </div>
+                        <div>
+                          <p><strong>Resets in 4h 12m</strong><span class="is-subtle">Lasts until reset</span></p>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section class="feature-usage-block">
+                      <h4 class="feature-usage-title">Weekly</h4>
+                      <div class="feature-usage-track" aria-hidden="true">
+                        <div class="feature-usage-fill" style="--amount: 100%">
+                          <i style="--flex: 98"></i>
+                          <i class="is-spent" style="--flex: 2"></i>
+                        </div>
+                      </div>
+                      <div class="feature-usage-meta">
+                        <div>
+                          <p><strong>98% left</strong></p>
+                        </div>
+                        <div>
+                          <p><strong>Resets in 6d 23h</strong></p>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
               </div>
             </article>
             <article class="feature-card provider-reveal" style="--reveal-delay: 140ms">
@@ -1904,6 +2331,35 @@
               </div>
               <div class="feature-card-visual" aria-hidden="true">
                 <img src="./features/feature-credits.png" alt="" width="2700" height="1700" loading="lazy" />
+                <div class="feature-card-overlay">
+                  <div class="feature-cost-panel">
+                    <div class="feature-credit-head">
+                      <p><strong>Limit Reset Credits</strong><span>Next expires in 27d 21h</span></p>
+                      <p><strong>1 manual reset available</strong></p>
+                    </div>
+                    <dl class="feature-cost-stats">
+                      <div>
+                        <dt>Today</dt>
+                        <dd>$86.62</dd>
+                      </div>
+                      <div>
+                        <dt>Last 31 days Cost</dt>
+                        <dd>$5,286.29</dd>
+                      </div>
+                      <div>
+                        <dt>Last 31 days tokens</dt>
+                        <dd>5.9B</dd>
+                      </div>
+                      <div>
+                        <dt>Latest tokens</dt>
+                        <dd>119M</dd>
+                      </div>
+                    </dl>
+                    <div class="feature-cost-chart" aria-hidden="true">
+                      <i style="--h: 72%"></i><i style="--h: 77%"></i><i style="--h: 53%"></i><i style="--h: 81%"></i><i style="--h: 46%"></i><i style="--h: 96%"></i><i style="--h: 47%"></i><i style="--h: 10%"></i><i style="--h: 29%"></i><i style="--h: 64%"></i><i style="--h: 21%"></i><i style="--h: 5%"></i><i style="--h: 23%"></i><i style="--h: 22%"></i><i style="--h: 4%"></i><i style="--h: 10%"></i><i style="--h: 37%"></i><i style="--h: 45%"></i><i style="--h: 33%"></i><i style="--h: 50%"></i><i style="--h: 58%"></i><i style="--h: 35%"></i><i style="--h: 48%"></i><i style="--h: 55%"></i><i style="--h: 40%"></i><i style="--h: 8%"></i><i style="--h: 7%"></i><i style="--h: 8%"></i><i style="--h: 20%"></i><i style="--h: 54%"></i><i style="--h: 22%"></i>
+                    </div>
+                  </div>
+                </div>
               </div>
             </article>
             <article class="feature-card provider-reveal" style="--reveal-delay: 200ms">
@@ -1913,6 +2369,33 @@
               </div>
               <div class="feature-card-visual" aria-hidden="true">
                 <img src="./features/feature-status.png" alt="" width="2700" height="1700" loading="lazy" />
+                <div class="feature-card-overlay is-status-menu">
+                  <div class="feature-status-panel">
+                    <p class="feature-status-summary">Partial degradation <span>2 incidents</span></p>
+                    <ul class="feature-status-list" aria-hidden="true">
+                      <li class="is-critical">
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">Codex API</span>
+                        <span class="feature-status-label">Major outage</span>
+                      </li>
+                      <li class="is-minor">
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">Chat Completions</span>
+                        <span class="feature-status-label">Degraded</span>
+                      </li>
+                      <li>
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">CLI</span>
+                        <span class="feature-status-label">Operational</span>
+                      </li>
+                      <li>
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">Responses</span>
+                        <span class="feature-status-label">Operational</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </article>
           </div>
@@ -1929,7 +2412,7 @@
                     <span></span><span></span><span></span>
                   </div>
                   <p class="cli-terminal-title">codexbar · terminal</p>
-                  <p class="cli-terminal-version">bundled</p>
+                  <div class="cli-terminal-chrome-spacer" aria-hidden="true"></div>
                 </div>
 
                 <div class="cli-terminal-body">
@@ -1955,7 +2438,7 @@
                   </section>
 
                   <section class="cli-provider-block">
-                    <p class="cli-provider-label">== Cursor (web) ==</p>
+                    <p class="cli-provider-label">== elevenlabs ==</p>
                     <div class="cli-row">
                       <span class="cli-row-label">Total</span>
                       <span class="cli-row-value">79% left</span>
@@ -1980,8 +2463,7 @@
                 </div>
 
                 <div class="cli-terminal-foot">
-                  <p><strong>&gt;</strong> codexbar</p>
-                  <p>macOS &amp; Linux builds on every release</p>
+                  <p><strong>&gt;</strong> codexbar<span class="cli-terminal-cursor" aria-hidden="true">▍</span></p>
                 </div>
               </div>
             </div>
@@ -2167,7 +2649,7 @@
 
       <section class="technical-section px-5 py-16 sm:px-8 lg:px-12 lg:py-20" data-scroll-section>
         <div class="section-inner">
-        <p class="section-eyebrow provider-reveal">Technical</p>
+        <p class="section-eyebrow provider-reveal">More</p>
 
         <div class="technical-grid relative z-10">
           <article class="technical-block provider-reveal" style="--reveal-delay: 60ms">
