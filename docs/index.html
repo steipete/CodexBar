@@ -1656,6 +1656,10 @@
       }
 
       @media (min-width: 1024px) {
+        .hero-section {
+          min-height: calc(100vh - 2.5rem);
+        }
+
         .split-layout {
           grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.82fr);
           gap: clamp(2.5rem, 5vw, 4rem);
@@ -2856,8 +2860,8 @@
             <span class="hero-title-line" data-i18n="hero.accent">in your menu bar.</span>
           </h1>
 
-          <p class="reveal reveal-3 mt-6 max-w-[38rem] text-[clamp(1rem,1.25vw,1.28rem)] leading-[1.42] tracking-[-0.035em] text-zinc-400">
-            <span data-i18n-rich="hero.descriptionShort">Track usage windows, credit balances, and reset countdowns{break}across the AI tools you actually pay for.</span>
+          <p class="reveal reveal-3 mt-6 max-w-[38rem] text-balance text-[clamp(1rem,1.25vw,1.28rem)] leading-[1.42] tracking-[-0.035em] text-zinc-400">
+            <span data-i18n="hero.descriptionShort">Track usage windows, credit balances, and reset countdowns across the AI tools you actually pay for.</span>
           </p>
 
           <div class="hero-cta-row reveal reveal-3 mt-8 sm:mt-10">
