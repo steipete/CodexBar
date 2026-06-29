@@ -1,13 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="bg-black">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CodexBar — every AI coding limit in your menu bar</title>
-    <meta
-      name="description"
-      content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 53 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more."
-    />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 53 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more." />
+    <title>CodexBar — every AI coding limit, in your menu bar</title>
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="canonical" href="https://codexbar.app/" />
     <link rel="alternate" hreflang="x-default" href="https://codexbar.app/" />
@@ -32,12 +29,8 @@
     <link rel="alternate" hreflang="th" href="https://codexbar.app/?lang=th" />
     <link rel="alternate" hreflang="ca" href="https://codexbar.app/?lang=ca" />
     <link rel="alternate" hreflang="sv" href="https://codexbar.app/?lang=sv" />
-
     <meta property="og:title" content="CodexBar" />
-    <meta
-      property="og:description"
-      content="Track usage windows, credits, and resets across 53 AI coding providers from your macOS menu bar."
-    />
+    <meta property="og:description" content="Track usage windows, credits, and resets across 53 AI coding providers from your macOS menu bar." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://codexbar.app/" />
     <meta property="og:image" content="https://codexbar.app/social.png" />
@@ -45,312 +38,1776 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://codexbar.app/social.png" />
     <meta name="twitter:card" content="summary_large_image" />
-
-    <link rel="icon" href="./icon.png" type="image/png" />
+    <link rel="icon" type="image/png" href="./icon.png" />
     <link rel="apple-touch-icon" href="./icon.png" />
     <script>
-      (function () {
-        try {
-          var supported = ['en', 'zh-CN', 'zh-TW', 'ja-JP', 'es', 'pt-BR', 'ko', 'de', 'fr', 'ar', 'it', 'vi', 'nl', 'tr', 'uk', 'id', 'pl', 'fa', 'th', 'ca', 'sv'];
-          var aliases = { 'zh-hans': 'zh-CN', 'zh-cn': 'zh-CN', 'zh-hant': 'zh-TW', 'zh-tw': 'zh-TW', 'zh-hk': 'zh-TW', ja: 'ja-JP', pt: 'pt-BR', 'pt-br': 'pt-BR' };
-          function normalizeLocale(value) {
-            if (!value) return null;
-            var lower = value.toLowerCase();
-            if (aliases[lower]) return aliases[lower];
-            for (var i = 0; i < supported.length; i += 1) {
-              if (supported[i].toLowerCase() === lower || lower.indexOf(supported[i].toLowerCase() + '-') === 0) return supported[i];
-            }
-            return null;
-          }
-          var queryLocale = normalizeLocale(new URLSearchParams(location.search).get('lang'));
-          var storedLocale = normalizeLocale(localStorage.getItem('codexbar-language'));
-          var browserLocale = null;
-          var browserLanguages = navigator.languages || [navigator.language];
-          for (var i = 0; i < browserLanguages.length && !browserLocale; i += 1) browserLocale = normalizeLocale(browserLanguages[i]);
-          var locale = queryLocale || storedLocale || browserLocale || 'en';
-          document.documentElement.lang = locale;
-          document.documentElement.dir = locale === 'ar' || locale === 'fa' ? 'rtl' : 'ltr';
-          document.documentElement.dataset.locale = locale;
-
-          var queryTheme = new URLSearchParams(location.search).get('theme');
-          var theme = queryTheme === 'light' || queryTheme === 'dark'
-            ? queryTheme
-            : localStorage.getItem('codexbar-theme');
-          if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-        } catch (_) {}
+      (() => {
+        const storedTheme = localStorage.getItem('codexbar-theme') || 'system';
+        const resolvedTheme = storedTheme === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : storedTheme;
+        document.documentElement.dataset.theme = resolvedTheme;
+        document.documentElement.dataset.themePreference = storedTheme;
       })();
     </script>
-    <link rel="stylesheet" href="./site.css?v=10" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+              mono: ['SFMono-Regular', 'SF Mono', 'Menlo', 'monospace'],
+            },
+            colors: {
+              ink: '#050505',
+              mist: '#a2a2a7',
+              signal: '#f24d2e',
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --page-bg: #000;
+        --page-glow: rgba(255, 255, 255, 0.075);
+        --page-text: #f4f4f5;
+        --page-muted: #a1a1aa;
+        --page-subtle: #71717a;
+        --page-faint: #52525b;
+        --page-line: rgba(255, 255, 255, 0.08);
+        --control-bg: rgba(255, 255, 255, 0.04);
+        --control-border: rgba(255, 255, 255, 0.1);
+        --control-hover: rgba(255, 255, 255, 0.075);
+        --control-active: rgba(255, 255, 255, 0.12);
+        --control-text: #a1a1aa;
+        --control-active-text: #fff;
+        --primary-bg: #f4f4f5;
+        --primary-text: #09090b;
+        --primary-hover: #fff;
+        --apple-filter: none;
+        --header-height: 5rem;
+        --mockup-x: 140px;
+        --mockup-y: -6px;
+        --mockup-scale: 1.03;
+        --glow-x: 331px;
+        --glow-y: -260px;
+        --glow-scale: 2.4;
+        --glow-opacity: 0.55;
+        --glow-blur: 72px;
+        --glow-color-a: #003c61;
+        --glow-color-b: #8000ff;
+        --menubar-x: -67px;
+        --menubar-y: 16px;
+        --menubar-scale: 1;
+        --menubar-gap: 22px;
+        --menubar-icon-scale: 1.28;
+        --popover-x: -96px;
+        --popover-y: 27px;
+        --popover-scale: 1.14;
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --page-bg: #f7f7f5;
+        --page-glow: rgba(0, 0, 0, 0.05);
+        --page-text: #18181b;
+        --page-muted: #52525b;
+        --page-subtle: #71717a;
+        --page-faint: #a1a1aa;
+        --page-line: rgba(0, 0, 0, 0.1);
+        --control-bg: rgba(0, 0, 0, 0.035);
+        --control-border: rgba(0, 0, 0, 0.11);
+        --control-hover: rgba(0, 0, 0, 0.065);
+        --control-active: rgba(0, 0, 0, 0.1);
+        --control-text: #71717a;
+        --control-active-text: #18181b;
+        --primary-bg: #18181b;
+        --primary-text: #fff;
+        --primary-hover: #09090b;
+        --apple-filter: brightness(0) invert(1);
+      }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 50% 76%, var(--page-glow), transparent 29rem),
+          var(--page-bg);
+        color: var(--page-text);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      html.bg-black { background-color: var(--page-bg) !important; }
+
+      ::selection { background: #0099ff; color: #fff; }
+
+      .mockup-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+
+      .mockup-wrap {
+        position: absolute;
+        top: var(--header-height);
+        left: 50%;
+        width: 118%;
+        aspect-ratio: 3437 / 1905;
+        transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y)) scale(var(--mockup-scale));
+        transform-origin: top center;
+        will-change: transform;
+      }
+
+      .mockup-wrap::after {
+        content: "";
+        position: absolute;
+        z-index: 6;
+        right: 0;
+        bottom: -1px;
+        left: 0;
+        height: 32%;
+        pointer-events: none;
+        background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.58) 58%, #000 100%);
+      }
+
+      .mockup-glow {
+        position: absolute;
+        z-index: 0;
+        top: 34%;
+        left: 50%;
+        width: 68%;
+        height: 38%;
+        transform: translate(calc(-50% + var(--glow-x)), var(--glow-y)) scale(var(--glow-scale));
+        border-radius: 999px;
+        background:
+          radial-gradient(circle at 52% 50%, color-mix(in srgb, var(--glow-color-a) 28%, transparent), transparent 45%),
+          radial-gradient(circle at 42% 56%, color-mix(in srgb, var(--glow-color-b) 16%, transparent), transparent 58%);
+        filter: blur(var(--glow-blur));
+        opacity: var(--glow-opacity);
+        pointer-events: none;
+        will-change: transform, opacity, filter;
+      }
+
+      .mockup-wrap > img {
+        position: relative;
+        z-index: 1;
+      }
+
+      .menu-bar-mark {
+        position: relative;
+        flex: none;
+        width: calc(1em * var(--menubar-icon-scale));
+        height: calc(1em * var(--menubar-icon-scale));
+        transform: translateY(0.01em);
+        filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+      }
+
+      .menu-bar-mark::before {
+        content: "";
+        position: absolute;
+        inset: -0.22em -0.3em;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.24);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      }
+
+      .menu-bar-mark span {
+        position: absolute;
+        z-index: 1;
+        left: 10%;
+        display: block;
+        width: 80%;
+        height: 22%;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #a8aaa8;
+      }
+
+      .menu-bar-mark span::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #f5f5f3 0%, #e7e7e5 100%);
+        transform: scaleX(0);
+        transform-origin: left center;
+        transition: transform 640ms cubic-bezier(0.23, 1, 0.32, 1) var(--mark-bar-delay, 0ms);
+        will-change: transform;
+      }
+
+      .menu-bar-mark span:first-child {
+        top: 23%;
+        --mark-fill: 0.68;
+        --mark-bar-delay: 0ms;
+      }
+
+      .menu-bar-mark span:last-child {
+        bottom: 23%;
+        --mark-fill: 0.33;
+        --mark-bar-delay: 150ms;
+      }
+
+      .mockup-wrap.is-mark-animated .menu-bar-mark span::before {
+        transform: scaleX(var(--mark-fill));
+      }
+
+      .system-menubar {
+        position: absolute;
+        z-index: 3;
+        top: 5.8%;
+        left: 59.2%;
+        display: flex;
+        align-items: center;
+        gap: var(--menubar-gap);
+        overflow: visible;
+        transform: translate(var(--menubar-x), var(--menubar-y)) scale(var(--menubar-scale));
+        transform-origin: left center;
+        color: rgba(245, 245, 245, 0.94);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+        font-size: clamp(0.95rem, 1.08vw, 1.48rem);
+        font-weight: 650;
+        letter-spacing: -0.045em;
+        text-shadow: 0 0.08em 0.28em rgba(0, 0, 0, 0.74);
+        will-change: transform;
+      }
+
+      .system-menubar svg,
+      .system-menubar .sf-symbol {
+        flex: none;
+        display: block;
+        width: calc(1em * var(--menubar-icon-scale));
+        height: calc(1em * var(--menubar-icon-scale));
+      }
+
+      .system-menubar svg {
+        overflow: visible;
+        color: #dbdbdb;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.35;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        filter: drop-shadow(0 0.08em 0.18em rgba(0, 0, 0, 0.58));
+      }
+
+      .system-menubar .sf-symbol {
+        object-fit: contain;
+        filter: brightness(0) invert(86%) drop-shadow(0 0.08em 0.18em rgba(0, 0, 0, 0.58));
+      }
+
+      .system-menubar .time {
+        margin-left: calc(var(--menubar-gap) * -0.08);
+        white-space: nowrap;
+        font-size: 0.8em;
+      }
+
+      .system-menubar > * {
+        opacity: 0;
+        transform: translateY(-0.42em);
+        transition:
+          opacity 420ms cubic-bezier(0.23, 1, 0.32, 1),
+          transform 420ms cubic-bezier(0.23, 1, 0.32, 1);
+        transition-delay: var(--menubar-enter-delay, 0ms);
+        will-change: opacity, transform;
+      }
+
+      .system-menubar > .menu-bar-mark {
+        transform: translateY(calc(0.01em - 0.42em));
+      }
+
+      .mockup-wrap.is-menubar-entered .system-menubar > * {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .mockup-wrap.is-menubar-entered .system-menubar > .menu-bar-mark {
+        transform: translateY(0.01em);
+      }
+
+      .codex-popover {
+        position: absolute;
+        z-index: 4;
+        top: 9.15%;
+        right: 22.35%;
+        width: calc(18.2% - 30px);
+        box-sizing: border-box;
+        padding: 0.78rem 0.82rem 0.9rem;
+        transform: translate(var(--popover-x), var(--popover-y)) scale(var(--popover-scale));
+        transform-origin: top right;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 1rem;
+        background: linear-gradient(180deg, rgba(35, 35, 38, 0.94), rgba(20, 20, 22, 0.97));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.1),
+          inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+          0 1.5rem 2.5rem rgba(0, 0, 0, 0.56);
+        color: rgba(244, 244, 245, 0.92);
+        font-size: clamp(0.55rem, 0.52vw, 0.8rem);
+        letter-spacing: -0.035em;
+        line-height: 1.15;
+        backdrop-filter: blur(18px);
+        will-change: transform, opacity;
+        opacity: 0;
+        transition: opacity 480ms cubic-bezier(0.23, 1, 0.32, 1);
+      }
+
+      .mockup-wrap.is-animated .codex-popover {
+        opacity: 1;
+      }
+
+      .popover-top,
+      .popover-section,
+      .popover-foot {
+        position: relative;
+        z-index: 1;
+      }
+
+      .popover-top {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.35rem;
+        padding-bottom: 0.55rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .popover-top strong,
+      .popover-section h3,
+      .popover-number strong,
+      .popover-foot strong {
+        display: block;
+        color: rgba(244, 244, 245, 0.96);
+        font-weight: 780;
+      }
+
+      .popover-top span,
+      .popover-number span,
+      .popover-note,
+      .popover-foot span {
+        color: rgba(244, 244, 245, 0.58);
+        font-weight: 650;
+      }
+
+      .popover-top .right { text-align: right; }
+
+      .popover-section { margin-top: 0.9rem; }
+      .popover-section h3 { margin-bottom: 0.42rem; font-size: 1.28em; }
+
+      .usage-meter {
+        position: relative;
+        height: 0.42rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.09);
+      }
+
+      .usage-meter::before {
+        content: "";
+        display: block;
+        width: var(--fill);
+        height: 100%;
+        border-radius: inherit;
+        background: #4fb6c3;
+        transform: scaleX(0);
+        transform-origin: left center;
+        transition: transform 760ms cubic-bezier(0.23, 1, 0.32, 1) var(--meter-delay, 420ms);
+      }
+
+      .usage-meter::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: var(--danger);
+        width: 0.14rem;
+        height: 100%;
+        border-radius: 999px;
+        background: #ff4055;
+        opacity: 0;
+        transition: opacity 140ms ease calc(var(--meter-delay, 420ms) + 560ms);
+      }
+
+      .usage-meter i {
+        position: absolute;
+        top: 18%;
+        left: var(--tick);
+        width: 1px;
+        height: 64%;
+        background: rgba(255, 255, 255, 0.34);
+        opacity: 0;
+        transition: opacity 180ms ease calc(var(--meter-delay, 420ms) + 420ms);
+      }
+
+      .mockup-wrap.is-animated .usage-meter::before { transform: scaleX(1); }
+      .mockup-wrap.is-animated .usage-meter::after,
+      .mockup-wrap.is-animated .usage-meter i { opacity: 1; }
+
+      .usage-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.75rem;
+        margin-top: 0.45rem;
+      }
+
+      .usage-row strong,
+      .usage-row span {
+        display: block;
+        font-weight: 760;
+      }
+
+      .usage-row .right { text-align: right; color: rgba(244, 244, 245, 0.62); }
+
+      .reset-credit {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.75rem;
+        margin-top: 0.9rem;
+        padding-top: 0.86rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+      }
+
+      .reset-credit strong,
+      .reset-credit span {
+        display: block;
+        font-weight: 760;
+      }
+
+      .reset-credit span,
+      .reset-credit p:last-child {
+        color: rgba(244, 244, 245, 0.58);
+      }
+
+      .number-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.65rem 1.15rem;
+        margin-top: 0.9rem;
+      }
+
+      .popover-number strong { margin-top: 0.12rem; font-size: 1.22em; }
+
+      .usage-chart {
+        display: flex;
+        align-items: end;
+        gap: 0.18rem;
+        height: 4.15rem;
+        margin-top: 0.75rem;
+        border-bottom: 1px solid rgba(79, 182, 195, 0.26);
+      }
+
+      .usage-chart i {
+        flex: 1;
+        min-width: 0.12rem;
+        height: var(--h);
+        border-radius: 0.12rem 0.12rem 0 0;
+        background: rgba(79, 182, 195, 0.78);
+        opacity: 0.18;
+        transform: scaleY(0);
+        transform-origin: bottom center;
+        transition:
+          transform 520ms cubic-bezier(0.23, 1, 0.32, 1) var(--bar-delay, 760ms),
+          opacity 220ms ease var(--bar-delay, 760ms);
+      }
+
+      .mockup-wrap.is-animated .usage-chart i {
+        opacity: 1;
+        transform: scaleY(1);
+      }
+
+      .popover-note {
+        margin-top: 0.62rem;
+        font-size: 0.96em;
+      }
+
+      .popover-note strong { color: rgba(244, 244, 245, 0.72); }
+
+      .popover-foot {
+        margin-top: 1rem;
+        padding-top: 0.86rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+      }
+
+      .credit-meter {
+        height: 0.46rem;
+        margin: 0.55rem 0 0.55rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .credit-row,
+      .buy-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .buy-row {
+        justify-content: flex-start;
+        gap: 0.55rem;
+        margin-top: 0.8rem;
+        font-size: 1.18em;
+        font-weight: 780;
+      }
+
+      .buy-row svg { width: 1em; height: 1em; color: rgba(244, 244, 245, 0.78); }
+
+      .tuner-panel { backdrop-filter: blur(18px); }
+      .tuner-range { accent-color: #f4f4f5; }
+
+      .tuner-tab[aria-selected="true"] {
+        background: rgba(255, 255, 255, 0.11);
+        color: #fff;
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 10;
+        width: min(56vw, 58rem);
+        padding-top: clamp(9rem, 21vh, 13rem);
+        padding-left: clamp(2rem, 7vw, 8rem);
+        text-align: left;
+      }
+
+      .brew-pill {
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+          rgba(13, 13, 15, 0.78);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.1),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+          0 0.75rem 2rem rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(14px);
+      }
+
+      .apple-icon {
+        display: block;
+        width: 1rem;
+        height: 1rem;
+        object-fit: contain;
+        transform: translateY(-0.5px);
+        filter: var(--apple-filter);
+      }
+
+      .theme-option {
+        display: grid;
+        width: 1.75rem;
+        height: 1.75rem;
+        place-items: center;
+        border-radius: 999px;
+        color: var(--control-text);
+        transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms ease, color 140ms ease;
+      }
+
+      .theme-option svg { width: 0.9rem; height: 0.9rem; }
+      .theme-option [data-theme-icon] { display: none; }
+      .theme-option[data-theme-value="system"] [data-theme-icon="system"],
+      .theme-option[data-theme-value="light"] [data-theme-icon="light"],
+      .theme-option[data-theme-value="dark"] [data-theme-icon="dark"] { display: block; }
+      .theme-option:active { transform: scale(0.94); }
+
+      .language-picker {
+        position: relative;
+      }
+
+      .language-picker-trigger {
+        display: inline-flex;
+        height: 2.125rem;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0 0.55rem;
+        border: 1px solid var(--control-border);
+        border-radius: 999px;
+        background: var(--control-bg);
+        color: var(--control-text);
+        font-size: 0.75rem;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+      }
+
+      .language-picker-trigger svg {
+        width: 0.85rem;
+        height: 0.85rem;
+        flex: none;
+      }
+
+      .language-picker-menu {
+        position: absolute;
+        top: calc(100% + 0.45rem);
+        right: 0;
+        z-index: 40;
+        width: min(13.5rem, calc(100vw - 2rem));
+        overflow: hidden;
+        padding: 0.35rem 0.3rem 0.35rem 0.35rem;
+        border: 1px solid var(--control-border);
+        border-radius: 0.85rem;
+        background: color-mix(in srgb, var(--page-bg) 82%, #18181b);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, var(--page-text) 8%, transparent),
+          0 1rem 2.5rem rgba(0, 0, 0, 0.42);
+        backdrop-filter: blur(18px);
+      }
+
+      .language-picker-menu-scroll {
+        display: grid;
+        gap: 0.1rem;
+        max-height: min(21rem, calc(100vh - 6.5rem));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 0.2rem;
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--page-text) 24%, transparent) transparent;
+      }
+
+      .language-picker-menu-scroll::-webkit-scrollbar {
+        width: 5px;
+      }
+
+      .language-picker-menu-scroll::-webkit-scrollbar-track {
+        margin: 0.15rem 0;
+        background: transparent;
+      }
+
+      .language-picker-menu-scroll::-webkit-scrollbar-thumb {
+        border: 1px solid transparent;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--page-text) 24%, transparent);
+        background-clip: padding-box;
+      }
+
+      .language-picker-menu-scroll::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+
+      .language-picker-menu[hidden] { display: none; }
+
+      .language-option {
+        display: grid;
+        grid-template-columns: 1rem 1fr;
+        align-items: center;
+        gap: 0.55rem;
+        width: 100%;
+        padding: 0.5rem 0.55rem;
+        border: 0;
+        border-radius: 0.55rem;
+        background: transparent;
+        color: var(--page-text);
+        font-size: 0.82rem;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        text-align: left;
+        cursor: pointer;
+        transition: background-color 120ms ease, color 120ms ease;
+      }
+
+      .language-option svg {
+        width: 0.85rem;
+        height: 0.85rem;
+        opacity: 0;
+      }
+
+      .language-option[aria-selected="true"] {
+        background: #0099ff;
+        color: #fff;
+      }
+
+      .language-option[aria-selected="true"] svg { opacity: 1; }
+
+      @media (hover: hover) and (pointer: fine) {
+        .language-picker-trigger:hover {
+          background: var(--control-hover);
+          color: var(--page-text);
+        }
+
+        .language-option:not([aria-selected="true"]):hover {
+          background: var(--control-hover);
+        }
+      }
+
+      .header-divider {
+        width: 1px;
+        height: 1.25rem;
+        background: var(--page-line);
+      }
+
+      .download-button {
+        background: var(--primary-bg) !important;
+        color: var(--primary-text) !important;
+      }
+
+      .download-button:hover { background: var(--primary-hover) !important; }
+
+      :root[data-theme="light"] .text-white,
+      :root[data-theme="light"] .text-zinc-100 { color: var(--page-text) !important; }
+      :root[data-theme="light"] .text-zinc-400 { color: var(--page-muted) !important; }
+      :root[data-theme="light"] .text-zinc-500 { color: var(--page-subtle) !important; }
+      :root[data-theme="light"] .text-zinc-600,
+      :root[data-theme="light"] .text-zinc-700 { color: var(--page-faint) !important; }
+
+      :root[data-theme="light"] .hero-copy .text-zinc-100 { color: #f4f4f5 !important; }
+      :root[data-theme="light"] .hero-copy .text-zinc-400 { color: #a1a1aa !important; }
+      :root[data-theme="light"] .hero-copy .text-zinc-600 { color: #52525b !important; }
+
+      :root[data-theme="light"] .hero-copy .brew-pill {
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+          rgba(13, 13, 15, 0.78);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.1),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+          0 0.75rem 2rem rgba(0, 0, 0, 0.28);
+      }
+
+      :root[data-theme="light"] .hero-download {
+        background: #fff !important;
+        color: #09090b !important;
+      }
+
+      :root[data-theme="light"] .hero-download:hover { background: #e4e4e7 !important; }
+      :root[data-theme="light"] .hero-download .apple-icon { filter: none; }
+
+      :root[data-theme="light"] .provider-card p > strong { color: var(--page-text); }
+      :root[data-theme="light"] .provider-card p > span { color: var(--page-subtle); }
+
+      @media (hover: hover) and (pointer: fine) {
+        .theme-option:hover { color: var(--page-text); }
+      }
+
+      .provider-section {
+        position: relative;
+        border-top: 1px solid var(--page-line);
+        background: var(--page-bg);
+      }
+
+      .provider-reveal {
+        opacity: 0;
+        transform: translateY(12px);
+        transition:
+          opacity 420ms cubic-bezier(0.23, 1, 0.32, 1),
+          transform 420ms cubic-bezier(0.23, 1, 0.32, 1);
+        transition-delay: var(--reveal-delay, 0ms);
+      }
+
+      .provider-section.is-revealed .provider-reveal,
+      .features-section.is-revealed .provider-reveal,
+      .technical-section.is-revealed .provider-reveal {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .provider-card {
+        position: relative;
+        display: grid;
+        min-height: 4.6rem;
+        grid-template-columns: 3.1rem 1fr;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.65rem 0;
+      }
+
+      .provider-card[hidden] { display: none; }
+
+      .provider-logo {
+        position: relative;
+        display: grid;
+        width: 3.1rem;
+        height: 3.1rem;
+        place-items: center;
+        color: var(--page-text);
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: -0.08em;
+      }
+
+      .provider-logo::after {
+        content: attr(data-icon);
+        position: absolute;
+        display: grid;
+        inset: 0;
+        place-items: center;
+      }
+
+      .provider-logo::before {
+        content: "";
+        position: absolute;
+        z-index: 2;
+        inset: 0.7rem;
+        background: var(--page-text);
+        opacity: 1;
+        pointer-events: none;
+        -webkit-mask: var(--icon) center / contain no-repeat;
+        mask: var(--icon) center / contain no-repeat;
+        transition: background-color 120ms ease;
+      }
+
+      .provider-logo:has(img)::after { display: none; }
+      .provider-logo:not(:has(img))::before { display: none; }
+
+      .provider-logo img {
+        position: relative;
+        z-index: 1;
+        display: block;
+        width: 1.7rem;
+        height: 1.7rem;
+        object-fit: contain;
+        opacity: 0;
+      }
+
+      .provider-logo > svg {
+        position: absolute;
+        z-index: 1;
+        inset: 0;
+        width: 1.7rem;
+        height: 1.7rem;
+        margin: auto;
+        color: var(--page-text);
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .provider-card:hover .provider-logo::before {
+          background: color-mix(in srgb, var(--brand) 78%, var(--page-text));
+        }
+      }
+
+      .provider-card p > strong,
+      .provider-card p > span {
+        display: block;
+      }
+
+      .provider-card p > strong {
+        color: var(--page-text);
+        font-size: 1.12rem;
+        line-height: 1.15;
+        letter-spacing: -0.035em;
+      }
+
+      .provider-card p > span {
+        margin-top: 0.35rem;
+        color: var(--page-subtle);
+        font-size: 1rem;
+        letter-spacing: -0.025em;
+      }
+
+      .provider-authoring {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.22rem;
+        color: #0099ff;
+      }
+
+      .provider-authoring svg {
+        width: 0.9em;
+        height: 0.9em;
+        flex: none;
+      }
+
+      .button-press { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease, color 160ms ease; }
+      .button-press:active { transform: scale(0.97); }
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(10px);
+        animation: reveal 560ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+      }
+
+      .reveal-2 { animation-delay: 70ms; }
+      .reveal-3 { animation-delay: 140ms; }
+
+      @keyframes reveal {
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .reveal { animation: none; opacity: 1; transform: none; }
+        .provider-reveal,
+        .features-section .provider-reveal,
+        .technical-section .provider-reveal {
+          transform: none;
+          transition: opacity 160ms ease;
+          transition-delay: 0ms;
+        }
+        .usage-meter::before,
+        .usage-chart i {
+          transform: none;
+          transition: opacity 160ms ease;
+        }
+        .usage-meter::after,
+        .usage-meter i { transition: opacity 160ms ease; }
+        .system-menubar > * {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+        .menu-bar-mark span::before {
+          transform: scaleX(var(--mark-fill));
+          transition: none;
+        }
+        .codex-popover { opacity: 1; transition: none; }
+      }
+
+      @media (min-width: 640px) {
+        :root { --header-height: 6rem; }
+      }
+
+      @media (max-width: 640px) {
+        .hero-copy {
+          width: 100%;
+          padding: 3.5rem 1.25rem 0;
+          text-align: center;
+        }
+        .mockup-wrap { top: 20rem; width: 190%; }
+        .codex-popover { border-radius: 0.65rem; }
+        .provider-card { min-height: 5.2rem; padding: 1rem 0 1rem 4.6rem; }
+        .provider-card::before { top: 1rem; width: 3.1rem; height: 3.1rem; }
+      }
+
+      .features-section,
+      .technical-section {
+        position: relative;
+        border-top: 1px solid var(--page-line);
+        background: var(--page-bg);
+      }
+
+      .feature-list {
+        display: grid;
+        gap: clamp(2.25rem, 4.5vw, 3.25rem);
+      }
+
+      .feature-item {
+        padding-left: 1.15rem;
+        border-left: 2px solid color-mix(in srgb, var(--page-text) 14%, transparent);
+      }
+
+      .feature-item h3 {
+        margin: 0;
+        color: var(--page-text);
+        font-size: clamp(1.35rem, 2.1vw, 1.85rem);
+        font-weight: 650;
+        letter-spacing: -0.05em;
+        line-height: 1.08;
+      }
+
+      .feature-item p {
+        margin: 0.75rem 0 0;
+        max-width: 40rem;
+        color: var(--page-muted);
+        font-size: clamp(1rem, 1.1vw, 1.12rem);
+        line-height: 1.48;
+        letter-spacing: -0.03em;
+      }
+
+      .section-eyebrow {
+        margin: 0 0 1.35rem;
+        color: var(--page-faint);
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .technical-grid {
+        display: grid;
+        gap: 2rem;
+      }
+
+      @media (min-width: 768px) {
+        .technical-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 2.5rem 3.5rem;
+        }
+      }
+
+      .technical-block h3 {
+        margin: 0;
+        color: var(--page-text);
+        font-size: 0.98rem;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+      }
+
+      .technical-block p {
+        margin: 0.5rem 0 0;
+        color: var(--page-subtle);
+        font-size: 0.92rem;
+        line-height: 1.55;
+        letter-spacing: -0.02em;
+      }
+
+      .text-link {
+        color: #0099ff;
+        text-decoration: none;
+        transition: color 140ms ease;
+      }
+
+      .text-link:hover { color: #33adff; }
+
+      .inline-code {
+        display: inline;
+        padding: 0.12em 0.42em;
+        border-radius: 0.35rem;
+        background: color-mix(in srgb, var(--page-text) 7%, transparent);
+        color: var(--page-text);
+        font-family: 'SFMono-Regular', 'SF Mono', Menlo, monospace;
+        font-size: 0.88em;
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+      }
+
+      [data-brew-icon] [data-icon="check"] { display: none; }
+
+      [data-brew-icon][data-copied="true"] {
+        color: #4ade80;
+      }
+
+      [data-brew-icon][data-copied="true"] [data-icon="copy"] { display: none; }
+      [data-brew-icon][data-copied="true"] [data-icon="check"] { display: block; }
+
+      .site-footer {
+        border-top: 1px solid var(--page-line);
+        padding: 1.75rem 1.25rem 2.5rem;
+        color: var(--page-faint);
+        font-size: 0.82rem;
+        letter-spacing: -0.02em;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .site-footer a {
+        color: var(--page-subtle);
+        text-decoration: none;
+        transition: color 140ms ease;
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .site-footer a:hover { color: var(--page-text); }
+      }
+    </style>
   </head>
-  <body>
-    <div class="backdrop" aria-hidden="true">
-      <span class="plane p1"></span>
-      <span class="plane p2"></span>
-      <span class="trace t1"></span>
-      <span class="trace t2"></span>
-      <span class="trace t3"></span>
-      <span class="trace t4"></span>
-    </div>
-    <header class="masthead">
-      <a class="brand" href="./" aria-label="CodexBar">
-        <img class="mark" src="./icon.png" alt="" width="28" height="28" />
-        <span class="wordmark">CodexBar</span>
+
+  <body class="min-h-screen overflow-x-hidden text-zinc-100">
+    <header class="absolute inset-x-0 top-0 z-20 grid h-20 grid-cols-[1fr_auto_1fr] items-center bg-transparent px-5 sm:h-24 sm:px-8 lg:px-12">
+      <a href="#top" class="button-press flex w-fit items-center gap-2.5 text-sm font-semibold tracking-[-0.03em] text-white sm:text-base" aria-label="CodexBar home">
+        <img src="./icon.png" alt="" class="h-7 w-7 rounded-[7px] sm:h-8 sm:w-8 sm:rounded-lg" />
+        <span>CodexBar</span>
       </a>
-      <nav class="nav" aria-label="Primary" data-i18n-aria-label="nav.primary">
-        <a class="nav-link" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md" data-i18n="nav.docs">Docs</a>
-        <a class="nav-link" href="https://github.com/steipete/CodexBar" data-i18n="nav.source">Source</a>
-        <label class="language-control" for="language-select">
-          <span class="sr-only" data-i18n="nav.language">Language</span>
-          <select id="language-select" name="language" class="language-select" aria-label="Language" data-i18n-aria-label="nav.language">
-            <option value="en">English</option>
-            <option value="zh-CN">简体中文</option>
-            <option value="zh-TW">繁體中文</option>
-            <option value="ja-JP">日本語</option>
-            <option value="es">Español</option>
-            <option value="pt-BR">Português (BR)</option>
-            <option value="ko">한국어</option>
-            <option value="de">Deutsch</option>
-            <option value="fr">Français</option>
-            <option value="ar">العربية</option>
-            <option value="it">Italiano</option>
-            <option value="vi">Tiếng Việt</option>
-            <option value="nl">Nederlands</option>
-            <option value="tr">Türkçe</option>
-            <option value="uk">Українська</option>
-            <option value="id">Bahasa Indonesia</option>
-            <option value="pl">Polski</option>
-            <option value="fa">فارسی</option>
-            <option value="th">ไทย</option>
-            <option value="ca">Català</option>
-            <option value="sv">Svenska</option>
-          </select>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="m3 4.5 3 3 3-3" />
+
+      <nav class="flex items-center justify-center gap-3" aria-label="Project links">
+        <a
+          href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md"
+          class="button-press hidden text-[14px] text-zinc-400 hover:text-white sm:block"
+        >docs</a>
+        <span class="hidden text-sm text-zinc-700 sm:block" aria-hidden="true" data-project-separator>/</span>
+        <a
+          href="https://github.com/steipete/CodexBar"
+          class="button-press group flex items-center justify-center gap-2.5 text-[14px] text-zinc-400 hover:text-white"
+          aria-label="CodexBar source on GitHub"
+        >
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .8a11.4 11.4 0 0 0-3.6 22.2c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.4-1.3-5.4-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.1 1.2a10.8 10.8 0 0 1 5.7 0C16.9 4.7 18 5 18 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.4 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.4 11.4 0 0 0 12 .8Z" />
           </svg>
-        </label>
-        <button class="theme-toggle" type="button" aria-label="Switch color theme" aria-pressed="false" title="Switch color theme">
-          <svg class="sun" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-            <circle cx="8" cy="8" r="2.75" />
-            <path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M12.6 3.4l-.9.9M4.3 11.7l-.9.9" />
-          </svg>
-          <svg class="moon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M13.2 10.1A5.8 5.8 0 0 1 5.9 2.8a6 6 0 1 0 7.3 7.3Z" />
-          </svg>
+          <span class="hidden sm:inline">
+            source <span class="text-[13px] text-zinc-500">(15.5k stars)</span>
+          </span>
+        </a>
+      </nav>
+
+      <nav class="flex items-center justify-end gap-3" aria-label="Display and download">
+        <button class="theme-option hidden lg:grid" id="theme-toggle" type="button" data-theme-value="system" aria-label="Theme: system. Switch to light" title="System theme">
+              <svg data-theme-icon="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="20" height="14" x="2" y="3" rx="2" />
+                <line x1="8" x2="16" y1="21" y2="21" />
+                <line x1="12" x2="12" y1="17" y2="21" />
+              </svg>
+              <svg data-theme-icon="light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
+              </svg>
+              <svg data-theme-icon="dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+              </svg>
         </button>
-        <a class="btn primary" href="https://github.com/steipete/CodexBar/releases/latest" data-i18n="nav.download">Download</a>
+
+        <div class="language-picker hidden lg:block" id="language-picker">
+          <button
+            class="language-picker-trigger button-press"
+            id="language-picker-trigger"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-controls="language-picker-menu"
+            aria-label="Language"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+            </svg>
+            <span data-lang-short>EN</span>
+          </button>
+          <div class="language-picker-menu" id="language-picker-menu" hidden>
+            <div class="language-picker-menu-scroll" id="language-picker-list" role="listbox" aria-label="Language"></div>
+          </div>
+        </div>
+
+        <span class="header-divider hidden lg:block" aria-hidden="true"></span>
+        <a
+          href="https://github.com/steipete/CodexBar/releases/latest"
+          class="download-button button-press inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium sm:h-10 sm:px-5"
+        >
+          <span class="grid h-4 w-4 place-items-center" aria-hidden="true">
+            <img src="https://cdn.simpleicons.org/apple" alt="" class="apple-icon" />
+          </span>
+          <span>download</span>
+        </a>
       </nav>
     </header>
 
-    <main>
-      <section class="lede">
-        <h1><span data-i18n="hero.prefix">Every AI coding limit,</span> <span class="grad" data-i18n="hero.accent">in your menu bar.</span></h1>
-        <p class="dek" data-i18n="hero.description">
-          CodexBar tracks usage windows, credit balances, and reset countdowns across the providers you actually pay for —
-          one status item each, or merge them into one.
-        </p>
-        <div class="actions">
-          <a class="btn primary lg" href="https://github.com/steipete/CodexBar/releases/latest" data-i18n="hero.download">Download for macOS</a>
-          <div class="brew" role="group" aria-label="Homebrew install command">
-            <code id="brew-cmd">brew install --cask steipete/tap/codexbar</code>
-            <button class="brew-copy" type="button" aria-label="Copy to clipboard" title="Copy" data-i18n-aria-label="clipboard.copy" data-i18n-title="clipboard.copy">
-              <svg class="ic" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="5" y="5" width="9" height="9" rx="1.5" />
-                <path d="M5 11H3.5A1.5 1.5 0 0 1 2 9.5v-7A1.5 1.5 0 0 1 3.5 1h7A1.5 1.5 0 0 1 12 2.5V5" />
-              </svg>
-              <svg class="ok" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="3 8 6 11 13 4" />
-              </svg>
-            </button>
+    <main id="top">
+      <section class="relative min-h-screen overflow-hidden pt-20 sm:pt-24">
+          <div class="mockup-stage" aria-label="CodexBar open in the macOS menu bar">
+          <div class="mockup-glow" aria-hidden="true"></div>
+          <div class="mockup-wrap" id="mockup-wrap">
+            <picture>
+              <source srcset="./hero-mockup.webp" type="image/webp" />
+              <img src="./hero-mockup.png" alt="MacBook menu bar" class="block h-full w-full select-none object-contain" draggable="false" width="10458" height="5797" />
+            </picture>
+            <div class="system-menubar" aria-label="macOS menu bar status items">
+              <img class="sf-symbol" src="https://raw.githubusercontent.com/cameronshemilt/MoreSFSymbols/main/preview-images/logos/logo.github.circle.fill.png" alt="" aria-hidden="true" />
+              <div class="menu-bar-mark" aria-label="CodexBar menu bar icon">
+                <span></span>
+                <span></span>
+              </div>
+              <img class="sf-symbol" src="https://raw.githubusercontent.com/andrewtavis/sf-symbols-online/master/glyphs/wifi.png" alt="" aria-hidden="true" />
+              <img class="sf-symbol" src="https://raw.githubusercontent.com/andrewtavis/sf-symbols-online/master/glyphs/personalhotspot.png" alt="" aria-hidden="true" />
+              <img class="sf-symbol" src="https://raw.githubusercontent.com/andrewtavis/sf-symbols-online/refs/heads/master/glyphs/person.circle.png" alt="" aria-hidden="true" />
+              <span class="time" id="menu-time">Sun Jun 28&nbsp;&nbsp;9:41 AM</span>
+            </div>
+            <aside class="codex-popover" aria-label="Open CodexBar usage panel">
+              <header class="popover-top">
+                <p><strong>Codex</strong><span>Updated just now</span></p>
+                <p class="right"><strong>steipete@codexbar.app</strong><span>Plus</span></p>
+              </header>
+
+              <section class="popover-section">
+                <h3>Session</h3>
+                <div class="usage-meter" style="--fill: 60%; --danger: 58%; --meter-delay: 420ms;"><i style="--tick: 20%;"></i><i style="--tick: 48%;"></i></div>
+                <p class="usage-row">
+                  <span><strong>60% left</strong><strong>2% in reserve</strong></span>
+                  <span class="right"><strong>Resets in 2h 53m</strong><strong>Lasts until reset</strong></span>
+                </p>
+              </section>
+
+              <section class="popover-section">
+                <h3>Weekly</h3>
+                <div class="usage-meter" style="--fill: 73%; --danger: 73%; --meter-delay: 520ms;"><i style="--tick: 20%;"></i><i style="--tick: 48%;"></i></div>
+                <p class="usage-row">
+                  <span><strong>73% left</strong><strong>On pace</strong></span>
+                  <span class="right"><strong>Resets in 5d 4h</strong><strong>Runs out in 4d 21h</strong></span>
+                </p>
+              </section>
+
+              <section class="reset-credit">
+                <p><strong>Limit Reset Credits</strong><span>Next expires in 28d 2h</span></p>
+                <p><strong>1 manual reset available</strong></p>
+              </section>
+
+              <section class="number-grid" aria-label="Recent Codex usage">
+                <p class="popover-number"><span>Today</span><strong>$51.56</strong></p>
+                <p class="popover-number"><span>Last 31 days Cost</span><strong>$5,251.23</strong></p>
+                <p class="popover-number"><span>Last 31 days tokens</span><strong>5.9B</strong></p>
+                <p class="popover-number"><span>Latest tokens</span><strong>85M</strong></p>
+              </section>
+
+              <figure class="usage-chart" aria-label="31 day usage chart">
+                <i style="--h: 52%;"></i><i style="--h: 55%;"></i><i style="--h: 38%;"></i><i style="--h: 60%;"></i><i style="--h: 34%;"></i><i style="--h: 73%;"></i><i style="--h: 33%;"></i><i style="--h: 10%;"></i><i style="--h: 28%;"></i><i style="--h: 47%;"></i><i style="--h: 18%;"></i><i style="--h: 5%;"></i><i style="--h: 20%;"></i><i style="--h: 18%;"></i><i style="--h: 4%;"></i><i style="--h: 9%;"></i><i style="--h: 32%;"></i><i style="--h: 40%;"></i><i style="--h: 28%;"></i><i style="--h: 38%;"></i><i style="--h: 45%;"></i><i style="--h: 31%;"></i><i style="--h: 39%;"></i><i style="--h: 42%;"></i><i style="--h: 34%;"></i><i style="--h: 8%;"></i><i style="--h: 6%;"></i><i style="--h: 7%;"></i><i style="--h: 17%;"></i><i style="--h: 38%;"></i><i style="--h: 4%;"></i>
+              </figure>
+
+              <p class="popover-note"><strong>Top model: gpt-5.5</strong><br />Estimated from local Codex logs for the selected acco...</p>
+
+              <section class="popover-foot">
+                <strong>Credits</strong>
+                <div class="credit-meter"></div>
+                <p class="credit-row"><strong>0 left</strong><span>1K tokens</span></p>
+                <p class="buy-row">
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8" /><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+                  <span>Buy credits...</span>
+                </p>
+              </section>
+            </aside>
           </div>
         </div>
-        <p class="fineprint" data-i18n="hero.fineprint">Free &amp; open source · macOS 14+ · Universal via GitHub Releases and Homebrew</p>
+
+        <div class="hero-copy">
+          <div class="reveal flex items-center justify-center gap-2.5 text-[15px] tracking-[-0.025em] text-zinc-400 sm:justify-start sm:text-lg">
+            <span>AI usage limits</span>
+            <img src="./icon.png" alt="" class="h-6 w-6 rounded-md shadow-[0_0_1.5rem_rgba(14,165,233,0.24)]" />
+            <span>for macOS</span>
+          </div>
+
+          <h1 class="reveal reveal-2 mt-5 text-[clamp(3rem,5.7vw,6.4rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-zinc-100">
+            Every AI coding limit,<br />
+            in your menu bar.
+          </h1>
+
+          <p class="reveal reveal-3 mt-6 max-w-[38rem] text-[clamp(1rem,1.25vw,1.28rem)] leading-[1.42] tracking-[-0.035em] text-zinc-400">
+            Track usage windows, credit balances, and reset countdowns<br class="hidden sm:block" />
+            across the AI tools you actually pay for.
+          </p>
+
+          <div class="reveal reveal-3 mt-8 flex flex-wrap items-center justify-center gap-4 sm:mt-10 sm:justify-start">
+            <a
+              href="https://github.com/steipete/CodexBar/releases/latest"
+              class="download-button hero-download button-press inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium"
+            >
+              <span class="grid h-4 w-4 place-items-center" aria-hidden="true">
+                <img src="https://cdn.simpleicons.org/apple" alt="" class="apple-icon" />
+              </span>
+              <span>Download for macOS</span>
+            </a>
+            <button
+              id="brew-copy"
+              type="button"
+              class="button-press brew-pill inline-flex h-11 max-w-full items-center gap-3 rounded-full px-4 font-mono text-[13px] text-zinc-100 hover:bg-white/10"
+              aria-label="Copy Homebrew install command"
+            >
+              <span class="text-zinc-400" aria-hidden="true">$</span>
+              <span data-brew-label class="truncate text-zinc-100">brew install --cask steipete/tap/codexbar</span>
+              <span data-brew-icon class="grid h-5 w-5 shrink-0 place-items-center text-zinc-400" aria-hidden="true">
+                <svg data-icon="copy" class="h-3.5 w-3.5" viewBox="0 0 18 18" fill="none">
+                  <rect x="6.25" y="3.25" width="8.5" height="8.5" rx="1.4" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M11.75 14.75H4.65c-.77 0-1.4-.63-1.4-1.4v-7.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                </svg>
+                <svg data-icon="check" class="h-3.5 w-3.5" viewBox="0 0 18 18" fill="none">
+                  <path d="M4.5 9.25 7.5 12.25 13.5 6.25" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+            </button>
+          </div>
+
+          <p class="reveal reveal-3 mt-5 text-sm tracking-[-0.02em] text-zinc-600">
+            Free &amp; open source · macOS 14+
+          </p>
+        </div>
       </section>
 
-      <section class="providers" aria-labelledby="providers-h">
-        <header class="section-head">
-          <h2 id="providers-h" data-i18n="providers.title">53 providers, one menu bar</h2>
-          <p data-i18n="providers.description">Popular providers become status items with their own usage windows, reset countdowns, charts, and provider menus.</p>
+      <section class="provider-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-provider-section>
+        <header class="relative z-10 grid gap-5 lg:grid-cols-[1fr_0.86fr] lg:items-center">
+          <h2 class="provider-reveal max-w-3xl text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
+            53 providers,<br />one menu bar
+          </h2>
+          <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.35vw,1.28rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
+            Popular providers become status items with their own usage windows, reset countdowns, charts, and provider menus.
+          </p>
         </header>
-        <ul class="grid">
-        <li><a class="provider" style="--brand:#49A3B0" href="https://github.com/steipete/CodexBar/blob/main/docs/codex.md">
-          <img class="chip-logo no-bg" src="./logos/codex.svg" data-dark-src="./logos/codex-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Codex</span><span class="auth">OAuth</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#CC7C5E" href="https://github.com/steipete/CodexBar/blob/main/docs/claude.md">
-          <img class="chip-logo" src="./logos/claude.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Claude</span><span class="auth">OAuth</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#1A1A1A" href="https://github.com/steipete/CodexBar/blob/main/docs/cursor.md">
-          <img class="chip-logo" src="./logos/cursor.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Cursor</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#3B82F6" href="https://github.com/steipete/CodexBar/blob/main/docs/opencode.md">
-          <img class="chip-logo preserve-color" src="./logos/opencode.svg" data-dark-src="./logos/opencode-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">OpenCode</span><span class="auth" data-i18n="auth.cookiesGo">Cookies + Go</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF6A00" href="https://github.com/steipete/CodexBar/blob/main/docs/alibaba-coding-plan.md">
-          <img class="chip-logo" src="./logos/alibaba.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Alibaba</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF6A00" href="https://github.com/steipete/CodexBar/blob/main/docs/alibaba-token-plan.md">
-          <img class="chip-logo" src="./logos/alibaba.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Alibaba Token</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#AB87EA" href="https://github.com/steipete/CodexBar/blob/main/docs/gemini.md">
-          <img class="chip-logo" src="./logos/gemini.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Gemini</span><span class="auth">OAuth</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#60BA7E" href="https://github.com/steipete/CodexBar/blob/main/docs/antigravity.md">
-          <img class="chip-logo" src="./logos/antigravity.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Antigravity</span><span class="auth" data-i18n="auth.local">Local</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF6B35" href="https://github.com/steipete/CodexBar/blob/main/docs/factory.md">
-          <img class="chip-logo no-bg" src="./logos/droid.svg" data-dark-src="./logos/droid-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Droid</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#A855F7" href="https://github.com/steipete/CodexBar/blob/main/docs/copilot.md">
-          <img class="chip-logo" src="./logos/copilot.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Copilot</span><span class="auth" data-i18n="auth.deviceFlow">Device flow</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#0F172A" href="https://github.com/steipete/CodexBar/blob/main/docs/devin.md">
-          <img class="chip-logo" src="./logos/devin.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Devin</span><span class="auth" data-i18n="auth.bearerLocal">Bearer / Local</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#E85A6A" href="https://github.com/steipete/CodexBar/blob/main/docs/zai.md">
-          <img class="chip-logo no-bg" src="./logos/zai.svg" data-dark-src="./logos/zai-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">z.ai</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FE6060" href="https://github.com/steipete/CodexBar/blob/main/docs/minimax.md">
-          <img class="chip-logo" src="./logos/minimax.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">MiniMax</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FE603C" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi.md">
-          <img class="chip-logo" src="./logos/kimi.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kimi</span><span class="auth" data-i18n="auth.token">Token</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#4C00FF" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi-k2.md">
-          <img class="chip-logo" src="./logos/kimi-k2.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kimi K2</span><span class="auth" data-i18n="auth.legacyApi">Legacy API</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#f8f676" href="https://github.com/steipete/CodexBar/blob/main/docs/kilo.md">
-          <img class="chip-logo no-bg" src="./logos/kilo.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kilo</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF9900;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/kiro.md">
-          <img class="chip-logo no-bg" src="./logos/kiro.svg" data-dark-src="./logos/kiro-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kiro</span><span class="auth">CLI</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#4285F4" href="https://github.com/steipete/CodexBar/blob/main/docs/vertexai.md">
-          <img class="chip-logo" src="./logos/vertex-ai.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Vertex AI</span><span class="auth">gcloud</span></span>
-        </a></li>
-        <li><a class="provider logo-dark" style="--brand:#6366F1" href="https://github.com/steipete/CodexBar/blob/main/docs/augment.md">
-          <img class="chip-logo" src="./logos/augment.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Augment</span><span class="auth">CLI</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#DC2626" href="https://github.com/steipete/CodexBar/blob/main/docs/amp.md">
-          <img class="chip-logo" src="./logos/amp.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Amp</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#888888" href="https://github.com/steipete/CodexBar/blob/main/docs/ollama.md">
-          <img class="chip-logo" src="./logos/ollama.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Ollama</span><span class="auth" data-i18n="auth.apiKeyCookies">API key + Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#141414" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
-          <img class="chip-logo" src="./logos/synthetic.svg" data-dark-src="./logos/synthetic-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Synthetic</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF3399" href="https://github.com/steipete/CodexBar/blob/main/docs/jetbrains.md">
-          <img class="chip-logo" src="./logos/jetbrains-ai.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">JetBrains AI</span><span class="auth" data-i18n="auth.local">Local</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#7B68EE" href="https://github.com/steipete/CodexBar/blob/main/docs/warp.md">
-          <img class="chip-logo" src="./logos/warp.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Warp</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#EAEAE6;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/elevenlabs.md">
-          <img class="chip-logo" src="./logos/elevenlabs.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">ElevenLabs</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#6467F2" href="https://github.com/steipete/CodexBar/blob/main/docs/openrouter.md">
-          <img class="chip-logo" src="./logos/openrouter.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">OpenRouter</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#4C89F0" href="https://github.com/steipete/CodexBar/blob/main/docs/litellm.md">
-          <img class="chip-logo" src="./logos/litellm.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">LiteLLM</span><span class="auth" data-i18n="auth.virtualKey">Virtual key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#20B2AA" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
-          <img class="chip-logo" src="./logos/perplexity.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Perplexity</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#38BDF8" href="https://github.com/steipete/CodexBar/blob/main/docs/abacus.md">
-          <img class="chip-logo no-bg" src="./logos/abacus-ai.png" data-dark-src="./logos/abacus-ai-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Abacus AI</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF500F" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
-          <img class="chip-logo" src="./logos/mistral.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Mistral</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#527DF0" href="https://github.com/steipete/CodexBar/blob/main/docs/deepseek.md">
-          <img class="chip-logo" src="./logos/deepseek.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">DeepSeek</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#2563EB" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#t3-chat">
-          <img class="chip-logo" src="./logos/t3chat.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">T3 Chat</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#44C800;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/codebuff.md">
-          <img class="chip-logo no-bg" src="./logos/codebuff.png" data-dark-src="./logos/codebuff-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Codebuff</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#26AD61" href="https://github.com/steipete/CodexBar/blob/main/docs/poe.md">
-          <img class="chip-logo" src="./logos/poe.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Poe</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#3184FF" href="https://github.com/steipete/CodexBar/blob/main/docs/chutes.md">
-          <img class="chip-logo" src="./logos/chutes.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Chutes</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#084EFF" href="https://github.com/steipete/CodexBar/blob/main/docs/zed.md">
-          <img class="chip-logo" src="./logos/zed.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Zed</span><span class="auth" data-i18n="auth.local">Local</span></span>
-        </a></li>
-        <li><a class="provider add" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">
-          <span class="chip">+</span><span class="meta"><span class="name" data-i18n="providers.yourProvider">Your provider</span><span class="auth" data-i18n="providers.authoringGuide">Authoring guide</span></span>
-        </a></li>
+
+        <ul class="relative z-10 mt-12 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <li class="provider-card"><span class="provider-logo" data-icon="◎" style="--brand:#49A3B0;--icon:url('./logos/codex-dark.svg')"><img src="./logos/codex-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Codex</strong><span>OAuth</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="✳" style="--brand:#CC7C5E;--icon:url('./logos/claude.svg')"><img src="./logos/claude.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Claude</strong><span>OAuth</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="◆" style="--brand:#1A1A1A;--icon:url('./logos/cursor.svg')"><img src="./logos/cursor.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Cursor</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="OC" style="--brand:#3B82F6;--icon:url('./logos/opencode-dark.svg')"><img src="./logos/opencode-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>OpenCode</strong><span>Cookies + Go</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="a" style="--brand:#FF6A00;--icon:url('./logos/alibaba.svg')"><img src="./logos/alibaba.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Alibaba</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#FF6A00;--icon:url('./logos/alibaba.svg')"><img src="./logos/alibaba.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Alibaba Token</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="◇" style="--brand:#AB87EA;--icon:url('./logos/gemini.svg')"><img src="./logos/gemini.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Gemini</strong><span>OAuth</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="A" style="--brand:#60BA7E;--icon:url('./logos/antigravity.svg')"><img src="./logos/antigravity.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Antigravity</strong><span>Local</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="✺" style="--brand:#FF6B35;--icon:url('./logos/droid-dark.svg')"><img src="./logos/droid-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Droid</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="⌘" style="--brand:#A855F7;--icon:url('./logos/copilot.svg')"><img src="./logos/copilot.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Copilot</strong><span>Device flow</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#0F172A;--icon:url('./logos/devin.svg')"><img src="./logos/devin.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Devin</strong><span>Bearer / Local</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="Z" style="--brand:#E85A6A;--icon:url('./logos/zai-dark.svg')"><img src="./logos/zai-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>z.ai</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="≋" style="--brand:#FE6060;--icon:url('./logos/minimax.svg')"><img src="./logos/minimax.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>MiniMax</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="K" style="--brand:#FE603C;--icon:url('./logos/kimi.svg')"><img src="./logos/kimi.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kimi</strong><span>Token</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="K2" style="--brand:#4C00FF;--icon:url('./logos/kimi-k2.svg')"><img src="./logos/kimi-k2.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kimi K2</strong><span>Legacy API</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="kg" style="--brand:#f8f676;--icon:url('./logos/kilo.svg')"><img src="./logos/kilo.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kilo</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="•" style="--brand:#FF9900;--icon:url('./logos/kiro-dark.svg')"><img src="./logos/kiro-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kiro</strong><span>CLI</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="VA" style="--brand:#4285F4;--icon:url('./logos/vertex-ai.svg')"><img src="./logos/vertex-ai.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Vertex AI</strong><span>gcloud</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="{ }" style="--brand:#6366F1;--icon:url('./logos/augment.svg')"><img src="./logos/augment.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Augment</strong><span>CLI</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="amp" style="--brand:#DC2626;--icon:url('./logos/amp.svg')"><img src="./logos/amp.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Amp</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="ll" style="--brand:#888888;--icon:url('./logos/ollama.svg')"><img src="./logos/ollama.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Ollama</strong><span>API key + Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="✽" style="--brand:#141414;--icon:url('./logos/synthetic-dark.svg')"><img src="./logos/synthetic-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Synthetic</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="JB" style="--brand:#FF3399;--icon:url('./logos/jetbrains-ai.svg')"><img src="./logos/jetbrains-ai.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>JetBrains AI</strong><span>Local</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="W" style="--brand:#7B68EE;--icon:url('./logos/warp.svg')"><img src="./logos/warp.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Warp</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#EAEAE6;--icon:url('./logos/elevenlabs.svg')"><img src="./logos/elevenlabs.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>ElevenLabs</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="OR" style="--brand:#6467F2;--icon:url('./logos/openrouter.svg')"><img src="./logos/openrouter.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>OpenRouter</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#4C89F0;--icon:url('./logos/litellm.svg')"><img src="./logos/litellm.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>LiteLLM</strong><span>Virtual key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" data-icon="∞" style="--brand:#20B2AA;--icon:url('./logos/perplexity.svg')"><img src="./logos/perplexity.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Perplexity</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#38BDF8;--icon:url('./logos/abacus-ai-dark.svg')"><img src="./logos/abacus-ai-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Abacus AI</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#FF500F;--icon:url('./logos/mistral.svg')"><img src="./logos/mistral.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Mistral</strong><span>Cookies</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#527DF0;--icon:url('./logos/deepseek.svg')"><img src="./logos/deepseek.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>DeepSeek</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#2563EB;--icon:url('./logos/t3chat.svg')"><img src="./logos/t3chat.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>T3 Chat</strong><span>Cookies</span></p></li>
+          <li class="provider-card" hidden><span class="provider-logo" style="--brand:#44C800;--icon:url('./logos/codebuff-dark.svg')"><img src="./logos/codebuff-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Codebuff</strong><span>API key</span></p></li>
+          <li class="provider-card" hidden><span class="provider-logo" style="--brand:#26AD61;--icon:url('./logos/poe.svg')"><img src="./logos/poe.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Poe</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#3184FF;--icon:url('./logos/chutes.svg')"><img src="./logos/chutes.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Chutes</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#084EFF;--icon:url('./logos/zed.svg')"><img src="./logos/zed.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Zed</strong><span>Local</span></p></li>
+          <li class="provider-card"><span class="provider-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 .83.18 2 2 0 0 0 .83-.18l8.58-3.9a1 1 0 0 0 0-1.831z"/><path d="M16 17h6"/><path d="M19 14v6"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 .825.178"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l2.116-.962"/></svg></span><p><strong>Your provider</strong><span><a class="provider-authoring" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">Authoring guide<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a></span></p></li>
         </ul>
       </section>
 
-      <section class="showcase">
-      <figure class="shot">
-        <img src="./codexbar.png" alt="CodexBar menu bar popover showing provider tiles with usage bars, reset countdowns, and credit details." data-i18n-alt="showcase.alt" />
-      </figure>
-      <div class="features">
-        <article>
-          <h3 data-i18n="features.resetsTitle">Resets you can plan around</h3>
-          <p data-i18n="features.resetsBody">Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
-        </article>
-        <article>
-          <h3 data-i18n="features.spendTitle">Credits, spend, and cost scans</h3>
-          <p data-i18n="features.spendBody">Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
-        </article>
-        <article>
-          <h3 data-i18n="features.statusTitle">Status &amp; incidents</h3>
-          <p data-i18n="features.statusBody">Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
-        </article>
-        <article>
-          <h3 data-i18n="features.cliTitle">CLI &amp; widgets</h3>
-          <p data-i18n-rich="features.cliBody">WidgetKit widgets for supported providers and a bundled <code>codexbar</code> CLI for scripts and CI — macOS and Linux builds on every release.</p>
-        </article>
-      </div>
+      <section class="features-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
+        <header class="relative z-10 mb-12 grid gap-5 lg:mb-16 lg:grid-cols-[1fr_0.86fr] lg:items-end">
+          <h2 class="provider-reveal max-w-3xl text-[clamp(2.2rem,4vw,4.5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
+            Know before<br />you commit
+          </h2>
+          <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.25vw,1.2rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
+            Resets, credits, status, and widgets — the signal you need between sessions.
+          </p>
+        </header>
+
+        <div class="feature-list relative z-10">
+          <article class="feature-item provider-reveal" style="--reveal-delay: 80ms">
+            <h3>Resets you can plan around</h3>
+            <p>Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
+          </article>
+          <article class="feature-item provider-reveal" style="--reveal-delay: 140ms">
+            <h3>Credits, spend, and cost scans</h3>
+            <p>Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
+          </article>
+          <article class="feature-item provider-reveal" style="--reveal-delay: 200ms">
+            <h3>Status &amp; incidents</h3>
+            <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
+          </article>
+          <article class="feature-item provider-reveal" style="--reveal-delay: 260ms">
+            <h3>CLI &amp; widgets</h3>
+            <p>WidgetKit widgets for supported providers and a bundled codexbar CLI for scripts and CI — macOS and Linux builds on every release.</p>
+          </article>
+        </div>
       </section>
 
-      <section class="detail">
-      <article class="block">
-        <h3 data-i18n="detail.installTitle">Install &amp; updates</h3>
-        <p data-i18n-rich="detail.installBody">
-          Universal app via <a href="https://github.com/steipete/CodexBar/releases/latest">GitHub Releases</a> with Sparkle auto-updates, or via
-          <code>brew install --cask steipete/tap/codexbar</code> (updates via <code>brew upgrade</code>).
-        </p>
-      </article>
-      <article class="block">
-        <h3 data-i18n="detail.cliTitle">CLI</h3>
-        <p data-i18n-rich="detail.cliBody">
-          A bundled <code>codexbar</code> binary plus standalone tarballs for macOS and Linux on each release. On Linux:
-          <code>brew install steipete/tap/codexbar</code>.
-        </p>
-      </article>
-      <article class="block">
-        <h3 data-i18n="detail.privacyTitle">Privacy</h3>
-        <p data-i18n-rich="detail.privacyBody">
-          Reuses existing provider sessions — OAuth, device flow, API keys, browser cookies, local files — so no passwords are stored.
-          Audit notes in <a href="https://github.com/steipete/CodexBar/issues/12">issue #12</a>.
-        </p>
-      </article>
-      <article class="block">
-        <h3 data-i18n="detail.permissionsTitle">macOS permissions</h3>
-        <p data-i18n="detail.permissionsBody">
-          Full Disk Access for Safari cookies, Keychain access for cookie decryption and OAuth flows, and Files &amp; Folders prompts
-          when provider helpers read project directories.
-        </p>
-      </article>
+      <section class="technical-section px-5 py-16 sm:px-8 lg:px-12 lg:py-20" data-scroll-section>
+        <p class="section-eyebrow provider-reveal">Technical</p>
+
+        <div class="technical-grid relative z-10">
+          <article class="technical-block provider-reveal" style="--reveal-delay: 60ms">
+            <h3>Install &amp; updates</h3>
+            <p>
+              Universal app via
+              <a class="text-link" href="https://github.com/steipete/CodexBar/releases">GitHub Releases</a>
+              with Sparkle auto-updates, or via
+              <code class="inline-code">brew install --cask steipete/tap/codexbar</code>
+              (updates via <code class="inline-code">brew upgrade</code>).
+            </p>
+          </article>
+          <article class="technical-block provider-reveal" style="--reveal-delay: 110ms">
+            <h3>CLI</h3>
+            <p>
+              A bundled <code class="inline-code">codexbar</code> binary plus standalone tarballs for macOS and Linux on each release.
+              On Linux: <code class="inline-code">brew install steipete/tap/codexbar</code>.
+            </p>
+          </article>
+          <article class="technical-block provider-reveal" style="--reveal-delay: 160ms">
+            <h3>Privacy</h3>
+            <p>
+              Reuses existing provider sessions — OAuth, device flow, API keys, browser cookies, local files — so no passwords are stored.
+              Audit notes in
+              <a class="text-link" href="https://github.com/steipete/CodexBar/issues/12">issue #12</a>.
+            </p>
+          </article>
+          <article class="technical-block provider-reveal" style="--reveal-delay: 210ms">
+            <h3>macOS permissions</h3>
+            <p>
+              Full Disk Access for Safari cookies, Keychain access for cookie decryption and OAuth flows, and Files &amp; Folders prompts when provider helpers read project directories.
+            </p>
+          </article>
+        </div>
       </section>
     </main>
 
-    <footer class="foot">
-      <p>
-        <span data-i18n="footer.builtBy">Built by</span> <a href="https://steipete.me">Peter Steinberger</a> ·
-        <a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md" data-i18n="footer.changelog">Changelog</a> ·
-        <a href="https://github.com/steipete/CodexBar/blob/main/LICENSE">MIT</a> ·
-        <a href="https://trimmy.app">trimmy.app</a>
-      </p>
+    <footer class="site-footer px-5 sm:px-8 lg:px-12">
+      Built by
+      <a href="https://github.com/steipete">Peter Steinberger</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">Changelog</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://github.com/steipete/CodexBar/blob/main/LICENSE">MIT</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://trimmy.app">trimmy.app</a>
     </footer>
 
-    <script type="module" src="./site.js?v=1"></script>
+    <button
+      id="tuner-toggle"
+      hidden
+      type="button"
+      class="button-press fixed bottom-4 right-4 z-50 rounded-full border border-white/15 bg-zinc-950/85 px-4 py-2 font-mono text-xs text-zinc-300 shadow-2xl backdrop-blur-xl hover:bg-zinc-900 hover:text-white"
+      aria-expanded="false"
+      aria-controls="tuner-panel"
+    >tune</button>
+
+    <aside id="tuner-panel" hidden class="tuner-panel fixed bottom-16 right-4 z-50 hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/90 p-4 text-left shadow-2xl">
+      <div class="mb-3 flex items-center justify-between">
+        <p class="font-mono text-xs text-zinc-300">tuner</p>
+        <div class="flex items-center gap-3">
+          <button id="tuner-copy" type="button" class="button-press text-xs text-zinc-300 hover:text-white">copy values</button>
+          <button id="tuner-reset" type="button" class="button-press text-xs text-zinc-500 hover:text-white">reset</button>
+        </div>
+      </div>
+      <div id="tuner-tabs" class="mb-4 grid grid-cols-4 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 text-center font-mono text-[10px] text-zinc-500">
+        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="mockup" aria-selected="true">mockup</button>
+        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="glow" aria-selected="false">glow</button>
+        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="menubar" aria-selected="false">menu</button>
+        <button class="tuner-tab rounded-full px-2 py-1.5" type="button" data-tuner-tab="panel" aria-selected="false">panel</button>
+      </div>
+      <div id="tuner-controls" class="space-y-3"></div>
+    </aside>
+
+    <script>
+      const tunerDefaults = {
+        '--mockup-x': 140,
+        '--mockup-y': -6,
+        '--mockup-scale': 1.03,
+        '--glow-x': 331,
+        '--glow-y': -260,
+        '--glow-scale': 2.4,
+        '--glow-opacity': 0.55,
+        '--glow-blur': 72,
+        '--glow-color-a': '#003c61',
+        '--glow-color-b': '#8000ff',
+        '--menubar-x': -67,
+        '--menubar-y': 16,
+        '--menubar-scale': 1,
+        '--menubar-gap': 22,
+        '--menubar-icon-scale': 1.28,
+        '--popover-x': -96,
+        '--popover-y': 27,
+        '--popover-scale': 1.14,
+      };
+
+      const tunerGroups = {
+        mockup: [
+          ['Mockup X', '--mockup-x', -400, 400, 1, 'px'],
+          ['Mockup Y', '--mockup-y', -220, 220, 1, 'px'],
+          ['Mockup scale', '--mockup-scale', 0.7, 1.45, 0.01, ''],
+        ],
+        glow: [
+          ['Glow X', '--glow-x', -500, 500, 1, 'px'],
+          ['Glow Y', '--glow-y', -260, 520, 1, 'px'],
+          ['Glow scale', '--glow-scale', 0.2, 2.4, 0.01, ''],
+          ['Glow opacity', '--glow-opacity', 0, 1, 0.01, ''],
+          ['Glow blur', '--glow-blur', 0, 160, 1, 'px'],
+          ['Glow color A', '--glow-color-a', null, null, null, 'color'],
+          ['Glow color B', '--glow-color-b', null, null, null, 'color'],
+        ],
+        menubar: [
+          ['Menu X', '--menubar-x', -260, 260, 1, 'px'],
+          ['Menu Y', '--menubar-y', -160, 160, 1, 'px'],
+          ['Menu scale', '--menubar-scale', 0.5, 1.8, 0.01, ''],
+          ['Menu gap', '--menubar-gap', 0, 54, 1, 'px'],
+          ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
+        ],
+        panel: [
+          ['Panel X', '--popover-x', -360, 360, 1, 'px'],
+          ['Panel Y', '--popover-y', -220, 300, 1, 'px'],
+          ['Panel scale', '--popover-scale', 0.5, 1.6, 0.01, ''],
+        ],
+      };
+
+      const tunerFields = Object.values(tunerGroups).flat();
+
+      const root = document.documentElement;
+      const controls = document.querySelector('#tuner-controls');
+      const panel = document.querySelector('#tuner-panel');
+      const toggle = document.querySelector('#tuner-toggle');
+      const tabButtons = document.querySelectorAll('[data-tuner-tab]');
+      const tunerStorageKey = 'codexbar-tuner-v3';
+      const savedValues = JSON.parse(localStorage.getItem(tunerStorageKey) || '{}');
+      const values = { ...tunerDefaults, ...savedValues };
+      const hexColorPattern = /^#[0-9a-f]{6}$/i;
+
+      tunerFields.forEach(([, name, , , , unit]) => {
+        if (unit === 'color') {
+          if (typeof values[name] !== 'string' || !hexColorPattern.test(values[name])) {
+            values[name] = tunerDefaults[name];
+          }
+        } else if (!Number.isFinite(Number(values[name]))) {
+          values[name] = tunerDefaults[name];
+        }
+      });
+
+      function applyValue(name, value, unit) {
+        values[name] = unit === 'color' ? value : Number(value);
+        root.style.setProperty(name, unit === 'color' ? value : `${value}${unit}`);
+      }
+
+      function saveValues() {
+        localStorage.setItem(tunerStorageKey, JSON.stringify(values));
+      }
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.append(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          textarea.remove();
+        }
+      }
+
+      function getTunerPayload() {
+        return [
+          'CodexBar tuner v3',
+          ...tunerFields.map(([label, name, , , , unit]) => `${label}: ${values[name]}${unit === 'color' ? '' : unit}`),
+        ].join('\n');
+      }
+
+      async function copyTunerValues() {
+        const payload = getTunerPayload();
+        const copyButton = document.querySelector('#tuner-copy');
+        copyButton.dataset.payload = payload;
+        await copyText(payload);
+
+        copyButton.textContent = 'copied';
+        window.setTimeout(() => { copyButton.textContent = 'copy values'; }, 1200);
+      }
+
+      async function copyBrewCommand() {
+        const command = 'brew install --cask steipete/tap/codexbar';
+        const icon = document.querySelector('[data-brew-icon]');
+        await copyText(command);
+        icon.dataset.copied = 'true';
+        window.setTimeout(() => { delete icon.dataset.copied; }, 1200);
+      }
+
+      function renderTunerGroup(groupName) {
+        controls.replaceChildren();
+        tunerGroups[groupName].forEach(([label, name, min, max, step, unit]) => {
+          const row = document.createElement('label');
+          row.className = 'grid grid-cols-[6.5rem_1fr_3.5rem] items-center gap-2 text-[11px] text-zinc-500';
+          if (unit === 'color') {
+            row.innerHTML = `<span>${label}</span><input class="h-7 w-full cursor-pointer rounded-md border border-white/10 bg-transparent" type="color" value="${values[name]}"><output class="text-right font-mono text-zinc-300">${values[name]}</output>`;
+          } else {
+            row.innerHTML = `<span>${label}</span><input class="tuner-range w-full" type="range" min="${min}" max="${max}" step="${step}" value="${values[name]}"><output class="text-right font-mono text-zinc-300">${values[name]}${unit}</output>`;
+          }
+          const input = row.querySelector('input');
+          const output = row.querySelector('output');
+          input.addEventListener('input', () => {
+            applyValue(name, input.value, unit);
+            output.value = unit === 'color' ? input.value : `${input.value}${unit}`;
+            saveValues();
+          });
+          controls.append(row);
+        });
+      }
+
+      tunerFields.forEach(([, name, , , , unit]) => applyValue(name, values[name], unit));
+      renderTunerGroup('mockup');
+
+      tabButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          tabButtons.forEach((tab) => tab.setAttribute('aria-selected', String(tab === button)));
+          renderTunerGroup(button.dataset.tunerTab);
+        });
+      });
+
+      const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+      const themeToggle = document.querySelector('#theme-toggle');
+      const themeOrder = ['system', 'light', 'dark'];
+      const themeNames = { system: 'System', light: 'Light', dark: 'Dark' };
+
+      function applyThemePreference(preference, persist = true) {
+        const resolvedTheme = preference === 'system'
+          ? (themeMedia.matches ? 'dark' : 'light')
+          : preference;
+
+        root.dataset.theme = resolvedTheme;
+        root.dataset.themePreference = preference;
+        const nextPreference = themeOrder[(themeOrder.indexOf(preference) + 1) % themeOrder.length];
+        themeToggle.dataset.themeValue = preference;
+        themeToggle.title = `${themeNames[preference]} theme`;
+        themeToggle.setAttribute('aria-label', `Theme: ${themeNames[preference].toLowerCase()}. Switch to ${themeNames[nextPreference].toLowerCase()}`);
+
+        if (persist) localStorage.setItem('codexbar-theme', preference);
+      }
+
+      themeToggle.addEventListener('click', () => {
+        const nextPreference = themeOrder[(themeOrder.indexOf(root.dataset.themePreference) + 1) % themeOrder.length];
+        applyThemePreference(nextPreference);
+      });
+
+      themeMedia.addEventListener('change', () => {
+        if (root.dataset.themePreference === 'system') applyThemePreference('system', false);
+      });
+
+      applyThemePreference(root.dataset.themePreference || 'system', false);
+
+      const languages = [
+        { id: 'en', short: 'EN', label: 'English' },
+        { id: 'zh-Hans', short: '简', label: '简体中文' },
+        { id: 'zh-Hant', short: '繁', label: '繁體中文' },
+        { id: 'ja', short: 'JA', label: '日本語' },
+        { id: 'es', short: 'ES', label: 'Español' },
+        { id: 'pt-BR', short: 'PT', label: 'Português (BR)' },
+        { id: 'ko', short: 'KO', label: '한국어' },
+        { id: 'de', short: 'DE', label: 'Deutsch' },
+        { id: 'fr', short: 'FR', label: 'Français' },
+        { id: 'ar', short: 'AR', label: 'العربية' },
+        { id: 'it', short: 'IT', label: 'Italiano' },
+        { id: 'vi', short: 'VI', label: 'Tiếng Việt' },
+        { id: 'nl', short: 'NL', label: 'Nederlands' },
+        { id: 'tr', short: 'TR', label: 'Türkçe' },
+        { id: 'uk', short: 'UK', label: 'Українська' },
+        { id: 'id', short: 'ID', label: 'Bahasa Indonesia' },
+        { id: 'pl', short: 'PL', label: 'Polski' },
+        { id: 'fa', short: 'FA', label: 'فارسی' },
+        { id: 'th', short: 'TH', label: 'ไทย' },
+        { id: 'ca', short: 'CA', label: 'Català' },
+        { id: 'sv', short: 'SV', label: 'Svenska' },
+      ];
+
+      const languageStorageKey = 'codexbar-language';
+      const languagePicker = document.querySelector('#language-picker');
+      const languageTrigger = document.querySelector('#language-picker-trigger');
+      const languageMenu = document.querySelector('#language-picker-menu');
+      const languageList = document.querySelector('#language-picker-list');
+      const languageShort = document.querySelector('[data-lang-short]');
+      let activeLanguage = localStorage.getItem(languageStorageKey) || 'en';
+
+      if (!languages.some((language) => language.id === activeLanguage)) {
+        activeLanguage = 'en';
+      }
+
+      function renderLanguageMenu() {
+        languageList.replaceChildren();
+        languages.forEach((language) => {
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'language-option button-press';
+          option.role = 'option';
+          option.dataset.lang = language.id;
+          option.setAttribute('aria-selected', String(language.id === activeLanguage));
+          option.innerHTML = `
+            <svg viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path d="M4.5 9.25 7.5 12.25 13.5 6.25" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>${language.label}</span>
+          `;
+          option.addEventListener('click', () => selectLanguage(language.id));
+          languageList.append(option);
+        });
+      }
+
+      function updateLanguageUi() {
+        const current = languages.find((language) => language.id === activeLanguage) || languages[0];
+        languageShort.textContent = current.short;
+        root.dataset.language = current.id;
+        languageList.querySelectorAll('[role="option"]').forEach((option) => {
+          option.setAttribute('aria-selected', String(option.dataset.lang === activeLanguage));
+        });
+      }
+
+      function setLanguageMenuOpen(open) {
+        languageMenu.hidden = !open;
+        languageTrigger.setAttribute('aria-expanded', String(open));
+      }
+
+      function selectLanguage(languageId) {
+        activeLanguage = languageId;
+        localStorage.setItem(languageStorageKey, languageId);
+        updateLanguageUi();
+        setLanguageMenuOpen(false);
+      }
+
+      renderLanguageMenu();
+      updateLanguageUi();
+
+      languageTrigger.addEventListener('click', () => {
+        setLanguageMenuOpen(languageMenu.hidden);
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!languagePicker.contains(event.target)) setLanguageMenuOpen(false);
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') setLanguageMenuOpen(false);
+      });
+
+      const providerSection = document.querySelector('[data-provider-section]');
+      const providerCards = providerSection.querySelectorAll('.provider-card:not([hidden])');
+      providerCards.forEach((card, index) => {
+        card.classList.add('provider-reveal');
+        card.style.setProperty('--reveal-delay', `${80 + Math.min(index, 12) * 24}ms`);
+      });
+
+      const revealSection = (section) => section.classList.add('is-revealed');
+
+      if ('IntersectionObserver' in window) {
+        const revealObserver = new IntersectionObserver((entries, observer) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            revealSection(entry.target);
+            observer.unobserve(entry.target);
+          });
+        }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+        [providerSection, ...document.querySelectorAll('[data-scroll-section]')].forEach((section) => {
+          revealObserver.observe(section);
+        });
+      } else {
+        revealSection(providerSection);
+        document.querySelectorAll('[data-scroll-section]').forEach(revealSection);
+      }
+
+      const mockupWrap = document.querySelector('#mockup-wrap');
+      const menubarItems = mockupWrap.querySelectorAll('.system-menubar > *');
+      const menubarWaveGap = 72;
+      const menubarStartDelay = 320;
+      const markStartDelay = menubarStartDelay + menubarItems.length * menubarWaveGap + 180;
+      const popoverStartDelay = markStartDelay + 680;
+
+      menubarItems.forEach((item, index) => {
+        item.style.setProperty('--menubar-enter-delay', `${index * menubarWaveGap}ms`);
+      });
+
+      window.setTimeout(() => mockupWrap.classList.add('is-menubar-entered'), menubarStartDelay);
+      window.setTimeout(() => mockupWrap.classList.add('is-mark-animated'), markStartDelay);
+      window.setTimeout(() => {
+        mockupWrap.classList.add('is-animated');
+        mockupWrap.querySelectorAll('.usage-meter').forEach((meter, index) => {
+          meter.style.setProperty('--meter-delay', `${index * 150}ms`);
+        });
+        mockupWrap.querySelectorAll('.usage-chart i').forEach((bar, index) => {
+          bar.style.setProperty('--bar-delay', `${280 + index * 14}ms`);
+        });
+      }, popoverStartDelay);
+
+      function updateMenuTime() {
+        const now = new Date();
+        const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        document.querySelector('#menu-time').textContent = `${date}  ${time}`;
+      }
+
+      updateMenuTime();
+      window.setInterval(updateMenuTime, 60_000);
+
+      function setTunerOpen(open) {
+        panel.classList.toggle('hidden', !open);
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.textContent = open ? 'close tuner' : 'tune';
+      }
+
+      toggle.addEventListener('click', () => setTunerOpen(panel.classList.contains('hidden')));
+      document.querySelector('#brew-copy').addEventListener('click', copyBrewCommand);
+      document.querySelector('#tuner-copy').addEventListener('click', copyTunerValues);
+      document.querySelector('#tuner-reset').addEventListener('click', () => {
+        localStorage.removeItem(tunerStorageKey);
+        window.location.reload();
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key.toLowerCase() === 't' && !event.metaKey && !event.ctrlKey && !/INPUT|TEXTAREA/.test(event.target.tagName)) {
+          setTunerOpen(panel.classList.contains('hidden'));
+        }
+      });
+    </script>
   </body>
 </html>
