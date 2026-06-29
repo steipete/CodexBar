@@ -105,48 +105,33 @@
         --glow-blur: 72px;
         --glow-color-a: #003c61;
         --glow-color-b: #8000ff;
-        --menubar-x: 416px;
-        --menubar-y: -41px;
         --menubar-scale: 0.94;
         --menubar-gap: 22px;
         --menubar-icon-scale: 1.28;
-        --popover-x: 738px;
-        --popover-y: -124px;
         --popover-scale: 0.91;
-        --narrow-menubar-x: 148px;
-        --narrow-menubar-y: 16px;
-        --narrow-menubar-scale: 1.27;
-        --narrow-popover-x: 305px;
-        --narrow-popover-y: -3px;
-        --narrow-popover-scale: 1.35;
-        /* hero-mockup.svg artboard 6111×3239 — inner display rect + HUD padding */
-        --mockup-screen-left: 2.31%;
-        --mockup-screen-right-inset: 2.3%;
-        --mockup-screen-bottom-inset: 0%;
-        --mockup-hud-menubar-top: 8.59%;
-        --mockup-hud-menubar-right: 20.7%;
-        --mockup-hud-popover-top: 19.71%;
-        --mockup-hud-popover-right: 35.4%;
-        --mockup-hud-popover-width: 19.1%;
+        /* HUD anchor: full SVG artboard (6111×3239) — top-right of mockup image */
+        --hud-anchor-top: 12.1%;
+        --hud-margin-right: 2.3%;
+        --hud-menu-nudge-x: 0px;
+        --hud-menu-nudge-y: 0px;
+        --hud-panel-gap: 0.55rem;
+        --hud-panel-nudge-x: 0px;
+        --hud-panel-nudge-y: 0px;
+        --hud-panel-width: 19.1%;
         --mobile-mockup-stage-height: 33.5rem;
         --mobile-mockup-width: 251%;
         --mobile-mockup-offset-x: 11px;
         --mobile-mockup-offset-y: 18px;
         --mobile-mockup-scale: 0.99;
-        --mobile-menubar-top: 12%;
-        --mobile-menubar-x: 28px;
-        --mobile-menubar-y: 0px;
+        --mobile-hud-anchor-top: 12%;
+        --mobile-hud-margin-right: 2.3%;
+        --mobile-hud-menu-nudge-x: 28px;
+        --mobile-hud-menu-nudge-y: 0px;
         --mobile-menubar-scale: 0.82;
         --mobile-menubar-gap: 0.92rem;
-        --mobile-popover-top: 20%;
-        --mobile-popover-x: 0px;
-        --mobile-popover-y: 0px;
-        --mobile-popover-width: 20.45rem;
+        --mobile-hud-panel-gap: 0.45rem;
+        --mobile-hud-panel-width: 20.45rem;
         --mobile-popover-scale: 1.01;
-        --tablet-popover-width: 18.5rem;
-        --tablet-popover-x: 252px;
-        --tablet-popover-y: 0.5rem;
-        --tablet-popover-scale: 1.18;
         --tablet-mockup-x: -80px;
         --tablet-mockup-y: 13px;
         --tablet-mockup-scale: 0.92;
@@ -258,19 +243,48 @@
         will-change: transform;
       }
 
-      /* HUD layer: percentages are relative to the inner display, not the full PNG bezel */
-      .mockup-screen-hud {
+      /* HUD coordinates: percentages are relative to the full SVG artboard box */
+      .mockup-artboard {
         position: absolute;
-        z-index: 2;
-        top: 0;
-        right: var(--mockup-screen-right-inset);
-        bottom: var(--mockup-screen-bottom-inset);
-        left: var(--mockup-screen-left);
+        inset: 0;
         pointer-events: none;
       }
 
-      .mockup-screen-hud > * {
+      .mockup-hud-anchor {
+        position: absolute;
+        top: var(--hud-anchor-top);
+        right: var(--hud-margin-right);
+        left: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        transform-origin: top right;
+        pointer-events: none;
+      }
+
+      .mockup-hud-anchor > * {
         pointer-events: auto;
+      }
+
+      .system-menubar {
+        position: relative;
+        top: auto;
+        right: auto;
+        left: auto;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: calc(var(--menubar-gap) / var(--menubar-scale));
+        overflow: visible;
+        transform: translate(var(--hud-menu-nudge-x), var(--hud-menu-nudge-y)) scale(var(--menubar-scale));
+        transform-origin: top right;
+        color: rgba(245, 245, 245, 0.94);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+        font-size: clamp(0.95rem, 1.08vw, 1.48rem);
+        font-weight: 650;
+        letter-spacing: -0.045em;
+        text-shadow: 0 0.08em 0.28em rgba(0, 0, 0, 0.74);
+        will-change: transform;
       }
 
       .menu-bar-mark {
@@ -331,27 +345,6 @@
         transform: scaleX(var(--mark-fill));
       }
 
-      .system-menubar {
-        position: absolute;
-        z-index: 3;
-        top: var(--mockup-hud-menubar-top);
-        right: var(--mockup-hud-menubar-right);
-        left: auto;
-        display: flex;
-        align-items: center;
-        gap: calc(var(--menubar-gap) / var(--menubar-scale));
-        overflow: visible;
-        transform: translate(var(--menubar-x), var(--menubar-y)) scale(var(--menubar-scale));
-        transform-origin: top right;
-        color: rgba(245, 245, 245, 0.94);
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
-        font-size: clamp(0.95rem, 1.08vw, 1.48rem);
-        font-weight: 650;
-        letter-spacing: -0.045em;
-        text-shadow: 0 0.08em 0.28em rgba(0, 0, 0, 0.74);
-        will-change: transform;
-      }
-
       .system-menubar svg,
       .system-menubar .sf-symbol {
         flex: none;
@@ -410,14 +403,16 @@
       }
 
       .codex-popover {
-        position: absolute;
+        position: relative;
+        top: auto;
+        right: auto;
+        left: auto;
         z-index: 4;
-        top: var(--mockup-hud-popover-top);
-        right: var(--mockup-hud-popover-right);
-        width: var(--mockup-hud-popover-width);
+        margin-top: var(--hud-panel-gap);
+        width: var(--hud-panel-width);
         box-sizing: border-box;
         padding: 0.78rem 0.82rem 0.9rem;
-        transform: translate(var(--popover-x), var(--popover-y)) scale(var(--popover-scale));
+        transform: translate(var(--hud-panel-nudge-x), var(--hud-panel-nudge-y)) scale(var(--popover-scale));
         transform-origin: top right;
         overflow: hidden;
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1638,16 +1633,6 @@
           transform: translate(calc(-50% + var(--tablet-mockup-x)), var(--tablet-mockup-y))
             scale(calc(var(--tablet-mockup-scale) * clamp(1, calc(var(--tablet-mockup-tune-width) * 1px / 100vw), var(--tablet-mockup-fluid-max))));
         }
-
-        .system-menubar {
-          transform: translate(var(--menubar-x), var(--menubar-y)) scale(var(--menubar-scale));
-        }
-
-        .codex-popover {
-          width: var(--tablet-popover-width);
-          transform: translate(var(--tablet-popover-x), var(--tablet-popover-y)) scale(var(--tablet-popover-scale));
-          transform-origin: top right;
-        }
       }
 
       .split-copy-heading {
@@ -2388,31 +2373,24 @@
           z-index: 5;
         }
 
-        .mockup-screen-hud {
-          top: 0;
-          right: 0;
-          bottom: 0;
-          left: 0;
+        .mockup-hud-anchor {
+          top: var(--mobile-hud-anchor-top);
+          right: var(--mobile-hud-margin-right);
+          transform: translate(var(--mobile-hud-menu-nudge-x), var(--mobile-hud-menu-nudge-y));
         }
 
         .system-menubar {
-          top: var(--mobile-menubar-top);
-          right: auto;
-          left: 50%;
-          display: flex;
           gap: var(--mobile-menubar-gap);
-          transform: translate(calc(-50% + var(--mobile-menubar-x)), var(--mobile-menubar-y)) scale(var(--mobile-menubar-scale));
-          transform-origin: top center;
+          transform: scale(var(--mobile-menubar-scale));
+          transform-origin: top right;
           font-size: 1.18rem;
         }
 
         .codex-popover {
-          top: var(--mobile-popover-top);
-          right: auto;
-          left: 50%;
-          width: var(--mobile-popover-width);
-          transform: translate(calc(-50% + var(--mobile-popover-x)), var(--mobile-popover-y)) scale(var(--mobile-popover-scale));
-          transform-origin: top center;
+          margin-top: var(--mobile-hud-panel-gap);
+          width: var(--mobile-hud-panel-width);
+          transform: scale(var(--mobile-popover-scale));
+          transform-origin: top right;
           border-radius: 0.65rem;
         }
 
@@ -2662,7 +2640,8 @@
             />
           </div>
           <div class="mockup-hud-layer">
-            <div class="mockup-screen-hud">
+            <div class="mockup-artboard">
+            <div class="mockup-hud-anchor">
             <div class="system-menubar" aria-label="macOS menu bar status items" data-i18n-aria-label="mockup.menuBarAria">
               <img class="sf-symbol sf-symbol--openclaw" src="./images/menubar/openclaw-menubar.svg" alt="" aria-hidden="true" />
               <div class="menu-bar-mark" aria-label="CodexBar menu bar icon" data-i18n-aria-label="mockup.menuIconAria">
@@ -2726,6 +2705,7 @@
                 </p>
               </section>
             </aside>
+            </div>
             </div>
           </div>
         </div>
@@ -3338,24 +3318,6 @@
         px: {
           '--mockup-x': -540,
           '--mockup-y': 10,
-          '--menubar-x': 416,
-          '--menubar-y': -41,
-          '--menubar-gap': 22,
-          '--popover-x': 738,
-          '--popover-y': -124,
-        },
-        unitless: {
-          '--mockup-scale': 1.15,
-          '--menubar-scale': 0.94,
-          '--menubar-icon-scale': 1.28,
-          '--popover-scale': 0.91,
-        },
-        percent: {
-          '--mockup-hud-menubar-top': 8.59,
-          '--mockup-hud-menubar-right': 20.7,
-          '--mockup-hud-popover-top': 19.71,
-          '--mockup-hud-popover-right': 35.4,
-          '--mockup-hud-popover-width': 19.1,
         },
       };
 
@@ -3369,8 +3331,7 @@
 
       const HERO_LAYOUT_VARS = [
         ...Object.keys(HERO_DESKTOP_ANCHOR.px),
-        ...Object.keys(HERO_DESKTOP_ANCHOR.unitless),
-        ...Object.keys(HERO_DESKTOP_ANCHOR.percent),
+        '--tablet-mockup-x',
       ];
 
       function getHeroFluidFactor(width) {
@@ -3447,14 +3408,6 @@
           const value = anchor * pxRatio;
           root.style.setProperty(name, `${Math.round(value * 100) / 100}px`);
         });
-
-        Object.entries(HERO_DESKTOP_ANCHOR.unitless).forEach(([name, value]) => {
-          root.style.setProperty(name, String(value));
-        });
-
-        Object.entries(HERO_DESKTOP_ANCHOR.percent).forEach(([name, value]) => {
-          root.style.setProperty(name, `${value}%`);
-        });
       }
 
       window.addEventListener('resize', applyHeroDesktopLayout);
@@ -3462,12 +3415,11 @@
 
       const tabletTunerGroups = {
         panel: [
-          ['Panel X', '--tablet-popover-x', -400, 800, 1, 'px'],
-          ['Panel Y', '--tablet-popover-y', -4, 12, 0.05, 'rem'],
-          ['Panel scale', '--tablet-popover-scale', 0.5, 2, 0.01, ''],
-          ['HUD top', '--mockup-hud-popover-top', 0, 40, 0.01, '%'],
-          ['HUD right', '--mockup-hud-popover-right', 0, 60, 0.1, '%'],
-          ['Panel width', '--tablet-popover-width', 8, 36, 0.05, 'rem'],
+          ['Panel gap', '--hud-panel-gap', 0, 2, 0.05, 'rem'],
+          ['Panel nudge X', '--hud-panel-nudge-x', -200, 200, 1, 'px'],
+          ['Panel nudge Y', '--hud-panel-nudge-y', -200, 200, 1, 'px'],
+          ['Panel width', '--hud-panel-width', 10, 45, 0.05, '%'],
+          ['Panel scale', '--popover-scale', 0.5, 2, 0.01, ''],
         ],
       };
 
@@ -3478,21 +3430,20 @@
           ['Mockup scale', '--mockup-scale', 0.5, 1.5, 0.01, ''],
         ],
         menubar: [
-          ['Menu X', '--menubar-x', -400, 600, 1, 'px'],
-          ['Menu Y', '--menubar-y', -120, 200, 1, 'px'],
+          ['Anchor top', '--hud-anchor-top', 0, 25, 0.05, '%'],
+          ['Margin right', '--hud-margin-right', 0, 15, 0.1, '%'],
+          ['Menu nudge X', '--hud-menu-nudge-x', -200, 200, 1, 'px'],
+          ['Menu nudge Y', '--hud-menu-nudge-y', -120, 120, 1, 'px'],
           ['Menu scale', '--menubar-scale', 0.5, 2, 0.01, ''],
-          ['HUD top', '--mockup-hud-menubar-top', 0, 18, 0.01, '%'],
-          ['HUD right', '--mockup-hud-menubar-right', 5, 65, 0.1, '%'],
           ['Icon scale', '--menubar-icon-scale', 0.7, 1.8, 0.01, ''],
           ['Menu gap', '--menubar-gap', 8, 40, 1, 'px'],
         ],
         panel: [
-          ['Panel X', '--popover-x', -600, 800, 1, 'px'],
-          ['Panel Y', '--popover-y', -400, 400, 1, 'px'],
+          ['Panel gap', '--hud-panel-gap', 0, 2, 0.05, 'rem'],
+          ['Panel nudge X', '--hud-panel-nudge-x', -200, 200, 1, 'px'],
+          ['Panel nudge Y', '--hud-panel-nudge-y', -200, 200, 1, 'px'],
+          ['Panel width', '--hud-panel-width', 10, 45, 0.05, '%'],
           ['Panel scale', '--popover-scale', 0.5, 2, 0.01, ''],
-          ['HUD top', '--mockup-hud-popover-top', 0, 40, 0.01, '%'],
-          ['HUD right', '--mockup-hud-popover-right', 0, 60, 0.1, '%'],
-          ['HUD width', '--mockup-hud-popover-width', 10, 45, 0.05, '%'],
         ],
       };
 
@@ -3500,13 +3451,13 @@
         desktop: {
           label: 'desktop tuner',
           hint: '≥1024px · copy CSS into :root',
-          storageKey: 'codexbar-tuner-desktop-v1',
+          storageKey: 'codexbar-tuner-desktop-v2',
           groups: desktopTunerGroups,
         },
         tablet: {
           label: 'tablet tuner',
           hint: '769–1023px · tablet mockup + HUD panel vars',
-          storageKey: 'codexbar-tuner-tablet-v1',
+          storageKey: 'codexbar-tuner-tablet-v2',
           groups: {
             mockup: [
               ['Mockup X', '--tablet-mockup-x', -1200, 800, 1, 'px'],
@@ -3520,7 +3471,7 @@
         mobile: {
           label: 'mobile tuner',
           hint: '≤768px · stacked hero on stage',
-          storageKey: 'codexbar-tuner-mobile-v1',
+          storageKey: 'codexbar-tuner-mobile-v2',
           groups: {
             mockup: [
               ['Mockup X', '--mobile-mockup-offset-x', -280, 80, 1, 'px'],
@@ -3530,18 +3481,17 @@
               ['Mockup width', '--mobile-mockup-width', 180, 320, 1, '%'],
             ],
             menubar: [
-              ['Menu X', '--mobile-menubar-x', -120, 120, 1, 'px'],
-              ['Menu Y', '--mobile-menubar-y', -80, 120, 1, 'px'],
+              ['Anchor top', '--mobile-hud-anchor-top', 0, 20, 0.1, '%'],
+              ['Margin right', '--mobile-hud-margin-right', 0, 15, 0.1, '%'],
+              ['Menu nudge X', '--mobile-hud-menu-nudge-x', -120, 120, 1, 'px'],
+              ['Menu nudge Y', '--mobile-hud-menu-nudge-y', -80, 120, 1, 'px'],
               ['Menu scale', '--mobile-menubar-scale', 0.4, 1.2, 0.01, ''],
-              ['Menu top', '--mobile-menubar-top', 0, 20, 0.1, '%'],
               ['Menu gap', '--mobile-menubar-gap', 0.4, 1.5, 0.02, 'rem'],
             ],
             panel: [
-              ['Panel X', '--mobile-popover-x', -120, 120, 1, 'px'],
-              ['Panel Y', '--mobile-popover-y', -80, 120, 1, 'px'],
+              ['Panel gap', '--mobile-hud-panel-gap', 0, 1.5, 0.05, 'rem'],
+              ['Panel width', '--mobile-hud-panel-width', 14, 24, 0.05, 'rem'],
               ['Panel scale', '--mobile-popover-scale', 0.5, 1.2, 0.01, ''],
-              ['Panel top', '--mobile-popover-top', 5, 30, 0.1, '%'],
-              ['Panel width', '--mobile-popover-width', 14, 24, 0.05, 'rem'],
             ],
           },
         },
@@ -3554,9 +3504,9 @@
       };
 
       const layoutDescriptions = {
-        mobile: 'stacked hero · HUD centered on stage',
-        tablet: 'desktop overlay · tablet popover patch active',
-        desktop: 'desktop overlay · HUD on PNG screen',
+        mobile: 'stacked hero · HUD anchored to mockup top-right',
+        tablet: 'desktop overlay · HUD anchored to mockup top-right',
+        desktop: 'desktop overlay · HUD anchored to mockup top-right',
       };
 
       const tunerModeStorageKey = 'codexbar-tuner-active-mode';
@@ -3645,12 +3595,6 @@
         ['--mockup-fluid-max', ''],
         ['--tablet-mockup-tune-width', ''],
         ['--tablet-mockup-fluid-max', ''],
-        ['--narrow-menubar-x', 'px'],
-        ['--narrow-menubar-y', 'px'],
-        ['--narrow-menubar-scale', ''],
-        ['--narrow-popover-x', 'px'],
-        ['--narrow-popover-y', 'px'],
-        ['--narrow-popover-scale', ''],
       ];
 
       const tunerFieldUnits = new Map();
@@ -3898,31 +3842,18 @@
         return byMode;
       }
 
-      function getRegimeEffectiveVars(regime, layoutWidth) {
-        const narrowDesktop = layoutWidth >= 1024 && layoutWidth <= 1279;
+      function getRegimeEffectiveVars(regime) {
         const groups = collectHeroVarsByMode();
 
         if (regime === 'mobile') {
-          return { mode: 'mobile', narrowDesktop: false, groups: groups.mobile };
+          return { mode: 'mobile', groups: groups.mobile };
         }
 
         if (regime === 'tablet') {
-          return { mode: 'tablet', narrowDesktop: false, groups: groups.tablet };
+          return { mode: 'tablet', groups: groups.tablet };
         }
 
-        const desktopGroups = { ...groups.desktop };
-        if (narrowDesktop) {
-          desktopGroups.narrow = {
-            '--narrow-menubar-x': formatVarValue('--narrow-menubar-x', 'px'),
-            '--narrow-menubar-y': formatVarValue('--narrow-menubar-y', 'px'),
-            '--narrow-menubar-scale': formatVarValue('--narrow-menubar-scale', ''),
-            '--narrow-popover-x': formatVarValue('--narrow-popover-x', 'px'),
-            '--narrow-popover-y': formatVarValue('--narrow-popover-y', 'px'),
-            '--narrow-popover-scale': formatVarValue('--narrow-popover-scale', ''),
-          };
-        }
-
-        return { mode: 'desktop', narrowDesktop, groups: desktopGroups };
+        return { mode: 'desktop', groups: groups.desktop };
       }
 
       function buildAuditAnalysis() {
@@ -4047,7 +3978,7 @@
           warnings: collectLayoutWarnings(regime, metrics),
           vars: collectFlatHeroVars(),
           byMode: collectHeroVarsByMode(),
-          effective: getRegimeEffectiveVars(regime, metrics.layoutWidth),
+          effective: getRegimeEffectiveVars(regime),
         });
         persistViewportAudit();
         renderViewportAuditLog();
