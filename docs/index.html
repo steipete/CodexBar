@@ -97,6 +97,7 @@
         --mockup-scale: 1.15;
         --mockup-tune-width: 1920;
         --mockup-fluid-max: 1.22;
+        --mockup-screen-margin-right: 50px;
         --glow-x: 331px;
         --glow-y: -260px;
         --glow-scale: 2.4;
@@ -201,7 +202,7 @@
         left: 50%;
         width: 118%;
         aspect-ratio: 6111 / 3239;
-        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y))
+        transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y))
           scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
         transform-origin: top center;
         will-change: transform;
@@ -250,7 +251,7 @@
         left: 50%;
         width: 118%;
         aspect-ratio: 6111 / 3239;
-        transform: translate(calc(-50% + min(var(--mockup-x), 7.75vw)), var(--mockup-y))
+        transform: translate(calc(-50% + var(--mockup-x)), var(--mockup-y))
           scale(calc(var(--mockup-scale) * clamp(1, calc(var(--mockup-tune-width) * 1px / 100vw), var(--mockup-fluid-max))));
         transform-origin: top center;
         pointer-events: none;
@@ -2366,7 +2367,7 @@
         .mockup-wrap {
           top: 0;
           left: auto;
-          right: 0;
+          right: var(--mockup-screen-margin-right);
           width: var(--mobile-mockup-width);
           transform: translate(var(--mobile-mockup-offset-x), var(--mobile-mockup-offset-y)) scale(var(--mobile-mockup-scale));
           transform-origin: top right;
@@ -3327,12 +3328,15 @@
       const HERO_MOBILE_MAX = 768;
       const HERO_TABLET_MAX = 1023;
       const HERO_DESKTOP_MIN = 1024;
+      const MOCKUP_WIDTH_RATIO = 1.18;
+      const MOCKUP_SCREEN_MARGIN_RIGHT = 50;
 
       const HERO_DESKTOP_ANCHOR = {
         width: 1920,
         fluidMax: 1.22,
+        tabletTuneWidth: 1022,
+        tabletFluidMax: 1.18,
         px: {
-          '--mockup-x': -540,
           '--mockup-y': 10,
           '--menubar-x': 416,
           '--menubar-y': -41,
@@ -3366,6 +3370,43 @@
         return Math.min(Math.max(1, tuneWidth / width), HERO_DESKTOP_ANCHOR.fluidMax);
       }
 
+      function getTabletFluidFactor(width) {
+        const tuneWidth = HERO_DESKTOP_ANCHOR.tabletTuneWidth;
+        return Math.min(Math.max(1, tuneWidth / width), HERO_DESKTOP_ANCHOR.tabletFluidMax);
+      }
+
+      function getMockupBaseWidth(width) {
+        const tuneWidth = HERO_DESKTOP_ANCHOR.width;
+        const layoutWidth = width >= tuneWidth ? tuneWidth : width;
+        return layoutWidth * MOCKUP_WIDTH_RATIO;
+      }
+
+      function readHeroVarNumber(name, fallback) {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        const value = Number.parseFloat(raw);
+        return Number.isFinite(value) ? value : fallback;
+      }
+
+      function getMockupEffectiveScale(width) {
+        const scale = readHeroVarNumber('--mockup-scale', HERO_DESKTOP_ANCHOR.unitless['--mockup-scale']);
+        if (width >= HERO_DESKTOP_ANCHOR.width) return scale;
+        return scale * getHeroFluidFactor(width);
+      }
+
+      function getTabletMockupEffectiveScale(width) {
+        const scale = readHeroVarNumber('--tablet-mockup-scale', 0.92);
+        if (width >= HERO_DESKTOP_ANCHOR.tabletTuneWidth) return scale;
+        return scale * getTabletFluidFactor(width);
+      }
+
+      function computeMockupX(width, { tablet = false } = {}) {
+        const effectiveScale = tablet
+          ? getTabletMockupEffectiveScale(width)
+          : getMockupEffectiveScale(width);
+        const scaledWidth = getMockupBaseWidth(width) * effectiveScale;
+        return (width / 2) - MOCKUP_SCREEN_MARGIN_RIGHT - (scaledWidth / 2);
+      }
+
       function getHeroDesktopPxRatio(width) {
         if (width >= HERO_DESKTOP_ANCHOR.width) return 1;
         if (width < HERO_DESKTOP_MIN) return null;
@@ -3377,7 +3418,6 @@
       }
 
       function shouldRunHeroLayoutApplicator() {
-        if (window.innerWidth < HERO_DESKTOP_MIN) return false;
         const tunerPanel = document.getElementById('tuner-panel');
         const tunerOpen = tunerPanel && !tunerPanel.hidden;
         const tunerEnabled = ['localhost', '127.0.0.1'].includes(location.hostname)
@@ -3389,14 +3429,27 @@
         if (!shouldRunHeroLayoutApplicator()) return;
 
         const width = window.innerWidth;
-        const pxRatio = getHeroDesktopPxRatio(width);
+        const root = document.documentElement;
+        root.style.setProperty('--mockup-screen-margin-right', `${MOCKUP_SCREEN_MARGIN_RIGHT}px`);
 
-        if (pxRatio === null) {
+        if (width <= HERO_MOBILE_MAX) {
+          clearHeroDesktopLayout();
+          root.style.removeProperty('--mockup-x');
+          root.style.removeProperty('--tablet-mockup-x');
+          return;
+        }
+
+        const mockupX = Math.round(computeMockupX(width, { tablet: width <= HERO_TABLET_MAX }) * 100) / 100;
+
+        if (width <= HERO_TABLET_MAX) {
+          root.style.removeProperty('--mockup-x');
+          root.style.setProperty('--tablet-mockup-x', `${mockupX}px`);
           clearHeroDesktopLayout();
           return;
         }
 
-        const root = document.documentElement;
+        root.style.removeProperty('--tablet-mockup-x');
+        const pxRatio = getHeroDesktopPxRatio(width);
 
         Object.entries(HERO_DESKTOP_ANCHOR.px).forEach(([name, anchor]) => {
           const value = anchor * pxRatio;
@@ -3410,6 +3463,8 @@
         Object.entries(HERO_DESKTOP_ANCHOR.percent).forEach(([name, value]) => {
           root.style.setProperty(name, `${value}%`);
         });
+
+        root.style.setProperty('--mockup-x', `${mockupX}px`);
       }
 
       window.addEventListener('resize', applyHeroDesktopLayout);
