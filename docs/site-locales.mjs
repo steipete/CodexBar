@@ -789,7 +789,7 @@ export const localeMessages = {
     "nav.download": "Download",
     "theme.toLight": "Mudar para tema claro",
     "theme.toDark": "Mudar para tema escuro",
-    "hero.prefix": "Cada limite de codificação de IA,",
+    "hero.prefix": "Cada limite de{heroBreak}codificação de IA,",
     "hero.accent": "na sua barra de menu.",
     "hero.description": "CodexBar rastreia janelas de uso, saldos de crédito e reinicia contagens regressivas nos provedores pelos quais você realmente paga - um item de status cada, ou mescla-os em um.",
     "hero.download": "Baixar para macOS",

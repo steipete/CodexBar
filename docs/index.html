@@ -583,6 +583,16 @@
         .hero-copy { width: min(64vw, 76rem); }
 
         .hero-title-line { white-space: nowrap; }
+
+        :root[data-locale="pt-BR"] .hero-title-line:first-child {
+          white-space: normal;
+        }
+      }
+
+      @media (min-width: 1800px) {
+        .hero-copy h1 {
+          font-size: 5.15rem !important;
+        }
       }
 
       .brew-pill {
@@ -1222,7 +1232,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 0.7rem;
-        margin: 0 0 0.62rem;
+        margin: 0 0 0.9rem;
         color: #fff;
         font-size: 1.02em;
         font-weight: 650;
@@ -1893,7 +1903,7 @@
 
       .cli-footnote {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: flex-start;
         gap: 0.35rem;
         margin-top: clamp(1.5rem, 3vw, 2rem);
@@ -1901,6 +1911,11 @@
         font-size: 0.82rem;
         letter-spacing: -0.02em;
         line-height: 1.45;
+      }
+
+      .cli-footnote span {
+        max-width: 38ch;
+        text-wrap: balance;
       }
 
       .cli-footnote svg {
@@ -2136,6 +2151,10 @@
           display: none !important;
         }
 
+        .hero-title-line br {
+          display: block !important;
+        }
+
         .hero-copy .reveal-3.mt-8 {
           justify-content: flex-start;
           gap: 0.75rem;
@@ -2198,6 +2217,36 @@
           padding-bottom: 4rem;
         }
 
+        .provider-section ul {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 1.35rem 0.85rem;
+        }
+
+        .provider-card {
+          min-height: auto;
+          grid-template-columns: 1fr;
+          justify-items: center;
+          gap: 0.45rem;
+          padding: 0.2rem 0;
+          text-align: center;
+        }
+
+        .provider-logo {
+          width: 2.15rem;
+          height: 2.15rem;
+          font-size: 0.68rem;
+        }
+
+        .provider-logo::before {
+          inset: 0.48rem;
+        }
+
+        .provider-logo img,
+        .provider-logo > svg {
+          width: 1.25rem;
+          height: 1.25rem;
+        }
+
         .provider-section h2,
         .features-heading {
           white-space: normal;
@@ -2222,6 +2271,19 @@
         .technical-block p,
         .site-footer {
           letter-spacing: 0;
+        }
+
+        .provider-card p > strong {
+          font-size: 0.82rem;
+          line-height: 1.08;
+          overflow-wrap: anywhere;
+        }
+
+        .provider-card p > span {
+          margin-top: 0.18rem;
+          font-size: 0.7rem;
+          line-height: 1.12;
+          overflow-wrap: anywhere;
         }
 
         .features-heading {
@@ -2461,7 +2523,7 @@
           </div>
 
           <h1 class="reveal reveal-2 mt-5 text-[clamp(3rem,5.7vw,6.4rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-zinc-100">
-            <span class="hero-title-line" data-i18n="hero.prefix">Every AI coding limit,</span>
+            <span class="hero-title-line" data-i18n-rich="hero.prefix">Every AI coding limit,</span>
             <span class="hero-title-line" data-i18n="hero.accent">in your menu bar.</span>
           </h1>
 
@@ -3318,6 +3380,9 @@
           br.className = 'hidden sm:block';
           return br;
         }
+        if (name === 'heroBreak') {
+          return document.createElement('br');
+        }
         return document.createTextNode(`{${name}}`);
       }
 
@@ -3478,16 +3543,6 @@
           bar.style.setProperty('--bar-delay', `${280 + index * 14}ms`);
         });
       }, popoverStartDelay);
-
-      function updateMenuTime() {
-        const now = new Date();
-        const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        document.querySelector('#menu-time').textContent = `${date}  ${time}`;
-      }
-
-      updateMenuTime();
-      window.setInterval(updateMenuTime, 60_000);
 
       function setTunerOpen(open) {
         panel.classList.toggle('hidden', !open);
