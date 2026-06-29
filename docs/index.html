@@ -1063,9 +1063,19 @@
         flex: none;
         width: 100%;
         aspect-ratio: 4 / 3;
+        overflow: hidden;
         border: 1px solid var(--page-line);
         border-radius: 0.8rem;
-        background: #dc2626;
+        background: var(--page-bg);
+        line-height: 0;
+      }
+
+      .feature-card-visual img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top center;
       }
 
       .cli-section,
@@ -1885,21 +1895,27 @@
                 <h3>Resets you can plan around</h3>
                 <p>Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
               </div>
-              <div class="feature-card-visual" aria-hidden="true"></div>
+              <div class="feature-card-visual" aria-hidden="true">
+                <img src="./features/feature-resets.png" alt="" width="2700" height="1700" loading="lazy" />
+              </div>
             </article>
             <article class="feature-card provider-reveal" style="--reveal-delay: 140ms">
               <div class="feature-card-copy">
                 <h3>Credits, spend, and cost scans</h3>
                 <p>Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
               </div>
-              <div class="feature-card-visual" aria-hidden="true"></div>
+              <div class="feature-card-visual" aria-hidden="true">
+                <img src="./features/feature-credits.png" alt="" width="2700" height="1700" loading="lazy" />
+              </div>
             </article>
             <article class="feature-card provider-reveal" style="--reveal-delay: 200ms">
               <div class="feature-card-copy">
                 <h3>Status &amp; incidents</h3>
                 <p>Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
               </div>
-              <div class="feature-card-visual" aria-hidden="true"></div>
+              <div class="feature-card-visual" aria-hidden="true">
+                <img src="./features/feature-status.png" alt="" width="840" height="208" loading="lazy" />
+              </div>
             </article>
           </div>
         </div>
