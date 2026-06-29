@@ -48,8 +48,10 @@ for (const key of referencedKeys) {
   assert(englishKeys.includes(key), `index.html references unknown locale key ${key}`);
 }
 
-const hasLanguagePicker = indexHtml.includes('id="language-picker-list"') && indexHtml.includes('localeCatalog');
-assert(hasLanguagePicker, 'index.html must include the language picker backed by localeCatalog');
+const siteJs = fs.readFileSync(path.join(repoRoot, 'docs/site.js'), 'utf8');
+const hasLanguagePicker = indexHtml.includes('id="language-picker-list"')
+  && (indexHtml.includes('localeCatalog') || siteJs.includes('localeCatalog'));
+assert(hasLanguagePicker, 'site must include the language picker backed by localeCatalog');
 
 for (const code of catalogCodes) {
   assert(indexHtml.includes(`href="https://codexbar.app/?lang=${code}"`), `missing hreflang URL for ${code}`);
