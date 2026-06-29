@@ -571,6 +571,20 @@
         text-align: left;
       }
 
+      .hero-title-line {
+        display: block;
+      }
+
+      @media (min-width: 1280px) {
+        .hero-copy { width: min(60vw, 68rem); }
+      }
+
+      @media (min-width: 1536px) {
+        .hero-copy { width: min(64vw, 76rem); }
+
+        .hero-title-line { white-space: nowrap; }
+      }
+
       .brew-pill {
         background:
           linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
@@ -782,6 +796,12 @@
         position: relative;
         border-top: 1px solid var(--page-line);
         background: var(--page-bg);
+      }
+
+      .section-inner {
+        width: 100%;
+        max-width: 1380px;
+        margin-inline: auto;
       }
 
       .provider-reveal {
@@ -1252,8 +1272,8 @@
           </div>
 
           <h1 class="reveal reveal-2 mt-5 text-[clamp(3rem,5.7vw,6.4rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-zinc-100">
-            Every AI coding limit,<br />
-            in your menu bar.
+            <span class="hero-title-line">Every AI coding limit,</span>
+            <span class="hero-title-line">in your menu bar.</span>
           </h1>
 
           <p class="reveal reveal-3 mt-6 max-w-[38rem] text-[clamp(1rem,1.25vw,1.28rem)] leading-[1.42] tracking-[-0.035em] text-zinc-400">
@@ -1298,6 +1318,7 @@
       </section>
 
       <section class="provider-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-provider-section>
+        <div class="section-inner">
         <header class="relative z-10 grid gap-5 lg:grid-cols-[1fr_0.86fr] lg:items-center">
           <h2 class="provider-reveal max-w-3xl text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
             53 providers,<br />one menu bar
@@ -1346,6 +1367,7 @@
           <li class="provider-card"><span class="provider-logo" style="--brand:#084EFF;--icon:url('./logos/zed.svg')"><img src="./logos/zed.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Zed</strong><span>Local</span></p></li>
           <li class="provider-card"><span class="provider-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 .83.18 2 2 0 0 0 .83-.18l8.58-3.9a1 1 0 0 0 0-1.831z"/><path d="M16 17h6"/><path d="M19 14v6"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 .825.178"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l2.116-.962"/></svg></span><p><strong>Your provider</strong><span><a class="provider-authoring" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">Authoring guide<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a></span></p></li>
         </ul>
+        </div>
       </section>
 
       <section class="features-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
@@ -1379,6 +1401,7 @@
       </section>
 
       <section class="technical-section px-5 py-16 sm:px-8 lg:px-12 lg:py-20" data-scroll-section>
+        <div class="section-inner">
         <p class="section-eyebrow provider-reveal">Technical</p>
 
         <div class="technical-grid relative z-10">
@@ -1413,6 +1436,7 @@
               Full Disk Access for Safari cookies, Keychain access for cookie decryption and OAuth flows, and Files &amp; Folders prompts when provider helpers read project directories.
             </p>
           </article>
+        </div>
         </div>
       </section>
     </main>
