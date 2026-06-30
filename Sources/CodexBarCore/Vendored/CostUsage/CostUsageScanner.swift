@@ -600,12 +600,18 @@ enum CostUsageScanner {
         self.codexRootsFingerprint(self.codexSessionsRoots(options: options))
     }
 
+    /// Bump when the cost FORMULA changes (not the rates) so caches written by an older formula
+    /// are invalidated and repriced. The pricing fingerprints below only capture rate constants,
+    /// so formula-only fixes would otherwise reuse stale precomputed costs.
+    private static let codexCostFormulaVersion = 2
+
     private static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
+        let versionPrefix = "costFormulaVersion=\(Self.codexCostFormulaVersion)\n"
         guard let modelsDevArtifact else {
-            let fingerprint = CostUsagePricing.codexBuiltInPricingFingerprint()
+            let fingerprint = versionPrefix + CostUsagePricing.codexBuiltInPricingFingerprint()
             return "builtin-\(Self.sha256Hex(Data(fingerprint.utf8)))"
         }
-        let fingerprint = self.modelsDevPricingFingerprint(modelsDevArtifact.catalog)
+        let fingerprint = versionPrefix + self.modelsDevPricingFingerprint(modelsDevArtifact.catalog)
         return "models-dev-v\(modelsDevArtifact.version)-\(Self.sha256Hex(Data(fingerprint.utf8)))"
     }
 
