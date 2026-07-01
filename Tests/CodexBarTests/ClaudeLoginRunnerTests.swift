@@ -5,10 +5,12 @@ import Testing
 @Suite(.serialized)
 struct ClaudeLoginRunnerTests {
     @Test
-    func `dedicated auth command completes successfully`() async throws {
+    func `dedicated auth command opens browser prompt and completes successfully`() async throws {
         let fixture = try self.makeFixture(script: """
         #!/bin/sh
         printf 'args:%s\\n' "$*"
+        printf 'Authenticate your account at (press ENTER to open in browser): '
+        IFS= read -r _
         printf 'https://claude.ai/oauth/authorize?test=1\\n'
         printf 'Successfully logged in\\n'
         """)

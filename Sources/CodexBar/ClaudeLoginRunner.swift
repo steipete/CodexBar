@@ -85,6 +85,7 @@ struct ClaudeLoginRunner {
         options.baseEnvironment = environment
         options.stopOnURL = false // keep running until CLI confirms
         options.stopOnSubstrings = self.successMarkers
+        options.sendOnSubstrings = ["press ENTER to open in browser": "\r"]
         options.settleAfterStop = 0.35
         options.returnOnEmptyProcessExit = true
         do {
