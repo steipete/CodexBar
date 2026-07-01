@@ -302,6 +302,7 @@ extension CodexBarCLI {
         case CodexStatusProbeError.timedOut,
              TTYCommandRunner.Error.timedOut,
              GeminiStatusProbeError.timedOut,
+             ClaudeWebFetchStrategyError.timedOut,
              CostUsageError.timedOut:
             ExitCode(4)
         case ClaudeUsageError.parseFailed,

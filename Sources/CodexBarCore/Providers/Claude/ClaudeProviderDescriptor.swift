@@ -465,11 +465,11 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
     }
 }
 
-enum ClaudeWebFetchStrategyError: LocalizedError, Equatable, Sendable {
+public enum ClaudeWebFetchStrategyError: LocalizedError, Equatable, Sendable {
     case invalidTimeout
     case timedOut(seconds: TimeInterval)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .invalidTimeout:
             "Claude web usage fetch timeout must be a finite, nonnegative value within the supported range."
