@@ -5,6 +5,7 @@ import FoundationNetworking
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct SakanaUsageFetcherTests {
     @Test
     func `billing html maps five hour and weekly windows`() throws {
