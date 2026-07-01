@@ -54,7 +54,9 @@ the subscription quota windows above. `console.sakana.ai/billing` renders this d
 "Pay as you go" tab, but that tab's markup is only present in the HTML response when the request URL includes
 `?tab=payAsYouGo` — the default `/billing` response (used for the subscription quota fetch above) does not include
 it. CodexBar issues a **second, best-effort** GET to `https://console.sakana.ai/billing?tab=payAsYouGo` with the same
-cookie header immediately after the subscription fetch succeeds.
+cookie header immediately after the subscription fetch succeeds — skipped entirely (no request made) when
+`context.includeOptionalUsage` is `false`, i.e. Settings → Advanced → "Show optional credits and extra usage" is
+disabled.
 
 - **Credit balance**: parsed from the `<h2>Credit balance</h2>` card's adjacent `tabular-nums` amount.
 - **Recent usage total**: parsed from the `Usage` chart header's `Total: $…` text, covering whatever date range is
@@ -71,8 +73,10 @@ request itself failed rather than "no credit."
 
 - Menu: a `Balance: $X.XX` row (and a `Recent usage: $X.XX` row when the usage total parses) appears alongside the
   quota windows.
-- Menu bar text: when Settings → Advanced → Menu bar metric is set to the secondary metric for Sakana, the menu bar
-  shows the credit balance instead of the 5-hour quota percentage (mirrors MiMo's balance display).
+- Not shown in the menu bar text: unlike some other credits-only providers, Sakana already has real 5-hour/weekly
+  rate windows, and the "secondary metric" preference that would otherwise select an alternate menu bar display is
+  the legitimate way to show the *weekly* window there. Reusing it for the PAYG balance would silently replace the
+  weekly percentage for anyone who picks that preference, so the balance is menu-only for now.
 
 ## CLI usage
 
@@ -108,7 +112,6 @@ There is no `codexbar config set` command for `cookieHeader`; use one of the pat
   - `SakanaProviderImplementation.swift` — settings UI, availability check
   - `SakanaSettingsStore.swift` — `sakanaCookieHeader` settings binding
 - `Sources/CodexBar/MenuDescriptor.swift` — `Balance:` / `Recent usage:` summary rows
-- `Sources/CodexBar/StatusItemController+Animation.swift` — `sakanaBalanceDisplayText` menu bar text
 - `Tests/CodexBarTests/SakanaUsageFetcherTests.swift` — parser regression tests
 - Dashboard: `https://console.sakana.ai/billing` (subscription tab), `https://console.sakana.ai/billing?tab=payAsYouGo`
   (pay-as-you-go tab)

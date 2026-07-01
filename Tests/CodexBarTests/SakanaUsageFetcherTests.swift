@@ -73,6 +73,30 @@ struct SakanaUsageFetcherTests {
     }
 
     @Test
+    func `fetch skips the pay as you go request entirely when optional usage is disabled`() async throws {
+        let transport = SakanaScriptedTransport(
+            statusCode: 200,
+            body: Self.billingHTML,
+            overridesByURL: [
+                "https://console.sakana.ai/billing?tab=payAsYouGo": (200, Self.payAsYouGoHTML),
+            ])
+
+        let snapshot = try await SakanaUsageFetcher.fetchUsage(
+            cookieHeader: "session=abc",
+            session: transport,
+            now: Date(timeIntervalSince1970: 0),
+            includeOptionalUsage: false)
+        let requests = await transport.capturedRequestsSnapshot()
+
+        #expect(snapshot.fiveHour?.usedPercent == 92)
+        #expect(snapshot.payAsYouGo == nil)
+        // Only the required subscription-quota request is made; disabling optional usage must not
+        // just discard the PAYG result, it must skip the network request entirely.
+        #expect(requests.count == 1)
+        #expect(requests.first?.url == "https://console.sakana.ai/billing")
+    }
+
+    @Test
     func `fetch tolerates a failing pay as you go request without failing the primary fetch`() async throws {
         // Default response is a 500; only the primary billing URL is overridden to succeed, so the
         // pay-as-you-go request (not present in the override map) falls through to that failure.

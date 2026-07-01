@@ -56,7 +56,8 @@ struct SakanaWebFetchStrategy: ProviderFetchStrategy {
         }
         let usage = try await SakanaUsageFetcher.fetchUsage(
             cookieHeader: cookieHeader,
-            timeout: context.webTimeout)
+            timeout: context.webTimeout,
+            includeOptionalUsage: context.includeOptionalUsage)
         return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "web")
     }
 

@@ -132,7 +132,8 @@ public enum SakanaUsageFetcher {
         cookieHeader: String,
         session transportOverride: (any ProviderHTTPTransport)? = nil,
         timeout: TimeInterval = 15,
-        now: Date = Date()) async throws -> SakanaUsageSnapshot
+        now: Date = Date(),
+        includeOptionalUsage: Bool = true) async throws -> SakanaUsageSnapshot
     {
         guard let cookieHeader = CookieHeaderNormalizer.normalize(cookieHeader) else {
             throw SakanaUsageError.missingCookie
@@ -162,7 +163,11 @@ public enum SakanaUsageFetcher {
             throw SakanaUsageError.parseFailed("Billing page response was empty.")
         }
         let snapshot = try self.parseBillingHTML(html, now: now)
-        let payAsYouGo = await self.fetchPayAsYouGo(cookieHeader: cookieHeader, transport: transport, timeout: timeout)
+        let payAsYouGo: SakanaPayAsYouGoSnapshot? = if includeOptionalUsage {
+            await self.fetchPayAsYouGo(cookieHeader: cookieHeader, transport: transport, timeout: timeout)
+        } else {
+            nil
+        }
         // fetchPayAsYouGo swallows its own errors (including CancellationError) to stay best-effort;
         // re-check here so a cancelled parent task still unwinds instead of returning a stale result.
         try Task.checkCancellation()
