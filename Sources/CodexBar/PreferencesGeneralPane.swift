@@ -172,7 +172,7 @@ struct GeneralPane: View {
 
                                     VStack(alignment: .leading, spacing: 6) {
                                         Toggle(isOn: self.$settings.costUsagePiSessionsEnabled) {
-                                            Text("Analyze Pi sessions")
+                                            Text("Analyze Pi sessions for all providers")
                                                 .font(.footnote)
                                         }
                                         .toggleStyle(.checkbox)

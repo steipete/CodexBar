@@ -44,6 +44,22 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `Kimi Code session scanning defaults off while Pi scanning stays enabled`() throws {
+        let suite = "SettingsStoreTests-token-cost-source-defaults"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.costUsagePiSessionsEnabled == true)
+        #expect(store.costUsageKimiCodeSessionsEnabled == false)
+    }
+
+    @Test
     func `repairs unrecognized refresh frequency raw value`() throws {
         let suite = "SettingsStoreTests-invalid-refresh"
         let defaults = try #require(UserDefaults(suiteName: suite))

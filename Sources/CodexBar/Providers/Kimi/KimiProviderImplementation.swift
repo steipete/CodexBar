@@ -64,17 +64,6 @@ struct KimiProviderImplementation: ProviderImplementation {
     func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
         [
             ProviderSettingsToggleDescriptor(
-                id: "kimi-cost-pi-sessions",
-                title: "Analyze Pi sessions",
-                subtitle: "Use local Pi session token records for Kimi daily usage and cost.",
-                binding: context.boolBinding(\.costUsagePiSessionsEnabled),
-                statusText: nil,
-                actions: [],
-                isVisible: { context.settings.costUsageEnabled },
-                onChange: nil,
-                onAppDidBecomeActive: nil,
-                onAppearWhenEnabled: nil),
-            ProviderSettingsToggleDescriptor(
                 id: "kimi-cost-kimi-code-sessions",
                 title: "Analyze Kimi Code sessions",
                 subtitle: "Use local Kimi Code wire.jsonl token records; raw prompts are not shown.",

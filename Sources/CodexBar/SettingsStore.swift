@@ -520,7 +520,7 @@ extension SettingsStore {
     {
         (
             userDefaults.object(forKey: "tokenCostPiSessionsEnabled") as? Bool ?? true,
-            userDefaults.object(forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool ?? true)
+            userDefaults.object(forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool ?? false)
     }
 
     private static func loadCostSummaryDisplayStyleRaw(
