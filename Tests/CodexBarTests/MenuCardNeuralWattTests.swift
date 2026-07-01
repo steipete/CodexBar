@@ -47,6 +47,7 @@ struct MenuCardNeuralWattTests {
         #expect(statusText == "$51.00 remaining of $77.04")
         #expect(primary.detailText == nil)
         #expect(primary.resetText == nil)
+        #expect(model.creditsText == nil)
         #expect(model.metrics.contains { $0.title == "This month" } == false)
         #expect(model.metrics.allSatisfy { metric in
             metric.resetText?.localizedCaseInsensitiveContains("reset") != true

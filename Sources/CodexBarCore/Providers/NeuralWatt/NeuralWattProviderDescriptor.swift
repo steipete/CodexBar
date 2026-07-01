@@ -13,7 +13,7 @@ public enum NeuralWattProviderDescriptor {
                 weeklyLabel: "Spend",
                 opusLabel: nil,
                 supportsOpus: false,
-                supportsCredits: true,
+                supportsCredits: false,
                 creditsHint: "Energy-based USD credit balance.",
                 toggleTitle: "Show Neuralwatt usage",
                 cliName: "neuralwatt",
