@@ -112,8 +112,7 @@ struct UsageMenuCardView: View {
         var creditsProgressPercent: Double?, creditsScaleText: String?
         let creditsHintText: String?
         let creditsHintCopyText: String?
-        var codexResetCreditsText: String?
-        var codexResetCreditsDetailText: String?
+        var codexResetCredits: CodexResetCreditsPresentation?
         let providerCost: ProviderCostSection?
         let tokenUsage: TokenUsageSection?
         let placeholder: String?
@@ -549,20 +548,18 @@ private struct UsageMenuCardUsageContentView: View {
                     title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
                     progressColor: self.model.progressColor)
             }
-            if let resetCredits = self.model.codexResetCreditsText {
+            if let resetCredits = self.model.codexResetCredits {
                 if !self.model.metrics.isEmpty {
                     Divider()
                 }
-                CodexResetCreditsContent(
-                    text: resetCredits,
-                    detailText: self.model.codexResetCreditsDetailText)
+                CodexResetCreditsContent(presentation: resetCredits)
             }
             if let dashboard = self.model.inlineUsageDashboard {
                 InlineUsageDashboardContent(model: dashboard)
             } else if !self.model.usageNotes.isEmpty {
                 UsageNotesContent(notes: self.model.usageNotes)
             } else if let placeholder = self.model.placeholder, self.model.metrics.isEmpty,
-                      self.model.codexResetCreditsText == nil
+                      self.model.codexResetCredits == nil
             {
                 Text(placeholder)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
@@ -863,8 +860,7 @@ extension UsageMenuCardView.Model {
             creditsScaleText: creditsScaleText,
             creditsHintText: codexCreditLimitDetail ?? redacted.creditsHintText,
             creditsHintCopyText: codexCreditLimitDetail ?? redacted.creditsHintCopyText,
-            codexResetCreditsText: Self.codexResetCreditsText(input: input),
-            codexResetCreditsDetailText: Self.codexResetCreditsDetailText(input: input),
+            codexResetCredits: Self.codexResetCredits(input: input),
             providerCost: providerCost,
             tokenUsage: tokenUsage,
             placeholder: placeholder,

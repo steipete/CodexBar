@@ -1130,6 +1130,8 @@
 "1 available" = "1 รายการ";
 "%d available" = "%d รายการ";
 "Next expires %@" = "รายการถัดไปหมดอายุ %@";
+"Expires %@" = "หมดอายุ %@";
+"No expiry" = "ไม่มีวันหมดอายุ";
 "byte_unit_byte" = "ไบต์";
 "byte_unit_bytes" = "ไบต์";
 "byte_unit_kilobyte" = "กิโลไบต์";

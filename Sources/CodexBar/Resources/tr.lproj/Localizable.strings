@@ -1127,6 +1127,8 @@
 "1 available" = "1 kullanılabilir";
 "%d available" = "%d kullanılabilir";
 "Next expires %@" = "Sonraki sona erme %@";
+"Expires %@" = "%@ sona eriyor";
+"No expiry" = "Son kullanma yok";
 "byte_unit_byte" = "bayt";
 "byte_unit_bytes" = "bayt";
 "byte_unit_kilobyte" = "kilobayt";

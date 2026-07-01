@@ -1120,6 +1120,8 @@
 "1 available" = "1 verfügbar";
 "%d available" = "%d verfügbar";
 "Next expires %@" = "Nächster Ablauf %@";
+"Expires %@" = "Läuft %@ ab";
+"No expiry" = "Kein Ablaufdatum";
 "Other (%d items)" = "Andere (%d Elemente)";
 "Expand" = "Aufklappen";
 "Collapse" = "Zuklappen";

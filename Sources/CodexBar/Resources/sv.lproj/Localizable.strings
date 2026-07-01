@@ -1119,6 +1119,8 @@
 "1 available" = "1 tillgänglig";
 "%d available" = "%d tillgängliga";
 "Next expires %@" = "Nästa upphör %@";
+"Expires %@" = "Upphör %@";
+"No expiry" = "Inget utgångsdatum";
 "Other (%d items)" = "Övrigt (%d objekt)";
 "Expand" = "Expandera";
 "Collapse" = "Fäll ihop";

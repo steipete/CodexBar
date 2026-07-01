@@ -980,6 +980,8 @@
 "1 available" = "1 disponible";
 "%d available" = "%d disponibles";
 "Next expires %@" = "El siguiente caduca %@";
+"Expires %@" = "Caduca %@";
+"No expiry" = "Sin caducidad";
 "Other (%d items)" = "Otros (%d elementos)";
 "Expand" = "Expandir";
 "Collapse" = "Contraer";

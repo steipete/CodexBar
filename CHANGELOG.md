@@ -3,6 +3,7 @@
 ## 0.38.2 — Unreleased
 
 ### Added
+- Codex: show every available reset-credit expiry in menus and provider settings, including non-expiring credits, and summarize credits nearing expiry. Thanks @brahimhamichan!
 - Sakana AI: show best-effort pay-as-you-go credit balance and recent usage without delaying subscription quota refreshes. Thanks @ss251!
 - Kimi: show monthly subscription usage alongside weekly and five-hour limits with a short total budget for the optional membership request. Thanks @zhiyue!
 - Mistral: show available credit balance from the authenticated billing session while preserving API spend and Monthly Plan usage. Thanks @Zihao-Qi!

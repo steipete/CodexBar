@@ -993,6 +993,8 @@
 "1 available" = "1 次可用";
 "%d available" = "%d 次可用";
 "Next expires %@" = "下一個將於 %@ 到期";
+"Expires %@" = "%@ 到期";
+"No expiry" = "永不過期";
 "Other (%d items)" = "其他（%d 個項目）";
 "Expand" = "展開";
 "Collapse" = "收合";

@@ -84,6 +84,32 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `reset-credit token load ignores an API key beside O auth tokens`() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-reset-credit-oauth-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let json = """
+        {
+          "OPENAI_API_KEY": "sk-test",
+          "tokens": {
+            "access_token": "oauth-access-token",
+            "refresh_token": "oauth-refresh-token",
+            "account_id": "account-123"
+          },
+          "last_refresh": "2026-07-01T12:00:00Z"
+        }
+        """
+        try Data(json.utf8).write(to: home.appendingPathComponent("auth.json"))
+
+        let credentials = try CodexOAuthCredentialsStore.loadOAuthTokens(env: ["CODEX_HOME": home.path])
+
+        #expect(credentials.accessToken == "oauth-access-token")
+        #expect(credentials.refreshToken == "oauth-refresh-token")
+        #expect(credentials.accountId == "account-123")
+    }
+
+    @Test
     func `decodes credits balance string`() throws {
         let json = """
         {
@@ -704,12 +730,23 @@ struct CodexOAuthTests {
     }
 
     @Test
-    func `reset credits only O auth payload still returns usage result`() throws {
+    func `reset credit inventory only O auth payload still returns usage result`() throws {
         let json = #"{"rate_limit":{"primary_window":null,"secondary_window":null}}"#
         let now = Date()
         let resetCredits = CodexRateLimitResetCreditsSnapshot(
-            credits: [],
-            availableCount: 2,
+            credits: [
+                CodexRateLimitResetCredit(
+                    id: "available-no-expiry",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: nil,
+                    redeemStartedAt: nil,
+                    redeemedAt: nil,
+                    title: nil,
+                    description: nil),
+            ],
+            availableCount: 1,
             updatedAt: now)
         let creds = CodexOAuthCredentials(
             accessToken: "access",
@@ -725,7 +762,7 @@ struct CodexOAuthTests {
 
         #expect(result.usage.primary == nil)
         #expect(result.usage.secondary == nil)
-        #expect(result.usage.codexResetCredits?.availableCount == 2)
+        #expect(result.usage.codexResetCredits?.availableInventory(at: now).count == 1)
         #expect(result.credits == nil)
         #expect(result.sourceLabel == "oauth")
     }

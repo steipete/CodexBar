@@ -1120,6 +1120,8 @@
 "1 available" = "1 disponible";
 "%d available" = "%d disponibles";
 "Next expires %@" = "Prochaine expiration %@";
+"Expires %@" = "Expire %@";
+"No expiry" = "Sans expiration";
 "Other (%d items)" = "Autres (%d éléments)";
 "Expand" = "Développer";
 "Collapse" = "Réduire";

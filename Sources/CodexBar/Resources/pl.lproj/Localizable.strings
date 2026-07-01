@@ -1129,6 +1129,8 @@
 "1 available" = "1 dostępny";
 "%d available" = "%d dostępne";
 "Next expires %@" = "Następny wygasa %@";
+"Expires %@" = "Wygasa %@";
+"No expiry" = "Brak terminu ważności";
 "byte_unit_byte" = "bajt";
 "byte_unit_bytes" = "bajty";
 "byte_unit_kilobyte" = "kilobajt";

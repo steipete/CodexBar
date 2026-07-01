@@ -1121,6 +1121,8 @@
 "1 available" = "1 lượt";
 "%d available" = "%d lượt";
 "Next expires %@" = "Lượt tiếp theo hết hạn %@";
+"Expires %@" = "Hết hạn %@";
+"No expiry" = "Không hết hạn";
 "Other (%d items)" = "Khác (%d mục)";
 "Expand" = "Mở rộng";
 "Collapse" = "Thu gọn";

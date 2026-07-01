@@ -101,14 +101,46 @@ public struct CodexRateLimitResetCreditsSnapshot: Equatable, Codable, Sendable {
     }
 
     public var nextExpiringAvailableCredit: CodexRateLimitResetCredit? {
-        self.credits
+        self.availableInventory(at: self.updatedAt).nextExpiringCredit
+    }
+
+    public func availableInventory(at date: Date) -> CodexRateLimitResetCreditInventory {
+        CodexRateLimitResetCreditInventory(credits: self.credits, at: date)
+    }
+
+    public func availableCredits(at date: Date) -> [CodexRateLimitResetCredit] {
+        self.availableInventory(at: date).credits
+    }
+}
+
+public struct CodexRateLimitResetCreditInventory: Equatable, Sendable {
+    public let credits: [CodexRateLimitResetCredit]
+
+    public var count: Int {
+        self.credits.count
+    }
+
+    public var nextExpiringCredit: CodexRateLimitResetCredit? {
+        self.credits.first { $0.expiresAt != nil }
+    }
+
+    public init(credits: [CodexRateLimitResetCredit], at date: Date) {
+        self.credits = credits
             .filter { credit in
-                credit.status == .available && (credit.expiresAt ?? .distantPast) > self.updatedAt
+                credit.status == .available && (credit.expiresAt.map { $0 > date } ?? true)
             }
-            .min { lhs, rhs in
-                guard let lhsExpiresAt = lhs.expiresAt else { return false }
-                guard let rhsExpiresAt = rhs.expiresAt else { return true }
-                return lhsExpiresAt < rhsExpiresAt
+            .sorted { lhs, rhs in
+                switch (lhs.expiresAt, rhs.expiresAt) {
+                case let (lhsDate?, rhsDate?):
+                    if lhsDate != rhsDate { return lhsDate < rhsDate }
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    break
+                }
+                return lhs.id < rhs.id
             }
     }
 }

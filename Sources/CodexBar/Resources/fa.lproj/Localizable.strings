@@ -1130,6 +1130,8 @@
 "1 available" = "۱ مورد موجود";
 "%d available" = "%d مورد موجود";
 "Next expires %@" = "مورد بعدی در %@ منقضی می‌شود";
+"Expires %@" = "انقضا %@";
+"No expiry" = "بدون انقضا";
 "byte_unit_byte" = "بایت";
 "byte_unit_bytes" = "بایت";
 "byte_unit_kilobyte" = "کیلوبایت";

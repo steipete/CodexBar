@@ -1233,25 +1233,24 @@ extension StatusItemController {
         webItems: OpenAIWebMenuItems)
     {
         let provider = layoutModel.provider
-        let hasUsageBlock = layoutModel.hasUsageContent
+        let usageSectionModels = Self.splitMenuUsageSectionModels(model: model, layoutModel: layoutModel)
         let hasCredits = layoutModel.creditsText != nil
         let hasExtraUsage = layoutModel.providerCost != nil
         let hasCost = layoutModel.tokenUsage != nil
         let hasStorage = self.store.storageFootprintText(for: provider) != nil
         let bottomPadding = CGFloat(hasCredits ? 4 : 6)
         let sectionSpacing = CGFloat(6)
-        let usageBottomPadding = bottomPadding
         let creditsBottomPadding = bottomPadding
         func addSectionSeparator() {
             guard menu.items.last?.isSeparatorItem != true else { return }
             menu.addItem(.separator())
         }
 
-        if hasUsageBlock {
+        if usageSectionModels.layoutModel.hasUsageContent {
             let usageView = UsageMenuCardHeaderAndUsageSectionView(
-                model: model,
-                layoutModel: layoutModel,
-                bottomPadding: usageBottomPadding,
+                model: usageSectionModels.model,
+                layoutModel: usageSectionModels.layoutModel,
+                bottomPadding: bottomPadding,
                 width: width)
             let usageSubmenu = self.makeUsageSubmenu(
                 provider: provider,
@@ -1263,7 +1262,7 @@ extension StatusItemController {
                 id: "menuCardUsage",
                 width: width,
                 heightCacheScope: provider.rawValue,
-                heightCacheFingerprint: layoutModel.heightFingerprint(section: "usage"),
+                heightCacheFingerprint: usageSectionModels.layoutModel.heightFingerprint(section: "usage"),
                 submenu: usageSubmenu,
                 containsInteractiveControls: true))
         } else {
@@ -1280,9 +1279,10 @@ extension StatusItemController {
                 containsInteractiveControls: true))
         }
 
-        if hasStorage || hasCredits || hasExtraUsage || hasCost {
-            addSectionSeparator()
-        }
+        self.addCodexResetCreditsSectionIfNeeded(
+            to: menu,
+            presentation: usageSectionModels.resetCredits,
+            hasFollowingSection: hasStorage || hasCredits || hasExtraUsage || hasCost)
 
         if self.addStorageMenuCardSection(to: menu, provider: provider, width: width),
            hasCredits || hasExtraUsage

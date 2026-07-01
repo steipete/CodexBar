@@ -1131,6 +1131,8 @@
 "1 available" = "1 available";
 "%d available" = "%d available";
 "Next expires %@" = "Next expires %@";
+"Expires %@" = "Expires %@";
+"No expiry" = "No expiry";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "bytes";
 "byte_unit_kilobyte" = "kilobyte";

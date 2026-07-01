@@ -1129,6 +1129,8 @@
 "1 available" = "1 tersedia";
 "%d available" = "%d tersedia";
 "Next expires %@" = "Berikutnya kedaluwarsa %@";
+"Expires %@" = "Kedaluwarsa %@";
+"No expiry" = "Tidak ada kedaluwarsa";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";
 "byte_unit_kilobyte" = "kilobyte";

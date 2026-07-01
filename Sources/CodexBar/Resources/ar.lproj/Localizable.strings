@@ -1130,6 +1130,8 @@
 "1 available" = "1 متاح";
 "%d available" = "%d متاح";
 "Next expires %@" = "تنتهي صلاحية التالية %@";
+"Expires %@" = "تنتهي الصلاحية %@";
+"No expiry" = "لا انتهاء صلاحية";
 "byte_unit_byte" = "بايت";
 "byte_unit_bytes" = "بايتات";
 "byte_unit_kilobyte" = "كيلوبايت";

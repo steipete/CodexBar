@@ -1098,6 +1098,8 @@
 "1 available" = "1 次可用";
 "%d available" = "%d 次可用";
 "Next expires %@" = "下一个将于 %@ 到期";
+"Expires %@" = "%@ 到期";
+"No expiry" = "永不过期";
 "Other (%d items)" = "其他（%d 项）";
 "Expand" = "展开";
 "Collapse" = "收起";

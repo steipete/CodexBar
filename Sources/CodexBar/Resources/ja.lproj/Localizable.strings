@@ -1121,6 +1121,8 @@
 "1 available" = "1件利用可能";
 "%d available" = "%d件利用可能";
 "Next expires %@" = "次回の有効期限：%@";
+"Expires %@" = "%@ に期限切れ";
+"No expiry" = "有効期限なし";
 "Other (%d items)" = "その他（%d項目）";
 "Expand" = "展開";
 "Collapse" = "折りたたむ";

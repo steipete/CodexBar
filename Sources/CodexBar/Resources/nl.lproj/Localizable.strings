@@ -1120,6 +1120,8 @@
 "1 available" = "1 beschikbaar";
 "%d available" = "%d beschikbaar";
 "Next expires %@" = "Volgende verloopt %@";
+"Expires %@" = "Verloopt %@";
+"No expiry" = "Geen vervaldatum";
 "Other (%d items)" = "Overig (%d onderdelen)";
 "Expand" = "Uitvouwen";
 "Collapse" = "Invouwen";

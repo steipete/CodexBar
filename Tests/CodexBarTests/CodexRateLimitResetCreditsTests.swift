@@ -120,12 +120,71 @@ struct CodexRateLimitResetCreditsTests {
         }
         """
 
-        let snapshot = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(Data(json.utf8))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-01T00:00:00Z"))
+        let snapshot = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(
+            Data(json.utf8),
+            now: now)
 
         #expect(snapshot.availableCount == 2)
         #expect(snapshot.credits.count == 4)
         #expect(snapshot.credits[0].resetType == "codex_rate_limits")
         #expect(snapshot.credits[3].status == .unknown("future_status"))
         #expect(snapshot.nextExpiringAvailableCredit?.id == "RateLimitResetCredit_earlier")
+    }
+
+    @Test
+    func `available inventory keeps no-expiry credits and sorts deterministically`() {
+        let now = Date(timeIntervalSince1970: 1_788_134_400)
+        let tiedExpiry = now.addingTimeInterval(3600)
+        let snapshot = CodexRateLimitResetCreditsSnapshot(
+            credits: [
+                Self.credit(id: "nil-b", status: .available, expiresAt: nil),
+                Self.credit(id: "expired", status: .available, expiresAt: now),
+                Self.credit(id: "finite-b", status: .available, expiresAt: tiedExpiry),
+                Self.credit(id: "redeemed", status: .redeemed, expiresAt: now.addingTimeInterval(7200)),
+                Self.credit(id: "nil-a", status: .available, expiresAt: nil),
+                Self.credit(id: "finite-a", status: .available, expiresAt: tiedExpiry),
+            ],
+            availableCount: 99,
+            updatedAt: now)
+
+        let inventory = snapshot.availableInventory(at: now)
+
+        #expect(inventory.count == 4)
+        #expect(inventory.credits.map(\.id) == ["finite-a", "finite-b", "nil-a", "nil-b"])
+        #expect(inventory.nextExpiringCredit?.id == "finite-a")
+    }
+
+    @Test
+    func `reset credit GET preserves transport cancellation`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.httpMethod == "GET")
+            throw URLError(.cancelled)
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                accessToken: "test-token",
+                accountId: "account-123",
+                env: ["CODEX_HOME": "/tmp/codexbar-reset-credit-cancellation-test"],
+                session: transport)
+        }
+    }
+
+    private static func credit(
+        id: String,
+        status: CodexRateLimitResetCreditStatus,
+        expiresAt: Date?) -> CodexRateLimitResetCredit
+    {
+        CodexRateLimitResetCredit(
+            id: id,
+            resetType: "codex_rate_limits",
+            status: status,
+            grantedAt: Date(timeIntervalSince1970: 1_788_000_000),
+            expiresAt: expiresAt,
+            redeemStartedAt: nil,
+            redeemedAt: nil,
+            title: nil,
+            description: nil)
     }
 }

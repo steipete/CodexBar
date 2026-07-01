@@ -1089,6 +1089,8 @@
 "1 available" = "1회 사용 가능";
 "%d available" = "%d회 사용 가능";
 "Next expires %@" = "다음 만료: %@";
+"Expires %@" = "%@에 만료";
+"No expiry" = "만료 없음";
 "Other (%d items)" = "기타(%d개 항목)";
 "Expand" = "펼치기";
 "Collapse" = "접기";

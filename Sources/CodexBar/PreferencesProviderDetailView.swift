@@ -333,8 +333,9 @@ struct ProviderMetricsInlineView: View {
         let hasCredits = self.model.creditsText != nil
         let hasProviderCost = self.model.providerCost != nil
         let hasTokenUsage = self.model.tokenUsage != nil
+        let hasResetCredits = self.model.codexResetCredits != nil
 
-        if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage {
+        if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage, !hasResetCredits {
             Text(self.placeholderText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -360,6 +361,10 @@ struct ProviderMetricsInlineView: View {
 
             if let credits = self.model.creditsText {
                 ProviderDetailInfoRow(label: L("Credits"), value: credits)
+            }
+
+            if let resetCredits = self.model.codexResetCredits {
+                ProviderCodexResetCreditsInlineRow(presentation: resetCredits)
             }
 
             if let providerCost = self.model.providerCost {
@@ -460,6 +465,32 @@ private struct ProviderMetricInlineRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct ProviderCodexResetCreditsInlineRow: View {
+    let presentation: CodexResetCreditsPresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(L("Limit Reset Credits"))
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+                Text(self.presentation.text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(Array(self.presentation.items.enumerated()), id: \.offset) { _, item in
+                Text(item.expiryText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(self.presentation.accessibilityLabel)
     }
 }
 
