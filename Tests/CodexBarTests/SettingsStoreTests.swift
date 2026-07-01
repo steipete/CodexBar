@@ -57,6 +57,15 @@ struct SettingsStoreTests {
 
         #expect(store.costUsagePiSessionsEnabled == true)
         #expect(store.costUsageKimiCodeSessionsEnabled == false)
+        #expect(defaults.object(forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool == false)
+
+        defaults.set(true, forKey: "tokenCostKimiCodeSessionsEnabled")
+        let reloaded = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(reloaded.costUsageKimiCodeSessionsEnabled == true)
     }
 
     @Test

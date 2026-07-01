@@ -518,9 +518,18 @@ extension SettingsStore {
     private static func loadCostUsageSourceDefaults(userDefaults: UserDefaults)
         -> (piSessionsEnabled: Bool, kimiCodeSessionsEnabled: Bool)
     {
-        (
+        let kimiCodeSessionsEnabled: Bool
+        if let stored = userDefaults.object(forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool {
+            kimiCodeSessionsEnabled = stored
+        } else {
+            // The Kimi Code source was introduced as enabled-by-default before release.
+            // Persist the corrected opt-in default so future migrations preserve this choice.
+            kimiCodeSessionsEnabled = false
+            userDefaults.set(false, forKey: "tokenCostKimiCodeSessionsEnabled")
+        }
+        return (
             userDefaults.object(forKey: "tokenCostPiSessionsEnabled") as? Bool ?? true,
-            userDefaults.object(forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool ?? false)
+            kimiCodeSessionsEnabled)
     }
 
     private static func loadCostSummaryDisplayStyleRaw(
