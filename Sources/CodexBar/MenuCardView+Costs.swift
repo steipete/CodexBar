@@ -102,7 +102,7 @@ extension UsageMenuCardView.Model {
         guard let snapshot else { return nil }
 
         let sessionCost = snapshot.sessionCostUSD.map {
-            UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode)
+            Self.tokenCostString($0, snapshot: snapshot)
         } ?? "—"
         let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
         let sessionLabel = if provider == .bedrock || provider == .mistral {
@@ -110,26 +110,38 @@ extension UsageMenuCardView.Model {
         } else {
             L("Today")
         }
-        let sessionLine: String = {
+        var sessionLine: String = {
+            if snapshot.valueBasis == .codexDashboardCredits {
+                return String(format: L("Est. total (%@): %@"), sessionLabel, sessionCost)
+            }
             if let sessionTokens {
                 return String(format: L("%@: %@ · %@ tokens"), sessionLabel, sessionCost, sessionTokens)
             }
             return "\(sessionLabel): \(sessionCost)"
         }()
+        if snapshot.valueBasis == .codexDashboardCredits, let sessionTokens {
+            sessionLine += " · \(sessionTokens) \(L("tokens"))"
+        }
 
         let monthCost = snapshot.last30DaysCostUSD.map {
-            UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode)
+            Self.tokenCostString($0, snapshot: snapshot)
         } ?? "—"
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let windowLabel = snapshot.historyLabel ?? Self.costHistoryWindowLabel(days: snapshot.historyDays)
-        let monthLine: String = {
+        var monthLine: String = {
+            if snapshot.valueBasis == .codexDashboardCredits {
+                return String(format: L("Est. total (%@): %@"), windowLabel, monthCost)
+            }
             if let monthTokens {
                 return String(format: L("%@: %@ · %@ tokens"), windowLabel, monthCost, monthTokens)
             }
             return "\(windowLabel): \(monthCost)"
         }()
+        if snapshot.valueBasis == .codexDashboardCredits, let monthTokens {
+            monthLine += " · \(monthTokens) \(L("tokens"))"
+        }
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
             sessionLine: sessionLine,
@@ -142,8 +154,8 @@ extension UsageMenuCardView.Model {
     static func tokenUsageHint(provider: UsageProvider, snapshot: CostUsageTokenSnapshot) -> String? {
         switch provider {
         case .codex:
-            if self.isCodexDashboardCreditCostSnapshot(snapshot) {
-                return "Estimated from OpenAI dashboard credits for the selected account."
+            if snapshot.valueBasis == .codexDashboardCredits {
+                return "\(L("Source")): OpenAI \(L("Usage breakdown")) · 25 \(L("credits")) = $1"
             }
             return L("Estimated from local Codex logs for the selected account.")
         case .claude:
@@ -161,15 +173,9 @@ extension UsageMenuCardView.Model {
         }
     }
 
-    static func isCodexDashboardCreditCostSnapshot(_ snapshot: CostUsageTokenSnapshot) -> Bool {
-        let dashboardServices = Set(["exec", "desktop app", "cli", "unknown"])
-        return snapshot.daily.contains { entry in
-            (entry.modelsUsed ?? []).contains {
-                dashboardServices.contains($0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
-            } || (entry.modelBreakdowns ?? []).contains {
-                dashboardServices.contains($0.modelName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
-            }
-        }
+    static func tokenCostString(_ value: Double, snapshot: CostUsageTokenSnapshot) -> String {
+        let formatted = UsageFormatter.currencyString(value, currencyCode: snapshot.currencyCode)
+        return snapshot.valueBasis == .codexDashboardCredits ? "≈ \(formatted)" : formatted
     }
 
     static func costHistoryWindowLabel(days: Int) -> String {

@@ -152,7 +152,8 @@ extension StatusItemController {
         guard projection?.dashboardVisibility == .attached else { return nil }
         return self.store.openAIDashboard?.toCostUsageTokenSnapshot(
             historyDays: self.settings.costUsageHistoryDays,
-            merging: localSnapshot)
+            merging: localSnapshot,
+            now: now)
     }
 
     private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {

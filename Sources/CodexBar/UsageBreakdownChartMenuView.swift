@@ -377,13 +377,13 @@ struct UsageBreakdownChartMenuView: View {
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         let totalCredits = Self.creditsString(day.totalCreditsUsed)
         let totalUSD = Self.usdString(fromCredits: day.totalCreditsUsed)
-        let total = "\(totalUSD) · \(totalCredits) credits"
+        let total = "\(totalUSD) · \(totalCredits) \(L("credits"))"
         if day.services.isEmpty {
             return ("\(dayLabel): \(total)", nil)
         }
         if day.services.count <= 1, let first = day.services.first {
             let used = "\(Self.usdString(fromCredits: first.creditsUsed)) · " +
-                "\(Self.creditsString(first.creditsUsed)) credits"
+                "\(Self.creditsString(first.creditsUsed)) \(L("credits"))"
             return ("\(dayLabel): \(total)", "\(first.service) \(used)")
         }
 
@@ -400,7 +400,7 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private static func usdString(fromCredits credits: Double) -> String {
-        UsageFormatter.currencyString(
+        "≈ " + UsageFormatter.currencyString(
             OpenAIDashboardSnapshot.codexUSD(fromCredits: credits),
             currencyCode: "USD")
     }

@@ -103,6 +103,7 @@ struct MenuCardCostHintTests {
             sessionCostUSD: 19.95,
             last30DaysTokens: nil,
             last30DaysCostUSD: 123.45,
+            valueBasis: .codexDashboardCredits,
             daily: [
                 .init(
                     date: "2026-06-19",
@@ -136,9 +137,9 @@ struct MenuCardCostHintTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.tokenUsage?.sessionLine == "Today: $19.95")
-        #expect(model.tokenUsage?.monthLine == "Last 30 days: $123.45")
-        #expect(model.tokenUsage?.hintLine?.contains("dashboard credits") == true)
+        #expect(model.tokenUsage?.sessionLine == "Est. total (Today): ≈ $19.95")
+        #expect(model.tokenUsage?.monthLine == "Est. total (Last 30 days): ≈ $123.45")
+        #expect(model.tokenUsage?.hintLine?.contains("25 credits = $1") == true)
     }
 
     @Test
@@ -150,6 +151,7 @@ struct MenuCardCostHintTests {
             sessionCostUSD: 19.64,
             last30DaysTokens: 4_700_000_000,
             last30DaysCostUSD: 123.45,
+            valueBasis: .codexDashboardCredits,
             daily: [
                 .init(
                     date: "2026-06-19",
@@ -183,8 +185,33 @@ struct MenuCardCostHintTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.tokenUsage?.sessionLine == "Today: $19.64 · 30M tokens")
-        #expect(model.tokenUsage?.monthLine == "Last 30 days: $123.45 · 4.7B tokens")
-        #expect(model.tokenUsage?.hintLine?.contains("dashboard credits") == true)
+        #expect(model.tokenUsage?.sessionLine == "Est. total (Today): ≈ $19.64 · 30M tokens")
+        #expect(model.tokenUsage?.monthLine == "Est. total (Last 30 days): ≈ $123.45 · 4.7B tokens")
+        #expect(model.tokenUsage?.hintLine?.contains("25 credits = $1") == true)
+    }
+
+    @Test
+    func `codex local exec model name does not imply dashboard credit values`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 10,
+            sessionCostUSD: 1,
+            last30DaysTokens: 10,
+            last30DaysCostUSD: 1,
+            daily: [
+                .init(
+                    date: "2026-06-19",
+                    inputTokens: 5,
+                    outputTokens: 5,
+                    totalTokens: 10,
+                    costUSD: 1,
+                    modelsUsed: ["Exec"],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date())
+
+        #expect(UsageMenuCardView.Model.tokenCostString(1, snapshot: snapshot) == "$1.00")
+        #expect(
+            UsageMenuCardView.Model.tokenUsageHint(provider: .codex, snapshot: snapshot)?
+                .contains("local Codex logs") == true)
     }
 }

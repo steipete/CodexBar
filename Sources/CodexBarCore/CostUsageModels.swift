@@ -1,6 +1,11 @@
 import Foundation
 
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
+    public enum ValueBasis: Sendable, Equatable {
+        case standard
+        case codexDashboardCredits
+    }
+
     public let sessionTokens: Int?
     public let sessionCostUSD: Double?
     public let sessionRequests: Int?
@@ -10,6 +15,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let currencyCode: String
     public let historyDays: Int
     public let historyLabel: String?
+    public let valueBasis: ValueBasis
     public let daily: [CostUsageDailyReport.Entry]
     public let updatedAt: Date
 
@@ -23,6 +29,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         historyLabel: String? = nil,
+        valueBasis: ValueBasis = .standard,
         daily: [CostUsageDailyReport.Entry],
         updatedAt: Date)
     {
@@ -37,6 +44,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             : currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         self.historyDays = historyDays
         self.historyLabel = historyLabel
+        self.valueBasis = valueBasis
         self.daily = daily
         self.updatedAt = updatedAt
     }

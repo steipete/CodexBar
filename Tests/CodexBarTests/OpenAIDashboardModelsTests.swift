@@ -3,6 +3,16 @@ import Foundation
 import Testing
 
 struct OpenAIDashboardModelsTests {
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }()
+
+    private static func utcDate(year: Int, month: Int, day: Int) -> Date {
+        self.utcCalendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    }
+
     @Test
     func `removes skill usage services from usage breakdown`() {
         let breakdown = [
@@ -94,7 +104,7 @@ struct OpenAIDashboardModelsTests {
 
     @Test
     func `usage breakdown converts dashboard exec credits to cost snapshot`() throws {
-        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let updatedAt = Self.utcDate(year: 2026, month: 6, day: 19)
         let snapshot = OpenAIDashboardSnapshot(
             signedInEmail: "codex@example.com",
             codeReviewRemainingPercent: nil,
@@ -119,8 +129,12 @@ struct OpenAIDashboardModelsTests {
             creditsPurchaseURL: nil,
             updatedAt: updatedAt)
 
-        let cost = try #require(snapshot.toCostUsageTokenSnapshot(historyDays: 30))
+        let cost = try #require(snapshot.toCostUsageTokenSnapshot(
+            historyDays: 30,
+            now: updatedAt,
+            calendar: Self.utcCalendar))
 
+        #expect(cost.valueBasis == .codexDashboardCredits)
         #expect(cost.sessionTokens == nil)
         #expect(cost.last30DaysTokens == nil)
         #expect(abs((cost.sessionCostUSD ?? 0) - 19.6396) < 0.0001)
@@ -136,7 +150,7 @@ struct OpenAIDashboardModelsTests {
 
     @Test
     func `usage breakdown cost snapshot merges local token context without replacing dashboard USD`() throws {
-        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let updatedAt = Self.utcDate(year: 2026, month: 6, day: 19)
         let snapshot = OpenAIDashboardSnapshot(
             signedInEmail: "codex@example.com",
             codeReviewRemainingPercent: nil,
@@ -172,8 +186,13 @@ struct OpenAIDashboardModelsTests {
             ],
             updatedAt: updatedAt.addingTimeInterval(-60))
 
-        let cost = try #require(snapshot.toCostUsageTokenSnapshot(historyDays: 30, merging: local))
+        let cost = try #require(snapshot.toCostUsageTokenSnapshot(
+            historyDays: 30,
+            merging: local,
+            now: updatedAt,
+            calendar: Self.utcCalendar))
 
+        #expect(cost.valueBasis == .codexDashboardCredits)
         #expect(cost.sessionTokens == 30_000_000)
         #expect(cost.last30DaysTokens == 4_700_000_000)
         #expect(abs((cost.sessionCostUSD ?? 0) - 19.6396) < 0.0001)
@@ -183,5 +202,31 @@ struct OpenAIDashboardModelsTests {
         #expect(abs((day.costUSD ?? 0) - 19.6396) < 0.0001)
         #expect(day.modelsUsed == ["Exec", "Desktop App"])
         #expect(day.modelBreakdowns?.map(\.modelName) == ["Exec", "Desktop App"])
+    }
+
+    @Test
+    func `stale dashboard day does not become todays USD estimate`() throws {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "codex@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [
+                OpenAIDashboardDailyBreakdown(
+                    day: "2026-06-19",
+                    services: [OpenAIDashboardServiceUsage(service: "Exec", creditsUsed: 25)],
+                    totalCreditsUsed: 25),
+            ],
+            creditsPurchaseURL: nil,
+            updatedAt: Self.utcDate(year: 2026, month: 6, day: 19))
+
+        let cost = try #require(snapshot.toCostUsageTokenSnapshot(
+            historyDays: 30,
+            now: Self.utcDate(year: 2026, month: 6, day: 20),
+            calendar: Self.utcCalendar))
+
+        #expect(cost.sessionCostUSD == nil)
+        #expect(cost.last30DaysCostUSD == 1)
+        #expect(cost.daily.map(\.date) == ["2026-06-19"])
     }
 }

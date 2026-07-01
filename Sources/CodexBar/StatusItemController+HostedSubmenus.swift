@@ -260,6 +260,7 @@ extension StatusItemController {
             snapshot.currencyCode,
             "\(snapshot.historyDays)",
             snapshot.historyLabel ?? "",
+            snapshot.valueBasis == .codexDashboardCredits ? "dashboard-credits" : "standard",
             snapshot.last30DaysCostUSD.map { String($0.bitPattern, radix: 16) } ?? "nil",
             String(reflecting: snapshot.daily),
         ].joined(separator: "|")
@@ -434,6 +435,7 @@ extension StatusItemController {
             currencyCode: tokenSnapshot.currencyCode,
             historyDays: tokenSnapshot.historyDays,
             windowLabel: tokenSnapshot.historyLabel,
+            valueBasis: tokenSnapshot.valueBasis,
             onHeightChange: { height in
                 relay.hosting?.applyMeasuredHeight(width: width, height: height)
             },

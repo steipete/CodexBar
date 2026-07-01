@@ -158,7 +158,9 @@ extension OpenAIDashboardSnapshot {
 
     public func toCostUsageTokenSnapshot(
         historyDays: Int = 30,
-        merging localSnapshot: CostUsageTokenSnapshot? = nil) -> CostUsageTokenSnapshot?
+        merging localSnapshot: CostUsageTokenSnapshot? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current) -> CostUsageTokenSnapshot?
     {
         let clampedHistoryDays = max(1, min(365, historyDays))
         let breakdown = OpenAIDashboardDailyBreakdown
@@ -193,17 +195,21 @@ extension OpenAIDashboardSnapshot {
         }
         guard !daily.isEmpty else { return nil }
 
-        let latest = daily.last
+        let currentDay = CostUsageTokenSnapshot.entry(
+            in: daily,
+            forLocalDayContaining: now,
+            calendar: calendar)
         let totalCostUSD = daily.compactMap(\.costUSD).reduce(0, +)
         let mergedDaily = localSnapshot.map { Self.mergeDashboardCostDailyEntries(daily, with: $0.daily) } ?? daily
         return CostUsageTokenSnapshot(
             sessionTokens: localSnapshot?.sessionTokens,
-            sessionCostUSD: latest?.costUSD,
+            sessionCostUSD: currentDay?.costUSD,
             sessionRequests: localSnapshot?.sessionRequests,
             last30DaysTokens: localSnapshot?.last30DaysTokens,
             last30DaysCostUSD: totalCostUSD > 0 ? totalCostUSD : nil,
             last30DaysRequests: localSnapshot?.last30DaysRequests,
             historyDays: clampedHistoryDays,
+            valueBasis: .codexDashboardCredits,
             daily: mergedDaily,
             updatedAt: self.updatedAt)
     }
