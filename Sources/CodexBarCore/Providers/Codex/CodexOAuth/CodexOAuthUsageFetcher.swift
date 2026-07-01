@@ -439,6 +439,59 @@ public enum CodexOAuthUsageFetcher {
         }
     }
 
+    public static func consumeRateLimitResetCredit(
+        id creditID: String,
+        accessToken: String,
+        accountId: String?,
+        redeemRequestID: String = UUID().uuidString,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 10,
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
+        -> CodexRateLimitResetCreditConsumption
+    {
+        var request = URLRequest(url: Self.resolveRateLimitResetCreditsConsumeURL(env: env), timeoutInterval: timeout)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("codex-1", forHTTPHeaderField: "OpenAI-Beta")
+        request.setValue("Codex Desktop", forHTTPHeaderField: "originator")
+
+        if let accountId, !accountId.isEmpty {
+            request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-ID")
+        }
+
+        request.httpBody = try JSONEncoder().encode(RateLimitResetCreditConsumeRequest(
+            creditID: creditID,
+            redeemRequestID: redeemRequestID))
+
+        do {
+            let response = try await transport.response(for: request)
+            let data = response.data
+
+            switch response.statusCode {
+            case 200...299:
+                do {
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .custom(Self.decodeISO8601Date)
+                    return try decoder.decode(CodexRateLimitResetCreditConsumption.self, from: data)
+                } catch {
+                    throw CodexOAuthFetchError.invalidResponse
+                }
+            case 401, 403:
+                throw CodexOAuthFetchError.unauthorized
+            default:
+                let body = String(data: data, encoding: .utf8)
+                throw CodexOAuthFetchError.serverError(response.statusCode, body)
+            }
+        } catch let error as CodexOAuthFetchError {
+            throw error
+        } catch {
+            throw CodexOAuthFetchError.networkError(error)
+        }
+    }
+
     private static func resolveUsageURL(env: [String: String]) -> URL {
         self.resolveUsageURL(env: env, configContents: nil)
     }
@@ -460,6 +513,15 @@ public enum CodexOAuthUsageFetcher {
         let normalized = self.normalizeChatGPTBaseURL(baseURL)
         let full = normalized + Self.rateLimitResetCreditsPath
         return URL(string: full) ?? URL(string: Self.defaultChatGPTBaseURL + Self.rateLimitResetCreditsPath)!
+    }
+
+    private static func resolveRateLimitResetCreditsConsumeURL(env: [String: String]) -> URL {
+        self.resolveRateLimitResetCreditsConsumeURL(env: env, configContents: nil)
+    }
+
+    private static func resolveRateLimitResetCreditsConsumeURL(env: [String: String], configContents: String?) -> URL {
+        self.resolveRateLimitResetCreditsURL(env: env, configContents: configContents)
+            .appendingPathComponent("consume")
     }
 
     private static func resolveChatGPTBaseURL(env: [String: String], configContents: String?) -> String {
@@ -527,6 +589,16 @@ public enum CodexOAuthUsageFetcher {
         }
     }
 
+    private struct RateLimitResetCreditConsumeRequest: Encodable {
+        let creditID: String
+        let redeemRequestID: String
+
+        private enum CodingKeys: String, CodingKey {
+            case creditID = "credit_id"
+            case redeemRequestID = "redeem_request_id"
+        }
+    }
+
     private static func decodeISO8601Date(from decoder: Decoder) throws -> Date {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)
@@ -560,14 +632,24 @@ extension CodexOAuthUsageFetcher {
         self.resolveRateLimitResetCreditsURL(env: env, configContents: configContents)
     }
 
-    static func _decodeRateLimitResetCreditsForTesting(_ data: Data) throws -> CodexRateLimitResetCreditsSnapshot {
+    static func _resolveRateLimitResetCreditsConsumeURLForTesting(
+        env: [String: String] = [:],
+        configContents: String? = nil) -> URL
+    {
+        self.resolveRateLimitResetCreditsConsumeURL(env: env, configContents: configContents)
+    }
+
+    static func _decodeRateLimitResetCreditsForTesting(
+        _ data: Data,
+        now: Date = Date()) throws -> CodexRateLimitResetCreditsSnapshot
+    {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom(Self.decodeISO8601Date)
         let payload = try decoder.decode(RateLimitResetCreditsResponse.self, from: data)
         return CodexRateLimitResetCreditsSnapshot(
             credits: payload.credits,
             availableCount: payload.availableCount,
-            updatedAt: Date())
+            updatedAt: now)
     }
 }
 #endif

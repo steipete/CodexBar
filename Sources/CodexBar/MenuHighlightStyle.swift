@@ -1,3 +1,4 @@
+import CodexBarCore
 import SwiftUI
 
 extension EnvironmentValues {
@@ -6,6 +7,7 @@ extension EnvironmentValues {
     /// subtitle can reflect the in-flight "Refreshing…" state in place while the NSMenu
     /// stays open, without rebuilding the menu during AppKit tracking.
     @Entry var menuCardRefreshMonitor: MenuCardRefreshMonitor?
+    @Entry var codexResetCreditConsumer: ((CodexRateLimitResetCredit) -> Void)?
 }
 
 enum MenuHighlightStyle {

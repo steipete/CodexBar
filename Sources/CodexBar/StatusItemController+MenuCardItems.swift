@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 extension StatusItemController {
@@ -34,9 +35,13 @@ extension StatusItemController {
         submenuIndicatorTopPadding: CGFloat = 8,
         containsInteractiveControls: Bool = false,
         usesGPUSelection: Bool = false,
+        resetCreditConsumer: ((CodexRateLimitResetCredit) -> Void)? = nil,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
         let allowsMenuHighlight = submenu != nil || onClick != nil
+        let resetCreditConsumer = resetCreditConsumer ?? { [weak self] credit in
+            self?.consumeCodexResetCredit(credit)
+        }
         if !self.menuCardRenderingEnabledForController {
             let item = NSMenuItem()
             item.isEnabled = allowsMenuHighlight
@@ -58,7 +63,8 @@ extension StatusItemController {
                 showsSubmenuIndicator: submenu != nil,
                 submenuIndicatorAlignment: submenuIndicatorAlignment,
                 submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor)
+                refreshMonitor: self.menuCardRefreshMonitor,
+                resetCreditConsumer: resetCreditConsumer)
             {
                 view
             }
@@ -92,7 +98,8 @@ extension StatusItemController {
                 showsSubmenuIndicator: submenu != nil,
                 submenuIndicatorAlignment: submenuIndicatorAlignment,
                 submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor)
+                refreshMonitor: self.menuCardRefreshMonitor,
+                resetCreditConsumer: resetCreditConsumer)
             {
                 view
             }
@@ -108,7 +115,8 @@ extension StatusItemController {
                 showsSubmenuIndicator: submenu != nil,
                 submenuIndicatorAlignment: submenuIndicatorAlignment,
                 submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor)
+                refreshMonitor: self.menuCardRefreshMonitor,
+                resetCreditConsumer: resetCreditConsumer)
             {
                 view
             }

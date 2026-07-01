@@ -3,6 +3,7 @@ import CodexBarCore
 import SwiftUI
 
 @MainActor
+// swiftlint:disable:next type_body_length
 struct ProvidersPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
@@ -90,6 +91,9 @@ struct ProvidersPane: View {
                     onCopyError: { text in self.copyToPasteboard(text) },
                     onRefresh: {
                         self.triggerRefresh(for: provider)
+                    },
+                    onConsumeCodexResetCredit: { credit in
+                        self.requestCodexResetCreditConsumption(credit)
                     },
                     showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
                     supplementarySettingsContent: {
@@ -389,6 +393,26 @@ struct ProvidersPane: View {
                     await self.removeManagedCodexAccount(id: accountID)
                 }
             })
+    }
+
+    func requestCodexResetCreditConsumption(_ credit: CodexRateLimitResetCredit) {
+        self.activeConfirmation = ProviderSettingsConfirmationState(
+            title: L("Use Codex reset?"),
+            message: L("This spends one banked Codex reset credit now."),
+            confirmTitle: L("Use Reset"),
+            onConfirm: {
+                Task { @MainActor in
+                    await self.consumeCodexResetCreditFromSettings(credit)
+                }
+            })
+    }
+
+    private func consumeCodexResetCreditFromSettings(_ credit: CodexRateLimitResetCredit) async {
+        do {
+            _ = try await self.store.consumeCodexResetCredit(credit)
+        } catch {
+            self.presentLoginAlert(title: L("Codex reset failed"), message: error.localizedDescription)
+        }
     }
 
     func providerErrorDisplay(_ provider: UsageProvider) -> ProviderErrorDisplay? {

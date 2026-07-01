@@ -23,6 +23,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     @Binding var isErrorExpanded: Bool
     let onCopyError: (String) -> Void
     let onRefresh: () -> Void
+    let onConsumeCodexResetCredit: (CodexRateLimitResetCredit) -> Void
     let supplementarySettingsContent: SupplementaryContent
     let showsSupplementarySettingsContent: Bool
 
@@ -42,6 +43,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         isErrorExpanded: Binding<Bool>,
         onCopyError: @escaping (String) -> Void,
         onRefresh: @escaping () -> Void,
+        onConsumeCodexResetCredit: @escaping (CodexRateLimitResetCredit) -> Void = { _ in },
         showsSupplementarySettingsContent: Bool = false,
         @ViewBuilder supplementarySettingsContent: () -> SupplementaryContent)
     {
@@ -60,6 +62,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self._isErrorExpanded = isErrorExpanded
         self.onCopyError = onCopyError
         self.onRefresh = onRefresh
+        self.onConsumeCodexResetCredit = onConsumeCodexResetCredit
         self.showsSupplementarySettingsContent = showsSupplementarySettingsContent
         self.supplementarySettingsContent = supplementarySettingsContent()
     }
@@ -118,7 +121,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                     provider: self.provider,
                     model: self.model,
                     isEnabled: self.isEnabled,
-                    labelWidth: labelWidth)
+                    labelWidth: labelWidth,
+                    onConsumeCodexResetCredit: self.onConsumeCodexResetCredit)
 
                 if let errorDisplay {
                     ProviderErrorView(
@@ -389,6 +393,7 @@ struct ProviderMetricsInlineView: View {
     let model: UsageMenuCardView.Model
     let isEnabled: Bool
     let labelWidth: CGFloat
+    let onConsumeCodexResetCredit: (CodexRateLimitResetCredit) -> Void
 
     var body: some View {
         let hasMetrics = !self.model.metrics.isEmpty
@@ -396,13 +401,14 @@ struct ProviderMetricsInlineView: View {
         let hasCredits = self.model.creditsText != nil
         let hasProviderCost = self.model.providerCost != nil
         let hasTokenUsage = self.model.tokenUsage != nil
+        let hasResetCredits = self.model.codexResetCredits != nil
         ProviderSettingsSection(
             title: L("Usage"),
             spacing: 8,
             verticalPadding: 6,
             horizontalPadding: 0)
         {
-            if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage {
+            if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage, !hasResetCredits {
                 Text(self.placeholderText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -427,6 +433,13 @@ struct ProviderMetricsInlineView: View {
                         title: L("Credits"),
                         value: credits,
                         labelWidth: self.labelWidth)
+                }
+
+                if let resetCredits = self.model.codexResetCredits {
+                    ProviderCodexResetCreditsInlineRow(
+                        presentation: resetCredits,
+                        labelWidth: self.labelWidth,
+                        onConsume: self.onConsumeCodexResetCredit)
                 }
 
                 if let providerCost = self.model.providerCost {
@@ -559,6 +572,56 @@ private struct ProviderUsageNotesInlineView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct ProviderCodexResetCreditsInlineRow: View {
+    let presentation: CodexResetCreditsPresentation
+    let labelWidth: CGFloat
+    let onConsume: (CodexRateLimitResetCredit) -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(L("Reset bank"))
+                .font(.subheadline.weight(.semibold))
+                .frame(width: self.labelWidth, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(self.presentation.text)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    if let credit = self.presentation.creditToConsume {
+                        Button(L("Use Reset")) {
+                            self.onConsume(credit)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                if let detailText = self.presentation.detailText, !detailText.isEmpty {
+                    Text(detailText)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+                ForEach(self.detailLines, id: \.self) { line in
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+        .help(self.presentation.helpText ?? self.presentation.text)
+    }
+
+    private var detailLines: [String] {
+        guard let helpText = self.presentation.helpText else { return [] }
+        return helpText
+            .split(separator: "\n")
+            .map(String.init)
     }
 }
 

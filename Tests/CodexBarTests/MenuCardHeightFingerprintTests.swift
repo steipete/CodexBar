@@ -1,3 +1,5 @@
+import CodexBarCore
+import Foundation
 import SwiftUI
 import Testing
 @testable import CodexBar
@@ -33,9 +35,34 @@ struct MenuCardHeightFingerprintTests {
         #expect(left != changedPercent)
     }
 
+    @Test
+    func `height fingerprint tracks codex reset credit presentation shape`() {
+        let base = Self.model().heightFingerprint(section: "card")
+        let withButton = Self.model(resetCredits: .init(
+            text: "1 manual reset available",
+            detailText: "Next expires in 1d",
+            helpText: "available, in 1d",
+            creditToConsume: Self.resetCredit())).heightFingerprint(section: "card")
+        let withoutButton = Self.model(resetCredits: .init(
+            text: "1 manual reset available",
+            detailText: "Next expires in 1d",
+            helpText: "available, in 1d",
+            creditToConsume: nil)).heightFingerprint(section: "card")
+        let changedDetail = Self.model(resetCredits: .init(
+            text: "2 manual resets available",
+            detailText: "Next expires in 2d",
+            helpText: "available, in 2d",
+            creditToConsume: Self.resetCredit())).heightFingerprint(section: "card")
+
+        #expect(base != withButton)
+        #expect(withButton != withoutButton)
+        #expect(withButton != changedDetail)
+    }
+
     private static func model(
         percent: Double = 42,
-        percentStyle: UsageMenuCardView.Model.PercentStyle = .left) -> UsageMenuCardView.Model
+        percentStyle: UsageMenuCardView.Model.PercentStyle = .left,
+        resetCredits: CodexResetCreditsPresentation? = nil) -> UsageMenuCardView.Model
     {
         UsageMenuCardView.Model(
             provider: .codex,
@@ -67,9 +94,23 @@ struct MenuCardHeightFingerprintTests {
             creditsScaleText: nil,
             creditsHintText: nil,
             creditsHintCopyText: nil,
+            codexResetCredits: resetCredits,
             providerCost: nil,
             tokenUsage: nil,
             placeholder: nil,
             progressColor: .blue)
+    }
+
+    private static func resetCredit() -> CodexRateLimitResetCredit {
+        CodexRateLimitResetCredit(
+            id: "reset-1",
+            resetType: "codex_rate_limits",
+            status: .available,
+            grantedAt: Date(timeIntervalSince1970: 1),
+            expiresAt: Date(timeIntervalSince1970: 2),
+            redeemStartedAt: nil,
+            redeemedAt: nil,
+            title: "Reset",
+            description: nil)
     }
 }

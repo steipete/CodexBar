@@ -615,6 +615,43 @@ struct CodexManagedRoutingTests {
         let account = context.fetcher.loadAccountInfo()
         #expect(account.email == "override@example.com")
         #expect(account.plan == "pro")
+        let resetCreditEnv = store.codexResetCreditEnvironment(
+            codexActiveSourceOverride: .managedAccount(id: managedAccount.id))
+        #expect(resetCreditEnv["CODEX_HOME"] == managedHome.path)
+        #expect(settings.codexActiveSource == .liveSystem)
+    }
+
+    @Test
+    func `usage store builds reset credit consume environment with source override`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-reset-consume-env")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/codex-reset-consume-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-reset-consume-\(UUID().uuidString).json")
+        let managedStore = FileManagedCodexAccountStore(fileURL: storeURL)
+        try managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+        settings._test_managedCodexAccountStoreURL = storeURL
+        settings.codexActiveSource = .liveSystem
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            try? FileManager.default.removeItem(at: storeURL)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: ["CODEX_HOME": "/tmp/live-codex-home"]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+
+        let env = store.codexResetCreditEnvironment(codexActiveSourceOverride: .managedAccount(id: managedAccount.id))
+
+        #expect(env["CODEX_HOME"] == managedAccount.managedHomePath)
         #expect(settings.codexActiveSource == .liveSystem)
     }
 

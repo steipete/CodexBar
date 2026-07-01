@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+// swiftlint:disable:next type_body_length
 struct CodexOAuthTests {
     private func makeContext(sourceMode: ProviderSourceMode = .auto) -> ProviderFetchContext {
         let browserDetection = BrowserDetection(cacheTTL: 0)
@@ -41,8 +42,68 @@ struct CodexOAuthTests {
         #expect(creds.lastRefresh != nil)
     }
 
-    @Test
-    func `parses legacy camel case O auth credentials`() throws {
+    @Test func `prefers API key over O auth tokens by default`() throws {
+        let json = """
+        {
+            "OPENAI_API_KEY": "sk-test",
+            "tokens": {
+                "access_token": "access-token",
+                "refresh_token": "refresh-token",
+                "account_id": "account-123"
+            },
+            "last_refresh": "2025-12-20T12:34:56Z"
+        }
+        """
+
+        let creds = try CodexOAuthCredentialsStore.parse(data: Data(json.utf8))
+
+        #expect(creds.accessToken == "sk-test")
+        #expect(creds.refreshToken.isEmpty)
+        #expect(creds.accountId == nil)
+    }
+
+    @Test func `loads O auth tokens for reset credits when API key also exists`() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let credentials = CodexOAuthCredentials(
+            accessToken: "access-token",
+            refreshToken: "refresh-token",
+            idToken: nil,
+            accountId: "account-123",
+            lastRefresh: Date())
+        try CodexOAuthCredentialsStore.save(credentials, env: ["CODEX_HOME": home.path])
+        let url = CodexOAuthCredentialsStore._authFileURLForTesting(env: ["CODEX_HOME": home.path])
+        var json = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        json?["OPENAI_API_KEY"] = "sk-test"
+        let data = try JSONSerialization.data(withJSONObject: json ?? [:])
+        try data.write(to: url, options: .atomic)
+
+        let creds = try CodexOAuthCredentialsStore.loadOAuthTokens(env: ["CODEX_HOME": home.path])
+
+        #expect(creds.accessToken == "access-token")
+        #expect(creds.refreshToken == "refresh-token")
+        #expect(creds.accountId == "account-123")
+    }
+
+    @Test func `falls back to API key when O auth tokens are incomplete`() throws {
+        let json = """
+        {
+            "OPENAI_API_KEY": "sk-test",
+            "tokens": {
+                "access_token": "stale-access-token"
+            }
+        }
+        """
+
+        let creds = try CodexOAuthCredentialsStore.parse(data: Data(json.utf8))
+
+        #expect(creds.accessToken == "sk-test")
+        #expect(creds.refreshToken.isEmpty)
+        #expect(creds.accountId == nil)
+    }
+
+    @Test func `parses legacy camel case O auth credentials`() throws {
         let json = """
         {
           "OPENAI_API_KEY": null,

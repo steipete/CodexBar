@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 
 extension StatusItemController {
     func addStackedCodexMenuCards(
@@ -35,7 +36,10 @@ extension StatusItemController {
                     width: context.menuWidth,
                     heightCacheScope: account.id,
                     heightCacheFingerprint: model.heightFingerprint(section: "card"),
-                    containsInteractiveControls: true))
+                    containsInteractiveControls: true,
+                    resetCreditConsumer: { [weak self, source = account.selectionSource] credit in
+                        self?.consumeCodexResetCredit(credit, codexActiveSourceOverride: source)
+                    }))
                 cardIndex += 1
                 if account.id != section.accounts.last?.id {
                     menu.addItem(.separator())

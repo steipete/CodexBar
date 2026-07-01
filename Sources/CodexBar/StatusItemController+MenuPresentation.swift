@@ -474,12 +474,14 @@ struct MenuCardSectionContainerView<Content: View>: View {
     let submenuIndicatorAlignment: Alignment
     let submenuIndicatorTopPadding: CGFloat
     var refreshMonitor: MenuCardRefreshMonitor?
+    var resetCreditConsumer: ((CodexRateLimitResetCredit) -> Void)?
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         self.content()
             .environment(\.menuItemHighlighted, self.highlightState.isHighlighted)
             .environment(\.menuCardRefreshMonitor, self.refreshMonitor)
+            .environment(\.codexResetCreditConsumer, self.resetCreditConsumer)
             .foregroundStyle(MenuHighlightStyle.primary(self.highlightState.isHighlighted))
             .background(alignment: .topLeading) {
                 if self.highlightState.isHighlighted {

@@ -101,15 +101,40 @@ public struct CodexRateLimitResetCreditsSnapshot: Equatable, Codable, Sendable {
     }
 
     public var nextExpiringAvailableCredit: CodexRateLimitResetCredit? {
-        self.credits
-            .filter { credit in
-                credit.status == .available && (credit.expiresAt ?? .distantPast) > self.updatedAt
-            }
+        self.nextExpiringAvailableCredit(at: self.updatedAt)
+    }
+
+    public func availableCredits(at date: Date) -> [CodexRateLimitResetCredit] {
+        self.credits.filter { credit in
+            credit.status == .available && (credit.expiresAt.map { $0 > date } ?? true)
+        }
+    }
+
+    public func nextExpiringAvailableCredit(at date: Date) -> CodexRateLimitResetCredit? {
+        self.availableCredits(at: date)
             .min { lhs, rhs in
                 guard let lhsExpiresAt = lhs.expiresAt else { return false }
                 guard let rhsExpiresAt = rhs.expiresAt else { return true }
                 return lhsExpiresAt < rhsExpiresAt
             }
+    }
+}
+
+public struct CodexRateLimitResetCreditConsumption: Equatable, Codable, Sendable {
+    public let code: String
+    public let credit: CodexRateLimitResetCredit?
+    public let windowsReset: Int
+
+    public init(code: String, credit: CodexRateLimitResetCredit?, windowsReset: Int) {
+        self.code = code
+        self.credit = credit
+        self.windowsReset = windowsReset
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case credit
+        case windowsReset = "windows_reset"
     }
 }
 

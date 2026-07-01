@@ -19,13 +19,12 @@ extension UsageMenuCardView.Model {
             "creditsRemaining=\(self.creditsRemaining.map(String.init(describing:)) ?? "nil")",
             MenuCardHeightFingerprint.field("creditsHint", self.creditsHintText),
             MenuCardHeightFingerprint.field("creditsCopy", self.creditsHintCopyText),
-            MenuCardHeightFingerprint.field("codexResetCredits", self.codexResetCreditsText),
-            MenuCardHeightFingerprint.field("codexResetCreditsDetail", self.codexResetCreditsDetailText),
             "metrics=\(MenuCardHeightFingerprint.join(self.metrics.map(\.heightFingerprint)))",
             "notes=\(notesFingerprint)",
             "dashboard=\(self.inlineUsageDashboard?.heightFingerprint ?? "")",
             "providerCost=\(self.providerCost?.heightFingerprint ?? "")",
             "tokenUsage=\(self.tokenUsage?.heightFingerprint ?? "")",
+            "codexResetCredits=\(self.codexResetCredits?.heightFingerprint ?? "")",
             "openaiAPI=\(self.openAIAPIUsage == nil ? "0" : "1")",
         ] + additional)
     }
@@ -115,6 +114,17 @@ extension UsageMenuCardView.Model.TokenUsageSection {
             MenuCardHeightFingerprint.field("hint", self.hintLine),
             MenuCardHeightFingerprint.field("error", self.errorLine),
             MenuCardHeightFingerprint.field("errorCopy", self.errorCopyText),
+        ])
+    }
+}
+
+extension CodexResetCreditsPresentation {
+    fileprivate var heightFingerprint: String {
+        MenuCardHeightFingerprint.join([
+            MenuCardHeightFingerprint.field("text", self.text),
+            MenuCardHeightFingerprint.field("detail", self.detailText),
+            MenuCardHeightFingerprint.field("help", self.helpText),
+            self.creditToConsume == nil ? "consume=0" : "consume=1",
         ])
     }
 }

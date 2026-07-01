@@ -208,6 +208,8 @@ final class UsageStore {
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
     @ObservationIgnored var _test_providerStatusFetchOverride: (@MainActor (
         UsageProvider) async throws -> ProviderStatus)?
+    @ObservationIgnored var _test_codexResetCreditsFetcherOverride: (@Sendable (
+        [String: String]) async -> CodexRateLimitResetCreditsSnapshot?)?
     @ObservationIgnored var _test_startupConnectivityRetryScheduled: (@MainActor (Int, TimeInterval) -> Void)?
     @ObservationIgnored var _test_startupConnectivityRetrySleepOverride: (@MainActor (
         TimeInterval) async throws -> Void)?

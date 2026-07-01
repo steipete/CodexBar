@@ -1118,7 +1118,11 @@
 "Limit Reset Credits" = "Kredit pengaturan ulang batas";
 "1 available" = "1 tersedia";
 "%d available" = "%d tersedia";
+"1 manual reset available" = "1 pengaturan ulang manual tersedia";
+"%d manual resets available" = "%d pengaturan ulang manual tersedia";
+"Reset bank" = "Bank reset";
 "Next expires %@" = "Berikutnya kedaluwarsa %@";
+"Available reset" = "Available reset";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";
 "byte_unit_kilobyte" = "kilobyte";
@@ -1127,3 +1131,14 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar akan meminta macOS Keychain untuk “%@” agar dapat mendekripsi cookie browser dan mengautentikasi akun Anda. Klik OK untuk melanjutkan.";
+"Use Reset" = "Gunakan Reset";
+"Use the next expiring Codex reset credit" = "Gunakan kredit reset Codex yang paling dekat kedaluwarsa";
+"No expiry" = "Tidak ada kedaluwarsa";
+"Codex reset expires soon" = "Reset Codex segera kedaluwarsa";
+"A Codex reset credit expires %@." = "Kredit reset Codex kedaluwarsa %@.";
+"Use Codex reset?" = "Gunakan reset Codex?";
+"This spends one banked Codex reset credit now." = "Ini akan memakai satu kredit reset Codex yang tersimpan sekarang.";
+"Codex reset used" = "Reset Codex digunakan";
+"%d window reset." = "%d jendela direset.";
+"Codex reset failed" = "Reset Codex gagal";
