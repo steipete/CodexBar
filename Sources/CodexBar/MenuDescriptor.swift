@@ -282,9 +282,6 @@ struct MenuDescriptor {
         if let openRouterUsage = snapshot.openRouterUsage {
             Self.appendOpenRouterUsageSummary(entries: &entries, usage: openRouterUsage)
         }
-        if let crossModelUsage = snapshot.crossModelUsage {
-            Self.appendCrossModelUsageSummary(entries: &entries, usage: crossModelUsage)
-        }
         if let poeUsage = snapshot.poeUsage, !poeUsage.daily.isEmpty {
             Self.appendPoeUsageSummary(entries: &entries, usage: poeUsage)
         }
@@ -359,31 +356,6 @@ struct MenuDescriptor {
         }
         if let monthly = usage.keyUsageMonthly {
             entries.append(.text("\(L("Month")): \(UsageFormatter.usdString(monthly))", .secondary))
-        }
-    }
-
-    private static func appendCrossModelUsageSummary(
-        entries: inout [Entry],
-        usage: CrossModelUsageSnapshot)
-    {
-        entries.append(.text("\(L("Balance")): \(usage.balanceDisplay)", .primary))
-        if let daily = usage.daily {
-            entries.append(.text(
-                "\(L("Today")): \(UsageFormatter.usdString(daily.costUSD)) · " +
-                    "\(UsageFormatter.tokenCountString(daily.totalTokens)) \(L("tokens"))",
-                .secondary))
-        }
-        if let weekly = usage.weekly {
-            entries.append(.text(
-                "\(L("Week")): \(UsageFormatter.usdString(weekly.costUSD)) · " +
-                    "\(UsageFormatter.tokenCountString(weekly.requestCount)) \(L("requests"))",
-                .secondary))
-        }
-        if let monthly = usage.monthly {
-            entries.append(.text(
-                "\(L("Month")): \(UsageFormatter.usdString(monthly.costUSD)) · " +
-                    "\(UsageFormatter.tokenCountString(monthly.requestCount)) \(L("requests"))",
-                .secondary))
         }
     }
 
@@ -541,8 +513,8 @@ struct MenuDescriptor {
             for detail in kiloLogin.details {
                 entries.append(.text("\(L("Activity")): \(detail)", .secondary))
             }
-        } else if let loginMethodText, !loginMethodText.isEmpty {
-            if provider == .openrouter || provider == .mimo || provider == .poe,
+        } else if provider != .crossmodel, let loginMethodText, !loginMethodText.isEmpty {
+            if provider == .openrouter || provider == .mimo || provider == .poe || provider == .crossmodel,
                loginMethodText.localizedCaseInsensitiveContains("balance:")
             {
                 let balanceValue = loginMethodText

@@ -51,4 +51,29 @@ struct CrossModelProviderImplementation: ProviderImplementation {
                 onActivate: nil),
         ]
     }
+
+    @MainActor
+    func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
+        guard let usage = context.snapshot?.crossModelUsage else { return }
+
+        entries.append(.text("\(L("Balance")): \(usage.balanceDisplay)", .primary))
+        if let daily = usage.daily {
+            entries.append(.text(
+                "\(L("Today")): \(UsageFormatter.usdString(daily.costUSD)) · " +
+                    "\(UsageFormatter.tokenCountString(daily.totalTokens)) \(L("tokens"))",
+                .secondary))
+        }
+        if let weekly = usage.weekly {
+            entries.append(.text(
+                "\(L("Week")): \(UsageFormatter.usdString(weekly.costUSD)) · " +
+                    "\(UsageFormatter.tokenCountString(weekly.requestCount)) \(L("requests"))",
+                .secondary))
+        }
+        if let monthly = usage.monthly {
+            entries.append(.text(
+                "\(L("Month")): \(UsageFormatter.usdString(monthly.costUSD)) · " +
+                    "\(UsageFormatter.tokenCountString(monthly.requestCount)) \(L("requests"))",
+                .secondary))
+        }
+    }
 }

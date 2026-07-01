@@ -50,6 +50,7 @@ struct CrossModelUsageStatsTests {
                 let body = #"{"currency":"USD","balance_micro":8059489,"uncollected_micro":0}"#
                 return Self.makeResponse(url: url, body: body, statusCode: 200)
             case "/v1/usage":
+                #expect(request.timeoutInterval == 3)
                 let body = #"""
                 {"currency":"USD",
                  "daily":{"cost_micro":5746,"prompt_tokens":9176,"completion_tokens":3291,
@@ -78,6 +79,49 @@ struct CrossModelUsageStatsTests {
         #expect(usage.monthly?.requestCount == 3166)
         #expect(usage.monthly?.successCount == 3057)
         #expect(usage.balanceDisplay == "$8.06")
+    }
+
+    @Test
+    func `fetch usage propagates cancellation from optional enrichment`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/v1/credits" {
+                let body = #"{"currency":"USD","balance_micro":1500000,"uncollected_micro":0}"#
+                let (response, data) = Self.makeResponse(url: url, body: body)
+                return (data, response)
+            }
+            throw CancellationError()
+        }
+
+        do {
+            _ = try await CrossModelUsageFetcher.fetchUsage(
+                apiKey: "cm-test",
+                environment: ["CROSSMODEL_API_URL": "https://crossmodel.test/v1"],
+                transport: transport)
+            Issue.record("Expected cancellation")
+        } catch is CancellationError {
+            // Expected: best-effort enrichment must not swallow parent task cancellation.
+        }
+    }
+
+    @Test
+    func `fetch usage maps url session cancellation from optional enrichment`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/v1/credits" {
+                let body = #"{"currency":"USD","balance_micro":1500000,"uncollected_micro":0}"#
+                let (response, data) = Self.makeResponse(url: url, body: body)
+                return (data, response)
+            }
+            throw URLError(.cancelled)
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await CrossModelUsageFetcher.fetchUsage(
+                apiKey: "cm-test",
+                environment: ["CROSSMODEL_API_URL": "https://crossmodel.test/v1"],
+                transport: transport)
+        }
     }
 
     @Test

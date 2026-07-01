@@ -21,6 +21,7 @@
 ## 0.37.3 — 2026-06-28
 
 ### Added
+- CrossModel: add API-key wallet balance and UTC daily, weekly, and monthly spend tracking. Thanks @hujuncheng!
 - Sakana AI: add manual-cookie usage for five-hour and weekly quota windows. Thanks @LeoLin990405!
 - Status pages: show live component submenus for Claude, Codex, and Augment. Thanks @elijahfriedman!
 - Cost history: choose inline, submenu, or combined local-cost presentation. Thanks @Zihao-Qi!

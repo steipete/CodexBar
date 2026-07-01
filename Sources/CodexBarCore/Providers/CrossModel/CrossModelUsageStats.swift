@@ -6,7 +6,7 @@ import FoundationNetworking
 // MARK: - Wire DTOs (CrossModel returns integer micro units; 1 USD = 1_000_000 micro)
 
 /// `GET /v1/credits` response.
-struct CrossModelCreditsResponse: Decodable, Sendable {
+struct CrossModelCreditsResponse: Decodable {
     let currency: String
     let balanceMicro: Int64
     let uncollectedMicro: Int64
@@ -19,7 +19,7 @@ struct CrossModelCreditsResponse: Decodable, Sendable {
 }
 
 /// One usage window from `GET /v1/usage`.
-struct CrossModelUsageWindowDTO: Decodable, Sendable {
+struct CrossModelUsageWindowDTO: Decodable {
     let costMicro: Int64
     let promptTokens: Int64
     let completionTokens: Int64
@@ -38,7 +38,7 @@ struct CrossModelUsageWindowDTO: Decodable, Sendable {
 }
 
 /// `GET /v1/usage` response.
-struct CrossModelUsageResponse: Decodable, Sendable {
+struct CrossModelUsageResponse: Decodable {
     let currency: String
     let daily: CrossModelUsageWindowDTO
     let weekly: CrossModelUsageWindowDTO
@@ -145,13 +145,14 @@ extension CrossModelUsageSnapshot {
 public struct CrossModelUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.crossModelUsage)
     private static let creditsRequestTimeoutSeconds: TimeInterval = 15
-    private static let usageRequestTimeoutSeconds: TimeInterval = 10
+    private static let usageRequestTimeoutSeconds: TimeInterval = 3
     private static let maxErrorBodyLength = 240
 
     /// Fetches balance (required) and usage windows (best-effort) using the provided API key.
     public static func fetchUsage(
         apiKey: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> CrossModelUsageSnapshot
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CrossModelUsageSnapshot
     {
         guard !apiKey.isEmpty else {
             throw CrossModelUsageError.invalidCredentials
@@ -159,11 +160,11 @@ public struct CrossModelUsageFetcher: Sendable {
         try CrossModelSettingsReader.validateEndpointOverrides(environment: environment)
 
         let baseURL = CrossModelSettingsReader.apiURL(environment: environment)
-        let credits = try await self.fetchCredits(apiKey: apiKey, baseURL: baseURL)
+        let credits = try await self.fetchCredits(apiKey: apiKey, baseURL: baseURL, transport: transport)
 
         // Usage windows are best-effort: a slow or failing /usage call should not
         // block the balance the user came to see.
-        let usage = await self.fetchUsageWindows(apiKey: apiKey, baseURL: baseURL)
+        let usage = try await self.fetchUsageWindows(apiKey: apiKey, baseURL: baseURL, transport: transport)
 
         return CrossModelUsageSnapshot(
             currency: credits.currency,
@@ -177,7 +178,8 @@ public struct CrossModelUsageFetcher: Sendable {
 
     private static func fetchCredits(
         apiKey: String,
-        baseURL: URL) async throws -> CrossModelCreditsResponse
+        baseURL: URL,
+        transport: any ProviderHTTPTransport) async throws -> CrossModelCreditsResponse
     {
         let url = baseURL.appendingPathComponent("credits")
         var request = URLRequest(url: url)
@@ -186,7 +188,7 @@ public struct CrossModelUsageFetcher: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = Self.creditsRequestTimeoutSeconds
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         guard response.statusCode == 200 else {
             let summary = LogRedactor.redact(Self.sanitizedResponseBodySummary(response.data))
             Self.log.error("CrossModel /credits returned \(response.statusCode): \(summary)")
@@ -206,7 +208,8 @@ public struct CrossModelUsageFetcher: Sendable {
 
     private static func fetchUsageWindows(
         apiKey: String,
-        baseURL: URL) async -> CrossModelUsageResponse?
+        baseURL: URL,
+        transport: any ProviderHTTPTransport) async throws -> CrossModelUsageResponse?
     {
         let url = baseURL.appendingPathComponent("usage")
         var request = URLRequest(url: url)
@@ -216,13 +219,20 @@ public struct CrossModelUsageFetcher: Sendable {
         request.timeoutInterval = Self.usageRequestTimeoutSeconds
 
         do {
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            let response = try await transport.response(for: request)
             guard response.statusCode == 200 else {
                 Self.log.debug("CrossModel /usage enrichment returned \(response.statusCode)")
                 return nil
             }
             return try JSONDecoder().decode(CrossModelUsageResponse.self, from: response.data)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
             Self.log.debug("Failed to fetch CrossModel /usage enrichment: \(error.localizedDescription)")
             return nil
         }
