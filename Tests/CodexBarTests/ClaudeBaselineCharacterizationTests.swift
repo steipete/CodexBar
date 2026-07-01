@@ -5,6 +5,13 @@ import Testing
 @Suite(.serialized)
 struct ClaudeBaselineCharacterizationTests {
     private func makeStubClaudeCLI(loggedIn: Bool = true, invocationLog: URL? = nil) throws -> String {
+        let loggedInJSON = loggedIn ? "true" : "false"
+        return try self.makeStubClaudeCLI(
+            authStatusScript: "printf '%s\\n' '{\"loggedIn\":\(loggedInJSON)}'",
+            invocationLog: invocationLog)
+    }
+
+    private func makeStubClaudeCLI(authStatusScript: String, invocationLog: URL? = nil) throws -> String {
         let sample = """
         Current session
         12% used  (Resets 11am)
@@ -16,12 +23,11 @@ struct ClaudeBaselineCharacterizationTests {
         Org: Example Org
         """
         let recordInvocation = invocationLog.map { "printf '%s\\n' \"$*\" >> '\($0.path)'" } ?? ""
-        let loggedInJSON = loggedIn ? "true" : "false"
         let script = """
         #!/bin/sh
         \(recordInvocation)
         if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
-          printf '%s\\n' '{"loggedIn":\(loggedInJSON)}'
+          \(authStatusScript)
           exit 0
         fi
         cat <<'EOF'
@@ -202,6 +208,59 @@ struct ClaudeBaselineCharacterizationTests {
             #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
         }
 
+        let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
+        #expect(invocations == "auth status --json\n")
+    }
+
+    @Test(arguments: ["nonzero", "timeout", "malformed"])
+    func `app background auto falls back to web when auth status is unusable`(
+        failureMode: String) async throws
+    {
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .auto,
+            webExtrasEnabled: false,
+            cookieSource: .manual,
+            manualCookieHeader: "sessionKey=sk-ant-session-token"))
+        let invocationLog = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
+        let authStatusScript = switch failureMode {
+        case "nonzero":
+            "exit 9"
+        case "timeout":
+            "sleep 6"
+        default:
+            "printf '%s\\n' 'not-json'"
+        }
+        let stubCLIPath = try self.makeStubClaudeCLI(
+            authStatusScript: authStatusScript,
+            invocationLog: invocationLog)
+        let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let usageLoader: ClaudeWebFetchStrategy.UsageLoader = { _ in
+            ClaudeUsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: nil,
+                opus: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_800_000_100),
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil,
+                rawText: nil)
+        }
+
+        let outcome = await self.withNoOAuthCredentials {
+            await ClaudeWebFetchStrategy.$usageLoaderOverrideForTesting.withValue(usageLoader) {
+                await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+            }
+        }
+        let result = try outcome.result.get()
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
+        #expect(result.strategyID == "claude.web")
         let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
         #expect(invocations == "auth status --json\n")
     }
