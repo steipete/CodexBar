@@ -181,5 +181,17 @@ struct CostHistoryChartMenuViewTests {
             modeSubtitlePresence: [false],
             hasTotal: true)
         #expect(withTotal > withoutTotal)
+
+        let withProjects = CostHistoryChartMenuView._totalCardHeightForTesting(
+            modeSubtitlePresence: [false],
+            hasTotal: true,
+            projectCount: 3)
+        #expect(withProjects > withTotal)
+
+        let withProjectSources = CostHistoryChartMenuView._totalCardHeightForTesting(
+            modeSubtitlePresence: [false],
+            hasTotal: true,
+            projectSourceCounts: [3])
+        #expect(withProjectSources > withProjects)
     }
 }

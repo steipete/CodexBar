@@ -166,6 +166,16 @@ extension StatusItemController {
                 ].joined(separator: ",")
             }
             .joined(separator: ";")
+        let projects = snapshot.projects
+            .map { project in
+                [
+                    project.name,
+                    project.path ?? "",
+                    "\(project.totalTokens ?? -1)",
+                    Self.formatOptionalDoubleForSignature(project.totalCostUSD),
+                ].joined(separator: ",")
+            }
+            .joined(separator: ";")
         return [
             "sessionTokens=\(snapshot.sessionTokens ?? -1)",
             "sessionCost=\(Self.formatOptionalDoubleForSignature(snapshot.sessionCostUSD))",
@@ -173,6 +183,7 @@ extension StatusItemController {
             "lastCost=\(Self.formatOptionalDoubleForSignature(snapshot.last30DaysCostUSD))",
             "updated=\(Int(snapshot.updatedAt.timeIntervalSince1970 * 1000))",
             "daily=\(daily)",
+            "projects=\(projects)",
         ].joined(separator: ",")
     }
 
