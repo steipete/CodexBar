@@ -1117,7 +1117,7 @@
 "%d manual resets available" = "%d reimpostazioni manuali disponibili";
 "Reset bank" = "Banca reset";
 "Next expires %@" = "La prossima scade %@";
-"Available reset" = "Available reset";
+"Available reset" = "Reimpostazione disponibile";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";
 "byte_unit_kilobyte" = "kilobyte";
