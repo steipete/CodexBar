@@ -84,6 +84,22 @@ struct UsagePaceTextTests {
     }
 
     @Test
+    func `weekly pace detail reports remaining headroom late in window`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 70,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(0.7 * 24 * 3600),
+            resetDescription: nil)
+        let pace = try #require(UsagePace.weekly(window: window, now: now))
+
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+
+        #expect(detail.leftLabel == "20% in reserve")
+        #expect(detail.rightLabel == "Lasts until reset · Try 1.5x!")
+    }
+
+    @Test
     func `reported weekly state renders deficit and run out headline`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
@@ -145,7 +161,8 @@ struct UsagePaceTextTests {
             actualUsedPercent: 10,
             etaSeconds: nil,
             willLastToReset: true,
-            runOutProbability: 0.02)
+            runOutProbability: 0.02,
+            speedMultiplierToReset: 4)
 
         let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
 

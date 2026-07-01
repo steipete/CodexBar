@@ -18,14 +18,7 @@ public struct UsagePace: Sendable {
     public let etaSeconds: TimeInterval?
     public let willLastToReset: Bool
     public let runOutProbability: Double?
-
-    public var speedMultiplierToReset: Double? {
-        guard self.actualUsedPercent > 0,
-              self.expectedUsedPercent > self.actualUsedPercent
-        else { return nil }
-        let multiplier = self.expectedUsedPercent / self.actualUsedPercent
-        return multiplier.isFinite ? multiplier : nil
-    }
+    public let speedMultiplierToReset: Double?
 
     public init(
         stage: Stage,
@@ -34,7 +27,8 @@ public struct UsagePace: Sendable {
         actualUsedPercent: Double,
         etaSeconds: TimeInterval?,
         willLastToReset: Bool,
-        runOutProbability: Double? = nil)
+        runOutProbability: Double? = nil,
+        speedMultiplierToReset: Double? = nil)
     {
         self.stage = stage
         self.deltaPercent = deltaPercent
@@ -43,6 +37,7 @@ public struct UsagePace: Sendable {
         self.etaSeconds = etaSeconds
         self.willLastToReset = willLastToReset
         self.runOutProbability = runOutProbability
+        self.speedMultiplierToReset = speedMultiplierToReset
     }
 
     public static func weekly(
@@ -86,6 +81,13 @@ public struct UsagePace: Sendable {
         var willLastToReset = false
 
         let paceElapsed = workdayProgress?.elapsedSeconds ?? elapsed
+        let effectiveTimeUntilReset = workdayProgress?.remainingSeconds ?? timeUntilReset
+        let projectedRemainingUsage = paceElapsed > 0
+            ? actual * effectiveTimeUntilReset / paceElapsed
+            : 0
+        let speedMultiplierToReset = Self.safeSpeedMultiplier(
+            remainingCapacity: 100 - actual,
+            projectedRemainingUsage: projectedRemainingUsage)
         if actual >= 100 {
             etaSeconds = 0
         } else if paceElapsed > 0, actual > 0 {
@@ -93,7 +95,6 @@ public struct UsagePace: Sendable {
             if rate > 0 {
                 let remaining = 100 - actual
                 let candidate = remaining / rate
-                let effectiveTimeUntilReset = workdayProgress?.remainingSeconds ?? timeUntilReset
                 if candidate >= effectiveTimeUntilReset {
                     willLastToReset = true
                 } else if let workDays = workdayProgress?.workDays {
@@ -118,7 +119,8 @@ public struct UsagePace: Sendable {
             actualUsedPercent: actual,
             etaSeconds: etaSeconds,
             willLastToReset: willLastToReset,
-            runOutProbability: nil)
+            runOutProbability: nil,
+            speedMultiplierToReset: speedMultiplierToReset)
     }
 
     public static func historical(
@@ -126,7 +128,8 @@ public struct UsagePace: Sendable {
         actualUsedPercent: Double,
         etaSeconds: TimeInterval?,
         willLastToReset: Bool,
-        runOutProbability: Double?) -> UsagePace
+        runOutProbability: Double?,
+        projectedRemainingUsage: Double? = nil) -> UsagePace
     {
         let expected = expectedUsedPercent.clamped(to: 0...100)
         let actual = actualUsedPercent.clamped(to: 0...100)
@@ -138,7 +141,21 @@ public struct UsagePace: Sendable {
             actualUsedPercent: actual,
             etaSeconds: etaSeconds,
             willLastToReset: willLastToReset,
-            runOutProbability: runOutProbability)
+            runOutProbability: runOutProbability,
+            speedMultiplierToReset: projectedRemainingUsage.flatMap {
+                Self.safeSpeedMultiplier(
+                    remainingCapacity: 100 - actual,
+                    projectedRemainingUsage: $0)
+            })
+    }
+
+    private static func safeSpeedMultiplier(
+        remainingCapacity: Double,
+        projectedRemainingUsage: Double) -> Double?
+    {
+        guard remainingCapacity > 0, projectedRemainingUsage > 0 else { return nil }
+        let multiplier = remainingCapacity / projectedRemainingUsage
+        return multiplier.isFinite ? multiplier : nil
     }
 
     private struct WorkdayProgress {
