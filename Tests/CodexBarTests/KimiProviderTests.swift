@@ -164,6 +164,44 @@ struct KimiSettingsReaderTests {
     }
 
     @Test
+    func `does not forward Kimi Code OAuth credential to API endpoint override`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth-access-token",
+            expiresAt: Date().addingTimeInterval(3600))
+
+        let resolution = ProviderTokenResolver.kimiAPIResolution(environment: [
+            "KIMI_CODE_BASE_URL": "https://proxy.example.com/kimi",
+            "KIMI_CODE_HOME": home.path,
+        ])
+
+        #expect(resolution == nil)
+    }
+
+    @Test
+    func `does not forward Kimi Code refresh token to OAuth endpoint override`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "expired-access-token",
+            expiresAt: Date().addingTimeInterval(-60))
+        let transport = ProviderHTTPTransportHandler { _ in
+            Issue.record("OAuth transport must not run for an override host")
+            throw URLError(.badURL)
+        }
+
+        let resolution = await ProviderTokenResolver.kimiAPIResolutionRefreshing(
+            environment: [
+                "KIMI_CODE_HOME": home.path,
+                "KIMI_CODE_OAUTH_HOST": "https://oauth.example.com",
+            ],
+            transport: transport)
+
+        #expect(resolution == nil)
+    }
+
+    @Test
     func `refreshes expired Kimi Code OAuth credential before resolving`() async throws {
         let home = try makeTemporaryKimiCodeHome()
         let now = Date(timeIntervalSince1970: 1_800_000_000)

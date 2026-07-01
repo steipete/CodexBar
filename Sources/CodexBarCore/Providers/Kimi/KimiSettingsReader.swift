@@ -45,6 +45,7 @@ public enum KimiSettingsReader {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         now: Date = Date()) -> String?
     {
+        guard !self.hasCodeEndpointOverride(environment: environment) else { return nil }
         guard let url = self.kimiCodeCredentialsURL(environment: environment) else { return nil }
         return self.kimiCodeAccessToken(credentialsURL: url, now: now)
     }
@@ -54,6 +55,9 @@ public enum KimiSettingsReader {
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async -> String?
     {
+        // The upstream CLI scopes OAuth credentials to the default API/OAuth pair.
+        // Never forward that shared bearer or refresh token to an arbitrary override host.
+        guard !self.hasCodeEndpointOverride(environment: environment) else { return nil }
         guard let url = self.kimiCodeCredentialsURL(environment: environment),
               let credential = self.kimiCodeCredential(credentialsURL: url)
         else {
@@ -89,6 +93,11 @@ public enum KimiSettingsReader {
         return home
             .appendingPathComponent("credentials", isDirectory: true)
             .appendingPathComponent("kimi-code.json")
+    }
+
+    private static func hasCodeEndpointOverride(environment: [String: String]) -> Bool {
+        if self.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]) != nil { return true }
+        return self.codeOAuthHostEnvironmentKeys.contains { self.cleaned(environment[$0]) != nil }
     }
 
     private static func kimiCodeAccessToken(credentialsURL: URL, now: Date) -> String? {

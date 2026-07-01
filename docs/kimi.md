@@ -36,7 +36,8 @@ export KIMI_CODE_API_KEY="kimi-code-api-key-here"
 ```
 
 CodexBar calls `GET https://api.kimi.com/coding/v1/usages` with the API key. Set
-`KIMI_CODE_BASE_URL` only when testing a compatible HTTPS proxy or alternate host.
+`KIMI_CODE_BASE_URL` only when testing a compatible HTTPS proxy or alternate host with an explicit
+API key. CodexBar never forwards the shared Kimi Code OAuth credential to an endpoint override.
 
 ### Method 2: Kimi Code OAuth Credential
 
@@ -55,7 +56,8 @@ export KIMI_CODE_HOME="/path/to/kimi-code-home"
 CodexBar uses the stored `access_token` for the same `GET https://api.kimi.com/coding/v1/usages`
 endpoint. If the access token is expired and the file has a `refresh_token`, CodexBar refreshes the
 credential through `https://auth.kimi.com/api/oauth/token` before giving up. For compatible test
-OAuth hosts, set `KIMI_CODE_OAUTH_HOST` or `KIMI_OAUTH_HOST` to an HTTPS URL.
+OAuth hosts, use an explicit API key instead; CodexBar does not forward the CLI-owned refresh token
+to `KIMI_CODE_OAUTH_HOST` or `KIMI_OAUTH_HOST` overrides.
 
 ### Method 3: Automatic Browser Import
 

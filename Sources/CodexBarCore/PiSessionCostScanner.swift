@@ -676,7 +676,7 @@ extension PiSessionCostScanner {
             .codex
         case "anthropic":
             .claude
-        case "kimi-coding", "kimi-code", "kimi", "kimi-openai-completions", "kimi-anthropic-messages":
+        case "kimi-coding", "kimi-code", "kimi-openai-completions", "kimi-anthropic-messages":
             .kimi
         default:
             nil

@@ -22,7 +22,7 @@ public struct CostUsageSourceOptions: Sendable, Equatable {
     public var kimiCodeSessionsEnabled: Bool
 
     public init(
-        piSessionsEnabled: Bool = false,
+        piSessionsEnabled: Bool = true,
         kimiCodeSessionsEnabled: Bool = false)
     {
         self.piSessionsEnabled = piSessionsEnabled

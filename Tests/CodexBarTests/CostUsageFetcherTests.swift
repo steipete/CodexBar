@@ -557,8 +557,7 @@ struct CostUsageFetcherTests {
             provider: .codex,
             now: day,
             scannerOptions: nativeOptions,
-            piScannerOptions: piOptions,
-            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
+            piScannerOptions: piOptions)
 
         let nativeCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
@@ -936,6 +935,39 @@ struct CostUsageFetcherTests {
         #expect(snapshot.daily.first?.modelBreakdowns?.first?.requestCount == 1)
         #expect(snapshot.daily.first?.modelsUsed == ["kimi-k2-turbo-preview"])
         #expect(abs((snapshot.last30DaysCostUSD ?? 0) - 0.000057511) < 0.000000001)
+    }
+
+    @Test
+    func `fetcher does not attribute generic Pi Kimi provider to Kimi Code`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        _ = try env.writePiSessionFile(relativePath: "2026/04/08/generic-kimi.jsonl", contents: env.jsonl([
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "kimi",
+                    "model": "kimi-k2",
+                    "usage": ["input": 20, "output": 10],
+                ],
+            ],
+        ]))
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .kimi,
+            environment: [:],
+            now: day,
+            historyDays: 7,
+            scannerOptions: CostUsageScanner.Options(cacheRoot: env.cacheRoot),
+            piScannerOptions: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot),
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: false))
+
+        #expect(snapshot.daily.isEmpty)
     }
 
     private static func writeCodexSessionFile(
