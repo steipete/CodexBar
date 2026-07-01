@@ -5,6 +5,7 @@
 ### Added
 - Menu: add an opt-in setting to refresh provider usage whenever the menu opens without changing the periodic refresh clock. Thanks @dstier-git!
 - Quota warnings: add an optional centered on-screen text alert that stays click-through and does not steal focus. Thanks @SAASEmpiree!
+- MiniMax: fetch Token Plan recharge-credit balance from the console `token_plan_credit` endpoint when a browser session cookie is available. Thanks @Yuxin-Qiao!
 
 ### Fixed
 - Claude web usage: bound stale requests so Auto can reach CLI fallback instead of hanging indefinitely.
@@ -20,6 +21,8 @@
 - Cost history: choose inline, submenu, or combined local-cost presentation. Thanks @Zihao-Qi!
 - Confetti: optionally celebrate session-limit resets with full-screen confetti, configurable beside the weekly-limit celebration in Advanced settings. Thanks @bystritskiy!
 - z.ai: support saved token-account team usage with account-scoped organization and project metadata. Thanks @zqbake!
+
+### Fixed
 - CLI: show session pace in text output, expose derived pace data in JSON, and honor the configured weekly work-day baseline. Thanks @kmatsunami!
 - Claude: add a combined "Session + Weekly" menu bar metric that shows the 5-hour session and weekly lanes together (paced on the weekly lane), matching Codex, and classify lanes by cadence so a weekly-only account is not mislabeled as a session. Thanks @Shengqiang-Zhang!
 

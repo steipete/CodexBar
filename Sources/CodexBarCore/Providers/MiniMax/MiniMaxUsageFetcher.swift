@@ -66,6 +66,7 @@ public struct MiniMaxUsageFetcher: Sendable {
                     return try await self.attachingBillingIfAvailable(
                         to: snapshot,
                         context: context,
+                        groupID: groupID,
                         includeBillingHistory: includeBillingHistory,
                         now: now)
                 } catch {
@@ -83,6 +84,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             return try await self.attachingBillingIfAvailable(
                 to: snapshot,
                 context: context,
+                groupID: groupID,
                 includeBillingHistory: includeBillingHistory,
                 now: now)
         } catch let error as MiniMaxUsageError {
@@ -100,6 +102,7 @@ public struct MiniMaxUsageFetcher: Sendable {
                 return try await self.attachingBillingIfAvailable(
                     to: snapshot,
                     context: context,
+                    groupID: groupID,
                     includeBillingHistory: includeBillingHistory,
                     now: now)
             }
@@ -440,27 +443,37 @@ public struct MiniMaxUsageFetcher: Sendable {
     private static func attachingBillingIfAvailable(
         to snapshot: MiniMaxUsageSnapshot,
         context: WebFetchContext,
+        groupID: String?,
         includeBillingHistory: Bool,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
-        guard includeBillingHistory else { return snapshot }
-        do {
-            let billing = try await self.fetchBillingSummary(context: context, now: now)
-            return snapshot.withBillingSummary(billing)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw error
-        } catch let error as MiniMaxUsageError {
-            if case .invalidCredentials = error, context.authorizationToken != nil {
+        let enrichedSnapshot: MiniMaxUsageSnapshot
+        if includeBillingHistory {
+            do {
+                let billing = try await self.fetchBillingSummary(context: context, now: now)
+                enrichedSnapshot = snapshot.withBillingSummary(billing)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where error.code == .cancelled {
                 throw error
+            } catch let error as MiniMaxUsageError {
+                if case .invalidCredentials = error, context.authorizationToken != nil {
+                    throw error
+                }
+                Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
+                enrichedSnapshot = snapshot
+            } catch {
+                Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
+                enrichedSnapshot = snapshot
             }
-            Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
-            return snapshot
-        } catch {
-            Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
-            return snapshot
+        } else {
+            enrichedSnapshot = snapshot
         }
+
+        return await self.attachingTokenPlanCreditIfAvailable(
+            to: enrichedSnapshot,
+            context: context,
+            groupID: groupID)
     }
 
     private static func fetchBillingSummary(context: WebFetchContext, now: Date) async throws -> MiniMaxBillingSummary {

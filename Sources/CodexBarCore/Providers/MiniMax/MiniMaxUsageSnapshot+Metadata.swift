@@ -38,6 +38,24 @@ extension MiniMaxUsageSnapshot {
             subscriptionExpiresAt: metadata.subscriptionExpiresAt ?? self.subscriptionExpiresAt,
             subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt)
     }
+
+    func withPointsBalanceIfMissing(_ pointsBalance: Double?) -> MiniMaxUsageSnapshot {
+        guard self.pointsBalance == nil, let pointsBalance, pointsBalance >= 0 else { return self }
+        return MiniMaxUsageSnapshot(
+            planName: self.planName,
+            availablePrompts: self.availablePrompts,
+            currentPrompts: self.currentPrompts,
+            remainingPrompts: self.remainingPrompts,
+            windowMinutes: self.windowMinutes,
+            usedPercent: self.usedPercent,
+            resetsAt: self.resetsAt,
+            updatedAt: self.updatedAt,
+            services: self.services,
+            billingSummary: self.billingSummary,
+            pointsBalance: pointsBalance,
+            subscriptionExpiresAt: self.subscriptionExpiresAt,
+            subscriptionRenewsAt: self.subscriptionRenewsAt)
+    }
 }
 
 extension String {

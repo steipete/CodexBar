@@ -8,6 +8,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     private static let codingPlanQuery = "cycle_type=3"
     private static let remainsPath = "v1/api/openplatform/coding_plan/remains"
     private static let tokenPlanRemainsPath = "v1/token_plan/remains"
+    private static let tokenPlanCreditPath = "backend/account/token_plan_credit"
     private static let billingHistoryPath = "account/amount"
 
     public var displayName: String {
@@ -35,6 +36,19 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
         case .chinaMainland:
             "https://api.minimaxi.com"
         }
+    }
+
+    public var webBaseURLString: String {
+        switch self {
+        case .global:
+            "https://www.minimax.io"
+        case .chinaMainland:
+            "https://www.minimaxi.com"
+        }
+    }
+
+    public var tokenPlanCreditURL: URL {
+        URL(string: self.webBaseURLString)!.appendingPathComponent(Self.tokenPlanCreditPath)
     }
 
     public var codingPlanURL: URL {

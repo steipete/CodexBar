@@ -33,12 +33,14 @@ struct MiniMaxEndpointOverrideSettingsTests {
             MiniMaxSettingsReader.hostKey: "https://attacker.example",
             MiniMaxSettingsReader.codingPlanURLKey: "https://attacker.example/coding-plan",
             MiniMaxSettingsReader.remainsURLKey: "https://attacker.example/remains",
+            MiniMaxSettingsReader.tokenPlanCreditURLKey: "https://attacker.example/token-plan-credit",
             MiniMaxSettingsReader.billingHistoryURLKey: "https://attacker.example/account/amount",
         ]
 
         #expect(MiniMaxSettingsReader.hostOverride(environment: env) == nil)
         #expect(MiniMaxSettingsReader.codingPlanURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.remainsURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.tokenPlanCreditURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.billingHistoryURL(environment: env) == nil)
     }
 
@@ -50,12 +52,14 @@ struct MiniMaxEndpointOverrideSettingsTests {
             MiniMaxSettingsReader.hostKey: encodedSlash,
             MiniMaxSettingsReader.codingPlanURLKey: "\(encodedSlash)/coding-plan",
             MiniMaxSettingsReader.remainsURLKey: "\(encodedSlash)/remains",
+            MiniMaxSettingsReader.tokenPlanCreditURLKey: "\(encodedSlash)/token-plan-credit",
             MiniMaxSettingsReader.billingHistoryURLKey: "\(encodedSlash)/account/amount",
         ]
 
         #expect(MiniMaxSettingsReader.hostOverride(environment: env) == nil)
         #expect(MiniMaxSettingsReader.codingPlanURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.remainsURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.tokenPlanCreditURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.billingHistoryURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.hostOverride(environment: [
             MiniMaxSettingsReader.hostKey: doubleEncodedSlash,
@@ -1196,6 +1200,24 @@ struct MiniMaxAPIRegionTests {
         let url = MiniMaxUsageFetcher.resolveTokenPlanRemainsURL(region: .chinaMainland)
         #expect(url.host == "api.minimaxi.com")
         #expect(url.path == "/v1/token_plan/remains")
+    }
+
+    @Test
+    func `resolves token plan credit URLs on www hosts`() {
+        let global = MiniMaxAPIRegion.global.tokenPlanCreditURL
+        let china = MiniMaxAPIRegion.chinaMainland.tokenPlanCreditURL
+        #expect(global.host == "www.minimax.io")
+        #expect(global.path == "/backend/account/token_plan_credit")
+        #expect(china.host == "www.minimaxi.com")
+        #expect(china.path == "/backend/account/token_plan_credit")
+    }
+
+    @Test
+    func `token plan credit URL override wins`() throws {
+        let override = try #require(URL(string: "https://www.minimaxi.com/backend/account/token_plan_credit"))
+        let env = [MiniMaxSettingsReader.tokenPlanCreditURLKey: override.absoluteString]
+        let resolved = try MiniMaxTokenPlanCreditFetcher.resolveCreditURL(region: .global, environment: env)
+        #expect(resolved == override)
     }
 
     @Test
