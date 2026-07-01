@@ -101,10 +101,17 @@ public struct CodexRateLimitResetCreditsSnapshot: Equatable, Codable, Sendable {
     }
 
     public var nextExpiringAvailableCredit: CodexRateLimitResetCredit? {
-        self.credits
-            .filter { credit in
-                credit.status == .available && (credit.expiresAt ?? .distantPast) > self.updatedAt
-            }
+        self.nextExpiringAvailableCredit(at: self.updatedAt)
+    }
+
+    public func availableCredits(at date: Date) -> [CodexRateLimitResetCredit] {
+        self.credits.filter { credit in
+            credit.status == .available && (credit.expiresAt ?? .distantPast) > date
+        }
+    }
+
+    public func nextExpiringAvailableCredit(at date: Date) -> CodexRateLimitResetCredit? {
+        self.availableCredits(at: date)
             .min { lhs, rhs in
                 guard let lhsExpiresAt = lhs.expiresAt else { return false }
                 guard let rhsExpiresAt = rhs.expiresAt else { return true }

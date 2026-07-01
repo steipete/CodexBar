@@ -120,13 +120,18 @@ struct CodexRateLimitResetCreditsTests {
         }
         """
 
-        let snapshot = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(Data(json.utf8))
+        let snapshot = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(
+            Data(json.utf8),
+            now: #require(ISO8601DateFormatter().date(from: "2026-07-01T00:00:00Z")))
 
         #expect(snapshot.availableCount == 2)
         #expect(snapshot.credits.count == 4)
         #expect(snapshot.credits[0].resetType == "codex_rate_limits")
         #expect(snapshot.credits[3].status == .unknown("future_status"))
         #expect(snapshot.nextExpiringAvailableCredit?.id == "RateLimitResetCredit_earlier")
+        let later = try #require(ISO8601DateFormatter().date(from: "2026-07-19T00:00:01Z"))
+        #expect(snapshot.availableCredits(at: later).isEmpty)
+        #expect(snapshot.nextExpiringAvailableCredit(at: later) == nil)
     }
 
     @Test

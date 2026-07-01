@@ -22,39 +22,47 @@ extension StatusItemController {
     func addCodexResetCreditsMenuItemIfNeeded(to menu: NSMenu, provider: UsageProvider) -> Bool {
         guard provider == .codex,
               self.settings.showOptionalCreditsAndExtraUsage,
-              let resetCredits = self.store.snapshot(for: .codex)?.codexResetCredits,
-              resetCredits.availableCount > 0
+              let resetCredits = self.store.snapshot(for: .codex)?.codexResetCredits
         else {
             return false
         }
+        let now = Date()
+        let availableCredits = resetCredits.availableCredits(at: now)
+        guard !availableCredits.isEmpty else { return false }
 
-        let title = Self.codexResetCreditsTitle(resetCredits.availableCount)
+        let title = Self.codexResetCreditsTitle(availableCredits.count)
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.representedObject = "codexResetCredits"
         if let subtitle = Self.codexResetCreditsNextExpiryText(
             resetCredits,
-            resetStyle: self.settings.resetTimeDisplayStyle)
+            resetStyle: self.settings.resetTimeDisplayStyle,
+            now: now)
         {
             self.applySubtitle(subtitle, to: item, title: title)
         }
-        item.submenu = self.makeCodexResetCreditsSubmenu(resetCredits)
+        item.submenu = self.makeCodexResetCreditsSubmenu(resetCredits, now: now)
         menu.addItem(item)
         return true
     }
 
-    private func makeCodexResetCreditsSubmenu(_ resetCredits: CodexRateLimitResetCreditsSnapshot) -> NSMenu {
-        let submenu = NSMenu(title: Self.codexResetCreditsTitle(resetCredits.availableCount))
+    private func makeCodexResetCreditsSubmenu(
+        _ resetCredits: CodexRateLimitResetCreditsSnapshot,
+        now: Date) -> NSMenu
+    {
+        let availableCredits = resetCredits.availableCredits(at: now)
+        let nextCredit = resetCredits.nextExpiringAvailableCredit(at: now)
+        let submenu = NSMenu(title: Self.codexResetCreditsTitle(availableCredits.count))
         submenu.autoenablesItems = false
 
         for credit in resetCredits.credits {
-            let item = NSMenuItem(title: Self.codexResetCreditLine(credit), action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: Self.codexResetCreditLine(credit, now: now), action: nil, keyEquivalent: "")
             item.isEnabled = false
-            item.image = Self.codexResetCreditIcon(for: credit)
+            item.image = Self.codexResetCreditIcon(for: credit, now: now)
             submenu.addItem(item)
         }
 
-        if resetCredits.nextExpiringAvailableCredit != nil {
+        if nextCredit != nil {
             submenu.addItem(.separator())
         }
 
@@ -63,8 +71,8 @@ extension StatusItemController {
             action: #selector(self.consumeCodexResetCreditFromMenu(_:)),
             keyEquivalent: "")
         useItem.target = self
-        useItem.representedObject = resetCredits.nextExpiringAvailableCredit?.id
-        useItem.isEnabled = resetCredits.nextExpiringAvailableCredit != nil
+        useItem.representedObject = nextCredit?.id
+        useItem.isEnabled = nextCredit != nil
         submenu.addItem(useItem)
         return submenu
     }
@@ -78,27 +86,28 @@ extension StatusItemController {
 
     private static func codexResetCreditsNextExpiryText(
         _ resetCredits: CodexRateLimitResetCreditsSnapshot,
-        resetStyle: ResetTimeDisplayStyle)
+        resetStyle: ResetTimeDisplayStyle,
+        now: Date)
         -> String?
     {
-        guard let expiresAt = resetCredits.nextExpiringAvailableCredit?.expiresAt else {
+        guard let expiresAt = resetCredits.nextExpiringAvailableCredit(at: now)?.expiresAt else {
             return nil
         }
 
         let timeText: String
         switch resetStyle {
         case .absolute:
-            timeText = UsageFormatter.resetDescription(from: expiresAt, now: Date())
+            timeText = UsageFormatter.resetDescription(from: expiresAt, now: now)
         case .countdown:
-            let countdown = UsageFormatter.resetCountdownDescription(from: expiresAt, now: Date())
+            let countdown = UsageFormatter.resetCountdownDescription(from: expiresAt, now: now)
             timeText = countdown == "now" ? L("now") : countdown
         }
 
         return String(format: L("Next expires %@"), timeText)
     }
 
-    private static func codexResetCreditLine(_ credit: CodexRateLimitResetCredit) -> String {
-        let expires = Self.codexResetCreditExpiryText(credit, now: Date())
+    private static func codexResetCreditLine(_ credit: CodexRateLimitResetCredit, now: Date) -> String {
+        let expires = Self.codexResetCreditExpiryText(credit, now: now)
         return "\(credit.status.rawValue), \(expires)"
     }
 
@@ -110,8 +119,9 @@ extension StatusItemController {
         return "\(countdown) (\(absolute))"
     }
 
-    private static func codexResetCreditIcon(for credit: CodexRateLimitResetCredit) -> NSImage? {
+    private static func codexResetCreditIcon(for credit: CodexRateLimitResetCredit, now: Date) -> NSImage? {
         guard credit.status == .available,
+              (credit.expiresAt ?? .distantPast) > now,
               let image = NSImage(
                   systemSymbolName: "arrow.trianglehead.2.counterclockwise.rotate.90",
                   accessibilityDescription: L("Available reset"))
@@ -126,9 +136,8 @@ extension StatusItemController {
 
     @objc func consumeCodexResetCreditFromMenu(_ sender: NSMenuItem) {
         guard let creditID = sender.representedObject as? String,
-              let credit = self.store.snapshot(for: .codex)?
-                  .codexResetCredits?
-                  .credits
+              let credit = self.store.snapshot(for: .codex)?.codexResetCredits?
+                  .availableCredits(at: Date())
                   .first(where: { $0.id == creditID })
         else {
             return

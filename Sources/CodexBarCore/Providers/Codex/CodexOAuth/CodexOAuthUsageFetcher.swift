@@ -639,14 +639,17 @@ extension CodexOAuthUsageFetcher {
         self.resolveRateLimitResetCreditsConsumeURL(env: env, configContents: configContents)
     }
 
-    static func _decodeRateLimitResetCreditsForTesting(_ data: Data) throws -> CodexRateLimitResetCreditsSnapshot {
+    static func _decodeRateLimitResetCreditsForTesting(
+        _ data: Data,
+        now: Date = Date()) throws -> CodexRateLimitResetCreditsSnapshot
+    {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom(Self.decodeISO8601Date)
         let payload = try decoder.decode(RateLimitResetCreditsResponse.self, from: data)
         return CodexRateLimitResetCreditsSnapshot(
             credits: payload.credits,
             availableCount: payload.availableCount,
-            updatedAt: Date())
+            updatedAt: now)
     }
 }
 #endif

@@ -94,6 +94,56 @@ struct CodexResetCreditsMenuCardTests {
     }
 
     @Test
+    func `reset credits exclude expired cached entries from count and action`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let usage = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
+                credits: [
+                    CodexRateLimitResetCredit(
+                        id: "expired-reset",
+                        resetType: "codex_rate_limits",
+                        status: .available,
+                        grantedAt: now.addingTimeInterval(-172_800),
+                        expiresAt: now.addingTimeInterval(-60),
+                        redeemStartedAt: nil,
+                        redeemedAt: nil,
+                        title: "One free rate limit reset",
+                        description: nil),
+                    CodexRateLimitResetCredit(
+                        id: "current-reset",
+                        resetType: "codex_rate_limits",
+                        status: .available,
+                        grantedAt: now.addingTimeInterval(-86400),
+                        expiresAt: now.addingTimeInterval(86400),
+                        redeemStartedAt: nil,
+                        redeemedAt: nil,
+                        title: "One free rate limit reset",
+                        description: nil),
+                ],
+                availableCount: 2,
+                updatedAt: now.addingTimeInterval(-120)),
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "user@example.com",
+                accountOrganization: nil,
+                loginMethod: "pro"))
+
+        let model = UsageMenuCardView.Model.make(Self.input(
+            metadata: metadata,
+            snapshot: usage,
+            showOptionalUsage: true,
+            now: now))
+
+        #expect(model.codexResetCredits?.text == "1 available")
+        #expect(model.codexResetCredits?.detailText == "Next expires in 1d")
+        #expect(model.codexResetCredits?.creditToConsume?.id == "current-reset")
+    }
+
+    @Test
     func `reset credits hide with optional usage disabled`() throws {
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let now = Date(timeIntervalSince1970: 1_781_726_400)

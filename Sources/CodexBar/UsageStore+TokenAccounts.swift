@@ -69,6 +69,7 @@ private struct CodexAccountFetchResult {
     let index: Int
     let account: CodexVisibleAccount
     let outcome: ProviderFetchOutcome
+    let resetCredits: CodexRateLimitResetCreditsSnapshot?
 }
 
 private struct CodexManagedVisibleAccountRuntimeState {
@@ -140,6 +141,7 @@ extension UsageStore {
                 outcome,
                 account: account,
                 priorSnapshot: priorByAccountID[account.id],
+                supplementalResetCredits: result.resetCredits,
                 resetBackfillSnapshots: self.codexResetBackfillSnapshots(
                     for: account,
                     priorSnapshot: priorByAccountID[account.id],
@@ -611,6 +613,8 @@ extension UsageStore {
 
     private func fetchCodexVisibleAccountOutcomes(_ accounts: [CodexVisibleAccount]) async
     -> [CodexAccountFetchResult] {
+        let shouldFetchResetCredits = self.settings.showOptionalCreditsAndExtraUsage
+        let resetCreditsFetcherOverride = self._test_codexResetCreditsFetcherOverride
         let requests: [(
             index: Int,
             account: CodexVisibleAccount,
@@ -633,10 +637,28 @@ extension UsageStore {
             for request in requests {
                 group.addTask {
                     let outcome = await request.descriptor.fetchOutcome(context: request.context)
+                    let embeddedResetCredits: CodexRateLimitResetCreditsSnapshot? = switch outcome.result {
+                    case let .success(result):
+                        result.usage.codexResetCredits
+                    case .failure:
+                        nil
+                    }
+                    let resetCredits: CodexRateLimitResetCreditsSnapshot? = if let embeddedResetCredits {
+                        embeddedResetCredits
+                    } else if shouldFetchResetCredits {
+                        if let resetCreditsFetcherOverride {
+                            await resetCreditsFetcherOverride(request.context.env)
+                        } else {
+                            await UsageStore.fetchCodexResetCredits(env: request.context.env)
+                        }
+                    } else {
+                        nil
+                    }
                     return CodexAccountFetchResult(
                         index: request.index,
                         account: request.account,
-                        outcome: outcome)
+                        outcome: outcome,
+                        resetCredits: resetCredits)
                 }
             }
 
@@ -1106,12 +1128,17 @@ extension UsageStore {
         _ outcome: ProviderFetchOutcome,
         account: CodexVisibleAccount,
         priorSnapshot: CodexAccountUsageSnapshot? = nil,
+        supplementalResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         resetBackfillSnapshots: [UsageSnapshot] = []) -> ResolvedCodexAccountOutcome
     {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: .codex)
-            let labeled = self.applyCodexVisibleAccountLabel(scoped, account: account)
+            let resetCredits = supplementalResetCredits ?? scoped.codexResetCredits ??
+                priorSnapshot?.snapshot?.codexResetCredits
+            let labeled = self.applyCodexVisibleAccountLabel(
+                scoped.withCodexResetCredits(resetCredits),
+                account: account)
             let backfilled = Self.codexMergedResetBackfillSnapshot(resetBackfillSnapshots)
                 .map { Self.codexBackfillingResetWindows(labeled, from: $0) } ?? labeled
             let snapshot = CodexAccountUsageSnapshot(
@@ -1185,14 +1212,7 @@ extension UsageStore {
         switch outcome.result {
         case .success:
             guard var snapshot else { return }
-            if self.settings.showOptionalCreditsAndExtraUsage {
-                let resetCreditEnv = self
-                    .codexResetCreditEnvironment(codexActiveSourceOverride: account.selectionSource)
-                snapshot = await snapshot.withCodexResetCredits(
-                    self.fetchCodexResetCreditsIfAvailable(env: resetCreditEnv) ??
-                        snapshot.codexResetCredits ??
-                        self.snapshots[.codex]?.codexResetCredits)
-            } else {
+            if !self.settings.showOptionalCreditsAndExtraUsage {
                 snapshot = snapshot.withCodexResetCredits(nil)
             }
             self.handleCodexResetCreditNotifications(snapshot: snapshot)

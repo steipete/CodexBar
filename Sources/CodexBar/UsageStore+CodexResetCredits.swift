@@ -19,6 +19,15 @@ extension UsageStore {
 
     func fetchCodexResetCreditsIfAvailable(env: [String: String]) async -> CodexRateLimitResetCreditsSnapshot? {
         guard self.settings.showOptionalCreditsAndExtraUsage else { return nil }
+        if let override = self._test_codexResetCreditsFetcherOverride {
+            return await override(env)
+        }
+        return await Self.fetchCodexResetCredits(env: env)
+    }
+
+    nonisolated static func fetchCodexResetCredits(
+        env: [String: String]) async -> CodexRateLimitResetCreditsSnapshot?
+    {
         do {
             var credentials = try CodexOAuthCredentialsStore.loadOAuthTokens(env: env)
             if credentials.needsRefresh, !credentials.refreshToken.isEmpty {

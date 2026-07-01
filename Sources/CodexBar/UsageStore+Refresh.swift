@@ -242,13 +242,7 @@ extension UsageStore {
             {
                 return
             }
-            let codexResetCredits: CodexRateLimitResetCreditsSnapshot? = if let env = context
-                .codexResetCreditEnvironment
-            {
-                await self.fetchCodexResetCreditsIfAvailable(env: env)
-            } else {
-                nil
-            }
+            let codexResetCredits = await self.fetchCodexResetCreditsIfAvailable(context: context)
             let backfilled = await MainActor.run { () -> UsageSnapshot? in
                 guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else {
                     return nil
@@ -344,6 +338,13 @@ extension UsageStore {
                 error: error,
                 generation: context.generation)
         }
+    }
+
+    private func fetchCodexResetCreditsIfAvailable(
+        context: ProviderRefreshOutcomeContext) async -> CodexRateLimitResetCreditsSnapshot?
+    {
+        guard let env = context.codexResetCreditEnvironment else { return nil }
+        return await self.fetchCodexResetCreditsIfAvailable(env: env)
     }
 
     private func clearDisabledProviderRefreshState(_ provider: UsageProvider) async {

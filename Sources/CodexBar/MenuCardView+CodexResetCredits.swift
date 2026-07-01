@@ -66,13 +66,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func codexResetCreditsText(input: Input) -> String? {
-        guard input.provider == .codex,
-              let resetCredits = input.snapshot?.codexResetCredits,
-              resetCredits.availableCount > 0
-        else {
-            return nil
-        }
-        let count = resetCredits.availableCount
+        guard let count = codexCurrentResetCreditCount(input: input), count > 0 else { return nil }
         if count == 1 {
             return L("1 available")
         }
@@ -80,17 +74,14 @@ extension UsageMenuCardView.Model {
     }
 
     static func codexResetCreditToConsume(input: Input) -> CodexRateLimitResetCredit? {
-        guard input.provider == .codex
-        else {
-            return nil
-        }
-        return input.snapshot?.codexResetCredits?.nextExpiringAvailableCredit
+        guard input.provider == .codex else { return nil }
+        return input.snapshot?.codexResetCredits?.nextExpiringAvailableCredit(at: input.now)
     }
 
     static func codexResetCreditsDetailText(input: Input) -> String? {
         guard input.provider == .codex,
               let resetCredits = input.snapshot?.codexResetCredits,
-              let expiresAt = resetCredits.nextExpiringAvailableCredit?.expiresAt
+              let expiresAt = resetCredits.nextExpiringAvailableCredit(at: input.now)?.expiresAt
         else {
             return nil
         }
@@ -116,6 +107,16 @@ extension UsageMenuCardView.Model {
             return "\(credit.status.rawValue), \(expires)"
         }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    private static func codexCurrentResetCreditCount(input: Input) -> Int? {
+        guard input.provider == .codex,
+              let resetCredits = input.snapshot?.codexResetCredits
+        else {
+            return nil
+        }
+        guard !resetCredits.credits.isEmpty else { return resetCredits.availableCount }
+        return resetCredits.availableCredits(at: input.now).count
     }
 
     private static func codexResetCreditExpiryText(
