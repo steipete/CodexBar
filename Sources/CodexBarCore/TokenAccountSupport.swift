@@ -13,6 +13,7 @@ public struct TokenAccountSupport: Sendable {
     public let requiresManualCookieSource: Bool
     public let cookieName: String?
     public let environmentKeysToScrub: [String]
+    public let minimumDelayBetweenAccountRefreshes: Duration?
 
     public init(
         title: String,
@@ -21,7 +22,8 @@ public struct TokenAccountSupport: Sendable {
         injection: TokenAccountInjection,
         requiresManualCookieSource: Bool,
         cookieName: String?,
-        environmentKeysToScrub: [String] = [])
+        environmentKeysToScrub: [String] = [],
+        minimumDelayBetweenAccountRefreshes: Duration? = nil)
     {
         self.title = title
         self.subtitle = subtitle
@@ -30,6 +32,7 @@ public struct TokenAccountSupport: Sendable {
         self.requiresManualCookieSource = requiresManualCookieSource
         self.cookieName = cookieName
         self.environmentKeysToScrub = environmentKeysToScrub
+        self.minimumDelayBetweenAccountRefreshes = minimumDelayBetweenAccountRefreshes
     }
 }
 
