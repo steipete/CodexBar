@@ -79,8 +79,8 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricSupportsPrimaryAndSecondary(for: .codex))
 
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
-        #expect(settings.menuBarMetricPreference(for: .claude) == .automatic)
-        #expect(!settings.menuBarMetricSupportsPrimaryAndSecondary(for: .claude))
+        #expect(settings.menuBarMetricPreference(for: .claude) == .primaryAndSecondary)
+        #expect(settings.menuBarMetricSupportsPrimaryAndSecondary(for: .claude))
 
         settings.setMenuBarMetricPreference(.monthlyPlan, for: .codex)
         #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)

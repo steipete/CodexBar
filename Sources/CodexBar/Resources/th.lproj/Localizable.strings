@@ -431,6 +431,8 @@
 "refresh_cadence_title" = "จังหวะการรีเฟรช";
 "refresh_cadence_subtitle" = "ความถี่ในการ CodexBar ผู้ให้บริการโพลในเบื้องหลัง";
 "manual_refresh_hint" = "การรีเฟรชอัตโนมัติปิดอยู่ ใช้คําสั่งรีเฟรชของเมนู";
+"refresh_on_open_title" = "รีเฟรชเมื่อเปิดเมนู";
+"refresh_on_open_subtitle" = "ดึงข้อมูลการใช้งานล่าสุดของผู้ให้บริการทุกรายทุกครั้งที่คุณเปิดเมนู";
 "check_provider_status_title" = "ตรวจสอบสถานะผู้ให้บริการ";
 "check_provider_status_subtitle" = "โพล OpenAI/Claude หน้าสถานะและ Google Workspace for Gemini/Antigravity โดยแสดงเหตุการณ์ในไอคอนและเมนู";
 "session_quota_notifications_title" = "การแจ้งเตือนโควต้าเซสชัน";
@@ -452,6 +454,7 @@
 "quota_warning_warn_at" = "เตือนที่";
 "quota_warning_global_threshold_subtitle" = "เปอร์เซ็นต์ที่เหลืออยู่สําหรับกรอบเวลาเซสชันและรายสัปดาห์ เว้นแต่ผู้ให้บริการจะแทนที่";
 "quota_warning_sound" = "เล่นเสียงแจ้งเตือน";
+"quota_warning_onscreen_alert" = "แสดงการแจ้งเตือนข้อความบนหน้าจอ";
 "quota_warning_provider_inherits" = "ใช้การตั้งค่าคําเตือนโควต้าส่วนกลาง เว้นแต่จะมีการกําหนดหน้าต่างเองที่นี่";
 "quota_warning_customize_thresholds" = "ปรับแต่งเกณฑ์ %@";
 "quota_warning_enable_warnings" = "เปิดใช้งานคําเตือน %@";
@@ -549,6 +552,8 @@
 "show_debug_settings_subtitle" = "แสดงเครื่องมือการแก้ไขปัญหาในแท็บ แก้ไขข้อบกพร่อง";
 "surprise_me_title" = "ทําให้ฉันประหลาดใจ";
 "surprise_me_subtitle" = "ตรวจสอบว่าคุณชอบให้ตัวแทนของคุณสนุกสนานที่นั่นหรือไม่";
+"session_limit_confetti_title" = "คอนเฟตตีขีดจำกัดเซสชัน";
+"session_limit_confetti_subtitle" = "แสดงคอนเฟตตีเต็มหน้าจอเมื่อการใช้งานเซสชันถูกรีเซ็ต";
 "weekly_limit_confetti_title" = "ลูกปาจํากัดรายสัปดาห์";
 "weekly_limit_confetti_subtitle" = "เล่นลูกปาแบบเต็มหน้าจอเมื่อรีเซ็ตการใช้งานรายสัปดาห์";
 "hide_personal_info_title" = "ซ่อนข้อมูลส่วนบุคคล";

@@ -431,6 +431,8 @@
 "refresh_cadence_title" = "Aktualisierungsintervall";
 "refresh_cadence_subtitle" = "Wie oft CodexBar Anbieter im Hintergrund abfragt.";
 "manual_refresh_hint" = "Auto-Aktualisierung ist aus; nutze im Menü den Befehl „Aktualisieren“.";
+"refresh_on_open_title" = "Beim Öffnen des Menüs aktualisieren";
+"refresh_on_open_subtitle" = "Bei jedem Öffnen des Menüs die aktuelle Nutzung aller Anbieter abrufen.";
 "check_provider_status_title" = "Anbieterstatus prüfen";
 "check_provider_status_subtitle" = "Prüft OpenAI/Claude-Statusseiten und Google Workspace für Gemini/Antigravity und zeigt Vorfälle in Icon und Menü.";
 "session_quota_notifications_title" = "Sitzungs-Quota-Benachrichtigungen";
@@ -452,6 +454,7 @@
 "quota_warning_warn_at" = "Warnen Sie vor";
 "quota_warning_global_threshold_subtitle" = "Verbleibende Prozentsätze für Sitzungs- und Wochenfenster, es sei denn, ein Anbieter überschreibt sie.";
 "quota_warning_sound" = "Benachrichtigungston abspielen";
+"quota_warning_onscreen_alert" = "Bildschirm-Textwarnung anzeigen";
 "quota_warning_provider_inherits" = "Verwendet die globalen Einstellungen für Kontingentwarnungen, es sei denn, hier wird ein Fenster angepasst.";
 "quota_warning_customize_thresholds" = "Passen Sie die Schwellenwerte für %@ an";
 "quota_warning_enable_warnings" = "Aktivieren Sie %@-Warnungen";
@@ -549,6 +552,8 @@
 "show_debug_settings_subtitle" = "Stellen Sie Tools zur Fehlerbehebung auf der Registerkarte \"Debug\" bereit.";
 "surprise_me_title" = "Überrasche mich";
 "surprise_me_subtitle" = "Prüfen Sie, ob Sie möchten, dass Ihre Agenten dort oben Spaß haben.";
+"session_limit_confetti_title" = "Konfetti beim Sitzungslimit";
+"session_limit_confetti_subtitle" = "Zeigt Vollbild-Konfetti, wenn die Sitzungsnutzung zurückgesetzt wird.";
 "weekly_limit_confetti_title" = "Wöchentliches Konfetti-Limit";
 "weekly_limit_confetti_subtitle" = "Spielen Sie Konfetti im Vollbildmodus ab, wenn die wöchentliche Nutzung zurückgesetzt wird.";
 "hide_personal_info_title" = "Persönliche Informationen ausblenden";

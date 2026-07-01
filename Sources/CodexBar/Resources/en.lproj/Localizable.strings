@@ -431,6 +431,8 @@
 "refresh_cadence_title" = "Refresh cadence";
 "refresh_cadence_subtitle" = "How often CodexBar polls providers in the background.";
 "manual_refresh_hint" = "Auto-refresh is off; use the menu's Refresh command.";
+"refresh_on_open_title" = "Refresh when the menu opens";
+"refresh_on_open_subtitle" = "Fetch the latest usage for every provider each time you open the menu.";
 "check_provider_status_title" = "Check provider status";
 "check_provider_status_subtitle" = "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu.";
 "session_quota_notifications_title" = "Session quota notifications";
@@ -452,6 +454,7 @@
 "quota_warning_warn_at" = "Warn at";
 "quota_warning_global_threshold_subtitle" = "Remaining percentages for session and weekly windows unless a provider overrides them.";
 "quota_warning_sound" = "Play notification sound";
+"quota_warning_onscreen_alert" = "Show on-screen text alert";
 "quota_warning_provider_inherits" = "Uses the global quota warning settings unless a window is customized here.";
 "quota_warning_customize_thresholds" = "Customize %@ thresholds";
 "quota_warning_enable_warnings" = "Enable %@ warnings";
@@ -549,6 +552,8 @@
 "show_debug_settings_subtitle" = "Expose troubleshooting tools in the Debug tab.";
 "surprise_me_title" = "Surprise me";
 "surprise_me_subtitle" = "Check if you like your agents having some fun up there.";
+"session_limit_confetti_title" = "Session limit confetti";
+"session_limit_confetti_subtitle" = "Play full-screen confetti when session usage resets.";
 "weekly_limit_confetti_title" = "Weekly limit confetti";
 "weekly_limit_confetti_subtitle" = "Play full-screen confetti when weekly usage resets.";
 "hide_personal_info_title" = "Hide personal information";

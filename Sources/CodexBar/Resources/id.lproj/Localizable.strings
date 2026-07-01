@@ -433,6 +433,8 @@
 "refresh_cadence_title" = "Frekuensi penyegaran";
 "refresh_cadence_subtitle" = "Seberapa sering CodexBar memeriksa penyedia di latar belakang.";
 "manual_refresh_hint" = "Penyegaran otomatis nonaktif; gunakan perintah Segarkan di menu.";
+"refresh_on_open_title" = "Segarkan saat menu dibuka";
+"refresh_on_open_subtitle" = "Ambil penggunaan terbaru untuk setiap penyedia setiap kali Anda membuka menu.";
 "check_provider_status_title" = "Periksa status penyedia";
 "check_provider_status_subtitle" = "Memeriksa halaman status OpenAI/Claude dan Google Workspace untuk Gemini/Antigravity, menampilkan insiden di ikon dan menu.";
 "session_quota_notifications_title" = "Notifikasi kuota sesi";
@@ -454,6 +456,7 @@
 "quota_warning_warn_at" = "Peringatkan pada";
 "quota_warning_global_threshold_subtitle" = "Persentase sisa untuk jendela sesi dan mingguan kecuali penyedia menimpanya.";
 "quota_warning_sound" = "Mainkan suara notifikasi";
+"quota_warning_onscreen_alert" = "Tampilkan peringatan teks di layar";
 "quota_warning_provider_inherits" = "Menggunakan pengaturan peringatan kuota global kecuali jendela dikustomisasi di sini.";
 "quota_warning_customize_thresholds" = "Kustomisasi ambang batas %@";
 "quota_warning_enable_warnings" = "Aktifkan peringatan %@";
@@ -551,6 +554,8 @@
 "show_debug_settings_subtitle" = "Tampilkan alat pemecahan masalah di tab Debug.";
 "surprise_me_title" = "Kejutkan saya";
 "surprise_me_subtitle" = "Centang jika Anda suka agen bersenang-senang di atas sana.";
+"session_limit_confetti_title" = "Konfeti batas sesi";
+"session_limit_confetti_subtitle" = "Tampilkan konfeti layar penuh saat penggunaan sesi direset.";
 "weekly_limit_confetti_title" = "Confetti batas mingguan";
 "weekly_limit_confetti_subtitle" = "Mainkan confetti layar penuh saat penggunaan mingguan direset.";
 "hide_personal_info_title" = "Sembunyikan informasi pribadi";

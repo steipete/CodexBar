@@ -433,6 +433,8 @@
 "refresh_cadence_title" = "Frequenza aggiornamento";
 "refresh_cadence_subtitle" = "Con quale frequenza CodexBar interroga i provider in background.";
 "manual_refresh_hint" = "Aggiornamento automatico disattivato; usa il comando Aggiorna nel menu.";
+"refresh_on_open_title" = "Aggiorna all'apertura del menu";
+"refresh_on_open_subtitle" = "Recupera l'utilizzo più recente di ogni provider ogni volta che apri il menu.";
 "check_provider_status_title" = "Controlla stato provider";
 "check_provider_status_subtitle" = "Controlla le pagine di stato OpenAI/Claude e Google Workspace per Gemini/Antigravity, mostrando incidenti in icona e menu.";
 "session_quota_notifications_title" = "Notifiche quota sessione";
@@ -454,6 +456,7 @@
 "quota_warning_warn_at" = "Avvisa a";
 "quota_warning_global_threshold_subtitle" = "Percentuali residue per le finestre di sessione e settimanale, salvo override del provider.";
 "quota_warning_sound" = "Riproduci suono di notifica";
+"quota_warning_onscreen_alert" = "Mostra avviso di testo sullo schermo";
 "quota_warning_provider_inherits" = "Usa le impostazioni globali di avviso quota, salvo personalizzazione di una finestra qui.";
 "quota_warning_customize_thresholds" = "Personalizza soglie %@";
 "quota_warning_enable_warnings" = "Abilita avvisi %@";
@@ -551,6 +554,8 @@
 "show_debug_settings_subtitle" = "Espone strumenti di diagnosi nella scheda Debug.";
 "surprise_me_title" = "Sorprendimi";
 "surprise_me_subtitle" = "Per chi apprezza un po' di personalità dagli agenti.";
+"session_limit_confetti_title" = "Coriandoli limite sessione";
+"session_limit_confetti_subtitle" = "Mostra coriandoli a schermo intero quando la quota di sessione si resetta.";
 "weekly_limit_confetti_title" = "Coriandoli limite settimanale";
 "weekly_limit_confetti_subtitle" = "Mostra coriandoli a schermo intero quando la quota settimanale si resetta.";
 "hide_personal_info_title" = "Nascondi informazioni personali";

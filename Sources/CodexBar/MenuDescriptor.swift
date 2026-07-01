@@ -242,6 +242,10 @@ struct MenuDescriptor {
             if snap.rateLimitsUnavailable(for: provider) {
                 entries.append(.text(L("Limits not available"), .secondary))
             }
+        } else if !store.isStale(provider: provider),
+                  store.knownLimitsAvailability(for: provider)?.isUnavailable == true
+        {
+            entries.append(.text(L("Limits not available"), .secondary))
         } else {
             entries.append(.text(L("No usage yet"), .secondary))
         }

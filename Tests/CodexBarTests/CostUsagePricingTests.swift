@@ -64,7 +64,9 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (100.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
+        // Codex `input_tokens` includes cached reads, so only the 90 non-cached tokens are
+        // billed at the input rate; the 10 cached tokens are billed at the cache rate.
+        let expected = (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
         #expect(cost == expected)
     }
 
@@ -111,15 +113,18 @@ struct CostUsagePricingTests {
             outputTokens: 10,
             modelsDevCacheRoot: root)
 
+        // 200K cached reads are a subset of the 300K input, leaving 100K non-cached input.
         let cached = 200_000.0 * 1e-6
-        let nonCached = 300_000.0 * 1e-5
+        let nonCached = 100_000.0 * 1e-5
         let output = 10.0 * 4.5e-5
 
         #expect(gpt55 == cached + nonCached + output)
     }
 
     @Test
-    func `codex cost prices cache reads beyond non cached input`() throws {
+    func `codex cost clamps cache reads to input tokens`() throws {
+        // `cached_input_tokens` can never exceed `input_tokens` in real Codex data; if it does,
+        // clamp cached to input so the surplus is not invented and input is never double-billed.
         let root = try Self.cacheRoot()
         let gpt55 = CostUsagePricing.codexCostUSD(
             model: "gpt-5.5",
@@ -128,9 +133,26 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (20.0 * 5e-6) + (500.0 * 5e-7) + (5.0 * 3e-5)
+        let expected = (20.0 * 5e-7) + (5.0 * 3e-5)
 
         #expect(gpt55 == expected)
+    }
+
+    @Test
+    func `codex cost does not double bill cached input tokens`() throws {
+        // Regression for the cached double-count: input_tokens includes cached reads, so a turn
+        // with 1000 input / 900 cached must bill 100 tokens at the input rate and 900 at the
+        // cache rate — not the full 1000 at the input rate plus 900 again at the cache rate.
+        let root = try Self.cacheRoot()
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5-codex",
+            inputTokens: 1000,
+            cachedInputTokens: 900,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+
+        let expected = (100.0 * 1.25e-6) + (900.0 * 1.25e-7) + (10.0 * 1e-5)
+        #expect(cost == expected)
     }
 
     @Test
@@ -151,9 +173,9 @@ struct CostUsagePricingTests {
             cachedInputTokens: 20,
             outputTokens: 10)
 
-        #expect(gpt54 == (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
-        #expect(gpt55 == (100.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5))
-        #expect(gpt54Mini == (100.0 * 1.5e-6) + (20.0 * 1.5e-7) + (10.0 * 9e-6))
+        #expect(gpt54 == (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
+        #expect(gpt55 == (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5))
+        #expect(gpt54Mini == (80.0 * 1.5e-6) + (20.0 * 1.5e-7) + (10.0 * 9e-6))
     }
 
     @Test
@@ -163,11 +185,6 @@ struct CostUsagePricingTests {
             inputTokens: 272_001,
             cachedInputTokens: 0,
             outputTokens: 10)
-        let gpt55CachedHeavy = CostUsagePricing.codexPriorityCostUSD(
-            model: "gpt-5.5",
-            inputTokens: 200_000,
-            cachedInputTokens: 100_000,
-            outputTokens: 10)
         let gpt54Mini = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.4-mini",
             inputTokens: 272_001,
@@ -175,19 +192,41 @@ struct CostUsagePricingTests {
             outputTokens: 10)
 
         #expect(gpt55 == nil)
-        #expect(gpt55CachedHeavy == nil)
         #expect(gpt54Mini == nil)
+    }
+
+    @Test
+    func `codex priority cost counts only input tokens toward the limit`() {
+        let eligible = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 200_000,
+            cachedInputTokens: 100_000,
+            outputTokens: 10)
+        let boundary = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_000,
+            cachedInputTokens: 0,
+            outputTokens: 10)
+        let overLimit = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10)
+
+        #expect(eligible == (100_000.0 * 1.25e-5) + (100_000.0 * 1.25e-6) + (10.0 * 7.5e-5))
+        #expect(boundary != nil)
+        #expect(overLimit == nil)
     }
 
     @Test
     func `codex priority cost remains available at priority input boundary`() {
         let gpt55 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
-            inputTokens: 200_000,
-            cachedInputTokens: 72000,
+            inputTokens: 272_000,
+            cachedInputTokens: 0,
             outputTokens: 10)
 
-        #expect(gpt55 == (200_000.0 * 1.25e-5) + (72000.0 * 1.25e-6) + (10.0 * 7.5e-5))
+        #expect(gpt55 == (272_000.0 * 1.25e-5) + (10.0 * 7.5e-5))
     }
 
     @Test
@@ -233,6 +272,43 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex models dev cached fallback uses long context input rate when cache read is absent`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.5": {
+                "id": "gpt-5.5",
+                "cost": {
+                  "input": 5,
+                  "output": 30,
+                  "context_over_200k": {
+                    "input": 10,
+                    "output": 45
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 300_000,
+            cachedInputTokens: 200_000,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+
+        // Input (300K) is above the 272K Codex long-context threshold and no cache-read price is
+        // defined, so cached tokens fall back to the above-threshold input rate (10e-6), not the
+        // base input rate. Both the 100K non-cached and 200K cached input bill at 10e-6.
+        let expected = (100_000.0 * 10e-6) + (200_000.0 * 10e-6) + (10.0 * 45e-6)
+        #expect(cost == expected)
+    }
+
+    @Test
     func `codex cost supports gpt55 pro bundled fallback`() throws {
         let root = try Self.cacheRoot()
         let cost = CostUsagePricing.codexCostUSD(
@@ -242,7 +318,9 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (110.0 * 3e-5) + (5.0 * 1.8e-4)
+        // gpt-5.5-pro has no cache-read rate, so cached falls back to the input rate; with 90
+        // non-cached + 10 cached priced at the same rate this is 100 tokens at 3e-5.
+        let expected = (100.0 * 3e-5) + (5.0 * 1.8e-4)
         #expect(cost == expected)
     }
 
@@ -283,7 +361,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (100.0 * 10e-6) + (10.0 * 1e-6) + (5.0 * 20e-6)
+        let expected = (90.0 * 10e-6) + (10.0 * 1e-6) + (5.0 * 20e-6)
         #expect(cost == expected)
     }
 
@@ -310,7 +388,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (100.0 * 2e-6) + (10.0 * 0.2e-6) + (5.0 * 8e-6)
+        let expected = (90.0 * 2e-6) + (10.0 * 0.2e-6) + (5.0 * 8e-6)
         #expect(cost == expected)
         #expect(CostUsagePricing.codexDisplayLabel(model: "gpt-5.3-codex-spark") == "Research Preview")
     }
@@ -338,7 +416,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (100.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
+        let expected = (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
         #expect(cost == expected)
     }
 

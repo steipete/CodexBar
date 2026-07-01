@@ -2,6 +2,10 @@ import CodexBarCore
 import SwiftUI
 import WidgetKit
 
+extension EnvironmentValues {
+    @Entry fileprivate var widgetUsageShowsUsed: Bool = false
+}
+
 struct CodexBarUsageWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: CodexBarWidgetEntry
@@ -17,6 +21,7 @@ struct CodexBarUsageWidgetView: View {
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
+        .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
     }
 
     @ViewBuilder
@@ -127,6 +132,7 @@ struct CodexBarSwitcherWidgetView: View {
             .padding(12)
         }
         .containerBackground(.fill.tertiary, for: .widget)
+        .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
     }
 
     @ViewBuilder
@@ -341,6 +347,14 @@ private struct SwitcherSmallUsageView: View {
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
+            if let token = WidgetUsageRow.compactTokenUsage(for: self.entry) {
+                ValueLine(
+                    title: token.sessionLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
+            }
         }
     }
 }
@@ -436,6 +450,14 @@ private struct SmallUsageView: View {
                     title: "Code review",
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
+            }
+            if let token = WidgetUsageRow.compactTokenUsage(for: self.entry) {
+                ValueLine(
+                    title: token.sessionLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
             }
         }
         .padding(12)
@@ -607,6 +629,17 @@ struct WidgetUsageRow: Identifiable, Equatable {
         return Array(rows.prefix(max(0, limit)))
     }
 
+    static func compactTokenUsage(
+        for entry: WidgetSnapshot.ProviderEntry) -> WidgetSnapshot.TokenUsageSummary?
+    {
+        guard self.rows(for: entry).isEmpty,
+              entry.codeReviewRemainingPercent == nil
+        else {
+            return nil
+        }
+        return entry.tokenUsage
+    }
+
     private static func antigravityQuotaFamily(for row: WidgetUsageRow) -> AntigravityQuotaFamily? {
         guard row.id.hasPrefix("antigravity-quota-summary-") else { return nil }
         let id = row.id.lowercased()
@@ -638,6 +671,14 @@ struct WidgetUsageRow: Identifiable, Equatable {
         case (.none, .none):
             false
         }
+    }
+}
+
+enum WidgetUsageDisplay {
+    static func percent(fromRemaining remaining: Double?, showUsed: Bool) -> Double? {
+        guard let remaining else { return nil }
+        let clamped = max(0, min(100, remaining))
+        return showUsed ? 100 - clamped : clamped
     }
 }
 
@@ -687,22 +728,24 @@ private struct HeaderView: View {
 }
 
 private struct UsageBarRow: View {
+    @Environment(\.widgetUsageShowsUsed) private var showUsed
     let title: String
     let percentLeft: Double?
     let color: Color
 
     var body: some View {
+        let percent = WidgetUsageDisplay.percent(fromRemaining: self.percentLeft, showUsed: self.showUsed)
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(self.title)
                     .font(.caption)
                 Spacer()
-                Text(WidgetFormat.percent(self.percentLeft))
+                Text(WidgetFormat.percent(percent))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             GeometryReader { proxy in
-                let width = max(0, min(1, (percentLeft ?? 0) / 100)) * proxy.size.width
+                let width = max(0, min(1, (percent ?? 0) / 100)) * proxy.size.width
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.08))
                     Capsule().fill(self.color).frame(width: width)

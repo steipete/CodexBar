@@ -189,7 +189,6 @@ extension UsageStore {
             }
             return await group.next()!
         }
-        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
         let claudeAuthFingerprintAfterFetch = provider == .claude
             ? await Self.captureClaudeAuthFingerprintToken()
             : nil
@@ -211,6 +210,14 @@ extension UsageStore {
             beforeFetch: claudeAuthStateBeforeFetch,
             afterFetchFingerprintToken: claudeAuthFingerprintAfterFetch,
             afterFetchPersistentRefHash: claudeKeychainPersistentRefHashAfterFetch)
+        // Credential detection consumes change markers. Clean up before rejecting a superseded generation;
+        // replacement refreshes wait for their predecessor, so they cannot race this state reset.
+        if claudeCredentialsChanged {
+            await self.clearClaudeCredentialDerivedStateForCredentialSwap()
+        }
+        if shouldConsumeClaudeKeychainFingerprint {
+            _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
+        }
         guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
         await self.applyProviderRefreshOutcome(
             provider: provider,
@@ -247,9 +254,6 @@ extension UsageStore {
                 guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else {
                     return nil
                 }
-                if context.claudeCredentialsChanged {
-                    self.clearClaudeCredentialDerivedStateForCredentialSwapNow()
-                }
                 let resetBackfillSource = provider == .codex
                     ? self.codexLastKnownResetSnapshot(matching: context.codexExpectedGuard)
                     : self.lastKnownResetSnapshots[provider]
@@ -280,6 +284,7 @@ extension UsageStore {
                 }
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
+                self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
                 self.failureGates[provider]?.recordSuccess()
                 if provider == .codex {
                     self.rememberLiveSystemCodexEmailIfNeeded(scoped.accountEmail(for: .codex))
@@ -288,9 +293,6 @@ extension UsageStore {
                 return backfilled
             }
             guard let backfilled else { return }
-            if context.shouldConsumeClaudeKeychainFingerprint {
-                _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
-            }
             let isClaudeOAuthSample = provider == .claude
                 && result.strategyKind == .oauth
             let claudeOAuthPersistentRefHash: String? = if isClaudeOAuthSample,
@@ -319,6 +321,8 @@ extension UsageStore {
                 self.recordCodexHistoricalSampleIfNeeded(snapshot: backfilled)
             }
         case let .failure(error):
+            // Credential-change cleanup already ran above; cancellation is now safe to suppress.
+            guard !Self.errorIsCancellation(error) else { return }
             if provider == .codex,
                let codexExpectedGuard = context.codexExpectedGuard,
                !self.shouldApplyCodexScopedFailure(expectedGuard: codexExpectedGuard)
@@ -327,12 +331,6 @@ extension UsageStore {
             }
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             self.recordStartupConnectivityRetryableFailure(error)
-            if context.claudeCredentialsChanged {
-                await self.clearClaudeCredentialDerivedStateForCredentialSwap()
-            }
-            if context.shouldConsumeClaudeKeychainFingerprint {
-                _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
-            }
             await self.handleProviderFetchFailure(
                 provider: provider,
                 error: error,
@@ -353,6 +351,7 @@ extension UsageStore {
             self.snapshots.removeValue(forKey: provider)
             self.lastKnownResetSnapshots.removeValue(forKey: provider)
             self.errors[provider] = nil
+            self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
             self.lastSourceLabels.removeValue(forKey: provider)
             self.lastFetchAttempts.removeValue(forKey: provider)
             self.accountSnapshots.removeValue(forKey: provider)
@@ -513,6 +512,7 @@ extension UsageStore {
         self.snapshots.removeValue(forKey: .claude)
         self.lastKnownResetSnapshots.removeValue(forKey: .claude)
         self.errors[.claude] = nil
+        self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
         self.lastSourceLabels.removeValue(forKey: .claude)
         self.accountSnapshots.removeValue(forKey: .claude)
         self.tokenSnapshots.removeValue(forKey: .claude)
@@ -533,6 +533,33 @@ extension UsageStore {
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+            let hadKnownUnavailableLimits = self.knownLimitsAvailabilityByProvider[provider]?.isUnavailable == true
+            self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
+            if provider == .claude,
+               ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(error.localizedDescription)
+            {
+                // This is a successful answer about quota availability, not a transient probe failure.
+                // Drop prior limits immediately so an Education subscription notice cannot leave stale bars visible.
+                self.snapshots.removeValue(forKey: provider)
+                self.lastKnownResetSnapshots.removeValue(forKey: provider)
+                self.lastKnownSessionRemaining.removeValue(forKey: provider)
+                self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+                self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
+                self.lastSourceLabels.removeValue(forKey: provider)
+                self.errors[provider] = nil
+                self.knownLimitsAvailabilityByProvider[provider] = .unavailable
+                self.failureGates[provider]?.reset()
+                return
+            }
+            if provider == .claude,
+               hadKnownUnavailableLimits,
+               Self.shouldPreservePriorSnapshot(after: error, hadPriorData: true) ||
+               Self.isClaudeCLIRateLimitFailure(error)
+            {
+                self.errors[provider] = nil
+                self.knownLimitsAvailabilityByProvider[provider] = .unavailable
+                return
+            }
             let hadPriorData = self.snapshots[provider] != nil
             let preservesPriorData = Self.shouldPreservePriorSnapshot(
                 after: error,

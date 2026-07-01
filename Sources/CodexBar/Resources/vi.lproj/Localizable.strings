@@ -427,6 +427,8 @@
 "refresh_cadence_title" = "Nhịp làm mới";
 "refresh_cadence_subtitle" = "Tần suất CodexBar thăm dò ý kiến ​​các nhà cung cấp trong nền.";
 "manual_refresh_hint" = "Tính năng tự động làm mới bị tắt; sử dụng lệnh Làm mới của menu.";
+"refresh_on_open_title" = "Làm mới khi mở menu";
+"refresh_on_open_subtitle" = "Tải mức sử dụng mới nhất của mọi nhà cung cấp mỗi khi bạn mở menu.";
 "check_provider_status_title" = "Kiểm tra Nhà cung cấp trạng thái";
 "check_provider_status_subtitle" = "Thăm dò ý kiến ​​OpenAI / Claude các trang trạng thái và Google Không gian làm việc dành cho Gemini /AntiGravity, phát hiện các sự cố trong biểu tượng và menu.";
 "session_quota_notifications_title" = "Thông báo về phiên Hạn mức";
@@ -448,6 +450,7 @@
 "quota_warning_warn_at" = "Cảnh báo ở";
 "quota_warning_global_threshold_subtitle" = "Tỷ lệ phần trăm còn lại cho phiên và thời lượng hàng tuần trừ khi Nhà cung cấp ghi đè chúng.";
 "quota_warning_sound" = "Phát âm thanh thông báo";
+"quota_warning_onscreen_alert" = "Hiển thị cảnh báo văn bản trên màn hình";
 "quota_warning_provider_inherits" = "Sử dụng cảnh báo Hạn mức toàn cầu Cài đặt trừ khi một cửa sổ được tùy chỉnh tại đây.";
 "quota_warning_customize_thresholds" = "Tùy chỉnh %@ ngưỡng";
 "quota_warning_enable_warnings" = "Bật %@ cảnh báo";
@@ -545,6 +548,8 @@
 "show_debug_settings_subtitle" = "Hiển thị các công cụ khắc phục sự cố trong tab Gỡ lỗi.";
 "surprise_me_title" = "Làm tôi ngạc nhiên";
 "surprise_me_subtitle" = "Kiểm tra xem bạn có thích các đại lý của mình vui vẻ ở đó không.";
+"session_limit_confetti_title" = "Pháo giấy giới hạn phiên";
+"session_limit_confetti_subtitle" = "Hiển thị pháo giấy toàn màn hình khi mức sử dụng phiên được đặt lại.";
 "weekly_limit_confetti_title" = "Hoa giấy giới hạn hàng tuần";
 "weekly_limit_confetti_subtitle" = "Phát hoa giấy toàn màn hình khi đặt lại Mức sử dụng hàng tuần.";
 "hide_personal_info_title" = "Ẩn thông tin cá nhân";
