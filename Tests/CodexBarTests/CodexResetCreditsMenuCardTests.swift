@@ -134,6 +134,19 @@ struct CodexResetCreditsMenuCardTests {
         #expect(unsplit.layoutModel.codexResetCredits?.text == "1 available")
     }
 
+    @Test
+    func `split reset credit only card has no usage section content`() {
+        let model = Self.modelWithResetCredits(includeMetric: false)
+
+        let split = StatusItemController.splitMenuUsageSectionModels(
+            model: model,
+            layoutModel: model,
+            hasNativeResetCreditsItem: true)
+
+        #expect(model.hasUsageContent)
+        #expect(split.layoutModel.hasUsageContent == false)
+    }
+
     private static func input(
         metadata: ProviderMetadata,
         snapshot: UsageSnapshot,
@@ -161,7 +174,7 @@ struct CodexResetCreditsMenuCardTests {
             now: now)
     }
 
-    private static func modelWithResetCredits() -> UsageMenuCardView.Model {
+    private static func modelWithResetCredits(includeMetric: Bool = true) -> UsageMenuCardView.Model {
         UsageMenuCardView.Model(
             provider: .codex,
             providerName: "Codex",
@@ -169,7 +182,7 @@ struct CodexResetCreditsMenuCardTests {
             subtitleText: "Signed in",
             subtitleStyle: .info,
             planText: nil,
-            metrics: [
+            metrics: includeMetric ? [
                 .init(
                     id: "primary",
                     title: "5-hour limit",
@@ -182,7 +195,7 @@ struct CodexResetCreditsMenuCardTests {
                     detailRightText: nil,
                     pacePercent: nil,
                     paceOnTop: true),
-            ],
+            ] : [],
             usageNotes: [],
             openAIAPIUsage: nil,
             inlineUsageDashboard: nil,

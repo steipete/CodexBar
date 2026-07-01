@@ -1218,7 +1218,6 @@ extension StatusItemController {
         webItems: OpenAIWebMenuItems)
     {
         let provider = layoutModel.provider
-        let hasUsageBlock = layoutModel.hasUsageContent
         let hasCredits = layoutModel.creditsText != nil
         let hasExtraUsage = layoutModel.providerCost != nil
         let hasCost = layoutModel.tokenUsage != nil
@@ -1229,6 +1228,7 @@ extension StatusItemController {
             model: model,
             layoutModel: layoutModel,
             hasNativeResetCreditsItem: hasResetCredits)
+        let hasUsageBlock = usageSectionModels.layoutModel.hasUsageContent
         let bottomPadding = CGFloat(hasCredits ? 4 : 6)
         let sectionSpacing = CGFloat(6)
         let usageBottomPadding = bottomPadding
