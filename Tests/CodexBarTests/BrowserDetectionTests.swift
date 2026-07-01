@@ -30,6 +30,14 @@ struct BrowserDetectionTests {
             profileAccessIssue: { _ in nil })
     }
 
+    private static func labelIDs(for browser: Browser) -> [String] {
+        browser.safeStorageLabels.map { self.labelID(service: $0.service, account: $0.account) }
+    }
+
+    private static func labelID(service: String, account: String?) -> String {
+        "\(service)|\(account ?? "")"
+    }
+
     @Test(.disabled(
         if: ProcessInfo.processInfo.environment[BrowserCookieAccessGate.allowTestCookieAccessEnvironmentKey] == "1",
         "Default-home cookie access is explicitly enabled for this test run."))
@@ -279,6 +287,84 @@ struct BrowserDetectionTests {
         }
 
         #expect(preflightCount == 1)
+    }
+
+    @Test
+    func `chrome keychain preflight queries only chrome labels`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        let chromeLabels = Self.labelIDs(for: .chrome)
+        let chromeLabelSet = Set(chromeLabels)
+        var queriedLabels: [String] = []
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { service, account in
+                let label = Self.labelID(service: service, account: account)
+                queriedLabels.append(label)
+                return .notFound
+            } operation: {
+                #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == true)
+            }
+        }
+
+        #expect(queriedLabels == chromeLabels)
+        #expect(queriedLabels.allSatisfy { chromeLabelSet.contains($0) })
+    }
+
+    @Test
+    func `dia keychain preflight queries only dia labels`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        let diaLabels = Self.labelIDs(for: .dia)
+        let diaLabelSet = Set(diaLabels)
+        var queriedLabels: [String] = []
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { service, account in
+                let label = Self.labelID(service: service, account: account)
+                queriedLabels.append(label)
+                return .notFound
+            } operation: {
+                #expect(BrowserCookieAccessGate.shouldAttempt(.dia) == true)
+            }
+        }
+
+        #expect(queriedLabels == diaLabels)
+        #expect(queriedLabels.allSatisfy { diaLabelSet.contains($0) })
+    }
+
+    @Test
+    func `browser keychain interaction suppresses only that browser`() throws {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        let start = Date(timeIntervalSince1970: 2000)
+        let chromeLabels = Self.labelIDs(for: .chrome)
+        let diaLabels = Self.labelIDs(for: .dia)
+        let firstChromeLabel = try #require(chromeLabels.first)
+        let firstDiaLabel = try #require(diaLabels.first)
+        let allowedLabels = Set(chromeLabels + diaLabels)
+        var queriedLabels: [String] = []
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { service, account in
+                let label = Self.labelID(service: service, account: account)
+                queriedLabels.append(label)
+                if label == firstChromeLabel { return .allowed }
+                if label == firstDiaLabel { return .interactionRequired }
+                return .notFound
+            } operation: {
+                #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start) == true)
+                #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(1)) == false)
+                #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == true)
+                #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(60)) == false)
+            }
+        }
+
+        #expect(queriedLabels == [firstChromeLabel, firstDiaLabel, firstChromeLabel])
+        #expect(queriedLabels.allSatisfy { allowedLabels.contains($0) })
     }
 
     @Test
