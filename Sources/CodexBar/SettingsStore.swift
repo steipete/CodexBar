@@ -245,14 +245,17 @@ final class SettingsStore {
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore(),
         antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore(),
-        performInitialProviderDetection: Bool = !SettingsStore.isRunningTests)
+        performInitialProviderDetection: Bool = !SettingsStore.isRunningTests,
+        performStartupSideEffects: Bool = true)
     {
         let appGroupID = AppGroupSupport.currentGroupID()
         let appGroupMigration: AppGroupSupport.MigrationResult
-        if Self.isRunningTests {
+        if Self.isRunningTests, performStartupSideEffects {
             appGroupMigration = AppGroupSupport.migrateLegacyDataIfNeeded(standardDefaults: userDefaults)
         } else {
-            Self.scheduleAppGroupMigration()
+            if performStartupSideEffects {
+                Self.scheduleAppGroupMigration()
+            }
             appGroupMigration = AppGroupSupport.MigrationResult(status: .targetUnavailable)
         }
         let sharedDefaultsAvailable = Self.sharedDefaults != nil
@@ -309,12 +312,18 @@ final class SettingsStore {
         CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)
         userDefaults.removeObject(forKey: "showCodexUsage")
         userDefaults.removeObject(forKey: "showClaudeUsage")
-        LaunchAtLoginManager.setEnabled(self.launchAtLogin)
+        if performStartupSideEffects {
+            LaunchAtLoginManager.setEnabled(self.launchAtLogin)
+        }
         if performInitialProviderDetection {
             self.runInitialProviderDetectionIfNeeded()
         }
-        self.ensureAlibabaProviderAutoEnabledIfNeeded()
-        self.applyTokenCostDefaultIfNeeded()
+        if performStartupSideEffects {
+            self.ensureAlibabaProviderAutoEnabledIfNeeded()
+        }
+        if performStartupSideEffects {
+            self.applyTokenCostDefaultIfNeeded()
+        }
         if self.claudeUsageDataSource != .cli {
             if Self.isRunningTests {
                 self.claudeWebExtrasEnabled = false

@@ -467,7 +467,7 @@ extension StatusItemController {
         let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
         let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
         let hasCostHistory = self.settings.costSummaryShowsSubmenu(for: currentProvider) &&
-            (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
+            (self.tokenSnapshotForCostHistorySubmenu(provider: currentProvider)?.daily.isEmpty == false)
         let canShowBuyCredits = self.settings.showOptionalCreditsAndExtraUsage &&
             codexProjection?.canShowBuyCredits == true
         let hasOpenAIWebMenuItems = !showAllAccounts &&
@@ -1534,7 +1534,13 @@ extension StatusItemController {
         if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
             return projected
         }
-        return projected ?? self.store.tokenSnapshot(for: provider)
+        let local = projected ?? self.store.tokenSnapshot(for: provider)
+        if provider == .codex,
+           let dashboard = self.codexDashboardCostSnapshotForLiveCard(localSnapshot: local)
+        {
+            return dashboard
+        }
+        return local
     }
 
     func makeOpenAIAPIUsageSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {

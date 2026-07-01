@@ -47,6 +47,7 @@ struct CostHistoryChartMenuView: View {
     private let currencyCode: String
     private let historyDays: Int
     private let windowLabel: String?
+    private let valueBasis: CostUsageTokenSnapshot.ValueBasis
     private let width: CGFloat
     private let onHeightChange: ((CGFloat) -> Void)?
     @State private var selectedDateKey: String?
@@ -58,6 +59,7 @@ struct CostHistoryChartMenuView: View {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         windowLabel: String? = nil,
+        valueBasis: CostUsageTokenSnapshot.ValueBasis = .standard,
         onHeightChange: ((CGFloat) -> Void)? = nil,
         width: CGFloat)
     {
@@ -67,6 +69,7 @@ struct CostHistoryChartMenuView: View {
         self.currencyCode = currencyCode
         self.historyDays = max(1, min(365, historyDays))
         self.windowLabel = windowLabel
+        self.valueBasis = valueBasis
         self.onHeightChange = onHeightChange
         self.width = width
     }
@@ -85,7 +88,9 @@ struct CostHistoryChartMenuView: View {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(L("Cost"), point.costUSD))
+                            y: .value(
+                                self.valueBasis == .codexDashboardCredits ? L("Usage") : L("Cost"),
+                                point.costUSD))
                             .foregroundStyle(model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
@@ -101,7 +106,10 @@ struct CostHistoryChartMenuView: View {
                 .chartXAxis(.hidden)
                 .chartLegend(.hidden)
                 .frame(height: Self.chartHeight)
-                .accessibilityLabel(L("Cost history chart"))
+                .accessibilityLabel(
+                    self.valueBasis == .codexDashboardCredits
+                        ? L("Usage breakdown chart")
+                        : L("Cost history chart"))
                 .accessibilityValue(
                     model.points.isEmpty
                         ? L("No data")
@@ -548,7 +556,15 @@ struct CostHistoryChartMenuView: View {
     }
 
     private func modelBreakdownTotalSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
-        UsageFormatter.modelCostDetail(
+        if self.valueBasis == .codexDashboardCredits {
+            var parts: [String] = []
+            if let cost = item.costUSD { parts.append(self.costString(cost)) }
+            if let tokens = item.totalTokens {
+                parts.append("\(UsageFormatter.tokenCountString(tokens)) \(L("tokens"))")
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
+        return UsageFormatter.modelCostDetail(
             item.modelName,
             costUSD: item.costUSD,
             totalTokens: item.totalTokens,
@@ -576,7 +592,8 @@ struct CostHistoryChartMenuView: View {
     }
 
     private func costString(_ value: Double) -> String {
-        UsageFormatter.currencyString(value, currencyCode: self.currencyCode)
+        let formatted = UsageFormatter.currencyString(value, currencyCode: self.currencyCode)
+        return self.valueBasis == .codexDashboardCredits ? "≈ \(formatted)" : formatted
     }
 
     private static func breakdownAccentOpacity(for index: Int) -> Double {

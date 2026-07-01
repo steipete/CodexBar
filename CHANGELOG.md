@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Codex cost history: include attached-dashboard credit usage as a clearly marked USD-equivalent estimate while preserving local token context. Thanks @avenoxai!
 - Claude web usage: bound stale requests so Auto can reach CLI fallback instead of hanging indefinitely.
 - Claude history: keep OAuth utilization separate across account switches while preserving continuity through token refreshes.
 - Linux CLI: keep Claude OAuth usage subprocess-free, skip version probes, and let Auto bypass unsupported web sources. Thanks @derekszen!

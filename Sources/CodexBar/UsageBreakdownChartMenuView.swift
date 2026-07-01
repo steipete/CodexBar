@@ -375,13 +375,16 @@ struct UsageBreakdownChartMenuView: View {
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
-        let total = day.totalCreditsUsed.formatted(.number.precision(.fractionLength(0...2)))
+        let totalCredits = Self.creditsString(day.totalCreditsUsed)
+        let totalUSD = Self.usdString(fromCredits: day.totalCreditsUsed)
+        let total = "\(totalUSD) · \(totalCredits) \(L("credits"))"
         if day.services.isEmpty {
             return ("\(dayLabel): \(total)", nil)
         }
         if day.services.count <= 1, let first = day.services.first {
-            let used = first.creditsUsed.formatted(.number.precision(.fractionLength(0...2)))
-            return ("\(dayLabel): \(used)", first.service)
+            let used = "\(Self.usdString(fromCredits: first.creditsUsed)) · " +
+                "\(Self.creditsString(first.creditsUsed)) \(L("credits"))"
+            return ("\(dayLabel): \(total)", "\(first.service) \(used)")
         }
 
         let services = day.services
@@ -390,9 +393,19 @@ struct UsageBreakdownChartMenuView: View {
                 return lhs.creditsUsed > rhs.creditsUsed
             }
             .prefix(3)
-            .map { "\($0.service) \($0.creditsUsed.formatted(.number.precision(.fractionLength(0...2))))" }
+            .map { "\($0.service) \(Self.usdString(fromCredits: $0.creditsUsed))" }
             .joined(separator: " · ")
 
         return ("\(dayLabel): \(total)", services)
+    }
+
+    private static func usdString(fromCredits credits: Double) -> String {
+        "≈ " + UsageFormatter.currencyString(
+            OpenAIDashboardSnapshot.codexUSD(fromCredits: credits),
+            currencyCode: "USD")
+    }
+
+    private static func creditsString(_ credits: Double) -> String {
+        credits.formatted(.number.precision(.fractionLength(0...2)))
     }
 }

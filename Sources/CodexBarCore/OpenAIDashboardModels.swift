@@ -132,6 +132,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
 }
 
 extension OpenAIDashboardSnapshot {
+    public static let codexCreditsPerUSD = 25.0
+
     public func toUsageSnapshot(
         provider: UsageProvider = .codex,
         accountEmail: String? = nil,
@@ -152,6 +154,89 @@ extension OpenAIDashboardSnapshot {
             events: self.creditEvents,
             updatedAt: self.updatedAt,
             codexCreditLimit: self.codexCreditLimit)
+    }
+
+    public func toCostUsageTokenSnapshot(
+        historyDays: Int = 30,
+        merging localSnapshot: CostUsageTokenSnapshot? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current) -> CostUsageTokenSnapshot?
+    {
+        let clampedHistoryDays = max(1, min(30, historyDays))
+        let breakdown = OpenAIDashboardDailyBreakdown
+            .removingSkillUsageServices(from: self.usageBreakdown)
+            .sorted { lhs, rhs in lhs.day < rhs.day }
+            .suffix(clampedHistoryDays)
+        guard !breakdown.isEmpty else { return nil }
+
+        let daily = breakdown.compactMap { day -> CostUsageDailyReport.Entry? in
+            let costUSD = Self.codexUSD(fromCredits: day.totalCreditsUsed)
+            guard costUSD > 0 else { return nil }
+            let services = day.services
+                .filter { $0.creditsUsed > 0 }
+                .sorted { lhs, rhs in
+                    if lhs.creditsUsed == rhs.creditsUsed { return lhs.service < rhs.service }
+                    return lhs.creditsUsed > rhs.creditsUsed
+                }
+            let modelBreakdowns = services.map {
+                CostUsageDailyReport.ModelBreakdown(
+                    modelName: $0.service,
+                    costUSD: Self.codexUSD(fromCredits: $0.creditsUsed),
+                    totalTokens: nil)
+            }
+            return CostUsageDailyReport.Entry(
+                date: day.day,
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: nil,
+                costUSD: costUSD,
+                modelsUsed: services.map(\.service),
+                modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
+        }
+        guard !daily.isEmpty else { return nil }
+
+        let currentDay = CostUsageTokenSnapshot.entry(
+            in: daily,
+            forLocalDayContaining: now,
+            calendar: calendar)
+        let totalCostUSD = daily.compactMap(\.costUSD).reduce(0, +)
+        let mergedDaily = localSnapshot.map { Self.mergeDashboardCostDailyEntries(daily, with: $0.daily) } ?? daily
+        return CostUsageTokenSnapshot(
+            sessionTokens: localSnapshot?.sessionTokens,
+            sessionCostUSD: currentDay?.costUSD,
+            sessionRequests: localSnapshot?.sessionRequests,
+            last30DaysTokens: localSnapshot?.last30DaysTokens,
+            last30DaysCostUSD: totalCostUSD > 0 ? totalCostUSD : nil,
+            last30DaysRequests: localSnapshot?.last30DaysRequests,
+            historyDays: clampedHistoryDays,
+            valueBasis: .codexDashboardCredits,
+            daily: mergedDaily,
+            updatedAt: self.updatedAt)
+    }
+
+    public static func codexUSD(fromCredits credits: Double) -> Double {
+        credits / self.codexCreditsPerUSD
+    }
+
+    private static func mergeDashboardCostDailyEntries(
+        _ dashboardEntries: [CostUsageDailyReport.Entry],
+        with localEntries: [CostUsageDailyReport.Entry]) -> [CostUsageDailyReport.Entry]
+    {
+        let localByDate = Dictionary(localEntries.map { ($0.date, $0) }, uniquingKeysWith: { _, latest in latest })
+        return dashboardEntries.map { dashboard in
+            guard let local = localByDate[dashboard.date] else { return dashboard }
+            return CostUsageDailyReport.Entry(
+                date: dashboard.date,
+                inputTokens: local.inputTokens,
+                outputTokens: local.outputTokens,
+                cacheReadTokens: local.cacheReadTokens,
+                cacheCreationTokens: local.cacheCreationTokens,
+                totalTokens: local.totalTokens,
+                requestCount: local.requestCount,
+                costUSD: dashboard.costUSD,
+                modelsUsed: dashboard.modelsUsed,
+                modelBreakdowns: dashboard.modelBreakdowns)
+        }
     }
 }
 

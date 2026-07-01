@@ -324,36 +324,40 @@ extension UsageMenuCardView.Model {
                 id: entry.date,
                 label: Self.shortDayLabel(entry.date),
                 value: cost,
-                accessibilityValue: "\(entry.date): \(Self.costString(cost, currencyCode: snapshot.currencyCode))")
+                accessibilityValue: "\(entry.date): \(Self.costString(cost, snapshot: snapshot))")
         }
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
         let usesLatestPrimary = provider == .bedrock || provider == .mistral
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
         var details: [String] = []
         if let topModel = Self.topCostModel(from: snapshot.daily) {
-            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+            let topLabel = provider == .codex && snapshot.valueBasis == .codexDashboardCredits
+                ? L("Source")
+                : L("Top model")
+            details.append("\(topLabel): \(Self.shortModelName(topModel))")
         }
         if let requestCount = snapshot.last30DaysRequests {
             details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
         }
-        if let hint = Self.tokenUsageHint(provider: provider) {
+        if let hint = Self.tokenUsageHint(provider: provider, snapshot: snapshot) {
             details.append(hint)
         } else {
             details.append(L("cost_estimate_hint"))
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
+        let trendKind = snapshot.valueBasis == .codexDashboardCredits ? L("Usage") : L("Cost")
         return InlineUsageDashboardModel(
-            accessibilityLabel: "\(providerName) \(periodLabel) cost trend",
+            accessibilityLabel: "\(providerName) \(periodLabel) \(trendKind.lowercased()) trend",
             valueStyle: Self.costValueStyle(currencyCode: snapshot.currencyCode),
             kpis: [
                 .init(
                     title: usesLatestPrimary ? L("Latest") : L("Today"),
-                    value: primaryCostUSD.map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
+                    value: primaryCostUSD.map { Self.costString($0, snapshot: snapshot) } ?? "—",
                     emphasis: true),
                 .init(
                     title: historyTitle,
                     value: snapshot.last30DaysCostUSD
-                        .map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
+                        .map { Self.costString($0, snapshot: snapshot) } ?? "—",
                     emphasis: false),
                 .init(
                     title: tokenHistoryTitle,
@@ -640,6 +644,10 @@ extension UsageMenuCardView.Model {
 
     private static func costString(_ value: Double, currencyCode: String) -> String {
         UsageFormatter.currencyString(value, currencyCode: currencyCode)
+    }
+
+    private static func costString(_ value: Double, snapshot: CostUsageTokenSnapshot) -> String {
+        tokenCostString(value, snapshot: snapshot)
     }
 
     private static func costValueStyle(currencyCode: String) -> InlineUsageDashboardModel.ValueStyle {

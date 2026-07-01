@@ -36,6 +36,15 @@ extension StatusItemController {
             snapshotOverride: snapshotOverride,
             errorOverride: errorOverride,
             now: now)
+        let localTokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
+        let dashboardTokenSnapshot: CostUsageTokenSnapshot? = if target == .codex,
+                                                                 surface == .liveCard
+        {
+            self.codexDashboardCostSnapshotForLiveCard(
+                projection: codexProjection,
+                localSnapshot: localTokenSnapshot,
+                now: now)
+        } else { nil }
         let credits: CreditsSnapshot?
         let creditsError: String?
         let dashboard: OpenAIDashboardSnapshot?
@@ -48,7 +57,7 @@ extension StatusItemController {
             dashboard = nil
             dashboardError = codexProjection.userFacingErrors.dashboard
             if surface == .liveCard {
-                tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
+                tokenSnapshot = dashboardTokenSnapshot ?? localTokenSnapshot
                 tokenError = self.store.tokenError(for: target)
             } else {
                 tokenSnapshot = projectedTokenSnapshot
@@ -129,6 +138,22 @@ extension StatusItemController {
 
     func accountInfo(for account: CodexVisibleAccount) -> AccountInfo {
         AccountInfo(email: account.email, plan: account.workspaceLabel)
+    }
+
+    func codexDashboardCostSnapshotForLiveCard(
+        projection: CodexConsumerProjection? = nil,
+        localSnapshot: CostUsageTokenSnapshot? = nil,
+        now: Date = Date()) -> CostUsageTokenSnapshot?
+    {
+        let projection = projection ?? self.store.codexConsumerProjectionIfNeeded(
+            for: .codex,
+            surface: .liveCard,
+            now: now)
+        guard projection?.dashboardVisibility == .attached else { return nil }
+        return self.store.openAIDashboard?.toCostUsageTokenSnapshot(
+            historyDays: self.settings.costUsageHistoryDays,
+            merging: localSnapshot,
+            now: now)
     }
 
     private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {

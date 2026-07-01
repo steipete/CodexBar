@@ -18,6 +18,7 @@ struct CodexBarApp: App {
 
     init() {
         let env = ProcessInfo.processInfo.environment
+        let packagedMenuProofRequested = PackagedMenuProofFixture.isRequested(environment: env)
         let storedLevel = CodexBarLog.parseLevel(UserDefaults.standard.string(forKey: "debugLogLevel")) ?? .verbose
         let level = CodexBarLog.parseLevel(env["CODEXBAR_LOG_LEVEL"]) ?? storedLevel
         CodexBarLog.bootstrapIfNeeded(.init(
@@ -38,25 +39,34 @@ struct CodexBarApp: App {
                 "built": buildTimestamp,
             ])
 
-        KeychainAccessGate.isDisabled = UserDefaults.standard.bool(forKey: "debugDisableKeychainAccess")
-        KeychainPromptCoordinator.install()
+        KeychainAccessGate.isDisabled = packagedMenuProofRequested ||
+            UserDefaults.standard.bool(forKey: "debugDisableKeychainAccess")
+        if !packagedMenuProofRequested {
+            KeychainPromptCoordinator.install()
+        }
         if MainThreadHangWatchdog.isEnabledForCurrentProcess {
             MainThreadHangWatchdog.shared.start()
         }
 
         let preferencesSelection = PreferencesSelection()
-        let settings = SettingsStore()
-        Self.applyLanguagePreference(from: settings)
+        let proofRuntime = PackagedMenuProofFixture.makeRuntimeIfRequested(environment: env)
+        let settings = proofRuntime?.settings ?? SettingsStore()
+        if proofRuntime == nil {
+            Self.applyLanguagePreference(from: settings)
+        }
         configureUsageFormatterLocalizationProvider()
         let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
         managedCodexAccountCoordinator.onManagedAccountsDidChange = {
             _ = settings.refreshCodexAccountReconciliationAfterManagedAccountsDidChange()
         }
-        _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
+        if proofRuntime == nil {
+            _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
+        }
         let fetcher = UsageFetcher()
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
-        let account = fetcher.loadAccountInfo()
-        let store = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: settings)
+        let account = proofRuntime?.account ?? fetcher.loadAccountInfo()
+        let store = proofRuntime?.store ??
+            UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: settings)
         let codexAccountPromotionCoordinator = CodexAccountPromotionCoordinator(
             settingsStore: settings,
             usageStore: store,
@@ -386,12 +396,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        AppNotifications.shared.requestAuthorizationOnStartup()
-        self.memoryPressureMonitor.start()
+        let packagedMenuProofRequested = PackagedMenuProofFixture.isRequested()
+        if !packagedMenuProofRequested {
+            AppNotifications.shared.requestAuthorizationOnStartup()
+            self.memoryPressureMonitor.start()
+        }
         #if DEBUG
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
+        if packagedMenuProofRequested {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                self?.statusController?.openMenuFromShortcut()
+            }
+        }
         KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
             // KeyboardShortcuts dispatches both normal and menu-tracking hotkeys on the main event loop.
             MainActor.assumeIsolated {
