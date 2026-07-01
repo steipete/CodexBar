@@ -429,6 +429,8 @@
 "cost_history_window_title" = "Jendela riwayat";
 "cost_history_window_help" = "Menentukan berapa hari log penggunaan lokal yang ditampilkan di menu.";
 "cost_history_days_title" = "Jendela riwayat: %d hari";
+"cost_comparison_periods_title" = "Tampilkan periode perbandingan yang lebih singkat";
+"cost_comparison_periods_subtitle" = "Tambahkan total 7, 30, dan 90 hari jika termasuk dalam rentang riwayat yang dipilih. Total ini menggunakan kembali pemindaian lokal yang sama.";
 "cost_auto_refresh_info" = "Penyegaran otomatis: per jam · Batas waktu: 10m";
 "refresh_cadence_title" = "Frekuensi penyegaran";
 "refresh_cadence_subtitle" = "Seberapa sering CodexBar memeriksa penyedia di latar belakang.";

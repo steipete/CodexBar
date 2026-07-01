@@ -321,6 +321,14 @@ extension SettingsStore {
         }
     }
 
+    var costComparisonPeriodsEnabled: Bool {
+        get { self.defaultsState.costComparisonPeriodsEnabled }
+        set {
+            self.defaultsState.costComparisonPeriodsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "costComparisonPeriodsEnabled")
+        }
+    }
+
     var costSummaryDisplayStyleRaw: String {
         get { self.defaultsState.costSummaryDisplayStyleRaw }
         set {

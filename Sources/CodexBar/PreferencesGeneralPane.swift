@@ -170,6 +170,11 @@ struct GeneralPane: View {
 
                                     CostHistoryDaysEditor(settings: self.settings)
 
+                                    PreferenceToggleRow(
+                                        title: L("cost_comparison_periods_title"),
+                                        subtitle: L("cost_comparison_periods_subtitle"),
+                                        binding: self.$settings.costComparisonPeriodsEnabled)
+
                                     Text(L("cost_auto_refresh_info"))
                                         .font(.footnote)
                                         .foregroundStyle(.tertiary)

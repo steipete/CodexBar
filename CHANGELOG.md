@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Cost history: optionally show shorter 7, 30, and 90-day comparisons derived from the selected local history window (#1500). Thanks @jtl06!
+
 ### Fixed
 - Claude web usage: bound stale requests so Auto can reach CLI fallback instead of hanging indefinitely.
 - Claude history: keep OAuth utilization separate across account switches while preserving continuity through token refreshes.
