@@ -200,7 +200,9 @@ private struct ClaudePlannedFetchStrategy: ProviderFetchStrategy {
             return await self.base.isAvailable(context)
         }
         guard self.plannedStep.isPlausiblyAvailable else { return false }
-        if context.runtime == .app, self.plannedStep.dataSource == .web {
+        if context.runtime == .app,
+           self.plannedStep.dataSource == .cli || self.plannedStep.dataSource == .web
+        {
             return await self.base.isAvailable(context)
         }
         return true
@@ -624,8 +626,17 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let browserDetection: BrowserDetection
     let hasWebFallback: Bool
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        true
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        // The interactive Claude REPL can open browser OAuth when it starts logged out. Background Auto refreshes
+        // must establish CLI authentication through the non-interactive status command before starting that REPL.
+        guard context.runtime == .app,
+              context.sourceMode == .auto,
+              ProviderInteractionContext.current == .background
+        else {
+            return true
+        }
+        guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
+        return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

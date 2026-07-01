@@ -16,12 +16,12 @@ read_when:
 
 ## Usage mapping
 - Primary window: rolling 5-hour usage (`rollingUsage.usagePercent`, `rollingUsage.resetInSec`).
-- Secondary window: weekly usage (`weeklyUsage.usagePercent`, `weeklyUsage.resetInSec`).
+- Secondary window: optional weekly usage (`weeklyUsage.usagePercent`, `weeklyUsage.resetInSec`).
 - Resets computed as `now + resetInSec`.
 
 ## Notes
 - Responses are `text/javascript` with serialized objects; parse via regex.
-- Missing workspace ID or usage fields should raise parse errors.
+- Missing workspace ID or rolling usage fields should raise parse errors; omitted weekly usage stays absent.
 - Cookie import defaults to Chrome-only to avoid extra browser prompts; pass a browser list to override.
 - Set `CODEXBAR_OPENCODE_WORKSPACE_ID` to skip workspace lookup and force a specific workspace.
 - Workspace override accepts a raw `wrk_…` ID or a full `https://opencode.ai/workspace/...` URL.
