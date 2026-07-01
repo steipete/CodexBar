@@ -97,6 +97,25 @@ struct SakanaUsageFetcherTests {
     }
 
     @Test
+    func `pay as you go bounded fetch does not wait for an operation that ignores cancellation`() async throws {
+        let startedAt = ContinuousClock.now
+
+        let fetched = await SakanaUsageFetcher._boundedFetchPayAsYouGoForTesting(timeout: .milliseconds(20)) {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                    continuation.resume(returning: SakanaPayAsYouGoSnapshot(creditBalance: 9))
+                }
+            }
+        }
+
+        let elapsed = startedAt.duration(to: .now)
+        #expect(fetched == nil)
+        #expect(elapsed < .milliseconds(300))
+
+        try await Task.sleep(for: .milliseconds(550))
+    }
+
+    @Test
     func `fetch tolerates a failing pay as you go request without failing the primary fetch`() async throws {
         // Default response is a 500; only the primary billing URL is overridden to succeed, so the
         // pay-as-you-go request (not present in the override map) falls through to that failure.

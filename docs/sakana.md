@@ -44,7 +44,9 @@ Alternatively, set the environment variable `SAKANA_COOKIE` to the raw cookie he
 - Token cost tracking (`supportsTokenCost: false`): not supported; cost summary is unavailable. Sakana has no
   organization-level usage/cost API to query historically, only the per-request `usage` object returned by chat
   completions calls (which CodexBar never makes), so there is no local-log source to scan the way Claude/Codex are.
-- Credits row (`supportsCredits: true`): shows the Pay-as-you-go credit balance (see below).
+- Credits row (`supportsCredits: false`): not shown. The shared credits-card UI path (`MenuCardView+Costs.swift`)
+  has no Sakana branch and would just render the static `creditsHint` string instead of the fetched balance, so
+  `supportsCredits` stays off; the balance is surfaced explicitly instead (see below).
 - Widget support: not currently available for Sakana AI.
 
 ## Pay-as-you-go credits
@@ -70,6 +72,12 @@ origin, empty body, or the expected markup isn't found), the pay-as-you-go field
 refresh and the subscription quota windows are returned exactly as before. An account with no pay-as-you-go credit
 purchased still returns a `$0.00` balance (the card is always rendered), so absence here almost always means the
 request itself failed rather than "no credit."
+
+The fetch is also **time-bounded independent of the caller's web timeout**: it races against a fixed 5-second grace
+period (`SakanaUsageFetcher.payAsYouGoJoinGrace`), regardless of how long `context.webTimeout` allows the required
+subscription fetch to take. If the console is slow to answer the Pay-as-you-go tab specifically, the in-flight
+request is cancelled and the field is simply omitted — a slow optional request can add at most ~5s on top of the
+subscription fetch, never the full configured timeout a second time.
 
 - Menu: a `Balance: $X.XX` row (and a `Recent usage: $X.XX` row when the usage total parses) appears alongside the
   quota windows.

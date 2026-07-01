@@ -164,12 +164,10 @@ public enum SakanaUsageFetcher {
         }
         let snapshot = try self.parseBillingHTML(html, now: now)
         let payAsYouGo: SakanaPayAsYouGoSnapshot? = if includeOptionalUsage {
-            await self.fetchPayAsYouGo(cookieHeader: cookieHeader, transport: transport, timeout: timeout)
+            await self.boundedFetchPayAsYouGo(cookieHeader: cookieHeader, transport: transport, timeout: timeout)
         } else {
             nil
         }
-        // fetchPayAsYouGo swallows its own errors (including CancellationError) to stay best-effort;
-        // re-check here so a cancelled parent task still unwinds instead of returning a stale result.
         try Task.checkCancellation()
         return SakanaUsageSnapshot(
             planName: snapshot.planName,
@@ -178,6 +176,46 @@ public enum SakanaUsageFetcher {
             weekly: snapshot.weekly,
             payAsYouGo: payAsYouGo,
             updatedAt: snapshot.updatedAt)
+    }
+
+    /// Caps the optional Pay-as-you-go fetch at `payAsYouGoJoinGrace` regardless of the caller's
+    /// (potentially much longer) `timeout`, so a slow console response can only add a small,
+    /// bounded delay on top of the already-parsed subscription quota windows -- never the full
+    /// primary-fetch timeout twice. Races `fetchPayAsYouGo` against the grace period; on timeout
+    /// the in-flight request is cancelled and the optional field is simply omitted.
+    private static let payAsYouGoJoinGrace: Duration = .seconds(5)
+
+    private static func boundedFetchPayAsYouGo(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport,
+        timeout: TimeInterval) async -> SakanaPayAsYouGoSnapshot?
+    {
+        await self.boundedFetch(timeout: self.payAsYouGoJoinGrace) {
+            await self.fetchPayAsYouGo(cookieHeader: cookieHeader, transport: transport, timeout: timeout)
+        }
+    }
+
+    static func _boundedFetchPayAsYouGoForTesting(
+        timeout: Duration,
+        operation: @escaping @Sendable () async -> SakanaPayAsYouGoSnapshot?) async -> SakanaPayAsYouGoSnapshot?
+    {
+        await self.boundedFetch(timeout: timeout, operation: operation)
+    }
+
+    private static func boundedFetch(
+        timeout: Duration,
+        operation: @escaping @Sendable () async -> SakanaPayAsYouGoSnapshot?) async -> SakanaPayAsYouGoSnapshot?
+    {
+        let sourceTask = Task<SakanaPayAsYouGoSnapshot?, Error> {
+            await operation()
+        }
+        let race = BoundedTaskJoin(sourceTask: sourceTask)
+        switch await race.value(joinGrace: timeout) {
+        case let .value(result):
+            return result
+        case .timedOut, .failure:
+            return nil
+        }
     }
 
     /// Best-effort fetch of the Pay-as-you-go tab. Never throws: subscription quota windows are
