@@ -752,7 +752,8 @@ extension StatusItemController {
         }
         if provider == .mistral {
             let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
-            if preference != .monthlyPlan,
+            let hasMonthlyPlan = snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } == true
+            if preference != .monthlyPlan || !hasMonthlyPlan,
                let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
             {
                 return spend
