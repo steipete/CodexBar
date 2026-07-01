@@ -64,6 +64,7 @@ for (const code of catalogCodes) {
 const providerCards = [...indexHtml.matchAll(/<li class="provider-card"([^>]*)>([\s\S]*?)<\/li>/g)];
 for (const [, attrs, body] of providerCards) {
   if (!attrs.includes('hidden')) {
+    assert(body.includes('class="provider-card-link"'), 'provider cards must link to provider documentation');
     assert(body.includes('class="provider-logo'), 'provider cards must use logo assets');
     for (const match of body.matchAll(/src="\.\/([^"]+)"/g)) {
       assert(fs.existsSync(path.join(repoRoot, 'docs', match[1])), `missing provider logo asset ${match[1]}`);

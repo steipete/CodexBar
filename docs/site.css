@@ -907,15 +907,27 @@ html.bg-black { background-color: var(--page-bg) !important; }
 
 .provider-card {
   position: relative;
-  display: grid;
   min-height: 4.6rem;
+}
+
+.provider-card-link {
+  display: grid;
+  min-height: inherit;
   grid-template-columns: 3.1rem 1fr;
   align-items: center;
   gap: 1rem;
   padding: 0.65rem 0;
+  color: inherit;
+  text-decoration: none;
 }
 
 .provider-card[hidden] { display: none; }
+
+.provider-card-link:focus-visible {
+  border-radius: 0.5rem;
+  outline: 2px solid #2497ff;
+  outline-offset: 3px;
+}
 
 .provider-logo {
   position: relative;
@@ -998,7 +1010,7 @@ html.bg-black { background-color: var(--page-bg) !important; }
   letter-spacing: -0.025em;
 }
 
-.provider-authoring {
+.provider-card p > .provider-authoring {
   display: inline-flex;
   align-items: center;
   gap: 0.22rem;
