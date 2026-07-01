@@ -239,6 +239,42 @@ struct NeuralWattUsageFetcherTests {
     }
 
     @Test
+    func `fetch rejects endpoint override before sending API key`() async throws {
+        let transport = ProviderHTTPTransportHandler { _ in
+            Issue.record("Endpoint override validation must happen before the request")
+            throw URLError(.badURL)
+        }
+
+        await #expect(throws: NeuralWattSettingsError.invalidEndpointOverride(
+            NeuralWattSettingsReader.apiURLEnvironmentKey))
+        {
+            _ = try await NeuralWattUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                environment: [NeuralWattSettingsReader.apiURLEnvironmentKey: "https://user@example.com"],
+                transport: transport)
+        }
+    }
+
+    @Test
+    func `fetch preserves transport cancellation`() async throws {
+        let transport = ProviderHTTPTransportHandler { _ in
+            throw CancellationError()
+        }
+
+        do {
+            _ = try await NeuralWattUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                environment: [:],
+                transport: transport)
+            Issue.record("Expected CancellationError")
+        } catch is CancellationError {
+            // Expected: refresh cancellation must not become a provider error.
+        } catch {
+            Issue.record("Expected CancellationError, got \(error)")
+        }
+    }
+
+    @Test
     func `unauthorized fetch throws missing credentials`() async throws {
         let registered = URLProtocol.registerClass(NeuralWattStubURLProtocol.self)
         defer {

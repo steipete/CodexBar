@@ -334,7 +334,8 @@ public struct NeuralWattUsageFetcher: Sendable {
 
     public static func fetchUsage(
         apiKey: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> NeuralWattUsageSnapshot
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> NeuralWattUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -351,7 +352,11 @@ public struct NeuralWattUsageFetcher: Sendable {
 
         let response: ProviderHTTPResponse
         do {
-            response = try await ProviderHTTPClient.shared.response(for: request)
+            response = try await transport.response(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             throw NeuralWattUsageError.networkError(error.localizedDescription)
         }

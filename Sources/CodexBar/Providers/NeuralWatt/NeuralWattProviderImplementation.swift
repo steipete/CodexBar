@@ -31,7 +31,7 @@ struct NeuralWattProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "neuralwatt-api-key",
                 title: "API key",
-                subtitle: "Stored in the CodexBar config file. Get your key from portal.neuralwatt.com/dashboard/api-keys.",
+                subtitle: "Stored in the CodexBar config file. Manage keys from the Neuralwatt dashboard.",
                 kind: .secure,
                 placeholder: "sk-...",
                 binding: context.stringBinding(\.neuralWattAPIKey),
