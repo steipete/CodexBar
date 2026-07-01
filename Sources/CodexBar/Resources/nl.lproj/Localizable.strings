@@ -1102,8 +1102,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Limietresetcredits";
-"1 manual reset available" = "1 handmatige reset beschikbaar";
-"%d manual resets available" = "%d handmatige resets beschikbaar";
+"1 available" = "1 beschikbaar";
+"%d available" = "%d beschikbaar";
 "Next expires %@" = "Volgende verloopt %@";
 "Other (%d items)" = "Overig (%d onderdelen)";
 "Expand" = "Uitvouwen";

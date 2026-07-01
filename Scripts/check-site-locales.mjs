@@ -7,6 +7,10 @@ import { localeCatalog, localeMessages } from "../docs/site-locales.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "docs/index.html"), "utf8");
+assert(!indexHtml.includes("cdn.tailwindcss.com"), "site must not load Tailwind from a runtime CDN");
+for (const match of indexHtml.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+)(?:\?[^"']*)?"/g)) {
+  assert(fs.existsSync(path.join(repoRoot, "docs", match[1])), `missing local stylesheet ${match[1]}`);
+}
 const expectedCodes = [
   "en", "zh-CN", "zh-TW", "ja-JP", "es", "pt-BR", "ko", "de", "fr", "ar", "it",
   "vi", "nl", "tr", "uk", "id", "pl", "fa", "th", "ca", "sv",

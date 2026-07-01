@@ -123,6 +123,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+:where(a, button, [role="option"]):focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 3px;
+}
+
 html.bg-black { background-color: var(--page-bg) !important; }
 
 ::selection { background: #0099ff; color: #fff; }

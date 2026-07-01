@@ -1110,8 +1110,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "أرصدة إعادة تعيين الحد";
-"1 manual reset available" = "تتوفر إعادة تعيين يدوية واحدة";
-"%d manual resets available" = "تتوفر %d عمليات إعادة تعيين يدوية";
+"1 available" = "1 متاح";
+"%d available" = "%d متاح";
 "Next expires %@" = "تنتهي صلاحية التالية %@";
 "byte_unit_byte" = "بايت";
 "byte_unit_bytes" = "بايتات";

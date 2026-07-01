@@ -1103,8 +1103,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Lượt đặt lại giới hạn";
-"1 manual reset available" = "Có 1 lần đặt lại thủ công";
-"%d manual resets available" = "Có %d lần đặt lại thủ công";
+"1 available" = "1 lượt";
+"%d available" = "%d lượt";
 "Next expires %@" = "Lượt tiếp theo hết hạn %@";
 "Other (%d items)" = "Khác (%d mục)";
 "Expand" = "Mở rộng";

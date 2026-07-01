@@ -1109,8 +1109,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Kredyty resetowania limitu";
-"1 manual reset available" = "Dostępny 1 ręczny reset";
-"%d manual resets available" = "Dostępne ręczne resety: %d";
+"1 available" = "1 dostępny";
+"%d available" = "%d dostępne";
 "Next expires %@" = "Następny wygasa %@";
 "byte_unit_byte" = "bajt";
 "byte_unit_bytes" = "bajty";

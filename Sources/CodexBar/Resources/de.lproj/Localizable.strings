@@ -1104,8 +1104,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Credits zum Zurücksetzen des Limits";
-"1 manual reset available" = "1 manuelle Zurücksetzung verfügbar";
-"%d manual resets available" = "%d manuelle Zurücksetzungen verfügbar";
+"1 available" = "1 verfügbar";
+"%d available" = "%d verfügbar";
 "Next expires %@" = "Nächster Ablauf %@";
 "Other (%d items)" = "Andere (%d Elemente)";
 "Expand" = "Aufklappen";

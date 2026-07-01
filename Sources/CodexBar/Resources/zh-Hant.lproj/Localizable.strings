@@ -975,8 +975,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "限額重設額度";
-"1 manual reset available" = "可使用 1 次手動重設";
-"%d manual resets available" = "可使用 %d 次手動重設";
+"1 available" = "1 次可用";
+"%d available" = "%d 次可用";
 "Next expires %@" = "下一個將於 %@ 到期";
 "Other (%d items)" = "其他（%d 個項目）";
 "Expand" = "展開";

@@ -1,6 +1,7 @@
 import { localeCatalog, localeMessages } from './site-locales.mjs';
 
 const root = document.documentElement;
+let activeMessages = localeMessages.en;
 
 const HERO_MOBILE_MAX = 768;
 const HERO_TABLET_MAX = 1023;
@@ -337,7 +338,6 @@ window.visualViewport?.addEventListener('resize', applyHeroDesktopLayout);
 
 const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 const themeToggle = document.querySelector('#theme-toggle');
-const themeOrder = ['system', 'light', 'dark'];
 const themeNames = { system: 'System', light: 'Light', dark: 'Dark' };
 
 function applyThemePreference(preference, persist = true) {
@@ -347,16 +347,26 @@ function applyThemePreference(preference, persist = true) {
 
   root.dataset.theme = resolvedTheme;
   root.dataset.themePreference = preference;
-  const nextPreference = themeOrder[(themeOrder.indexOf(preference) + 1) % themeOrder.length];
   themeToggle.dataset.themeValue = preference;
   themeToggle.title = `${themeNames[preference]} theme`;
-  themeToggle.setAttribute('aria-label', `Theme: ${themeNames[preference].toLowerCase()}. Switch to ${themeNames[nextPreference].toLowerCase()}`);
+  updateThemeToggleLabel();
 
-  if (persist) localStorage.setItem('codexbar-theme', preference);
+  if (persist) {
+    try {
+      localStorage.setItem('codexbar-theme', preference);
+    } catch (_) {}
+  }
+}
+
+function updateThemeToggleLabel() {
+  const nextTheme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  const label = message(nextTheme === 'dark' ? 'theme.toDark' : 'theme.toLight');
+  themeToggle.setAttribute('aria-label', label);
+  themeToggle.title = label;
 }
 
 themeToggle.addEventListener('click', () => {
-  const nextPreference = themeOrder[(themeOrder.indexOf(root.dataset.themePreference) + 1) % themeOrder.length];
+  const nextPreference = root.dataset.theme === 'dark' ? 'light' : 'dark';
   applyThemePreference(nextPreference);
 });
 
@@ -407,8 +417,6 @@ const localeAliases = {
   pt: 'pt-BR',
   'pt-br': 'pt-BR',
 };
-let activeMessages = localeMessages.en;
-
 const languageStorageKey = 'codexbar-language';
 const languagePicker = document.querySelector('#language-picker');
 const languageTrigger = document.querySelector('#language-picker-trigger');
@@ -478,12 +486,6 @@ function richToken(name) {
     link.textContent = 'issue #12';
     return link;
   }
-  if (name === 'stars') {
-    const span = document.createElement('span');
-    span.className = 'text-[13px] text-zinc-500';
-    span.textContent = '(15.5k stars)';
-    return span;
-  }
   if (name === 'mobileBreak') {
     return document.createElement('br');
   }
@@ -532,6 +534,7 @@ function applyLanguageMessages() {
   applyAttributeMessages('data-i18n-aria-label', 'aria-label');
   applyAttributeMessages('data-i18n-title', 'title');
   applyAttributeMessages('data-i18n-alt', 'alt');
+  updateThemeToggleLabel();
 }
 
 function renderLanguageMenu() {
@@ -543,6 +546,7 @@ function renderLanguageMenu() {
     option.role = 'option';
     option.dataset.lang = language.id;
     option.setAttribute('aria-selected', String(language.id === activeLanguage));
+    option.tabIndex = language.id === activeLanguage ? 0 : -1;
     option.innerHTML = `
       <svg viewBox="0 0 18 18" fill="none" aria-hidden="true">
         <path d="M4.5 9.25 7.5 12.25 13.5 6.25" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
@@ -560,27 +564,58 @@ function updateLanguageUi() {
   root.dataset.language = current.id;
   applyLanguageMessages();
   languageList.querySelectorAll('[role="option"]').forEach((option) => {
-    option.setAttribute('aria-selected', String(option.dataset.lang === activeLanguage));
+    const selected = option.dataset.lang === activeLanguage;
+    option.setAttribute('aria-selected', String(selected));
+    option.tabIndex = selected ? 0 : -1;
   });
 }
 
-function setLanguageMenuOpen(open) {
+function setLanguageMenuOpen(open, { focusOption = false, restoreFocus = false } = {}) {
   languageMenu.hidden = !open;
   languageTrigger.setAttribute('aria-expanded', String(open));
+  if (open && focusOption) {
+    languageList.querySelector('[aria-selected="true"]')?.focus();
+  } else if (!open && restoreFocus) {
+    languageTrigger.focus();
+  }
 }
 
 function selectLanguage(languageId) {
   activeLanguage = languageId;
-  localStorage.setItem(languageStorageKey, languageId);
+  try {
+    localStorage.setItem(languageStorageKey, languageId);
+    const url = new URL(location.href);
+    url.searchParams.set('lang', languageId);
+    history.replaceState(null, '', url);
+  } catch (_) {}
   updateLanguageUi();
-  setLanguageMenuOpen(false);
+  setLanguageMenuOpen(false, { restoreFocus: true });
 }
 
 renderLanguageMenu();
 updateLanguageUi();
 
 languageTrigger.addEventListener('click', () => {
-  setLanguageMenuOpen(languageMenu.hidden);
+  setLanguageMenuOpen(languageMenu.hidden, { focusOption: languageMenu.hidden });
+});
+
+languageTrigger.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  event.preventDefault();
+  setLanguageMenuOpen(true, { focusOption: true });
+});
+
+languageList.addEventListener('keydown', (event) => {
+  const options = [...languageList.querySelectorAll('[role="option"]')];
+  const currentIndex = Math.max(0, options.indexOf(document.activeElement));
+  let nextIndex;
+  if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % options.length;
+  if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + options.length) % options.length;
+  if (event.key === 'Home') nextIndex = 0;
+  if (event.key === 'End') nextIndex = options.length - 1;
+  if (nextIndex === undefined) return;
+  event.preventDefault();
+  options[nextIndex]?.focus();
 });
 
 document.addEventListener('click', (event) => {
@@ -588,7 +623,10 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') setLanguageMenuOpen(false);
+  if (event.key === 'Escape' && !languageMenu.hidden) {
+    event.preventDefault();
+    setLanguageMenuOpen(false, { restoreFocus: true });
+  }
 });
 
 const providerSection = document.querySelector('[data-provider-section]');
@@ -607,7 +645,7 @@ if ('IntersectionObserver' in window) {
       revealSection(entry.target);
       observer.unobserve(entry.target);
     });
-  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  }, { threshold: 0.01, rootMargin: '0px 0px -8% 0px' });
 
   [providerSection, ...document.querySelectorAll('[data-scroll-section]')].forEach((section) => {
     revealObserver.observe(section);
@@ -660,4 +698,31 @@ window.setTimeout(() => {
   });
 }, popoverStartDelay);
 
-document.querySelector('#brew-copy').addEventListener('click', copyBrewCommand);
+const brewCopyButton = document.querySelector('#brew-copy');
+const brewCopyLabel = brewCopyButton?.querySelector('[data-brew-label]');
+const brewCopyIcon = brewCopyButton?.querySelector('[data-brew-icon]');
+const brewCopyStatus = brewCopyButton?.querySelector('[data-brew-status]');
+let brewCopyResetTimer;
+
+async function copyBrewCommand() {
+  const command = brewCopyLabel?.textContent?.trim();
+  if (!command || !navigator.clipboard?.writeText) return;
+
+  try {
+    await navigator.clipboard.writeText(command);
+  } catch (_) {
+    return;
+  }
+
+  window.clearTimeout(brewCopyResetTimer);
+  brewCopyIcon.dataset.copied = 'true';
+  brewCopyStatus.textContent = message('clipboard.copied');
+  brewCopyButton.setAttribute('aria-label', message('clipboard.copied'));
+  brewCopyResetTimer = window.setTimeout(() => {
+    delete brewCopyIcon.dataset.copied;
+    brewCopyStatus.textContent = '';
+    brewCopyButton.setAttribute('aria-label', message('clipboard.copyBrew'));
+  }, 1500);
+}
+
+brewCopyButton?.addEventListener('click', copyBrewCommand);

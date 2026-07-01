@@ -1101,8 +1101,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Krediter för gränsåterställning";
-"1 manual reset available" = "1 manuell återställning tillgänglig";
-"%d manual resets available" = "%d manuella återställningar tillgängliga";
+"1 available" = "1 tillgänglig";
+"%d available" = "%d tillgängliga";
 "Next expires %@" = "Nästa upphör %@";
 "Other (%d items)" = "Övrigt (%d objekt)";
 "Expand" = "Expandera";

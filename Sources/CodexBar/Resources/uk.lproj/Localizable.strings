@@ -1102,8 +1102,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Кредити скидання ліміту";
-"1 manual reset available" = "Доступне 1 ручне скидання";
-"%d manual resets available" = "Доступно ручних скидань: %d";
+"1 available" = "1 доступне";
+"%d available" = "%d доступно";
 "Next expires %@" = "Наступне спливає %@";
 "Other (%d items)" = "Інше (%d елементів)";
 "Expand" = "Розгорнути";

@@ -1107,8 +1107,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Limit Sıfırlama Kredileri";
-"1 manual reset available" = "1 manuel sıfırlama kullanılabilir";
-"%d manual resets available" = "%d manuel sıfırlama kullanılabilir";
+"1 available" = "1 kullanılabilir";
+"%d available" = "%d kullanılabilir";
 "Next expires %@" = "Sonraki sona erme %@";
 "byte_unit_byte" = "bayt";
 "byte_unit_bytes" = "bayt";

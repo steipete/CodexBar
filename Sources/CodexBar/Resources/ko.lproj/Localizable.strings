@@ -1073,8 +1073,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "한도 재설정 크레딧";
-"1 manual reset available" = "수동 재설정 1회 사용 가능";
-"%d manual resets available" = "수동 재설정 %d회 사용 가능";
+"1 available" = "1회 사용 가능";
+"%d available" = "%d회 사용 가능";
 "Next expires %@" = "다음 만료: %@";
 "Other (%d items)" = "기타(%d개 항목)";
 "Expand" = "펼치기";

@@ -8,22 +8,23 @@ struct CodexResetCreditsContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            Text(L("Limit Reset Credits"))
+                .font(.body)
+                .fontWeight(.medium)
+                .lineLimit(1)
             HStack(alignment: .firstTextBaseline) {
-                Text(L("Limit Reset Credits"))
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                Spacer()
                 Text(self.text)
-                    .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
                     .lineLimit(1)
-            }
-            if let detailText, !detailText.isEmpty {
-                Text(detailText)
-                    .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(1)
+                    .layoutPriority(1)
+                Spacer()
+                if let detailText, !detailText.isEmpty {
+                    Text(detailText)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -47,9 +48,9 @@ extension UsageMenuCardView.Model {
         }
         let count = resetCredits.availableCount
         if count == 1 {
-            return L("1 manual reset available")
+            return L("1 available")
         }
-        return String(format: L("%d manual resets available"), count)
+        return String(format: L("%d available"), count)
     }
 
     static func codexResetCreditsDetailText(input: Input) -> String? {

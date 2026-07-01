@@ -1110,8 +1110,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "เครดิตรีเซ็ตขีดจำกัด";
-"1 manual reset available" = "มีการรีเซ็ตด้วยตนเอง 1 ครั้ง";
-"%d manual resets available" = "มีการรีเซ็ตด้วยตนเอง %d ครั้ง";
+"1 available" = "1 รายการ";
+"%d available" = "%d รายการ";
 "Next expires %@" = "รายการถัดไปหมดอายุ %@";
 "byte_unit_byte" = "ไบต์";
 "byte_unit_bytes" = "ไบต์";

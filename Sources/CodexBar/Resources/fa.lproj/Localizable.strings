@@ -1110,8 +1110,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "اعتبارهای بازنشانی محدودیت";
-"1 manual reset available" = "۱ بازنشانی دستی موجود است";
-"%d manual resets available" = "%d بازنشانی دستی موجود است";
+"1 available" = "۱ مورد موجود";
+"%d available" = "%d مورد موجود";
 "Next expires %@" = "مورد بعدی در %@ منقضی می‌شود";
 "byte_unit_byte" = "بایت";
 "byte_unit_bytes" = "بایت";

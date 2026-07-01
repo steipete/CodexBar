@@ -1109,8 +1109,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Kredit pengaturan ulang batas";
-"1 manual reset available" = "1 pengaturan ulang manual tersedia";
-"%d manual resets available" = "%d pengaturan ulang manual tersedia";
+"1 available" = "1 tersedia";
+"%d available" = "%d tersedia";
 "Next expires %@" = "Berikutnya kedaluwarsa %@";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";

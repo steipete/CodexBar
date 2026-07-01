@@ -961,8 +961,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Créditos para restablecer límites";
-"1 manual reset available" = "1 restablecimiento manual disponible";
-"%d manual resets available" = "%d restablecimientos manuales disponibles";
+"1 available" = "1 disponible";
+"%d available" = "%d disponibles";
 "Next expires %@" = "El siguiente caduca %@";
 "Other (%d items)" = "Otros (%d elementos)";
 "Expand" = "Expandir";

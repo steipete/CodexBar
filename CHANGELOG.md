@@ -10,6 +10,7 @@
 - CLI: show session pace in text output, expose derived pace data in JSON, and honor the configured weekly work-day baseline. Thanks @kmatsunami!
 
 ### Fixed
+- OpenAI API: explain that project service-account keys cannot read organization usage instead of surfacing a generic credit-balance HTTP 401 error (fixes #1792). Thanks @dhruv-anand-aintech!
 - Overview: render row selection on the GPU to keep trackpad scrolling smooth. Thanks @hhh2210!
 - Codex cost history: count cache reads separately, deduplicate active and archived sessions at row level, and preserve cached days across narrow refreshes. Thanks @kiranmagic7!
 - Pi cost history: price Codex cache reads once using their true context size. Thanks @kiranmagic7!

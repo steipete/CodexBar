@@ -1,10 +1,13 @@
 <!doctype html>
 <html lang="en" class="bg-black">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 53 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more." />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CodexBar — every AI coding limit, in your menu bar</title>
+    <meta
+      name="description"
+      content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 54 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more."
+    />
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="canonical" href="https://codexbar.app/" />
     <link rel="alternate" hreflang="x-default" href="https://codexbar.app/" />
@@ -30,7 +33,10 @@
     <link rel="alternate" hreflang="ca" href="https://codexbar.app/?lang=ca" />
     <link rel="alternate" hreflang="sv" href="https://codexbar.app/?lang=sv" />
     <meta property="og:title" content="CodexBar" />
-    <meta property="og:description" content="Track usage windows, credits, and resets across 53 AI coding providers from your macOS menu bar." />
+    <meta
+      property="og:description"
+      content="Track usage windows, credits, and resets across 54 AI coding providers from your macOS menu bar."
+    />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://codexbar.app/" />
     <meta property="og:image" content="https://codexbar.app/social.png" />
@@ -42,36 +48,21 @@
     <link rel="apple-touch-icon" href="./icon.png" />
     <script>
       (() => {
-        const storedTheme = localStorage.getItem('codexbar-theme') || 'system';
-        const resolvedTheme = storedTheme === 'system'
+        const queryTheme = new URLSearchParams(location.search).get('theme');
+        let storedTheme = 'system';
+        try {
+          storedTheme = localStorage.getItem('codexbar-theme') || 'system';
+        } catch (_) {}
+        const preference = queryTheme === 'light' || queryTheme === 'dark' ? queryTheme : storedTheme;
+        const resolvedTheme = preference === 'system'
           ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-          : storedTheme;
+          : preference;
         document.documentElement.dataset.theme = resolvedTheme;
-        document.documentElement.dataset.themePreference = storedTheme;
+        document.documentElement.dataset.themePreference = preference;
       })();
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            screens: {
-              tablet: '769px',
-            },
-            fontFamily: {
-              sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-              mono: ['SFMono-Regular', 'SF Mono', 'Menlo', 'monospace'],
-            },
-            colors: {
-              ink: '#050505',
-              mist: '#a2a2a7',
-              signal: '#f24d2e',
-            },
-          },
-        },
-      };
-    </script>
-    <link rel="stylesheet" href="./site.css?v=2" />
+    <link rel="stylesheet" href="./site-utilities.css?v=1" />
+    <link rel="stylesheet" href="./site.css?v=3" />
 
   </head>
 
@@ -97,7 +88,7 @@
             <path d="M12 .8a11.4 11.4 0 0 0-3.6 22.2c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.4-1.3-5.4-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.1 1.2a10.8 10.8 0 0 1 5.7 0C16.9 4.7 18 5 18 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.4 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.4 11.4 0 0 0 12 .8Z" />
           </svg>
           <span class="hidden sm:inline" data-i18n-rich="nav.sourceStars">
-            source <span class="text-[13px] text-zinc-500">(15.5k stars)</span>
+            source
           </span>
         </a>
       </nav>
@@ -154,7 +145,7 @@
 
     <main id="top">
       <section class="hero-section relative overflow-hidden">
-          <div class="mockup-stage" id="mockup-stage" aria-label="CodexBar open in the macOS menu bar" data-i18n-aria-label="mockup.openPanelAria">
+          <div class="mockup-stage" id="mockup-stage" aria-hidden="true">
           <div class="mockup-glow" aria-hidden="true"></div>
           <div class="mockup-wrap" id="mockup-wrap">
             <img
@@ -165,6 +156,7 @@
               draggable="false"
               width="6111"
               height="3239"
+              fetchpriority="high"
             />
           </div>
           <div class="mockup-hud-layer">
@@ -221,7 +213,7 @@
                 <i style="--h: 52%;"></i><i style="--h: 55%;"></i><i style="--h: 38%;"></i><i style="--h: 60%;"></i><i style="--h: 34%;"></i><i style="--h: 73%;"></i><i style="--h: 33%;"></i><i style="--h: 10%;"></i><i style="--h: 28%;"></i><i style="--h: 47%;"></i><i style="--h: 18%;"></i><i style="--h: 5%;"></i><i style="--h: 20%;"></i><i style="--h: 18%;"></i><i style="--h: 4%;"></i><i style="--h: 9%;"></i><i style="--h: 32%;"></i><i style="--h: 40%;"></i><i style="--h: 28%;"></i><i style="--h: 38%;"></i><i style="--h: 45%;"></i><i style="--h: 31%;"></i><i style="--h: 39%;"></i><i style="--h: 42%;"></i><i style="--h: 34%;"></i><i style="--h: 8%;"></i><i style="--h: 6%;"></i><i style="--h: 7%;"></i><i style="--h: 17%;"></i><i style="--h: 38%;"></i><i style="--h: 4%;"></i>
               </figure>
 
-              <p class="popover-note"><strong data-i18n="mockup.topModel">Top model: gpt-5.5</strong><br /><span data-i18n="mockup.estimatedLogs">Estimated from local Codex logs for the selected acco...</span></p>
+              <p class="popover-note"><strong data-i18n="mockup.topModel">Top model: Example-1</strong><br /><span data-i18n="mockup.estimatedLogs">Estimated from local Codex logs for the selected acco...</span></p>
 
               <section class="popover-foot">
                 <strong data-i18n="mockup.credits">Credits</strong>
@@ -283,6 +275,7 @@
                   <path d="M4.5 9.25 7.5 12.25 13.5 6.25" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </span>
+              <span class="sr-only" data-brew-status aria-live="polite"></span>
             </button>
           </div>
 
@@ -298,7 +291,7 @@
         <div class="section-inner">
         <header class="relative z-10 grid gap-5 tablet:grid-cols-[1fr_0.86fr] tablet:items-center">
           <h2 class="provider-reveal max-w-3xl text-balance text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
-            <span data-i18n-rich="providers.title">53 providers,{mobileBreak}one menu bar</span>
+            <span data-i18n-rich="providers.title">54 providers,{mobileBreak}one menu bar</span>
           </h2>
           <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.35vw,1.28rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
             <span data-i18n="providers.description">Popular providers become status items with their own usage windows, reset countdowns, charts, and provider menus.</span>
@@ -338,8 +331,8 @@
           <li class="provider-card"><span class="provider-logo" style="--brand:#FF500F;--icon:url('./logos/mistral.svg')"><img src="./logos/mistral.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Mistral</strong><span>Cookies</span></p></li>
           <li class="provider-card"><span class="provider-logo" style="--brand:#527DF0;--icon:url('./logos/deepseek.svg')"><img src="./logos/deepseek.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>DeepSeek</strong><span>API key</span></p></li>
           <li class="provider-card"><span class="provider-logo" style="--brand:#2563EB;--icon:url('./logos/t3chat.svg')"><img src="./logos/t3chat.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>T3 Chat</strong><span>Cookies</span></p></li>
-          <li class="provider-card" hidden><span class="provider-logo" style="--brand:#44C800;--icon:url('./logos/codebuff-dark.svg')"><img src="./logos/codebuff-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Codebuff</strong><span>API key</span></p></li>
-          <li class="provider-card" hidden><span class="provider-logo" style="--brand:#26AD61;--icon:url('./logos/poe.svg')"><img src="./logos/poe.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Poe</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#44C800;--icon:url('./logos/codebuff-dark.svg')"><img src="./logos/codebuff-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Codebuff</strong><span>API key</span></p></li>
+          <li class="provider-card"><span class="provider-logo" style="--brand:#26AD61;--icon:url('./logos/poe.svg')"><img src="./logos/poe.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Poe</strong><span>API key</span></p></li>
           <li class="provider-card"><span class="provider-logo" style="--brand:#3184FF;--icon:url('./logos/chutes.svg')"><img src="./logos/chutes.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Chutes</strong><span>API key</span></p></li>
           <li class="provider-card"><span class="provider-logo" style="--brand:#084EFF;--icon:url('./logos/zed.svg')"><img src="./logos/zed.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Zed</strong><span>Local</span></p></li>
           <li class="provider-card"><span class="provider-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 .83.18 2 2 0 0 0 .83-.18l8.58-3.9a1 1 0 0 0 0-1.831z"/><path d="M16 17h6"/><path d="M19 14v6"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 .825.178"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l2.116-.962"/></svg></span><p><strong>Your provider</strong><span><a class="provider-authoring" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">Authoring guide<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></a></span></p></li>
@@ -487,7 +480,7 @@
       <section class="cli-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
         <div class="section-inner relative z-10">
           <div class="split-layout">
-            <div class="split-visual-wrap provider-reveal" aria-label="CodexBar CLI output preview" data-i18n-aria-label="cli.outputPreviewAria">
+            <div class="split-visual-wrap provider-reveal" role="img" aria-label="CodexBar CLI output preview" data-i18n-aria-label="cli.outputPreviewAria">
               <div class="cli-terminal">
                 <div class="cli-terminal-chrome">
                   <div class="cli-terminal-dots" aria-hidden="true">
@@ -591,7 +584,7 @@
             </div>
 
             <div class="split-visual-wrap provider-reveal" style="--reveal-delay: 80ms">
-              <div class="mac-widget-sheet" aria-label="macOS widget gallery preview" data-i18n-aria-label="widgets.galleryAria">
+              <div class="mac-widget-sheet" role="img" aria-label="macOS widget gallery preview" data-i18n-aria-label="widgets.galleryAria">
                 <div class="mac-widget-sheet__body">
                   <aside class="mac-widget-sidebar" aria-label="Widget categories" data-i18n-aria-label="widgets.categoriesAria">
                     <div class="mac-widget-search">
@@ -774,7 +767,7 @@
       <a href="https://trimmy.app">trimmy.app</a>
     </footer>
 
-    <script type="module" src="./site.js?v=3"></script>
+    <script type="module" src="./site.js?v=4"></script>
 
   </body>
 </html>
