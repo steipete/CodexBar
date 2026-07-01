@@ -73,6 +73,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | LiteLLM | API key + base URL → `/key/info`, then `/user/info` or `/team/info` budget usage (`api`). |
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
+| Neuralwatt | API key from config/env → `/v1/quota` credit balance and per-key allowance (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 
 ## Codex
@@ -430,6 +431,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Reads subscription usage first, then fills missing rolling, monthly, or pay-as-you-go quota data from the quota APIs.
 - Uses Chutes' management API at `https://api.chutes.ai`; `CHUTES_API_URL` can override it with an HTTPS endpoint.
 - Details: `docs/chutes.md`.
+
+## Neuralwatt
+- API key from config or `NEURALWATT_API_KEY`.
+- Reads `GET /v1/quota` from `api.neuralwatt.com`; `NEURALWATT_API_URL` can override it with an HTTPS endpoint.
+- Shows the USD prepaid-credit balance and an optional per-key spending allowance.
+- Active subscription kWh allowance is returned separately by Neuralwatt and is not yet surfaced pending a product decision.
+- Details: `docs/neuralwatt.md`.
 
 ## StepFun
 - Username/password login or manual Oasis-Token.
