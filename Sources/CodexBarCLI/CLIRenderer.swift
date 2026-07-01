@@ -572,7 +572,7 @@ enum CLIRenderer {
     }
 
     private static func paceRightLabel(for pace: UsagePace, kind: PaceKind, now: Date) -> String? {
-        if pace.willLastToReset { return Self.combinedLastsLabel(for: pace) }
+        if pace.willLastToReset { return self.combinedLastsLabel(for: pace) }
         guard let etaSeconds = pace.etaSeconds else { return nil }
         let etaText = Self.paceDurationText(seconds: etaSeconds, now: now)
         switch kind {
@@ -584,7 +584,7 @@ enum CLIRenderer {
     }
 
     private static func combinedLastsLabel(for pace: UsagePace) -> String {
-        guard let speedLabel = Self.speedHintLabel(for: pace) else {
+        guard let speedLabel = speedHintLabel(for: pace) else {
             return "Lasts until reset"
         }
         return "Lasts until reset | \(speedLabel)"

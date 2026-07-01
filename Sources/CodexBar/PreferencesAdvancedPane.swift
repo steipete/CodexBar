@@ -83,7 +83,9 @@ struct AdvancedPane: View {
                         }
                         Spacer(minLength: 12)
                         Stepper(value: self.$settings.historicalPaceMinimumWeeks, in: 2...8, step: 1) {
-                            Text(String(format: L("historical_pace_weeks_value"), self.settings.historicalPaceMinimumWeeks))
+                            Text(String(
+                                format: L("historical_pace_weeks_value"),
+                                self.settings.historicalPaceMinimumWeeks))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
