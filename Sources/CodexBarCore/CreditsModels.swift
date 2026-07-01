@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#else
+import Crypto
+#endif
 
 public struct CreditEvent: Identifiable, Equatable, Codable, Sendable {
     public var id: UUID
@@ -146,6 +151,8 @@ public struct CodexRateLimitResetCreditInventory: Equatable, Sendable {
 }
 
 public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifiable {
+    private static let stableIDPrefix = "codex-reset-credit-v1-"
+
     public let id: String
     public let resetType: String
     public let status: CodexRateLimitResetCreditStatus
@@ -179,7 +186,7 @@ public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifia
         title: String?,
         description: String?)
     {
-        self.id = id
+        self.id = Self.stableID(forProviderID: id)
         self.resetType = resetType
         self.status = status
         self.grantedAt = grantedAt
@@ -188,6 +195,35 @@ public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifia
         self.redeemedAt = redeemedAt
         self.title = title
         self.description = description
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            id: container.decode(String.self, forKey: .id),
+            resetType: container.decode(String.self, forKey: .resetType),
+            status: container.decode(CodexRateLimitResetCreditStatus.self, forKey: .status),
+            grantedAt: container.decode(Date.self, forKey: .grantedAt),
+            expiresAt: container.decodeIfPresent(Date.self, forKey: .expiresAt),
+            redeemStartedAt: container.decodeIfPresent(Date.self, forKey: .redeemStartedAt),
+            redeemedAt: container.decodeIfPresent(Date.self, forKey: .redeemedAt),
+            title: container.decodeIfPresent(String.self, forKey: .title),
+            description: container.decodeIfPresent(String.self, forKey: .description))
+    }
+
+    static func stableID(forProviderID providerID: String) -> String {
+        if providerID.hasPrefix(self.stableIDPrefix) {
+            let digest = providerID.dropFirst(Self.stableIDPrefix.count)
+            if digest.count == 64, digest.allSatisfy({ $0.isHexDigit && !$0.isUppercase }) {
+                return providerID
+            }
+        }
+
+        let domainSeparatedValue = "com.steipete.CodexBar.reset-credit-id.v1\0\(providerID)"
+        let digest = SHA256.hash(data: Data(domainSeparatedValue.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return Self.stableIDPrefix + digest
     }
 }
 

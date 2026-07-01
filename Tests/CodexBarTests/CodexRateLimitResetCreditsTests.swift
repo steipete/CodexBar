@@ -129,7 +129,22 @@ struct CodexRateLimitResetCreditsTests {
         #expect(snapshot.credits.count == 4)
         #expect(snapshot.credits[0].resetType == "codex_rate_limits")
         #expect(snapshot.credits[3].status == .unknown("future_status"))
-        #expect(snapshot.nextExpiringAvailableCredit?.id == "RateLimitResetCredit_earlier")
+        #expect(snapshot.nextExpiringAvailableCredit?.id == CodexRateLimitResetCredit.stableID(
+            forProviderID: "RateLimitResetCredit_earlier"))
+        #expect(snapshot.credits.allSatisfy { !$0.id.contains("RateLimitResetCredit_") })
+
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            codexResetCredits: snapshot,
+            updatedAt: now)
+        let encoded = try JSONEncoder().encode(usage)
+        let encodedText = try #require(String(data: encoded, encoding: .utf8))
+        #expect(!encodedText.contains("RateLimitResetCredit_earlier"))
+        #expect(!String(reflecting: usage).contains("RateLimitResetCredit_earlier"))
+
+        let roundTripped = try JSONDecoder().decode(UsageSnapshot.self, from: encoded)
+        #expect(roundTripped.codexResetCredits?.credits.map(\.id) == snapshot.credits.map(\.id))
     }
 
     @Test
@@ -151,8 +166,14 @@ struct CodexRateLimitResetCreditsTests {
         let inventory = snapshot.availableInventory(at: now)
 
         #expect(inventory.count == 4)
-        #expect(inventory.credits.map(\.id) == ["finite-a", "finite-b", "nil-a", "nil-b"])
-        #expect(inventory.nextExpiringCredit?.id == "finite-a")
+        let expectedFiniteIDs = ["finite-a", "finite-b"]
+            .map(CodexRateLimitResetCredit.stableID(forProviderID:))
+            .sorted()
+        let expectedNoExpiryIDs = ["nil-a", "nil-b"]
+            .map(CodexRateLimitResetCredit.stableID(forProviderID:))
+            .sorted()
+        #expect(inventory.credits.map(\.id) == expectedFiniteIDs + expectedNoExpiryIDs)
+        #expect(inventory.nextExpiringCredit?.id == expectedFiniteIDs.first)
     }
 
     @Test

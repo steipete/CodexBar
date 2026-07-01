@@ -32,6 +32,7 @@ extension UsageStore {
         fetcher: @escaping CodexResetCreditsFetcher) async -> ProviderFetchOutcome
     {
         guard case let .success(result) = outcome.result else { return outcome }
+        let requiresResetCreditRescue = Self.requiresResetCreditRescue(result)
         guard includeOptionalUsage else {
             return outcome.replacingUsage(result.usage.withCodexResetCredits(nil))
         }
@@ -43,14 +44,31 @@ extension UsageStore {
             try Task.checkCancellation()
             let resetCredits = try await fetcher(env)
             try Task.checkCancellation()
+            if requiresResetCreditRescue,
+               (resetCredits?.availableInventory(at: result.usage.updatedAt).count ?? 0) == 0
+            {
+                return outcome.replacingResult(with: .failure(UsageError.noRateLimitsFound))
+            }
             return outcome.replacingUsage(result.usage.withCodexResetCredits(resetCredits))
         } catch {
             if error is CancellationError || Task.isCancelled {
                 return ProviderFetchOutcome(result: .failure(CancellationError()), attempts: outcome.attempts)
             }
+            if requiresResetCreditRescue {
+                return outcome.replacingResult(with: .failure(UsageError.noRateLimitsFound))
+            }
             // A successful usage refresh must not retain reset-credit inventory from an older snapshot.
             return outcome.replacingUsage(result.usage.withCodexResetCredits(nil))
         }
+    }
+
+    private nonisolated static func requiresResetCreditRescue(_ result: ProviderFetchResult) -> Bool {
+        result.strategyID == "codex.oauth"
+            && result.credits == nil
+            && result.usage.primary == nil
+            && result.usage.secondary == nil
+            && result.usage.tertiary == nil
+            && (result.usage.extraRateWindows?.isEmpty ?? true)
     }
 
     nonisolated static func fetchCodexResetCredits(
@@ -84,5 +102,11 @@ extension ProviderFetchOutcome {
                 claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
                 claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier)),
             attempts: self.attempts)
+    }
+
+    fileprivate func replacingResult(
+        with result: Result<ProviderFetchResult, Error>) -> ProviderFetchOutcome
+    {
+        ProviderFetchOutcome(result: result, attempts: self.attempts)
     }
 }

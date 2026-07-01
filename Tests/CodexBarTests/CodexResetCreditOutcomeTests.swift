@@ -44,8 +44,10 @@ struct CodexResetCreditOutcomeTests {
             includeOptionalUsage: true,
             fetcher: fetcher)
 
-        #expect(try Self.usage(from: first).codexResetCredits?.credits.first?.id == "/tmp/account-a")
-        #expect(try Self.usage(from: second).codexResetCredits?.credits.first?.id == "/tmp/account-b")
+        #expect(try Self.usage(from: first).codexResetCredits?.credits.first?.id ==
+            Self.resetSnapshot(id: "/tmp/account-a", now: now).credits.first?.id)
+        #expect(try Self.usage(from: second).codexResetCredits?.credits.first?.id ==
+            Self.resetSnapshot(id: "/tmp/account-b", now: now).credits.first?.id)
         #expect(await recorder.environments().compactMap { $0["CODEX_HOME"] } == [
             "/tmp/account-a",
             "/tmp/account-b",
@@ -55,13 +57,57 @@ struct CodexResetCreditOutcomeTests {
     @Test
     func `failed supplemental GET clears inventory on a successful usage refresh`() async throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let recorder = ResetCreditFetchRecorder()
         let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: nil, now: now),
             env: ["CODEX_HOME": "/tmp/account-a"],
             includeOptionalUsage: true,
-            fetcher: { _ in throw ResetCreditFetchTestError.failed })
+            fetcher: { env in
+                await recorder.record(env)
+                throw ResetCreditFetchTestError.failed
+            })
 
         #expect(try Self.usage(from: outcome).codexResetCredits == nil)
+        #expect(await recorder.environments().count == 1)
+    }
+
+    @Test
+    func `single failed GET restores failure for reset-credit-only O auth usage`() async {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let recorder = ResetCreditFetchRecorder()
+        let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
+            to: Self.outcome(resetCredits: nil, now: now, primary: nil, strategyID: "codex.oauth"),
+            env: ["CODEX_HOME": "/tmp/account-a"],
+            includeOptionalUsage: true,
+            fetcher: { env in
+                await recorder.record(env)
+                throw ResetCreditFetchTestError.failed
+            })
+
+        guard case let .failure(error) = outcome.result else {
+            Issue.record("Expected no-data failure")
+            return
+        }
+        #expect(error is UsageError)
+        #expect(await recorder.environments().count == 1)
+    }
+
+    @Test
+    func `single GET rescues reset-credit-only O auth usage`() async throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let recorder = ResetCreditFetchRecorder()
+        let resetCredits = Self.resetSnapshot(id: "rescued", now: now)
+        let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
+            to: Self.outcome(resetCredits: nil, now: now, primary: nil, strategyID: "codex.oauth"),
+            env: ["CODEX_HOME": "/tmp/account-a"],
+            includeOptionalUsage: true,
+            fetcher: { env in
+                await recorder.record(env)
+                return resetCredits
+            })
+
+        #expect(try Self.usage(from: outcome).codexResetCredits == resetCredits)
+        #expect(await recorder.environments().count == 1)
     }
 
     @Test
@@ -99,23 +145,26 @@ struct CodexResetCreditOutcomeTests {
 
     private static func outcome(
         resetCredits: CodexRateLimitResetCreditsSnapshot?,
-        now: Date) -> ProviderFetchOutcome
+        now: Date,
+        primary: RateWindow? = nil,
+        strategyID: String = "test") -> ProviderFetchOutcome
     {
-        ProviderFetchOutcome(
+        let resolvedPrimary = strategyID == "codex.oauth" ? primary : primary ?? RateWindow(
+            usedPercent: 25,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(3600),
+            resetDescription: nil)
+        return ProviderFetchOutcome(
             result: .success(ProviderFetchResult(
                 usage: UsageSnapshot(
-                    primary: RateWindow(
-                        usedPercent: 25,
-                        windowMinutes: 300,
-                        resetsAt: now.addingTimeInterval(3600),
-                        resetDescription: nil),
+                    primary: resolvedPrimary,
                     secondary: nil,
                     codexResetCredits: resetCredits,
                     updatedAt: now),
                 credits: nil,
                 dashboard: nil,
                 sourceLabel: "test",
-                strategyID: "test",
+                strategyID: strategyID,
                 strategyKind: .cli)),
             attempts: [])
     }

@@ -1,0 +1,97 @@
+import Foundation
+import Testing
+@testable import CodexBarCore
+
+struct CodexOAuthResetCreditFetchTests {
+    @Test
+    func `app enrichment can rescue reset-credit-only O auth usage`() throws {
+        let json = #"{"rate_limit":{"primary_window":null,"secondary_window":null}}"#
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: Self.credentials(),
+            allowEmptyUsageForResetCreditEnrichment: true)
+
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.secondary == nil)
+        #expect(result.usage.codexResetCredits == nil)
+        #expect(result.credits == nil)
+        #expect(result.strategyID == "codex.oauth")
+    }
+
+    @Test
+    func `app defers reset credit GET while CLI attempts it once on failure`() async throws {
+        let credentials = Self.credentials()
+        let recorder = CodexOAuthResetCreditFetchRecorder()
+        let fetcher: @Sendable (CodexOAuthCredentials) async throws -> CodexRateLimitResetCreditsSnapshot = { _ in
+            await recorder.recordRequest()
+            throw CodexOAuthFetchError.serverError(500, nil)
+        }
+
+        let appResult = try await CodexOAuthFetchStrategy._fetchResetCreditsForTesting(
+            context: Self.context(runtime: .app),
+            credentials: credentials,
+            fetcher: fetcher)
+        #expect(appResult == nil)
+        #expect(await recorder.requestCount() == 0)
+
+        let cliResult = try await CodexOAuthFetchStrategy._fetchResetCreditsForTesting(
+            context: Self.context(runtime: .cli),
+            credentials: credentials,
+            fetcher: fetcher)
+        #expect(cliResult == nil)
+        #expect(await recorder.requestCount() == 1)
+    }
+
+    @Test
+    func `CLI reset credit GET preserves cancellation without retry`() async throws {
+        let recorder = CodexOAuthResetCreditFetchRecorder()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await CodexOAuthFetchStrategy._fetchResetCreditsForTesting(
+                context: Self.context(runtime: .cli),
+                credentials: Self.credentials(),
+                fetcher: { _ in
+                    await recorder.recordRequest()
+                    throw CancellationError()
+                })
+        }
+        #expect(await recorder.requestCount() == 1)
+    }
+
+    private static func context(runtime: ProviderRuntime) -> ProviderFetchContext {
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        return ProviderFetchContext(
+            runtime: runtime,
+            sourceMode: .auto,
+            includeCredits: true,
+            webTimeout: 60,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: nil,
+            fetcher: UsageFetcher(),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+    }
+
+    private static func credentials() -> CodexOAuthCredentials {
+        CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: "account-123",
+            lastRefresh: Date())
+    }
+}
+
+private actor CodexOAuthResetCreditFetchRecorder {
+    private var count = 0
+
+    func recordRequest() {
+        self.count += 1
+    }
+
+    func requestCount() -> Int {
+        self.count
+    }
+}
