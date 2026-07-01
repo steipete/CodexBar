@@ -1110,6 +1110,11 @@ extension StatusItemController {
             if let highest = self.store.providerWithHighestUsage(candidateProviders: overviewProviders) {
                 return highest.provider
             }
+            // A nonempty Overview selection remains authoritative while its providers are loading,
+            // unrankable, or exhausted. Only an explicitly empty Overview may use the broad fallback.
+            if let fallback = overviewProviders.first(where: { self.store.isEnabled($0) }) {
+                return fallback
+            }
         }
         if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
             let enabledProviders = self.store.enabledProvidersForDisplay()
