@@ -607,7 +607,12 @@ extension KeychainCacheStore.Key {
         return Self(category: "cookie", identifier: identifier)
     }
 
-    public static func oauth(provider: UsageProvider) -> Self {
-        Self(category: "oauth", identifier: provider.rawValue)
+    public static func oauth(provider: UsageProvider, accountScope: String? = nil) -> Self {
+        let identifier: String = if let accountScope, !accountScope.isEmpty {
+            "\(provider.rawValue).\(accountScope)"
+        } else {
+            provider.rawValue
+        }
+        return Self(category: "oauth", identifier: identifier)
     }
 }

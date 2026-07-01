@@ -13,8 +13,33 @@ import Security
 // swiftlint:disable type_body_length file_length
 public enum ClaudeOAuthCredentialsStore {
     private static let credentialsPath = ".claude/.credentials.json"
-    static let claudeKeychainService = "Claude Code-credentials"
-    private static let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+    private static let credentialsFileName = ".credentials.json"
+    static let claudeKeychainServiceBase = "Claude Code-credentials"
+
+    /// Keychain service name for the currently-active Claude config directory.
+    ///
+    /// Claude Code stores its OAuth credentials under `"Claude Code-credentials"` for the
+    /// default `~/.claude` directory, and under `"Claude Code-credentials-<hash>"` for a
+    /// custom `CLAUDE_CONFIG_DIR`, where `<hash>` is the first 8 hex chars of the config
+    /// directory path's SHA-256. Resolving this dynamically lets CodexBar read the usage of
+    /// whichever Claude subscription account is bound to the active `CLAUDE_CONFIG_DIR`.
+    static var claudeKeychainService: String {
+        guard let dir = self.activeClaudeConfigDir(),
+              let hash = self.claudeConfigDirHash8(dir)
+        else { return self.claudeKeychainServiceBase }
+        return "\(self.claudeKeychainServiceBase)-\(hash)"
+    }
+
+    /// Cache scope suffix isolating cached credentials per Claude config directory.
+    /// `nil` for the default account so its cache key stays byte-for-byte backward compatible.
+    private static var accountCacheScope: String? {
+        guard let dir = self.activeClaudeConfigDir() else { return nil }
+        return self.claudeConfigDirHash8(dir)
+    }
+
+    private static var cacheKey: KeychainCacheStore.Key {
+        KeychainCacheStore.Key.oauth(provider: .claude, accountScope: self.accountCacheScope)
+    }
     public static let environmentTokenKey = "CODEXBAR_CLAUDE_OAUTH_TOKEN"
     public static let environmentScopesKey = "CODEXBAR_CLAUDE_OAUTH_SCOPES"
 
@@ -81,11 +106,19 @@ public enum ClaudeOAuthCredentialsStore {
     #if DEBUG
     @TaskLocal private static var taskCredentialsURLOverride: URL?
     #endif
+    /// Active Claude `CLAUDE_CONFIG_DIR` for the current credential read, if any.
+    /// `nil` (or the default `~/.claude`) reads the default account; a custom path reads
+    /// that account's Keychain entry / credentials file instead. Injected per read from the
+    /// caller-supplied environment so a single CodexBar process can read multiple accounts.
+    @TaskLocal static var claudeConfigDirOverride: String?
     @TaskLocal static var allowBackgroundPromptBootstrap: Bool = false
     // In-memory cache (nonisolated for synchronous access)
     private static let memoryCacheLock = NSLock()
     private nonisolated(unsafe) static var cachedCredentialRecord: ClaudeOAuthCredentialRecord?
     private nonisolated(unsafe) static var cacheTimestamp: Date?
+    /// Account scope (`CLAUDE_CONFIG_DIR` hash, or `nil` for default) the in-memory cache
+    /// currently holds. A read for a different account misses so accounts never cross-read.
+    private nonisolated(unsafe) static var cachedCredentialAccountScope: String?
     private static let memoryCacheValidityDuration: TimeInterval = 1800
 
     private static func readMemoryCache() -> (record: ClaudeOAuthCredentialRecord?, timestamp: Date?) {
@@ -96,6 +129,9 @@ public enum ClaudeOAuthCredentialsStore {
         #endif
         self.memoryCacheLock.lock()
         defer { self.memoryCacheLock.unlock() }
+        guard self.cachedCredentialAccountScope == self.accountCacheScope else {
+            return (nil, nil)
+        }
         return (self.cachedCredentialRecord, self.cacheTimestamp)
     }
 
@@ -110,6 +146,7 @@ public enum ClaudeOAuthCredentialsStore {
         self.memoryCacheLock.lock()
         self.cachedCredentialRecord = record
         self.cacheTimestamp = timestamp
+        self.cachedCredentialAccountScope = self.accountCacheScope
         self.memoryCacheLock.unlock()
     }
 
@@ -186,6 +223,25 @@ public enum ClaudeOAuthCredentialsStore {
             allowClaudeKeychainRepairWithoutPrompt: Bool) throws -> ClaudeOAuthCredentialRecord
         {
             try self.context.run {
+                try ClaudeOAuthCredentialsStore.$claudeConfigDirOverride.withValue(
+                    ClaudeOAuthCredentialsStore.claudeConfigDir(from: environment)
+                ) {
+                    try self.loadRecordForActiveAccount(
+                        environment: environment,
+                        allowKeychainPrompt: allowKeychainPrompt,
+                        respectKeychainPromptCooldown: respectKeychainPromptCooldown,
+                        allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt)
+                }
+            }
+        }
+
+        private func loadRecordForActiveAccount(
+            environment: [String: String],
+            allowKeychainPrompt: Bool,
+            respectKeychainPromptCooldown: Bool,
+            allowClaudeKeychainRepairWithoutPrompt: Bool) throws -> ClaudeOAuthCredentialRecord
+        {
+            do {
                 let shouldRespectKeychainPromptCooldownForSilentProbes =
                     respectKeychainPromptCooldown || !allowKeychainPrompt
 
@@ -2060,6 +2116,22 @@ public enum ClaudeOAuthCredentialsStore {
     public static var currentCredentialsURLOverrideForTesting: URL? {
         self.taskCredentialsURLOverride
     }
+
+    public static func withClaudeConfigDirOverrideForTesting<T>(
+        _ dir: String?, operation: () throws -> T) rethrows -> T
+    {
+        try self.$claudeConfigDirOverride.withValue(dir) {
+            try operation()
+        }
+    }
+
+    /// Keychain service name CodexBar would read for the given `CLAUDE_CONFIG_DIR`.
+    /// Exposed for testing the config-dir → service-name derivation.
+    public static func claudeKeychainServiceForTesting(configDir: String?) -> String {
+        self.withClaudeConfigDirOverrideForTesting(configDir) {
+            self.claudeKeychainService
+        }
+    }
     #endif
 
     private static func saveToCacheKeychain(
@@ -2237,8 +2309,34 @@ public enum ClaudeOAuthCredentialsStore {
     #endif
 
     private static func defaultCredentialsURL() -> URL {
+        if let dir = self.activeClaudeConfigDir() {
+            return URL(fileURLWithPath: dir).appendingPathComponent(self.credentialsFileName)
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(self.credentialsPath)
+    }
+
+    /// Extracts a usable `CLAUDE_CONFIG_DIR` from a caller-supplied environment, if present.
+    static func claudeConfigDir(from environment: [String: String]) -> String? {
+        guard let raw = environment["CLAUDE_CONFIG_DIR"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+        return raw
+    }
+
+    /// Resolves the active custom Claude config directory from the injected TaskLocal.
+    /// Returns `nil` when unset, empty, or pointing at the default `~/.claude` (which uses the
+    /// suffix-less Keychain service and the standard `~/.claude/.credentials.json` path).
+    private static func activeClaudeConfigDir() -> String? {
+        guard let raw = self.claudeConfigDirOverride?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+        let expanded = (raw as NSString).expandingTildeInPath
+        let resolved = URL(fileURLWithPath: expanded).standardizedFileURL
+        let defaultDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude").standardizedFileURL
+        if resolved == defaultDir { return nil }
+        return resolved.path
     }
 }
 
