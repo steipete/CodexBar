@@ -680,6 +680,49 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
+    func `sends Kimi Code identity headers to usage and models endpoints`() async throws {
+        let baseURL = try #require(URL(string: "https://api.kimi.com"))
+        let identityHeaders = [
+            "User-Agent": "CodexBar/test",
+            "X-Msh-Platform": "kimi_code_cli",
+            "X-Msh-Device-Id": "test-device-id",
+        ]
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer oauth-token")
+            for (name, value) in identityHeaders {
+                #expect(request.value(forHTTPHeaderField: name) == value)
+            }
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            let data = if url.path.hasSuffix("/usages") {
+                Data("""
+                {"usage":{"limit":100,"used":1,"remaining":99}}
+                """.utf8)
+            } else {
+                Data("""
+                {"data":[{"id":"kimi-for-coding","display_name":"Kimi for Coding"}]}
+                """.utf8)
+            }
+            return (data, response)
+        }
+
+        _ = try await KimiUsageFetcher.fetchCodeAPIUsage(
+            apiKey: "oauth-token",
+            baseURL: baseURL,
+            identityHeaders: identityHeaders,
+            transport: transport)
+        _ = try await KimiUsageFetcher.fetchCodeAPIModelDisplayName(
+            apiKey: "oauth-token",
+            baseURL: baseURL,
+            identityHeaders: identityHeaders,
+            transport: transport)
+    }
+
+    @Test
     func `marks high speed model display as fast mode`() {
         let snapshot = KimiUsageSnapshot(
             weekly: KimiUsageDetail(limit: "100", used: "1", remaining: "99", resetTime: nil),
@@ -921,10 +964,10 @@ struct KimiUsageSnapshotConversionTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary != nil)
+        #expect(usageSnapshot.primary == nil)
         let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.secondary == nil)
+        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
+        #expect(usageSnapshot.secondary != nil)
         #expect(usageSnapshot.tertiary == nil)
     }
 
@@ -943,7 +986,7 @@ struct KimiUsageSnapshotConversionTests {
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary?.usedPercent == 0.0)
+        #expect(usageSnapshot.secondary?.usedPercent == 0.0)
     }
 
     @Test
@@ -961,7 +1004,7 @@ struct KimiUsageSnapshotConversionTests {
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary?.usedPercent == 100.0)
+        #expect(usageSnapshot.secondary?.usedPercent == 100.0)
     }
 }
 

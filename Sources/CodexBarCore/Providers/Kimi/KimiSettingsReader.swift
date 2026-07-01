@@ -158,7 +158,7 @@ public enum KimiSettingsReader {
         return self.defaultCodeOAuthHost
     }
 
-    private static func kimiCodeIdentityHeaders(environment: [String: String]) -> [String: String] {
+    static func kimiCodeIdentityHeaders(environment: [String: String]) -> [String: String] {
         let version = self.asciiHeaderValue(
             Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development")
         let osVersion = ProcessInfo.processInfo.operatingSystemVersion

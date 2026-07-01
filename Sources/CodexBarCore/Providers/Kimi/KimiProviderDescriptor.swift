@@ -70,12 +70,17 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
             throw KimiAPIError.missingAPIKey
         }
         let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
+        let identityHeaders = resolution.source == .authFile
+            ? KimiSettingsReader.kimiCodeIdentityHeaders(environment: context.env)
+            : [:]
         var snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
             apiKey: resolution.token,
-            baseURL: baseURL)
+            baseURL: baseURL,
+            identityHeaders: identityHeaders)
         if let modelDisplayName = try? await KimiUsageFetcher.fetchCodeAPIModelDisplayName(
             apiKey: resolution.token,
-            baseURL: baseURL)
+            baseURL: baseURL,
+            identityHeaders: identityHeaders)
         {
             snapshot = snapshot.withModelDisplayName(modelDisplayName)
         }

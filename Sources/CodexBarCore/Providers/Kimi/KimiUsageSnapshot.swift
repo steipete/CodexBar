@@ -157,8 +157,8 @@ extension KimiUsageSnapshot {
             loginMethod: loginMethod)
 
         return UsageSnapshot(
-            primary: sessionWindow ?? weeklyWindow,
-            secondary: sessionWindow == nil ? nil : weeklyWindow,
+            primary: sessionWindow,
+            secondary: weeklyWindow,
             tertiary: nil,
             extraRateWindows: extraWindows.isEmpty ? nil : Array(extraWindows),
             providerCost: nil,
