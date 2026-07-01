@@ -184,4 +184,48 @@ struct CodexRateLimitResetCreditsTests {
         #expect(result.windowsReset == 1)
         #expect(result.credit?.status == .redeemed)
     }
+
+    @Test
+    func `available credits keeps no expiry credits`() throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-01T00:00:00Z"))
+        let expired = try #require(ISO8601DateFormatter().date(from: "2026-06-17T00:39:53Z"))
+        let snapshot = CodexRateLimitResetCreditsSnapshot(
+            credits: [
+                CodexRateLimitResetCredit(
+                    id: "expired",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: expired,
+                    redeemStartedAt: nil,
+                    redeemedAt: nil,
+                    title: nil,
+                    description: nil),
+                CodexRateLimitResetCredit(
+                    id: "no-expiry",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: now,
+                    expiresAt: nil,
+                    redeemStartedAt: nil,
+                    redeemedAt: nil,
+                    title: nil,
+                    description: nil),
+                CodexRateLimitResetCredit(
+                    id: "redeemed-no-expiry",
+                    resetType: "codex_rate_limits",
+                    status: .redeemed,
+                    grantedAt: now,
+                    expiresAt: nil,
+                    redeemStartedAt: nil,
+                    redeemedAt: now,
+                    title: nil,
+                    description: nil),
+            ],
+            availableCount: 1,
+            updatedAt: now)
+
+        #expect(snapshot.availableCredits(at: now).map(\.id) == ["no-expiry"])
+        #expect(snapshot.nextExpiringAvailableCredit(at: now)?.id == "no-expiry")
+    }
 }

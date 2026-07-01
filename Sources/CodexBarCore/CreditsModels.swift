@@ -106,7 +106,7 @@ public struct CodexRateLimitResetCreditsSnapshot: Equatable, Codable, Sendable {
 
     public func availableCredits(at date: Date) -> [CodexRateLimitResetCredit] {
         self.credits.filter { credit in
-            credit.status == .available && (credit.expiresAt ?? .distantPast) > date
+            credit.status == .available && (credit.expiresAt.map { $0 > date } ?? true)
         }
     }
 
