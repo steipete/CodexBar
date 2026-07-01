@@ -6,6 +6,7 @@
 - Menu: add an opt-in setting to refresh provider usage whenever the menu opens without changing the periodic refresh clock. Thanks @dstier-git!
 - Quota warnings: add an optional centered on-screen text alert that stays click-through and does not steal focus. Thanks @SAASEmpiree!
 - MiniMax: fetch Token Plan recharge-credit balance from the console `token_plan_credit` endpoint when a browser session cookie is available. Thanks @Yuxin-Qiao!
+- MiniMax: persist detected China API region after a successful global-to-CN token retry so later refreshes skip the extra probe.
 
 ### Fixed
 - Claude web usage: bound stale requests so Auto can reach CLI fallback instead of hanging indefinitely.

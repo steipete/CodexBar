@@ -324,6 +324,26 @@ struct TokenAccountCLIContext {
         }
     }
 
+    func regionUpdater() -> ProviderFetchContext.ProviderRegionUpdater {
+        { provider, region in
+            try? Self.updateStoredRegion(provider: provider, region: region)
+        }
+    }
+
+    private static func updateStoredRegion(provider: UsageProvider, region: String) throws {
+        guard provider == .minimax else { return }
+        let trimmed = region.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let store = CodexBarConfigStore()
+        var config = try store.load() ?? .makeDefault()
+        var providerConfig = config.providerConfig(for: provider) ?? ProviderConfig(id: provider)
+        guard providerConfig.region != trimmed else { return }
+        providerConfig.region = trimmed
+        config.setProviderConfig(providerConfig)
+        try store.save(config)
+    }
+
     private static func updateStoredManualToken(provider: UsageProvider, token: String) throws {
         guard provider == .stepfun else { return }
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -140,7 +140,8 @@ extension CodexBarCLI {
             browserDetection: browserDetection,
             selectedTokenAccountID: account?.id,
             tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
-            providerManualTokenUpdater: tokenContext.manualTokenUpdater())
+            providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
+            providerRegionUpdater: tokenContext.regionUpdater())
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         let outcome = await Self.fetchProviderUsage(provider: provider, context: fetchContext)
         return ProviderDiagnosticExportBuilder.build(.init(

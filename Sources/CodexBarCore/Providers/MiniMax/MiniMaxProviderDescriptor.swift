@@ -89,6 +89,9 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
         let apiResult = try await MiniMaxUsageFetcher.fetchAPITokenUsage(
             apiToken: apiToken,
             region: preferredRegion)
+        if apiResult.resolvedRegion != preferredRegion {
+            await context.providerRegionUpdater?(.minimax, apiResult.resolvedRegion.rawValue)
+        }
         var usage = apiResult.snapshot
         if let cookieOverride = Self.resolveExplicitCookieOverride(context: context),
            let cookie = MiniMaxCookieHeader.normalized(from: cookieOverride.cookieHeader)

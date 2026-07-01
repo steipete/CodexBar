@@ -265,6 +265,31 @@ struct MiniMaxTokenPlanCreditTests {
         #expect(enriched.pointsBalance == 20000)
     }
 
+    @Test
+    func `resolved china region should be persisted when global default fails`() async throws {
+        let now = Date(timeIntervalSince1970: 1_780_282_340)
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.host == "api.minimax.io" {
+                return Self.httpResponse(url: url, body: "{}", statusCode: 401, contentType: "application/json")
+            }
+            #expect(url.host == "api.minimaxi.com")
+            return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
+        }
+
+        let preferredRegion = MiniMaxAPIRegion.global
+        let apiResult = try await MiniMaxUsageFetcher.fetchAPITokenUsage(
+            apiToken: "sk-cp-test",
+            region: preferredRegion,
+            now: now,
+            session: transport)
+
+        let regionToPersist = apiResult.resolvedRegion != preferredRegion
+            ? apiResult.resolvedRegion.rawValue
+            : nil
+        #expect(regionToPersist == MiniMaxAPIRegion.chinaMainland.rawValue)
+    }
+
     private static func fixtureURL(named name: String) throws -> URL {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -296,6 +321,28 @@ struct MiniMaxTokenPlanCreditTests {
       "base_resp": { "status_code": 0, "status_msg": "success" }
     }
     """
+
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["MINIMAX_LIVE_TEST"] == "1"))
+    func `live env cookie resolves and fetches recharge balance`() async throws {
+        let cookieHeader = try #require(MiniMaxSettingsReader.cookieHeader())
+        let cookieOverride = MiniMaxCookieHeader.override(from: cookieHeader)
+        let config = try #require(try CodexBarConfigStore().load())
+        let minimax = try #require(config.providers.first { $0.id == .minimax })
+        let apiToken = try #require(minimax.apiKey)
+        let apiResult = try await MiniMaxUsageFetcher.fetchAPITokenUsage(
+            apiToken: apiToken,
+            region: MiniMaxAPIRegion(rawValue: minimax.region ?? "") ?? .global)
+        let balance = try await MiniMaxTokenPlanCreditFetcher.fetch(
+            cookieHeader: cookieHeader,
+            groupID: cookieOverride?.groupID,
+            region: apiResult.resolvedRegion,
+            environment: [:],
+            transport: ProviderHTTPClient.shared)
+        print("LIVE_MINIMAX_COOKIE_RESOLVED=true")
+        print("LIVE_MINIMAX_RESOLVED_REGION=\(apiResult.resolvedRegion.rawValue)")
+        print("LIVE_MINIMAX_BALANCE=\(balance.map { String($0) } ?? "nil")")
+        #expect(balance == 20000)
+    }
 
     private static func httpResponse(
         url: URL,

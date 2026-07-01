@@ -711,6 +711,16 @@ extension UsageStore {
                     self.settings.stepfunToken = token
                 }
             },
+            providerRegionUpdater: { [weak self] provider, region in
+                await MainActor.run {
+                    guard let self,
+                          provider == .minimax,
+                          let resolved = MiniMaxAPIRegion(rawValue: region),
+                          self.settings.minimaxAPIRegion != resolved
+                    else { return }
+                    self.settings.minimaxAPIRegion = resolved
+                }
+            },
             costUsageHistoryDays: self.settings.costUsageHistoryDays,
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
