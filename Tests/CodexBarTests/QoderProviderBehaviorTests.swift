@@ -264,7 +264,9 @@ struct QoderProviderBehaviorTests {
         #expect(textLines.contains("125 / 500 credits"))
         #expect(!textLines.contains(where: { $0.contains("Resets 125 / 500 credits") }))
     }
+}
 
+struct QoderManualCookieRoutingTests {
     @Test
     func `manual cookie header can route to Qoder China site`() {
         #expect(QoderWebFetchStrategy.site(forManualCookieHeader: "sid=abc") == .international)
@@ -300,7 +302,7 @@ struct QoderProviderBehaviorTests {
         #expect(QoderWebFetchStrategy
             .site(
                 forManualCookieHeader:
-                "curl https://qoder.com --data 'GET /account/usage HTTP/1.1\nHost: qoder.com.cn'") == .international)
+                "curl https://qoder.com --data 'GET /account/usage HTTP/1.1\nHost: qoder.com.cn'") == nil)
         #expect(QoderWebFetchStrategy.site(forManualCookieHeader: "GET https://qoder.com.cn/account/usage") == .china)
         #expect(QoderWebFetchStrategy.site(forManualCookieHeader: "GET /account/usage HTTP/1.1\nHost: qoder.com.cn") ==
             .china)
@@ -379,6 +381,10 @@ struct QoderProviderBehaviorTests {
             .site(
                 forManualCookieHeader:
                 "curl https://qoder.com.cn --header=Host:qoder.com.cn -H 'Cookie: sid=abc'") == .china)
+        #expect(QoderWebFetchStrategy
+            .site(
+                forManualCookieHeader:
+                "curl https://qoder.com.cn \\\n-H 'Host: qoder.com.cn' \\\r\n-H 'Cookie: sid=abc'") == .china)
 
         #expect(QoderWebFetchStrategy
             .site(
@@ -463,8 +469,23 @@ struct QoderProviderBehaviorTests {
             .site(
                 forManualCookieHeader:
                 "curl https://qoder.com.cn --expand-config '{{config}}' -H 'Cookie: sid=abc'") == nil)
+        #expect(QoderWebFetchStrategy
+            .site(
+                forManualCookieHeader:
+                "curl https://qoder.com --location-trusted -H 'Cookie: sid=abc'") == nil)
+        #expect(QoderWebFetchStrategy
+            .site(
+                forManualCookieHeader:
+                "curl https://qoder.com -A $'agent\r\nHost: qoder.com.cn' -H 'Cookie: sid=abc'") == nil)
+        #expect(QoderWebFetchStrategy
+            .site(
+                forManualCookieHeader:
+                "curl https://qoder.com --referer $'https://qoder.com\r\nHost: qoder.com.cn' " +
+                    "-H 'Cookie: sid=abc'") == nil)
     }
+}
 
+extension QoderProviderBehaviorTests {
     #if os(macOS)
     @Test
     func `importer exact domain filter keeps China cookies out of global sessions`() {

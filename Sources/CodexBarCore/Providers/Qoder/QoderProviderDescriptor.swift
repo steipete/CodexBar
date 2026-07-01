@@ -321,13 +321,14 @@ struct QoderWebFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func curlRequestRoute(_ rawHeader: String) -> ManualCookieRoute? {
-        let tokens = self.shellTokens(rawHeader)
+        let tokens = self.shellTokens(self.normalizedShellLineContinuations(rawHeader))
         guard let curlIndex = self.curlCommandIndex(tokens) else {
             if tokens.contains(where: self.isCurlExecutableToken) {
                 return .invalid
             }
             return nil
         }
+        guard tokens.allSatisfy(self.isCurlTokenTextSafe) else { return .invalid }
 
         guard let explicitTargets = self.explicitCurlURLTargets(tokens, after: curlIndex),
               let urlTargets = self.urlTokenTargets(tokens, after: curlIndex)
@@ -467,6 +468,7 @@ struct QoderWebFetchStrategy: ProviderFetchStrategy {
             let headerValue: String?
             if lowercased == "--config" || lowercased.hasPrefix("--config=") ||
                 lowercased.hasPrefix("--expand-") ||
+                lowercased == "--location-trusted" ||
                 self.shortCurlOptions(token, contain: "K")
             {
                 return nil
@@ -570,6 +572,17 @@ struct QoderWebFetchStrategy: ProviderFetchStrategy {
         guard name == "host" else { return .ignored }
         guard let site = self.site(forHost: String(pieces[1])) else { return .invalid }
         return .site(site)
+    }
+
+    private static func normalizedShellLineContinuations(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\\r\n", with: "")
+            .replacingOccurrences(of: "\\\n", with: "")
+    }
+
+    private static func isCurlTokenTextSafe(_ token: String) -> Bool {
+        token.unicodeScalars.allSatisfy { scalar in
+            scalar.value >= 0x20 && scalar.value != 0x7F
+        }
     }
 
     private static func hostHeaderSites(_ rawHeader: String) -> [QoderWebSite?] {
