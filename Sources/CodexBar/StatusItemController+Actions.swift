@@ -626,13 +626,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 title: L("Claude CLI not found"),
                 message: L("Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again."))
         case let .launchFailed(message):
-            self.presentLoginAlert(title: L("Could not start claude /login"), message: message)
+            self.presentLoginAlert(title: L("Could not start Claude Code login"), message: message)
         case .timedOut:
             self.presentLoginAlert(
                 title: L("Claude login timed out"),
                 message: self.trimmedLoginOutput(result.output))
         case let .failed(status):
-            let statusLine = String(format: L("claude /login exited with status %d."), status)
+            let statusLine = String(format: L("claude auth login exited with status %d."), status)
             let message = self.trimmedLoginOutput(result.output.isEmpty ? statusLine : result.output)
             self.presentLoginAlert(title: L("Claude login failed"), message: message)
         }
