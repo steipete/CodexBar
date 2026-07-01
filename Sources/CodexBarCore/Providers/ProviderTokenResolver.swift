@@ -303,24 +303,6 @@ public enum ProviderTokenResolver {
         return nil
     }
 
-    public static func kimiAPIResolutionRefreshing(
-        environment: [String: String] = ProcessInfo.processInfo.environment,
-        now: Date = Date(),
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async -> ProviderTokenResolution?
-    {
-        if let resolution = self.resolveEnv(KimiSettingsReader.apiKey(environment: environment)) {
-            return resolution
-        }
-        if let token = await KimiSettingsReader.kimiCodeAccessTokenRefreshing(
-            environment: environment,
-            now: now,
-            transport: transport)
-        {
-            return ProviderTokenResolution(token: token, source: .authFile)
-        }
-        return nil
-    }
-
     public static func kimiK2Resolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {

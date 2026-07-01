@@ -424,6 +424,24 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .kimi,
             environment: ["KIMI_CODE_API_KEY": "kimi-test"]))
+        let kimiHome = directory.appendingPathComponent("kimi-code", isDirectory: true)
+        let kimiCredentials = kimiHome.appendingPathComponent("credentials", isDirectory: true)
+        try FileManager.default.createDirectory(at: kimiCredentials, withIntermediateDirectories: true)
+        let expiredKimiCredential: [String: Any] = [
+            "access_token": "expired-access-token",
+            "refresh_token": "refresh-token",
+            "expires_at": Date().addingTimeInterval(-60).timeIntervalSince1970,
+        ]
+        try JSONSerialization.data(withJSONObject: expiredKimiCredential)
+            .write(to: kimiCredentials.appendingPathComponent("kimi-code.json"))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .kimi,
+            environment: ["KIMI_CODE_HOME": kimiHome.path]))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .kimi,
+            environment: ["KIMI_CODE_HOME": directory.appendingPathComponent("missing-kimi").path]))
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .mimo,

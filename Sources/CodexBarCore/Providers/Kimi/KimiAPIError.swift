@@ -4,6 +4,7 @@ public enum KimiAPIError: LocalizedError, Sendable, Equatable {
     case missingToken
     case invalidToken
     case missingAPIKey
+    case expiredCodeCredential
     case invalidAPIKey
     case invalidRequest(String)
     case networkError(String)
@@ -18,6 +19,9 @@ public enum KimiAPIError: LocalizedError, Sendable, Equatable {
             "Kimi auth token is invalid or expired. Please refresh your token."
         case .missingAPIKey:
             "Kimi Code API key is missing. Add it in Settings > Providers > Kimi or set KIMI_CODE_API_KEY."
+        case .expiredCodeCredential:
+            "Kimi Code CLI credential is expired. Sign in again with Kimi Code CLI or set KIMI_CODE_API_KEY; " +
+                "CodexBar does not refresh CLI-owned credentials."
         case .invalidAPIKey:
             "Kimi Code API key is invalid or expired. Please refresh your API key."
         case let .invalidRequest(message):

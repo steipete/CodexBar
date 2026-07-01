@@ -180,31 +180,26 @@ struct KimiSettingsReaderTests {
     }
 
     @Test
-    func `does not forward Kimi Code refresh token to OAuth endpoint override`() async throws {
+    func `does not expose Kimi Code credential to OAuth endpoint override`() throws {
         let home = try makeTemporaryKimiCodeHome()
         try writeKimiCodeCredential(
             home: home,
             accessToken: "expired-access-token",
             expiresAt: Date().addingTimeInterval(-60))
-        let transport = ProviderHTTPTransportHandler { _ in
-            Issue.record("OAuth transport must not run for an override host")
-            throw URLError(.badURL)
-        }
 
-        let resolution = await ProviderTokenResolver.kimiAPIResolutionRefreshing(
-            environment: [
-                "KIMI_CODE_HOME": home.path,
-                "KIMI_CODE_OAUTH_HOST": "https://oauth.example.com",
-            ],
-            transport: transport)
+        let environment = [
+            "KIMI_CODE_HOME": home.path,
+            "KIMI_CODE_OAUTH_HOST": "https://oauth.example.com",
+        ]
 
-        #expect(resolution == nil)
+        #expect(KimiSettingsReader.hasKimiCodeCredential(environment: environment) == false)
+        #expect(ProviderTokenResolver.kimiAPIResolution(environment: environment) == nil)
     }
 
     @Test
-    func `refreshes expired Kimi Code OAuth credential before resolving`() async throws {
+    func `keeps expired Kimi Code OAuth credential read only`() throws {
         let home = try makeTemporaryKimiCodeHome()
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = Date()
         try writeKimiCodeCredential(
             home: home,
             accessToken: "expired-access-token",
@@ -216,60 +211,23 @@ struct KimiSettingsReaderTests {
         var payload = try #require(JSONSerialization
             .jsonObject(with: Data(contentsOf: credentialsURL)) as? [String: Any])
         payload["cli_metadata"] = ["kept": true]
-        try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
-            .write(to: credentialsURL)
-        let transport = ProviderHTTPTransportHandler { request in
-            #expect(request.url?.absoluteString == "https://auth.kimi.com/api/oauth/token")
-            #expect(request.httpMethod == "POST")
-            #expect(request.value(forHTTPHeaderField: "User-Agent")?.hasPrefix("CodexBar/") == true)
-            #expect(request.value(forHTTPHeaderField: "X-Msh-Platform") == "kimi_code_cli")
-            #expect(request.value(forHTTPHeaderField: "X-Msh-Version")?.isEmpty == false)
-            #expect(request.value(forHTTPHeaderField: "X-Msh-Device-Name")?.isEmpty == false)
-            #expect(request.value(forHTTPHeaderField: "X-Msh-Device-Model")?.isEmpty == false)
-            #expect(request.value(forHTTPHeaderField: "X-Msh-Os-Version")?.isEmpty == false)
-            let deviceID = try #require(request.value(forHTTPHeaderField: "X-Msh-Device-Id"))
-            #expect(UUID(uuidString: deviceID) != nil)
-            let persistedDeviceID = try String(
-                contentsOf: home.appendingPathComponent("device_id"),
-                encoding: .utf8)
-            #expect(persistedDeviceID == deviceID)
-            let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-            #expect(body.contains("grant_type=refresh_token"))
-            #expect(body.contains("refresh_token=refresh-token"))
-            let url = try #require(request.url)
-            let response = try #require(HTTPURLResponse(
-                url: url,
-                statusCode: 200,
-                httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Type": "application/json"]))
-            let data = Data("""
-            {
-              "access_token": "refreshed-access-token",
-              "refresh_token": "rotated-refresh-token",
-              "expires_in": 7200,
-              "scope": "",
-              "token_type": "Bearer"
-            }
-            """.utf8)
-            return (data, response)
-        }
+        let originalData = try JSONSerialization.data(
+            withJSONObject: payload,
+            options: [.prettyPrinted, .sortedKeys])
+        try originalData.write(to: credentialsURL)
+        let environment = ["KIMI_CODE_HOME": home.path]
 
-        let resolution = await ProviderTokenResolver.kimiAPIResolutionRefreshing(
-            environment: ["KIMI_CODE_HOME": home.path],
-            now: now,
-            transport: transport)
-        let persistedToken = KimiSettingsReader.kimiCodeAccessToken(
-            environment: ["KIMI_CODE_HOME": home.path],
-            now: now)
+        #expect(KimiSettingsReader.hasKimiCodeCredential(environment: environment))
+        #expect(KimiSettingsReader.kimiCodeAccessToken(environment: environment, now: now) == nil)
+        #expect(ProviderTokenResolver.kimiAPIResolution(environment: environment) == nil)
+        #expect(try Data(contentsOf: credentialsURL) == originalData)
 
-        let refreshedPayload = try #require(JSONSerialization.jsonObject(
-            with: Data(contentsOf: credentialsURL)) as? [String: Any])
-        let metadata = try #require(refreshedPayload["cli_metadata"] as? [String: Bool])
-
-        #expect(resolution?.token == "refreshed-access-token")
-        #expect(resolution?.source == .authFile)
-        #expect(persistedToken == "refreshed-access-token")
-        #expect(metadata["kept"] == true)
+        let explicit = ProviderTokenResolver.kimiAPIResolution(environment: [
+            "KIMI_CODE_API_KEY": "explicit-api-key",
+            "KIMI_CODE_HOME": home.path,
+        ])
+        #expect(explicit?.token == "explicit-api-key")
+        #expect(explicit?.source == .environment)
     }
 
     @Test
@@ -369,6 +327,25 @@ struct KimiAPIFetchStrategyTests {
             environment: ["KIMI_CODE_HOME": home.path])
 
         #expect(await strategy.isAvailable(context))
+    }
+
+    @Test
+    func `auto mode routes expired CLI credential to explicit remediation`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        try writeKimiCodeCredential(
+            home: home,
+            accessToken: "expired-access-token",
+            expiresAt: Date().addingTimeInterval(-60))
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(
+            sourceMode: .auto,
+            environment: ["KIMI_CODE_HOME": home.path])
+
+        #expect(await strategy.isAvailable(context))
+        await #expect(throws: KimiAPIError.expiredCodeCredential) {
+            try await strategy.fetch(context)
+        }
+        #expect(strategy.shouldFallback(on: KimiAPIError.expiredCodeCredential, context: context))
     }
 
     @Test
@@ -1047,6 +1024,8 @@ struct KimiAPIErrorTests {
         #expect(KimiAPIError.invalidToken.errorDescription?.contains("invalid") == true)
         #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("Settings > Providers > Kimi") == true)
         #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("KIMI_CODE_API_KEY") == true)
+        #expect(KimiAPIError.expiredCodeCredential.errorDescription?.contains("KIMI_CODE_API_KEY") == true)
+        #expect(KimiAPIError.expiredCodeCredential.errorDescription?.contains("does not refresh") == true)
         #expect(KimiAPIError.invalidAPIKey.errorDescription?.contains("API key") == true)
         #expect(KimiAPIError.invalidRequest("Bad request").errorDescription?.contains("Bad request") == true)
         #expect(KimiAPIError.networkError("Timeout").errorDescription?.contains("Timeout") == true)

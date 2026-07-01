@@ -59,14 +59,19 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         if context.sourceMode == .api { return true }
-        return await Self.resolveToken(environment: context.env) != nil
+        return Self.resolveToken(environment: context.env) != nil ||
+            KimiSettingsReader.hasKimiCodeCredential(environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let resolution = await Self.resolveToken(
+        let allowAuthFile = context.sourceMode != .api
+        guard let resolution = Self.resolveToken(
             environment: context.env,
-            allowAuthFile: context.sourceMode != .api)
+            allowAuthFile: allowAuthFile)
         else {
+            if allowAuthFile, KimiSettingsReader.hasKimiCodeCredential(environment: context.env) {
+                throw KimiAPIError.expiredCodeCredential
+            }
             throw KimiAPIError.missingAPIKey
         }
         let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
@@ -96,6 +101,7 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
             return urlError.code != .cancelled
         }
         if case KimiAPIError.missingAPIKey = error { return true }
+        if case KimiAPIError.expiredCodeCredential = error { return true }
         if case KimiAPIError.invalidAPIKey = error { return true }
         if case KimiAPIError.apiError = error { return true }
         if error is DecodingError { return true }
@@ -104,10 +110,10 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
 
     private static func resolveToken(
         environment: [String: String],
-        allowAuthFile: Bool = true) async -> ProviderTokenResolution?
+        allowAuthFile: Bool = true) -> ProviderTokenResolution?
     {
         if allowAuthFile {
-            return await ProviderTokenResolver.kimiAPIResolutionRefreshing(environment: environment)
+            return ProviderTokenResolver.kimiAPIResolution(environment: environment)
         }
         guard let token = KimiSettingsReader.apiKey(environment: environment) else { return nil }
         return ProviderTokenResolution(token: token, source: .environment)
